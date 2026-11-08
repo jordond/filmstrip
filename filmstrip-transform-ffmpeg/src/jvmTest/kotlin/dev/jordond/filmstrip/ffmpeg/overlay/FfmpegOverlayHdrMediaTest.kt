@@ -10,12 +10,14 @@ import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.effect.EffectResolution
 import dev.jordond.filmstrip.effect.EffectSpec
+import dev.jordond.filmstrip.effect.FilterNode
 import dev.jordond.filmstrip.effect.RenderCapabilities
 import dev.jordond.filmstrip.effect.RenderFeature
 import dev.jordond.filmstrip.effects.BuiltInEffectResolver
 import dev.jordond.filmstrip.effects.geometry.crop
 import dev.jordond.filmstrip.effects.overlay.ImageOverlay
 import dev.jordond.filmstrip.effects.overlay.OverlayAnimation
+import dev.jordond.filmstrip.effects.overlay.OverlayFrame
 import dev.jordond.filmstrip.effects.overlay.OverlayOffset
 import dev.jordond.filmstrip.effects.overlay.TextOverlay
 import dev.jordond.filmstrip.effects.overlay.fade
@@ -42,6 +44,7 @@ import dev.jordond.filmstrip.ffmpeg.support.drawnRect
 import dev.jordond.filmstrip.ffmpeg.support.frameTime
 import dev.jordond.filmstrip.ffmpeg.support.opensOn
 import dev.jordond.filmstrip.ffmpeg.support.pngOf
+import dev.jordond.filmstrip.ffmpeg.support.pointIn
 import dev.jordond.filmstrip.ffmpeg.support.tenBitCodesAt
 import dev.jordond.filmstrip.geometry.AspectRatio
 import dev.jordond.filmstrip.geometry.Corner
@@ -57,6 +60,7 @@ import dev.jordond.filmstrip.test.HdrOverlayCells
 import dev.jordond.filmstrip.test.HdrOverlayCells.BLACK
 import dev.jordond.filmstrip.test.HdrOverlayCells.WHITE
 import io.kotest.assertions.withClue
+import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
@@ -147,7 +151,7 @@ class FfmpegOverlayHdrMediaTest {
     runTest(timeout = TIMEOUT) { assertFadeLandings(HdrTransfer.Hlg) }
 
   // The slide moves the overlay along the bar, and the branch it moves is the one carried onto the grade's signal, so
-  // the commands have to reach the picture after the pre-map. MID_GREEN is read so a matrix left at BT.601 on the
+  // the expressions have to move the picture after the pre-map. MID_GREEN is read so a matrix left at BT.601 on the
   // way into the grade's YUV shows up in the chroma.
   @Test
   fun `an animated overlay on a kept grade is drawn where the sampler puts it`() =
@@ -176,6 +180,40 @@ class FfmpegOverlayHdrMediaTest {
         "the slide at $threeQuarters",
       )
       assertCodes(tenBitCodesAt(exported.file, late, quarter), fill, "the bar at $late before the slide reaches it")
+
+      exported.file.delete()
+    }
+
+  // The size moves on the branch carried onto the grade's signal, so no converter may sit after its scale. Read on the
+  // frame in the middle of the ramp, at the centre of the drawn rectangle and in the band the picture only reaches by
+  // growing, both inside the bar.
+  @Test
+  fun `a growing overlay on a kept PQ grade is drawn at the size the sampler answers`() =
+    runTest(timeout = TIMEOUT) {
+      val transfer = HdrTransfer.Pq
+      val growing = overlay(MID_GREEN, animation = GROW)
+      val exported = exportedOverFill(transfer, MID_GREY, growing)
+      val size = exported.plan.output.size
+      val span = TimeRange.of(Duration.ZERO, exported.plan.duration)
+      val rate = exported.plan.output.frameRate
+      val index = (RAMP * rate).inWholeSeconds.toInt() / 2
+      val middle = frameTime(index, rate)
+      val opened = drawnRect(growing, size, span, Duration.ZERO)
+      val grown = drawnRect(growing, size, span, middle)
+      val content = containedRect(FIXTURE_SIZE, size)
+      withClue("the grown overlay at $grown is not inside the bar above $content") {
+        (grown.bottom < content.top).shouldBeTrue()
+      }
+      val drawn = HdrOverlayCells.Cell(MID_GREEN, MID_GREY, 1f).codes(transfer)
+      val probes =
+        mapOf(
+          "the centre" to centreOf(grown, size),
+          "the grown band" to pointIn((opened.right + grown.right) / 2, (opened.bottom + grown.bottom) / 2, size),
+        )
+
+      probes.forEach { (where, probe) ->
+        assertCodes(tenBitCodesAt(exported.file, probe, opensOn(index, exported.plan)), drawn, "$where on frame $index")
+      }
 
       exported.file.delete()
     }
@@ -308,7 +346,7 @@ class FfmpegOverlayHdrMediaTest {
         resolve(sliding, transfer)
           .shouldBeInstanceOf<EffectResolution.Resolved>()
           .effect.fragment.auxInputs
-      withClue("$transfer: commands move both branches, so both run every frame") {
+      withClue("$transfer: the slide moves both windows, so both branches run every frame") {
         driven.all { it.timeline != null }.shouldBeTrue()
       }
 
@@ -317,15 +355,20 @@ class FfmpegOverlayHdrMediaTest {
           overlay(WHITE, animation = fade(inDuration = RAMP)),
           transfer,
         ).shouldBeInstanceOf<EffectResolution.Resolved>()
-      val branches = fading.effect.fragment.auxInputs
-      val (held, faded) = branches
+      val (held, faded) = fading.effect.fragment.auxInputs
       withClue("$transfer: a fade leaves the picture where it is, so it holds one frame") {
         held.timeline.shouldBeNull()
       }
-      withClue("$transfer: nothing drives a faded picture") { held.chain.none { it.name == "sendcmd" }.shouldBeTrue() }
+      // HLG's decode to light is a geq of its own, so the fade is the geq that writes the alpha.
+      val fades = { chain: List<FilterNode> ->
+        chain.any { node ->
+          node.name == "geq" &&
+            node.arguments.any { it.key == "a" }
+        }
+      }
+      withClue("$transfer: a faded picture fades its color") { fades(held.chain).shouldBeFalse() }
       withClue("$transfer: the fade drives the alpha on every frame") { faded.timeline.shouldNotBeNull() }
-      val commands = branches.flatMap { it.chain }.filter { it.name == "sendcmd" }
-      withClue("$transfer: only the alpha's commands are written") { commands.size shouldBe 1 }
+      withClue("$transfer: the fade is not on the alpha's branch") { fades(faded.chain).shouldBeTrue() }
     }
   }
 
@@ -488,5 +531,8 @@ class FfmpegOverlayHdrMediaTest {
     // overlap, and short of the bar's far end.
     const val SLIDE_FRACTION = 0.3f
     val RAMP = 1.seconds
+
+    // Doubles the overlay over the ramp, so the middle of it is drawn at one and a half times.
+    val GROW = OverlayAnimation { time -> OverlayFrame(scale = 1f + (time.elapsed / RAMP).toFloat().coerceIn(0f, 1f)) }
   }
 }

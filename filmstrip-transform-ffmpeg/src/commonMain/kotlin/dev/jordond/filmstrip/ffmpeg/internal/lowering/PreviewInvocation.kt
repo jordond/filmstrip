@@ -113,7 +113,7 @@ private fun Invocation.previewInputArguments(
       }
       // So the overlay branch is moved rather than seeked. Its own frames still start where the
       // demuxer makes them, and the offset puts them at the composition times the scrub lands on,
-      // which is the clock a sendcmd sidecar's intervals are written against. GraphLowering closes
+      // which is the clock the overlay's window gate and frame time expressions read. GraphLowering closes
       // the branch with a setpts that takes the offset back off before the merge reads it.
       if (branchOffset != null && input.rebased) {
         add("-itsoffset")

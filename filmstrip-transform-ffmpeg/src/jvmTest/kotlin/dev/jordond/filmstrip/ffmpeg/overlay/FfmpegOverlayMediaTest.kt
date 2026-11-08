@@ -198,7 +198,7 @@ class FfmpegOverlayMediaTest {
   // The drawn height is the picture's own aspect scaled, and a wide overlay's short side reaches
   // the one pixel floor while its long side still has room. Left to the aspect-derived h the short
   // side rounds to nothing and the filter aborts with "Rescaled dimensions 4x0 are invalid", so
-  // both sides are commanded out of the shared placement, which holds each at a pixel.
+  // both sides are written out of the shared placement, which holds each at a pixel.
   @Test
   fun `shrinks a wide watermark without aborting the export`() =
     runTest(timeout = TIMEOUT) {

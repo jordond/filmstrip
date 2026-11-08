@@ -51,7 +51,7 @@ internal fun overlayNode(
  *
  * `overlay` in `yuv420` puts `x` and `y` on the 4:2:0 grid, so an odd position lands on the even pixel below it. That
  * is ffmpeg's limit. [onFrame] and [cropped] move a written position onto that grid, so the graph says where the
- * picture lands. A position an animation sends as a command is moved the same way by the filter itself.
+ * picture lands. A position an animation writes as an expression is moved the same way once the filter evaluates it.
  */
 internal fun overlayFormat(
   pixelFormat: String,

@@ -15,6 +15,7 @@ import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.picture.PictureOrientation
 import dev.jordond.filmstrip.picture.orientedSamples
 import dev.jordond.filmstrip.test.OrientedPictures
+import dev.jordond.filmstrip.test.evaluateFrameTime
 import io.kotest.assertions.withClue
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
@@ -136,30 +137,88 @@ class OverlayGraphTest {
     withClue("a branch with no rate to repeat its still at was given a timeline") { image.timeline.shouldBeNull() }
   }
 
-  // The commands resize the branch, and the converter ffmpeg puts ahead of the merge would undo that unless a scale of
-  // the branch's own size re-reads it every frame.
+  // A slide only moves the merge, so the branch is drawn the way a still one is and only x and y read the clock.
   @Test
-  fun `an animated overlay is driven by its commands and carries each resize past the merge`() {
+  fun `a slide is placed by expressions of the merged frame's time and writes no sidecar`() {
     val spec = ImageOverlay(PICTURE, Corner.BottomEnd, animation = slideIn(OverlayOffset(0f, SLIDE), 1.seconds))
-    val attributes = sdr()
-    val fragment = sdrFragment(spec, attributes)
-    val driven = fragment.sidecars.single()
-    val instance = checkNotNull(fragment.merge).name.removePrefix("overlay")
+    val fragment = sdrFragment(spec)
     val placed = spec.placedOn(FRAME, OrientedPictures.SIZE).size
+    val merge = checkNotNull(fragment.merge)
 
-    (
-      fragment.auxInputs
-        .single()
-        .chain
-    ) shouldBe
+    fragment.sidecars shouldBe emptyList()
+    fragment.auxInputs.single().chain shouldBe
       listOf(
-        FilterNode("sendcmd", "f" to driven.placeholder),
-        FilterNode("scale$instance", "w" to placed.width.toString(), "h" to placed.height.toString()),
+        FilterNode("scale", "w" to placed.width.toString(), "h" to placed.height.toString()),
         FilterNode("format", "pix_fmts" to "rgba"),
-        FilterNode("colorchannelmixer$instance", "aa" to "1"),
-        FilterNode("scale", "w" to "iw", "h" to "ih", "eval" to "frame"),
       )
-    withClue("the merge is not the instance the commands drive") { instance.startsWith("@fs") shouldBe true }
+    merge.name shouldBe "overlay"
+    merge.arguments.first { it.key == "x" }.value shouldBe
+      drawnRect(spec.placedOn(FRAME, OrientedPictures.SIZE), FRAME)
+        .x
+        .toString()
+    merge.arguments
+      .first { it.key == "y" }
+      .value
+      .startsWith("st(0,${mergeFrameClock(RATE.toInt())});") shouldBe true
+    merge.arguments.last() shouldBe FilterArgument("eval", "frame")
+  }
+
+  // geq reads the size it was configured at, so a fade runs ahead of a size that moves. The converter ffmpeg puts ahead
+  // of the merge would pin the size too, unless a scale of the branch's own size re-reads it every frame.
+  @Test
+  fun `a fade that grows runs its opacity ahead of the scale and carries each size past the merge`() {
+    val growing =
+      OverlayAnimation { time ->
+        val ramp = (time.elapsed / 1.seconds).toFloat().coerceIn(0f, 1f)
+        OverlayFrame(opacity = ramp, scale = 1f + ramp)
+      }
+    val chain = sdrFragment(ImageOverlay(PICTURE, Corner.TopStart, animation = growing)).auxInputs.single().chain
+
+    chain.map { it.name } shouldBe listOf("format", "format", "geq", "format", "scale", "format", "scale")
+    chain[2]
+      .arguments
+      .first { it.key == "a" }
+      .value
+      .startsWith("alpha(X,Y)*(st(0,${branchPlaneClock(RATE.toInt())});")
+      .shouldBe(true)
+    chain[4].arguments.last() shouldBe FilterArgument("eval", "frame")
+    withClue("the format after the size that moves is the one the scale was handed") { chain[5] shouldBe chain[0] }
+    chain.last() shouldBe FilterNode("scale", "w" to "iw", "h" to "ih", "eval" to "frame")
+  }
+
+  // A size that holds is scaled first, so geq runs on the drawn size rather than the picture's own.
+  @Test
+  fun `a fade that holds its size runs its opacity after the scale`() {
+    val spec = ImageOverlay(PICTURE, Corner.TopStart, animation = fade(inDuration = 1.seconds))
+    val chain = sdrFragment(spec).auxInputs.single().chain
+
+    chain.map { it.name } shouldBe listOf("scale", "format", "format", "geq", "format")
+    withClue("a size that holds is not re-read") {
+      chain.none { it.arguments.any { a -> a.key == "eval" } } shouldBe
+        true
+    }
+  }
+
+  // The fade settles at the authored half, which the mixer holds from there, so geq only runs while the ramp moves.
+  @Test
+  fun `a fade runs geq only on the frames its opacity moves and a mixer holds where it settles`() {
+    val spec = ImageOverlay(PICTURE, Corner.TopStart, opacity = HALF, animation = fade(inDuration = 1.seconds))
+    val chain = sdrFragment(spec).auxInputs.single().chain
+    val rate = RATE.toInt()
+
+    chain.map { it.name } shouldBe listOf("scale", "format", "format", "geq", "format", "colorchannelmixer")
+    val fading = chain[3].arguments.first { it.key == "enable" }.value
+    val mixer = chain[5]
+    mixer.arguments.first { it.key == "aa" }.value shouldBe "0.500000"
+    val holding = mixer.arguments.first { it.key == "enable" }.value
+    val settled = frameIndexAt(1.seconds, SDR_SPAN, rate)
+    (0 until frameIndexAt(SPAN_LENGTH, SDR_SPAN, rate)).forEach { frame ->
+      val t = frame * (1.0 / rate)
+      withClue("frame $frame") {
+        evaluateFrameTime(fading, t) shouldBe if (frame < settled) 1.0 else 0.0
+        evaluateFrameTime(holding, t) shouldBe if (frame < settled) 0.0 else 1.0
+      }
+    }
   }
 
   @Test

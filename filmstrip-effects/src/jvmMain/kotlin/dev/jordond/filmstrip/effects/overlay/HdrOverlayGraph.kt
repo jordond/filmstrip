@@ -28,72 +28,106 @@ import dev.jordond.filmstrip.media.ImageSource
 // merge is maskedmerge on planar float RGB and runs on the part of the frame the overlay reaches.
 // The picture already carried onto the grade's signal is read twice, once for its color and
 // once for its alpha, at sixteen bits so no ten-bit code is lost on the way. Each branch is laid
-// onto the region by its own cut, which the commands move where the overlay is animated.
+// onto the region by its own cut, which expressions of the branch's own time move where the overlay
+// is animated.
 //
 // A branch nothing changes from frame to frame is read once rather than looped, and maskedmerge
 // holds its one frame under every frame of the region. That keeps the picture's decode to light
 // off the frame loop for a still overlay or one that only fades, and the alpha's too when no
 // window gates it and no fade drives it.
+//
+// A branch whose size moves is brought to its sixteen-bit RGBA ahead of its scale, since a converter
+// after it is configured at the first frame's size and pins every frame to it. A fade runs on the
+// mask alone, ahead of a size that moves and after one that holds, since geq reads the frame size
+// it was configured at.
 internal fun PlacedPicture.gradedOverlay(
   attributes: Attributes,
   drawnRange: TimeRange,
   graded: GraphPicture.Graded,
-  animated: Driven.Commands?,
+  frames: List<SampledFrame>?,
   still: PixelRect,
 ): FilterFragment {
-  val layout = animated?.layout ?: hdrOverlayLayout(listOf(still), attributes.inputSize)
-  val at = animated?.first ?: still
+  val rate = attributes.gridRate
+  val animated = frames?.takeIf { rate != null }
+  val layout = hdrOverlayLayout(animated?.map { it.drawn } ?: listOf(still), attributes.inputSize)
+  val window =
+    HdrWindow(
+      x = animated?.runsOf { layout.windowX(it.drawn.x).toString() } ?: heldAt(layout.windowX(still.x)),
+      y = animated?.runsOf { layout.windowY(it.drawn.y).toString() } ?: heldAt(layout.windowY(still.y)),
+      width = animated?.runsOf { it.drawn.width.toString() } ?: heldAt(still.width),
+      height = animated?.runsOf { it.drawn.height.toString() } ?: heldAt(still.height),
+    )
+  val opacity =
+    if (animated == null || rate == null) {
+      stillOpacityNodes(opacity)
+    } else {
+      opacityNodes(animated, rate, HDR_PLANES)
+    }
+  val fading = opacity.any { it.name == "geq" }
+  val gate = listOfNotNull(windowGate(drawnRange, attributes.span, rate))
 
+  // The picture's branch carries its color alone, and the mask's carries the opacity and the gate as well.
   fun branch(
-    instance: String,
-    sidecar: Sidecar?,
-    size: List<String>,
-    alpha: List<FilterNode>,
+    mask: Boolean,
     moving: Boolean,
-  ): AuxInput =
-    AuxInput(
+  ): AuxInput {
+    val alpha = if (mask) opacity else emptyList()
+    val fadesFirst = fading && window.sized
+    return AuxInput(
       ImageSource.ofBytes(graded.raster.png),
       buildList {
-        sidecar?.let { add(FilterNode("sendcmd", "f" to it.placeholder)) }
-        add(FilterNode("scale$instance", "w" to size[0], "h" to size[1]))
-        add(FilterNode("format", "pix_fmts" to HDR_OVERLAY_RGBA))
-        addAll(alpha)
-        addAll(layout.windowNodes(at, instance, eachFrame = sidecar != null))
+        if (window.sized) add(FilterNode("format", "pix_fmts" to HDR_OVERLAY_RGBA))
+        if (fadesFirst) addAll(alpha)
+        add(scaleNode(window.width, window.height, rate))
+        if (!window.sized) add(FilterNode("format", "pix_fmts" to HDR_OVERLAY_RGBA))
+        if (!fadesFirst) addAll(alpha)
+        if (mask) addAll(gate)
+        addAll(layout.windowNodes(window, rate))
       },
       if (moving) attributes.auxTimeline() else null,
     )
+  }
 
-  val stillSize = listOf(still.width.toString(), still.height.toString())
-  val masked = animated?.let { it.instance + MASK_INSTANCE }.orEmpty()
-  val driven = animated?.takeUnless { it.pictureHeld }
-  val picture =
-    when {
-      driven != null -> branch(driven.instance, driven.sidecar, stillSize, emptyList(), moving = true)
-      animated != null -> branch("", null, listOf(at.width.toString(), at.height.toString()), emptyList(), false)
-      else -> branch("", null, stillSize, emptyList(), moving = false)
-    }
-  val mask =
-    branch(
-      masked,
-      animated?.mask,
-      stillSize,
-      alphaNodes(drawnRange, attributes.span, attributes.gridRate, masked, animated != null),
-      moving = animated != null || effect.visibleDuring != null,
-    )
+  val picture = branch(mask = false, moving = window.moves)
+  val mask = branch(mask = true, moving = window.moves || fading || gate.isNotEmpty())
 
-  return hdrOverlayFragment(graded.transfer, layout, picture, mask, listOfNotNull(driven?.sidecar, animated?.mask))
+  return hdrOverlayFragment(graded.transfer, layout, picture, mask)
 }
 
 /**
- * The nodes that pad an overlay's picture onto [HdrOverlayLayout.canvas] and cut out the window drawn at [at].
+ * Where an overlay's picture is cut from its canvas on an HDR grade, and the size it is drawn at, frame by frame.
  *
- * The cut is named `crop` plus [instance], so commands can move it. [eachFrame] re-reads the padding on every frame,
- * which a picture whose size is driven by commands needs.
+ * @property x Where the window's left edge sits on the canvas.
+ * @property y Where the window's top edge sits on the canvas.
+ * @property width The picture's drawn width.
+ * @property height The picture's drawn height.
+ */
+internal class HdrWindow(
+  val x: FrameRuns,
+  val y: FrameRuns,
+  val width: FrameRuns,
+  val height: FrameRuns,
+) {
+  /**
+   * Whether the picture's size moves.
+   */
+  val sized: Boolean get() = !width.held || !height.held
+
+  /**
+   * Whether the picture's size or the window it is cut through moves.
+   */
+  val moves: Boolean get() = sized || !x.held || !y.held
+}
+
+/**
+ * The nodes that pad an overlay's picture onto [HdrOverlayLayout.canvas] and cut out the [window] it is drawn through.
+ *
+ * A window that moves is cut by expressions of the branch's own time at [rate], and a picture whose size moves re-reads
+ * the padding on every frame.
  */
 internal fun HdrOverlayLayout.windowNodes(
-  at: PixelRect,
-  instance: String,
-  eachFrame: Boolean,
+  window: HdrWindow,
+  rate: Int?,
 ): List<FilterNode> =
   buildList {
     val padding =
@@ -103,20 +137,20 @@ internal fun HdrOverlayLayout.windowNodes(
         add(FilterArgument("x", left.toString()))
         add(FilterArgument("y", top.toString()))
         add(FilterArgument("color", TRANSPARENT))
-        if (eachFrame) add(FilterArgument("eval", "frame"))
+        if (window.sized) add(FilterArgument("eval", "frame"))
       }
     add(FilterNode("pad", padding))
-    val windowX = windowX(at.x)
-    val windowY = windowY(at.y)
     val whole = canvas.width == region.width && canvas.height == region.height
-    if (instance.isNotEmpty() || !whole || windowX != 0 || windowY != 0) {
+    val atOrigin = listOf(window.x, window.y).all { it.held && it.runs.single().value == "0" }
+    if (!whole || !atOrigin) {
+      val clock = rate?.let(::branchFrameClock).orEmpty()
       add(
         FilterNode(
-          "crop$instance",
+          "crop",
           "w" to region.width.toString(),
           "h" to region.height.toString(),
-          "x" to windowX.toString(),
-          "y" to windowY.toString(),
+          "x" to window.x.on(clock),
+          "y" to window.y.on(clock),
         ),
       )
     }
@@ -144,7 +178,6 @@ internal fun hdrOverlayFragment(
   layout: HdrOverlayLayout,
   picture: AuxInput,
   mask: AuxInput,
-  sidecars: List<Sidecar>,
 ): FilterFragment {
   val region = layout.region
   val tables = mutableListOf<Sidecar>()
@@ -170,7 +203,7 @@ internal fun hdrOverlayFragment(
       ),
     merge = FilterNode("maskedmerge"),
     post = listOf(encode) + tables.shiftedSignalToGrade(),
-    sidecars = sidecars + tables.distinct(),
+    sidecars = tables.distinct(),
   )
 }
 
@@ -200,5 +233,6 @@ private val ALPHA_TO_RGB =
 
 private const val TRANSPARENT = "black@0"
 
-// Sixteen-bit RGBA, the depth an overlay carried onto a grade's signal is read at.
+// Sixteen-bit RGBA, the depth an overlay carried onto a grade's signal is read at, and the planar form geq reads it in.
 private const val HDR_OVERLAY_RGBA = "rgba64le"
+private val HDR_PLANES = OpacityPlanes("gbrap16le", HDR_OVERLAY_RGBA)

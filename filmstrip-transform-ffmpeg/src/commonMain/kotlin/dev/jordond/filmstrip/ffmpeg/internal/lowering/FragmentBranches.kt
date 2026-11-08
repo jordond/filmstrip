@@ -5,6 +5,7 @@ import dev.jordond.filmstrip.effect.FilterFragment
 import dev.jordond.filmstrip.effect.FilterNode
 import dev.jordond.filmstrip.effect.LiveInput
 import dev.jordond.filmstrip.effect.PlaneLanes
+import dev.jordond.filmstrip.effect.WINDOW_CLOCK
 import kotlin.time.Duration
 import kotlin.time.DurationUnit
 
@@ -18,7 +19,7 @@ internal fun FilterFragment.filterNames(): Set<String> =
     val nodes =
       chain + listOfNotNull(merge) + post + branches.flatMap { it.nodes } + auxInputs.flatMap { it.chain }
     nodes.forEach { node ->
-      // A name past an @ is that node's own instance, which a sendcmd sidecar addresses. The filter comes before it.
+      // A name past an @ is that node's own instance name. The filter comes before it.
       if (node.name == PlaneLanes.NAME) addAll(PLANE_LANES_FILTERS) else add(node.name.substringBefore('@'))
     }
     if (branches.any { it.writes.size > 1 }) add("split")

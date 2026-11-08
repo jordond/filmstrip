@@ -4,8 +4,10 @@ import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.effects.overlay.OverlayAnimation
 import dev.jordond.filmstrip.effects.overlay.OverlayFrame
 import dev.jordond.filmstrip.effects.overlay.OverlayOffset
+import dev.jordond.filmstrip.effects.overlay.drawnRangeWithin
 import dev.jordond.filmstrip.effects.overlay.fade
 import dev.jordond.filmstrip.effects.overlay.frameAt
+import dev.jordond.filmstrip.effects.overlay.frameWithin
 import dev.jordond.filmstrip.effects.overlay.placedOn
 import dev.jordond.filmstrip.effects.overlay.rectOn
 import dev.jordond.filmstrip.effects.overlay.slideIn
@@ -118,12 +120,12 @@ class FfmpegOverlayAnimationMediaTest {
       listOf(bare, slid).forEach { it.file.delete() }
     }
 
-  // The animation holds one offset, so every frame is commanded to the same odd x and the read does not hang on which
-  // frame a seek opens. An 8-bit export draws the watermark in 4:2:0, where ffmpeg's overlay puts a commanded odd x on
+  // The animation holds one offset, so every frame is drawn at the same odd x and the read does not hang on which
+  // frame a seek opens. An 8-bit export draws the watermark in 4:2:0, where ffmpeg's overlay puts an odd x on
   // the even pixel below it. Luma is read rather than RGB, since the written chroma of the column before the edge is
   // shared with it.
   @Test
-  fun `moves a watermark commanded to an odd pixel onto the even pixel below it`() =
+  fun `moves a watermark animated to an odd pixel onto the even pixel below it`() =
     runTest(timeout = TIMEOUT) {
       if (!fixture.available()) return@runTest
 
@@ -144,10 +146,10 @@ class FfmpegOverlayAnimationMediaTest {
         lumaAt(moved.file.absolutePath, column, y, at) - lumaAt(bare.file.absolutePath, column, y, at)
 
       withClue("the sampler puts the watermark at x=$x") { (x % 2 == 1).shouldBeTrue() }
-      withClue("commanded to x=$x, the column before it lifts by ${lift(x - 1)}") {
+      withClue("drawn at x=$x, the column before it lifts by ${lift(x - 1)}") {
         (abs(lift(x - 1)) > EDGE_LIFT).shouldBeTrue()
       }
-      withClue("commanded to x=$x, the column two before it lifts by ${lift(x - 2)}") {
+      withClue("drawn at x=$x, the column two before it lifts by ${lift(x - 2)}") {
         (abs(lift(x - 2)) < EDGE_LIFT).shouldBeTrue()
       }
 
@@ -195,7 +197,48 @@ class FfmpegOverlayAnimationMediaTest {
       listOf(bare, grown).forEach { it.file.delete() }
     }
 
-  // The sidecar's clock is the clip's own, so an animation on the second of two clips is read
+  // A size and an opacity that move together, read in the middle of the ramp. The opacity is applied ahead of the
+  // scale, on the picture at its own size, and the blend is read twice: at the centre of the drawn rectangle and in the
+  // band the picture has only reached by growing. Both have to blend at the opacity the sampler answers, against an
+  // export that grows the same way at full strength.
+  @Test
+  fun `grows and fades a watermark by what the sampler answers`() =
+    runTest(timeout = TIMEOUT) {
+      if (!fixture.available()) return@runTest
+
+      val opaque = fixture.watermark(animation = GROW)
+      val growing = fixture.watermark(animation = GROW_AND_FADE)
+      val bare = fixture.exportedWatermark("filmstrip-overlay-growfade-bare", null)
+      val solid = fixture.exportedWatermark("filmstrip-overlay-growfade-solid", opaque)
+      val faded = fixture.exportedWatermark("filmstrip-overlay-growfade", growing)
+      val size = faded.plan.output.size
+      val span = TimeRange.of(Duration.ZERO, faded.plan.duration)
+      val middle = RAMP / 2
+      val expected = growing.frameWithin(growing.drawnRangeWithin(span), middle).shouldNotBeNull().opacity
+      val opened = drawnRect(growing, size, span, Duration.ZERO)
+      val grown = drawnRect(growing, size, span, middle)
+      val probes =
+        mapOf(
+          "the centre" to centreOf(grown, size),
+          "the grown band" to pointIn((opened.right + grown.right) / 2, (opened.bottom + grown.bottom) / 2, size),
+        )
+
+      probes.forEach { (where, probe) ->
+        val measured =
+          blendAlpha(
+            regionAverage(bare.file.absolutePath, probe.first, probe.second, PROBE_SIDE, middle),
+            regionAverage(solid.file.absolutePath, probe.first, probe.second, PROBE_SIDE, middle),
+            regionAverage(faded.file.absolutePath, probe.first, probe.second, PROBE_SIDE, middle),
+          )
+        withClue("at $middle $where blended at $measured where the sampler answers $expected") {
+          (abs(measured - expected) < ALPHA_TOLERANCE).shouldBeTrue()
+        }
+      }
+
+      listOf(bare, solid, faded).forEach { it.file.delete() }
+    }
+
+  // The branch's clock is the clip's own, so an animation on the second of two clips is read
   // against the time the clip has been running rather than against the composition's.
   @Test
   fun `fades a clip's watermark on the clip's own clock`() =
@@ -302,6 +345,13 @@ class FfmpegOverlayAnimationMediaTest {
     val GROW =
       OverlayAnimation { time ->
         OverlayFrame(scale = 1f + (time.elapsed / RAMP).toFloat().coerceIn(0f, 1f))
+      }
+
+    // The same growth with a fade in over the same ramp, so the middle of it is half drawn at one and a half times.
+    val GROW_AND_FADE =
+      OverlayAnimation { time ->
+        val progress = (time.elapsed / RAMP).toFloat().coerceIn(0f, 1f)
+        OverlayFrame(opacity = progress, scale = 1f + progress)
       }
 
     // A little over what the H264 round trip moves a flat region by, read as a fraction of the

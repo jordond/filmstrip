@@ -19,6 +19,7 @@ import dev.jordond.filmstrip.effect.FilterFragment
 import dev.jordond.filmstrip.effect.FilterNode
 import dev.jordond.filmstrip.effect.PlatformEffect
 import dev.jordond.filmstrip.effect.Sidecar
+import dev.jordond.filmstrip.effect.WINDOW_CLOCK
 import dev.jordond.filmstrip.effects.geometry.Scale
 import dev.jordond.filmstrip.export.AudioFormat
 import dev.jordond.filmstrip.export.ExportPath
@@ -28,7 +29,6 @@ import dev.jordond.filmstrip.ffmpeg.internal.lowering.ChromaGrid
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.GraphLowering
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.InputSource
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.Invocation
-import dev.jordond.filmstrip.ffmpeg.internal.lowering.WINDOW_CLOCK
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.arguments
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.drawnAt
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.ffmpegTag

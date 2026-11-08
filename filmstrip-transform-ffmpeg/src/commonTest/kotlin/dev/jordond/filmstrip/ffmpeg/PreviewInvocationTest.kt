@@ -123,7 +123,7 @@ class PreviewInvocationTest {
 
   // An overlay image seeked into delivers nothing at all, so its branch is moved to the scrub
   // instead. The offset is the composition time, not the source time the clip is seeked to, because
-  // the graph's own clock is what a sendcmd sidecar's intervals are written against.
+  // the branch's own clock is what the overlay's window gate and frame time expressions read.
   @Test
   fun `carries a rebased branch to the scrub rather than seeking it`() {
     val previewed =

@@ -192,10 +192,9 @@ class FfmpegPreviewMediaTest {
       withClue("the scrubbed animation drew the overlay whole") { landed.contentEquals(whole).shouldBeFalse() }
     }
 
-  // A command is only written where its own value moves, so a scrub landing after the last of them
-  // has nothing to read unless the interval covering it says what the value settled on. The fade
-  // settles at the authored opacity, which is not what the graph opens the node at, so a scrub that
-  // read nothing would draw the overlay whole.
+  // Past the ramp the fade holds the authored opacity, which a resting mixer applies on the frames the geq is switched
+  // off on. Both switch on the frame's own time, so a scrub landing past the ramp has to turn the mixer on there. The
+  // settled opacity is below full strength, so a scrub that left the mixer off would draw the overlay whole.
   @Test
   fun `a seek past the end of a ramp draws the value it settled on`() =
     runTest(timeout = TIMEOUT) {
@@ -220,7 +219,7 @@ class FfmpegPreviewMediaTest {
       withClue("the settled overlay was drawn differently than playback drew it") {
         forward.contentEquals(landed).shouldBeTrue()
       }
-      withClue("the settled overlay was drawn at the opacity its node opens on") {
+      withClue("the settled overlay was drawn whole, with its resting mixer off") {
         landed.contentEquals(whole).shouldBeFalse()
       }
     }
@@ -768,8 +767,7 @@ class FfmpegPreviewMediaTest {
     // is drawn at cannot round away.
     const val OVERLAY_SCALE = 0.25f
 
-    // A fade that is over well before the probe, and an authored opacity it settles on that the
-    // colorchannelmixer the commands drive does not open at.
+    // A fade that is over well before the probe, and an authored opacity it settles on below full strength.
     val SHORT_FADE = 500.milliseconds
     val SETTLED_POSITION = 1.seconds
     const val SETTLED_FRAME = 30

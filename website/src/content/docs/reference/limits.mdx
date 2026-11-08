@@ -85,6 +85,14 @@ pixel. See [Fit](/guides/effects/#fit).
   where it has an odd figure, so it lands exact.
 - Apple and the browser place a clip at its exact fraction.
 
+## Animated overlay cost
+
+ffmpeg draws an animated overlay's opacity with `geq`, which reads every texel of the picture on every frame the
+opacity moves. Over a 1080p picture that measured 27 ms a frame on ffmpeg 9.0.2 on a 16 core Mac. Where the opacity
+holds, `geq` is switched off and a `colorchannelmixer` holds the alpha, and those frames measured 1.8 ms. A size that
+moves runs the fade on the picture at its own size, so a large picture that grows and fades pays for its full
+resolution on every frame of the ramp.
+
 ## Preview against the file
 
 An ffmpeg preview ends its graph on the format the export writes and converts from there for the screen, so it shows the

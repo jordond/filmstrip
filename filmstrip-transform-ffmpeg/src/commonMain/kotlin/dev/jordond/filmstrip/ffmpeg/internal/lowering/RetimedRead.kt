@@ -4,6 +4,7 @@ import dev.jordond.filmstrip.edit.outputSlotOf
 import dev.jordond.filmstrip.edit.outputSlotTime
 import dev.jordond.filmstrip.edit.outputSlotsOf
 import dev.jordond.filmstrip.effect.FilterNode
+import dev.jordond.filmstrip.effect.WINDOW_CLOCK
 import dev.jordond.filmstrip.transform.internal.NEAREST_FRAME_TIE
 import dev.jordond.filmstrip.transform.internal.holdsNoFrame
 import dev.jordond.filmstrip.transform.internal.nearestSourceFrame

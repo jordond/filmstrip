@@ -82,13 +82,16 @@ internal fun filterGraphOverlay(
 internal fun PlacedPicture.lowered(attributes: Attributes): EffectResolution {
   val drawnRange = effect.drawnRangeWithin(attributes.span)
   val still = drawnRect(placement, attributes.inputSize)
-  val driven = commandsFor(attributes, drawnRange, graded = picture is GraphPicture.Graded)
-  if (driven is Driven.Refused) return EffectResolution.Unsupported(effect.id, driven.message)
-  val animated = driven as? Driven.Commands
+  val frames =
+    when (val sampling = sampledFrames(attributes, drawnRange)) {
+      Sampling.Still -> null
+      is Sampling.Refused -> return EffectResolution.Unsupported(effect.id, sampling.message)
+      is Sampling.Sampled -> sampling.frames
+    }
   val fragment =
     when (val picture = picture) {
-      is GraphPicture.Graded -> gradedOverlay(attributes, drawnRange, picture, animated, still)
-      is GraphPicture.Opened -> openedOverlay(attributes, drawnRange, picture, animated, still)
+      is GraphPicture.Graded -> gradedOverlay(attributes, drawnRange, picture, frames, still)
+      is GraphPicture.Opened -> openedOverlay(attributes, drawnRange, picture, frames, still)
     }
   return if (limits.isEmpty()) {
     EffectResolution.Resolved(PlatformEffect(fragment))
@@ -97,43 +100,65 @@ internal fun PlacedPicture.lowered(attributes: Attributes): EffectResolution {
   }
 }
 
+// An animated picture is drawn by expressions of each frame's own time, one for each property that moves, and a
+// property that holds is written as its one value. geq reads the frame size it was configured at, so an opacity that
+// moves is applied ahead of a size that moves, on the picture at its own size, and after a size that holds.
 private fun PlacedPicture.openedOverlay(
   attributes: Attributes,
   drawnRange: TimeRange,
   picture: GraphPicture.Opened,
-  animated: Driven.Commands?,
+  frames: List<SampledFrame>?,
   still: PixelRect,
 ): FilterFragment {
-  val instance = animated?.instance.orEmpty()
+  val rate = attributes.gridRate
+  val animated = frames?.takeIf { rate != null }
+  val x = animated?.runsOf { it.drawn.x.toString() } ?: heldAt(still.x)
+  val y = animated?.runsOf { it.drawn.y.toString() } ?: heldAt(still.y)
+  val width = animated?.runsOf { it.drawn.width.toString() } ?: heldAt(still.width)
+  val height = animated?.runsOf { it.drawn.height.toString() } ?: heldAt(still.height)
+  val sized = !width.held || !height.held
+  val opacity =
+    if (animated == null || rate == null) {
+      stillOpacityNodes(opacity)
+    } else {
+      opacityNodes(animated, rate, SDR_PLANES)
+    }
+  val fadesFirst = sized && opacity.any { it.name == "geq" }
   val prepare =
     buildList {
       addAll(orientationNodes(picture.orientation))
-      animated?.let { add(FilterNode("sendcmd", "f" to it.sidecar.placeholder)) }
-      add(FilterNode("scale$instance", "w" to still.width.toString(), "h" to still.height.toString()))
-      add(FilterNode("format", "pix_fmts" to "rgba"))
-      addAll(alphaNodes(drawnRange, attributes.span, attributes.gridRate, instance, animated != null))
-      // ffmpeg's own limit, and only where a command can resize the branch. The converter ffmpeg
-      // inserts to bring the picture to the format the overlay runs in is a scale pinned to the
-      // size it was configured at, and it silently undoes a commanded resize. A scale of its own
-      // input's size, re-read every frame, carries the new size past it.
-      if (animated != null) add(FilterNode("scale", PER_FRAME_SIZE))
+      // A size that moves is read by a scale already handed RGBA and asked for RGBA, so no converter sits after it. A
+      // converter there is configured at the first frame's size and pins every frame to it.
+      if (sized) add(FilterNode("format", "pix_fmts" to SDR_RGBA))
+      if (fadesFirst) addAll(opacity)
+      add(scaleNode(width, height, rate))
+      add(FilterNode("format", "pix_fmts" to SDR_RGBA))
+      if (!fadesFirst) addAll(opacity)
+      windowGate(drawnRange, attributes.span, rate)?.let { add(it) }
+      // ffmpeg's own limit, and only where the size moves. The converter ffmpeg inserts to bring the picture to the
+      // format the overlay runs in is a scale pinned to the size it was configured at, and it silently undoes a size
+      // read per frame. A scale of its own input's size, re-read every frame, carries the new size past it.
+      if (sized) add(FilterNode("scale", PER_FRAME_SIZE))
     }
 
   val merge =
-    listOf(
-      FilterArgument("x", still.x.toString()),
-      FilterArgument("y", still.y.toString()),
+    buildList {
+      add(FilterArgument("x", x.on(mergeClockOf(rate))))
+      add(FilterArgument("y", y.on(mergeClockOf(rate))))
       // What overlay does once the image branch ends: hand the main frame on undrawn. The branch
       // is looped for as long as the one it merges onto, so nothing reaches it.
-      FilterArgument("eof_action", "pass"),
-    )
+      add(FilterArgument("eof_action", "pass"))
+      if (!x.held || !y.held) add(FilterArgument("eval", "frame"))
+    }
 
   return FilterFragment(
     auxInputs = listOf(AuxInput(picture.image, prepare, attributes.auxTimeline())),
-    merge = FilterNode("overlay$instance", merge),
-    sidecars = listOfNotNull(animated?.sidecar),
+    merge = FilterNode("overlay", merge),
   )
 }
+
+// A held series is written as its value and never reads a clock, so one with no rate to key on is still written.
+private fun mergeClockOf(rate: Int?): String = rate?.let(::mergeFrameClock).orEmpty()
 
 /**
  * The nodes that lay a picture opened as stored out the way [orientation] shows it, ahead of the scale so the overlay's
@@ -160,6 +185,10 @@ private fun ImageOverlay.refused(message: String): EffectResolution = EffectReso
 // A scale of its own input's size, re-read on every frame.
 private val PER_FRAME_SIZE =
   listOf(FilterArgument("w", "iw"), FilterArgument("h", "ih"), FilterArgument("eval", "frame"))
+
+// Eight-bit RGBA, the format an SDR overlay's picture is drawn from, and the planar form geq reads it in.
+private const val SDR_RGBA = "rgba"
+private val SDR_PLANES = OpacityPlanes("gbrap", SDR_RGBA)
 
 private const val UNREADABLE_HDR_IMAGE =
   "The overlay image could not be read. On an HDR grade this backend decodes the picture to carry " +

@@ -3,10 +3,10 @@ package dev.jordond.filmstrip.effects.overlay
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.effect.Attributes
 import dev.jordond.filmstrip.effect.EffectResolution
+import dev.jordond.filmstrip.effect.FilterArgument
 import dev.jordond.filmstrip.effect.FilterCrop
 import dev.jordond.filmstrip.effect.FilterFragment
 import dev.jordond.filmstrip.effect.FilterNode
-import dev.jordond.filmstrip.effect.Sidecar
 import dev.jordond.filmstrip.effects.FRAME
 import dev.jordond.filmstrip.effects.attributes
 import dev.jordond.filmstrip.geometry.Corner
@@ -22,6 +22,7 @@ import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlin.math.roundToInt
 import kotlin.test.Test
 import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
 
 /**
  * Where an overlay on an HDR grade lands, how its picture is laid out to line up with the region it is blended on, and
@@ -53,7 +54,7 @@ class HdrOverlayGraphTest {
     layout.canvas shouldBe Size(86, 58)
     (layout.left to layout.top) shouldBe (1 to 1)
     withClue("a window covering the whole canvas from its corner still took a crop") {
-      layout.windowNodes(still, "", eachFrame = false) shouldBe
+      layout.windowNodes(heldWindow(layout, still), RATE) shouldBe
         listOf(FilterNode("pad", "w" to "86", "h" to "58", "x" to "1", "y" to "1", "color" to "black@0"))
     }
   }
@@ -96,12 +97,15 @@ class HdrOverlayGraphTest {
     }
   }
 
+  // The window holds at the canvas's corner, but it moves on every other frame, so it is cut on all of them.
   @Test
-  fun `a window a command moves is always cut and re-reads its padding each frame when driven`() {
+  fun `a window that moves is always cut and re-reads its padding each frame when the size moves`() {
     val still = PixelRect(x = 14, y = 6, width = 86, height = 58)
     val layout = hdrOverlayLayout(listOf(still), FRAME)
+    val moving = FrameRuns(listOf(FrameRun(0, "0"), FrameRun(3, "2")))
+    val window = HdrWindow(moving, heldAt(0), moving, heldAt(still.height))
 
-    val nodes = layout.windowNodes(still, INSTANCE, eachFrame = true)
+    val nodes = layout.windowNodes(window, RATE)
     (
       nodes
         .first()
@@ -109,7 +113,8 @@ class HdrOverlayGraphTest {
         .single { it.key == "eval" }
         .value
     ) shouldBe "frame"
-    nodes.last() shouldBe FilterNode("crop$INSTANCE", "w" to "86", "h" to "58", "x" to "0", "y" to "0")
+    nodes.last() shouldBe
+      FilterNode("crop", "w" to "86", "h" to "58", "x" to moving.on(branchFrameClock(RATE)), "y" to "0")
   }
 
   @Test
@@ -179,60 +184,77 @@ class HdrOverlayGraphTest {
     gated[1].timeline shouldBe attributes(HdrTransfer.Pq).auxTimeline()
   }
 
-  // A picture whose size or place is animated is cut from a canvas padded again on every frame, by its own commands.
+  // A picture whose size or place is animated is cut from a canvas padded again on every frame, by expressions of the
+  // branch's own time. The format sits ahead of a scale whose size moves, since a converter after it pins the size.
   @Test
-  fun `a driven picture is scaled and moved by its own commands on every frame`() {
-    val (fragment, attributes) = gradedFragment(pictureHeld = false)
-
-    val (picture, mask) = fragment.auxInputs
-    picture.chain[0] shouldBe FilterNode("sendcmd", "f" to PICTURE_COMMANDS.placeholder)
-    picture.chain[1] shouldBe FilterNode("scale$INSTANCE", "w" to "86", "h" to "58")
-    (
-      picture.chain
-        .single { it.name == "pad" }
-        .arguments
-        .any { it.key == "eval" && it.value == "frame" }
-    ) shouldBe true
-    withClue("the picture's window cannot be moved") { picture.chain.any { it.name == "crop$INSTANCE" } shouldBe true }
-    picture.timeline shouldBe attributes.auxTimeline()
-    mask.chain[0] shouldBe FilterNode("sendcmd", "f" to MASK_COMMANDS.placeholder)
-    mask.chain[1] shouldBe FilterNode("scale$INSTANCE$MASK_INSTANCE", "w" to "86", "h" to "58")
-    mask.timeline shouldBe attributes.auxTimeline()
-    withClue("a command file was dropped") {
-      fragment.sidecars.containsAll(listOf(PICTURE_COMMANDS, MASK_COMMANDS)) shouldBe true
-    }
-  }
-
-  // Only the opacity moves, so the picture is drawn at its first rectangle once and only its alpha follows commands.
-  @Test
-  fun `a held picture is read once at its first rectangle while its mask follows the commands`() {
-    val (fragment, attributes) = gradedFragment(pictureHeld = true)
-
-    val (picture, mask) = fragment.auxInputs
-    withClue("the held picture still reads commands") { picture.chain.none { it.name == "sendcmd" } shouldBe true }
-    picture.chain[0] shouldBe FilterNode("scale", "w" to "86", "h" to "58")
-    withClue("the held picture was looped") { picture.timeline.shouldBeNull() }
-    mask.chain[0] shouldBe FilterNode("sendcmd", "f" to MASK_COMMANDS.placeholder)
-    mask.timeline shouldBe attributes.auxTimeline()
-    withClue("the held picture's commands were still written") {
-      (PICTURE_COMMANDS !in fragment.sidecars) shouldBe true
-    }
-    withClue("the mask's commands were dropped") { (MASK_COMMANDS in fragment.sidecars) shouldBe true }
-  }
-
-  private fun gradedFragment(pictureHeld: Boolean): Pair<FilterFragment, Attributes> {
-    val spec = ImageOverlay(ImageSource.ofBytes(OrientedPictures.png()), Corner.TopStart)
-    val raster = hdrOverlayRaster(storedRead(spec), HdrTransfer.Pq)
-    val first = PixelRect(x = 14, y = 6, width = 86, height = 58)
-    val layout = hdrOverlayLayout(listOf(first, PixelRect(x = 300, y = 120, width = 86, height = 58)), FRAME)
-    val commands = Driven.Commands(PICTURE_COMMANDS, INSTANCE, MASK_COMMANDS, layout, first, pictureHeld)
+  fun `a moving picture is scaled and cut by its own frame time on every frame`() {
+    val growing =
+      OverlayAnimation { time ->
+        val ramp = (time.elapsed / RAMP).toFloat().coerceIn(0f, 1f)
+        OverlayFrame(opacity = ramp, offset = OverlayOffset(ramp / 2, ramp / 4), scale = 1f + ramp)
+      }
     val attributes = attributes(HdrTransfer.Pq)
+    val fragment =
+      hdrFragment(
+        ImageOverlay(ImageSource.ofBytes(OrientedPictures.png()), Corner.TopStart, animation = growing),
+        HdrTransfer.Pq,
+      )
+    val (picture, mask) = fragment.auxInputs
+    val sized = Regex("^st\\(0,${Regex.escape(branchFrameClock(RATE))}\\);")
 
-    val graded = GraphPicture.Graded(raster, HdrTransfer.Pq)
-    val placed = PlacedPicture(spec, graded, spec.placedOn(FRAME, raster.size), spec.opacity)
-    val fragment = placed.gradedOverlay(attributes, attributes.span, graded, commands, first)
-    return fragment to attributes
+    picture.chain.map { it.name }.take(4) shouldBe listOf("format", "scale", "pad", "crop")
+    picture.chain[1]
+      .arguments
+      .first { it.key == "w" }
+      .value
+      .contains(sized) shouldBe true
+    picture.chain[1].arguments.last() shouldBe FilterArgument("eval", "frame")
+    picture.chain[2].arguments.last() shouldBe FilterArgument("eval", "frame")
+    withClue("the picture's window does not move") {
+      picture.chain[3]
+        .arguments
+        .first { it.key == "x" }
+        .value
+        .contains(sized) shouldBe true
+    }
+    picture.timeline shouldBe attributes.auxTimeline()
+    withClue("the fade does not run ahead of the size that moves") {
+      mask.chain.map { it.name }.take(5) shouldBe listOf("format", "format", "geq", "format", "scale")
+    }
+    mask.chain[1] shouldBe FilterNode("format", "pix_fmts" to "gbrap16le")
+    mask.timeline shouldBe attributes.auxTimeline()
+    withClue("a branch was driven by a command file") { fragment.sidecars.none { it.extension == "cmd" } shouldBe true }
   }
+
+  // Only the opacity moves, so the picture is drawn at its rectangle once and only its alpha reads the clock.
+  @Test
+  fun `a fading picture is read once while its mask fades after the scale`() {
+    val attributes = attributes(HdrTransfer.Pq)
+    val spec =
+      ImageOverlay(ImageSource.ofBytes(OrientedPictures.png()), Corner.TopStart, animation = fade(inDuration = RAMP))
+    val fragment = hdrFragment(spec, HdrTransfer.Pq)
+    val still = drawnRect(spec.placedOn(FRAME, OrientedPictures.SIZE), FRAME)
+
+    val (picture, mask) = fragment.auxInputs
+    picture.chain[0] shouldBe FilterNode("scale", "w" to still.width.toString(), "h" to still.height.toString())
+    withClue("the held picture was looped") { picture.timeline.shouldBeNull() }
+    mask.chain.map { it.name }.take(5) shouldBe listOf("scale", "format", "format", "geq", "format")
+    mask.chain[3]
+      .arguments
+      .first {
+        it.key == "a"
+      }.value
+      .startsWith("alpha(X,Y)*(st(0,${branchPlaneClock(RATE)});") shouldBe
+      true
+    mask.timeline shouldBe attributes.auxTimeline()
+  }
+
+  // A window that holds its place and size, as the still placement draws it.
+  private fun heldWindow(
+    layout: HdrOverlayLayout,
+    at: PixelRect,
+  ): HdrWindow =
+    HdrWindow(heldAt(layout.windowX(at.x)), heldAt(layout.windowY(at.y)), heldAt(at.width), heldAt(at.height))
 
   private fun hdrFragment(
     spec: ImageOverlay,
@@ -257,9 +279,8 @@ class HdrOverlayGraphTest {
     // A width of 128 puts this picture's height at one and a half pixels, which both readings round the same way.
     val HALF_ROW = Size(256, 3)
     const val HALF = 0.5f
-    const val INSTANCE = "@fs0"
-    val PICTURE_COMMANDS = Sidecar("0.0 crop$INSTANCE x 14;".encodeToByteArray(), "cmd")
-    val MASK_COMMANDS = Sidecar("0.0 colorchannelmixer$INSTANCE$MASK_INSTANCE aa 0.5;".encodeToByteArray(), "cmd")
+    const val RATE = 30
+    val RAMP = 1.seconds
     val ALPHA_TO_RGB =
       FilterNode("colorchannelmixer", "rr" to "0", "ra" to "1", "gg" to "0", "ga" to "1", "bb" to "0", "ba" to "1")
   }

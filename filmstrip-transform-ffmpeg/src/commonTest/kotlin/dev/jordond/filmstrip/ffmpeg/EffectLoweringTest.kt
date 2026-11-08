@@ -8,10 +8,12 @@ import dev.jordond.filmstrip.effect.Attributes
 import dev.jordond.filmstrip.effect.EffectIds
 import dev.jordond.filmstrip.effect.EffectResolution
 import dev.jordond.filmstrip.effect.EffectSpec
+import dev.jordond.filmstrip.effect.FilterArgument
 import dev.jordond.filmstrip.effect.FilterFragment
 import dev.jordond.filmstrip.effect.RenderApi
 import dev.jordond.filmstrip.effect.RenderCapabilities
 import dev.jordond.filmstrip.effect.RenderFeature
+import dev.jordond.filmstrip.effect.WINDOW_CLOCK
 import dev.jordond.filmstrip.effects.BuiltInEffectResolver
 import dev.jordond.filmstrip.effects.color.Brightness
 import dev.jordond.filmstrip.effects.color.ColorMatrix
@@ -46,6 +48,7 @@ import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.ImageSource
+import dev.jordond.filmstrip.test.evaluateFrameTime
 import io.kotest.assertions.withClue
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
@@ -223,10 +226,10 @@ class EffectLoweringTest {
     gatedFrames(fragmentOf(spec, wholeComposition)) shouldBe branchFrames(1.seconds, 6.seconds)
   }
 
-  // A windowed overlay that is animated as well carries both, on nodes of their own: the gate is
-  // ahead of the mixer the commands drive, so zeroing the alpha leaves what they are setting alone.
+  // A windowed overlay that is animated as well carries both, on nodes of their own: the gate sits after the fade, and
+  // zeroing the alpha outside the window leaves what the fade writes inside it alone.
   @Test
-  fun `gates an animated overlay's window as well as driving it`() {
+  fun `gates an animated overlay's window as well as fading it`() {
     val spec =
       ImageOverlay(
         image = overlayImage(SQUARE),
@@ -237,36 +240,33 @@ class EffectLoweringTest {
 
     val fragment = fragmentOf(spec, attributes(Size(640, 360)))
 
-    val instance = instanceOf(fragment)
     gatedFrames(fragment) shouldBe branchFrames(200.milliseconds, 800.milliseconds)
     fragment.auxInputs
       .single()
       .chain
-      .map { it.name } shouldBe
-      listOf("sendcmd", "scale$instance", "format", "colorchannelmixer", "colorchannelmixer$instance", "scale")
+      .map { it.name } shouldBe listOf("scale", "format", "format", "geq", "format", "colorchannelmixer")
   }
 
-  // An interval opens at exactly the frame's own branch-local time, because a command written there
-  // lands on that frame and one written half a frame late lands on the next. An option is written
-  // only where its own value moves, so a fade writes the alpha per frame and the size once.
+  // Each frame reads the value sampled at its own slot, and a property only reads the clock where its value moves, so
+  // a fade keys the alpha on the frame and writes the size and the position as the one value each holds.
   @Test
   fun `samples an animated overlay onto the output frame grid`() {
     val spec = ImageOverlay(overlayImage(SQUARE), Corner.TopStart, animation = fade(inDuration = 1.seconds))
     val attributes = attributes(Size(640, 360))
+    val fragment = fragmentOf(spec, attributes)
 
-    val lines = commandsOf(spec, attributes)
-
-    val alpha = intervalsOf(lines, "aa")
-    alpha.size shouldBe 30
-    alpha.first() shouldBe "0.000000-0.033333"
-    alpha.last() shouldBe "0.966667-1.000000"
-    intervalsOf(lines, "w").single() shouldBe "0.000000-1.000000"
-    intervalsOf(lines, "x").single() shouldBe "0.000000-1.000000"
+    valuesOf(fragment, "a").forEachIndexed { index, written ->
+      val sampled = spec.frameAt(outputSlotTime(index.toLong(), RATE.toInt()), attributes.span).shouldNotBeNull()
+      withClue("frame $index") { written shouldBe opacityOf(sampled.opacity) }
+    }
+    valuesOf(fragment, "a").distinct().size shouldBe 30
+    expressionOf(fragment, "w") shouldBe "128"
+    expressionOf(fragment, "x") shouldBe "14"
   }
 
   // A clip's branch counts its frames from the output slot its span opens on. A span opening at 20 ms
   // at 25 fps opens on the slot at 40 ms, already inside a window opening at 30 ms, so the branch's
-  // first frame is gated open, driven, and sampled at its own slot's time. Counting from the span's
+  // first frame is gated open, faded, and sampled at its own slot's time. Counting from the span's
   // exact start instead reads that frame as 10 ms in, ahead of the window.
   @Test
   fun `counts a clip's frames from the slot its span opens on`() {
@@ -283,12 +283,10 @@ class EffectLoweringTest {
     withClue("the span's first slot at $opens is ahead of the window") { (opens >= window.start) shouldBe true }
 
     val fragment = fragmentOf(spec, attributes(Size(640, 360), span = span, frameRate = GRID_RATE.toFloat()))
-    val lines = commandsOf(fragment)
 
-    intervalsOf(lines, "aa").first() shouldStartWith "0.000000-"
     gatedFrames(fragment, GRID_RATE).first shouldBe 0
     val sampled = spec.frameAt(opens, span).shouldNotBeNull().opacity
-    valuesOf(lines, "aa").first() shouldBe String.format(Locale.ROOT, "%.6f", sampled)
+    valuesOf(fragment, "a", GRID_RATE).first() shouldBe opacityOf(sampled)
   }
 
   // Where the span's start and the window's edge both sit on the same side of half a slot, counting
@@ -309,29 +307,34 @@ class EffectLoweringTest {
     val frame = (landed - outputSlotOf(span.start, GRID_RATE)).toInt()
 
     val fragment = fragmentOf(spec, attributes(Size(640, 360), span = span, frameRate = GRID_RATE.toFloat()))
+    val faded = valuesOf(fragment, "a", GRID_RATE)
+    val opening = spec.frameAt(outputSlotTime(landed, GRID_RATE), span).shouldNotBeNull().opacity
+    val next = spec.frameAt(outputSlotTime(landed + 1, GRID_RATE), span).shouldNotBeNull().opacity
 
-    intervalsOf(commandsOf(fragment), "aa").first() shouldStartWith
-      String.format(Locale.ROOT, "%.6f-", frame.toDouble() / GRID_RATE)
     gatedFrames(fragment, GRID_RATE).first shouldBe frame
+    withClue("the fade opens on the window's first frame") { faded[frame] shouldBe opacityOf(opening) }
+    faded[frame + 1] shouldBe opacityOf(next)
   }
 
-  // A preview opens the overlay's branch wherever the scrub landed rather than at the top, so the
-  // interval covering that frame has to say what every option is holding there. The probe is the
-  // middle of the fade: at either end the value a restarted branch would read agrees anyway.
+  // A preview opens the overlay's branch wherever the scrub landed rather than at the top, and every value is read off
+  // the frame's own time, so a frame part way through the fade reads its own value. The probe is the middle of the
+  // fade: at either end the value a restarted branch would read agrees anyway.
   @Test
-  fun `says what every option holds part way through a run`() {
+  fun `reads what every property holds part way through a run`() {
     val spec = ImageOverlay(overlayImage(SQUARE), Corner.TopStart, animation = fade(inDuration = 1.seconds))
     val attributes = attributes(Size(640, 360))
+    val fragment = fragmentOf(spec, attributes)
+    val frame = (MIDWAY * RATE).toInt()
 
-    val held = heldAt(commandsOf(spec, attributes), MIDWAY)
-
-    held.keys shouldBe setOf("aa", "w", "h", "x", "y")
     val sampled = spec.frameAt(MIDWAY.seconds, attributes.span).shouldNotBeNull().opacity
-    held.getValue("aa") shouldBe String.format(Locale.ROOT, "%.6f", sampled)
+    valuesOf(fragment, "a")[frame] shouldBe opacityOf(sampled)
+    listOf("w", "h", "x", "y").forEach { option ->
+      valuesOf(fragment, option)[frame] shouldBe valuesOf(fragment, option).first()
+    }
   }
 
-  // The values are the shared sampler's, which has already folded the authored opacity into them,
-  // so the node the commands drive opens at one rather than at what was authored.
+  // The values are the shared sampler's, which has already folded the authored opacity into them, so nothing on the
+  // branch applies the authored opacity a second time.
   @Test
   fun `writes the alpha the shared sampler answers`() {
     val fade = fade(inDuration = 1.seconds)
@@ -340,74 +343,56 @@ class EffectLoweringTest {
 
     val fragment = fragmentOf(spec, attributes)
 
-    val instance = instanceOf(fragment)
-    (
-      fragment.auxInputs
-        .single()
-        .chain
-        .render()
-        .contains("colorchannelmixer$instance=aa=1")
-    ) shouldBe true
-    valuesOf(commandsOf(spec, attributes), "aa").forEachIndexed { index, written ->
-      val sampled =
-        spec
-          .frameAt(
-            outputSlotTime(index.toLong(), RATE.toInt()),
-            attributes.span,
-          ).shouldNotBeNull()
-          .opacity
-      written shouldBe String.format(Locale.ROOT, "%.6f", sampled)
+    fragment.auxInputs
+      .single()
+      .chain
+      .none { it.name == "colorchannelmixer" } shouldBe true
+    valuesOf(fragment, "a").forEachIndexed { index, written ->
+      val sampled = spec.frameAt(outputSlotTime(index.toLong(), RATE.toInt()), attributes.span).shouldNotBeNull()
+      written shouldBe opacityOf(sampled.opacity)
     }
   }
 
-  // The sendcmd node heads the aux chain, ahead of the scale it drives, and the three filters the
-  // commands reach carry an instance name of their own so a second overlay's commands cannot
-  // reach them.
+  // An animated overlay is drawn by expressions in the graph itself, so it writes no file and names no filter.
   @Test
-  fun `names the filters an animated overlay's commands drive`() {
+  fun `draws an animated overlay with no sidecar and no named filter`() {
     val spec = ImageOverlay(overlayImage(SQUARE), Corner.TopStart, animation = fade(inDuration = 1.seconds))
 
     val fragment = fragmentOf(spec, attributes(Size(640, 360)))
 
-    val instance = instanceOf(fragment)
-    val placeholder = fragment.sidecars.single().placeholder
+    fragment.sidecars shouldBe emptyList()
+    fragment.merge!!.name shouldBe "overlay"
     fragment.auxInputs
       .single()
       .chain
-      .render() shouldBe
-      "sendcmd=f=$placeholder,scale$instance=w=128:h=128,format=pix_fmts=rgba," +
-      "colorchannelmixer$instance=aa=1,scale=w=iw:h=ih:eval=frame"
-    fragment.merge!!.name shouldBe "overlay$instance"
+      .none { it.name.contains('@') || it.name == "sendcmd" } shouldBe true
   }
 
-  // colorchannelmixer takes its coefficients in -2..2, its own documented limit, and the shared
-  // sampler holds an opacity in 0f..1f, so nothing an animation answers reaches the graph outside
-  // the filter's range.
+  // The shared sampler holds an opacity in 0f..1f, so nothing an animation answers reaches the graph outside it.
   @Test
-  fun `writes every alpha inside colorchannelmixer's range`() {
+  fun `writes every alpha inside the sampler's range`() {
     val wild = OverlayAnimation { time -> OverlayFrame(opacity = if (time.elapsed < 500.milliseconds) -8f else 8f) }
     val spec = ImageOverlay(overlayImage(SQUARE), Corner.TopStart, animation = wild)
 
-    val alphas = valuesOf(commandsOf(spec, attributes(Size(640, 360))), "aa").map { it.toFloat() }
+    val alphas = valuesOf(fragmentOf(spec, attributes(Size(640, 360))), "a")
 
-    alphas.forEach { withClue("an alpha of $it reached the graph") { (it in -2f..2f) shouldBe true } }
-    alphas.min() shouldBe 0f
-    alphas.max() shouldBe 1f
+    alphas.min() shouldBe 0.0
+    alphas.max() shouldBe 1.0
   }
 
   // scale refuses a zero dimension, and the shared placement holds each side at a pixel. Both
-  // sides are commanded, so the shorter one of a picture that is not square cannot round to nothing
+  // sides are written, so the shorter one of a picture that is not square cannot round to nothing
   // while the longer one still has pixels left.
   @Test
   fun `holds both sides of a shrinking overlay at a pixel`() {
     val vanish = OverlayAnimation { time -> OverlayFrame(scale = 1f - (time.elapsed / 500.milliseconds).toFloat()) }
     val spec = ImageOverlay(overlayImage(WIDE), Corner.TopStart, animation = vanish)
-    val lines = commandsOf(spec, attributes(Size(640, 360)))
+    val fragment = fragmentOf(spec, attributes(Size(640, 360)))
 
-    val widths = valuesOf(lines, "w").map { it.toInt() }
-    val heights = valuesOf(lines, "h").map { it.toInt() }
-    widths.min() shouldBe 1
-    heights.min() shouldBe 1
+    val widths = valuesOf(fragment, "w")
+    val heights = valuesOf(fragment, "h")
+    widths.min() shouldBe 1.0
+    heights.min() shouldBe 1.0
     // The picture is four times as wide as it is tall, so the height is the side that reaches the
     // floor first and the one an aspect-derived height would have rounded away.
     heights.max() shouldBe widths.max() / 4
@@ -420,13 +405,12 @@ class EffectLoweringTest {
   fun `writes a bottom corner off the drawn size`() {
     val slide = slideIn(OverlayOffset(0.25f, 0f), 1.seconds)
     val spec = ImageOverlay(overlayImage(SQUARE), Corner.BottomEnd, animation = slide)
-
-    val opening = heldAt(commandsOf(spec, attributes(Size(640, 360))), 0.0)
+    val fragment = fragmentOf(spec, attributes(Size(640, 360)))
 
     // 640 less a 14 pixel margin is 626, plus a quarter of the frame is 786, less the 128 the
     // overlay is drawn at. The vertical anchor is 346 less the same 128.
-    opening.getValue("x") shouldBe "658"
-    opening.getValue("y") shouldBe "218"
+    valuesOf(fragment, "x").first() shouldBe 658.0
+    expressionOf(fragment, "y") shouldBe "218"
   }
 
   // The image is measured, not guessed, so a picture this process cannot open is refused by name
@@ -694,23 +678,53 @@ class EffectLoweringTest {
     return ImageSource.ofBytes(ByteArrayOutputStream().also { ImageIO.write(image, "png", it) }.toByteArray())
   }
 
-  private fun commandsOf(
-    spec: ImageOverlay,
-    attributes: Attributes,
-  ): List<String> = commandsOf(fragmentOf(spec, attributes))
+  // The expression one property of an animated overlay is written as: x and y on the merge, with the window clock of
+  // an export, w and h on the scale that draws the picture, and a on the fade's alpha.
+  private fun expressionOf(
+    fragment: FilterFragment,
+    option: String,
+  ): String {
+    val chain = fragment.auxInputs.single().chain
+    return when (option) {
+      "x", "y" -> {
+        fragment.merge!!
+          .arguments
+          .first { it.key == option }
+          .value
+          .replace(WINDOW_CLOCK, "0")
+      }
+      "w", "h" -> {
+        chain
+          .first { it.name == "scale" }
+          .arguments
+          .first { it.key == option }
+          .value
+      }
+      else -> {
+        chain
+          .single { it.name == "geq" }
+          .arguments
+          .first { it.key == "a" }
+          .value
+          .removePrefix("alpha(X,Y)*(")
+          .removeSuffix(")")
+      }
+    }
+  }
 
-  private fun commandsOf(fragment: FilterFragment): List<String> =
-    fragment
-      .sidecars
-      .single()
-      .bytes
-      .decodeToString()
-      .trim()
-      .lines()
+  // What one property reads on each branch frame of a one second span at rate, in order, the way ffmpeg reads the
+  // expression off each frame's own time.
+  private fun valuesOf(
+    fragment: FilterFragment,
+    option: String,
+    rate: Int = RATE.toInt(),
+  ): List<Double> {
+    val expression = expressionOf(fragment, option)
+    return (0 until rate).map { evaluateFrameTime(expression, it * (1.0 / rate)) }
+  }
 
-  // The instance name is a digest of the commands, so a test reads it off the graph rather than
-  // spelling it out.
-  private fun instanceOf(fragment: FilterFragment): String = fragment.merge!!.name.substringAfter("overlay")
+  // An opacity as the graph writes it, to the six decimals the sampler's values are written to.
+  private fun opacityOf(opacity: Float): Double = String.format(Locale.ROOT, "%.6f", opacity).toDouble()
 
   // The window, read off the node that carries it on the overlay's own branch. Nothing on the merge
   // gates the overlay any more, so a test asserting on one there would pass against an empty string.
@@ -718,7 +732,7 @@ class EffectLoweringTest {
     fragment.auxInputs
       .single()
       .chain
-      .single { node -> node.arguments.any { it.key == "enable" } }
+      .single { node -> node.name == "colorchannelmixer" && FilterArgument("aa", "0") in node.arguments }
       .render()
       .substringAfter("enable=")
 
@@ -743,43 +757,6 @@ class EffectLoweringTest {
     val slots = outputSlotsOf(TimeRange.of(from, until), RATE.toInt())
     return slots.first.toInt()..slots.last.toInt()
   }
-
-  // What one option was set to on each interval that set it, in the order they are written.
-  private fun valuesOf(
-    lines: List<String>,
-    option: String,
-  ): List<String> =
-    lines.flatMap { line ->
-      Regex("""@fs\w+ $option (\S+?)[,;]""").findAll(line).map { it.groupValues[1] }.toList()
-    }
-
-  // The window each of one option's commands is written over, as the `START-END` the line opens
-  // with, in the order they are written.
-  private fun intervalsOf(
-    lines: List<String>,
-    option: String,
-  ): List<String> =
-    lines.filter { Regex("""@fs\w+ $option \S+;""").containsMatchIn(it) }.map { it.substringBefore(' ') }
-
-  // What the commands leave the driven filters holding at one branch-local time, which is what a
-  // branch opened there reads off them. An option missing from the answer is one a scrubbed preview
-  // would be left guessing at.
-  //
-  // sendcmd enters an interval on either of its bounds, not just its start, so a time sitting on a
-  // boundary enters both the interval closing there and the one opening there. The later one wins,
-  // the way it does on the frame itself, because the intervals are read in the order they are
-  // written and they are written by the time they open on.
-  private fun heldAt(
-    lines: List<String>,
-    seconds: Double,
-  ): Map<String, String> =
-    lines
-      .mapNotNull { line ->
-        val (from, until) = line.substringBefore(' ').split('-').map { it.toDouble() }
-        if (seconds < from || seconds > until) return@mapNotNull null
-        val command = line.substringAfter(' ').trimEnd(';').split(' ')
-        command[1] to command[2]
-      }.toMap()
 
   private fun chainOf(
     spec: EffectSpec,

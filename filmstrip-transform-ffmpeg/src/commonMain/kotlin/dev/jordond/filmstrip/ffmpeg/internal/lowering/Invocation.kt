@@ -5,6 +5,7 @@ import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.effect.FilterNode
 import dev.jordond.filmstrip.effect.LiveInput
 import dev.jordond.filmstrip.effect.Sidecar
+import dev.jordond.filmstrip.effect.WINDOW_CLOCK
 import dev.jordond.filmstrip.export.OutputFormat
 import dev.jordond.filmstrip.ffmpeg.FfmpegConfig
 import dev.jordond.filmstrip.ffmpeg.internal.process.PACKET_DROP_FILTER
@@ -169,13 +170,6 @@ internal fun Invocation.resolvedGraph(
 }
 
 /**
- * What a graph writes where the composition time its window opens at belongs, which a preview only knows per scrub.
- *
- * Swapped by [resolvedGraph], and spelled with characters no filter graph escapes, so it survives into the text.
- */
-internal const val WINDOW_CLOCK: String = "<window-clock>"
-
-/**
  * Builds the argument list.
  *
  * An array, never a command line. FFmpeg documents three levels of escaping and the third is the
@@ -290,7 +284,7 @@ internal fun List<String>.readingGraphFrom(scratch: Scratch): List<String> {
  *
  * Both go ahead of `-i`, beside the seek and the bound, because they configure the demuxer rather
  * than the encoder. `-framerate` is the rate the repeated frames are stamped at, so a filter on the
- * branch runs once per output frame and a command written for one lands on it.
+ * branch runs once per output frame and a per-frame expression is read at every frame's own time.
  */
 internal fun InputSpec.loopArguments(): List<String> =
   loopFrameRate?.let { listOf("-loop", "1", "-framerate", it.toString()) }.orEmpty()

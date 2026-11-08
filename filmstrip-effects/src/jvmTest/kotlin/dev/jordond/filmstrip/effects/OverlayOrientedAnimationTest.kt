@@ -1,7 +1,7 @@
 package dev.jordond.filmstrip.effects
 
 import dev.jordond.filmstrip.effect.EffectResolution
-import dev.jordond.filmstrip.effect.Sidecar
+import dev.jordond.filmstrip.effect.FilterNode
 import dev.jordond.filmstrip.effects.overlay.ImageOverlay
 import dev.jordond.filmstrip.effects.overlay.OverlayOffset
 import dev.jordond.filmstrip.effects.overlay.filterGraphOverlay
@@ -19,33 +19,42 @@ import kotlin.test.Test
 import kotlin.time.Duration.Companion.seconds
 
 /**
- * The commands an animated overlay's branch is driven by on the ffmpeg graph, for a picture tagged with each of the
+ * The size and positions an animated overlay is drawn at on the ffmpeg graph, for a picture tagged with each of the
  * eight orientations.
  *
- * The graph turns the picture at the head of its branch, so every size and position the commands carry is the turned
- * picture's. Each tagged picture is driven the same way as an untagged one stored at the size
+ * The graph turns the picture at the head of its branch, so every size and position its expressions carry is the
+ * turned picture's. Each tagged picture is drawn the same way as an untagged one stored at the size
  * [PictureOrientation.orientedSize] gives it.
  */
-class OverlayOrientedCommandsTest {
+class OverlayOrientedAnimationTest {
   @Test
-  fun `an animated overlay is driven at the size of its picture turned`() {
-    val stored = commandsOf(OrientedPictures.png())
+  fun `an animated overlay is drawn at the size of its picture turned`() {
+    val stored = drawnBy(OrientedPictures.png())
     for (orientation in PictureOrientation.entries) {
       val shown = orientation.orientedSize(OrientedPictures.SIZE)
-      val twin = commandsOf(pngOf(BufferedImage(shown.width, shown.height, BufferedImage.TYPE_INT_ARGB)))
-      val tagged = commandsOf(OrientedPictures.taggedPng(OrientedPictures.png(), orientation.exif))
+      val twin = drawnBy(pngOf(BufferedImage(shown.width, shown.height, BufferedImage.TYPE_INT_ARGB)))
+      val tagged = drawnBy(OrientedPictures.taggedPng(OrientedPictures.png(), orientation.exif))
 
       withClue("$orientation") { tagged shouldBe twin }
       if (orientation.swapsAxes) withClue("$orientation") { tagged shouldNotBe stored }
     }
   }
 
-  private fun commandsOf(png: ByteArray): Sidecar {
+  // The scale that sizes the picture and the merge that places it, which carry everything the slide moves.
+  private fun drawnBy(png: ByteArray): List<FilterNode> {
     val spec =
       ImageOverlay(ImageSource.ofBytes(png), Corner.BottomEnd, animation = slideIn(OverlayOffset(0f, SLIDE), 1.seconds))
-    val resolved = filterGraphOverlay(spec, attributes(null), null).shouldBeInstanceOf<EffectResolution.Resolved>()
-    return resolved.effect.fragment.sidecars
-      .single()
+    val fragment =
+      filterGraphOverlay(spec, attributes(null), null)
+        .shouldBeInstanceOf<EffectResolution.Resolved>()
+        .effect.fragment
+    return listOf(
+      fragment.auxInputs
+        .single()
+        .chain
+        .first { it.name == "scale" },
+      checkNotNull(fragment.merge),
+    )
   }
 
   private companion object {

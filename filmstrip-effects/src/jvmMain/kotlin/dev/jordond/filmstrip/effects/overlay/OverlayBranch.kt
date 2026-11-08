@@ -5,30 +5,105 @@ import dev.jordond.filmstrip.edit.outputSlotOf
 import dev.jordond.filmstrip.edit.outputSlotTime
 import dev.jordond.filmstrip.effect.Attributes
 import dev.jordond.filmstrip.effect.AuxTimeline
+import dev.jordond.filmstrip.effect.FilterArgument
 import dev.jordond.filmstrip.effect.FilterNode
 import kotlin.math.roundToInt
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.microseconds
 import kotlin.time.DurationUnit
 
-// The gate and the opacity, which is everything a branch does to its picture's alpha.
-internal fun PlacedPicture.alphaNodes(
-  drawnRange: TimeRange,
-  span: TimeRange,
-  rate: Int?,
-  instance: String,
-  driven: Boolean,
-): List<FilterNode> =
-  buildList {
-    // After the format, which is the node that guarantees the alpha channel the gate zeroes.
-    windowGate(drawnRange, span, rate)?.let { add(it) }
-    when {
-      // The sampler has already folded the authored opacity into every value it answers, so the
-      // node the commands drive opens at one rather than at what was authored.
-      driven -> add(FilterNode("colorchannelmixer$instance", "aa" to "1"))
-      opacity < 1f -> add(FilterNode("colorchannelmixer", "aa" to opacity.toString()))
+/**
+ * The planar format `geq` reads a picture's alpha in, and the packed one the picture goes back to after it.
+ *
+ * @property planar The planar format with alpha `geq` runs on.
+ * @property packed The packed RGBA format the branch carries.
+ */
+internal class OpacityPlanes(
+  val planar: String,
+  val packed: String,
+)
+
+/**
+ * The nodes that draw the sampled [frames] at their opacity, keyed on the branch's own clock at [rate].
+ *
+ * An opacity that holds is a `colorchannelmixer` on the alpha, or nothing at full strength. One that moves is a `geq`
+ * that scales each texel's alpha by the frame's value, in [planes]. The value held on the most frames is left to the
+ * mixer instead, and `geq` is switched off on those frames, which leaves it only the format round trip to pay there.
+ * `geq` reads the frame size it was configured at, so it has to run where the picture's size holds.
+ */
+internal fun opacityNodes(
+  frames: List<SampledFrame>,
+  rate: Int,
+  planes: OpacityPlanes,
+): List<FilterNode> {
+  val opacity = frames.runsOf { opacityValue(it.frame) }
+  if (opacity.held) return heldOpacityNodes(opacity.runs.single().value, enable = null)
+
+  val clock = branchFrameClock(rate)
+  // A value no two frames share leaves the mixer nothing to take over, so geq runs on every frame.
+  val common =
+    frames
+      .groupingBy { opacityValue(it.frame) }
+      .eachCount()
+      .maxBy { it.value }
+      .takeIf { it.value > 1 }
+      ?.key
+  val moving = frames.runsOf { if (opacityValue(it.frame) == common) OFF else ON }
+  val resting = frames.runsOf { if (opacityValue(it.frame) == common) ON else OFF }
+  val fade =
+    buildList {
+      add(FilterArgument("r", "r(X,Y)"))
+      add(FilterArgument("g", "g(X,Y)"))
+      add(FilterArgument("b", "b(X,Y)"))
+      add(FilterArgument("a", "alpha(X,Y)*(${opacity.on(branchPlaneClock(rate))})"))
+      if (common != null) add(FilterArgument("enable", moving.on(clock)))
     }
-  }
+  return listOf(
+    FilterNode("format", "pix_fmts" to planes.planar),
+    FilterNode("geq", fade),
+    FilterNode("format", "pix_fmts" to planes.packed),
+  ) + common?.let { heldOpacityNodes(it, enable = resting.on(clock)) }.orEmpty()
+}
+
+// A mixer that holds the alpha at value below full strength, on the frames enable lets through when there is one.
+private fun heldOpacityNodes(
+  value: String,
+  enable: String?,
+): List<FilterNode> {
+  if (value.toFloat() >= 1f) return emptyList()
+  val arguments = listOfNotNull(FilterArgument("aa", value), enable?.let { FilterArgument("enable", it) })
+  return listOf(FilterNode("colorchannelmixer", arguments))
+}
+
+// What an enable expression answers on a frame a filter runs on, and on one it passes through untouched.
+private const val ON = "1"
+private const val OFF = "0"
+
+// The authored opacity of a picture that holds still, which a mixer applies below full strength.
+internal fun stillOpacityNodes(opacity: Float): List<FilterNode> =
+  if (opacity < 1f) listOf(FilterNode("colorchannelmixer", "aa" to opacity.toString())) else emptyList()
+
+/**
+ * The scale that draws a picture at [width] by [height], re-read on every frame where either moves.
+ */
+internal fun scaleNode(
+  width: FrameRuns,
+  height: FrameRuns,
+  rate: Int?,
+): FilterNode {
+  val clock = rate?.let(::branchFrameClock).orEmpty()
+  return FilterNode(
+    "scale",
+    buildList {
+      add(FilterArgument("w", width.on(clock)))
+      add(FilterArgument("h", height.on(clock)))
+      if (!width.held || !height.held) add(FilterArgument("eval", "frame"))
+    },
+  )
+}
+
+// A property that holds one value from the first frame on.
+internal fun heldAt(value: Int): FrameRuns = FrameRuns(listOf(FrameRun(0, value.toString())))
 
 // The window, as a node on the overlay's own branch: outside the drawn range the branch is handed on
 // fully transparent, so the merge blends nothing onto the frame under it, and inside it the node
@@ -47,7 +122,7 @@ internal fun PlacedPicture.alphaNodes(
 // two output frames out of one source frame either side of a boundary, so on a clip whose own
 // rate differs from the output's an edge lands within one output frame of the sampler's. That is
 // the resampler's limit rather than the window's.
-private fun PlacedPicture.windowGate(
+internal fun PlacedPicture.windowGate(
   drawnRange: TimeRange,
   span: TimeRange,
   rate: Int?,
