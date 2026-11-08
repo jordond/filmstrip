@@ -4,6 +4,7 @@ import dev.jordond.filmstrip.avfoundation.internal.chain.ClipSpan
 import dev.jordond.filmstrip.avfoundation.internal.chain.laysVideoOnGrid
 import dev.jordond.filmstrip.avfoundation.internal.chain.sdPrimariesKernelLimit
 import dev.jordond.filmstrip.avfoundation.internal.chain.spanning
+import dev.jordond.filmstrip.avfoundation.internal.chain.videoTrack
 import dev.jordond.filmstrip.avfoundation.internal.composition.SdSourceColor
 import dev.jordond.filmstrip.avfoundation.internal.composition.sdSourceColor
 import dev.jordond.filmstrip.avfoundation.internal.failure.AvLoweringFailure
@@ -22,7 +23,6 @@ import dev.jordond.filmstrip.internal.AppleScratch
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.describe
-import dev.jordond.filmstrip.transform.internal.copy.CopyPrefix
 import dev.jordond.filmstrip.transform.internal.copy.CopyRun
 import dev.jordond.filmstrip.transform.internal.heldTail
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedClip
@@ -146,8 +146,7 @@ internal class AssetCache(
  * @param frameRate The output's frame rate, which the video track lays its grid and its stills at.
  * @param onGrid Whether this is a video track whose boundaries land on the output frame grid.
  * @param tail The output slots the primary's last frame is held over, empty when nothing outlasts it.
- * @param copied The runs of frames a copy's video track holds, from [CopyPrefix.Packets.runs], or null for any other
- * track or plan.
+ * @param copied The runs of frames a copy's video track holds, from [copiedRuns], or null for any other track or plan.
  */
 @OptIn(ExperimentalForeignApi::class)
 internal suspend fun ResolvedTrack.layOnto(
@@ -203,6 +202,29 @@ internal fun copiedRunOf(
   clip: ResolvedClip,
   copied: List<CopyRun>,
 ): Duration = maxOf((copied.last().end ?: clip.info.duration) - clip.start, clip.outputDuration)
+
+/**
+ * The runs of frames a copy's video track holds, from [ResolvedComposition.copyPrefix], or null when the plan counted
+ * no packets.
+ *
+ * An export that reads the copy's packets through the composition lays every counted frame as one run, whose packets
+ * the reader hands over in decode order and the writer stops after the count. A preview lays the frames on the grid,
+ * one run per stretch, since a segment that opens on a frame decoding behind others reads those others again. Its runs
+ * stop where the clip's own run ends, so the preview runs as long as the composition and its last frame on the grid
+ * holds to that end.
+ *
+ * @param writesCopy Whether an export reads the copy's packets through the composition these runs are laid on.
+ */
+internal fun ResolvedComposition.copiedRuns(writesCopy: Boolean): List<CopyRun>? {
+  val prefix = copyPrefix ?: return null
+  val runs = prefix.runs
+  if (writesCopy) return listOf(CopyRun(runs.first().start, runs.last().lastFrameAt, runs.last().end))
+  val clip = videoTrack?.clips?.firstOrNull() ?: return prefix.shown
+  val clipEnd = clip.start + clip.outputDuration
+  return prefix.shown
+    .filter { it.start < clipEnd }
+    .map { run -> CopyRun(run.start, minOf(run.lastFrameAt, clipEnd), minOf(run.end ?: clip.info.duration, clipEnd)) }
+}
 
 /**
  * Lays [placement]'s clip onto this track over the slot it was given, or empty time over that slot when nothing of the

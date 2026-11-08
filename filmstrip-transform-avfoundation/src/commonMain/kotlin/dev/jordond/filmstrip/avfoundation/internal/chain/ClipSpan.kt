@@ -2,6 +2,7 @@ package dev.jordond.filmstrip.avfoundation.internal.chain
 
 import dev.jordond.filmstrip.avfoundation.internal.composition.SdSourceColor
 import dev.jordond.filmstrip.avfoundation.internal.copiedRunOf
+import dev.jordond.filmstrip.avfoundation.internal.copiedRuns
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.edit.outputSlotTime
@@ -173,7 +174,7 @@ internal fun ResolvedComposition.laysSameFramesAs(other: ResolvedComposition): B
   val frameRate = copied.output.frameRate
   return copied.videoTrack?.clips.orEmpty().all { clip ->
     val slots = outputSlotsOf(clip.span, frameRate)
-    val run = copied.copyPrefix?.let { copiedRunOf(clip, it.runs) } ?: clip.outputDuration
+    val run = copied.copiedRuns(writesCopy = false)?.let { copiedRunOf(clip, it) } ?: clip.outputDuration
     !slots.isEmpty() && clip.span.start + run <= outputSlotTime(slots.last + 1, frameRate)
   }
 }

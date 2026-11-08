@@ -102,6 +102,35 @@ class CopyPrefixTest {
       )
   }
 
+  // Frames 6 and 8 are written only as references for frame 5, so the frames on the grid stop showing on frame 6.
+  @Test
+  fun `the shown runs hold the counted frames on the grid alone`() {
+    copyPrefixOf(reordered(frames = 40), Duration.ZERO, videoSlots = 6, frameRate = RATE) should
+      shown(Run(frameTime(0), frameTime(5), frameTime(6)))
+  }
+
+  // Frames 4 and 8 sit between and past the left out ones, and none of them is on a three slot grid.
+  @Test
+  fun `the shown runs leave out every reference past the grid`() {
+    copyPrefixOf(pyramid(frames = 40), Duration.ZERO, videoSlots = 3, frameRate = RATE) should
+      shown(Run(frameTime(0), frameTime(2), frameTime(3)))
+  }
+
+  @Test
+  fun `the shown runs of a copy opening mid source count the grid from the opening`() {
+    copyPrefixOf(reordered(frames = 60, keyEvery = 20), frameTime(20), videoSlots = 6, frameRate = RATE) should
+      shown(Run(frameTime(20), frameTime(25), frameTime(26)))
+  }
+
+  @Test
+  fun `the shown runs match the runs when nothing is written past the grid`() {
+    val prefix =
+      copyPrefixOf(inOrder(frames = 40), Duration.ZERO, videoSlots = 17, frameRate = RATE)
+        .shouldBeInstanceOf<CopyPrefix.Packets>()
+
+    prefix.shown.map { it.toRun() } shouldBe prefix.runs.map { it.toRun() }
+  }
+
   // The read opened on a sync sample before the copy's, whose frames are never shown, so no run starts before it.
   @Test
   fun `no run starts before the copy opens`() {
@@ -169,6 +198,16 @@ class CopyPrefixTest {
           actual == expected.toList(),
           { "expected runs ${expected.toList()} but was ${actual ?: prefix}" },
           { "expected anything but runs ${expected.toList()}" },
+        )
+      }
+
+    fun shown(vararg expected: Run): Matcher<CopyPrefix> =
+      Matcher { prefix ->
+        val actual = (prefix as? CopyPrefix.Packets)?.shown?.map { it.toRun() }
+        MatcherResult(
+          actual == expected.toList(),
+          { "expected shown runs ${expected.toList()} but was ${actual ?: prefix}" },
+          { "expected anything but shown runs ${expected.toList()}" },
         )
       }
 

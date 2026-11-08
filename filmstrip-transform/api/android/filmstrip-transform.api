@@ -26,10 +26,11 @@ public final class dev/jordond/filmstrip/transform/internal/copy/CopyPrefix$None
 }
 
 public final class dev/jordond/filmstrip/transform/internal/copy/CopyPrefix$Packets : dev/jordond/filmstrip/transform/internal/copy/CopyPrefix {
-	public fun <init> (ILjava/util/List;)V
+	public fun <init> (ILjava/util/List;Ljava/util/List;)V
 	public final fun getCount ()I
 	public final fun getEnd-FghU774 ()Lkotlin/time/Duration;
 	public final fun getRuns ()Ljava/util/List;
+	public final fun getShown ()Ljava/util/List;
 }
 
 public final class dev/jordond/filmstrip/transform/internal/copy/CopyPrefix$Untimed : dev/jordond/filmstrip/transform/internal/copy/CopyPrefix {

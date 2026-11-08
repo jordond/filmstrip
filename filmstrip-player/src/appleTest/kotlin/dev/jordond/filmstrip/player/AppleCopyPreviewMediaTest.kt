@@ -12,11 +12,11 @@ import dev.jordond.filmstrip.player.contract.contractTest
 import dev.jordond.filmstrip.player.internal.AvPreviewPlanner
 import dev.jordond.filmstrip.player.internal.PlanResult
 import dev.jordond.filmstrip.player.internal.PreviewPlan
+import dev.jordond.filmstrip.transform.internal.videoSlots
 import io.kotest.assertions.withClue
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
-import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.readBytes
@@ -27,6 +27,7 @@ import platform.AVFoundation.AVAssetTrack
 import platform.AVFoundation.AVAssetTrackSegment
 import platform.AVFoundation.AVComposition
 import platform.AVFoundation.AVMediaTypeVideo
+import platform.AVFoundation.duration
 import platform.AVFoundation.segments
 import platform.AVFoundation.timeRange
 import platform.AVFoundation.tracksWithMediaType
@@ -58,7 +59,8 @@ import kotlin.time.Duration.Companion.seconds
  *
  * The long fixture reorders two B-frames behind each reference, so one window ends on a whole reorder group and the
  * other inside one. A preview that laid the clip's whole span would show a frame past the grid the export never
- * writes on the first, and on the second a frame between two references the export leaves out.
+ * writes on the first. On the second the export also writes references presented past the clip's end, which the
+ * preview leaves out so it ends where the clip does.
  */
 @OptIn(ExperimentalForeignApi::class)
 class AppleCopyPreviewMediaTest {
@@ -66,43 +68,40 @@ class AppleCopyPreviewMediaTest {
     pumpMainRunLoopDuringContracts()
   }
 
-  // The frames a decoding read hands back are the ones the preview shows. A reference read again only to decode the
-  // run after a left out frame is marked as not shown, so it comes back once.
+  // The frames a decoding read hands back are the ones the preview shows, one for each slot of the grid.
   @Test
-  fun `a copy's preview shows the frames its export writes`() =
+  fun `a copy's preview shows the frames its export writes on the grid`() =
     contractTest(timeout = TIMEOUT) {
       listOf(WHOLE_GROUP_END, SPLIT_GROUP_END).forEach { end ->
         val plan = previewOf(end)
-        val counted = plan.resolved.copyPrefix.shouldNotBeNull()
+        plan.resolved.copyPrefix.shouldNotBeNull()
 
         val shown = shownFramesOf(plan.resolved.toAvComposition().composition)
 
         withClue("the preview of a copy to $end showed $shown") {
-          shown.size shouldBe counted.count
+          shown.size.toLong() shouldBe plan.resolved.videoSlots
           shown.distinct().size shouldBe shown.size
         }
       }
     }
 
-  // The window ending inside a reorder group leaves out a frame between the ones it writes, and the written file shows
-  // the frame before it until the next written one.
+  // The window ending inside a reorder group writes references presented past the clip's end. The preview stops on
+  // that end and holds the last frame on the grid up to it.
   @Test
-  fun `a seek into a frame the copy leaves out shows the frame before it`() =
+  fun `a copy's preview ends where its clip does`() =
     contractTest(timeout = TIMEOUT) {
       val plan = previewOf(SPLIT_GROUP_END)
-      val runs =
-        plan.resolved.copyPrefix
-          .shouldNotBeNull()
-          .runs
-      withClue("the window was meant to leave out a frame between the written ones") { runs.size shouldBe 2 }
+      val counted = plan.resolved.copyPrefix.shouldNotBeNull()
+      withClue("the window was meant to write frames past the grid") {
+        (counted.count > plan.resolved.videoSlots).shouldBeTrue()
+      }
       val composition = plan.resolved.toAvComposition().composition
-      val held = runs.first()
-      val gap = held.end.shouldNotBeNull()
-      val into = gap + (runs[1].start - gap) / 2
+      val last = shownFramesOf(composition).last()
+      val held = last + (plan.resolved.duration - last) / 2
 
-      withClue("a seek to $into, inside the frame at $gap the copy leaves out") {
-        shownAt(composition, into) shouldBe shownAt(composition, held.lastFrameAt)
-        shownAt(composition, into) shouldNotBe shownAt(composition, runs[1].start)
+      composition.duration.toDuration() shouldBe plan.resolved.duration
+      withClue("a seek to $held, after the last frame on the grid at $last") {
+        shownAt(composition, held) shouldBe shownAt(composition, last)
       }
     }
 

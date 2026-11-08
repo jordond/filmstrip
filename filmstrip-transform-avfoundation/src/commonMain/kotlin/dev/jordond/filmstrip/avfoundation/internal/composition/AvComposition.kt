@@ -9,6 +9,7 @@ import dev.jordond.filmstrip.avfoundation.internal.chain.CoreImageChain
 import dev.jordond.filmstrip.avfoundation.internal.chain.laysVideoOnGrid
 import dev.jordond.filmstrip.avfoundation.internal.chain.sdPrimariesKernelLimit
 import dev.jordond.filmstrip.avfoundation.internal.chain.videoTrack
+import dev.jordond.filmstrip.avfoundation.internal.copiedRuns
 import dev.jordond.filmstrip.avfoundation.internal.failure.AvLoweringFailure
 import dev.jordond.filmstrip.avfoundation.internal.layOnto
 import dev.jordond.filmstrip.avfoundation.internal.tailHeldBy
@@ -22,7 +23,6 @@ import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.internal.AppleScratch
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.MediaBytesFileFailure
-import dev.jordond.filmstrip.transform.internal.copy.CopyRun
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedHdr
 import kotlinx.cinterop.ExperimentalForeignApi
@@ -160,9 +160,8 @@ public suspend fun ResolvedComposition.toAvComposition(bytesRoot: String = Apple
  * @param bytesRoot The directory an in-memory source lands under.
  * @param stretched The audio an export rendered to its clips' speeds, laid at speed 1 in place of those clips' sources.
  * Null for a preview, which scales its audio tracks and leaves the pitch to its player.
- * @param writesCopy Whether an export reads a copy's packets through this composition. Its counted video is then one
- * segment, whose packets the reader hands over in decode order and the writer stops after the count. A preview lays
- * one segment per run, since a segment that opens on a frame decoding behind others reads those others again.
+ * @param writesCopy Whether an export reads a copy's packets through this composition, which picks how
+ * [copiedRuns] lays its counted video.
  * @throws AvLoweringFailure when a source or a track cannot be opened, a clip's frames cannot be laid, or the plan
  * draws an SD clip's primaries and [sdKernelLimit] names a limit.
  * @throws MediaBytesFileFailure when an in-memory source could not be written to a file.
@@ -192,8 +191,7 @@ internal suspend fun ResolvedComposition.toAvComposition(
         // composition ignores it. Every clip bakes its own rotation instead, so this says the frames
         // are already the way round they should be shown.
         media.preferredTransform = CGAffineTransformIdentity.readValue()
-        val copied = copyPrefix?.runs?.let { runs -> if (writesCopy) listOf(runs.spanned()) else runs }
-        track.layOnto(media, AVMediaTypeVideo, assets, output.frameRate, laysVideoOnGrid, tail, copied)
+        track.layOnto(media, AVMediaTypeVideo, assets, output.frameRate, laysVideoOnGrid, tail, copiedRuns(writesCopy))
       }.orEmpty()
 
   val mixed =
@@ -318,6 +316,3 @@ private const val NO_VIDEO_TRACK = "AVFoundation refused a video track on the co
 private const val NOTHING_INSERTED =
   "No clip in this composition contributed a track AVFoundation could read, so the export would " +
     "write a file with nothing in it."
-
-// One run from the first of these to the end of the last, holding every frame between them.
-private fun List<CopyRun>.spanned(): CopyRun = CopyRun(first().start, last().lastFrameAt, last().end)

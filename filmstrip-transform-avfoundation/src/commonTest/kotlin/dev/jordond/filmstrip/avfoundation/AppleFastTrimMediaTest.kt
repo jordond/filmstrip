@@ -4,6 +4,7 @@ import dev.jordond.filmstrip.ComponentRegistry
 import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.avfoundation.internal.composition.toAvComposition
+import dev.jordond.filmstrip.avfoundation.internal.copiedRuns
 import dev.jordond.filmstrip.avfoundation.internal.export.AvDriver
 import dev.jordond.filmstrip.avfoundation.internal.interop.pastCap
 import dev.jordond.filmstrip.avfoundation.internal.interop.syncSampleAtOrBefore
@@ -28,6 +29,7 @@ import dev.jordond.filmstrip.transform.internal.copy.CopyPrefix
 import dev.jordond.filmstrip.transform.internal.copy.copyPrefixOf
 import dev.jordond.filmstrip.transform.internal.probe.OpeningRead
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
+import dev.jordond.filmstrip.transform.internal.videoSlots
 import io.kotest.assertions.withClue
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.nulls.shouldNotBeNull
@@ -172,10 +174,10 @@ class AppleFastTrimMediaTest {
       error.message shouldBe pastCap(1)
     }
 
-  // The window ends inside a reorder group, so a frame the copy leaves out sits between the ones it writes and the
-  // preview lays a cut on each side of it.
+  // The window ends inside a reorder group, so the copy writes references past the grid that the preview leaves out.
+  // The preview lays a cut for each run of the frames on the grid, ending where the clip does.
   @Test
-  fun `lays a cut for each run of the copy's counted video`() =
+  fun `lays a cut for each run of the copy's video on the grid`() =
     runTest(timeout = TIMEOUT) {
       val resolved = trimmed()
 
@@ -184,7 +186,10 @@ class AppleFastTrimMediaTest {
           .toAvComposition()
           .composition
           .joinedCuts(AVMediaTypeVideo)
-      val runs = resolved.copyPrefix.shouldNotBeNull().runs
+      val runs = resolved.copiedRuns(writesCopy = false).shouldNotBeNull()
+      withClue("the window was meant to write frames past the grid") {
+        (resolved.copyPrefix.shouldNotBeNull().count > resolved.videoSlots).shouldBeTrue()
+      }
 
       withClue("the cuts ${cuts.map { it.start to it.end }} against the runs") {
         cuts.size shouldBe runs.size

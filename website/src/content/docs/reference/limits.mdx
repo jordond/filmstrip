@@ -32,8 +32,8 @@ presented after the end, and the copy writes them too. That's the reorder residu
 source's reorder depth. A 30 fps H.264 source with two B-frames copied from 0 to 1.010 s writes the grid's 30 frames and
 nothing past them. Copied from 0 to 1.040 s it writes the grid's 31 and a residue of 2. Every backend writes those same
 frames, Android on API 30 and 36 alike. Everywhere but Android the audio runs to the trim's end either way.
-The residue can sit apart in time from the grid's frames. Playing the file, and every preview of the copy, holds the
-last frame before such a gap until the next written frame shows.
+The residue is presented past the grid, so playing the file shows it after the grid's last frame. A preview of the copy
+ends on the grid at the plan's duration, holding its last frame there, and never shows the residue.
 
 On Android a copied clip's audio ends with its video, on the grid rather than at the trim's end, because media3 takes
 one clipping end for both tracks of a clip. Copied audio ends on a whole AAC access unit, 21.3 ms at 48 kHz, and media3

@@ -78,10 +78,13 @@ public sealed interface CopyPrefix {
    * @property runs The counted frames that sit next to each other in presentation order, earliest first. There is
    * more than one when a frame the copy leaves out is presented between frames it writes, which happens where the
    * references past the grid are presented after a frame that is not written.
+   * @property shown The counted frames presented on the grid, in runs the same way as [runs]. A preview of the copy
+   * shows these, since the references a copy writes past the grid fall outside the composition it previews.
    */
   public class Packets(
     public val count: Int,
     public val runs: List<CopyRun>,
+    public val shown: List<CopyRun>,
   ) : CopyPrefix {
     /**
      * Where the counted video stops showing, which is the end of the last of [runs]. Null when the counted video runs
@@ -149,7 +152,13 @@ public fun copyPrefixOf(
       pts >= opensAt && outputSlotOf(pts - opensAt, frameRate) < videoSlots
     } ?: return CopyPrefix.NoneOnGrid
   val count = last + 1 - opening
-  return CopyPrefix.Packets(count, copyPresentationRunsOf(packets.subList(opening, packets.size), count, opensAt))
+  val listed = packets.subList(opening, packets.size)
+  val onGrid = { pts: Duration -> outputSlotOf(pts - opensAt, frameRate) < videoSlots }
+  return CopyPrefix.Packets(
+    count = count,
+    runs = copyPresentationRunsOf(listed, count, opensAt),
+    shown = copyPresentationRunsOf(listed, count, opensAt, onGrid),
+  )
 }
 
 /**
@@ -173,19 +182,21 @@ public class CopyRun(
  * exactly the frames a copy writes.
  *
  * [listed] is a copy's packets in decode order from the sync sample it opens on. A frame presented before [opensAt]
- * never shows, so a run ending by then is dropped and the first one kept starts on [opensAt] at the earliest.
+ * never shows, so a run ending by then is dropped and the first one kept starts on [opensAt] at the earliest. A
+ * counted frame whose time [kept] refuses is left out the same way as one past the count.
  */
 internal fun copyPresentationRunsOf(
   listed: List<CopyPacket>,
   count: Int,
   opensAt: Duration,
+  kept: (Duration) -> Boolean = { true },
 ): List<CopyRun> {
   val presented = listed.withIndex().sortedBy { it.value.pts }
   val runs = mutableListOf<CopyRun>()
   var first: Duration? = null
   var latest = Duration.ZERO
   presented.forEach { (index, packet) ->
-    if (index < count) {
+    if (index < count && kept(packet.pts)) {
       if (first == null) first = packet.pts
       latest = packet.pts
     } else {
