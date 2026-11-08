@@ -69,7 +69,7 @@ steps=(
   "spotless|spotlessCheck|any"
   "build-logic|-p build-logic :convention:test|any"
   "abi|checkKotlinAbi|mac"
-  "guards|checkForbiddenImports checkLayering|any"
+  "guards|checkForbiddenImports checkLayering checkKDocWidth|any"
   "lint|lint|any"
   "android-host|testAndroidHostTest|any"
   "jvm|jvmTest|any"

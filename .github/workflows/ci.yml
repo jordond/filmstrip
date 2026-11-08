@@ -100,7 +100,7 @@ jobs:
       - name: Formatting, ABI, architecture guards and the docs snippets
         run: >-
           ./gradlew --continue --scan
-          spotlessCheck checkKotlinAbi checkForbiddenImports checkLayering
+          spotlessCheck checkKotlinAbi checkForbiddenImports checkLayering checkKDocWidth
           :internal:docs-samples:compileKotlinJvm
           :internal:docs-samples:compileKotlinWasmJs
           :internal:docs-samples:compileAndroidMain
