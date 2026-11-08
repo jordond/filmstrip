@@ -10,6 +10,7 @@ import dev.jordond.filmstrip.transform.internal.NEAREST_FRAME_TIE
 import kotlinx.coroutines.CancellationException
 import kotlin.test.fail
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
 /**
@@ -50,6 +51,16 @@ internal class PlacedCut(
 ) {
   fun at(opening: Duration) = Cut(TimeRange.of(opening + start, opening + end), speed)
 }
+
+internal val HALF_SECOND = 500.milliseconds
+
+/**
+ * The plain clips a run opens and closes with in the short clip cells, each half a second of the source at speed 1.
+ */
+internal val OPENING = Cut(TimeRange.of(Duration.ZERO, HALF_SECOND), 1.0)
+internal val CLOSING = Cut(TimeRange.of(HALF_SECOND, HALF_SECOND * 2), 1.0)
+
+internal const val SPED_UP = 1.5
 
 /**
  * Runs each named side of a cell and fails afterwards with every side that failed, so one red side leaves the others

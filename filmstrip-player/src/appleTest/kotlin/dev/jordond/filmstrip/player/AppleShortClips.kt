@@ -5,9 +5,14 @@ import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.media.MediaSource
+import dev.jordond.filmstrip.player.contract.ClipParityBackend
 import dev.jordond.filmstrip.player.contract.MOVING_PAN
 import dev.jordond.filmstrip.player.contract.MOVING_RUN
-import dev.jordond.filmstrip.player.contract.ShortClipContractTest
+import dev.jordond.filmstrip.player.contract.ShortClipBackend
+import dev.jordond.filmstrip.player.contract.ShortClipEverySlotContractTest
+import dev.jordond.filmstrip.player.contract.ShortClipOffGridContractTest
+import dev.jordond.filmstrip.player.contract.ShortClipSlotContractTest
+import dev.jordond.filmstrip.player.contract.ShortClipTieContractTest
 import kotlinx.cinterop.ExperimentalForeignApi
 import platform.AVFoundation.AVAssetReader
 import platform.AVFoundation.AVAssetReaderTrackOutput
@@ -24,7 +29,7 @@ import kotlin.test.fail
  * The short clip contract on AVFoundation. Frames are read where the encoder takes them, and the file comes from the
  * whole export, audio pre-stretch included.
  */
-class AppleShortClipHardwareTest : ShortClipContractTest(AppleClipParity) {
+internal object AppleShortClips : ShortClipBackend, ClipParityBackend by AppleClipParity {
   init {
     pumpMainRunLoopDuringContracts()
   }
@@ -61,3 +66,23 @@ class AppleShortClipHardwareTest : ShortClipContractTest(AppleClipParity) {
     return MediaSource.of(path)
   }
 }
+
+/**
+ * The single slot short clip cells on AVFoundation.
+ */
+class AppleShortClipSlotHardwareTest : ShortClipSlotContractTest(AppleShortClips)
+
+/**
+ * The every slot short clip cells on AVFoundation.
+ */
+class AppleShortClipEverySlotHardwareTest : ShortClipEverySlotContractTest(AppleShortClips)
+
+/**
+ * The half frame tie short clip cells on AVFoundation.
+ */
+class AppleShortClipTieHardwareTest : ShortClipTieContractTest(AppleShortClips)
+
+/**
+ * The off grid span short clip cells on AVFoundation.
+ */
+class AppleShortClipOffGridHardwareTest : ShortClipOffGridContractTest(AppleShortClips)

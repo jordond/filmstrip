@@ -6,7 +6,12 @@ import android.media.MediaFormat
 import android.media.MediaMuxer
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.media.MediaSource
-import dev.jordond.filmstrip.player.contract.ShortClipContractTest
+import dev.jordond.filmstrip.player.contract.ClipParityBackend
+import dev.jordond.filmstrip.player.contract.ShortClipBackend
+import dev.jordond.filmstrip.player.contract.ShortClipEverySlotContractTest
+import dev.jordond.filmstrip.player.contract.ShortClipOffGridContractTest
+import dev.jordond.filmstrip.player.contract.ShortClipSlotContractTest
+import dev.jordond.filmstrip.player.contract.ShortClipTieContractTest
 import io.kotest.matchers.types.shouldBeInstanceOf
 import java.io.File
 import java.nio.ByteBuffer
@@ -17,7 +22,7 @@ import kotlin.time.Duration
  * The short clip contract on media3, whose frame rate setting can't write faster than a source, so a source at another
  * rate is the moving source's own samples remuxed onto that rate's frame times.
  */
-class AndroidShortClipMediaTest : ShortClipContractTest(AndroidClipParity) {
+internal object AndroidShortClips : ShortClipBackend, ClipParityBackend by AndroidClipParity {
   // media3's limit: the player's getFrame hands back the frame at or after the whole millisecond it is given, so a read
   // past a frame's own time lands on the next one.
   override fun frameReadLead(rate: Int): Duration = Duration.ZERO
@@ -80,7 +85,25 @@ class AndroidShortClipMediaTest : ShortClipContractTest(AndroidClipParity) {
       getTrackFormat(it).getString(MediaFormat.KEY_MIME).orEmpty().startsWith(mimePrefix)
     }
 
-  private companion object {
-    const val SAMPLE_BUFFER_BYTES = 1 shl 20
-  }
+  private const val SAMPLE_BUFFER_BYTES = 1 shl 20
 }
+
+/**
+ * The single slot short clip cells on media3.
+ */
+class AndroidShortClipSlotMediaTest : ShortClipSlotContractTest(AndroidShortClips)
+
+/**
+ * The every slot short clip cells on media3.
+ */
+class AndroidShortClipEverySlotMediaTest : ShortClipEverySlotContractTest(AndroidShortClips)
+
+/**
+ * The half frame tie short clip cells on media3.
+ */
+class AndroidShortClipTieMediaTest : ShortClipTieContractTest(AndroidShortClips)
+
+/**
+ * The off grid span short clip cells on media3.
+ */
+class AndroidShortClipOffGridMediaTest : ShortClipOffGridContractTest(AndroidShortClips)

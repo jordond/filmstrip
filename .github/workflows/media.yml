@@ -4,6 +4,15 @@ name: Media
 # stay out, since the hosted macOS GPU is a paravirtual device whose encoder jitters, so Apple pixel and encode suites
 # count only on real hardware in the local lane. Runs nightly on main, on dispatch, and from publish.yml before a
 # release goes out.
+#
+# Job budget. GitHub runs at most 20 jobs at once, five of them macOS, and a job past that waits for a free slot, so
+# the lane's wall time is its slowest job only while it stays inside both. It holds 20.
+#
+#   macOS  5   ios 4, macos 1
+#   Linux 15   ffmpeg 8 in 3 and ffmpeg 9 in 3, browser 5, android device 4
+#
+# A new cell or shard has to come out of this budget. Shard counts follow gradle/test-weights.txt, written from a run
+# of this lane, so a shard's share of a cell's weight is close to its hosted time.
 
 on:
   schedule:
@@ -26,32 +35,28 @@ env:
 
 jobs:
   # ffmpeg 8 is apt's 8.0.1 on ubuntu 26.04, the backend's floor, and runs every jvm suite. ffmpeg 9 is the pinned
-  # static build on the PATH and runs the suites that drive ffmpeg. Each major splits the backend from the rest, and
-  # the backend runs in four shards, since one runner takes over half an hour on it.
+  # static build on the PATH and runs the suites that drive ffmpeg. Each major runs in three shards, since one runner
+  # takes over half an hour on it.
   #
-  # A cell with a shard passes -PtestShard=i/n, which packs the classes by gradle/test-weights.txt so every class runs
-  # in exactly one shard of the cell.
+  # A cell with a shard passes -PtestShard=i/n, which packs each test task's classes by gradle/test-weights.txt so every
+  # class runs in exactly one shard of the cell.
   ffmpeg:
-    name: "Test ffmpeg ${{ matrix.major }} ${{ matrix.suite }}${{ matrix.shard && format(' {0}', matrix.shard) || '' }}"
+    name: "Test ffmpeg ${{ matrix.major }} ${{ matrix.shard }}"
     runs-on: ubuntu-26.04
     timeout-minutes: 45
     # Each job's matrix values in its own name for its artifacts, which the Name the artifacts step makes safe.
     env:
-      CELL: ffmpeg-${{ matrix.major }}-${{ matrix.suite }}-${{ matrix.shard }}
+      CELL: ffmpeg-${{ matrix.major }}-${{ matrix.shard }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          - { major: 8, suite: backend, shard: 1/4, tasks: ":filmstrip-transform-ffmpeg:jvmTest" }
-          - { major: 8, suite: backend, shard: 2/4, tasks: ":filmstrip-transform-ffmpeg:jvmTest" }
-          - { major: 8, suite: backend, shard: 3/4, tasks: ":filmstrip-transform-ffmpeg:jvmTest" }
-          - { major: 8, suite: backend, shard: 4/4, tasks: ":filmstrip-transform-ffmpeg:jvmTest" }
-          - { major: 8, suite: rest, tasks: "jvmTest -x :filmstrip-transform-ffmpeg:jvmTest" }
-          - { major: 9, suite: backend, shard: 1/4, tasks: ":filmstrip-transform-ffmpeg:jvmTest" }
-          - { major: 9, suite: backend, shard: 2/4, tasks: ":filmstrip-transform-ffmpeg:jvmTest" }
-          - { major: 9, suite: backend, shard: 3/4, tasks: ":filmstrip-transform-ffmpeg:jvmTest" }
-          - { major: 9, suite: backend, shard: 4/4, tasks: ":filmstrip-transform-ffmpeg:jvmTest" }
-          - { major: 9, suite: rest, tasks: ":filmstrip-player:jvmTest :filmstrip-effects:jvmTest :filmstrip-effects-filters:jvmTest" }
+          - { major: 8, shard: 1/3, tasks: "jvmTest" }
+          - { major: 8, shard: 2/3, tasks: "jvmTest" }
+          - { major: 8, shard: 3/3, tasks: "jvmTest" }
+          - { major: 9, shard: 1/3, tasks: ":filmstrip-transform-ffmpeg:jvmTest :filmstrip-player:jvmTest :filmstrip-effects:jvmTest :filmstrip-effects-filters:jvmTest" }
+          - { major: 9, shard: 2/3, tasks: ":filmstrip-transform-ffmpeg:jvmTest :filmstrip-player:jvmTest :filmstrip-effects:jvmTest :filmstrip-effects-filters:jvmTest" }
+          - { major: 9, shard: 3/3, tasks: ":filmstrip-transform-ffmpeg:jvmTest :filmstrip-player:jvmTest :filmstrip-effects:jvmTest :filmstrip-effects-filters:jvmTest" }
     steps:
       - &checkout
         name: Checkout
@@ -105,9 +110,7 @@ jobs:
           cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
 
       - name: Run tests
-        run: >-
-          ./gradlew ${{ matrix.tasks }} -Pmedia --scan
-          ${{ matrix.shard && format('-PtestShard={0}', matrix.shard) || '' }}
+        run: ./gradlew ${{ matrix.tasks }} -Pmedia --scan -PtestShard=${{ matrix.shard }}
 
       - &slowest
         name: Slowest test classes
@@ -149,36 +152,44 @@ jobs:
   # See ci.yml for why the browser cells run with smaller daemon heaps. js also runs every pureTest class, which the
   # fast lane runs on jvm only.
   #
-  # Each cell runs one module's browser tests, so it compiles only that module's tests and runs one SwiftShader Chrome
-  # on the runner. The player takes two shards packed by gradle/test-weights.txt, from the class times the shared Karma
-  # config writes. The other web modules each finish in under a minute, so they share one cell.
+  # The webcodecs and player modules share a cell per target in two shards packed by gradle/test-weights.txt, from the
+  # class times the shared Karma config writes. The other web modules each finish in under a minute, so both targets of
+  # them share one cell.
+  #
+  # Each entry of calls, split on semicolons, is its own Gradle call, so a shard runs one module's SwiftShader Chrome at
+  # a time and every call runs even when one before it fails.
   browser:
-    name: "Test ${{ matrix.target }} browser ${{ matrix.module }}${{ matrix.shard && format(' {0}', matrix.shard) || '' }}"
+    name: "Test ${{ matrix.target }} browser ${{ matrix.modules }}${{ matrix.shard && format(' {0}', matrix.shard) || '' }}"
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
-      CELL: browser-${{ matrix.target }}-${{ matrix.module }}-${{ matrix.shard }}
+      CELL: browser-${{ matrix.target }}-${{ matrix.modules }}-${{ matrix.shard }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          - { target: js, module: webcodecs, tasks: ":filmstrip-transform-webcodecs:jsBrowserTest -PpureEverywhere" }
-          - { target: js, module: player, shard: 1/2, tasks: ":filmstrip-player:jsBrowserTest -PpureEverywhere" }
-          - { target: js, module: player, shard: 2/2, tasks: ":filmstrip-player:jsBrowserTest -PpureEverywhere" }
-          - { target: js, module: rest, tasks: "jsBrowserTest -x :filmstrip-transform-webcodecs:jsBrowserTest -x :filmstrip-player:jsBrowserTest -PpureEverywhere" }
-          - { target: wasm, module: webcodecs, tasks: ":filmstrip-transform-webcodecs:wasmJsBrowserTest" }
-          - { target: wasm, module: player, shard: 1/2, tasks: ":filmstrip-player:wasmJsBrowserTest" }
-          - { target: wasm, module: player, shard: 2/2, tasks: ":filmstrip-player:wasmJsBrowserTest" }
-          - { target: wasm, module: rest, tasks: "wasmJsBrowserTest -x :filmstrip-transform-webcodecs:wasmJsBrowserTest -x :filmstrip-player:wasmJsBrowserTest" }
+          - { target: js, modules: webcodecs and player, shard: 1/2, calls: ":filmstrip-player:jsBrowserTest -PpureEverywhere;:filmstrip-transform-webcodecs:jsBrowserTest -PpureEverywhere" }
+          - { target: js, modules: webcodecs and player, shard: 2/2, calls: ":filmstrip-player:jsBrowserTest -PpureEverywhere;:filmstrip-transform-webcodecs:jsBrowserTest -PpureEverywhere" }
+          - { target: wasm, modules: webcodecs and player, shard: 1/2, calls: ":filmstrip-player:wasmJsBrowserTest;:filmstrip-transform-webcodecs:wasmJsBrowserTest" }
+          - { target: wasm, modules: webcodecs and player, shard: 2/2, calls: ":filmstrip-player:wasmJsBrowserTest;:filmstrip-transform-webcodecs:wasmJsBrowserTest" }
+          - { target: js and wasm, modules: rest, calls: "jsBrowserTest -x :filmstrip-transform-webcodecs:jsBrowserTest -x :filmstrip-player:jsBrowserTest -PpureEverywhere;wasmJsBrowserTest -x :filmstrip-transform-webcodecs:wasmJsBrowserTest -x :filmstrip-player:wasmJsBrowserTest" }
     steps:
       - *checkout
       - *java
       - *gradle
       - name: Run browser tests
-        run: >-
-          ./gradlew ${{ matrix.tasks }} -Pmedia --scan
-          ${{ matrix.shard && format('-PtestShard={0}', matrix.shard) || '' }}
-          "-Dorg.gradle.jvmargs=-Xmx2g -Dfile.encoding=UTF-8 -Dkotlin.daemon.jvm.options=-Xmx3g"
+        env:
+          CALLS: ${{ matrix.calls }}
+          SHARD: ${{ matrix.shard }}
+        run: |
+          status=0
+          IFS=';' read -ra calls <<< "$CALLS"
+          for call in "${calls[@]}"; do
+            read -ra args <<< "$call"
+            ./gradlew "${args[@]}" -Pmedia --scan ${SHARD:+"-PtestShard=$SHARD"} \
+              "-Dorg.gradle.jvmargs=-Xmx2g -Dfile.encoding=UTF-8 -Dkotlin.daemon.jvm.options=-Xmx3g" || status=1
+          done
+          exit "$status"
       - *slowest
       - *artifact
       - *results
@@ -250,7 +261,8 @@ jobs:
 
   # The simulator runs only what no other target can, under the iOS-only rule. Shared commonTest and appleTest classes
   # run once, on macos below, apart from the canary classes TestShards.kt names. The modules are grouped into four jobs,
-  # since GitHub runs at most five macOS jobs at once and each job pays its setup and klib compile again.
+  # since GitHub runs at most five macOS jobs at once and each job pays its setup and klib compile again. The player's
+# test binary takes the longest to link, so it links alone in its group.
   # A module with no iOS-only and no canary class would only link here, so it is left out. check-ios-matrix.sh fails
   # CI when the groups and the modules printIosTestModules prints under that rule differ.
   ios:
@@ -265,8 +277,8 @@ jobs:
         include:
           - { group: compose, modules: "filmstrip-compose" }
           - { group: avfoundation, modules: "filmstrip-transform-avfoundation" }
-          - { group: core, modules: "filmstrip-io-filekit filmstrip-core" }
-          - { group: player, modules: "filmstrip-player filmstrip-effects" }
+          - { group: core, modules: "filmstrip-io-filekit filmstrip-core filmstrip-effects" }
+          - { group: player, modules: "filmstrip-player" }
     steps:
       - *checkout
       - *java

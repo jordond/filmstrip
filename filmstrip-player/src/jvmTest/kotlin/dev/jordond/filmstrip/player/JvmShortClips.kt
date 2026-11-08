@@ -2,13 +2,18 @@ package dev.jordond.filmstrip.player
 
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.media.MediaSource
-import dev.jordond.filmstrip.player.contract.ShortClipContractTest
+import dev.jordond.filmstrip.player.contract.ClipParityBackend
+import dev.jordond.filmstrip.player.contract.ShortClipBackend
+import dev.jordond.filmstrip.player.contract.ShortClipEverySlotContractTest
+import dev.jordond.filmstrip.player.contract.ShortClipOffGridContractTest
+import dev.jordond.filmstrip.player.contract.ShortClipSlotContractTest
+import dev.jordond.filmstrip.player.contract.ShortClipTieContractTest
 import kotlin.test.fail
 
 /**
  * The short clip contract on ffmpeg, where every preview read opens its own window on the source.
  */
-class JvmShortClipMediaTest : ShortClipContractTest(JvmClipParity) {
+internal object JvmShortClips : ShortClipBackend, ClipParityBackend by JvmClipParity {
   override val readsEveryWindow: Boolean get() = true
 
   // One line per video packet of the file, taken without decoding, so a frame is counted as it was written.
@@ -42,3 +47,23 @@ class JvmShortClipMediaTest : ShortClipContractTest(JvmClipParity) {
 
   override suspend fun sourceAt(rate: Int): MediaSource = JvmClipParity.movingSourceAt(rate)
 }
+
+/**
+ * The single slot short clip cells on ffmpeg.
+ */
+class JvmShortClipSlotMediaTest : ShortClipSlotContractTest(JvmShortClips)
+
+/**
+ * The every slot short clip cells on ffmpeg.
+ */
+class JvmShortClipEverySlotMediaTest : ShortClipEverySlotContractTest(JvmShortClips)
+
+/**
+ * The half frame tie short clip cells on ffmpeg.
+ */
+class JvmShortClipTieMediaTest : ShortClipTieContractTest(JvmShortClips)
+
+/**
+ * The off grid span short clip cells on ffmpeg.
+ */
+class JvmShortClipOffGridMediaTest : ShortClipOffGridContractTest(JvmShortClips)

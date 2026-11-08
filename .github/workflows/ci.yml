@@ -129,6 +129,8 @@ jobs:
     if: needs.changes.outputs.library == 'true'
     runs-on: ubuntu-26.04
     timeout-minutes: 30
+    env:
+      CELL: jvm
     steps:
       - *checkout
       - *java
@@ -145,12 +147,17 @@ jobs:
         name: Slowest test classes
         if: always()
         run: python3 .github/scripts/slowest-tests.py
+      # An artifact name can hold no slash or space, so any in the cell's name become dashes.
+      - &artifact
+        name: Name the artifacts
+        if: failure()
+        run: echo "ARTIFACT=$(echo "$CELL" | tr -s '/ ' '-' | sed 's/-*$//')" >> "$GITHUB_ENV"
       - &reports
         name: Upload test reports
         if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: test-reports-${{ github.job }}-${{ strategy.job-index }}
+          name: test-reports-${{ env.ARTIFACT }}
           path: |
             **/build/reports/tests/
             **/build/test-results/
@@ -162,6 +169,8 @@ jobs:
     if: needs.changes.outputs.library == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      CELL: android
     steps:
       - *checkout
       - *java
@@ -169,6 +178,7 @@ jobs:
       - name: Run android host tests and build the sample
         run: ./gradlew testAndroidHostTest :sample:demo:androidApp:assembleDebug --scan
       - *slowest
+      - *artifact
       - *reports
 
   # A browser cell runs a SwiftShader Chrome per module, about 8 GB between them at their peak, beside the daemons.
@@ -180,6 +190,8 @@ jobs:
     if: needs.changes.outputs.library == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      CELL: js
     steps:
       - *checkout
       - *java
@@ -189,6 +201,7 @@ jobs:
           ./gradlew jsBrowserTest --scan
           "-Dorg.gradle.jvmargs=-Xmx2g -Dfile.encoding=UTF-8 -Dkotlin.daemon.jvm.options=-Xmx3g"
       - *slowest
+      - *artifact
       - *reports
 
   # Compiles the test sources no fast-lane job runs: the iOS test klibs, the wasm test executable and the Android
@@ -214,6 +227,8 @@ jobs:
     if: needs.changes.outputs.library == 'true'
     runs-on: macos-latest
     timeout-minutes: 45
+    env:
+      CELL: macos
     steps:
       - *checkout
       - *java
@@ -222,6 +237,7 @@ jobs:
       - name: Run macos tests
         run: ./gradlew macosArm64Test --scan
       - *slowest
+      - *artifact
       - *reports
 
   # A pull request that touches only the sample, or the stylesheets it reads, builds the app and runs its jvm tests.
@@ -231,6 +247,8 @@ jobs:
     if: needs.changes.outputs.library != 'true' && needs.changes.outputs.sample == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      CELL: sample
     steps:
       - *checkout
       - *java
@@ -244,4 +262,5 @@ jobs:
           :sample:tryIt:jvmTest
           :sample:tryIt:compileKotlinWasmJs
       - *slowest
+      - *artifact
       - *reports

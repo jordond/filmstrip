@@ -26,29 +26,26 @@ import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 
 /**
- * Reads one short clip cell on a backend, the file, the preview and how the two agree, each slot against the source
- * frame [nearestSourceFrame] picks for its [sourceTimeOfSlot].
+ * What a backend says about its own file and preview to the short clip contract, on top of its [ClipParityBackend].
  *
- * The hooks here are what a backend says about its own file and preview. [ShortClipContractTest] holds the cells.
+ * Each backend implements this once and hands it to every short clip contract class.
  */
-abstract class ShortClipCellReader(
-  backend: ClipParityBackend,
-) : ClipParityBackend by backend {
+interface ShortClipBackend : ClipParityBackend {
   /**
    * How many video samples the file [composition] exports to holds.
    */
-  protected abstract suspend fun writtenFrameCount(composition: EditComposition): Long
+  suspend fun writtenFrameCount(composition: EditComposition): Long
 
   /**
    * A source running at [rate], with audio and at least a [MOVING_RUN] of picture at the fixture's rate.
    */
-  protected abstract suspend fun sourceAt(rate: Int): MediaSource
+  suspend fun sourceAt(rate: Int): MediaSource
 
   /**
    * Whether every slot of a cell is read through the preview, for a backend whose read opens its own window on the
    * source, which can land elsewhere than a read forward from the head.
    */
-  protected open val readsEveryWindow: Boolean get() = false
+  val readsEveryWindow: Boolean get() = false
 
   /**
    * How far past a source frame's own time a read of a plain clip lands on that frame at [rate].
@@ -56,7 +53,7 @@ abstract class ShortClipCellReader(
    * A quarter of a frame, where picking the frame at or before a time and picking the nearest both read it. It names
    * that backend's limit where it overrides this.
    */
-  protected open fun frameReadLead(rate: Int): Duration = 1.seconds / rate / 4
+  fun frameReadLead(rate: Int): Duration = 1.seconds / rate / 4
 
   /**
    * Whether the file holds the primary's last frame over the slots a longer track runs past it, and the preview with
@@ -65,7 +62,7 @@ abstract class ShortClipCellReader(
    * A backend that writes no frame there overrides this and names that limit, and its file then holds the primary's
    * own slots alone.
    */
-  protected open val writesHeldTail: Boolean get() = true
+  val writesHeldTail: Boolean get() = true
 
   /**
    * Whether the file writes a sample on every slot of a clip, so a frame its slots show twice is written twice, as a
@@ -74,8 +71,23 @@ abstract class ShortClipCellReader(
    * A backend that writes each frame once overrides this and names that limit, and its file then holds one sample for
    * each frame such a clip shows.
    */
-  protected open val writesEverySlowedSlot: Boolean get() = true
+  val writesEverySlowedSlot: Boolean get() = true
+}
 
+/**
+ * Reads one short clip cell on a backend, the file, the preview and how the two agree, each slot against the source
+ * frame [nearestSourceFrame] picks for its [sourceTimeOfSlot].
+ *
+ * A slot the planner says a clip covers holds exactly one frame, in the preview and in the file, on every backend. The
+ * cells are split by theme across [ShortClipSlotContractTest], [ShortClipEverySlotContractTest],
+ * [ShortClipTieContractTest] and [ShortClipOffGridContractTest], so a backend runs each class and every cell with it.
+ * Each test is one edit named for its cell, runs every side of it here, and reports each side that failed.
+ *
+ * Camel case test names, for the reason [PlayerEngineContractTest] gives.
+ */
+abstract class ShortClipCellReader(
+  backend: ShortClipBackend,
+) : ShortClipBackend by backend {
   /**
    * Runs the cell [build] makes from [source], on a grid of [rate] from a source running at [sourceRate].
    */

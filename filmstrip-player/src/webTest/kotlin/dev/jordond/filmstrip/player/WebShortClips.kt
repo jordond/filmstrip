@@ -11,7 +11,12 @@ import dev.jordond.filmstrip.export.ExportStatus
 import dev.jordond.filmstrip.export.Verdict
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
-import dev.jordond.filmstrip.player.contract.ShortClipContractTest
+import dev.jordond.filmstrip.player.contract.ClipParityBackend
+import dev.jordond.filmstrip.player.contract.ShortClipBackend
+import dev.jordond.filmstrip.player.contract.ShortClipEverySlotContractTest
+import dev.jordond.filmstrip.player.contract.ShortClipOffGridContractTest
+import dev.jordond.filmstrip.player.contract.ShortClipSlotContractTest
+import dev.jordond.filmstrip.player.contract.ShortClipTieContractTest
 import dev.jordond.filmstrip.test.PREVIEW_PARITY_EXPORT_BITRATE
 import kotlinx.coroutines.await
 import kotlinx.coroutines.flow.toList
@@ -26,7 +31,7 @@ import kotlin.time.Duration.Companion.milliseconds
  * The short clip contract in the browser, where nothing outside the backend module can demux a file, so the frames in
  * one are counted from its own sample table.
  */
-class WebShortClipMediaTest : ShortClipContractTest(WebClipParity) {
+internal object WebShortClips : ShortClipBackend, ClipParityBackend by WebClipParity {
   override suspend fun writtenFrameCount(composition: EditComposition): Long {
     val response = fetch(WebClipParity.exportOf(composition).url).await<WebResponse>()
     val file = DataView(response.arrayBuffer().await<JsAny>())
@@ -49,6 +54,26 @@ class WebShortClipMediaTest : ShortClipContractTest(WebClipParity) {
     return MediaSource.Uri(output.uri)
   }
 }
+
+/**
+ * The single slot short clip cells in the browser.
+ */
+class WebShortClipSlotMediaTest : ShortClipSlotContractTest(WebShortClips)
+
+/**
+ * The every slot short clip cells in the browser.
+ */
+class WebShortClipEverySlotMediaTest : ShortClipEverySlotContractTest(WebShortClips)
+
+/**
+ * The half frame tie short clip cells in the browser.
+ */
+class WebShortClipTieMediaTest : ShortClipTieContractTest(WebShortClips)
+
+/**
+ * The off grid span short clip cells in the browser.
+ */
+class WebShortClipOffGridMediaTest : ShortClipOffGridContractTest(WebShortClips)
 
 // The `stsz` entry count of the first track whose `hdlr` names video, walking moov, trak, mdia, minf and stbl.
 private fun videoSampleCount(file: DataView): Long? {
