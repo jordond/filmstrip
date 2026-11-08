@@ -1,12 +1,8 @@
 package dev.jordond.filmstrip.avfoundation
 
 import dev.jordond.filmstrip.ComponentRegistry
-import dev.jordond.filmstrip.avfoundation.internal.Placement
 import dev.jordond.filmstrip.avfoundation.internal.composition.AvComposition
-import dev.jordond.filmstrip.avfoundation.internal.composition.SdSourceColor
 import dev.jordond.filmstrip.avfoundation.internal.composition.compositorClass
-import dev.jordond.filmstrip.avfoundation.internal.composition.sdRouteTransferLimit
-import dev.jordond.filmstrip.avfoundation.internal.composition.sdrTransferLimit
 import dev.jordond.filmstrip.avfoundation.internal.composition.toAvComposition
 import dev.jordond.filmstrip.color.SMPTE_C_PRIMARIES
 import dev.jordond.filmstrip.color.sdSourceDisplayed
@@ -16,15 +12,12 @@ import dev.jordond.filmstrip.effects.BuiltInEffectResolver
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.HdrMode
 import dev.jordond.filmstrip.geometry.Size
-import dev.jordond.filmstrip.internal.AppleScratch
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.transform.internal.ResolveResult
 import dev.jordond.filmstrip.transform.internal.hdr.Rgb
-import dev.jordond.filmstrip.transform.internal.resolve.ResolvedClip
 import io.kotest.assertions.withClue
-import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.ObjCObject
@@ -162,38 +155,6 @@ class AppleSdRouteTest {
       remove(sd)
     }
 
-  @Test
-  fun `a clip beside an sd clip that needs the pixel transfer is refused where it does not exist`() =
-    runTest(timeout = TIMEOUT) {
-      val sd = tagged("limit-sd", AVVideoColorPrimaries_SMPTE_C, AVVideoYCbCrMatrix_ITU_R_601_4)
-      val p3 = tagged("limit-p3", AVVideoColorPrimaries_P3_D65, AVVideoYCbCrMatrix_ITU_R_709_2)
-      val bt709 = tagged("limit-709", AVVideoColorPrimaries_ITU_R_709_2, AVVideoYCbCrMatrix_ITU_R_709_2)
-      val sdColor = SdSourceColor(SMPTE_C_PRIMARIES, BT709, BT601)
-
-      val beside = placed(clipOf(sd), sdColor) + placed(clipOf(p3))
-      sdRouteTransferLimit(beside, AppleScratch.defaultRoot, available = false) shouldBe
-        sdrTransferLimit(available = false)
-      sdRouteTransferLimit(beside, AppleScratch.defaultRoot, available = true).shouldBeNull()
-      sdRouteTransferLimit(
-        placed(clipOf(sd), sdColor) + placed(clipOf(bt709)),
-        AppleScratch.defaultRoot,
-        available = false,
-      ).shouldBeNull()
-      listOf(sd, p3, bt709).forEach(::remove)
-    }
-
-  private fun placed(
-    clip: ResolvedClip,
-    color: SdSourceColor? = null,
-  ): List<Placement> = listOf(Placement(clip = clip, start = Duration.ZERO, end = CLIP, sdColor = color))
-
-  private suspend fun clipOf(path: String): ResolvedClip =
-    resolved(alone(path), SPEC)
-      .composition.tracks
-      .first()
-      .clips
-      .first()
-
   private fun AvComposition.drawsThroughCompositor(): Boolean {
     // The handler's composition carries a compositor class of its own, so being set says nothing.
     val drawnBy = videoComposition?.customVideoCompositorClass as? ObjCObject
@@ -254,8 +215,6 @@ class AppleSdRouteTest {
     const val CLIP_FRAMES = 15
     const val BARS = 8
     const val MIDDLE = 0.5f
-    const val BT709 = 1
-    const val BT601 = 6
 
     // One 8-bit chroma step of the clip's H.264 against the same frame's honest read.
     const val SD_CODES = 2.0

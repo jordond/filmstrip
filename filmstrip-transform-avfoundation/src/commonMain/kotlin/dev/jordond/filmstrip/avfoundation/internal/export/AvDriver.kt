@@ -7,8 +7,6 @@ import dev.jordond.filmstrip.avfoundation.internal.StretchedAudio
 import dev.jordond.filmstrip.avfoundation.internal.chain.sdPrimariesKernelLimit
 import dev.jordond.filmstrip.avfoundation.internal.chain.toneMapKernelLimit
 import dev.jordond.filmstrip.avfoundation.internal.composition.AvComposition
-import dev.jordond.filmstrip.avfoundation.internal.composition.hasPixelTransferSession
-import dev.jordond.filmstrip.avfoundation.internal.composition.sdrTransferLimit
 import dev.jordond.filmstrip.avfoundation.internal.composition.toAvComposition
 import dev.jordond.filmstrip.avfoundation.internal.failure.AvLoweringFailure
 import dev.jordond.filmstrip.avfoundation.internal.interop.syncSampleAtOrBefore
@@ -55,7 +53,6 @@ import kotlin.time.Duration
 internal class AvDriver(
   private val prober: MediaProber,
   private val kernelLimit: () -> String? = { toneMapKernelLimit() },
-  private val pixelTransferExists: Boolean = hasPixelTransferSession,
   private val bytesRoot: String = AppleScratch.defaultRoot,
   private val renderClip: suspend (ClipAudioRender) -> Unit = ::renderClipAudio,
 ) : ExportDriver {
@@ -66,8 +63,7 @@ internal class AvDriver(
     hdr: Boolean,
   ): RenderCapabilities = coreImageRenderCapabilities(outputSize, hdr)
 
-  override fun toneMapLimit(sdrSources: List<MediaSource>): String? =
-    kernelLimit() ?: sdrTransferLimit(sdrSources, bytesRoot, pixelTransferExists)
+  override fun toneMapLimit(sdrSources: List<MediaSource>): String? = kernelLimit()
 
   override suspend fun syncSampleAtOrBefore(
     source: MediaSource,

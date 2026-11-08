@@ -115,7 +115,7 @@ internal fun crtKernelLimit(
  * What a plan is refused with on a device that cannot run the kernel.
  */
 internal const val CRT_KERNEL_LIMIT: String =
-  "CRT on Apple runs a Core Image Metal kernel, which takes iOS 15 or macOS 12 on an Apple6 GPU, and this device " +
+  "CRT on Apple runs a Core Image Metal kernel, which takes an Apple6 GPU on iOS or on macOS 12, and this device " +
     "cannot compile one."
 
 /**

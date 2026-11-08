@@ -19,7 +19,7 @@ Both link the framework, so build it first:
 ```
 # what typechecks, against the iOS framework
 cd internal/ios-harness/build/bin/iosSimulatorArm64/debugFramework
-xcrun --sdk iphonesimulator swiftc -typecheck -target arm64-apple-ios15.0-simulator \
+xcrun --sdk iphonesimulator swiftc -typecheck -target arm64-apple-ios16.0-simulator \
   -F . ../../../../swiftcheck/Probe.swift
 
 # what it costs, against the macOS framework

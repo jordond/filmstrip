@@ -270,19 +270,14 @@ private fun ChainSnapshot.blackFrame(): CIImage =
  * through VideoToolbox's pixel transfer.
  *
  * @param color The SD colour read off the clip when it was planned, or null when it has none.
- * @param transferExists Whether this OS has the pixel transfer.
- * @throws IllegalStateException When a frame needs the pixel transfer and it cannot run, which [sdrTransferLimit]
- * refused at plan time.
+ * @throws IllegalStateException When the pixel transfer cannot convert the frame.
  */
 @OptIn(ExperimentalForeignApi::class)
-internal fun CVPixelBufferRef.sdrHead(
-  color: SdSourceColor?,
-  transferExists: Boolean = hasPixelTransferSession,
-): CIImage {
+internal fun CVPixelBufferRef.sdrHead(color: SdSourceColor?): CIImage {
   if (color != null) return rawCodes().sdPrimariesMoved(color).asBt709Codes()
   if (carriesBt709()) return rawCodes().asBt709Codes()
 
-  val converted = convertedToBt709(transferExists)
+  val converted = convertedToBt709()
   try {
     return converted.rawCodes().asBt709Codes()
   } finally {
@@ -310,13 +305,11 @@ private fun CVPixelBufferRef.carriesBt709(): Boolean =
 /**
  * A new [sdrTransferFormat] buffer holding this frame in BT.709. The caller releases it.
  *
- * @throws IllegalStateException When this OS or the transfer cannot do it, which [sdrTransferLimit] refused at
- * plan time.
+ * @throws IllegalStateException When the transfer cannot do it.
  */
 @OptIn(ExperimentalForeignApi::class)
-private fun CVPixelBufferRef.convertedToBt709(transferExists: Boolean): CVPixelBufferRef {
-  sdrTransferLimit(transferExists)?.let(::error)
-  return memScoped {
+private fun CVPixelBufferRef.convertedToBt709(): CVPixelBufferRef =
+  memScoped {
     val session = alloc<VTPixelTransferSessionRefVar>()
     check(VTPixelTransferSessionCreate(null, session.ptr) == 0) { NO_TRANSFER }
     val transfer = session.value ?: error(NO_TRANSFER)
@@ -358,7 +351,6 @@ private fun CVPixelBufferRef.convertedToBt709(transferExists: Boolean): CVPixelB
       CFRelease(transfer)
     }
   }
-}
 
 // The buffer's RGB signal with no colour space, so nothing moves the codes on the way in.
 @OptIn(ExperimentalForeignApi::class)

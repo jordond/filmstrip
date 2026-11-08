@@ -59,7 +59,7 @@ internal fun metalKernelsExist(): Boolean =
  * What any Core Image Metal kernel takes, the end of a sentence saying what runs one.
  */
 internal const val METAL_KERNEL_NEED: String =
-  "a Core Image Metal kernel, which takes iOS 15 or macOS 12 on an Apple6 GPU, and this device cannot compile one."
+  "a Core Image Metal kernel, which takes an Apple6 GPU on iOS or on macOS 12, and this device cannot compile one."
 
 /**
  * What a plan is refused with on a device that cannot run the tone map kernel.

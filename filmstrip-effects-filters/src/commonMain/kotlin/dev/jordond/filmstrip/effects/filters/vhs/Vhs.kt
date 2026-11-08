@@ -19,7 +19,7 @@ import dev.jordond.filmstrip.effect.EffectStage
  * `HdrMode.KeepHdr` is refused.
  *
  * Register the renderer with `filters()` on the builder. Without it `plan` refuses the effect by name. An Apple device
- * that cannot compile a Core Image Metal kernel, which takes iOS 15 or macOS 12 on an Apple6 GPU, refuses it by name
+ * that cannot compile a Core Image Metal kernel, which takes an Apple6 GPU on iOS or on macOS 12, refuses it by name
  * too.
  *
  * @property intensity How strong the look is, from `0f` which leaves the frame alone to `1f`.

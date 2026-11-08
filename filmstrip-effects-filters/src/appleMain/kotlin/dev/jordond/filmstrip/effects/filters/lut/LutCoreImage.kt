@@ -131,7 +131,7 @@ internal fun lutKernelLimit(
  * What a plan is refused with on a device that cannot run the kernel.
  */
 internal const val LUT_KERNEL_LIMIT: String =
-  "A LUT on Apple runs a Core Image Metal kernel, which takes iOS 15 or macOS 12 on an Apple6 GPU, and this device " +
+  "A LUT on Apple runs a Core Image Metal kernel, which takes an Apple6 GPU on iOS or on macOS 12, and this device " +
     "cannot compile one."
 
 /**

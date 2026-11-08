@@ -140,7 +140,7 @@ A clip whose source rate times its speed is at or below the output rate leaves n
 [Filters](/guides/filters/) draw one shared signal on every backend, and these are where a backend lands apart from it or
 refuses.
 
-- An Apple device that can't compile a Core Image Metal kernel, which takes iOS 15 or macOS 12 on an Apple6 GPU, refuses
+- An Apple device that can't compile a Core Image Metal kernel, which takes an Apple6 GPU on iOS or on macOS 12, refuses
   `vhs` by name.
 - The browser draws a shader pass on a clip's whole frame, so a clip whose own frame is longer on a side than the page's
   `MAX_TEXTURE_SIZE` is refused by name. A fit that crops makes that frame bigger than the output.

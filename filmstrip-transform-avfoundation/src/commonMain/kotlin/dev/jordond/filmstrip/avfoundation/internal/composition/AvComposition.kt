@@ -210,7 +210,6 @@ internal suspend fun ResolvedComposition.toAvComposition(
   // An audio-only clip can bring a grade into the plan that no laid video carries, which leaves nothing to tone map.
   val toneMaps = hdr == ResolvedHdr.ToneMap && spans.any { it.sourceTransfer != null }
   val holdsSd = spans.any { it.sdColor != null }
-  if (holdsSd && !toneMaps) sdRouteTransferLimit(placements, bytesRoot)?.let { throw AvLoweringFailure(it) }
   val drawnByCompositor = chain != null && (toneMaps || holdsSd)
   val videoComposition =
     chain?.let {

@@ -29,6 +29,11 @@ import kotlin.time.Duration.Companion.seconds
 internal const val MEDIA_TIMESCALE: Int = 3600
 
 /**
+ * The timescale a time in whole nanoseconds is laid on when a sample cursor is placed at it.
+ */
+internal const val NANOS_TIMESCALE: Int = 1_000_000_000
+
+/**
  * One tick at [MEDIA_TIMESCALE], the shortest span this backend can name.
  */
 internal val MEDIA_TICK: Duration = (1.0 / MEDIA_TIMESCALE).seconds

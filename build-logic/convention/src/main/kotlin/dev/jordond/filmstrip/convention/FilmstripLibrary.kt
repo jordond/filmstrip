@@ -46,6 +46,7 @@ internal fun Project.configureFilmstripLibrary(
     if (jvm) jvm()
   }
 
+  configureIosFloor()
   configurePublishing()
 }
 

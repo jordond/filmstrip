@@ -1,30 +1,27 @@
 package dev.jordond.filmstrip.avfoundation.internal.interop
 
 import dev.jordond.filmstrip.avfoundation.internal.failure.AvLoweringFailure
-import dev.jordond.filmstrip.avfoundation.internal.time.MEDIA_TICK
 import dev.jordond.filmstrip.avfoundation.internal.time.MEDIA_TIMESCALE
-import dev.jordond.filmstrip.avfoundation.internal.time.timeRangeOf
+import dev.jordond.filmstrip.avfoundation.internal.time.NANOS_TIMESCALE
 import dev.jordond.filmstrip.avfoundation.internal.time.toDuration
-import kotlinx.cinterop.BetaInteropApi
 import kotlinx.cinterop.CValue
 import kotlinx.cinterop.ExperimentalForeignApi
-import kotlinx.cinterop.autoreleasepool
 import kotlinx.cinterop.readValue
 import kotlinx.cinterop.useContents
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
-import platform.AVFoundation.AVAssetReader
-import platform.AVFoundation.AVAssetReaderSampleReferenceOutput
 import platform.AVFoundation.AVAssetTrack
+import platform.AVFoundation.AVSampleCursor
+import platform.AVFoundation.canProvideSampleCursors
+import platform.AVFoundation.makeSampleCursorWithPresentationTimeStamp
+import platform.AVFoundation.presentationTimeStamp
 import platform.AVFoundation.timeRange
-import platform.CoreFoundation.CFRelease
-import platform.CoreMedia.CMSampleBufferGetNumSamples
-import platform.CoreMedia.CMSampleBufferGetPresentationTimeStamp
 import platform.CoreMedia.CMTime
 import platform.CoreMedia.CMTimeAdd
 import platform.CoreMedia.CMTimeConvertScale
 import platform.CoreMedia.CMTimeMake
 import platform.CoreMedia.CMTimeRangeGetEnd
+import platform.CoreMedia.CMTimeSubtract
 import platform.CoreMedia.kCMTimeFlags_Indefinite
 import platform.CoreMedia.kCMTimeFlags_NegativeInfinity
 import platform.CoreMedia.kCMTimeFlags_PositiveInfinity
@@ -92,9 +89,9 @@ internal class SampleTimes(
 
 /**
  * The times of this track's samples from the last one at or before [from] to the first one at or after [to], or null
- * when the track will not say or holds none there.
+ * when the track will not say or holds no samples.
  *
- * The scan walks sample references, so it reads the track's sample table and none of its media data. It reads a
+ * The scan steps a sample cursor, so it reads the track's sample table and none of its media data. It reads a
  * second either side of the two times first, and widens until it holds a sample on each side or reaches the ends of
  * the track. It stops when the caller is cancelled.
  *
@@ -117,19 +114,15 @@ internal suspend fun AVAssetTrack.sampleTimesAround(
     val opens = (from - margin).coerceAtLeast(Duration.ZERO)
     val closes = minOf(to + margin, end)
     val composed = composedTimesWithin(opens, closes, cap) ?: return null
-    if (composed.size == 0) {
-      if (opens == Duration.ZERO && closes >= end) return null
-    } else {
-      val reachesBack = opens == Duration.ZERO || composed.nanos[0] <= from.inWholeNanoseconds
-      val reachesOn = closes >= end || composed.nanos[composed.size - 1] >= to.inWholeNanoseconds
-      if (reachesBack && reachesOn) {
-        return SampleTimes(
-          times = List(composed.size) { composed.nanos[it].nanoseconds },
-          readTicks = composed.ticks.copyOf(composed.size),
-          endTick = endTick,
-          reachesEnd = closes >= end,
-        )
-      }
+    val reachesBack = opens == Duration.ZERO || composed.nanos[0] <= from.inWholeNanoseconds
+    val reachesOn = closes >= end || composed.nanos[composed.size - 1] >= to.inWholeNanoseconds
+    if (reachesBack && reachesOn) {
+      return SampleTimes(
+        times = List(composed.size) { composed.nanos[it].nanoseconds },
+        readTicks = composed.ticks.copyOf(composed.size),
+        endTick = endTick,
+        reachesEnd = closes >= end,
+      )
     }
     margin *= 2
   }
@@ -143,69 +136,55 @@ private class ComposedTimes(
   val size: Int,
 )
 
-// Each sample presented from opens until closes, as its own time and the tick it is read from, checking for
-// cancellation and the cap before each buffer.
-@OptIn(ExperimentalForeignApi::class, BetaInteropApi::class)
+// Each sample from the last one presented at or before opens to the first one presented at or after closes, as its own
+// time and the tick it is read from, checking for cancellation and the cap before each sample.
+@OptIn(ExperimentalForeignApi::class)
 private suspend fun AVAssetTrack.composedTimesWithin(
   opens: Duration,
   closes: Duration,
   cap: Int,
 ): ComposedTimes? {
-  val reader = AVAssetReader.assetReaderWithAsset(asset ?: return null, error = null) ?: return null
-  val output = AVAssetReaderSampleReferenceOutput(track = this)
-  if (!reader.canAddOutput(output)) return null
-  reader.addOutput(output)
+  if (!canProvideSampleCursors) return null
   val shift = editShiftTime()
-  // Widened by the shift and a tick, for the reasons syncSampleAtOrBefore gives.
-  val widening = shift.toDuration().absoluteValue + MEDIA_TICK
   val shifted = shift.useContents { value != 0L }
-  val readFrom = (opens - widening).coerceAtLeast(Duration.ZERO)
-  reader.timeRange = timeRangeOf(readFrom, closes + widening - readFrom)
-  if (!reader.startReading()) return null
+  // The cursor reads the track's media timeline, which the edit shift moves the composed times off.
+  val opening = CMTimeMake(value = opens.inWholeNanoseconds, timescale = NANOS_TIMESCALE)
+  val cursor = makeSampleCursorWithPresentationTimeStamp(CMTimeSubtract(opening, shift)) ?: return null
+  val opensNanos = opens.inWholeNanoseconds
+  val closesNanos = closes.inWholeNanoseconds
 
   val context = currentCoroutineContext()
   var nanos = LongArray(INITIAL_SAMPLES)
   var ticks = LongArray(INITIAL_SAMPLES)
   var count = 0
-  var draining = true
-  try {
-    while (draining) {
-      context.ensureActive()
-      if (count > cap) throw AvLoweringFailure(pastCap(cap))
-      autoreleasepool {
-        val buffer = output.copyNextSampleBuffer()
-        if (buffer == null) {
-          draining = false
-        } else {
-          // A buffer holding no sample marks something about the stream rather than a frame of it.
-          if (CMSampleBufferGetNumSamples(buffer) > 0) {
-            if (count == nanos.size) {
-              // Never past one over the cap, which is as far as the scan reads before it refuses.
-              val grown = minOf(count * 2L, cap + 1L).toInt()
-              nanos = nanos.copyOf(grown)
-              ticks = ticks.copyOf(grown)
-            }
-            // A plain time is read off its fields, which costs far less than a CoreMedia call for each sample.
-            val presented = CMSampleBufferGetPresentationTimeStamp(buffer)
-            (if (shifted) CMTimeAdd(presented, shift) else presented).useContents {
-              if ((flags and NUMERIC_FLAGS) == kCMTimeFlags_Valid) {
-                nanos[count] = (value.toDouble() / timescale).coerceAtLeast(0.0).seconds.inWholeNanoseconds
-                ticks[count] = ticksAtOrAfter(value, timescale).coerceAtLeast(0)
-              } else {
-                val time = readValue()
-                nanos[count] = time.toDuration().inWholeNanoseconds
-                ticks[count] = time.readTick()
-              }
-            }
-            count++
-          }
-          // copyNextSampleBuffer follows the create rule.
-          CFRelease(buffer)
-        }
+  // The cursor lands on a sample near opens, so it steps back until it sits at or before it.
+  while (cursor.composedNanos(shift, shifted) > opensNanos && cursor.stepInPresentationOrderByCount(-1) != 0L) {
+    context.ensureActive()
+  }
+  var reading = true
+  while (reading) {
+    context.ensureActive()
+    if (count > cap) throw AvLoweringFailure(pastCap(cap))
+    if (count == nanos.size) {
+      // Never past one over the cap, which is as far as the scan reads before it refuses.
+      val grown = minOf(count * 2L, cap + 1L).toInt()
+      nanos = nanos.copyOf(grown)
+      ticks = ticks.copyOf(grown)
+    }
+    val presented = cursor.presentationTimeStamp
+    // A plain time is read off its fields, which costs far less than a CoreMedia call for each sample.
+    (if (shifted) CMTimeAdd(presented, shift) else presented).useContents {
+      if ((flags and NUMERIC_FLAGS) == kCMTimeFlags_Valid) {
+        nanos[count] = (value.toDouble() / timescale).coerceAtLeast(0.0).seconds.inWholeNanoseconds
+        ticks[count] = ticksAtOrAfter(value, timescale).coerceAtLeast(0)
+      } else {
+        val time = readValue()
+        nanos[count] = time.toDuration().inWholeNanoseconds
+        ticks[count] = time.readTick()
       }
     }
-  } finally {
-    reader.cancelReading()
+    reading = nanos[count] < closesNanos && cursor.stepInPresentationOrderByCount(1) != 0L
+    count++
   }
 
   nanos.sort(0, count)
@@ -220,6 +199,14 @@ private suspend fun AVAssetTrack.composedTimesWithin(
   }
   return ComposedTimes(nanos, ticks, distinct)
 }
+
+// Where the cursor's sample is composed, in nanoseconds.
+@OptIn(ExperimentalForeignApi::class)
+private fun AVSampleCursor.composedNanos(
+  shift: CValue<CMTime>,
+  shifted: Boolean,
+): Long =
+  (if (shifted) CMTimeAdd(presentationTimeStamp, shift) else presentationTimeStamp).toDuration().inWholeNanoseconds
 
 // The first tick at or after this time, and zero for a time before the track opens.
 @OptIn(ExperimentalForeignApi::class)
@@ -237,12 +224,15 @@ internal fun tickTime(tick: Long): CValue<CMTime> = CMTimeMake(value = tick, tim
 private const val INITIAL_SAMPLES = 1_024
 
 /**
- * The most samples [sampleTimesAround] reads in one scan, well above the 3,456,000 frames of an eight hour clip at
- * 120 fps.
+ * The most samples [sampleTimesAround] reads in one scan, and [syncSampleAtOrBefore] steps over in one walk, well
+ * above the 3,456,000 frames of an eight hour clip at 120 fps.
  */
 internal const val SAMPLE_TIMES_CAP: Int = 10_000_000
 
-private fun pastCap(cap: Int): String =
+/**
+ * Why a scan or walk past [cap] samples of one video track is refused.
+ */
+internal fun pastCap(cap: Int): String =
   "A clip reads the times of more than $cap frames of one video track, which is more than this backend lays for one " +
     "clip."
 

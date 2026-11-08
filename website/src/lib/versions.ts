@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import { repoRoot } from './snippets'
 
 /** The oldest iOS filmstrip supports. */
-export const MIN_IOS = '15'
+export const MIN_IOS = '16'
 
 /** The oldest macOS filmstrip supports. */
 export const MIN_MACOS = '12'

@@ -90,20 +90,6 @@ internal fun AVAsset.sdSourceColor(longestSide: Int): SdSourceColor? {
   return tags.sdColor()
 }
 
-/**
- * Whether this asset's first video track draws through VideoToolbox's pixel transfer beside an HDR clip.
- *
- * A BT.709 clip and an SD clip do not, and anything else does. A track that names part of its colour or none of it
- * answers from its first frame, whatever its size, and one with no video or no frame that reads counts as needing it.
- */
-@OptIn(ExperimentalForeignApi::class)
-internal fun AVAsset.needsPixelTransfer(): Boolean {
-  val track = tracksWithMediaType(AVMediaTypeVideo).firstOrNull() as? AVAssetTrack ?: return true
-  val tagged = track.formatTags()
-  val tags = (if (tagged.isComplete) tagged else firstFrameTags(track)) ?: return true
-  return !tags.isBt709 && tags.sdColor() == null
-}
-
 @OptIn(ExperimentalForeignApi::class)
 private fun AVAssetTrack.formatTags(): ColorTags {
   val format = copyFormatDescription()
@@ -153,9 +139,6 @@ private data class ColorTags(
   val matrix: Int? = null,
 ) {
   val isComplete: Boolean get() = primaries != null && transfer != null && matrix != null
-  val isBt709: Boolean get() =
-    primaries == BT709_CODE_POINT && transfer == BT709_CODE_POINT &&
-      matrix == BT709_CODE_POINT
 
   fun sdColor(): SdSourceColor? {
     val color = SdSourceColor(primaries ?: return null, transfer ?: return null, matrix ?: return null)
@@ -203,7 +186,6 @@ private fun CFTypeRef?.codePoint(toCode: (CFStringRef?) -> Int): Int? {
 }
 
 private const val UNSPECIFIED_CODE_POINT = 2
-private const val BT709_CODE_POINT = 1
 
 // A bound on which clips decode a frame here. What the frame says still decides the colour.
 private const val UNTAGGED_READ_LONGEST_SIDE = 1024

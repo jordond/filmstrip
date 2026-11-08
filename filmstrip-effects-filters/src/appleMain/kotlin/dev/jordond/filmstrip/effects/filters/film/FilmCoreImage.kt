@@ -146,7 +146,7 @@ internal fun filmKernelLimit(
  * What a plan is refused with on a device that cannot run the kernels.
  */
 internal const val FILM_KERNEL_LIMIT: String =
-  "Film on Apple runs a Core Image Metal kernel, which takes iOS 15 or macOS 12 on an Apple6 GPU, and this device " +
+  "Film on Apple runs a Core Image Metal kernel, which takes an Apple6 GPU on iOS or on macOS 12, and this device " +
     "cannot compile one."
 
 private fun kernel(name: String): CIKernel = KERNELS[name] ?: error(FILM_KERNEL_LIMIT)
