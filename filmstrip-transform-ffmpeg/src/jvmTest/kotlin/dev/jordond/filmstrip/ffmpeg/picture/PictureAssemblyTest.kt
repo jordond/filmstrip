@@ -9,6 +9,8 @@ import dev.jordond.filmstrip.ffmpeg.internal.picture.codedImageSizeReason
 import dev.jordond.filmstrip.ffmpeg.internal.picture.gridAssembly
 import dev.jordond.filmstrip.ffmpeg.internal.picture.overlayAssembly
 import dev.jordond.filmstrip.ffmpeg.internal.picture.scratchFile
+import dev.jordond.filmstrip.ffmpeg.internal.process.ProbeOperation
+import dev.jordond.filmstrip.ffmpeg.internal.process.probeExpiredReason
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.picture.heif.HeifGridRead
 import dev.jordond.filmstrip.picture.heif.HeifOverlay
@@ -29,6 +31,7 @@ import kotlin.io.path.createTempDirectory
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertFailsWith
+import kotlin.time.Duration.Companion.milliseconds
 
 /**
  * How a picture put together in this process bounds the frames its children hand back, run against a stub in place of
@@ -110,8 +113,10 @@ class PictureAssemblyTest {
     val assembly = overlayAssembly(overlay, PASS_THROUGH, null)
     val read = assembled(stub, assembly, bytes, deadline, timeout, directory, emptyList(), ::wholeStream) { it }
     started.exists() shouldBe true
-    read.shouldBeInstanceOf<OverlayPictureRead.Refused>().reason shouldBe
-      "stub-ffmpeg was still reading the picture after $timeout ms."
+    val expired = read.shouldBeInstanceOf<OverlayPictureRead.Expired>()
+    expired.operation shouldBe ProbeOperation.PICTURE_DECODE
+    expired.deadline shouldBe timeout.milliseconds
+    expired.reason shouldBe probeExpiredReason("stub-ffmpeg", timeout.milliseconds)
   }
 
   @Test

@@ -6,6 +6,8 @@ import dev.jordond.filmstrip.effects.overlay.StoredSamples
 import dev.jordond.filmstrip.ffmpeg.internal.picture.FfmpegPictureDecoder
 import dev.jordond.filmstrip.ffmpeg.internal.picture.alphaSizeReason
 import dev.jordond.filmstrip.ffmpeg.internal.picture.pictureAlpha
+import dev.jordond.filmstrip.ffmpeg.internal.process.ProbeOperation
+import dev.jordond.filmstrip.ffmpeg.internal.process.probeExpiredReason
 import dev.jordond.filmstrip.ffmpeg.support.alphaStill
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ImageSource
@@ -22,6 +24,7 @@ import java.nio.file.Files
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertFailsWith
+import kotlin.time.Duration.Companion.milliseconds
 
 /**
  * How a decode answers when the child reading an AVIF's alpha item fails, runs long or is interrupted.
@@ -57,8 +60,11 @@ class FfmpegPictureAlphaFailureMediaTest {
   @Test
   fun `the color and alpha reads share one deadline`() {
     val decoder = stubbed("sleep 2; exit 1", color = "sleep 2", timeoutMillis = 3_000)
-    val read = decoder.decode(ImageSource.ofBytes(STILL)).shouldBeInstanceOf<OverlayPictureRead.Refused>()
-    withClue(read.reason) { ("after 3000 ms" in read.reason).shouldBeTrue() }
+    val read = decoder.decode(ImageSource.ofBytes(STILL))
+    val expired = withClue("$read") { read.shouldBeInstanceOf<OverlayPictureRead.Expired>() }
+    expired.operation shouldBe ProbeOperation.PICTURE_DECODE
+    expired.deadline shouldBe 3_000.milliseconds
+    expired.reason shouldBe probeExpiredReason("ffmpeg", 3_000.milliseconds)
   }
 
   @Test
