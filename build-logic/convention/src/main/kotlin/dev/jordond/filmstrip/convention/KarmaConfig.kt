@@ -118,9 +118,9 @@ internal fun Project.configureBrowserTestsOnMultiplatform() {
  * The Karma config every module's browser tests share.
  *
  * It sets Mocha's per test timeout to 300 s and Karma's no activity, disconnect and capture windows, in milliseconds.
- * It also defines the `FilmstripChrome` launcher, which a module picks with `browsers: ['FilmstripChrome']` in its own
- * `karma.config.d`. That launcher gives headless Chrome WebGL through ANGLE over SwiftShader, mutes its output and lets
- * an AudioContext run without a user gesture.
+ * It also defines the `FilmstripChrome` launcher and runs every module's browser tests on it. That launcher gives
+ * headless Chrome WebGL through ANGLE over SwiftShader, mutes its output and lets an AudioContext run without a user
+ * gesture.
  */
 internal val BROWSER_TEST_CONFIG: String =
   """
@@ -136,6 +136,7 @@ internal val BROWSER_TEST_CONFIG: String =
   // The audio flags are always appended, overrides included. --mute-audio keeps the fixtures' tone
   // off the speakers, and the autoplay policy lets an AudioContext run with no gesture to unlock it.
   config.set({
+    browsers: ['FilmstripChrome'],
     browserNoActivityTimeout: 600000,
     browserDisconnectTimeout: 60000,
     captureTimeout: 120000,

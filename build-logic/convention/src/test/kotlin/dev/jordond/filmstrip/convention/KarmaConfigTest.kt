@@ -29,7 +29,7 @@ class KarmaConfigTest {
     )
     project.resolve("karma.config.d").apply {
       mkdirs()
-      resolve("webgl.js").writeText("config.set({ browsers: ['FilmstripChrome'] });\n")
+      resolve("fonts.js").writeText("config.files.push('fonts');\n")
     }
   }
 
@@ -47,9 +47,15 @@ class KarmaConfigTest {
   fun `the generated directory holds the shared mocha timeout and the module's own files`() {
     run("writeKarmaConfig")
 
-    configDirectory.list()!!.sorted() shouldContainExactly listOf(KarmaConfigTask.SHARED_CONFIG, "webgl.js")
+    configDirectory.list()!!.sorted() shouldContainExactly listOf(KarmaConfigTask.SHARED_CONFIG, "fonts.js")
     configDirectory.resolve(KarmaConfigTask.SHARED_CONFIG).readText() shouldBe BROWSER_TEST_CONFIG
     BROWSER_TEST_CONFIG shouldContain "timeout: 300000"
+  }
+
+  @Test
+  fun `the shared config runs every module on the shared launcher`() {
+    BROWSER_TEST_CONFIG shouldContain "browsers: ['FilmstripChrome'],"
+    BROWSER_TEST_CONFIG shouldContain "FilmstripChrome: {"
   }
 
   @Test
