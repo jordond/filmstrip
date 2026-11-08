@@ -47,6 +47,7 @@ internal fun Project.configureFilmstripLibrary(
   }
 
   configureIosFloor()
+  if (web) configureBrowserTests()
   configurePublishing()
 }
 

@@ -14,6 +14,8 @@ import dev.jordond.filmstrip.ffmpeg.support.ExportConstants.BRIGHTER
 import dev.jordond.filmstrip.ffmpeg.support.ExportConstants.TIMEOUT
 import dev.jordond.filmstrip.ffmpeg.support.FfmpegExportFixture
 import dev.jordond.filmstrip.ffmpeg.support.ffprobe
+import dev.jordond.filmstrip.ffmpeg.support.hostFfmpeg
+import dev.jordond.filmstrip.ffmpeg.support.hostFfprobe
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
 import io.kotest.assertions.withClue
@@ -265,7 +267,7 @@ class FfmpegCopyTest {
   private fun silencedCopyOf(source: File): File {
     val target = File.createTempFile("filmstrip-silent-source", ".mp4")
     ProcessBuilder(
-      "ffmpeg",
+      hostFfmpeg,
       "-y",
       "-hide_banner",
       "-loglevel",
@@ -292,7 +294,7 @@ class FfmpegCopyTest {
   ): Duration {
     val process =
       ProcessBuilder(
-        "ffprobe",
+        hostFfprobe,
         "-v",
         "error",
         "-select_streams",

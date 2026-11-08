@@ -1,5 +1,6 @@
 import dev.jordond.filmstrip.convention.androidDeviceTests
 import dev.jordond.filmstrip.convention.bootIosSimulatorForTests
+import dev.jordond.filmstrip.convention.usesHostFfmpeg
 
 plugins {
   id("filmstrip.library")
@@ -33,3 +34,7 @@ kotlin {
 }
 
 bootIosSimulatorForTests()
+
+tasks.named<Test>("jvmTest") {
+  usesHostFfmpeg()
+}

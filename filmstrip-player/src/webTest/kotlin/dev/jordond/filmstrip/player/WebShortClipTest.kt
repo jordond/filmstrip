@@ -28,7 +28,7 @@ import kotlin.time.Duration.Companion.milliseconds
  */
 class WebShortClipTest : ShortClipContractTest(WebClipParity) {
   override suspend fun writtenFrameCount(composition: EditComposition): Long {
-    val response = fetch(WebClipParity.urlOf(composition)).await<WebResponse>()
+    val response = fetch(WebClipParity.exportOf(composition).url).await<WebResponse>()
     val file = DataView(response.arrayBuffer().await<JsAny>())
     return videoSampleCount(file) ?: fail("the file carries no video sample table")
   }

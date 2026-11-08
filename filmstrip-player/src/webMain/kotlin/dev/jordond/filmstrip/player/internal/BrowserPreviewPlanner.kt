@@ -2,6 +2,7 @@ package dev.jordond.filmstrip.player.internal
 
 import dev.jordond.filmstrip.FilmstripComponents
 import dev.jordond.filmstrip.FilmstripError
+import dev.jordond.filmstrip.capability.DeviceCapabilities
 import dev.jordond.filmstrip.capability.FidelityNote
 import dev.jordond.filmstrip.capability.OutputProperty
 import dev.jordond.filmstrip.capability.PreviewFidelity
@@ -41,11 +42,14 @@ internal class BrowserPreviewPlan(
  * name without one, since it has nothing else to play.
  *
  * @param components The components the owning `Filmstrip` was built with.
+ * @param readDevice Reads what this device's encoders can do, which decides what the preview negotiates for. The
+ * browser's own encoders by default.
  */
 internal open class BrowserPreviewPlanner(
   components: FilmstripComponents,
+  readDevice: (suspend () -> DeviceCapabilities)? = null,
 ) : PreviewPlanner<BrowserPreviewPlan> {
-  private val engine = webCodecsExportEngine(components)
+  private val engine = webCodecsExportEngine(components, readDevice = readDevice)
 
   override suspend fun plan(
     composition: EditComposition,

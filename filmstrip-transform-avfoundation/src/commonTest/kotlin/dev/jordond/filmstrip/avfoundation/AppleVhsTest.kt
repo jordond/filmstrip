@@ -97,13 +97,16 @@ class AppleVhsTest {
           listOf(0, 1, LATER_FRAME).associateWith { index ->
             val read = frames[index].at(CENTRE, CENTRE).mean()
             val wanted = signalOverPatch(vhs, index, frames[index].width, frames[index].height, plain).mean()
+            withClue("$transfer frame $index's signal $wanted has to depart from the plain ${plain.mean()} to tell") {
+              abs(wanted - plain.mean()) * MAX_CODE shouldBeGreaterThan WRITTEN_LUMA_CODES
+            }
             withClue("$transfer frame $index read $read against the signal's $wanted") {
-              abs(read - wanted) * MAX_CODE shouldBeLessThan TONE_MAP_TOLERANCE_CODES
+              abs(read - wanted) * MAX_CODE shouldBeLessThan WRITTEN_LUMA_CODES
             }
             read
           }
         withClue("$transfer frame 0 read ${means[0]} and frame 1 read ${means[1]}") {
-          abs(means.getValue(0) - means.getValue(1)) * MAX_CODE shouldBeLessThan TONE_MAP_TOLERANCE_CODES
+          abs(means.getValue(0) - means.getValue(1)) * MAX_CODE shouldBeLessThan WRITTEN_LUMA_CODES
         }
         remove(plainPath)
         remove(vhsPath)
@@ -146,8 +149,11 @@ class AppleVhsTest {
         val path = exported(edit, ExportSpec(), "sd-$scope")
         val written = codeFramesOf(path, 1).single()
         val wanted = signalOverPatch(vhs, 0, written.width, written.height, corrected).mean()
+        withClue("$scope scope's signal $wanted has to depart from the plain ${corrected.mean()} to tell") {
+          abs(wanted - corrected.mean()) * MAX_CODE shouldBeGreaterThan WRITTEN_LUMA_CODES
+        }
         withClue("$scope scope wrote ${written.at(CENTRE, CENTRE)} against the signal's mean $wanted") {
-          abs(written.at(CENTRE, CENTRE).mean() - wanted) * MAX_CODE shouldBeLessThan TONE_MAP_TOLERANCE_CODES
+          abs(written.at(CENTRE, CENTRE).mean() - wanted) * MAX_CODE shouldBeLessThan WRITTEN_LUMA_CODES
         }
         remove(path)
       }

@@ -1,9 +1,9 @@
 package dev.jordond.filmstrip.effects.filters.vhs
 
+import dev.jordond.filmstrip.effects.filters.hostFfmpeg
 import dev.jordond.filmstrip.effects.filters.internal.FilterNoise
 import io.kotest.assertions.withClue
 import io.kotest.matchers.shouldBe
-import org.junit.Assume.assumeTrue
 import java.io.ByteArrayOutputStream
 import kotlin.test.Test
 
@@ -11,12 +11,11 @@ import kotlin.test.Test
  * Runs [VhsExpressions.hash] through ffmpeg's own `geq` and reads it back a byte at a time, against
  * [FilterNoise.hash24].
  *
- * Skipped when the host has no ffmpeg, since nothing here could run the expression.
+ * The ffmpeg is [hostFfmpeg], the one the build declares as this suite's input.
  */
 class VhsHashExpressionTest {
   @Test
   fun `the geq hash equals hash24 on a mid-range grid`() {
-    assumeTrue("this host has no ffmpeg", hasFfmpeg())
     val expressions = VhsExpressions(SEED, VhsParams.at(0.5, TapeSpeed.EP))
     val hash = expressions.hash(PASS_LUMA_NOISE, "$TICK", "$CELL_BASE+Y*16+X")
 
@@ -37,7 +36,7 @@ class VhsHashExpressionTest {
   private fun plane(expression: String): ByteArray {
     val process =
       ProcessBuilder(
-        "ffmpeg",
+        hostFfmpeg,
         "-hide_banner",
         "-loglevel",
         "error",
@@ -60,9 +59,6 @@ class VhsHashExpressionTest {
     process.waitFor() shouldBe 0
     return out.toByteArray()
   }
-
-  private fun hasFfmpeg(): Boolean =
-    runCatching { ProcessBuilder("ffmpeg", "-version").start().waitFor() == 0 }.getOrDefault(false)
 
   private companion object {
     const val SEED = 1984

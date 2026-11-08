@@ -2,6 +2,7 @@ package dev.jordond.filmstrip.effects.filters.crt
 
 import dev.jordond.filmstrip.effect.FilterBranch
 import dev.jordond.filmstrip.effect.FilterNode
+import dev.jordond.filmstrip.effects.filters.hostFfmpeg
 import dev.jordond.filmstrip.geometry.Size
 import io.kotest.assertions.withClue
 import io.kotest.matchers.collections.shouldHaveSize
@@ -9,7 +10,6 @@ import io.kotest.matchers.doubles.shouldBeGreaterThan
 import io.kotest.matchers.doubles.shouldBeLessThan
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeSameInstanceAs
-import org.junit.Assume.assumeTrue
 import java.io.ByteArrayOutputStream
 import java.io.File
 import kotlin.math.abs
@@ -21,7 +21,7 @@ import kotlin.test.Test
 /**
  * Reads [CrtFrames] and what ffmpeg makes of them against [CrtSignal], with no conversion to 4:2:0 in the way.
  *
- * The ffmpeg reads are skipped when the host has no ffmpeg.
+ * The ffmpeg reads run [hostFfmpeg], the one the build declares as this suite's input.
  */
 class CrtLoweringTest {
   @Test
@@ -77,7 +77,6 @@ class CrtLoweringTest {
 
   @Test
   fun `every channel lands on the signal at each size with a mid intensity`() {
-    assumeTrue("this host has no ffmpeg", hasFfmpeg())
     listOf(Size(640, 360), Size(1366, 768), Size(360, 640)).forEach { frame ->
       val params = CrtParams.at(MID)
       val read = drawn(params, frame, PICTURE, OPAQUE)
@@ -99,7 +98,6 @@ class CrtLoweringTest {
 
   @Test
   fun `the gain stops at a premultiplied pixels own alpha and alpha holds past the curve`() {
-    assumeTrue("this host has no ffmpeg", hasFfmpeg())
     val frame = Size(1280, 720)
     val params = CrtParams.at(1.0)
 
@@ -129,14 +127,13 @@ class CrtLoweringTest {
 
   @Test
   fun `the way down to eight bits lands every code on itself on every plane`() {
-    assumeTrue("this host has no ffmpeg", hasFfmpeg())
     val empty = emptyMap<String, String>()
     val down = CRT_TO_EIGHT_BITS.joinToString(",") { it.rendered(empty) }
     val coded = "X*257"
 
     val process =
       ProcessBuilder(
-        "ffmpeg",
+        hostFfmpeg,
         "-hide_banner",
         "-loglevel",
         "error",
@@ -208,7 +205,7 @@ class CrtLoweringTest {
           .joinToString(";")
       val process =
         ProcessBuilder(
-          "ffmpeg",
+          hostFfmpeg,
           "-hide_banner",
           "-loglevel",
           "error",
@@ -258,9 +255,6 @@ class CrtLoweringTest {
     val at = (plane * frame.width * frame.height + y * frame.width + x) * 2
     return ((this[at].toInt() and 0xFF) or ((this[at + 1].toInt() and 0xFF) shl 8)) / FULL_CODE.toDouble()
   }
-
-  private fun hasFfmpeg(): Boolean =
-    runCatching { ProcessBuilder("ffmpeg", "-version").start().waitFor() == 0 }.getOrDefault(false)
 
   private class Netpbm(
     private val bytes: ByteArray,

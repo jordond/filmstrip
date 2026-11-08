@@ -5,6 +5,7 @@ import dev.jordond.filmstrip.effects.overlay.OverlayPictureRead
 import dev.jordond.filmstrip.effects.overlay.StoredSamples
 import dev.jordond.filmstrip.ffmpeg.internal.picture.FfmpegPictureDecoder
 import dev.jordond.filmstrip.ffmpeg.support.FfmpegExportFixture
+import dev.jordond.filmstrip.ffmpeg.support.hostFfmpeg
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.test.ColorPictures
@@ -80,6 +81,6 @@ class FfmpegPictureThumbnailTest {
   }
 
   private companion object {
-    val decoder = FfmpegPictureDecoder("ffmpeg")
+    val decoder = FfmpegPictureDecoder(hostFfmpeg)
   }
 }

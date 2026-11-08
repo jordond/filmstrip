@@ -15,6 +15,7 @@ import dev.jordond.filmstrip.ffmpeg.internal.process.ToolchainLocator
 import dev.jordond.filmstrip.ffmpeg.internal.process.ToolchainResult
 import dev.jordond.filmstrip.ffmpeg.support.ExportConstants.TIMEOUT
 import dev.jordond.filmstrip.ffmpeg.support.FfmpegExportFixture
+import dev.jordond.filmstrip.ffmpeg.support.hostFfprobe
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
 import io.kotest.assertions.withClue
@@ -143,7 +144,7 @@ class FfmpegHdrTest {
   private fun colorTags(path: String): String {
     val process =
       ProcessBuilder(
-        "ffprobe",
+        hostFfprobe,
         "-v",
         "error",
         "-select_streams",

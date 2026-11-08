@@ -220,7 +220,7 @@ class OverlayGraphTest {
     }.effect.fragment
 
   private fun mergeAt(drawn: PixelRect): FilterNode =
-    FilterNode("overlay", "x" to "${drawn.x}", "y" to "${drawn.y}", "format" to "auto", "eof_action" to "pass")
+    FilterNode("overlay", "x" to "${drawn.x}", "y" to "${drawn.y}", "eof_action" to "pass")
 
   private fun boundOf(time: Duration): Double = (frameIndexAt(time, SDR_SPAN, RATE.toInt()) - 0.5) / RATE.toInt()
 

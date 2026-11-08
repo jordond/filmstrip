@@ -10,6 +10,7 @@ import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.effects.BuiltInEffectResolver
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.transform.internal.ResolveResult
+import dev.jordond.filmstrip.transform.internal.negotiation.encodesAudio
 import dev.jordond.filmstrip.webcodecs.internal.BrowserExportEngine
 import dev.jordond.filmstrip.webcodecs.internal.BrowserProber
 import dev.jordond.filmstrip.webcodecs.internal.BrowserRender
@@ -32,11 +33,12 @@ internal suspend fun renderOf(
 }
 
 /**
- * Whether this browser can encode AAC. Chrome hands it to the platform, so Linux runners have none.
+ * Whether an export from this browser asking for AAC writes audio. Chrome hands AAC to the platform, so Linux runners
+ * have none.
  */
 internal suspend fun browserEncodesAac(): Boolean {
   val capabilities = engine().capabilities().shouldBeInstanceOf<CapabilitiesResult.Success>().capabilities
-  return capabilities.audio.any { it.codec == AudioCodec.Aac }
+  return capabilities.encodesAudio(ExportSpec(audioCodec = AudioCodec.Aac))
 }
 
 /**

@@ -22,6 +22,7 @@ import dev.jordond.filmstrip.ffmpeg.support.OverlayConstants.OVERLAY_SIZE
 import dev.jordond.filmstrip.ffmpeg.support.assertReads
 import dev.jordond.filmstrip.ffmpeg.support.centreOf
 import dev.jordond.filmstrip.ffmpeg.support.channelsOf
+import dev.jordond.filmstrip.ffmpeg.support.hostFfmpeg
 import dev.jordond.filmstrip.ffmpeg.support.pngOf
 import dev.jordond.filmstrip.ffmpeg.support.writtenFrames
 import dev.jordond.filmstrip.geometry.Corner
@@ -250,7 +251,7 @@ class FfmpegOverlayPictureAtExportTest {
     val file = File(root, "encoded.$extension")
     val command =
       listOf(
-        "ffmpeg",
+        hostFfmpeg,
         "-y",
         "-nostdin",
         "-loglevel",

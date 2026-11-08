@@ -7,6 +7,7 @@ import dev.jordond.filmstrip.effects.overlay.StoredSamples
 import dev.jordond.filmstrip.ffmpeg.internal.picture.FfmpegPictureDecoder
 import dev.jordond.filmstrip.ffmpeg.internal.picture.pictureRuns
 import dev.jordond.filmstrip.ffmpeg.support.FfmpegExportFixture
+import dev.jordond.filmstrip.ffmpeg.support.hostFfmpeg
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.picture.heif.ALPHA_UNREADABLE_REASON
@@ -220,7 +221,7 @@ class FfmpegPictureBoundsTest {
   ): Int = decoded.samples.shouldBeInstanceOf<StoredSamples.Argb>().argb[y * decoded.size.width + x]
 
   private companion object {
-    val decoder = FfmpegPictureDecoder("ffmpeg")
+    val decoder = FfmpegPictureDecoder(hostFfmpeg)
 
     // Fifty columns of thirty rows, fifteen hundred tiles, past the thousand streams ffmpeg opens in one file.
     const val BIG_COLUMNS = 50

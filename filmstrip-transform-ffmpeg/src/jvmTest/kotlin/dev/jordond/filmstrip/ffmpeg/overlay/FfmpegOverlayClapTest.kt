@@ -10,6 +10,7 @@ import dev.jordond.filmstrip.effects.overlay.OverlayPictureRead
 import dev.jordond.filmstrip.effects.overlay.StoredSamples
 import dev.jordond.filmstrip.ffmpeg.internal.picture.FfmpegPictureDecoder
 import dev.jordond.filmstrip.ffmpeg.support.HdrRender.CAPABILITIES
+import dev.jordond.filmstrip.ffmpeg.support.hostFfmpeg
 import dev.jordond.filmstrip.geometry.Corner
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ColorSpace
@@ -138,7 +139,7 @@ class FfmpegOverlayClapTest {
     "data:application/octet-stream;base64," + Base64.getEncoder().encodeToString(bytes)
 
   private companion object {
-    val decoder = FfmpegPictureDecoder("ffmpeg")
+    val decoder = FfmpegPictureDecoder(hostFfmpeg)
     val still = HeicSubsampledPictures.EIGHT_BIT_420.bytes(CicpTag(1, 13, 1, true))
     val SIZE = Size(64, 64)
     val FRAME = Size(640, 360)

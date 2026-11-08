@@ -1,14 +1,19 @@
 package dev.jordond.filmstrip.player
 
+import dev.jordond.filmstrip.capability.AudioEncoderCapability
+import dev.jordond.filmstrip.capability.DeviceCapabilities
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.outputSlotOf
 import dev.jordond.filmstrip.edit.outputSlotTime
+import dev.jordond.filmstrip.effects.color.Brightness
+import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.player.contract.EngineUnderTest
 import dev.jordond.filmstrip.player.contract.FailingItem
 import dev.jordond.filmstrip.player.contract.Interruption
 import dev.jordond.filmstrip.player.contract.PlayerEngineContractTest
+import dev.jordond.filmstrip.player.contract.RebuildContract
 import dev.jordond.filmstrip.player.contract.awaitComposition
 import dev.jordond.filmstrip.player.contract.awaitContract
 import dev.jordond.filmstrip.player.contract.awaitFrame
@@ -17,12 +22,15 @@ import dev.jordond.filmstrip.player.contract.contractTest
 import dev.jordond.filmstrip.player.contract.cutInTwo
 import dev.jordond.filmstrip.player.contract.withEngine
 import dev.jordond.filmstrip.player.internal.loopWrapOf
+import dev.jordond.filmstrip.transform.internal.negotiation.encodesAudio
+import dev.jordond.filmstrip.webcodecs.BROWSER_AAC_ENCODER
 import io.kotest.matchers.comparables.shouldBeGreaterThanOrEqualTo
 import io.kotest.matchers.comparables.shouldBeLessThan
 import io.kotest.matchers.comparables.shouldBeLessThanOrEqualTo
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.test.TestResult
 import kotlin.test.Test
 import kotlin.test.fail
 import kotlin.time.Duration
@@ -71,6 +79,8 @@ class WebEngineContractTest : PlayerEngineContractTest() {
 
   override val plainFixture: EditComposition = webFixtureComposition(audio = AudioSpec.Keep)
 
+  override suspend fun plainClipEditPrepares(): Boolean = firstEffectRebuilds(pageDevice())
+
   override val stageableInterruptions: Set<Interruption> =
     setOf(Interruption.AutoplayBlocked, Interruption.AppBackgrounded)
 
@@ -82,12 +92,12 @@ class WebEngineContractTest : PlayerEngineContractTest() {
    * not is refused and says so exactly once. A headless browser on its stock policy takes the
    * second, so this is where the refusal is exercised for real rather than through a seam. Both are
    * the contract, and asserting only one would make this suite depend on how the runner was
-   * launched.
+   * launched. The planner reads a device with an AAC encoder, so the audio graph is built on every host.
    */
   @Test
   fun `a composition with audio runs on the audio clock, or reports the refusal`() =
     contractTest { scope ->
-      val subject = WebEngineUnderTest(scope)
+      val subject = WebEngineUnderTest(scope, readDevice = ::pageDeviceWithAac)
       withEngine(subject.engine) { recorder ->
         subject.engine.features
           .supports(PlayerFeature.AudioMonitoring) shouldBe true
@@ -116,6 +126,21 @@ class WebEngineContractTest : PlayerEngineContractTest() {
         }
       }
     }
+
+  /**
+   * A plain clip's first effect on a device that encodes video and no audio.
+   *
+   * The copy path carried the clip's audio and the export this preview follows writes none, so the graph is rebuilt.
+   */
+  @Test
+  fun `a plain clip's first effect rebuilds on a device with no audio encoder`() = firstEffectOn(audio = emptyList())
+
+  /**
+   * A plain clip's first effect on a device that encodes video and AAC, where the audio survives and the graph swaps.
+   */
+  @Test
+  fun `a plain clip's first effect swaps on a device with an AAC encoder`() =
+    firstEffectOn(audio = listOf(BROWSER_AAC_ENCODER))
 
   /**
    * A relaxed seek lands on the slot the sync sample at or before the target sits on.
@@ -230,8 +255,29 @@ class WebEngineContractTest : PlayerEngineContractTest() {
       }
     }
 
+  // Each engine plans against the page's own device with its audio encoders swapped for the ones given.
+  private fun firstEffectOn(audio: List<AudioEncoderCapability>): TestResult {
+    val read: suspend () -> DeviceCapabilities = { pageDeviceWith(audio) }
+    return RebuildContract({ scope -> WebEngineUnderTest(scope, readDevice = read) }, fixture, fixtureFrameRate)
+      .plainClipEditHoldsTheTransport(
+        plain = plainFixture,
+        edited = plainFixture.withEffects(listOf(Brightness(FIRST_BRIGHTNESS))),
+        prepares = { firstEffectRebuilds(read()) },
+      )
+  }
+
   private companion object {
     const val HALF_VOLUME = 0.5f
+
+    const val FIRST_BRIGHTNESS = 0.7f
+
+    /**
+     * Whether a plain clip's first effect rebuilds the graph on [device].
+     *
+     * A preview on a device that can export reads as its export does, so when that lowering writes no audio the edit
+     * drops the audio the copy path carried and the new graph no longer draws the same format.
+     */
+    fun firstEffectRebuilds(device: DeviceCapabilities): Boolean = !device.encodesAudio(ExportSpec(), graded = true)
 
     // A loop range with both ends a third of a slot past a slot and well clear of the fixture's last one, and where
     // playback into it starts.

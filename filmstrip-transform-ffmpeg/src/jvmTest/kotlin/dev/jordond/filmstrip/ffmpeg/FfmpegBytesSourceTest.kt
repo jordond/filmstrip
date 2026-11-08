@@ -18,6 +18,7 @@ import dev.jordond.filmstrip.ffmpeg.internal.process.BytesRoot
 import dev.jordond.filmstrip.ffmpeg.internal.process.readablePath
 import dev.jordond.filmstrip.ffmpeg.support.ExportConstants.TIMEOUT
 import dev.jordond.filmstrip.ffmpeg.support.FfmpegExportFixture
+import dev.jordond.filmstrip.ffmpeg.support.hostFfmpeg
 import dev.jordond.filmstrip.media.MediaProber
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.ProbeResult
@@ -69,7 +70,7 @@ class FfmpegBytesSourceTest {
     runTest(timeout = TIMEOUT) {
       val matroska = output().resolveSibling("filmstrip-bytes-${System.nanoTime()}.mkv").also(outputs::add)
       val muxed =
-        ProcessBuilder("ffmpeg", "-v", "error", "-i", fixture.landscape.path, "-c", "copy", matroska.path)
+        ProcessBuilder(hostFfmpeg, "-v", "error", "-i", fixture.landscape.path, "-c", "copy", matroska.path)
           .redirectErrorStream(true)
           .start()
       muxed.inputStream.readAllBytes()

@@ -23,12 +23,4 @@ config.set({
     },
   },
   browsers: ['FilmstripChrome'],
-  browserNoActivityTimeout: 600000,
-  browserDisconnectTimeout: 60000,
-  captureTimeout: 120000,
-  client: {
-    mocha: {
-      timeout: 300000,
-    },
-  },
 });

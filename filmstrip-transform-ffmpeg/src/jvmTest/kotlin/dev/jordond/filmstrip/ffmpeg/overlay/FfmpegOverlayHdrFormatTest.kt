@@ -23,6 +23,7 @@ import dev.jordond.filmstrip.ffmpeg.support.HdrRender.attributes
 import dev.jordond.filmstrip.ffmpeg.support.OverlayConstants.OVERLAY_SIZE
 import dev.jordond.filmstrip.ffmpeg.support.centreOf
 import dev.jordond.filmstrip.ffmpeg.support.drawnRect
+import dev.jordond.filmstrip.ffmpeg.support.hostFfmpeg
 import dev.jordond.filmstrip.ffmpeg.support.midGreenHeic
 import dev.jordond.filmstrip.ffmpeg.support.pngOf
 import dev.jordond.filmstrip.ffmpeg.support.tenBitCodesAt
@@ -203,7 +204,7 @@ class FfmpegOverlayHdrFormatTest {
     spec: EffectSpec,
     transfer: HdrTransfer,
   ): EffectResolution? =
-    BuiltInEffectResolver(FfmpegPictureDecoder("ffmpeg"))
+    BuiltInEffectResolver(FfmpegPictureDecoder(hostFfmpeg))
       .resolve(spec, CAPABILITIES, attributes(transfer, 2.seconds))
 
   private fun expectedCodes(
@@ -271,7 +272,7 @@ internal fun encoded(
   val target = File.createTempFile("filmstrip-format", ".$extension").also { it.delete() }
   val process =
     ProcessBuilder(
-      listOf("ffmpeg", "-y", "-hide_banner", "-loglevel", "error", "-i", source.absolutePath) + encode +
+      listOf(hostFfmpeg, "-y", "-hide_banner", "-loglevel", "error", "-i", source.absolutePath) + encode +
         listOf("-frames:v", "1", target.absolutePath),
     ).redirectErrorStream(true).start()
   process.inputStream.readAllBytes()
@@ -284,7 +285,7 @@ internal fun encoded(
 private fun decodedCentreOrNull(picture: File): Int? {
   val process =
     ProcessBuilder(
-      "ffmpeg",
+      hostFfmpeg,
       "-hide_banner",
       "-loglevel",
       "error",

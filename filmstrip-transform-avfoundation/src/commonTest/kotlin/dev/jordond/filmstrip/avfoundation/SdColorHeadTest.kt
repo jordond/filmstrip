@@ -109,7 +109,7 @@ class SdColorHeadTest {
           written.at(x, MIDDLE),
           honest.at(x, MIDDLE).displayed(SMPTE_C_PRIMARIES),
           "written bar at $x",
-          WRITTEN_SD_CODES,
+          WRITTEN_COLOUR_CODES,
         )
       }
       remove(output)
@@ -338,7 +338,6 @@ class SdColorHeadTest {
 
     // What a render and the shared function differ by, one 8-bit chroma step of the clip's H.264.
     const val SD_CODES = 2.0
-    const val WRITTEN_SD_CODES = SD_CODES + WRITTEN_COLOUR_CODES
 
     // What the kernel's floats lose against the shared function's doubles, the simulator's being the coarser.
     const val KERNEL_CODES = 0.25

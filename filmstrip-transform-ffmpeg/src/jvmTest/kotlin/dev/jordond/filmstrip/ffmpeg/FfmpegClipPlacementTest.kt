@@ -23,6 +23,8 @@ import dev.jordond.filmstrip.ffmpeg.support.OverlayConstants.OVERLAY_COLOR
 import dev.jordond.filmstrip.ffmpeg.support.assertReads
 import dev.jordond.filmstrip.ffmpeg.support.centreOf
 import dev.jordond.filmstrip.ffmpeg.support.channelsOf
+import dev.jordond.filmstrip.ffmpeg.support.hostFfmpeg
+import dev.jordond.filmstrip.ffmpeg.support.hostFfprobe
 import dev.jordond.filmstrip.ffmpeg.support.pixelAt
 import dev.jordond.filmstrip.ffmpeg.support.writtenFrames
 import dev.jordond.filmstrip.geometry.AspectRatio
@@ -367,7 +369,7 @@ class FfmpegClipPlacementTest {
       }
     val graph = "color=c=0x$color:s=${size.width}x${size.height}:r=30:d=1,format=$format"
     val command =
-      listOf("ffmpeg", "-y", "-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i", graph) +
+      listOf(hostFfmpeg, "-y", "-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i", graph) +
         listOf("-c:v", "ffv1", file.absolutePath)
     val process = ProcessBuilder(command).redirectErrorStream(true).start()
     val log = process.inputStream.readAllBytes().decodeToString()
@@ -378,7 +380,7 @@ class FfmpegClipPlacementTest {
 
   private fun pixelFormatOf(path: String): String {
     val command =
-      listOf("ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=pix_fmt") +
+      listOf(hostFfprobe, "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=pix_fmt") +
         listOf("-of", "csv=p=0", path)
     val process = ProcessBuilder(command).start()
     val format = process.inputReader().readText().trim()

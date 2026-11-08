@@ -19,6 +19,7 @@ import dev.jordond.filmstrip.ffmpeg.support.FfmpegExportFixture
 import dev.jordond.filmstrip.ffmpeg.support.HdrRender
 import dev.jordond.filmstrip.ffmpeg.support.HdrRender.CAPABILITIES
 import dev.jordond.filmstrip.ffmpeg.support.assertSdrLandings
+import dev.jordond.filmstrip.ffmpeg.support.hostFfmpeg
 import dev.jordond.filmstrip.geometry.Corner
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ColorSpace
@@ -382,7 +383,7 @@ class FfmpegPictureYcbcrTest {
   }
 
   private companion object {
-    val decoder = FfmpegPictureDecoder("ffmpeg")
+    val decoder = FfmpegPictureDecoder(hostFfmpeg)
     val FRAME = Size(640, 360)
     val AVIF_GRID = Size(16, 16)
     val HEIC_GRID = Size(128, 128)

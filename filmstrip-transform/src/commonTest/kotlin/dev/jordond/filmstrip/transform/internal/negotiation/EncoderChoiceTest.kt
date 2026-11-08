@@ -20,6 +20,7 @@ import dev.jordond.filmstrip.transform.internal.composition
 import dev.jordond.filmstrip.transform.internal.refusal
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedHdr
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedTrack
+import io.kotest.assertions.withClue
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
@@ -170,6 +171,28 @@ class EncoderChoiceTest {
 
       choice.codec shouldBe AudioCodec.None
       choice.fallback.shouldBeNull()
+    }
+  }
+
+  // Each device's answer under a grade and under an export, the same for Auto and for AAC.
+  @Test
+  fun `a device encodes audio when it lists an audio encoder or grades with no encoder at all`() {
+    val alac = listOf(AudioEncoderCapability(AudioCodec.Alac, listOf(48_000), 2))
+    val answers =
+      listOf(
+        Triple("an AAC encoder", fixture.device(), true to true),
+        Triple("an ALAC encoder", fixture.device(audio = alac), true to true),
+        Triple("video and no audio encoder", fixture.device(audio = emptyList()), false to false),
+        Triple("no encoder at all", fixture.device(video = emptyList(), audio = emptyList()), true to false),
+      )
+
+    answers.forEach { (name, device, answer) ->
+      listOf(ExportSpec(), ExportSpec(audioCodec = AudioCodec.Aac)).forEach { spec ->
+        withClue("$name under ${spec.audioCodec}") {
+          device.encodesAudio(spec, graded = true) shouldBe answer.first
+          device.encodesAudio(spec, graded = false) shouldBe answer.second
+        }
+      }
     }
   }
 

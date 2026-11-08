@@ -2,6 +2,8 @@ import dev.jordond.filmstrip.convention.testmedia.FixturePatch
 import dev.jordond.filmstrip.convention.testmedia.FixtureSpec
 import dev.jordond.filmstrip.convention.testmedia.FixtureTransfer
 import dev.jordond.filmstrip.convention.testmedia.testMedia
+import dev.jordond.filmstrip.convention.usesHostFfmpeg
+import dev.jordond.filmstrip.convention.usesHostFfmpegTools
 
 plugins {
   id("filmstrip.library.jvm")
@@ -62,18 +64,19 @@ val exportFixtures =
   )
 
 // Fails the build, naming why, before any test runs when this host's ffmpeg is missing, below the floor or has no
-// ten-bit encoder. It runs the same toolchain lookup the backend does.
-val checkFfmpegTestToolchain =
-  tasks.register<JavaExec>("checkFfmpegTestToolchain") {
-    description = "Fails when this host's ffmpeg cannot run the ffmpeg tests, naming why."
-    val test = kotlin.jvm().compilations.getByName("test")
-    classpath = files(test.output.allOutputs, test.runtimeDependencyFiles)
-    mainClass.set("dev.jordond.filmstrip.ffmpeg.support.ToolchainGateKt")
-    javaLauncher.set(tasks.named<Test>("jvmTest").flatMap { it.javaLauncher })
-  }
+// ten-bit encoder. It runs the same toolchain lookup the backend does, on the ffmpeg and ffprobe the tests get. Every
+// test task that calls usesHostFfmpeg depends on it.
+tasks.register<JavaExec>("checkFfmpegTestToolchain") {
+  description = "Fails when this host's ffmpeg cannot run the ffmpeg tests, naming why."
+  val test = kotlin.jvm().compilations.getByName("test")
+  classpath = files(test.output.allOutputs, test.runtimeDependencyFiles)
+  mainClass.set("dev.jordond.filmstrip.ffmpeg.support.ToolchainGateKt")
+  javaLauncher.set(tasks.named<Test>("jvmTest").flatMap { it.javaLauncher })
+  usesHostFfmpegTools()
+}
 
 tasks.named<Test>("jvmTest") {
-  dependsOn(checkFfmpegTestToolchain)
+  usesHostFfmpeg()
   systemProperty("filmstrip.fixtures", exportFixtures.directory.absolutePath)
   // ffmpeg-text-overlay: text overlays are drawn by the JVM the way a server draws them, with no display to reach.
   systemProperty("java.awt.headless", "true")

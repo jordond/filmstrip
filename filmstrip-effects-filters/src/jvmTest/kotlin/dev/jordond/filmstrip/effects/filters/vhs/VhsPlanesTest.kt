@@ -1,21 +1,20 @@
 package dev.jordond.filmstrip.effects.filters.vhs
 
+import dev.jordond.filmstrip.effects.filters.hostFfmpeg
 import dev.jordond.filmstrip.geometry.Size
 import io.kotest.assertions.withClue
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
-import org.junit.Assume.assumeTrue
 import kotlin.test.Test
 
 /**
  * Runs [VhsExpressions]' two maps through ffmpeg's own `geq` and reads the planes [VhsPlanes] draws against them.
  *
- * Skipped when the host has no ffmpeg, since nothing here could run the expressions.
+ * The ffmpeg is [hostFfmpeg], the one the build declares as this suite's input.
  */
 class VhsPlanesTest {
   @Test
   fun `the planes equal the geq's at mid-range ticks and strengths`() {
-    assumeTrue("this host has no ffmpeg", hasFfmpeg())
     listOf(Vhs(), Vhs(intensity = 0.5f)).forEach { vhs ->
       val nodes = VhsExpressions(vhs.seed, VhsParams.of(vhs))
       val inputs =
@@ -61,7 +60,7 @@ class VhsPlanesTest {
       ) { (plane, expression) -> "$plane=${expression.replace(",", "\\,").replace(";", "\\;")}" }
     val process =
       ProcessBuilder(
-        "ffmpeg",
+        hostFfmpeg,
         "-hide_banner",
         "-loglevel",
         "error",
@@ -91,9 +90,6 @@ class VhsPlanesTest {
         deleteOnExit()
         writeText(graph)
       }.path
-
-  private fun hasFfmpeg(): Boolean =
-    runCatching { ProcessBuilder("ffmpeg", "-version").start().waitFor() == 0 }.getOrDefault(false)
 
   private companion object {
     const val WIDTH = 1920

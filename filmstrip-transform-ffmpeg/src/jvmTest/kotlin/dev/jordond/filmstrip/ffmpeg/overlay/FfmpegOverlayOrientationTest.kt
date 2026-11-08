@@ -34,6 +34,7 @@ import dev.jordond.filmstrip.ffmpeg.support.OverlayConstants.PROBE_SIDE
 import dev.jordond.filmstrip.ffmpeg.support.assertNear
 import dev.jordond.filmstrip.ffmpeg.support.channelsOf
 import dev.jordond.filmstrip.ffmpeg.support.drawnRect
+import dev.jordond.filmstrip.ffmpeg.support.hostFfmpeg
 import dev.jordond.filmstrip.ffmpeg.support.regionAverage
 import dev.jordond.filmstrip.ffmpeg.support.taggedJpeg
 import dev.jordond.filmstrip.geometry.Corner
@@ -284,7 +285,7 @@ class FfmpegOverlayOrientationTest {
   private enum class Format { Png, Jpeg }
 
   private companion object {
-    val decoder = FfmpegPictureDecoder("ffmpeg")
+    val decoder = FfmpegPictureDecoder(hostFfmpeg)
     val FORMATS = Format.entries
     val CORNERS = listOf(Corner.TopStart, Corner.TopEnd, Corner.BottomStart, Corner.BottomEnd)
     val FRAME = Size(640, 360)
@@ -343,7 +344,7 @@ class FfmpegOverlayOrientationTest {
       try {
         val graph = (filters + "format=rgba").joinToString(",")
         val command =
-          listOf("ffmpeg", "-nostdin", "-loglevel", "error", "-noautorotate", "-i", input.absolutePath) +
+          listOf(hostFfmpeg, "-nostdin", "-loglevel", "error", "-noautorotate", "-i", input.absolutePath) +
             listOf("-frames:v", "1", "-vf", graph, "-f", "rawvideo", "-")
         val process = ProcessBuilder(command).start()
         val raw = process.inputStream.readAllBytes()

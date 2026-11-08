@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip.player.internal
 
+import dev.jordond.filmstrip.capability.DeviceCapabilities
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.player.CONTRACT_COMPONENTS
@@ -11,14 +12,19 @@ import kotlin.test.fail
 /**
  * [composition] lowered the way the engine lowers it, and the preview graph built on that lowering.
  *
- * The caller owns the graph and releases it.
+ * The planner reads its device through [readDevice] when one is given, and the page's own otherwise. The caller owns
+ * the graph and releases it.
  */
-internal suspend fun browserPreviewOf(composition: EditComposition): Pair<BrowserPreviewPlan, BrowserPreview> {
+internal suspend fun browserPreviewOf(
+  composition: EditComposition,
+  readDevice: (suspend () -> DeviceCapabilities)? = null,
+): Pair<BrowserPreviewPlan, BrowserPreview> {
   val plan =
     when (
       val result =
         BrowserPreviewPlanner(
           CONTRACT_COMPONENTS,
+          readDevice,
         ).plan(composition, PreviewQualityPolicy.Full, ExportSpec())
     ) {
       is PlanResult.Ready -> result.plan

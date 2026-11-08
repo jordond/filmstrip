@@ -22,6 +22,7 @@ import dev.jordond.filmstrip.ffmpeg.support.assertOnTheGrid
 import dev.jordond.filmstrip.ffmpeg.support.assertReads
 import dev.jordond.filmstrip.ffmpeg.support.centreOf
 import dev.jordond.filmstrip.ffmpeg.support.channelsOf
+import dev.jordond.filmstrip.ffmpeg.support.hostFfprobe
 import dev.jordond.filmstrip.ffmpeg.support.pixelAt
 import dev.jordond.filmstrip.ffmpeg.support.pointIn
 import dev.jordond.filmstrip.ffmpeg.support.regionAverage
@@ -392,7 +393,7 @@ class FfmpegFillTest {
   private fun presentationTicks(path: String): Pair<List<Long>, Pair<Long, Long>> {
     fun probe(vararg entries: String): List<String> {
       val process =
-        ProcessBuilder("ffprobe", "-v", "error", "-select_streams", "v:0", *entries, "-of", "csv=p=0", path).start()
+        ProcessBuilder(hostFfprobe, "-v", "error", "-select_streams", "v:0", *entries, "-of", "csv=p=0", path).start()
       return process
         .inputReader()
         .readText()

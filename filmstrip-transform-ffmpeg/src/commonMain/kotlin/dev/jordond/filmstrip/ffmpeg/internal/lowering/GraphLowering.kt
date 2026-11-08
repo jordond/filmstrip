@@ -323,7 +323,7 @@ internal class GraphLowering(
       if (fragment.branches.isNotEmpty()) {
         graph.branches(current, fragment, label, Duration.ZERO, liveChain)
       } else if (crop != null) {
-        graph.cropped(current, fragment, crop, label, grid, ::auxPads)
+        graph.cropped(current, fragment, crop, label, grid, pixelFormat, ::auxPads)
       } else if (merge == null) {
         graph.chain(listOf(current), (fragment.chain + fragment.post).ifEmpty { listOf(NULL_VIDEO) }, label)
       } else {
@@ -337,7 +337,8 @@ internal class GraphLowering(
           } else {
             "${label}pre".also { graph.chain(listOf(current), fragment.chain, it) }
           }
-        graph.chain(listOf(input) + auxPads(fragment.auxInputs, label), listOf(merge) + fragment.post, label)
+        val merged = merge.onFrame(pixelFormat, grid.after(fragment.chain))
+        graph.chain(listOf(input) + auxPads(fragment.auxInputs, label), listOf(merged) + fragment.post, label)
       }
       if (crop == null) grid = grid.after(fragment.branches.flatMap { it.nodes } + fragment.chain + fragment.post)
       current = label
@@ -392,7 +393,7 @@ internal class GraphLowering(
         pending.clear()
         pad =
           if (crop != null) {
-            graph.cropped(read, fragment, crop, label, grid, ::auxPads)
+            graph.cropped(read, fragment, crop, label, grid, pixelFormat, ::auxPads)
           } else {
             grid = grid.after(fragment.branches.flatMap { it.nodes })
             label.also { graph.branches(read, fragment, it, clockOrigin, liveChain) }
@@ -401,7 +402,8 @@ internal class GraphLowering(
         return@forEachIndexed
       }
       pending += fragment.chain
-      grid = grid.after(fragment.chain + fragment.post)
+      val drawnOn = grid.after(fragment.chain)
+      grid = drawnOn.after(fragment.post)
       val merge = fragment.merge
       if (merge == null) {
         pending += fragment.post
@@ -425,7 +427,8 @@ internal class GraphLowering(
       pending.clear()
 
       val label = "v${index}m$merged"
-      graph.chain(listOf(prepared) + auxPads(fragment.auxInputs, label), listOf(merge) + fragment.post, label)
+      val placed = merge.onFrame(pixelFormat, drawnOn)
+      graph.chain(listOf(prepared) + auxPads(fragment.auxInputs, label), listOf(placed) + fragment.post, label)
       pad = label
       merged++
     }

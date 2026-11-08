@@ -27,6 +27,7 @@ import dev.jordond.filmstrip.ffmpeg.support.ExportConstants.COLOR_READ_BITRATE
 import dev.jordond.filmstrip.ffmpeg.support.ExportConstants.TIMEOUT
 import dev.jordond.filmstrip.ffmpeg.support.FfmpegExportFixture
 import dev.jordond.filmstrip.ffmpeg.support.FilterFrames
+import dev.jordond.filmstrip.ffmpeg.support.hostFfmpeg
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.transform.internal.hdr.Rgb
@@ -146,7 +147,7 @@ class FfmpegToneCurveTest {
         "geq=lum=${stripes(0)}:cb=${stripes(1)}:cr=${stripes(2)},format=yuv420p10le," +
         "setparams=color_primaries=bt2020:color_trc=${transfer.ffmpegTag}:colorspace=bt2020nc:range=tv"
     val command =
-      listOf("ffmpeg", "-y", "-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i", graph) +
+      listOf(hostFfmpeg, "-y", "-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i", graph) +
         listOf("-c:v", "ffv1", file.absolutePath)
     val process = ProcessBuilder(command).redirectErrorStream(true).start()
     val log = process.inputStream.readAllBytes().decodeToString()
@@ -193,7 +194,7 @@ class FfmpegToneCurveTest {
     val x = probe.first - PROBE_SIDE / 2
     val y = probe.second - PROBE_SIDE / 2
     val command =
-      listOf("ffmpeg", "-y", "-hide_banner", "-loglevel", "error", "-i", file.absolutePath) +
+      listOf(hostFfmpeg, "-y", "-hide_banner", "-loglevel", "error", "-i", file.absolutePath) +
         listOf(
           "-vf",
           "crop=$PROBE_SIDE:$PROBE_SIDE:$x:$y",

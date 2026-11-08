@@ -20,7 +20,7 @@ class FragmentCropTest {
     graph shouldBe
       "[0:v]split=2[rbase][rcrop];" +
       "[rcrop]crop=w=320:h=180:x=2*floor(((in_w-out_w)/2)/2):y=2*floor(((in_h-out_h)/2)/2):exact=1,hue=s=0[rfx];" +
-      "[rbase][rfx]overlay=x=2*floor(((W-w)/2)/2):y=2*floor(((H-h)/2)/2):format=auto[r]"
+      "[rbase][rfx]overlay=x=2*floor(((W-w)/2)/2):y=2*floor(((H-h)/2)/2):format=yuv420[r]"
   }
 
   // overlay places on the 4:2:0 chroma grid, so a whole position moves down to the even pixel at or
@@ -30,7 +30,7 @@ class FragmentCropTest {
     val graph = croppedGraph(FilterCrop(width = "320", height = "180", x = "5", y = "8"))
 
     graph shouldContain "crop=w=320:h=180:x=4:y=8:exact=1"
-    graph shouldContain "overlay=x=4:y=8:format=auto"
+    graph shouldContain "overlay=x=4:y=8:format=yuv420"
   }
 
   @Test
@@ -38,7 +38,7 @@ class FragmentCropTest {
     val graph = croppedGraph(FilterCrop(width = "320", height = "180", x = "-3", y = "11"))
 
     graph shouldContain "crop=w=320:h=180:x=-4:y=10:exact=1"
-    graph shouldContain "overlay=x=-4:y=10:format=auto"
+    graph shouldContain "overlay=x=-4:y=10:format=yuv420"
   }
 
   @Test
@@ -46,7 +46,7 @@ class FragmentCropTest {
     val graph = croppedGraph(FilterCrop(width = "iw/2", height = "ih/2", x = "iw/3"))
 
     graph shouldContain "crop=w=iw/2:h=ih/2:x=2*floor((iw/3)/2):y=2*floor(((in_h-out_h)/2)/2):exact=1"
-    graph shouldContain "overlay=x=2*floor((iw/3)/2):y=2*floor(((H-h)/2)/2):format=auto"
+    graph shouldContain "overlay=x=2*floor((iw/3)/2):y=2*floor(((H-h)/2)/2):format=yuv420"
   }
 
   @Test
@@ -70,7 +70,7 @@ class FragmentCropTest {
     val graph = FilterGraphBuilder()
 
     val crop = FilterCrop(width = "320", height = "180", x = "0", y = "0")
-    graph.cropped("0:v", fragment, crop, "r", ChromaGrid.Subsampled) {
+    graph.cropped("0:v", fragment, crop, "r", ChromaGrid.Subsampled, "yuv420p") {
       inputs,
       label,
       ->
@@ -83,8 +83,8 @@ class FragmentCropTest {
       "[0:v]split=2[rbase][rcrop];" +
       "[rcrop]crop=w=320:h=180:x=0:y=0:exact=1,scale=w=64:h=64[rpre];" +
       "[1:v]null[raux0];" +
-      "[rpre][raux0]overlay,format=pix_fmts=yuva420p[rfx];" +
-      "[rbase][rfx]overlay=x=0:y=0:format=auto[r]"
+      "[rpre][raux0]overlay=format=yuv420,format=pix_fmts=yuva420p[rfx];" +
+      "[rbase][rfx]overlay=x=0:y=0:format=yuv420[r]"
   }
 
   // A base in 4:4:4, the way an odd canvas leaves its chain, has a chroma sample on every pixel, so overlay lands an
@@ -107,7 +107,7 @@ class FragmentCropTest {
   ): String {
     val graph = FilterGraphBuilder()
     val fragment = FilterFragment(chain = listOf(FilterNode("hue", "s" to "0")))
-    val out = graph.cropped("0:v", fragment, crop, "r", grid) { _, _ -> emptyList() }
+    val out = graph.cropped("0:v", fragment, crop, "r", grid, "yuv420p") { _, _ -> emptyList() }
     return graph.build(out)
   }
 }

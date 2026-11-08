@@ -7,6 +7,7 @@ import dev.jordond.filmstrip.ffmpeg.internal.picture.PASS_THROUGH
 import dev.jordond.filmstrip.ffmpeg.internal.picture.ycbcrScale
 import dev.jordond.filmstrip.ffmpeg.support.FfmpegExportFixture
 import dev.jordond.filmstrip.ffmpeg.support.convertedFilter
+import dev.jordond.filmstrip.ffmpeg.support.hostFfmpeg
 import dev.jordond.filmstrip.media.CodecKind
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.picture.pictureYcbcrCoding
@@ -61,7 +62,7 @@ class FfmpegPictureUnreadCodestreamTest {
     val standIn = ycbcrToRgb(y, cb, cr, BT601, coding.primaries, coding.transfer, fullRange = false).toList()
     val apart = expected.indices.any { abs(expected[it] - standIn[it]) > PICTURE_DRIFT }
     withClue("BT.709 reads alike as BT.601") { apart.shouldBeTrue() }
-    val read = FfmpegPictureDecoder("ffmpeg").decode(ImageSource.ofBytes(still(padded(item.codestream))))
+    val read = FfmpegPictureDecoder(hostFfmpeg).decode(ImageSource.ofBytes(still(padded(item.codestream))))
     val decoded =
       withClue("this ffmpeg decoded nothing: $read") {
         (read as? OverlayPictureRead.Read)?.value.shouldNotBeNull()

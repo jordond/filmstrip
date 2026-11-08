@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip.player
 
+import dev.jordond.filmstrip.capability.DeviceCapabilities
 import dev.jordond.filmstrip.player.contract.EngineUnderTest
 import dev.jordond.filmstrip.player.contract.Interruption
 import dev.jordond.filmstrip.player.internal.BrowserPlayerEngine
@@ -17,10 +18,12 @@ import kotlin.time.Duration
  * makes rather than a faked event object.
  *
  * @param scope The dispatcher the engine is confined to.
+ * @param readDevice Reads what the engine's planner takes this device's encoders to be. The page's own by default.
  * @param drawFirstFrame Draws the frame a new graph owes at a position, answering whether it drew one.
  */
 internal class WebEngineUnderTest(
   scope: CoroutineScope,
+  readDevice: (suspend () -> DeviceCapabilities)? = null,
   drawFirstFrame: suspend (preview: BrowserPreview, at: Duration) -> Boolean = { preview, at ->
     preview.frameAt(at) != null
   },
@@ -28,7 +31,7 @@ internal class WebEngineUnderTest(
   override val engine: BrowserPlayerEngine =
     BrowserPlayerEngine(
       parent = scope,
-      planner = BrowserPreviewPlanner(CONTRACT_COMPONENTS),
+      planner = BrowserPreviewPlanner(CONTRACT_COMPONENTS, readDevice),
       config = PlayerConfig(),
       drawFirstFrame = drawFirstFrame,
     )

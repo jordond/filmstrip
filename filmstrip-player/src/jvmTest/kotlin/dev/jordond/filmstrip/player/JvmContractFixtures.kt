@@ -139,7 +139,7 @@ private fun decodeFrame(
   val process =
     ProcessBuilder(
       listOf(
-        System.getenv(FFMPEG).orEmpty().ifBlank { "ffmpeg" },
+        hostFfmpeg,
         "-hide_banner",
         "-loglevel",
         "error",
@@ -170,7 +170,6 @@ private fun decodeFrame(
 private val exports = mutableMapOf<EditComposition, String>()
 
 private const val FIXTURES = "filmstrip.fixtures"
-private const val FFMPEG = "FILMSTRIP_FFMPEG"
 private const val CLIP_NAME = "apple_export_a.mp4"
 private const val CHANNELS = 4
 

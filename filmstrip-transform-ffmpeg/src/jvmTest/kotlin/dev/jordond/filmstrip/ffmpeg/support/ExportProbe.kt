@@ -58,7 +58,7 @@ internal fun luminance(pixel: Triple<Int, Int, Int>): Int = pixel.first + pixel.
 internal fun decodedAudio(path: String): FloatArray {
   val process =
     ProcessBuilder(
-      "ffmpeg",
+      hostFfmpeg,
       "-hide_banner",
       "-loglevel",
       "error",
@@ -161,7 +161,7 @@ internal fun indexedClip(
       "geq=r='$INDEX_FLOOR+mod(N\\,10)*$INDEX_STEP':g='$INDEX_FLOOR+trunc(N/10)*$INDEX_STEP':b=$blue"
   val command =
     buildList {
-      addAll(listOf("ffmpeg", "-y", "-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i", picture))
+      addAll(listOf(hostFfmpeg, "-y", "-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i", picture))
       sound?.let {
         val tone = "sine=frequency=$PRIMARY_HZ:sample_rate=$AUDIO_SAMPLE_RATE:duration=${it.toDouble(
           DurationUnit.SECONDS,
@@ -196,7 +196,7 @@ internal fun writtenFrames(
     }
   val probe =
     ProcessBuilder(
-      "ffprobe",
+      hostFfprobe,
       "-v",
       "error",
       "-select_streams",
@@ -223,7 +223,7 @@ internal fun writtenFrames(
 
   val decode =
     ProcessBuilder(
-      "ffmpeg",
+      hostFfmpeg,
       "-hide_banner",
       "-loglevel",
       "error",
@@ -343,7 +343,7 @@ internal fun regionOf(
   val seek = if (at > Duration.ZERO) listOf("-ss", formatSeconds(at.toDouble(DurationUnit.SECONDS))) else emptyList()
   val process =
     ProcessBuilder(
-      listOf("ffmpeg", "-y", "-hide_banner", "-loglevel", "error") + seek +
+      listOf(hostFfmpeg, "-y", "-hide_banner", "-loglevel", "error") + seek +
         listOf(
           "-i",
           path,
@@ -450,7 +450,7 @@ internal fun drawnAt(
 internal fun ffprobe(path: String): String {
   val process =
     ProcessBuilder(
-      "ffprobe",
+      hostFfprobe,
       "-v",
       "error",
       "-show_entries",

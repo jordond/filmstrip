@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip.ffmpeg.internal.lowering
 
+import dev.jordond.filmstrip.effect.FilterArgument
 import dev.jordond.filmstrip.effect.FilterNode
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.transform.internal.geometry.PixelRect
@@ -28,15 +29,63 @@ internal fun tailNodes(
 ): List<FilterNode> = placedNodes(rect, outputSize, padColor, grid) + trailingNodes(frameRate, pixelFormat, slots)
 
 /**
- * An `overlay` that keeps whatever bit depth its inputs arrived at.
+ * An `overlay` drawing on a frame written in [pixelFormat], on the chroma [grid] of the chain it draws on.
  *
- * The filter's own `format` defaults to `yuv420`, which is 8-bit, so a 10-bit frame reaching any
- * overlay is taken down and back up again on its way to the encoder, and nothing about the exported
- * file says it happened. Every overlay this backend writes is built here so the option cannot be
- * left at its default in one place and set in another.
+ * The filter runs in the format [overlayFormat] picks. Every overlay this backend writes is built here or passed
+ * through [onFrame], so the option cannot be set one way in one place and another way in the next.
  */
-internal fun overlayNode(vararg arguments: Pair<String, String>): FilterNode =
-  FilterNode("overlay", *arguments, "format" to "auto")
+internal fun overlayNode(
+  pixelFormat: String,
+  grid: ChromaGrid,
+  vararg arguments: Pair<String, String>,
+): FilterNode = FilterNode("overlay", *arguments, "format" to overlayFormat(pixelFormat, grid))
+
+/**
+ * The format an `overlay` runs in on a frame written in [pixelFormat], on the chroma [grid] of the chain it draws on.
+ *
+ * An 8-bit 4:2:0 frame on a [ChromaGrid.Subsampled] chain runs in `yuv420`, so the frame under the picture is blended
+ * in its own planes. Under `auto` ffmpeg takes that frame to RGB to meet a picture with alpha and back again, and its
+ * 8-bit scaler truncates both ways. A 10-bit frame keeps `auto`, which holds the depth it arrived at where the filter's
+ * own `yuv420` would take it down to 8 bits and back. So does a [ChromaGrid.Full] chain, which `auto` keeps at full
+ * chroma.
+ *
+ * `overlay` in `yuv420` puts `x` and `y` on the 4:2:0 grid, so an odd position lands on the even pixel below it. That
+ * is ffmpeg's limit. [onFrame] and [cropped] move a written position onto that grid, so the graph says where the
+ * picture lands. A position an animation sends as a command is moved the same way by the filter itself.
+ */
+internal fun overlayFormat(
+  pixelFormat: String,
+  grid: ChromaGrid,
+): String = if (grid == ChromaGrid.Subsampled && pixelFormat in EIGHT_BIT_420) "yuv420" else "auto"
+
+/**
+ * This fragment merge as it runs on a frame written in [pixelFormat], on the chroma [grid] of the chain it draws on.
+ *
+ * An `overlay` takes the format [overlayFormat] picks. One running in `yuv420` places its picture on the 4:2:0 grid,
+ * so its `x` and `y` are moved down onto that grid here rather than by ffmpeg without saying so. Any other merge is
+ * handed back as it is.
+ */
+internal fun FilterNode.onFrame(
+  pixelFormat: String,
+  grid: ChromaGrid,
+): FilterNode {
+  if (name.substringBefore('@') != "overlay") return this
+  val format = overlayFormat(pixelFormat, grid)
+  val placedOn = if (format == "yuv420") ChromaGrid.Subsampled else ChromaGrid.Full
+  val placed =
+    arguments.filter { it.key != "format" }.map { argument ->
+      if (argument.key == "x" ||
+        argument.key == "y"
+      ) {
+        FilterArgument(argument.key, placedOn.snap(argument.value))
+      } else {
+        argument
+      }
+    }
+  return FilterNode(name, placed + FilterArgument("format", format))
+}
+
+private val EIGHT_BIT_420 = setOf("yuv420p", "yuva420p")
 
 /**
  * The stage every tail ends on, blurred letterbox or not.

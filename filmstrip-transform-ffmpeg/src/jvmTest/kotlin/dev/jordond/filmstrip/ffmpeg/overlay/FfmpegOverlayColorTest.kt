@@ -30,6 +30,7 @@ import dev.jordond.filmstrip.ffmpeg.support.assertSdrLandings
 import dev.jordond.filmstrip.ffmpeg.support.centreOf
 import dev.jordond.filmstrip.ffmpeg.support.channelsOf
 import dev.jordond.filmstrip.ffmpeg.support.drawnRect
+import dev.jordond.filmstrip.ffmpeg.support.hostFfmpeg
 import dev.jordond.filmstrip.ffmpeg.support.pngOf
 import dev.jordond.filmstrip.geometry.Corner
 import dev.jordond.filmstrip.geometry.Size
@@ -170,7 +171,18 @@ class FfmpegOverlayColorTest {
     try {
       val format = base.substringAfter("format=").substringBefore(",")
       val command =
-        listOf("ffmpeg", "-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i", base, "-i", picture.absolutePath) +
+        listOf(
+          hostFfmpeg,
+          "-hide_banner",
+          "-loglevel",
+          "error",
+          "-f",
+          "lavfi",
+          "-i",
+          base,
+          "-i",
+          picture.absolutePath,
+        ) +
           listOf("-filter_complex", "[1:v]$chain[o];[0:v][o]$merge,format=$format") +
           listOf("-frames:v", "1", "-f", "rawvideo", "-")
       val process = ProcessBuilder(command).redirectError(ProcessBuilder.Redirect.DISCARD).start()

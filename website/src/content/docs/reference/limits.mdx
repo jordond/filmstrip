@@ -43,8 +43,10 @@ pixel. See [Fit](/guides/effects/#fit).
 
 - media3 draws a frame's edge on a pixel edge, and `scale`, `crop` and `pad` in ffmpeg take whole pixels. Both round the
   placement the same way, so they land on the same pixels.
-- On a 4:2:0 chain, ffmpeg's `pad` and `overlay` land an odd offset on the even pixel below it. A canvas built by a
-  `crop` with `Fit.Contain` or `Fit.Stretch` moves to 4:4:4 where it has an odd figure, so it lands exact.
+- On a 4:2:0 chain, ffmpeg's `pad` and `overlay` land an odd offset on the even pixel below it, one pixel up and left
+  of the other backends. On an 8-bit export that covers a picture overlay, a cropped effect region and an animated
+  overlay's position on every frame. A canvas built by a `crop` with `Fit.Contain` or `Fit.Stretch` moves to 4:4:4
+  where it has an odd figure, so it lands exact.
 - Apple and the browser place a clip at its exact fraction.
 
 ## Preview against the file
@@ -258,7 +260,8 @@ would be, and nothing downloads. See [Player](/guides/player/).
 The rest are next to the feature they limit.
 
 - [Player](/guides/player/): seeking, scrubbing and redraw cost per backend.
-- [Overlays](/guides/overlays/): file paths in the browser, texture sizes, off-frame animation and line breaking.
+- [Overlays](/guides/overlays/): file paths in the browser, texture sizes, off-frame animation, the ffmpeg even pixel
+  snap and line breaking.
 - [Effects](/guides/effects/): `kenBurns`, `rotate`, `Fill.Blur` and color effects on a kept grade.
 - [Audio](/guides/audio/): the media3 tail and the browser preview's fades.
 - [HDR](/guides/hdr/): what each backend can tone map and read.

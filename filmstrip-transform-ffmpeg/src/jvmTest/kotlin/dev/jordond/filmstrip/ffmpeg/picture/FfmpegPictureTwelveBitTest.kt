@@ -3,6 +3,7 @@ package dev.jordond.filmstrip.ffmpeg.picture
 import dev.jordond.filmstrip.effects.overlay.OverlayPictureRead
 import dev.jordond.filmstrip.effects.overlay.StoredSamples
 import dev.jordond.filmstrip.ffmpeg.internal.picture.FfmpegPictureDecoder
+import dev.jordond.filmstrip.ffmpeg.support.hostFfmpeg
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.picture.pictureYcbcrCoding
 import dev.jordond.filmstrip.test.AvifColorPictures
@@ -68,7 +69,7 @@ class FfmpegPictureTwelveBitTest {
   }
 
   private companion object {
-    val decoder = FfmpegPictureDecoder("ffmpeg")
+    val decoder = FfmpegPictureDecoder(hostFfmpeg)
     const val TWELVE_BITS = 12
     const val SIXTEEN_BIT_MAX = 0xFFFF
 

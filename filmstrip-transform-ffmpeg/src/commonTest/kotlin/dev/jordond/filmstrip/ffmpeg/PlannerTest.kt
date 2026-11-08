@@ -222,7 +222,7 @@ class PlannerTest {
 
     // A chain's input labels link to its first filter, so the clip's own trim sits on a pad of its
     // own and the merge reads that pad. Written in one chain the graph is refused outright.
-    invocation.filterGraph shouldContain "[v0m0pre][v0m0a0]overlay=x=43:y=43:format=auto:eof_action=pass"
+    invocation.filterGraph shouldContain "[v0m0pre][v0m0a0]overlay=x=42:y=42:eof_action=pass:format=yuv420"
     // The image claims an input after both clips, so the graph reads it at index 2.
     val height = mark.placedOn(Size(1920, 1080), OrientedPictures.SIZE).size.height
     invocation.filterGraph shouldContain "[2:v]scale=w=384:h=$height,format=pix_fmts=rgba"

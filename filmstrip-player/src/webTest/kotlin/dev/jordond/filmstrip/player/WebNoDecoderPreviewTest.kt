@@ -80,7 +80,7 @@ class WebNoDecoderPreviewTest {
   fun `an audio only composition still previews with no decoder`() =
     contractTest {
       withoutGlobals(DECODER) {
-        val (_, preview) = browserPreviewOf(webFixtureComposition(audio = AudioSpec.AudioOnly))
+        val (_, preview) = browserPreviewOf(webFixtureComposition(audio = AudioSpec.AudioOnly), ::pageDeviceWithAac)
         try {
           preview.carriesAudio shouldBe true
         } finally {
@@ -128,7 +128,7 @@ class WebNoDecoderPreviewTest {
   fun `a preview on a page with no audio decoder carries no audio`() =
     contractTest {
       withoutGlobals(AUDIO_DECODER) {
-        val (_, preview) = browserPreviewOf(webFixtureComposition(audio = AudioSpec.Keep))
+        val (_, preview) = browserPreviewOf(webFixtureComposition(audio = AudioSpec.Keep), ::pageDeviceWithAac)
         try {
           preview.carriesAudio shouldBe false
           preview.audio() shouldBe null

@@ -154,7 +154,7 @@ class EffectLoweringTest {
       "scale=w=${placed.size.width}:h=${placed.size.height},format=pix_fmts=rgba,colorchannelmixer=aa=0.8"
     val x = (rect.left * frame.width).roundToInt()
     val y = (rect.top * frame.height).roundToInt()
-    fragment.merge!!.render() shouldBe "overlay=x=$x:y=$y:format=auto:eof_action=pass"
+    fragment.merge!!.render() shouldBe "overlay=x=$x:y=$y:eof_action=pass"
   }
 
   // The merge reads the clip's clock, which a scrubbed preview opens at the seek. The overlay's own
@@ -176,7 +176,7 @@ class EffectLoweringTest {
       .chain
       .render() shouldStartWith "scale=w=128:h=128,format=pix_fmts=rgba,colorchannelmixer=aa=0:enable=not(gte(t"
     gatedFrames(fragment) shouldBe branchFrames(1.seconds, 2.seconds)
-    fragment.merge!!.render() shouldBe "overlay=x=14:y=14:format=auto:eof_action=pass"
+    fragment.merge!!.render() shouldBe "overlay=x=14:y=14:eof_action=pass"
   }
 
   // A clip's branch counts from the clip's own start, and so does the image branch beside it, so a
@@ -513,7 +513,7 @@ class EffectLoweringTest {
       .single()
       .image
       .shouldBeInstanceOf<ImageSource.Bytes>()
-    fragment.merge!!.render() shouldBe "overlay=x=0:y=0:format=auto:eof_action=pass"
+    fragment.merge!!.render() shouldBe "overlay=x=0:y=0:eof_action=pass"
   }
 
   @Test

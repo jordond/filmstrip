@@ -16,6 +16,7 @@ import dev.jordond.filmstrip.ffmpeg.internal.picture.pictureRoute
 import dev.jordond.filmstrip.ffmpeg.internal.picture.ycbcrScale
 import dev.jordond.filmstrip.ffmpeg.support.FfmpegExportFixture
 import dev.jordond.filmstrip.ffmpeg.support.convertedFilter
+import dev.jordond.filmstrip.ffmpeg.support.hostFfmpeg
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.CodecKind
 import dev.jordond.filmstrip.media.ImageSource
@@ -269,7 +270,7 @@ class FfmpegPictureIdentityTest {
   ) = YcbcrCoding(IDENTITY_MATRIX, fullRange, CodecKind.Av1, codestream = null, bitDepth = bitDepth, chromaFormat = 3)
 
   private companion object {
-    val decoder = FfmpegPictureDecoder("ffmpeg")
+    val decoder = FfmpegPictureDecoder(hostFfmpeg)
     val identityNclx = CicpTag(BT2020, PQ, IDENTITY_MATRIX, true)
     const val MERGE = "mergeplanes=map0s=0:map0p=0:map1s=0:map1p=1:map2s=0:map2p=2:format="
     val HEIC_IDENTITIES = listOf(CicpTag(1, 13, IDENTITY_MATRIX, true), CicpTag(BT2020, PQ, IDENTITY_MATRIX, false))

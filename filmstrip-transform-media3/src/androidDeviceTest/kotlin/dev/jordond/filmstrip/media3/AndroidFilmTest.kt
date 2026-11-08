@@ -1,6 +1,7 @@
 package dev.jordond.filmstrip.media3
 
 import android.graphics.Bitmap
+import android.graphics.Color
 import android.media.MediaCodecList
 import android.media.MediaFormat
 import dev.jordond.filmstrip.edit.Clip
@@ -35,49 +36,54 @@ import org.junit.Assume.assumeTrue
 import java.io.File
 import kotlin.math.abs
 import kotlin.test.Test
+import kotlin.time.Duration
 
 /**
  * Where a [Film] lands in a real export: what it reaches at each scope, and what stays clean.
  *
  * Every read here is of the glow, whose figure is large enough to survive an encoder, and is held against the signal
- * worked over the same read with no [Film]. How close each pixel lands to the signal, grain included, is read off the
- * shader's own output in the filters module.
+ * worked over what the picture reads with no [Film]. A flat clip is read off its decoded source, so only the film's own
+ * encode moves it. The glow on a flat clip is also read off the chain's own output through [RenderedFrames], which
+ * holds it to [RENDER_CODES] before the encoder and to [WRITTEN_COLOUR_CODES] after. How close each pixel lands to
+ * the signal, grain included, is read off the shader's own output in the filters module.
  *
  * A tone mapped HDR source cannot run on the emulator, which has no ten-bit HEVC decoder. That test says so and skips
  * there, and runs on a device that has one.
  */
 class AndroidFilmTest {
   private val probe = Media3ExportProbe { filters() }
+  private val rendered = RenderedFrames(probe.context)
 
   @Test
   fun aCompositionFilmGlowsThePictureOnTheSignal() =
     runTest(timeout = TIMEOUT) {
-      val clip = Clip(flatClip("film-mid.mp4", MID_RESPONSE))
+      val source = flatFile("film-mid.mp4", MID_RESPONSE)
+      val edit = EditComposition(listOf(Track(listOf(Clip(source.asMedia())))), listOf(GLOW_ONLY))
 
-      assertGlowsOnTheSignal(EditComposition(listOf(Track(listOf(clip))), listOf(GLOW_ONLY)), clip)
+      assertGlowsOnTheSignal(edit, source)
     }
 
   @Test
   fun aClipFilmGlowsThePictureOnTheSignal() =
     runTest(timeout = TIMEOUT) {
-      val source = flatClip("film-mid.mp4", MID_RESPONSE)
+      val source = flatFile("film-mid.mp4", MID_RESPONSE)
+      val edit = EditComposition(listOf(Track(listOf(Clip(source.asMedia(), effects = listOf(GLOW_ONLY))))))
 
-      assertGlowsOnTheSignal(
-        EditComposition(listOf(Track(listOf(Clip(source, effects = listOf(GLOW_ONLY)))))),
-        Clip(source),
-      )
+      assertGlowsOnTheSignal(edit, source)
     }
 
   @Test
   fun aSmallerExportReadsTheSameGlow() =
     runTest(timeout = TIMEOUT) {
-      val clip = Clip(flatClip("film-mid.mp4", MID_RESPONSE))
+      val source = flatFile("film-mid.mp4", MID_RESPONSE)
+      val edit = EditComposition(listOf(Track(listOf(Clip(source.asMedia())))), listOf(GLOW_ONLY))
 
-      assertGlowsOnTheSignal(
-        EditComposition(listOf(Track(listOf(clip))), listOf(GLOW_ONLY)),
-        clip,
-        ExportSpec(heightPx = SMALL_HEIGHT),
-      )
+      val small = assertGlowsOnTheSignal(edit, source, ExportSpec(heightPx = SMALL_HEIGHT))
+      val full = probe.written(edit, ExportSpec()).rgbAt(0.5f, 0.5f).first
+
+      withClue("the ${SMALL_HEIGHT}p export read $small against $full at the source's height") {
+        abs(small - full).toDouble() shouldBeLessThan WRITTEN_COLOUR_CODES
+      }
     }
 
   @Test
@@ -109,10 +115,10 @@ class AndroidFilmTest {
       val lift = (written.rgbAt(fx, 0.5f).first - plain.rgbAt(fx, 0.5f).first).toDouble()
 
       withClue("the glow has to clear what an encoder moves for this to tell, $wanted codes") {
-        wanted shouldBeGreaterThan ENCODER_CODES * 2
+        wanted shouldBeGreaterThan WRITTEN_COLOUR_CODES * 2
       }
       withClue("one sigma into the bar lifted $lift against $wanted") {
-        abs(lift - wanted) shouldBeLessThan ENCODER_CODES
+        abs(lift - wanted) shouldBeLessThan WRITTEN_COLOUR_CODES
       }
     }
 
@@ -140,7 +146,7 @@ class AndroidFilmTest {
       val read = redOfSwatch(filmed)
       val wanted = redOfSwatch(plain)
 
-      withClue("the swatch read $read against $wanted") { abs(read - wanted) shouldBeLessThan ENCODER_CODES }
+      withClue("the swatch read $read against $wanted") { abs(read - wanted) shouldBeLessThan WRITTEN_COLOUR_CODES }
     }
 
   @Test
@@ -156,9 +162,9 @@ class AndroidFilmTest {
       val wanted = FilmSignal.halated(under, under, under, response, FilmParams.of(GLOW_ONLY))[0] * MAX_CODE
 
       withClue("the glow has to clear what an encoder moves for this to tell") {
-        (wanted - under * MAX_CODE) shouldBeGreaterThan ENCODER_CODES * 2
+        (wanted - under * MAX_CODE) shouldBeGreaterThan WRITTEN_COLOUR_CODES * 2
       }
-      withClue("the swatch read $read against $wanted") { abs(read - wanted) shouldBeLessThan ENCODER_CODES }
+      withClue("the swatch read $read against $wanted") { abs(read - wanted) shouldBeLessThan WRITTEN_COLOUR_CODES }
     }
 
   @Test
@@ -174,21 +180,28 @@ class AndroidFilmTest {
 
   private suspend fun assertGlowsOnTheSignal(
     edit: EditComposition,
-    clip: Clip,
+    source: File,
     spec: ExportSpec = ExportSpec(),
-  ) {
-    val read = probe.written(edit, spec).rgbAt(0.5f, 0.5f)
-    val plain = probe.written(EditComposition(listOf(Track(listOf(clip)))), spec).rgbAt(0.5f, 0.5f)
-    val code = plain.first / MAX_CODE
+  ): Int {
+    val read = probe.written(edit, spec).rgbAt(0.5f, 0.5f).first
+    val drawn = rendered.frameAt(edit, spec)
+    val render = Color.red(drawn.getPixel(drawn.width / 2, drawn.height / 2))
+    val frame = probe.frame(source, Duration.ZERO)
+    val under = Color.red(frame.getPixel(frame.width / 2, frame.height / 2))
+    val code = under / MAX_CODE
     val response = FilmSignal.halationResponse(code, code, code)
     val wanted = FilmSignal.halated(code, code, code, response, FilmParams.of(GLOW_ONLY))[0] * MAX_CODE
 
-    withClue("the glow has to clear what an encoder moves for this to tell, $wanted codes over ${plain.first}") {
-      (wanted - plain.first) shouldBeGreaterThan ENCODER_CODES * 2
+    withClue("the glow has to clear what an encoder moves for this to tell, $wanted codes over $under") {
+      (wanted - under) shouldBeGreaterThan WRITTEN_COLOUR_CODES * 2
     }
-    withClue("the picture read ${read.first} against $wanted") {
-      abs(read.first - wanted) shouldBeLessThan ENCODER_CODES
+    withClue("the chain drew $render against $wanted before the encoder") {
+      abs(render - wanted) shouldBeLessThan RENDER_CODES
     }
+    withClue("the picture read $read against $wanted") {
+      abs(read - wanted) shouldBeLessThan WRITTEN_COLOUR_CODES
+    }
+    return read
   }
 
   // Reads a bar just off a bright picture under a clip Film against the same crop over [plainFill] with no Film.
@@ -222,12 +235,19 @@ class AndroidFilmTest {
   private suspend fun flatClip(
     name: String,
     code: Double,
-  ): MediaSource {
+  ): MediaSource = flatFile(name, code).asMedia()
+
+  private suspend fun flatFile(
+    name: String,
+    code: Double,
+  ): File {
     val file = File(probe.context.cacheDir, name)
     val grey = code.toFloat()
     if (!file.exists()) probe.writeBarsClip(file, SOURCE.width, SOURCE.height, listOf(floatArrayOf(grey, grey, grey)))
-    return MediaSource.of(file.path)
+    return file
   }
+
+  private fun File.asMedia(): MediaSource = MediaSource.of(path)
 
   private suspend fun redOfSwatch(edit: EditComposition): Double =
     probe
@@ -273,9 +293,6 @@ class AndroidFilmTest {
     const val SWATCH_SCALE = 0.3f
     const val SWATCH_FX = 0.15f
     const val SWATCH_FY = 0.2f
-
-    // Two H.264 encodes of one flat frame move a colour by a few codes on their own.
-    const val ENCODER_CODES = 5.0
 
     // The same bar written twice, with nothing drawn in it either time.
     const val BAR_CODES = 2.0

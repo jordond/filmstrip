@@ -17,6 +17,7 @@ import dev.jordond.filmstrip.ffmpeg.support.FfmpegExportFixture
 import dev.jordond.filmstrip.ffmpeg.support.OverlayConstants.FULL_SCALE
 import dev.jordond.filmstrip.ffmpeg.support.OverlayConstants.SIGNAL_DRIFT
 import dev.jordond.filmstrip.ffmpeg.support.channelsOf
+import dev.jordond.filmstrip.ffmpeg.support.hostFfmpeg
 import dev.jordond.filmstrip.ffmpeg.support.isNear
 import dev.jordond.filmstrip.ffmpeg.support.luminance
 import dev.jordond.filmstrip.ffmpeg.support.pixelAt
@@ -175,7 +176,7 @@ class FfmpegColorEffectTest {
     val clip = File.createTempFile("filmstrip-dim", ".mkv").also { it.delete() }
     val color = "%06X".format(DIM_COLOR and 0xFFFFFF)
     val command =
-      listOf("ffmpeg", "-y", "-hide_banner", "-loglevel", "error", "-f", "lavfi") +
+      listOf(hostFfmpeg, "-y", "-hide_banner", "-loglevel", "error", "-f", "lavfi") +
         listOf("-i", "color=c=0x$color:s=320x180:r=30:d=1,format=yuv420p", "-c:v", "ffv1", clip.absolutePath)
     val process = ProcessBuilder(command).redirectErrorStream(true).start()
     val log = process.inputStream.readAllBytes().decodeToString()

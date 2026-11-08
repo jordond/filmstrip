@@ -51,17 +51,23 @@ import kotlin.time.Duration.Companion.microseconds
  * pass it to `URL.revokeObjectURL` when they are done, filmstrip never revokes it.
  * - [MediaSink.Path] downloads a file named after the path's last segment.
  * - [MediaSink.Temporary] downloads a file under a generated name, reported back as a resolved [MediaSink.Path].
+ *
+ * @param readDevice Reads what this device's encoders can do. The browser's own encoders by default.
  */
 @InternalFilmstripApi
 public class BrowserExportEngine(
   components: EngineComponents,
   prober: MediaProber,
+  readDevice: (suspend () -> DeviceCapabilities)? = null,
 ) : LoweringExportEngine() {
   private val backend = BrowserCapabilities()
   private val sources = SourceCache()
   private val planner = BrowserPlanner(components.effectResolvers)
   private val reads =
-    PlanningReads(prober, backend::capabilities) { source, cut -> sources.open(source)?.syncSampleAtOrBefore(cut) }
+    PlanningReads(
+      prober,
+      readDevice ?: backend::capabilities,
+    ) { source, cut -> sources.open(source)?.syncSampleAtOrBefore(cut) }
   override val lowering: EngineLowering<*> =
     EngineLowering(components.effectResolvers, ::grade, ::lower) { render, plan, to -> run(render, plan.path, to) }
 

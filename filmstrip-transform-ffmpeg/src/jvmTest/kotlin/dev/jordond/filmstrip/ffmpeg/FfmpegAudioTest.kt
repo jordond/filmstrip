@@ -16,6 +16,7 @@ import dev.jordond.filmstrip.ffmpeg.support.ExportConstants.QUIET_READING
 import dev.jordond.filmstrip.ffmpeg.support.ExportConstants.TIMEOUT
 import dev.jordond.filmstrip.ffmpeg.support.FfmpegExportFixture
 import dev.jordond.filmstrip.ffmpeg.support.decodedAudio
+import dev.jordond.filmstrip.ffmpeg.support.hostFfprobe
 import dev.jordond.filmstrip.ffmpeg.support.levelAt
 import dev.jordond.filmstrip.ffmpeg.support.onlyClip
 import dev.jordond.filmstrip.ffmpeg.support.toneAt
@@ -226,7 +227,7 @@ class FfmpegAudioTest {
   private fun streamTypes(path: String): List<String> {
     val process =
       ProcessBuilder(
-        "ffprobe",
+        hostFfprobe,
         "-v",
         "error",
         "-show_entries",

@@ -102,6 +102,9 @@ on its [inert notices](/guides/export/#inert-notices).
 - media3 uploads each overlay as one texture, so a picture or text longer on a side than the device's
   `GL_MAX_TEXTURE_SIZE` is refused by name. The browser does the same with WebGL's `MAX_TEXTURE_SIZE`.
 - media3 holds an overlay's position inside the frame, so one animated off the frame stops at the edge there.
+- On an 8-bit export ffmpeg draws an overlay in 4:2:0, so an odd `x` or `y` lands on the even pixel below it, one pixel
+  up and left of the other backends. That holds for an animated overlay's position on every frame. See
+  [Limits](/reference/limits/#placement).
 - On an HLG grade, media3 blends an overlay in scene light, so the plan reports it as an approximated effect.
 - The browser breaks lines at spaces and at each `\n`, and splits a word wider than a whole line. Android and Apple follow
   the platform's line breaking and the JVM uses its `LineBreakMeasurer`, so a caption can wrap on different words between

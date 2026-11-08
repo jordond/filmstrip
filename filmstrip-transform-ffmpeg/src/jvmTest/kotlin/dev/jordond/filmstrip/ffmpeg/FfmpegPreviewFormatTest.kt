@@ -20,6 +20,7 @@ import dev.jordond.filmstrip.ffmpeg.support.FfmpegExportFixture
 import dev.jordond.filmstrip.ffmpeg.support.FilterFrames
 import dev.jordond.filmstrip.ffmpeg.support.RGBA
 import dev.jordond.filmstrip.ffmpeg.support.frameTime
+import dev.jordond.filmstrip.ffmpeg.support.hostFfmpeg
 import dev.jordond.filmstrip.ffmpeg.support.rawFrames
 import dev.jordond.filmstrip.geometry.Anchor
 import dev.jordond.filmstrip.geometry.Corner
@@ -91,7 +92,7 @@ class FfmpegPreviewFormatTest {
     runTest(timeout = TIMEOUT) {
       val edit = frames.composition(listOf(clip), listOf(picture))
 
-      frames.graphOf(edit) shouldContain "overlay=x=7:y=7"
+      frames.graphOf(edit) shouldContain "overlay=x=6:y=6"
       assertShownAsWritten(edit)
     }
 
@@ -186,7 +187,7 @@ class FfmpegPreviewFormatTest {
     runTest(timeout = TIMEOUT) {
       val graph = frames.graphOf(frames.composition(listOf(clip), listOf(caption)))
 
-      graph shouldContain "format=auto"
+      graph shouldContain "format=yuv420"
       graph shouldContain "setpts=expr=PTS-STARTPTS[vout]"
     }
 
@@ -222,7 +223,7 @@ class FfmpegPreviewFormatTest {
     val file = File.createTempFile("preview-format", ".mkv").apply { deleteOnExit() }
     val encode =
       ProcessBuilder(
-        "ffmpeg",
+        hostFfmpeg,
         "-y",
         "-hide_banner",
         "-loglevel",

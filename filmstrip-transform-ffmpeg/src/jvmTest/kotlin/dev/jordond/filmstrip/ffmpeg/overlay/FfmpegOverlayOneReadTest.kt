@@ -14,6 +14,7 @@ import dev.jordond.filmstrip.effects.overlay.OverlayPictureRead
 import dev.jordond.filmstrip.effects.overlay.placedOn
 import dev.jordond.filmstrip.ffmpeg.internal.picture.FfmpegPictureDecoder
 import dev.jordond.filmstrip.ffmpeg.support.HdrRender.CAPABILITIES
+import dev.jordond.filmstrip.ffmpeg.support.hostFfmpeg
 import dev.jordond.filmstrip.ffmpeg.support.pngOf
 import dev.jordond.filmstrip.geometry.Corner
 import dev.jordond.filmstrip.geometry.Size
@@ -43,7 +44,7 @@ import kotlin.time.Duration.Companion.seconds
  */
 class FfmpegOverlayOneReadTest {
   private val root: File = createTempDirectory("filmstrip-one-read").toFile()
-  private val decoder = FfmpegPictureDecoder("ffmpeg")
+  private val decoder = FfmpegPictureDecoder(hostFfmpeg)
 
   @AfterTest
   fun cleanUp() {
@@ -191,7 +192,7 @@ class FfmpegOverlayOneReadTest {
 
   private fun rgbaOf(file: File): ByteArray {
     val command =
-      listOf("ffmpeg", "-nostdin", "-loglevel", "error", "-i", file.path, "-frames:v", "1") +
+      listOf(hostFfmpeg, "-nostdin", "-loglevel", "error", "-i", file.path, "-frames:v", "1") +
         listOf("-pix_fmt", "rgba", "-f", "rawvideo", "-")
     val process = ProcessBuilder(command).redirectError(ProcessBuilder.Redirect.DISCARD).start()
     val bytes = process.inputStream.readAllBytes()

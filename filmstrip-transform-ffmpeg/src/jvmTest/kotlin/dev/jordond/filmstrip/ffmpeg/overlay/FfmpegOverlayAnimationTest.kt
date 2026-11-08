@@ -9,6 +9,7 @@ import dev.jordond.filmstrip.effects.overlay.frameAt
 import dev.jordond.filmstrip.effects.overlay.placedOn
 import dev.jordond.filmstrip.effects.overlay.rectOn
 import dev.jordond.filmstrip.effects.overlay.slideIn
+import dev.jordond.filmstrip.ffmpeg.internal.lowering.formatSeconds
 import dev.jordond.filmstrip.ffmpeg.support.ExportConstants.BLEND_RANGE_FLOOR
 import dev.jordond.filmstrip.ffmpeg.support.ExportConstants.FRAME
 import dev.jordond.filmstrip.ffmpeg.support.ExportConstants.RAMP
@@ -20,6 +21,7 @@ import dev.jordond.filmstrip.ffmpeg.support.centreOf
 import dev.jordond.filmstrip.ffmpeg.support.drawnAt
 import dev.jordond.filmstrip.ffmpeg.support.drawnProbe
 import dev.jordond.filmstrip.ffmpeg.support.drawnRect
+import dev.jordond.filmstrip.ffmpeg.support.hostFfmpeg
 import dev.jordond.filmstrip.ffmpeg.support.pointIn
 import dev.jordond.filmstrip.ffmpeg.support.regionAverage
 import dev.jordond.filmstrip.geometry.Corner
@@ -30,9 +32,11 @@ import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
 import kotlin.math.abs
+import kotlin.math.roundToInt
 import kotlin.test.Test
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
+import kotlin.time.DurationUnit
 
 /**
  * Animated overlays, with fades, slides and scaling read back against what the shared sampler answers.
@@ -112,6 +116,42 @@ class FfmpegOverlayAnimationTest {
       }
 
       listOf(bare, slid).forEach { it.file.delete() }
+    }
+
+  // The animation holds one offset, so every frame is commanded to the same odd x and the read does not hang on which
+  // frame a seek opens. An 8-bit export draws the watermark in 4:2:0, where ffmpeg's overlay puts a commanded odd x on
+  // the even pixel below it. Luma is read rather than RGB, since the written chroma of the column before the edge is
+  // shared with it.
+  @Test
+  fun `moves a watermark commanded to an odd pixel onto the even pixel below it`() =
+    runTest(timeout = TIMEOUT) {
+      if (!fixture.available()) return@runTest
+
+      val bare = fixture.exportedWatermark("filmstrip-overlay-odd-bare", null)
+      val size = bare.plan.output.size
+      val span = TimeRange.of(Duration.ZERO, bare.plan.duration)
+      val authored = drawnRect(fixture.watermark(), size, span, Duration.ZERO).left * size.width
+      val target = authored.toInt() + ODD_SHIFT + (authored.toInt() + ODD_SHIFT + 1) % 2
+      val shift = OverlayOffset((target - authored) / size.width, 0f)
+      val held = fixture.watermark(animation = OverlayAnimation { OverlayFrame(offset = shift) })
+      val moved = fixture.exportedWatermark("filmstrip-overlay-odd", held)
+      val at = bare.plan.duration / 2
+      val rect = drawnRect(held, size, span, at)
+      val x = (rect.left * size.width).roundToInt()
+      val y = ((rect.top + rect.height / 2) * size.height).roundToInt()
+
+      fun lift(column: Int): Int =
+        lumaAt(moved.file.absolutePath, column, y, at) - lumaAt(bare.file.absolutePath, column, y, at)
+
+      withClue("the sampler puts the watermark at x=$x") { (x % 2 == 1).shouldBeTrue() }
+      withClue("commanded to x=$x, the column before it lifts by ${lift(x - 1)}") {
+        (abs(lift(x - 1)) > EDGE_LIFT).shouldBeTrue()
+      }
+      withClue("commanded to x=$x, the column two before it lifts by ${lift(x - 2)}") {
+        (abs(lift(x - 2)) < EDGE_LIFT).shouldBeTrue()
+      }
+
+      listOf(bare, moved).forEach { it.file.delete() }
     }
 
   // Both dimensions grow, which the probe between the two rectangles' far corners reads: it is
@@ -219,6 +259,39 @@ class FfmpegOverlayAnimationTest {
     return (numerator / denominator).toFloat()
   }
 
+  // The stored luma of one pixel of the frame presented at [at], read by ffmpeg as the gray plane.
+  private fun lumaAt(
+    path: String,
+    x: Int,
+    y: Int,
+    at: Duration,
+  ): Int {
+    val process =
+      ProcessBuilder(
+        hostFfmpeg,
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-ss",
+        formatSeconds(at.toDouble(DurationUnit.SECONDS)),
+        "-i",
+        path,
+        "-vf",
+        "format=gray,crop=1:1:$x:$y",
+        "-vframes",
+        "1",
+        "-f",
+        "rawvideo",
+        "-pix_fmt",
+        "gray",
+        "-",
+      ).start()
+    val pixel = process.inputStream.readNBytes(1)
+    process.waitFor()
+    withClue("ffmpeg read no luma at $x,$y of $path") { pixel.size shouldBe 1 }
+    return pixel[0].toInt() and 0xFF
+  }
+
   private companion object {
     // Far enough that the rectangle at a quarter of the slide and the one at three quarters do not
     // overlap, so each reading's probe is bare in the other.
@@ -234,5 +307,12 @@ class FfmpegOverlayAnimationTest {
     // A little over what the H264 round trip moves a flat region by, read as a fraction of the
     // range between the bare frame and the opaque overlay.
     const val ALPHA_TOLERANCE = 0.1f
+
+    // How far the watermark moves a luma code from the frame under it, well clear of what the H264 round trip moves the
+    // column beside an edge by.
+    const val EDGE_LIFT = 30
+
+    // How far right of where it was authored the held watermark is moved, before the pixel is made odd.
+    const val ODD_SHIFT = 20
   }
 }

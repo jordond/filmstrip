@@ -34,7 +34,9 @@ public actual class PlatformEffect(
  * @property chain Nodes applied in order to the pad this effect receives.
  * @property auxInputs Extra inputs this effect needs, each with its own preparation chain.
  * @property merge The node that consumes the main pad and every [auxInputs] entry, producing one
- * pad. Null when there is nothing to merge.
+ * pad. Null when there is nothing to merge. An `overlay` merge has its `format` set by the backend to match the frame
+ * it draws on, and its own `format` is dropped. On an 8-bit 4:2:0 export that format is `yuv420`, where `x` and `y`
+ * are moved down onto the even pixel grid ffmpeg places the picture on.
  * @property sidecars Files this effect needs on disk before the graph runs. A node references one
  * by writing its [Sidecar.placeholder] where the path belongs, and the backend swaps in the path it
  * wrote the bytes to.

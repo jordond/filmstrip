@@ -161,7 +161,7 @@ internal class FfmpegExportFixture {
   ): ByteArray {
     val process =
       ProcessBuilder(
-        "ffmpeg",
+        hostFfmpeg,
         "-hide_banner",
         "-loglevel",
         "error",

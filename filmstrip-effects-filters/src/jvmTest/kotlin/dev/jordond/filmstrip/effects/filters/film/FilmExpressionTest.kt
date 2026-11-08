@@ -1,11 +1,11 @@
 package dev.jordond.filmstrip.effects.filters.film
 
+import dev.jordond.filmstrip.effects.filters.hostFfmpeg
 import dev.jordond.filmstrip.geometry.Size
 import io.kotest.assertions.withClue
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
-import org.junit.Assume.assumeTrue
 import java.io.ByteArrayOutputStream
 import kotlin.math.roundToInt
 import kotlin.test.Test
@@ -13,12 +13,11 @@ import kotlin.test.Test
 /**
  * Runs [FilmExpressions.grainPlane] through ffmpeg's own `geq` and reads it back against [FilmSignal.grainAt].
  *
- * Skipped when the host has no ffmpeg, since nothing here could run the expression.
+ * The ffmpeg is [hostFfmpeg], the one the build declares as this suite's input.
  */
 class FilmExpressionTest {
   @Test
   fun `the geq grain equals grainAt on a mid-range grid`() {
-    assumeTrue("this host has no ffmpeg", hasFfmpeg())
     val span = FilmSignal.grainCellSpan(WIDTH, HEIGHT)
 
     val plane = plane(FilmExpressions.grainPlane(span, "$TICK"))
@@ -35,7 +34,6 @@ class FilmExpressionTest {
 
   @Test
   fun `a grain plane equals the geq's at a mid-range tick on every raster`() {
-    assumeTrue("this host has no ffmpeg", hasFfmpeg())
     listOf(
       Triple(1920, 1080, Size(1920, 1080)),
       Triple(1920, 1080, Size(3840, 2160)),
@@ -79,7 +77,7 @@ class FilmExpressionTest {
   ): ByteArray {
     val process =
       ProcessBuilder(
-        "ffmpeg",
+        hostFfmpeg,
         "-hide_banner",
         "-loglevel",
         "error",
@@ -102,9 +100,6 @@ class FilmExpressionTest {
     process.waitFor() shouldBe 0
     return out.toByteArray()
   }
-
-  private fun hasFfmpeg(): Boolean =
-    runCatching { ProcessBuilder("ffmpeg", "-version").start().waitFor() == 0 }.getOrDefault(false)
 
   private companion object {
     const val WIDTH = 96

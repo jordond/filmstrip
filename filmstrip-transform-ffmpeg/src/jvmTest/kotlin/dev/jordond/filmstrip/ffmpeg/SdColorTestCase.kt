@@ -11,6 +11,8 @@ import dev.jordond.filmstrip.ffmpeg.internal.FfmpegRuntime
 import dev.jordond.filmstrip.ffmpeg.internal.preview.PreviewStreamResult
 import dev.jordond.filmstrip.ffmpeg.internal.preview.openPreview
 import dev.jordond.filmstrip.ffmpeg.support.FfmpegExportFixture
+import dev.jordond.filmstrip.ffmpeg.support.hostFfmpeg
+import dev.jordond.filmstrip.ffmpeg.support.hostFfprobe
 import dev.jordond.filmstrip.ffmpeg.support.regionAverage
 import io.kotest.assertions.withClue
 import io.kotest.matchers.booleans.shouldBeTrue
@@ -103,7 +105,7 @@ internal abstract class SdColorTestCase {
   protected fun tagsOf(file: File): List<String> {
     val process =
       ProcessBuilder(
-        "ffprobe",
+        hostFfprobe,
         "-v",
         "error",
         "-select_streams",
@@ -154,7 +156,7 @@ internal abstract class SdColorTestCase {
     arguments: List<String>,
   ) {
     val command =
-      listOf("ffmpeg", "-y", "-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i", filter) +
+      listOf(hostFfmpeg, "-y", "-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i", filter) +
         arguments +
         listOf("-preset", "veryfast", file.absolutePath)
     val process = ProcessBuilder(command).redirectErrorStream(true).start()

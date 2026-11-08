@@ -26,7 +26,14 @@ internal fun FilterGraphBuilder.flattenOntoFill(
   val flattened = "vflat"
   chain(
     listOf(background, read),
-    listOf(overlayNode("shortest" to "1"), FilterNode("format", "pix_fmts" to pixelFormat)),
+    listOf(
+      // Subsampled, since the format node right after it writes the export's 4:2:0 format.
+      overlayNode(pixelFormat, ChromaGrid.Subsampled, "shortest" to "1"),
+      FilterNode(
+        "format",
+        "pix_fmts" to pixelFormat,
+      ),
+    ),
     flattened,
   )
   return flattened
@@ -52,7 +59,7 @@ internal fun FilterGraphBuilder.overBlack(
   chain(listOf(base), listOf(opaqueBlack), black)
   val format = if (grid == ChromaGrid.Full) fullChromaFormat(pixelFormat) else pixelFormat
   val over = "${label}over"
-  chain(listOf(black, top), listOf(overlayNode(), FilterNode("format", "pix_fmts" to format)), over)
+  chain(listOf(black, top), listOf(overlayNode(pixelFormat, grid), FilterNode("format", "pix_fmts" to format)), over)
   return over
 }
 

@@ -67,8 +67,9 @@ internal fun filterGraphOverlay(
  * Lowers this picture onto a filter graph fragment that draws it over the frames it merges onto.
  *
  * Every size and position is the pixels [drawnRect] reads off [PlacedPicture.placement], or off each frame's placement
- * when the overlay is animated. A [GraphPicture.Opened] picture is scaled and merged with `overlay`. A
- * [GraphPicture.Graded] one is blended in linear display light by [gradedOverlay].
+ * when the overlay is animated. A [GraphPicture.Opened] picture is scaled and merged with `overlay`, whose `format` the
+ * backend sets for the frame it draws on, along with the grid that puts `x` and `y` on. A [GraphPicture.Graded] one is
+ * blended in linear display light by [gradedOverlay].
  *
  * @return The fragment, [EffectResolution.Degraded] by each of [PlacedPicture.limits], or
  * [EffectResolution.Unsupported] when the animation cannot be driven here.
@@ -106,11 +107,10 @@ private fun PlacedPicture.openedOverlay(
       add(FilterNode("scale$instance", "w" to still.width.toString(), "h" to still.height.toString()))
       add(FilterNode("format", "pix_fmts" to "rgba"))
       addAll(alphaNodes(drawnRange, attributes.span, attributes.gridRate, instance, animated != null))
-      // ffmpeg's own limit, and only where a command can resize the branch. Where the frames the
-      // overlay merges onto carry alpha, which is what a deferred fill leaves them holding, the
-      // converter ffmpeg inserts to bring both inputs to one pixel format is a scale pinned to
-      // the size it was configured at, and it silently undoes a commanded resize. A scale of its
-      // own input's size, re-read every frame, carries the new size past it.
+      // ffmpeg's own limit, and only where a command can resize the branch. The converter ffmpeg
+      // inserts to bring the picture to the format the overlay runs in is a scale pinned to the
+      // size it was configured at, and it silently undoes a commanded resize. A scale of its own
+      // input's size, re-read every frame, carries the new size past it.
       if (animated != null) add(FilterNode("scale", PER_FRAME_SIZE))
     }
 
@@ -118,7 +118,6 @@ private fun PlacedPicture.openedOverlay(
     listOf(
       FilterArgument("x", still.x.toString()),
       FilterArgument("y", still.y.toString()),
-      FilterArgument("format", "auto"),
       // What overlay does once the image branch ends: hand the main frame on undrawn. The branch
       // is looped for as long as the one it merges onto, so nothing reaches it.
       FilterArgument("eof_action", "pass"),

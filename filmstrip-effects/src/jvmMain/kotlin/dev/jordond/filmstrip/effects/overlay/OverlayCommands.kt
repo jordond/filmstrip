@@ -138,6 +138,8 @@ private fun commandValues(
     "$MIXER$INSTANCE_SLOT aa" to alphaValue(frame.opacity),
     "scale$INSTANCE_SLOT w" to drawn.width.toString(),
     "scale$INSTANCE_SLOT h" to drawn.height.toString(),
+    // Written as drawn. A merge the ffmpeg backend runs in yuv420 lands an odd x or y on the even pixel below it,
+    // the ffmpeg limit its overlayFormat names.
     "$positioned$INSTANCE_SLOT x" to x.toString(),
     "$positioned$INSTANCE_SLOT y" to y.toString(),
   )

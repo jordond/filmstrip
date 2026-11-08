@@ -12,6 +12,7 @@ import dev.jordond.filmstrip.ffmpeg.internal.picture.FfmpegPictureDecoder
 import dev.jordond.filmstrip.ffmpeg.support.FfmpegExportFixture
 import dev.jordond.filmstrip.ffmpeg.support.HdrRender.CAPABILITIES
 import dev.jordond.filmstrip.ffmpeg.support.HdrRender.attributes
+import dev.jordond.filmstrip.ffmpeg.support.hostFfmpeg
 import dev.jordond.filmstrip.geometry.Corner
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.ImageSource
@@ -142,7 +143,7 @@ class FfmpegOverlayPictureParityTest {
   }
 
   private companion object {
-    val decoder = FfmpegPictureDecoder("ffmpeg")
+    val decoder = FfmpegPictureDecoder(hostFfmpeg)
 
     const val CHANNELS = 4
     const val ALPHA_SHIFT = 24

@@ -10,6 +10,7 @@ import dev.jordond.filmstrip.ffmpeg.internal.picture.fullRangeAlpha
 import dev.jordond.filmstrip.ffmpeg.internal.picture.overlayAssembly
 import dev.jordond.filmstrip.ffmpeg.internal.picture.pictureRuns
 import dev.jordond.filmstrip.ffmpeg.support.FfmpegExportFixture
+import dev.jordond.filmstrip.ffmpeg.support.hostFfmpeg
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.picture.heif.HeifCanvasFill
@@ -298,7 +299,7 @@ class FfmpegPictureOverlayTest {
   ): ByteArray {
     val source = "color=c=$color:s=${side}x$side"
     val command =
-      listOf("ffmpeg", "-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i", source, "-frames:v", "1") +
+      listOf(hostFfmpeg, "-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i", source, "-frames:v", "1") +
         listOf("-pix_fmt", "yuvj444p", "-f", "mjpeg", "-")
     val process = ProcessBuilder(command).start()
     val bytes = process.inputStream.readAllBytes()
@@ -417,7 +418,7 @@ class FfmpegPictureOverlayTest {
   private fun centreOf(decoded: DecodedPicture): Int = texel(decoded, decoded.size.width / 2, decoded.size.height / 2)
 
   private companion object {
-    val decoder = FfmpegPictureDecoder("ffmpeg")
+    val decoder = FfmpegPictureDecoder(hostFfmpeg)
 
     // A saturated orange, so a fill painted through another matrix than the picture's lands well off it.
     val FILL = listOf(230, 120, 30)

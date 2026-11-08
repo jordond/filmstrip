@@ -41,6 +41,7 @@ import dev.jordond.filmstrip.ffmpeg.support.assertSdrLandings
 import dev.jordond.filmstrip.ffmpeg.support.centreOf
 import dev.jordond.filmstrip.ffmpeg.support.channelsOf
 import dev.jordond.filmstrip.ffmpeg.support.drawnRect
+import dev.jordond.filmstrip.ffmpeg.support.hostFfmpeg
 import dev.jordond.filmstrip.ffmpeg.support.isNear
 import dev.jordond.filmstrip.ffmpeg.support.midGreenHeic
 import dev.jordond.filmstrip.ffmpeg.support.pngOf
@@ -382,7 +383,7 @@ class FfmpegOverlayIccTest {
   ): IntArray = tenBitCodesFromSignal(transfer.signalFromNits(nits))
 
   private companion object {
-    val decoder = FfmpegPictureDecoder("ffmpeg")
+    val decoder = FfmpegPictureDecoder(hostFfmpeg)
     val FRAME = Size(640, 360)
     const val RATE = 30f
     const val RGBA = 4

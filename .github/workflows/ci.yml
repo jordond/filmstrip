@@ -62,8 +62,8 @@ jobs:
           { target: "jvm", os: "ubuntu-26.04", tasks: "jvmTest", ffmpeg: true },
           { target: "ios-simulator", os: "macos-latest", tasks: "iosSimulatorArm64Test" },
           { target: "macos-arm", os: "macos-latest", tasks: "macosArm64Test", ffmpeg: true },
-          { target: "wasm-browser", os: "ubuntu-latest", tasks: "wasmJsBrowserTest" },
-          { target: "js-browser", os: "ubuntu-latest", tasks: "jsBrowserTest" },
+          { target: "wasm-browser", os: "ubuntu-latest", tasks: "wasmJsBrowserTest", browser: true },
+          { target: "js-browser", os: "ubuntu-latest", tasks: "jsBrowserTest", browser: true },
           { target: "sample", os: "ubuntu-latest", tasks: ":sample:androidApp:assembleDebug" }
         ]
     runs-on: ${{ matrix.config.os }}
@@ -115,8 +115,13 @@ jobs:
         if: matrix.config.target == 'ios-simulator'
         run: ./gradlew :filmstrip-player:bootIosSimulator
 
+      # A browser cell runs a SwiftShader Chrome per module, about 8 GB between them at their peak, beside the daemons.
+      # At gradle.properties' 8 GB heaps the Kotlin daemon alone reaches 9.5 GB, and in 16 GB the kernel kills Chrome
+      # mid-suite. With these heaps the same cell, measured in a 16 GB container, kills nothing.
       - name: Run ${{ matrix.config.target }} tests
-        run: ./gradlew ${{ matrix.config.tasks }} --scan
+        env:
+          DAEMON_HEAPS: ${{ matrix.config.browser && '-Dorg.gradle.jvmargs=-Xmx2g -Dfile.encoding=UTF-8 -Dkotlin.daemon.jvm.options=-Xmx3g' || '' }}
+        run: ./gradlew ${{ matrix.config.tasks }} --scan ${DAEMON_HEAPS:+"$DAEMON_HEAPS"}
 
       # The ffmpeg backend on the release each cell means to test. The jvm cell, pinned to ubuntu 26.04, runs apt's
       # 8.0.1, and the macos-arm cell runs current ffmpeg from brew, 9 or later. This step only checks the cell got that

@@ -82,7 +82,7 @@ class AppleCrtTest {
 
       val read = frameOf(looked).average(BAR_FX, CENTRE).third.toDouble()
       val wanted = frameOf(plain).average(BAR_FX, CENTRE).third.toDouble()
-      withClue("the bar read $read against $wanted") { abs(read - wanted) shouldBeGreaterThan ENCODER_CODES }
+      withClue("the bar read $read against $wanted") { abs(read - wanted) shouldBeGreaterThan WRITTEN_COLOUR_CODES }
       remove(plain)
       remove(looked)
     }
@@ -101,7 +101,7 @@ class AppleCrtTest {
 
       val read = frameOf(looked).average(BAR_FX, CENTRE).first.toDouble()
       val wanted = frameOf(plain).average(BAR_FX, CENTRE).first.toDouble()
-      withClue("the bar read $read against $wanted") { abs(read - wanted) shouldBeLessThan ENCODER_CODES }
+      withClue("the bar read $read against $wanted") { abs(read - wanted) shouldBeLessThan WRITTEN_COLOUR_CODES }
       remove(plain)
       remove(looked)
     }
@@ -116,7 +116,7 @@ class AppleCrtTest {
       val looked =
         redOfSwatch(EditComposition(listOf(Track(listOf(Clip(source)))), listOf(swatch, Crt())), "overlay-crt")
 
-      withClue("the swatch read $looked against $plain") { abs(looked - plain) shouldBeLessThan ENCODER_CODES }
+      withClue("the swatch read $looked against $plain") { abs(looked - plain) shouldBeLessThan WRITTEN_COLOUR_CODES }
     }
 
   @Test
@@ -127,7 +127,9 @@ class AppleCrtTest {
       val plain = redOfSwatch(EditComposition(listOf(Track(listOf(clip)))), "burned-plain")
       val looked = redOfSwatch(EditComposition(listOf(Track(listOf(clip))), listOf(Crt())), "burned-crt")
 
-      withClue("the swatch read $looked against $plain") { abs(looked - plain) shouldBeGreaterThan ENCODER_CODES }
+      withClue(
+        "the swatch read $looked against $plain",
+      ) { abs(looked - plain) shouldBeGreaterThan WRITTEN_COLOUR_CODES }
     }
 
   // A read of the pattern's mean near the top of the frame's middle, where the falloff has moved with no curve yet.
@@ -145,7 +147,7 @@ class AppleCrtTest {
         CrtSignal.vignetteAt(CENTRE.toDouble(), READ_FY.toDouble(), SOURCE_WIDTH, SOURCE_HEIGHT, params.vignette)
 
     withClue("the look has to clear what an encoder moves for this to tell, $wanted codes over $under") {
-      abs(wanted - under) shouldBeGreaterThan ENCODER_CODES
+      abs(wanted - under) shouldBeGreaterThan WRITTEN_COLOUR_CODES
     }
     withClue("the read $read against $wanted") { abs(read - wanted) shouldBeLessThan SIGNAL_CODES }
     remove(looked)
@@ -216,9 +218,6 @@ class AppleCrtTest {
     const val SWATCH_SCALE = 0.3f
     const val SWATCH_FX = 0.15f
     const val SWATCH_FY = 0.2f
-
-    // Two H.264 encodes of one flat frame move a colour by a few codes on their own.
-    const val ENCODER_CODES = 5.0
 
     // An encoder over a pattern it softens, on a read of the pattern's mean.
     const val SIGNAL_CODES = 8.0

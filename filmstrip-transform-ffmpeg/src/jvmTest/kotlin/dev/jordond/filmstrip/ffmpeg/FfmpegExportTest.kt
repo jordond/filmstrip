@@ -23,6 +23,7 @@ import dev.jordond.filmstrip.ffmpeg.support.ExportConstants.ENCODE_DEADLINE
 import dev.jordond.filmstrip.ffmpeg.support.ExportConstants.TIMEOUT
 import dev.jordond.filmstrip.ffmpeg.support.FfmpegExportFixture
 import dev.jordond.filmstrip.ffmpeg.support.ffprobe
+import dev.jordond.filmstrip.ffmpeg.support.hostFfprobe
 import dev.jordond.filmstrip.geometry.AspectRatio
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.MediaSink
@@ -452,7 +453,7 @@ class FfmpegExportTest {
   ): String {
     val process =
       ProcessBuilder(
-        "ffprobe",
+        hostFfprobe,
         "-v",
         "error",
         "-select_streams",

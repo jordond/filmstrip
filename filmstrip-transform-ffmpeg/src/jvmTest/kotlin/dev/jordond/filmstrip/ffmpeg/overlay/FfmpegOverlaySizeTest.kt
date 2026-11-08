@@ -14,6 +14,7 @@ import dev.jordond.filmstrip.effects.overlay.placedOn
 import dev.jordond.filmstrip.ffmpeg.internal.picture.FfmpegPictureDecoder
 import dev.jordond.filmstrip.ffmpeg.support.FfmpegExportFixture
 import dev.jordond.filmstrip.ffmpeg.support.HdrRender.CAPABILITIES
+import dev.jordond.filmstrip.ffmpeg.support.hostFfmpeg
 import dev.jordond.filmstrip.ffmpeg.support.pngOf
 import dev.jordond.filmstrip.geometry.Corner
 import dev.jordond.filmstrip.geometry.Size
@@ -148,7 +149,7 @@ class FfmpegOverlaySizeTest {
   }
 
   private companion object {
-    val decoder = FfmpegPictureDecoder("ffmpeg")
+    val decoder = FfmpegPictureDecoder(hostFfmpeg)
     val FRAME = Size(640, 360)
     const val RATE = 30f
     const val OPAQUE = 0xFF4080C0.toInt()

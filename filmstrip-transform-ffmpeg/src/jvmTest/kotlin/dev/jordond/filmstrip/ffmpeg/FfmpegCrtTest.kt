@@ -19,6 +19,7 @@ import dev.jordond.filmstrip.ffmpeg.support.Yuv420Frame
 import dev.jordond.filmstrip.ffmpeg.support.channelAt
 import dev.jordond.filmstrip.ffmpeg.support.crtLit
 import dev.jordond.filmstrip.ffmpeg.support.crtMissOf
+import dev.jordond.filmstrip.ffmpeg.support.hostFfmpeg
 import dev.jordond.filmstrip.ffmpeg.support.lumaCode
 import dev.jordond.filmstrip.geometry.AspectRatio
 import dev.jordond.filmstrip.geometry.Corner
@@ -214,7 +215,7 @@ class FfmpegCrtTest {
       val still = File.createTempFile("crt-anamorphic", ".mkv").apply { deleteOnExit() }
       val encode =
         ProcessBuilder(
-          "ffmpeg",
+          hostFfmpeg,
           "-y",
           "-hide_banner",
           "-loglevel",

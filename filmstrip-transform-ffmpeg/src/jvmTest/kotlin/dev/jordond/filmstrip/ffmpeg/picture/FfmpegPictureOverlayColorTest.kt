@@ -11,6 +11,7 @@ import dev.jordond.filmstrip.ffmpeg.internal.picture.PictureRoute
 import dev.jordond.filmstrip.ffmpeg.internal.picture.canvasTexels
 import dev.jordond.filmstrip.ffmpeg.internal.picture.pictureRoute
 import dev.jordond.filmstrip.ffmpeg.support.FfmpegExportFixture
+import dev.jordond.filmstrip.ffmpeg.support.hostFfmpeg
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.picture.heif.HeifCanvasFill
 import dev.jordond.filmstrip.picture.pictureColor
@@ -150,7 +151,7 @@ class FfmpegPictureOverlayColorTest {
   }
 
   private companion object {
-    val decoder = FfmpegPictureDecoder("ffmpeg")
+    val decoder = FfmpegPictureDecoder(hostFfmpeg)
 
     // A mid saturation sRGB fill, neither a primary nor white, that Display P3 stores in other codes.
     val MID_FILL = listOf(0xC000, 0x7000, 0x5000, 65535)

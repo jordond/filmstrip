@@ -39,6 +39,7 @@ import dev.jordond.filmstrip.ffmpeg.support.filtered
 import dev.jordond.filmstrip.ffmpeg.support.flatCodes
 import dev.jordond.filmstrip.ffmpeg.support.flatLight
 import dev.jordond.filmstrip.ffmpeg.support.gridSamples
+import dev.jordond.filmstrip.ffmpeg.support.hostFfmpeg
 import dev.jordond.filmstrip.ffmpeg.support.planarShorts
 import dev.jordond.filmstrip.ffmpeg.support.pngOf
 import dev.jordond.filmstrip.ffmpeg.support.rendered
@@ -114,7 +115,7 @@ class FfmpegHdrColorGraphTest {
 
     filtered(emptyList(), source, listOf(lut1dOf(size)), FLOAT_RGB)
     val command =
-      listOf("ffmpeg", "-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i", source) +
+      listOf(hostFfmpeg, "-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i", source) +
         listOf("-vf", "lut1d=file=${tableFile(size + 1)}", "-frames:v", "1", "-f", "null", "-")
     val refused = ProcessBuilder(command).redirectErrorStream(true).start()
     refused.inputStream.readAllBytes()

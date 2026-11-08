@@ -105,7 +105,7 @@ internal object JvmClipParity : ClipParityBackend {
     val seconds = "1.5"
     val process =
       ProcessBuilder(
-        System.getenv("FILMSTRIP_FFMPEG").orEmpty().ifBlank { "ffmpeg" },
+        hostFfmpeg,
         "-hide_banner",
         "-loglevel",
         "error",

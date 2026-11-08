@@ -79,9 +79,9 @@ class AppleToneMapExportTest {
         val frames = codeFramesOf(path, count = LATER_FRAME + 1)
 
         listOf(0, 1, LATER_FRAME).forEach { index ->
-          assertCodes(frames[index].at(CENTRE, CENTRE), expected, "$transfer frame $index")
+          assertWritten(frames[index].at(CENTRE, CENTRE), expected, "$transfer frame $index")
         }
-        assertCodes(frames[0].at(CENTRE, CENTRE), frames[1].at(CENTRE, CENTRE), "$transfer frame 0 against 1")
+        assertWritten(frames[0].at(CENTRE, CENTRE), frames[1].at(CENTRE, CENTRE), "$transfer frame 0 against 1")
         remove(path)
       }
     }
@@ -92,7 +92,11 @@ class AppleToneMapExportTest {
       val trimmed =
         compositionOf { clip(MediaSource.of(hdrFixture(HdrTransfer.Hlg))) { trim(TRIM_START, TRIM_START + CLIP) } }
       val path = exported(trimmed, "trim")
-      assertCodes(codeFramesOf(path, 1).single().at(CENTRE, CENTRE), curveOfFixture(HdrTransfer.Hlg), "trimmed frame 0")
+      assertWritten(
+        codeFramesOf(path, 1).single().at(CENTRE, CENTRE),
+        curveOfFixture(HdrTransfer.Hlg),
+        "trimmed frame 0",
+      )
       remove(path)
     }
 
@@ -108,8 +112,8 @@ class AppleToneMapExportTest {
       val path = exported(joined, "join")
       val frames = codeFramesOf(path, CLIP_FRAMES + 2)
       val expected = curveOfFixture(HdrTransfer.Hlg)
-      assertCodes(frames[0].at(CENTRE, CENTRE), expected, "the opening frame")
-      assertCodes(frames[CLIP_FRAMES].at(CENTRE, CENTRE), expected, "the join")
+      assertWritten(frames[0].at(CENTRE, CENTRE), expected, "the opening frame")
+      assertWritten(frames[CLIP_FRAMES].at(CENTRE, CENTRE), expected, "the join")
       remove(path)
     }
 
@@ -123,9 +127,9 @@ class AppleToneMapExportTest {
         }
       val path = exported(mixed, "pq-hlg")
       val frames = codeFramesOf(path, CLIP_FRAMES + 2)
-      assertCodes(frames[0].at(CENTRE, CENTRE), curveOfFixture(HdrTransfer.Pq), "the PQ clip")
-      assertCodes(frames[CLIP_FRAMES].at(CENTRE, CENTRE), curveOfFixture(HdrTransfer.Hlg), "the HLG clip")
-      assertCodes(
+      assertWritten(frames[0].at(CENTRE, CENTRE), curveOfFixture(HdrTransfer.Pq), "the PQ clip")
+      assertWritten(frames[CLIP_FRAMES].at(CENTRE, CENTRE), curveOfFixture(HdrTransfer.Hlg), "the HLG clip")
+      assertWritten(
         frames[CLIP_FRAMES + 1].at(CENTRE, CENTRE),
         curveOfFixture(HdrTransfer.Hlg),
         "the frame after the join",
@@ -145,8 +149,8 @@ class AppleToneMapExportTest {
         }
       val path = exported(gapped, "gap")
       val frames = codeFramesOf(path, GAP_FRAMES + 1)
-      assertCodes(frames[0].at(CENTRE, CENTRE), Rgb(0.0, 0.0, 0.0), "the gap")
-      assertCodes(frames[GAP_FRAMES].at(CENTRE, CENTRE), curveOfFixture(HdrTransfer.Hlg), "the clip after the gap")
+      assertWritten(frames[0].at(CENTRE, CENTRE), Rgb(0.0, 0.0, 0.0), "the gap")
+      assertWritten(frames[GAP_FRAMES].at(CENTRE, CENTRE), curveOfFixture(HdrTransfer.Hlg), "the clip after the gap")
       remove(path)
     }
 
@@ -163,7 +167,7 @@ class AppleToneMapExportTest {
       val path = exported(held, "tail")
       val frames = codeFramesOf(path, HELD_FRAMES + 1)
       frames.size shouldBe HELD_FRAMES
-      assertCodes(frames.last().at(CENTRE, CENTRE), curveOfFixture(HdrTransfer.Hlg), "the held frame")
+      assertWritten(frames.last().at(CENTRE, CENTRE), curveOfFixture(HdrTransfer.Hlg), "the held frame")
       remove(path)
     }
 
@@ -176,9 +180,9 @@ class AppleToneMapExportTest {
       val turnedPath = exported(turned, "rotate")
       val plain = codeFramesOf(plainPath, 1).single()
       val rotated = codeFramesOf(turnedPath, 1).single()
-      assertCodes(rotated.at(CENTRE, CENTRE), curveOfFixture(HdrTransfer.Hlg), "the turned patch", WRITTEN_COLOUR_CODES)
+      assertWritten(rotated.at(CENTRE, CENTRE), curveOfFixture(HdrTransfer.Hlg), "the turned patch")
       BAR_CENTRES.forEach { x ->
-        assertCodes(rotated.at(1f - x, 1f - QUARTER), plain.at(x, QUARTER), "the bar at $x", WRITTEN_COLOUR_CODES)
+        assertWritten(rotated.at(1f - x, 1f - QUARTER), plain.at(x, QUARTER), "the bar at $x")
       }
       remove(plainPath)
       remove(turnedPath)
@@ -196,8 +200,8 @@ class AppleToneMapExportTest {
         }
       val path = exported(boxed, "fill")
       val frame = codeFramesOf(path, 1).single()
-      assertCodes(frame.at(CENTRE, EDGE), FILL.asCodes(), "the fill")
-      assertCodes(frame.at(CENTRE, CENTRE), curveOfFixture(HdrTransfer.Hlg), "the patch")
+      assertWritten(frame.at(CENTRE, EDGE), FILL.asCodes(), "the fill")
+      assertWritten(frame.at(CENTRE, CENTRE), curveOfFixture(HdrTransfer.Hlg), "the patch")
       remove(path)
     }
 
@@ -212,8 +216,8 @@ class AppleToneMapExportTest {
       val size = Size(frame.width, frame.height)
       val rect = badge.placedOn(size, Size(BADGE_PIXELS, BADGE_PIXELS)).rectOn(size)
       val middle = frame.at((rect.left + rect.right) / 2f, (rect.top + rect.bottom) / 2f)
-      assertCodes(middle, OVERLAY.asCodes(), "the overlay")
-      assertCodes(frame.at(CENTRE, CENTRE), curveOfFixture(HdrTransfer.Hlg), "the patch")
+      assertWritten(middle, OVERLAY.asCodes(), "the overlay")
+      assertWritten(frame.at(CENTRE, CENTRE), curveOfFixture(HdrTransfer.Hlg), "the patch")
       remove(path)
     }
 
@@ -225,7 +229,7 @@ class AppleToneMapExportTest {
       val path = exported(inverted, "invert")
       val expected = curveOfFixture(HdrTransfer.Hlg)
       val read = codeFramesOf(path, 1).single().at(CENTRE, CENTRE)
-      assertCodes(read, Rgb(1 - expected.r, 1 - expected.g, 1 - expected.b), "the inverted patch", WRITTEN_COLOUR_CODES)
+      assertWritten(read, Rgb(1 - expected.r, 1 - expected.g, 1 - expected.b), "the inverted patch")
       remove(path)
     }
 
@@ -341,6 +345,12 @@ class AppleToneMapExportTest {
     val SPEC = ExportSpec(heightPx = 720, hdr = HdrMode.ToneMapToSdr)
   }
 }
+
+private fun assertWritten(
+  actual: Rgb,
+  expected: Rgb,
+  label: String,
+) = assertCodes(actual, expected, label, WRITTEN_COLOUR_CODES)
 
 private fun Triple<Int, Int, Int>.asCodes(): Rgb = Rgb(first / 255.0, second / 255.0, third / 255.0)
 

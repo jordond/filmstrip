@@ -333,7 +333,7 @@ class GraphLoweringTest {
     withClue("the flatten ran at $flattenIndex, the overlay at $overlayIndex") {
       (flattenIndex in 0 until overlayIndex) shouldBe true
     }
-    graph shouldContain "[vflat][vfx1a0]overlay=x=0:y=0[vfx1]"
+    graph shouldContain "[vflat][vfx1a0]overlay=x=0:y=0:format=yuv420[vfx1]"
   }
 
   // Nothing ahead of an overlay can reach the fill, so the bars and the gap take its color straight away and the
@@ -360,20 +360,50 @@ class GraphLoweringTest {
   // says it happened, so every overlay the backend can emit is checked rather than just the one the
   // fill flatten adds.
   @Test
-  fun `every overlay leaves the depth its inputs arrived at alone`() {
-    val effects = listOf(compositionEffect())
+  fun `every overlay on a kept grade leaves the depth its inputs arrived at alone`() {
+    overlaysOf(hdrTransfer = HdrTransfer.Pq).forEach { it shouldContain "format=auto" }
+  }
+
+  // Under auto an 8-bit 4:2:0 frame is taken to RGB to meet the picture and back again, and the scaler truncates
+  // both ways, so every overlay on such a frame blends in its planes instead.
+  @Test
+  fun `every overlay on an eight bit frame blends in its own planes`() {
+    overlaysOf(hdrTransfer = null).forEach { it shouldContain "format=yuv420" }
+  }
+
+  // overlay in yuv420 lands an odd position on the even pixel below it, so the graph says where the picture lands.
+  @Test
+  fun `an overlay merge on an eight bit frame is placed on the chroma grid`() {
+    val odd =
+      fragmentEffect(
+        FilterFragment(
+          auxInputs = listOf(AuxInput(ImageSource.of("/logo.png"))),
+          merge = FilterNode("overlay@mark", "x" to "43", "y" to "7", "eof_action" to "pass"),
+        ),
+      )
+
+    val eightBit = graphFor(fill = Fill.Solid(0), compositionEffects = listOf(odd))
+    val kept = graphFor(fill = Fill.Solid(0), compositionEffects = listOf(odd), hdrTransfer = HdrTransfer.Hlg)
+
+    eightBit shouldContain "overlay@mark=x=42:y=6:eof_action=pass:format=yuv420"
+    kept shouldContain "overlay@mark=x=43:y=7:eof_action=pass:format=auto"
+  }
+
+  // Every overlay the solid flatten, the blurred tail and a composition overlay write.
+  private fun overlaysOf(hdrTransfer: HdrTransfer?): List<String> {
+    val effects = listOf(compositionEffect(), logoOverlay())
     val tall = Size(1080, 1920)
     val graphs =
       listOf(
-        graphFor(fill = Fill.Solid(0xFFFF0000.toInt()), compositionEffects = effects),
-        graphFor(fill = Fill.Blurred(), output = tall),
-        graphFor(fill = Fill.Blurred(), output = tall, compositionEffects = effects),
+        graphFor(fill = Fill.Solid(0xFFFF0000.toInt()), compositionEffects = effects, hdrTransfer = hdrTransfer),
+        graphFor(fill = Fill.Blurred(), output = tall, hdrTransfer = hdrTransfer),
+        graphFor(fill = Fill.Blurred(), output = tall, compositionEffects = effects, hdrTransfer = hdrTransfer),
       )
 
-    graphs.forEach { graph ->
-      val overlays = Regex("""overlay=[^,;\[\]]*""").findAll(graph).map { it.value }.toList()
-      withClue("no overlay in $graph") { overlays.isNotEmpty() shouldBe true }
-      overlays.forEach { it shouldContain "format=auto" }
+    return graphs.flatMap { graph ->
+      Regex("""overlay=[^,;\[\]]*""").findAll(graph).map { it.value }.toList().also { overlays ->
+        withClue("no overlay in $graph") { overlays.isNotEmpty() shouldBe true }
+      }
     }
   }
 
@@ -754,7 +784,7 @@ class GraphLoweringTest {
     val graph = gridInvocationFor(laid, fill = Fill.Blurred()).filterGraph
 
     graph shouldContain
-      "overlay=x=${blurredAt().first}:y=${blurredAt().second}:format=auto,setsar=r=1," +
+      "overlay=x=${blurredAt().first}:y=${blurredAt().second}:format=yuv420,setsar=r=1," +
       "setpts=expr=PTS+eq(PTS\\,PREV_INPTS)/($GRID_RATE*TB)," +
       "fps=fps=$GRID_RATE,tpad=stop_mode=clone:stop=2,trim=end_frame=$slots,"
   }
@@ -922,7 +952,7 @@ class GraphLoweringTest {
     val graph = graphFor(fill = Fill.Solid(0), compositionEffects = listOf(merging))
 
     graph shouldContain "eq=brightness=0.1[vfx0pre]"
-    graph shouldContain "[vfx0pre][vfx0a0]overlay=x=0:y=0[vfx0]"
+    graph shouldContain "[vfx0pre][vfx0a0]overlay=x=0:y=0:format=yuv420[vfx0]"
   }
 
   // The branch closes on a setpts back to its own first frame, and says so, so that a preview can
@@ -973,7 +1003,7 @@ class GraphLoweringTest {
     val graph = graphFor(fill = Fill.Solid(0), compositionEffects = listOf(overlay))
 
     graph shouldNotContain "vfx0pre"
-    graph shouldContain "[vfx0a0]overlay=x=0:y=0[vfx0]"
+    graph shouldContain "[vfx0a0]overlay=x=0:y=0:format=yuv420[vfx0]"
   }
 
   // Pinned against the graph the lowering wrote before fragments could crop or run nodes after their
@@ -988,16 +1018,16 @@ class GraphLoweringTest {
       listOf(
         "[0:v]trim=start=0.000000:end=2.000000,setpts=expr=PTS-STARTPTS,eq=brightness=0.1,eq=contrast=1.2[v0m0pre]",
         "[1:v]setpts=expr=PTS-STARTPTS[v0m0a0]",
-        "[v0m0pre][v0m0a0]overlay=x=0:y=0[v0m0]",
+        "[v0m0pre][v0m0a0]overlay=x=0:y=0:format=yuv420[v0m0]",
         "[v0m0]" + containedTail("black@0") + ",setsar=r=1," +
           "setpts=expr=PTS+eq(PTS\\,PREV_INPTS)/(30*TB),fps=fps=30,tpad=stop_mode=clone:stop=2," +
           "trim=end_frame=60,setpts=expr=PTS-STARTPTS,format=pix_fmts=yuva420p[v0]",
         "[v0]eq=brightness=0.1[vfx0]",
         "color=c=0x000000:s=1920x1080:r=30[vbg]",
-        "[vbg][vfx0]overlay=shortest=1:format=auto,format=pix_fmts=yuv420p[vflat]",
+        "[vbg][vfx0]overlay=shortest=1:format=yuv420,format=pix_fmts=yuv420p[vflat]",
         "[vflat]eq=contrast=1.2[vfx1pre]",
         "[2:v]setpts=expr=PTS-STARTPTS[vfx1a0]",
-        "[vfx1pre][vfx1a0]overlay=x=0:y=0[vfx1]",
+        "[vfx1pre][vfx1a0]overlay=x=0:y=0:format=yuv420[vfx1]",
         "[vfx1]trim=end=2.000000,setpts=expr=PTS-STARTPTS[vout]",
       ).joinToString(";")
   }
@@ -1010,8 +1040,8 @@ class GraphLoweringTest {
       "split=2[vfx0base][vfx0crop]",
       "[vfx0crop]crop=w=400:h=200:x=100:y=50:exact=1,format=pix_fmts=gbrpf32le[vfx0pre]",
       "[1:v]setpts=expr=PTS-STARTPTS[vfx0a0]",
-      "[vfx0pre][vfx0a0]overlay=x=0:y=0,format=pix_fmts=yuv420p[vfx0fx]",
-      "[vfx0base][vfx0fx]overlay=x=100:y=50:format=auto[vfx0]",
+      "[vfx0pre][vfx0a0]overlay=x=0:y=0:format=auto,format=pix_fmts=yuv420p[vfx0fx]",
+      "[vfx0base][vfx0fx]overlay=x=100:y=50:format=yuv420[vfx0]",
     )
   }
 
@@ -1024,8 +1054,8 @@ class GraphLoweringTest {
       "[v0m0in]split=2[v0m0base][v0m0crop]",
       "[v0m0crop]crop=w=400:h=200:x=100:y=50:exact=1,format=pix_fmts=gbrpf32le[v0m0pre]",
       "[1:v]setpts=expr=PTS-STARTPTS[v0m0a0]",
-      "[v0m0pre][v0m0a0]overlay=x=0:y=0,format=pix_fmts=yuv420p[v0m0fx]",
-      "[v0m0base][v0m0fx]overlay=x=100:y=50:format=auto[v0m0]",
+      "[v0m0pre][v0m0a0]overlay=x=0:y=0:format=auto,format=pix_fmts=yuv420p[v0m0fx]",
+      "[v0m0base][v0m0fx]overlay=x=100:y=50:format=yuv420[v0m0]",
       "[v0m0]scale=",
     )
   }
@@ -1050,7 +1080,7 @@ class GraphLoweringTest {
     graph shouldContain
       "[vfx0crop]crop=w=64:h=64:x=2*floor(((in_w-out_w)/2)/2):y=2*floor(((in_h-out_h)/2)/2):exact=1,negate[vfx0fx]"
     graph shouldContain
-      "[vfx0base][vfx0fx]overlay=x=2*floor(((W-w)/2)/2):y=2*floor(((H-h)/2)/2):format=auto[vfx0]"
+      "[vfx0base][vfx0fx]overlay=x=2*floor(((W-w)/2)/2):y=2*floor(((H-h)/2)/2):format=yuv420[vfx0]"
   }
 
   @Test
@@ -1058,7 +1088,7 @@ class GraphLoweringTest {
     val graph = graphFor(fill = Fill.Solid(0), compositionEffects = listOf(croppedOverlay()))
 
     graph shouldContain "[vfx0crop]crop=w=400:h=200:x=100:y=50:exact=1,"
-    graph shouldContain "[vfx0base][vfx0fx]overlay=x=100:y=50:format=auto[vfx0]"
+    graph shouldContain "[vfx0base][vfx0fx]overlay=x=100:y=50:format=yuv420[vfx0]"
   }
 
   @Test
@@ -1082,9 +1112,9 @@ class GraphLoweringTest {
     val graph = graphFor(fill = Fill.Solid(0), compositionEffects = listOf(odd, computed))
 
     graph shouldContain "[vfx0crop]crop=w=20:h=20:x=10:y=12:exact=1,negate[vfx0fx]"
-    graph shouldContain "[vfx0base][vfx0fx]overlay=x=10:y=12:format=auto[vfx0]"
+    graph shouldContain "[vfx0base][vfx0fx]overlay=x=10:y=12:format=yuv420[vfx0]"
     graph shouldContain "[vfx1crop]crop=w=20:h=20:x=2*floor((7+t)/2):y=4:exact=1,negate[vfx1fx]"
-    graph shouldContain "[vfx1base][vfx1fx]overlay=x=2*floor((7+t)/2):y=4:format=auto[vfx1]"
+    graph shouldContain "[vfx1base][vfx1fx]overlay=x=2*floor((7+t)/2):y=4:format=yuv420[vfx1]"
   }
 
   @Test
@@ -1103,10 +1133,10 @@ class GraphLoweringTest {
     val composition = graphFor(fill = Fill.Solid(0), compositionEffects = listOf(merging, chained))
     val clip = invocationFor(fill = Fill.Solid(0), clipEffects = listOf(chained, merging)).filterGraph
 
-    composition shouldContain "[vfx0a0]overlay=x=0:y=0,format=pix_fmts=yuv420p[vfx0]"
+    composition shouldContain "[vfx0a0]overlay=x=0:y=0:format=yuv420,format=pix_fmts=yuv420p[vfx0]"
     composition shouldContain "[vfx0]negate,hflip[vfx1]"
     clip shouldContain "setpts=expr=PTS-STARTPTS,negate,hflip[v0m0pre]"
-    clip shouldContain "[v0m0pre][v0m0a0]overlay=x=0:y=0,format=pix_fmts=yuv420p[v0m0]"
+    clip shouldContain "[v0m0pre][v0m0a0]overlay=x=0:y=0:format=yuv420,format=pix_fmts=yuv420p[v0m0]"
   }
 
   private fun String.shouldContainInOrder(vararg parts: String) {

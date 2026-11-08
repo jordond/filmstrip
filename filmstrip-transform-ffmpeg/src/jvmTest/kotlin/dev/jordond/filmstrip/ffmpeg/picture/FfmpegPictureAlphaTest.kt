@@ -8,6 +8,7 @@ import dev.jordond.filmstrip.ffmpeg.internal.picture.PictureRoute
 import dev.jordond.filmstrip.ffmpeg.internal.picture.fullRangeAlpha
 import dev.jordond.filmstrip.ffmpeg.internal.picture.pictureRoute
 import dev.jordond.filmstrip.ffmpeg.support.alphaStill
+import dev.jordond.filmstrip.ffmpeg.support.hostFfmpeg
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.picture.pictureYcbcrCoding
@@ -32,7 +33,7 @@ import kotlin.test.Test
  * against the same still decoded without its alpha item.
  */
 class FfmpegPictureAlphaTest {
-  private val decoder = FfmpegPictureDecoder("ffmpeg")
+  private val decoder = FfmpegPictureDecoder(hostFfmpeg)
 
   @Test
   fun `an AVIF alpha item lands as the alpha of every texel`() {

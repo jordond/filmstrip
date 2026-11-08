@@ -4,6 +4,7 @@ import dev.jordond.filmstrip.convention.testmedia.FixturePatch
 import dev.jordond.filmstrip.convention.testmedia.FixtureSpec
 import dev.jordond.filmstrip.convention.testmedia.FixtureTransfer
 import dev.jordond.filmstrip.convention.testmedia.testMedia
+import dev.jordond.filmstrip.convention.usesHostFfmpeg
 import org.jetbrains.kotlin.gradle.targets.native.tasks.KotlinNativeTest
 
 plugins {
@@ -99,7 +100,7 @@ tasks.withType<KotlinNativeTest>().configureEach {
 bootIosSimulatorForTests()
 
 tasks.named<Test>("jvmTest") {
-  dependsOn(":filmstrip-transform-ffmpeg:checkFfmpegTestToolchain")
+  usesHostFfmpeg()
   systemProperty("filmstrip.fixtures", playerFixtures.directory.absolutePath)
   dependsOn(playerFixtures.download)
 }

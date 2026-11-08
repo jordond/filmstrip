@@ -93,9 +93,9 @@ class AppleLutTest {
           under.third.toFloat() / MAX_CODE,
         )
       withClue("the table has to move the bar past the encoder, it read ${read.first} over ${under.first}") {
-        abs(read.first.toDouble() - under.first.toDouble()) shouldBeGreaterThan ENCODER_CODES
+        abs(read.first.toDouble() - under.first.toDouble()) shouldBeGreaterThan WRITTEN_COLOUR_CODES
       }
-      abs(read.first.toDouble() - want[0] * MAX_CODE) shouldBeLessThan ENCODER_CODES
+      abs(read.first.toDouble() - want[0] * MAX_CODE) shouldBeLessThan WRITTEN_COLOUR_CODES
       remove(plain)
       remove(looked)
     }
@@ -114,7 +114,7 @@ class AppleLutTest {
 
       val read = frameOf(looked).average(BAR_FX, CENTRE).first.toDouble()
       val wanted = frameOf(plain).average(BAR_FX, CENTRE).first.toDouble()
-      withClue("the bar read $read against $wanted") { abs(read - wanted) shouldBeLessThan ENCODER_CODES }
+      withClue("the bar read $read against $wanted") { abs(read - wanted) shouldBeLessThan WRITTEN_COLOUR_CODES }
       remove(plain)
       remove(looked)
     }
@@ -129,7 +129,7 @@ class AppleLutTest {
 
       val read = frameOf(looked).average(SWATCH_FX, SWATCH_FY).first.toDouble()
       val wanted = frameOf(clean).average(SWATCH_FX, SWATCH_FY).first.toDouble()
-      withClue("the swatch read $read against $wanted") { abs(read - wanted) shouldBeLessThan ENCODER_CODES }
+      withClue("the swatch read $read against $wanted") { abs(read - wanted) shouldBeLessThan WRITTEN_COLOUR_CODES }
       remove(clean)
       remove(looked)
     }
@@ -150,7 +150,7 @@ class AppleLutTest {
           under.third.toFloat() / MAX_CODE,
         )
       withClue("the red read ${read.first} against ${want[0] * MAX_CODE}") {
-        abs(read.first.toDouble() - want[0] * MAX_CODE) shouldBeLessThan ENCODER_CODES
+        abs(read.first.toDouble() - want[0] * MAX_CODE) shouldBeLessThan WRITTEN_COLOUR_CODES
       }
       remove(plain)
       remove(looked)
@@ -184,13 +184,13 @@ class AppleLutTest {
       )
 
     withClue("the table has to clear what an encoder moves, it read ${read.first} over ${under.first}") {
-      abs(want[0] * MAX_CODE - under.first.toDouble()) shouldBeGreaterThan ENCODER_CODES
+      abs(want[0] * MAX_CODE - under.first.toDouble()) shouldBeGreaterThan WRITTEN_COLOUR_CODES
     }
     withClue("red read ${read.first} against ${want[0] * MAX_CODE}") {
-      abs(read.first.toDouble() - want[0] * MAX_CODE) shouldBeLessThan ENCODER_CODES
+      abs(read.first.toDouble() - want[0] * MAX_CODE) shouldBeLessThan WRITTEN_COLOUR_CODES
     }
     withClue("green read ${read.second} against ${want[1] * MAX_CODE}") {
-      abs(read.second.toDouble() - want[1] * MAX_CODE) shouldBeLessThan ENCODER_CODES
+      abs(read.second.toDouble() - want[1] * MAX_CODE) shouldBeLessThan WRITTEN_COLOUR_CODES
     }
     remove(looked)
     remove(plain)
@@ -268,8 +268,5 @@ class AppleLutTest {
     const val SWATCH_SCALE = 0.3f
     const val SWATCH_FX = 0.15f
     const val SWATCH_FY = 0.2f
-
-    // Two H.264 encodes of one flat frame move a colour by a few codes on their own.
-    const val ENCODER_CODES = 5.0
   }
 }

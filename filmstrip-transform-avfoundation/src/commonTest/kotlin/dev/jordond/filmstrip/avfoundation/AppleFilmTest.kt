@@ -1,10 +1,15 @@
 package dev.jordond.filmstrip.avfoundation
 
+import dev.jordond.filmstrip.ComponentRegistry
 import dev.jordond.filmstrip.Filmstrip
+import dev.jordond.filmstrip.avfoundation.internal.composition.AvComposition
+import dev.jordond.filmstrip.avfoundation.internal.composition.toAvComposition
 import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.effect.EffectSpec
+import dev.jordond.filmstrip.effects.BuiltInEffectResolver
+import dev.jordond.filmstrip.effects.filters.FilterEffectResolver
 import dev.jordond.filmstrip.effects.filters.film.Film
 import dev.jordond.filmstrip.effects.filters.film.FilmParams
 import dev.jordond.filmstrip.effects.filters.film.FilmSignal
@@ -20,6 +25,8 @@ import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
+import dev.jordond.filmstrip.transform.internal.ResolveResult
+import dev.jordond.filmstrip.transform.internal.hdr.Rgb
 import io.kotest.assertions.withClue
 import io.kotest.matchers.doubles.shouldBeGreaterThan
 import io.kotest.matchers.doubles.shouldBeLessThan
@@ -45,6 +52,12 @@ import kotlin.time.Duration.Companion.minutes
  * kernels' own output in the filters module.
  */
 class AppleFilmTest {
+  private val components =
+    ComponentRegistry
+      .Builder()
+      .addEffectResolver(BuiltInEffectResolver())
+      .addEffectResolver(FilterEffectResolver())
+      .build()
   private val filmstrip =
     Filmstrip {
       avFoundationBackend()
@@ -82,7 +95,7 @@ class AppleFilmTest {
       val fx = pictureRight(plain) + BAR_OFFSET
       val lift =
         frameOf(filmed).average(fx, CENTRE).first.toDouble() - frameOf(plain).average(fx, CENTRE).first.toDouble()
-      withClue("just off the picture lifted $lift codes") { lift shouldBeGreaterThan ENCODER_CODES }
+      withClue("just off the picture lifted $lift codes") { lift shouldBeGreaterThan WRITTEN_COLOUR_CODES }
       remove(plain)
       remove(filmed)
     }
@@ -102,7 +115,7 @@ class AppleFilmTest {
       val fx = pictureRight(plain) + BAR_OFFSET
       val read = frameOf(filmed).average(fx, CENTRE).first.toDouble()
       val wanted = frameOf(plain).average(fx, CENTRE).first.toDouble()
-      withClue("the bar read $read against $wanted") { abs(read - wanted) shouldBeLessThan ENCODER_CODES }
+      withClue("the bar read $read against $wanted") { abs(read - wanted) shouldBeLessThan WRITTEN_COLOUR_CODES }
       remove(plain)
       remove(filmed)
     }
@@ -117,7 +130,7 @@ class AppleFilmTest {
       val filmed =
         redOfSwatch(EditComposition(listOf(Track(listOf(Clip(source)))), listOf(swatch, GLOW_ONLY)), "overlay-film")
 
-      withClue("the swatch read $filmed against $plain") { abs(filmed - plain) shouldBeLessThan ENCODER_CODES }
+      withClue("the swatch read $filmed against $plain") { abs(filmed - plain) shouldBeLessThan WRITTEN_COLOUR_CODES }
     }
 
   @Test
@@ -131,40 +144,57 @@ class AppleFilmTest {
       val response = FilmSignal.halationResponse(under, under, under)
       val wanted = FilmSignal.halated(under, under, under, response, FilmParams.of(GLOW_ONLY))[0] * MAX_CODE
       withClue("the glow has to clear what an encoder moves for this to tell") {
-        (wanted - SWATCH_CODE) shouldBeGreaterThan ENCODER_CODES * 2
+        (wanted - SWATCH_CODE) shouldBeGreaterThan WRITTEN_COLOUR_CODES * 2
       }
-      withClue("the swatch read $filmed against $wanted") { abs(filmed - wanted) shouldBeLessThan ENCODER_CODES }
+      withClue("the swatch read $filmed against $wanted") { abs(filmed - wanted) shouldBeLessThan WRITTEN_COLOUR_CODES }
     }
 
-  // Held against the same export with no Film, in the codes each file holds, and through luma, which an encoder moves
-  // the least.
+  // The render is held to the signal over the same render with no Film. Each file is held against the export with no
+  // Film, in the codes it holds, and through luma, which an encoder moves the least.
   private suspend fun assertGlowsOnTheSignal(
     source: MediaSource,
     edit: EditComposition,
   ) {
+    val plainEdit = EditComposition(listOf(Track(listOf(Clip(source)))))
+    val rendered = withContext(Dispatchers.Default) { renderedFrameOf(graphOf(edit), 0) }.at(CENTRE, CENTRE)
+    val renderedPlain = withContext(Dispatchers.Default) { renderedFrameOf(graphOf(plainEdit), 0) }.at(CENTRE, CENTRE)
+    assertCodes(rendered, glowOver(renderedPlain), "the rendered glow over $renderedPlain")
+
     val filmed = export(edit, "glow-film")
-    val plain = export(EditComposition(listOf(Track(listOf(Clip(source))))), "glow-plain")
+    val plain = export(plainEdit, "glow-plain")
     val read = codesOf(filmed).average(CENTRE, CENTRE)
     val under = codesOf(plain).average(CENTRE, CENTRE)
     val code = MID_RESPONSE / MAX_CODE
-    val response = FilmSignal.halationResponse(code, code, code)
-    val halated = FilmSignal.halated(code, code, code, response, FilmParams.of(GLOW_ONLY))
-    val wanted = DoubleArray(3) { (halated[it] - code) * MAX_CODE }
+    val halated = glowOver(Rgb(code, code, code))
+    val wanted = doubleArrayOf(halated.r - code, halated.g - code, halated.b - code).map { it * MAX_CODE }
     val redLift = read.first.toDouble() - under.first.toDouble()
     val lumaLift = lumaOf(read) - lumaOf(under)
     val wantedLuma = wanted[0] * KR + wanted[1] * (1.0 - KR - KB) + wanted[2] * KB
 
     withClue("the glow has to clear what an encoder moves for this to tell, ${wanted[0]} codes") {
-      wanted[0] shouldBeGreaterThan ENCODER_CODES * 2
+      wanted[0] shouldBeGreaterThan WRITTEN_COLOUR_CODES * 2
     }
     withClue("the picture's luma lifted $lumaLift against $wantedLuma") {
-      abs(lumaLift - wantedLuma) shouldBeLessThan LIFT_CODES
+      abs(lumaLift - wantedLuma) shouldBeLessThan WRITTEN_LUMA_CODES
     }
     withClue("the picture's red lifted $redLift against ${wanted[0]}") {
-      abs(redLift - wanted[0]) shouldBeLessThan ENCODER_CODES
+      abs(redLift - wanted[0]) shouldBeLessThan WRITTEN_COLOUR_CODES
     }
     remove(filmed)
     remove(plain)
+  }
+
+  private fun glowOver(picture: Rgb): Rgb {
+    val response = FilmSignal.halationResponse(picture.r, picture.g, picture.b)
+    val halated = FilmSignal.halated(picture.r, picture.g, picture.b, response, FilmParams.of(GLOW_ONLY))
+    return Rgb(halated[0], halated[1], halated[2])
+  }
+
+  private suspend fun graphOf(edit: EditComposition): AvComposition {
+    val resolved = avFoundationExportEngine(components).resolve(edit, ExportSpec())
+    return withContext(Dispatchers.Default) {
+      resolved.shouldBeInstanceOf<ResolveResult.Resolved>().composition.toAvComposition()
+    }
   }
 
   private fun lumaOf(rgb: Triple<Int, Int, Int>): Double =
@@ -253,11 +283,6 @@ class AppleFilmTest {
     const val SWATCH_FX = 0.15f
     const val SWATCH_FY = 0.2f
 
-    // Two H.264 encodes of one flat frame move a colour by a few codes on their own.
-    const val ENCODER_CODES = 5.0
-
-    // Luma of two exports of one flat frame, each a code or so off what it was handed.
-    const val LIFT_CODES = 2.0
     const val KR = 0.2126
     const val KB = 0.0722
   }

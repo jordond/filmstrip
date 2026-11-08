@@ -108,9 +108,10 @@ abstract class PlayerEngineContractTest {
   /**
    * Whether this backend goes back through [PlaybackStatus.Preparing] when [plainFixture] takes its first effect.
    *
-   * True only for a backend whose own graph cannot take that edge, which its override names.
+   * True only where the backend's own graph cannot take that edge, or the host's encoders change what the edit
+   * resolves to, which the override names.
    */
-  protected open val plainClipEditPrepares: Boolean get() = false
+  protected open suspend fun plainClipEditPrepares(): Boolean = false
 
   /**
    * Whether this backend's preview info carries the output frame an edit settled on.
@@ -336,7 +337,7 @@ abstract class PlayerEngineContractTest {
     rebuilds.plainClipEditHoldsTheTransport(
       plain = plainFixture,
       edited = plainFixture.withEffects(listOf(Brightness(RETUNED_BRIGHTNESS))),
-      prepares = plainClipEditPrepares,
+      prepares = ::plainClipEditPrepares,
     )
 
   @Test

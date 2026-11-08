@@ -70,6 +70,17 @@ internal enum class ChromaGrid {
   fun snap(pixels: Int): Int = if (this == Subsampled) pixels - pixels % 2 else pixels
 
   /**
+   * The graph [position] on this grid. On a [Subsampled] chain a whole number is snapped here, and an expression is
+   * wrapped so the filter snaps it once it has evaluated it.
+   */
+  fun snap(position: String): String =
+    if (this == Full) {
+      position
+    } else {
+      position.toIntOrNull()?.let { (it - it.mod(2)).toString() } ?: "2*floor(($position)/2)"
+    }
+
+  /**
    * The grid of the chain once [nodes] have run on it, read from the last `format` among them.
    *
    * Nodes that name no format leave the grid as it was. ffmpeg's negotiation only picks a subsampled format for them

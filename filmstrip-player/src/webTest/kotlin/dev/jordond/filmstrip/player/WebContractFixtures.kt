@@ -79,33 +79,52 @@ internal fun webFixtureTrimmed(length: Duration): EditComposition {
 internal suspend fun webExportFrame(
   composition: EditComposition,
   position: Duration,
-): TestFrame = webFileFrame(webExportedUrl(composition), position)
+): TestFrame = webFileFrame(webExported(composition), position)
 
 /**
- * The blob url of the file [composition] exports to.
+ * A file an export wrote, as a blob url, and the frame rate the plan wrote it at.
  */
-internal suspend fun webExportedUrl(composition: EditComposition): String {
-  val statuses = CONTRACT_FILMSTRIP.export(exportPlanOf(composition), MediaSink.Uri("")).toList()
+internal class WebExport(
+  val url: String,
+  val frameRate: Int,
+)
+
+/**
+ * The file [composition] exports to.
+ *
+ * @param frameRate The rate to write at, or null to keep the one the planner resolves.
+ */
+internal suspend fun webExported(
+  composition: EditComposition,
+  frameRate: Int? = null,
+): WebExport {
+  val plan = exportPlanOf(composition, ExportSpec(frameRate = frameRate, bitrate = PREVIEW_PARITY_EXPORT_BITRATE))
+  val statuses = CONTRACT_FILMSTRIP.export(plan, MediaSink.Uri("")).toList()
   statuses.filterIsInstance<ExportStatus.Failure>().firstOrNull()?.let {
     fail("the export failed: ${it.error.message}")
   }
   val success =
     statuses.filterIsInstance<ExportStatus.Success>().singleOrNull()
       ?: fail("the export produced ${statuses.map { it::class.simpleName }}")
-  return (success.output as? MediaSink.Uri)?.uri ?: fail("the export handed back ${success.output}")
+  val url = (success.output as? MediaSink.Uri)?.uri ?: fail("the export handed back ${success.output}")
+  return WebExport(url, plan.output.frameRate)
 }
 
 /**
- * The frame at [position] of the written file at [url], through a reader that never saw the encoder.
+ * The frame at [position] of the written [file], through a reader that never saw the encoder.
+ *
+ * The file is read at the rate it was written at. A file of one frame has no second packet to measure a rate from,
+ * and read at any other rate it can cover no output slot at all.
  */
 internal suspend fun webFileFrame(
-  url: String,
+  file: WebExport,
   position: Duration,
 ): TestFrame {
-  val written = EditComposition(tracks = listOf(Track(listOf(Clip(MediaSource.Uri(url))))), audio = AudioSpec.Remove)
+  val written =
+    EditComposition(tracks = listOf(Track(listOf(Clip(MediaSource.Uri(file.url))))), audio = AudioSpec.Remove)
   val engine = webCodecsExportEngine(CONTRACT_COMPONENTS)
   val resolved =
-    when (val result = engine.resolve(written, ExportSpec())) {
+    when (val result = engine.resolve(written, ExportSpec(frameRate = file.frameRate))) {
       is ResolveResult.Refused -> fail("the exported file could not be read back: ${result.error.message}")
       is ResolveResult.Resolved -> result.composition
     }
@@ -119,8 +138,11 @@ internal suspend fun webFileFrame(
   }
 }
 
-private suspend fun exportPlanOf(composition: EditComposition): ExportPlan =
-  when (val verdict = CONTRACT_FILMSTRIP.plan(composition, ExportSpec(bitrate = PREVIEW_PARITY_EXPORT_BITRATE))) {
+private suspend fun exportPlanOf(
+  composition: EditComposition,
+  spec: ExportSpec,
+): ExportPlan =
+  when (val verdict = CONTRACT_FILMSTRIP.plan(composition, spec)) {
     is Verdict.Capable -> verdict.plan
     is Verdict.Degraded -> verdict.plan
     is Verdict.Incapable -> fail("the export refused the fixture: ${verdict.reasons.map { it.message }}")

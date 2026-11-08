@@ -109,7 +109,7 @@ internal fun tenBitCodesAt(
   val y = probe.second - PROBE_SIDE / 2
   val process =
     ProcessBuilder(
-      listOf("ffmpeg", "-y", "-hide_banner", "-loglevel", "error") + seek +
+      listOf(hostFfmpeg, "-y", "-hide_banner", "-loglevel", "error") + seek +
         listOf(
           "-i",
           file.absolutePath,

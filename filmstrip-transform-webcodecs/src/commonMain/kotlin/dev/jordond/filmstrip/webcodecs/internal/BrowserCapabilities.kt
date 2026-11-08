@@ -1,14 +1,13 @@
 package dev.jordond.filmstrip.webcodecs.internal
 
-import dev.jordond.filmstrip.capability.AudioEncoderCapability
 import dev.jordond.filmstrip.capability.DeviceCapabilities
 import dev.jordond.filmstrip.capability.VideoEncoderCapability
-import dev.jordond.filmstrip.codec.AudioCodec
 import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.internal.awaitCatching
 import dev.jordond.filmstrip.transform.internal.HDR_PROBE_SIZE
 import dev.jordond.filmstrip.transform.internal.RESOLUTION_LADDER
+import dev.jordond.filmstrip.webcodecs.BROWSER_AAC_ENCODER
 import dev.jordond.filmstrip.webcodecs.internal.interop.AudioEncoder
 import dev.jordond.filmstrip.webcodecs.internal.interop.HDR_VP9_CODEC
 import dev.jordond.filmstrip.webcodecs.internal.interop.JsOptions
@@ -43,13 +42,7 @@ internal class BrowserCapabilities {
     val video = SUPPORTED_CODECS.mapNotNull { codec -> probeVideo(codec) }
     val audio =
       if (hasAudioEncoder() && probeAudio()) {
-        listOf(
-          AudioEncoderCapability(
-            codec = AudioCodec.Aac,
-            sampleRates = SUPPORTED_SAMPLE_RATES,
-            maxChannelCount = MAX_CHANNELS,
-          ),
-        )
+        listOf(BROWSER_AAC_ENCODER)
       } else {
         emptyList()
       }
@@ -97,7 +90,7 @@ internal class BrowserCapabilities {
           JsOptions()
             .put("codec", AAC_CODEC)
             .put("sampleRate", PROBE_SAMPLE_RATE)
-            .put("numberOfChannels", MAX_CHANNELS)
+            .put("numberOfChannels", BROWSER_AAC_ENCODER.maxChannelCount)
             .put("bitrate", PROBE_AUDIO_BITRATE)
             .build(),
         ).await()
@@ -107,10 +100,6 @@ internal class BrowserCapabilities {
   private companion object {
     // Every browser encoder config is even-dimensioned, and odd sizes are rejected outright.
     const val SIZE_ALIGNMENT = 2
-
-    const val MAX_CHANNELS = 2
-
-    val SUPPORTED_SAMPLE_RATES = listOf(44_100, 48_000)
 
     const val AAC_CODEC = "mp4a.40.2"
 

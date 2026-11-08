@@ -17,6 +17,7 @@ import dev.jordond.filmstrip.ffmpeg.support.ExportedOverlay
 import dev.jordond.filmstrip.ffmpeg.support.FfmpegExportFixture
 import dev.jordond.filmstrip.ffmpeg.support.OverlayConstants.PROBE_SIDE
 import dev.jordond.filmstrip.ffmpeg.support.assertOnTheGrid
+import dev.jordond.filmstrip.ffmpeg.support.hostFfprobe
 import dev.jordond.filmstrip.ffmpeg.support.opensOn
 import dev.jordond.filmstrip.ffmpeg.support.pointIn
 import dev.jordond.filmstrip.ffmpeg.support.tenBitCodesAt
@@ -134,7 +135,7 @@ class FfmpegHdrFillTest {
   private fun writtenVideoLength(file: File): Duration {
     val process =
       ProcessBuilder(
-        "ffprobe",
+        hostFfprobe,
         "-v",
         "error",
         "-select_streams",

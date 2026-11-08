@@ -354,13 +354,17 @@ internal fun ExecOperations.capture(command: List<String>): String {
 
 /**
  * One frame from [encoder] written to stdout as a raw [format] stream, whose SEI names that encoder's build.
+ *
+ * [executable] is the ffmpeg that runs it, bare `ffmpeg` from the PATH unless a caller names one.
  */
 internal fun encoderProbeArgs(
   encoder: String,
   pixelFormat: String,
   format: String,
+  executable: String = "ffmpeg",
 ): List<String> =
-  FFMPEG +
+  listOf(executable) +
+    FFMPEG.drop(1) +
     listOf(
       "-f",
       "lavfi",

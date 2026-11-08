@@ -247,7 +247,7 @@ internal class FilterFrames(
       }
     val encode =
       ProcessBuilder(
-        "ffmpeg",
+        hostFfmpeg,
         "-y",
         "-hide_banner",
         "-loglevel",
@@ -305,7 +305,7 @@ internal class FilterFrames(
     val video = File.createTempFile("filter-planes", ".mkv").apply { deleteOnExit() }
     val encode =
       ProcessBuilder(
-        "ffmpeg",
+        hostFfmpeg,
         "-y",
         "-hide_banner",
         "-loglevel",
@@ -360,7 +360,7 @@ internal class FilterFrames(
   ): ByteArray {
     val process =
       ProcessBuilder(
-        "ffmpeg",
+        hostFfmpeg,
         "-y",
         "-hide_banner",
         "-loglevel",

@@ -236,7 +236,7 @@ private fun ffmpeg(
   val graph = FilterGraphBuilder().apply { chain(listOf(SOURCE_PAD), nodes, OUTPUT_PAD) }.build(OUTPUT_PAD)
   val filter = "$source[$SOURCE_PAD];$graph"
   val command =
-    listOf("ffmpeg", "-hide_banner", "-loglevel", loglevel) + input +
+    listOf(hostFfmpeg, "-hide_banner", "-loglevel", loglevel) + input +
       listOf("-filter_complex", filter, "-map", "[$OUTPUT_PAD]", "-frames:v", "1", "-f", "rawvideo", "-pix_fmt", format)
   val process = ProcessBuilder(command + "-").redirectErrorStream(false).start()
   val log = StringBuilder()

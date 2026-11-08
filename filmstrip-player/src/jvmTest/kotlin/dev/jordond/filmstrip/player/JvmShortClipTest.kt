@@ -16,7 +16,7 @@ class JvmShortClipTest : ShortClipContractTest(JvmClipParity) {
     val path = jvmExportedFile(composition)
     val process =
       ProcessBuilder(
-        System.getenv("FILMSTRIP_FFMPEG").orEmpty().ifBlank { "ffmpeg" },
+        hostFfmpeg,
         "-hide_banner",
         "-loglevel",
         "error",

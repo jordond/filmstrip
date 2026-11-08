@@ -74,7 +74,7 @@ internal fun FilterGraphBuilder.blurredTail(
   val (x, y) = rect.drawnAt(grid)
   chain(
     listOf(blurred, sharp),
-    overlayNodes(x, y) + trailingNodes(tail.frameRate, tail.pixelFormat, tail.slots),
+    overlayNodes(x, y, tail.pixelFormat, grid) + trailingNodes(tail.frameRate, tail.pixelFormat, tail.slots),
     label,
   )
   return label
@@ -87,7 +87,7 @@ private fun blurSigma(
 ): Int = fill.sigmaFor(outputSize).roundToInt().coerceIn(1, 1024)
 
 /**
- * Lays the sharp foreground over the blurred background at [x], [y].
+ * Lays the sharp foreground over the blurred background at [x], [y], for a tail ending on [pixelFormat] on [grid].
  *
  * ffmpeg's `overlay` reads its first input as the base and its second as what is drawn on top, so
  * the blurred pad has to be listed before the sharp one wherever this is chained.
@@ -95,4 +95,6 @@ private fun blurSigma(
 internal fun overlayNodes(
   x: Int,
   y: Int,
-): List<FilterNode> = listOf(overlayNode("x" to x.toString(), "y" to y.toString()))
+  pixelFormat: String,
+  grid: ChromaGrid,
+): List<FilterNode> = listOf(overlayNode(pixelFormat, grid, "x" to x.toString(), "y" to y.toString()))

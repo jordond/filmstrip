@@ -1,6 +1,7 @@
 package dev.jordond.filmstrip.transform.internal.negotiation
 
 import dev.jordond.filmstrip.FilmstripError
+import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.capability.AudioEncoderCapability
 import dev.jordond.filmstrip.capability.DeviceCapabilities
 import dev.jordond.filmstrip.codec.AudioCodec
@@ -116,6 +117,20 @@ internal fun resolveAudioCodec(
       ),
   )
 }
+
+/**
+ * Whether an edit carrying audio keeps it when it is lowered for this device under [spec].
+ *
+ * It is true when [resolveAudioCodec] settles on any codec other than [AudioCodec.None].
+ *
+ * @param spec The export spec whose audio codec is asked for.
+ * @param graded Whether the lowering is a preview's, which writes no file. See [resolveAudioCodec].
+ */
+@InternalFilmstripApi
+public fun DeviceCapabilities.encodesAudio(
+  spec: ExportSpec,
+  graded: Boolean = false,
+): Boolean = resolveAudioCodec(spec, this, silent = false, graded = graded).codec != AudioCodec.None
 
 /**
  * The format the export writes.

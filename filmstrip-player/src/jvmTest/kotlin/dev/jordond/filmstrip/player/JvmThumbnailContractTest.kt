@@ -144,7 +144,7 @@ class JvmThumbnailContractTest {
 
   private fun runFfmpeg(vararg arguments: String): ByteArray {
     val process =
-      ProcessBuilder(listOf("ffmpeg", "-y", "-hide_banner", "-loglevel", "error") + arguments)
+      ProcessBuilder(listOf(hostFfmpeg, "-y", "-hide_banner", "-loglevel", "error") + arguments)
         .redirectError(ProcessBuilder.Redirect.DISCARD)
         .start()
     val output = process.inputStream.readBytes()

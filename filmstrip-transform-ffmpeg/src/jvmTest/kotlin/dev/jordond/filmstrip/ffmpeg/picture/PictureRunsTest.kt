@@ -3,6 +3,7 @@ package dev.jordond.filmstrip.ffmpeg.picture
 import dev.jordond.filmstrip.ffmpeg.internal.picture.PictureRun
 import dev.jordond.filmstrip.ffmpeg.internal.picture.pictureRun
 import dev.jordond.filmstrip.ffmpeg.internal.picture.pictureRuns
+import dev.jordond.filmstrip.ffmpeg.support.hostFfmpeg
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.picture.heif.HeifCodec
 import dev.jordond.filmstrip.picture.heif.HeifCodedImage
@@ -216,7 +217,7 @@ class PictureRunsTest {
     try {
       file.outputStream().buffered().use(run::writeTo)
       val command =
-        listOf("ffmpeg", "-nostdin", "-hide_banner", "-loglevel", "error", "-threads", "1", "-f", run.format) +
+        listOf(hostFfmpeg, "-nostdin", "-hide_banner", "-loglevel", "error", "-threads", "1", "-f", run.format) +
           listOf("-i", file.path, "-fps_mode", "passthrough", "-f", "framemd5", "-")
       val process = ProcessBuilder(command).redirectErrorStream(true).start()
       val output = process.inputStream.bufferedReader().readText()

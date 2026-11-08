@@ -21,6 +21,7 @@ import dev.jordond.filmstrip.ffmpeg.support.FfmpegExportFixture
 import dev.jordond.filmstrip.ffmpeg.support.OverlayConstants.OVERLAY_COLOR
 import dev.jordond.filmstrip.ffmpeg.support.OverlayConstants.OVERLAY_SIZE
 import dev.jordond.filmstrip.ffmpeg.support.convertedFilter
+import dev.jordond.filmstrip.ffmpeg.support.hostFfmpeg
 import dev.jordond.filmstrip.ffmpeg.support.orientedJpeg
 import dev.jordond.filmstrip.ffmpeg.support.pngOf
 import dev.jordond.filmstrip.geometry.Corner
@@ -155,7 +156,7 @@ class FfmpegPictureDecoderTest {
   fun `measures a WebP the JDK cannot read at its own size`() {
     if (!fixture.available()) return
     val webp = encoded(PICTURE, "webp", listOf("-c:v", "libwebp", "-lossless", "1")) ?: return
-    val decoder = FfmpegPictureDecoder("ffmpeg", scratch = scratch)
+    val decoder = FfmpegPictureDecoder(hostFfmpeg, scratch = scratch)
 
     decoder.measure(ImageSource.ofBytes(webp.readBytes())).value() shouldBe OVERLAY_SIZE
     decoder.measure(ImageSource.of(webp.absolutePath)).value() shouldBe OVERLAY_SIZE
@@ -175,7 +176,7 @@ class FfmpegPictureDecoderTest {
     if (!fixture.available()) return
     val picture = IccPictures.DISPLAY_P3
     val png = picture.pngOf(OVERLAY_SIZE)
-    val decoder = FfmpegPictureDecoder("ffmpeg", scratch = scratch)
+    val decoder = FfmpegPictureDecoder(hostFfmpeg, scratch = scratch)
 
     val read = decoder.decode(ImageSource.ofBytes(png))
     val decoded =
@@ -194,7 +195,7 @@ class FfmpegPictureDecoderTest {
   @Test
   fun `an untagged picture's decode carries no color`() {
     if (!fixture.available()) return
-    val decoder = FfmpegPictureDecoder("ffmpeg", scratch = scratch)
+    val decoder = FfmpegPictureDecoder(hostFfmpeg, scratch = scratch)
 
     val read = decoder.decode(ImageSource.ofBytes(PICTURE))
     withClue("this ffmpeg decoded nothing") {
@@ -255,7 +256,7 @@ class FfmpegPictureDecoderTest {
     val stored = BufferedImage(WIDE.width, WIDE.height, BufferedImage.TYPE_INT_RGB)
     val jpeg = ByteArrayOutputStream().also { check(ImageIO.write(stored, "jpeg", it)) }.toByteArray()
     val oriented = ImageSource.ofBytes(orientedJpeg(jpeg, ROTATED_CLOCKWISE))
-    val decoder = FfmpegPictureDecoder("ffmpeg", scratch = scratch)
+    val decoder = FfmpegPictureDecoder(hostFfmpeg, scratch = scratch)
 
     val decoded = withClue("this ffmpeg decoded nothing") { decoder.decode(oriented).value().shouldNotBeNull() }
     withClue("the decode turned an orientation 6 JPEG") { decoded.size shouldBe WIDE }
@@ -266,7 +267,7 @@ class FfmpegPictureDecoderTest {
   fun `a picture ffmpeg cannot read is refused with its own words`() {
     if (!fixture.available()) return
     val garbage = ImageSource.ofBytes("not a picture".encodeToByteArray())
-    val decoder = FfmpegPictureDecoder("ffmpeg", scratch = scratch)
+    val decoder = FfmpegPictureDecoder(hostFfmpeg, scratch = scratch)
     val reasons =
       listOf(decoder.decode(garbage), decoder.measure(garbage)).map {
         it.shouldBeInstanceOf<OverlayPictureRead.Refused>().reason

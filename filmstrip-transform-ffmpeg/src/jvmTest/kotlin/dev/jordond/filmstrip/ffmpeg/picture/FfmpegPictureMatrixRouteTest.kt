@@ -26,6 +26,7 @@ import dev.jordond.filmstrip.ffmpeg.internal.picture.unknownDepthReason
 import dev.jordond.filmstrip.ffmpeg.internal.picture.ycbcrScale
 import dev.jordond.filmstrip.ffmpeg.internal.picture.yuv4mpegPlanes
 import dev.jordond.filmstrip.ffmpeg.support.HdrRender.CAPABILITIES
+import dev.jordond.filmstrip.ffmpeg.support.hostFfmpeg
 import dev.jordond.filmstrip.geometry.Corner
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.CodecKind
@@ -296,7 +297,7 @@ class FfmpegPictureMatrixRouteTest {
     vararg output: String,
   ): ByteArray {
     val command =
-      listOf("ffmpeg", "-nostdin", "-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i", pattern) +
+      listOf(hostFfmpeg, "-nostdin", "-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i", pattern) +
         listOf("-frames:v", "1", "-vf", filter) + output
     val process = ProcessBuilder(command).redirectError(ProcessBuilder.Redirect.INHERIT).start()
     val bytes = process.inputStream.readAllBytes()
@@ -323,7 +324,7 @@ class FfmpegPictureMatrixRouteTest {
   }
 
   private companion object {
-    val decoder = FfmpegPictureDecoder("ffmpeg")
+    val decoder = FfmpegPictureDecoder(hostFfmpeg)
 
     // How a picture the matrix test reads lands: through swscale, or from its planes through core's evaluator for a
     // matrix derived from its primaries, for YCgCo, or for constant luminance.

@@ -7,6 +7,7 @@ import dev.jordond.filmstrip.effects.overlay.StoredSamples
 import dev.jordond.filmstrip.ffmpeg.internal.picture.FfmpegPictureDecoder
 import dev.jordond.filmstrip.ffmpeg.internal.picture.PictureRoute
 import dev.jordond.filmstrip.ffmpeg.internal.picture.pictureRoute
+import dev.jordond.filmstrip.ffmpeg.support.hostFfmpeg
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.picture.pictureYcbcrCoding
 import dev.jordond.filmstrip.test.AvifColorPictures
@@ -103,7 +104,7 @@ class FfmpegPictureMatrixTest internal constructor(
     @Parameterized.Parameters(name = "{0}")
     internal fun cases(): List<MatrixCase> = MatrixCases.all
 
-    private val decoder = FfmpegPictureDecoder("ffmpeg")
+    private val decoder = FfmpegPictureDecoder(hostFfmpeg)
 
     private const val BT601 = 6
     private const val SIXTEEN_BIT_MAX = 0xFFFF

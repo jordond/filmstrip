@@ -13,7 +13,9 @@ import dev.jordond.filmstrip.effect.FilterNode
  * the other is cropped and runs the fragment's chain, merge and post. An `overlay` then puts the worked region back
  * on the base at the crop's `x` and `y`, or centred where the crop names neither, which is where `crop` itself cuts
  * by default. Those positions are handed to `overlay` as written, so they have to read the same to both filters.
- * [auxPads] prepares the extra inputs the merge reads, the same way an uncropped fragment's are.
+ * [auxPads] prepares the extra inputs the merge reads, the same way an uncropped fragment's are. Both overlays run in
+ * the format [overlayFormat] picks for [pixelFormat], the format the export writes. The one laying the region back
+ * runs on [grid], and the merge runs on the grid the fragment's chain leaves, `grid.after(fragment.chain)`.
  *
  * `overlay` places its input on the chroma grid of the format it runs in, which follows the base, so on a 4:2:0 base
  * an odd `x` or `y` lands a pixel up and to the left of where it was asked for. `crop` without `exact` rounds the
@@ -28,6 +30,7 @@ internal fun FilterGraphBuilder.cropped(
   crop: FilterCrop,
   label: String,
   grid: ChromaGrid,
+  pixelFormat: String,
   auxPads: (auxInputs: List<AuxInput>, label: String) -> List<String>,
 ): String {
   val base = "${label}base"
@@ -50,23 +53,17 @@ internal fun FilterGraphBuilder.cropped(
     chain(listOf(region), listOf(cut) + fragment.chain + fragment.post, worked)
   } else {
     val prepared = "${label}pre".also { chain(listOf(region), listOf(cut) + fragment.chain, it) }
-    chain(listOf(prepared) + auxPads(fragment.auxInputs, label), listOf(merge) + fragment.post, worked)
+    val merged = merge.onFrame(pixelFormat, grid.after(fragment.chain))
+    chain(listOf(prepared) + auxPads(fragment.auxInputs, label), listOf(merged) + fragment.post, worked)
   }
 
   val recombine =
     overlayNode(
+      pixelFormat,
+      grid,
       "x" to grid.snap(crop.x ?: "(W-w)/2"),
       "y" to grid.snap(crop.y ?: "(H-h)/2"),
     )
   chain(listOf(base, worked), listOf(recombine), label)
   return label
 }
-
-// A position on this grid. On a subsampled one a whole number is snapped here, anything else is wrapped so
-// the filter snaps it once it has evaluated the expression.
-private fun ChromaGrid.snap(position: String): String =
-  if (this == ChromaGrid.Full) {
-    position
-  } else {
-    position.toIntOrNull()?.let { (it - it.mod(2)).toString() } ?: "2*floor(($position)/2)"
-  }

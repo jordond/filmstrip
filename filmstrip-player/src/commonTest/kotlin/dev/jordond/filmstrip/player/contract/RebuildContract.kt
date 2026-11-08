@@ -208,15 +208,15 @@ internal class RebuildContract(
    * it had and the transport stays paused on where [heldPosition] lands.
    *
    * @param edited [plain] with an effect on it, which changes a parameter and nothing on the timeline.
-   * @param prepares Whether this backend goes back through [PlaybackStatus.Preparing] for that edit.
+   * @param prepares Answers whether this backend goes back through [PlaybackStatus.Preparing] for that edit.
    */
   fun plainClipEditHoldsTheTransport(
     plain: EditComposition,
     edited: EditComposition,
-    prepares: Boolean,
+    prepares: suspend () -> Boolean,
   ): TestResult =
     pausedParameterEdit(plain, edited) { recorder, mark, _ ->
-      recorder.statesSince(mark).any { it.status == PlaybackStatus.Preparing } shouldBe prepares
+      recorder.statesSince(mark).any { it.status == PlaybackStatus.Preparing } shouldBe prepares()
     }
 
   /**
@@ -237,7 +237,7 @@ internal class RebuildContract(
   private fun pausedParameterEdit(
     from: EditComposition,
     to: EditComposition,
-    check: (recorder: ContractRecorder, mark: ContractMark, frameBefore: Size) -> Unit,
+    check: suspend (recorder: ContractRecorder, mark: ContractMark, frameBefore: Size) -> Unit,
   ): TestResult =
     contractTest { scope ->
       val subject = createEngine(scope)

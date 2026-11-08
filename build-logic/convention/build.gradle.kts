@@ -22,8 +22,11 @@ spotless {
   }
 }
 
+val testedPlugins: Configuration by configurations.creating
+
 dependencies {
   compileOnly(libs.bundles.logic.plugins)
+  testedPlugins(libs.gradlePlugin.kotlin)
 
   testImplementation(kotlin("test-junit"))
   testImplementation(libs.junit)
@@ -32,6 +35,10 @@ dependencies {
 
 tasks.test {
   useJUnit()
+}
+
+tasks.pluginUnderTestMetadata {
+  pluginClasspath.from(testedPlugins)
 }
 
 gradlePlugin {

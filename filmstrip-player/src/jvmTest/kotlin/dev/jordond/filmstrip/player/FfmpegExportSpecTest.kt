@@ -135,7 +135,7 @@ class FfmpegExportSpecTest {
         "setparams=color_primaries=bt2020:color_trc=smpte2084:colorspace=bt2020nc:range=tv"
     val process =
       ProcessBuilder(
-        "ffmpeg",
+        hostFfmpeg,
         "-y",
         "-hide_banner",
         "-loglevel",

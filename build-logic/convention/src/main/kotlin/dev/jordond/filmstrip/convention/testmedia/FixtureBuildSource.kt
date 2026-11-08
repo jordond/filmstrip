@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip.convention.testmedia
 
+import org.gradle.api.provider.Property
 import org.gradle.api.provider.ValueSource
 import org.gradle.api.provider.ValueSourceParameters
 import org.gradle.process.ExecOperations
@@ -16,12 +17,23 @@ abstract class FixtureBuildSource
   @Inject
   constructor(
     private val exec: ExecOperations,
-  ) : ValueSource<String, ValueSourceParameters.None> {
-    override fun obtain(): String =
-      TestMediaManifest.buildOf(
-        versionLine = exec.capture(listOf("ffmpeg", "-version")).lineSequence().first(),
-        x264Stream = exec.capture(encoderProbeArgs("libx264", "yuv420p", "h264")),
-        x265Stream = exec.capture(encoderProbeArgs("libx265", "yuv420p10le", "hevc")),
+  ) : ValueSource<String, FixtureBuildSource.Parameters> {
+    /**
+     * Which ffmpeg to read.
+     *
+     * @property executable The binary to run. Bare `ffmpeg` from the PATH when it is not set.
+     */
+    interface Parameters : ValueSourceParameters {
+      val executable: Property<String>
+    }
+
+    override fun obtain(): String {
+      val ffmpeg = parameters.executable.getOrElse("ffmpeg")
+      return TestMediaManifest.buildOf(
+        versionLine = exec.capture(listOf(ffmpeg, "-version")).lineSequence().first(),
+        x264Stream = exec.capture(encoderProbeArgs("libx264", "yuv420p", "h264", ffmpeg)),
+        x265Stream = exec.capture(encoderProbeArgs("libx265", "yuv420p10le", "hevc", ffmpeg)),
         architecture = System.getProperty("os.arch"),
       )
+    }
   }

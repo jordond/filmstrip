@@ -92,7 +92,7 @@ class AndroidEngineContractTest : PlayerEngineContractTest() {
 
   // media3's own limit: a graph keeps the effect slots it was built with and a plain clip has none, so the first effect
   // needs a new one.
-  override val plainClipEditPrepares: Boolean = true
+  override suspend fun plainClipEditPrepares(): Boolean = true
 
   override val stageableInterruptions: Set<Interruption> =
     setOf(Interruption.OutputRouteChanged)
