@@ -181,7 +181,7 @@ class Media3StatusTrackerTest {
       rig.tracker.fail(ERROR)
       rig.statuses.last() shouldBe PlaybackStatus.Error(ERROR)
       rig.events.last() shouldBe PlaybackEvent.Failed(ERROR)
-      rig.tracker.graphUp shouldBe false
+      rig.tracker.graphUp shouldBe true
       rig.shutter.still shouldBe null
 
       rig.state(Player.STATE_READY)
@@ -190,6 +190,41 @@ class Media3StatusTrackerTest {
       rig.tracker.liftRefusal()
       rig.statuses.last() shouldBe PlaybackStatus.Ready
       rig.tracker.playerErrored shouldBe false
+    }
+
+  @Test
+  fun `a refused plan leaves the running graph up so a resize only redraws`() =
+    runTest {
+      val rig = Rig(this)
+      rig.state(Player.STATE_READY)
+
+      rig.tracker.fail(ERROR)
+
+      rig.tracker.graphUp shouldBe true
+      surfaceResizeAction(rig.tracker.graphUp) shouldBe SurfaceResize.Redraw
+    }
+
+  @Test
+  fun `a refusal before any graph was up leaves it down`() =
+    runTest {
+      val rig = Rig(this)
+
+      rig.tracker.fail(ERROR)
+
+      rig.tracker.graphUp shouldBe false
+      surfaceResizeAction(rig.tracker.graphUp) shouldBe SurfaceResize.Reapply
+    }
+
+  @Test
+  fun `a player error takes the graph down`() =
+    runTest {
+      val rig = Rig(this)
+      rig.state(Player.STATE_READY)
+
+      rig.tracker.onPlayerError(ERROR)
+
+      rig.tracker.graphUp shouldBe false
+      surfaceResizeAction(rig.tracker.graphUp) shouldBe SurfaceResize.Reapply
     }
 
   @Test

@@ -175,15 +175,17 @@ internal class Media3StatusTracker(
    */
   fun onPlayerError(error: PlaybackError) {
     playerErrored = true
+    graphUp = false
     fail(error)
   }
 
   /**
    * Reports [error] as what the status reads until a load clears it.
+   *
+   * A refused plan leaves the running graph as it was, so [graphUp] keeps its value here.
    */
   fun fail(error: PlaybackError) {
     failure = error
-    graphUp = false
     shutter.reveal()
     publishStatus()
     emitEvent(PlaybackEvent.Failed(error))

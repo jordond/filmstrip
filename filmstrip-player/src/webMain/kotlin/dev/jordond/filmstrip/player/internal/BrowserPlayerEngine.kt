@@ -2,7 +2,6 @@ package dev.jordond.filmstrip.player.internal
 
 import dev.jordond.filmstrip.edit.CompositionDiff
 import dev.jordond.filmstrip.edit.TimeRange
-import dev.jordond.filmstrip.edit.outputSlotTime
 import dev.jordond.filmstrip.player.PlaybackError
 import dev.jordond.filmstrip.player.PlaybackEvent
 import dev.jordond.filmstrip.player.PlaybackStatus
@@ -18,11 +17,9 @@ import dev.jordond.filmstrip.webcodecs.internal.preview.browserCanComposite
 import dev.jordond.filmstrip.webcodecs.internal.preview.browserCanMonitorAudio
 import dev.jordond.filmstrip.webcodecs.internal.preview.toBrowserPreview
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.time.Duration
-import kotlin.time.Duration.Companion.milliseconds
 
 /**
  * The browser preview engine, on WebCodecs and mediabunny.
@@ -52,7 +49,7 @@ internal class BrowserPlayerEngine(
   parent: CoroutineScope,
   planner: BrowserPreviewPlanner,
   config: PlayerConfig,
-  private val startAudio: suspend (graph: BrowserAudioPreview?, from: Duration) -> Unit = { graph, from ->
+  startAudio: suspend (graph: BrowserAudioPreview?, from: Duration) -> Unit = { graph, from ->
     graph?.start(from)
   },
   private val drawFirstFrame: suspend (preview: BrowserPreview, at: Duration) -> Boolean = { preview, at ->
@@ -68,26 +65,39 @@ internal class BrowserPlayerEngine(
   private var playbackRange: TimeRange? = null
 
   private val guard = WrapGuard()
-  private var seekSerial = 0
-  private val fenced = mutableListOf<Job>()
-  private var starting: Job? = null
-  private var wantsPlayback = false
-  private var reachedEnd = false
-  private var startedAt: Duration? = null
   private var firstFrameOwed = false
 
   private val onVisibilityChanged: () -> Unit = { if (document.hidden) onPageHidden() }
 
-  private val loops =
-    BrowserPlaybackLoops(
+  private val transport =
+    BrowserTransport(
       scope = scope,
-      isPlaying = { wantsPlayback },
-      onTick = ::onTransportTick,
-      onFrame = {
-        val target = preview
-        target?.fillAhead(readPosition())
-        target != null
-      },
+      guard = guard,
+      startAudio = startAudio,
+      preview = { preview },
+      audio = { audio },
+      clock = { clock },
+      resolved = { plan?.resolved },
+      position = ::readPosition,
+      loopRange = { loopRange },
+      playbackRange = { playbackRange },
+      wrapTo = ::seekToWrap,
+      setStatus = ::setStatus,
+      setPlayWhenReady = ::setPlayWhenReady,
+      reportExternalPlayWhenReady = ::reportExternalPlayWhenReady,
+      emitEvent = ::emitEvent,
+    )
+
+  private val seeks =
+    BrowserSeeks(
+      scope = scope,
+      guard = guard,
+      transport = transport,
+      preview = { preview },
+      resolved = { plan?.resolved },
+      clock = { clock },
+      loopRange = { loopRange },
+      isWrapSeek = { isWrapSeek },
     )
 
   /**
@@ -118,7 +128,7 @@ internal class BrowserPlayerEngine(
    *
    * True while the browser holds the audio graph suspended, which is what separates it from [clockRunning].
    */
-  val transportStarted: Boolean get() = startedAt != null
+  val transportStarted: Boolean get() = transport.started
 
   override val id: String = "filmstrip.webcodecs"
 
@@ -171,95 +181,40 @@ internal class BrowserPlayerEngine(
   /**
    * Moves the playhead, which on this backend is the whole of a seek.
    *
-   * Nothing is presented, so there is no decoder to wait on: the next frame the surface asks for is
-   * drawn from wherever the playhead now is. The playhead lands on an output slot, the one the
-   * target rounds to for [SeekAccuracy.Exact]. [SeekAccuracy.Nearest] lands on the slot of the sync
-   * sample at or before the target, which is the same sample a decoder would have had to start from
-   * anyway.
-   *
-   * Every seek is put to the guard. A wrap that lands after the loop range changed moves on to the first slot of the
-   * range standing then, and reports that as its landing. A landing that waited through a rebuild, a failure or a
-   * release writes nothing, since the chase has already answered for it.
+   * Every seek is put to the guard, and a landing that waited through a rebuild, a failure or a release writes nothing,
+   * since the chase has already answered for it.
    */
   override fun performSeek(
     position: Duration,
     accuracy: SeekAccuracy,
     onComplete: (landed: Duration) -> Unit,
   ) {
-    val target = preview
-    val resolved = plan?.resolved
-    if (target == null || resolved == null) {
-      onComplete(position)
-      return
-    }
-
-    guard.seekIssued(wrap = isWrapSeek)
-    val seek = ++seekSerial
-    fence(
-      scope.launch {
-        val requested = position.coerceAtLeast(Duration.ZERO).coerceAtMost(resolved.duration)
-        val sent =
-          when (accuracy) {
-            SeekAccuracy.Exact -> resolved.seekLandingOf(requested)
-            SeekAccuracy.Nearest -> resolved.seekLandingOf(target.syncSampleAt(requested))
-          }
-        if (seek != seekSerial) return@launch
-        val redirect = guard.seekLanded(loopRange?.let { loopWrapOf(it, resolved.duration, resolved.frameRate) })
-        // A redirect is one more exact seek, which on this backend lands as soon as the clock moves.
-        if (redirect != null) guard.seekLanded(null)
-        val landing = redirect?.let { outputSlotTime(it, resolved.frameRate) } ?: sent
-
-        reachedEnd = false
-        // Everything decoded ahead of the old playhead is decoded for a position nobody is going to
-        // ask for now, so it is closed here rather than left to fall out of the window one frame at a
-        // time.
-        target.flush()
-        clock.moveTo(landing)
-        if (wantsPlayback) launchStart { landing }
-        onComplete(landing)
-      },
-    )
+    seeks.seek(position, accuracy, onComplete)
   }
 
   /**
    * Suspends until every seek landing and transport start this engine launched has finished.
    *
-   * A relaxed landing waits on the preview's lock behind any readbacks queued first, then writes the playhead and
-   * reports its completion, or finds itself stale and writes nothing. A transport start either starts the clock and
-   * both loops, or is cancelled by whatever superseded it and does nothing more. Once this returns, all of them have
-   * done one or the other. Work launched while this waits, the way a landing chains the seek queued behind it, is
-   * waited on too.
-   *
-   * The transport and pump loops a start leaves running are not waited on, since they run for as long as playback
-   * does. The engine is only quiet once this returns after a pause.
+   * The loops a start leaves running are not waited on, so the engine is only quiet once this returns after a pause.
    */
   internal suspend fun awaitQuiet() {
-    while (true) {
-      fenced.removeAll { it.isCompleted }
-      val next = fenced.firstOrNull() ?: return
-      next.join()
-    }
+    transport.awaitQuiet()
   }
 
   override fun onPlay() {
-    reachedEnd = false
-    wantsPlayback = true
-    // With no preview yet there is nothing to start, and the load that builds one starts it instead.
-    if (preview != null) launchStart { readPosition() }
+    transport.play()
   }
 
   override fun onPause() {
-    wantsPlayback = false
-    stopTransport()
+    transport.pause()
   }
 
   override fun onRelease() {
     document.removeEventListener(VISIBILITY_CHANGE, onVisibilityChanged)
     pending.supersede()
-    wantsPlayback = false
-    seekSerial++
+    seeks.invalidate()
     guard.reset()
-    stopTransport()
+    transport.pause()
     audio = null
     preview?.release()
     preview = null
@@ -294,7 +249,7 @@ internal class BrowserPlayerEngine(
    * refused, and `playWhenReady` has to go back to false or the snapshot lies.
    */
   internal fun onAutoplayRefused() {
-    stopForPlatform()
+    transport.stopForPlatform()
   }
 
   /**
@@ -305,16 +260,7 @@ internal class BrowserPlayerEngine(
    * here would starve rather than play.
    */
   internal fun onPageHidden() {
-    stopForPlatform()
-  }
-
-  // Stops a preview the platform took out of playing, and reports playWhenReady as false the way any other external
-  // pause would be.
-  private fun stopForPlatform() {
-    if (!wantsPlayback) return
-    wantsPlayback = false
-    stopTransport()
-    reportExternalPlayWhenReady(false)
+    transport.stopForPlatform()
   }
 
   override suspend fun apply(
@@ -349,8 +295,12 @@ internal class BrowserPlayerEngine(
     preview?.takeIf { firstFrameOwed }?.let { firstFrameRefusal(it) }?.let { return it }
     setStatus(PlaybackStatus.Ready)
     when {
-      request.playWhenReady -> play()
-      wantsPlayback && !transportStarted && starting?.isActive != true -> launchStart { readPosition() }
+      request.playWhenReady -> {
+        play()
+      }
+      transport.wantsPlayback && !transport.started && !transport.startPending -> {
+        transport.launchStart { readPosition() }
+      }
     }
     return null
   }
@@ -364,7 +314,7 @@ internal class BrowserPlayerEngine(
     platformLoads++
     // Nothing of the old transport runs on over the new graph, and a start in flight would go on to start its clock.
     // The transport stays stopped until the load has its first frame.
-    stopTransport()
+    transport.stop()
     setStatus(PlaybackStatus.Preparing)
     preview?.release()
 
@@ -375,13 +325,13 @@ internal class BrowserPlayerEngine(
       built.audio()?.also { graph ->
         graph.setVolume(volume)
         // Closing the graph this replaces reports a change too, which says nothing about this one.
-        graph.onStateChanged { scope.launch { if (audio === graph) onAudioStateChanged() } }
+        graph.onStateChanged { scope.launch { if (audio === graph) transport.onAudioStateChanged() } }
       }
     clock = audio?.let { AudioClock(it) } ?: MonotonicClock()
-    reachedEnd = false
+    transport.clearEnd()
     // Leaving Ready drops the seek in flight from the chase, so its landing is stale. A parameters-only swap stays
     // Ready and the chase still waits on that landing.
-    seekSerial++
+    seeks.invalidate()
     return built
   }
 
@@ -415,126 +365,14 @@ internal class BrowserPlayerEngine(
     return null
   }
 
-  private fun fence(job: Job) {
-    fenced.removeAll { it.isCompleted }
-    fenced += job
-  }
-
-  /**
-   * Launches a transport start from wherever [from] reads when it runs, cancelling the start still in flight.
-   *
-   * Only the newest start is ever live. A pause, a stop, a seek landing or a rebuild cancels it too, so a superseded
-   * start never schedules audio, moves the graph's anchor or starts a clock once something has replaced it.
-   */
-  private fun launchStart(from: () -> Duration) {
-    starting?.cancel()
-    val job = scope.launch { startTransport(from()) }
-    starting = job
-    fence(job)
-  }
-
-  private fun cancelStart() {
-    starting?.cancel()
-    starting = null
-  }
-
-  /**
-   * Starts the audio graph, the clock and both loops from [from].
-   */
-  private suspend fun startTransport(from: Duration) {
-    loops.stop()
-    startAudio(audio, from)
-    clock.start(from)
-    startedAt = wallClock()
-    loops.start()
-  }
-
-  private fun stopTransport() {
-    cancelStart()
-    clock.stop()
-    audio?.stop()
-    startedAt = null
-    loops.stop()
-    // A frame held across a pause is held for as long as the user leaves it there, and re-seating
-    // the decoder on resume costs one seek.
-    preview?.flush()
-  }
-
-  /**
-   * Everything transport has to notice while it runs, on a clock nothing in the page can throttle.
-   */
-  private suspend fun onTransportTick() {
-    if (!wantsPlayback) return
-    val resolved = plan?.resolved ?: return
-    val duration = resolved.duration
-    val at = readPosition()
-
-    if (refusedToStart()) {
-      onAutoplayRefused()
-      return
-    }
-
-    audio?.pump(at)
-
-    // A reading past the wrap point is never an ending, even while a seek in flight holds the wrap back.
-    val range = loopRange
-    val rate = resolved.frameRate
-    val wrap = range?.let { loopWrapOf(it, duration, rate) }
-    if (range != null && wrap != null && at >= wrap.at) {
-      if (guard.mayWrap(running = wantsPlayback)) {
-        seekToWrap(outputSlotTime(wrap.firstSlot, rate))
-        emitEvent(PlaybackEvent.RangeLooped(range))
-      }
-      return
-    }
-
-    val end = playbackRange?.endExclusive ?: duration
-    if (at >= end && !reachedEnd) {
-      reachedEnd = true
-      wantsPlayback = false
-      stopTransport()
-      setStatus(PlaybackStatus.Ended)
-      setPlayWhenReady(false)
-      emitEvent(PlaybackEvent.Ended(at, duration))
-    }
-  }
-
-  /**
-   * Whether the audio graph has been asked to run and has not started within the grace period.
-   *
-   * The Web Audio spec parks `resume`'s promise rather than rejecting it when a page is not allowed
-   * to start, so there is nothing to await and no rejection to catch. The context's own state is
-   * the only signal, read after giving it long enough to have changed.
-   */
-  private fun refusedToStart(): Boolean {
-    val graph = audio ?: return false
-    if (graph.isRunning) return false
-    val since = startedAt ?: return false
-    return wallClock() - since >= AUTOPLAY_GRACE
-  }
-
-  private fun onAudioStateChanged() {
-    if (wantsPlayback && audio?.isRunning == false) onAutoplayRefused()
-  }
-
   override fun fail(error: PlaybackError) {
-    seekSerial++
+    seeks.invalidate()
     guard.reset()
     setStatus(PlaybackStatus.Error(error))
     emitEvent(PlaybackEvent.Failed(error))
   }
 
-  private fun wallClock(): Duration = performance.now().milliseconds
-
   private companion object {
     const val VISIBILITY_CHANGE = "visibilitychange"
   }
 }
-
-/**
- * How long the audio graph gets to start before the refusal is reported.
- *
- * Long enough that a context resuming across a task boundary is never called a refusal, short enough that a play button
- * does not sit stuck for a noticeable moment.
- */
-internal val AUTOPLAY_GRACE: Duration = 250.milliseconds
