@@ -47,9 +47,21 @@ class KarmaConfigTest {
   fun `the generated directory holds the shared mocha timeout and the module's own files`() {
     run("writeKarmaConfig")
 
-    configDirectory.list()!!.sorted() shouldContainExactly listOf(KarmaConfigTask.SHARED_CONFIG, "fonts.js")
+    configDirectory.list()!!.sorted() shouldContainExactly
+      listOf(KarmaConfigTask.SHARED_CONFIG, KarmaConfigTask.TIMES_CONFIG, "fonts.js")
     configDirectory.resolve(KarmaConfigTask.SHARED_CONFIG).readText() shouldBe BROWSER_TEST_CONFIG
     BROWSER_TEST_CONFIG shouldContain "timeout: 300000"
+  }
+
+  @Test
+  fun `the times config writes into the module's own karma results directory`() {
+    run("writeKarmaConfig")
+
+    val times = project.canonicalFile.resolve("build/$KARMA_TIMES_DIRECTORY").path
+    configDirectory.resolve(KarmaConfigTask.TIMES_CONFIG).readText() shouldBe browserTimesConfig(times)
+    browserTimesConfig(times) shouldContain "const directory = '$times';"
+    browserTimesConfig("C:\\it's") shouldContain "const directory = 'C:\\\\it\\'s';"
+    browserTimesConfig(times) shouldContain "concat(['filmstrip-times'])"
   }
 
   @Test

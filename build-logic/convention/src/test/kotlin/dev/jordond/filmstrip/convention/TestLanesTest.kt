@@ -319,6 +319,32 @@ class TestLanesTest {
   }
 
   @Test
+  fun `a contract subclass with no test of its own lands in exactly one shard`() {
+    val contract = project.resolve("src/commonTest/kotlin/stub/contract").apply { mkdirs() }
+    contract.resolve("ClipContractTest.kt").writeText(
+      "package stub.contract\n\nimport kotlin.test.Test\n\n" +
+        "abstract class ClipContractTest(\n  val rate: Int,\n) {\n  @Test fun plays() {}\n}\n",
+    )
+    val web = project.resolve("src/jsTest/kotlin/stub").apply { mkdirs() }
+    web.resolve("WebClipTest.kt").writeText(
+      "package stub\n\nimport stub.contract.ClipContractTest\n\n" +
+        "class WebClipTest : ClipContractTest(30) {\n  fun hook(): Int = rate\n}\n",
+    )
+    web.resolve("WebLooseTest.kt").writeText(
+      "package stub\n\nimport stub.contract.ClipContractTest\n\n" +
+        "class WebLooseTest(\n  speed: Int = 1,\n) : stub.contract.ClipContractTest(speed)\n",
+    )
+    val subclasses = listOf("stub.WebClipTest", "stub.WebLooseTest")
+
+    val first = excludes("-PtestShard=1/2").getValue("jsBrowserTest").second
+    val second = excludes("-PtestShard=2/2").getValue("jsBrowserTest").second
+
+    for (name in subclasses) {
+      listOf("$name.*" in first, "$name.*" in second).count { it } shouldBe 1
+    }
+  }
+
+  @Test
   fun `a shard leaves out no class the lane already drops`() {
     writeCommonClasses("SlowMediaTest", "PlainTest")
 

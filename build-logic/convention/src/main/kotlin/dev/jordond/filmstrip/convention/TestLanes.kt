@@ -232,7 +232,8 @@ internal fun Project.configureNoMatchingTestsCheck() {
  * With [Parameters.fileNamedClasses], the way the `pureTest` lane reads its directory, each file gives its package plus
  * its file name. Configuration then fails naming the file when one holding a `@Test` declares no class named after
  * itself, since its tests would run everywhere unnoticed. Without it, each top-level class in a file holding a `@Test`
- * is listed by its package and name.
+ * is listed by its package and name, and so is each top-level class that extends one of those by its simple name. That
+ * second rule finds a contract subclass whose own file only overrides hooks and holds no `@Test`.
  */
 internal abstract class TestClassesSource : ValueSource<List<String>, TestClassesSource.Parameters> {
   interface Parameters : ValueSourceParameters {
@@ -241,13 +242,12 @@ internal abstract class TestClassesSource : ValueSource<List<String>, TestClasse
   }
 
   override fun obtain(): List<String> {
-    val fileNamed = parameters.fileNamedClasses.get()
-    return parameters.directories.files
-      .filter { it.isDirectory }
-      .flatMap { root -> root.walkTopDown().filter { it.isFile && it.extension == "kt" }.toList() }
-      .flatMap { file -> if (fileNamed) listOf(fileNamedClass(file)) else declaredTestClasses(file) }
-      .distinct()
-      .sorted()
+    val files =
+      parameters.directories.files
+        .filter { it.isDirectory }
+        .flatMap { root -> root.walkTopDown().filter { it.isFile && it.extension == "kt" }.toList() }
+    val classes = if (parameters.fileNamedClasses.get()) files.map(::fileNamedClass) else declaredTestClasses(files)
+    return classes.distinct().sorted()
   }
 
   private fun fileNamedClass(file: File): String {
@@ -260,11 +260,70 @@ internal abstract class TestClassesSource : ValueSource<List<String>, TestClasse
     return qualified(text, name)
   }
 
-  private fun declaredTestClasses(file: File): List<String> {
-    val text = file.readText()
-    if (!TEST_ANNOTATION.containsMatchIn(text)) return emptyList()
-    return TOP_LEVEL_CLASS.findAll(text).map { qualified(text, it.groupValues[1]) }.toList()
+  private fun declaredTestClasses(files: List<File>): List<String> {
+    val declared = files.flatMap { file -> declaredClasses(file.readText()) }
+    val tests = declared.filter { it.hasTest }.toMutableSet()
+    do {
+      val names = tests.mapTo(mutableSetOf()) { it.name }
+      val found = declared.filter { it !in tests && it.supertypes.any(names::contains) }
+    } while (tests.addAll(found))
+    return tests.map { it.qualifiedName }
   }
+
+  private fun declaredClasses(text: String): List<DeclaredClass> {
+    val hasTest = TEST_ANNOTATION.containsMatchIn(text)
+    return TOP_LEVEL_CLASS
+      .findAll(text)
+      .map { match ->
+        val name = match.groupValues[1]
+        DeclaredClass(name, qualified(text, name), supertypes(text, match.range.last + 1), hasTest)
+      }.toList()
+  }
+
+  // Skips the primary constructor, whose parameter types also follow a colon, then reads each supertype's simple name
+  // up to the class body or the end of the header.
+  private fun supertypes(
+    text: String,
+    from: Int,
+  ): List<String> {
+    var index = from
+    if (index < text.length && text[index] == '<') index = closing(text, index, '<', '>')
+    index = CONSTRUCTOR_PREFIX.matchAt(text, index)?.range?.last?.plus(1) ?: index
+    if (index < text.length && text[index] == '(') index = closing(text, index, '(', ')')
+    val colon = SUPERTYPE_COLON.find(text, index) ?: return emptyList()
+    val header = StringBuilder()
+    var depth = 0
+    for (char in text.substring(colon.range.last + 1)) {
+      if (depth == 0 && (char == '{' || char == '\n' && header.trimEnd().lastOrNull() != ',')) break
+      when (char) {
+        '(', '<' -> depth++
+        ')', '>' -> depth--
+        else -> if (depth == 0) header.append(char)
+      }
+    }
+    return header.split(',').mapNotNull { SUPERTYPE.find(it)?.groupValues?.get(1)?.substringAfterLast('.') }
+  }
+
+  private fun closing(
+    text: String,
+    open: Int,
+    opener: Char,
+    closer: Char,
+  ): Int {
+    var depth = 0
+    for (index in open until text.length) {
+      if (text[index] == opener) depth++
+      if (text[index] == closer && --depth == 0) return index + 1
+    }
+    return text.length
+  }
+
+  private data class DeclaredClass(
+    val name: String,
+    val qualifiedName: String,
+    val supertypes: List<String>,
+    val hasTest: Boolean,
+  )
 
   private fun qualified(
     text: String,
@@ -278,6 +337,9 @@ internal abstract class TestClassesSource : ValueSource<List<String>, TestClasse
     val TEST_ANNOTATION = Regex("""@Test\b""")
     val PACKAGE = Regex("""^\s*package\s+([\w.]+)""", RegexOption.MULTILINE)
     val TOP_LEVEL_CLASS = Regex("""^(?:@\w+(?:\([^)\n]*\))?\s+)*(?:[a-z]+\s+)*class\s+(\w+)""", RegexOption.MULTILINE)
+    val CONSTRUCTOR_PREFIX = Regex("""\s*(?:(?:@\w+|[a-z]+)\s+)*constructor\s*""")
+    val SUPERTYPE = Regex("""^\s*([\w.]+)""")
+    val SUPERTYPE_COLON = Regex("""\G\s*:""")
   }
 }
 

@@ -2,7 +2,8 @@
 
 Reads every TEST-*.xml under a build/test-results or build/outputs/androidTest-results directory, sums the testcase
 times per class and result directory, and prints the slowest. A missing or half-written file is skipped, so the step
-never fails the job. Karma reports near-zero times for js and wasm, so those classes rank low whatever they cost.
+never fails the job. Gradle's own js and wasm results carry zero times, so those are skipped in favour of the
+build/test-results/karma files the shared Karma config writes with the times Mocha measured.
 
 With --weights it prints the shard weights file instead, gradle/test-weights.txt, one "class seconds" line per class
 with the longest time any result directory gave it. Each source is a directory of result XML, like an unpacked media
@@ -21,6 +22,7 @@ from collections import defaultdict
 
 RESULT_DIRS = ("/build/test-results/", "/build/outputs/androidTest-results/")
 SKIPPED_DIRS = {".git", ".gradle", "node_modules", "kotlin-js-store"}
+ZERO_TIME_DIRS = ("/test-results/jsBrowserTest/", "/test-results/wasmJsBrowserTest/")
 TABLE_LINE = re.compile(r"^\s*(\d+\.\d+)  (\S+)  \((\S+)\)\s*$")
 TIMESTAMP = re.compile(r"^\d{4}-\d\d-\d\dT[\d:.]+Z ")
 TASK_PREFIX = re.compile(r"^[a-z][A-Za-z0-9]*Test\.")
@@ -42,6 +44,8 @@ def result_files(root):
         children[:] = [child for child in children if child not in SKIPPED_DIRS]
         relative = "/" + os.path.relpath(directory, root) + "/"
         if not any(marker in relative for marker in RESULT_DIRS):
+            continue
+        if any(marker in relative for marker in ZERO_TIME_DIRS):
             continue
         for name in files:
             if name.startswith("TEST-") and name.endswith(".xml"):
