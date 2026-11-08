@@ -5,6 +5,7 @@ import dev.jordond.filmstrip.edit.outputSlotTime
 import dev.jordond.filmstrip.player.PlaybackEvent
 import dev.jordond.filmstrip.player.appleExportLowering
 import dev.jordond.filmstrip.player.appleFixtureComposition
+import dev.jordond.filmstrip.player.contract.awaitContract
 import dev.jordond.filmstrip.player.contract.contractTest
 import dev.jordond.filmstrip.player.pumpMainRunLoopDuringContracts
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
@@ -13,8 +14,11 @@ import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.CoroutineScope
+import platform.AVFoundation.AVMutableComposition
 import platform.AVFoundation.AVPlayer
+import platform.AVFoundation.AVPlayerItem
 import platform.AVFoundation.pause
+import platform.AVFoundation.play
 import platform.AVFoundation.rate
 import platform.darwin.dispatch_get_main_queue
 import kotlin.test.Test
@@ -34,14 +38,14 @@ class AvTransportMediaTest {
   }
 
   @Test
-  fun `a jump moves the playhead and reports it`() =
+  fun `a jump moves the playhead and leaves reporting it to the engine`() =
     contractTest { scope ->
       val rig = Rig(scope, appleExportLowering(appleFixtureComposition()))
 
       rig.transport.jumpTo(400.milliseconds)
 
       rig.transport.playhead shouldBe 400.milliseconds
-      rig.positions shouldBe listOf(400.milliseconds)
+      rig.positions.shouldBeEmpty()
       rig.transport.release()
     }
 
@@ -74,7 +78,7 @@ class AvTransportMediaTest {
       rig.transport.play()
       rig.transport.onStopReading(500.milliseconds)
 
-      rig.positions shouldBe listOf(400.milliseconds, 100.milliseconds)
+      rig.positions shouldBe listOf(400.milliseconds)
       rig.transport.release()
     }
 
@@ -121,8 +125,8 @@ class AvTransportMediaTest {
       val landing = outputSlotTime(wrap.firstSlot, resolved.frameRate)
       rig.wraps shouldBe listOf(landing)
       rig.events shouldBe listOf(PlaybackEvent.RangeLooped(RANGE))
-      rig.positions shouldBe listOf(landing)
-      rig.transport.playhead shouldBe landing
+      // The engine reports the landing as it takes the wrap, so the transport reports nothing of its own.
+      rig.positions.shouldBeEmpty()
       rig.transport.release()
     }
 
@@ -175,6 +179,23 @@ class AvTransportMediaTest {
     }
 
   @Test
+  fun `playback the engine did not start reports the playhead the engine holds`() =
+    contractTest { scope ->
+      val rig = Rig(scope, appleExportLowering(appleFixtureComposition()))
+      rig.clock = 400.milliseconds
+      rig.reported = 100.milliseconds
+      rig.player.play()
+
+      rig.transport.follow(AVPlayerItem(asset = AVMutableComposition()))
+      awaitContract("the wrap tick to read") { rig.positions.isNotEmpty() }
+
+      rig.transport.playhead shouldBe 400.milliseconds
+      rig.positions shouldBe listOf(100.milliseconds)
+      rig.player.pause()
+      rig.transport.release()
+    }
+
+  @Test
   fun `an end the engine's own playback reached plays the player on`() =
     contractTest { scope ->
       val rig = Rig(scope, appleExportLowering(appleFixtureComposition()))
@@ -201,6 +222,7 @@ class AvTransportMediaTest {
     val wraps = mutableListOf<Duration>()
     val events = mutableListOf<PlaybackEvent>()
     val positions = mutableListOf<Duration>()
+    var reported: Duration = Duration.ZERO
     val player = AVPlayer()
     private val guard = WrapGuard()
 
@@ -243,6 +265,7 @@ class AvTransportMediaTest {
         seekToWrap = { wraps += it },
         emitEvent = { events += it },
         emitPosition = { positions += it },
+        reportedPlayhead = { reported },
       )
   }
 

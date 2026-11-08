@@ -27,6 +27,7 @@ import kotlin.time.Duration.Companion.milliseconds
  * @param platformPositionMs The last position media3 reported, in its own milliseconds.
  * @param loopWrap Where the loop range standing now wraps, or null when there is none.
  * @param onIssued Called as each seek is handed over, including a redirect.
+ * @param onRedirected Reports the slot time a wrap was sent on to, which the playhead holds until it lands.
  */
 @ExperimentalApi
 internal class Media3SeekCoordinator(
@@ -38,6 +39,7 @@ internal class Media3SeekCoordinator(
   private val platformPositionMs: () -> Long,
   private val loopWrap: () -> LoopWrap?,
   private val onIssued: () -> Unit,
+  private val onRedirected: (Duration) -> Unit,
 ) {
   private var completion: ((Duration) -> Unit)? = null
 
@@ -129,7 +131,9 @@ internal class Media3SeekCoordinator(
     val rate = resolved()?.frameRate
     if (redirect != null && rate != null) {
       // The chase is not told. Sending this through seekTo would resolve the one chase request twice.
-      issue(outputSlotTime(redirect, rate))
+      val sentOn = outputSlotTime(redirect, rate)
+      issue(sentOn)
+      onRedirected(sentOn)
       return
     }
 

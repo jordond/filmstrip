@@ -107,6 +107,7 @@ internal class Media3PlayerEngine(
       platformPositionMs = { status.platformPositionMs },
       loopWrap = { loops.wrap() },
       onIssued = status::clearEnd,
+      onRedirected = ::movePlayhead,
     )
 
   private val loops: Media3LoopRangeController =
@@ -121,10 +122,7 @@ internal class Media3PlayerEngine(
       seekTo = { seekTo(it, SeekAccuracy.Exact) },
       seekToWrap = ::seekToWrap,
       pause = ::pause,
-      onLooped = { range, landing ->
-        emitEvent(PlaybackEvent.RangeLooped(range))
-        emitPosition(landing)
-      },
+      onLooped = { range -> emitEvent(PlaybackEvent.RangeLooped(range)) },
     )
 
   private val host =

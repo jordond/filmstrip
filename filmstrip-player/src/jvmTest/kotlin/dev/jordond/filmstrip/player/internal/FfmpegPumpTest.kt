@@ -204,6 +204,7 @@ class FfmpegPumpTest {
         presented = { presented },
         position = { position },
         moveTo = { position = it },
+        redirected = { },
         wanted = wanted,
         startPump = { from, onLanded ->
           ends.hold(onLanded)

@@ -121,6 +121,13 @@ internal class FakePlayerEngine(
   fun publishPreviewInfo(info: PreviewInfo): Unit = emitPreviewInfo(info)
 
   fun wrapTo(position: Duration): Unit = seekToWrap(position)
+
+  // A reading pushed outside the ticker, the way a backend reports a frame it just showed.
+  fun push(position: Duration): Unit = emitPosition(position)
+
+  fun jump(position: Duration): Unit = movePlayhead(position)
+
+  val reported: Duration get() = reportedPosition
 }
 
 // Records everything an engine pushes, in order.

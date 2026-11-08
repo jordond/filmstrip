@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip.player
 
+import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.outputSlotTime
 import dev.jordond.filmstrip.player.contract.awaitComposition
@@ -7,6 +8,8 @@ import dev.jordond.filmstrip.player.contract.awaitContract
 import dev.jordond.filmstrip.player.contract.awaitStep
 import dev.jordond.filmstrip.player.contract.contractTest
 import dev.jordond.filmstrip.player.contract.withEngine
+import dev.jordond.filmstrip.player.internal.BrowserPlayerEngine
+import dev.jordond.filmstrip.player.internal.BrowserPreviewPlanner
 import dev.jordond.filmstrip.player.internal.loopWrapOf
 import io.kotest.assertions.withClue
 import io.kotest.matchers.booleans.shouldBeTrue
@@ -14,13 +17,15 @@ import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.comparables.shouldBeGreaterThanOrEqualTo
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
+import kotlinx.coroutines.CompletableDeferred
 import kotlin.test.Test
 import kotlin.test.fail
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 
 /**
- * Where the browser engine lands a loop wrap when the loop range changes under it.
+ * Where the browser engine lands a loop wrap when the loop range changes under it, and what it reads while the wrap's
+ * start is still on its way to the audio graph.
  *
  * A wrap's seek lands on the engine's dispatcher after the lap is reported, so a listener that moves the range when it
  * hears the lap always moves it while the wrap is in flight.
@@ -87,6 +92,59 @@ class WebLoopWrapTest {
       }
     }
 
+  // The wrap's start is held where it starts the audio graph, which goes on sounding past the wrap point until then, so
+  // anything read off the graph in the meantime is past the landing.
+  @Test
+  fun `a wrap on the audio clock reads its landing until the graph starts there`() =
+    contractTest { scope ->
+      val held = CompletableDeferred<Unit>()
+      var starts = 0
+      val engine =
+        BrowserPlayerEngine(
+          parent = scope,
+          planner = BrowserPreviewPlanner(CONTRACT_COMPONENTS),
+          config = PlayerConfig(),
+          startAudio = { graph, from ->
+            if (++starts == 2) held.await()
+            graph?.start(from)
+          },
+        )
+      withEngine(engine) { recorder ->
+        engine
+          .awaitComposition(webFixtureComposition(audio = AudioSpec.Keep))
+          .shouldBeInstanceOf<SetCompositionResult.Success>()
+        awaitContract("the engine to become seekable") { recorder.lastState.hasComposition }
+        val duration = recorder.lastState.duration ?: fail("The engine reported no duration to loop within.")
+        val wrap = loopWrapOf(OLD_RANGE, duration, FIXTURE_FRAME_RATE) ?: fail("$OLD_RANGE has nothing to loop.")
+        val firstSlot = outputSlotTime(wrap.firstSlot, FIXTURE_FRAME_RATE)
+
+        engine.setLoopRange(OLD_RANGE)
+        val seeks = recorder.seekCompletions.size
+        engine.seekTo(APPROACH, SeekAccuracy.Exact)
+        awaitContract("the seek to $APPROACH to complete") { recorder.seekCompletions.size > seeks }
+
+        val events = recorder.events.size
+        engine.play()
+        awaitContract("the audio clock to run") { engine.clockRunning }
+        awaitContract("the wrap's start to reach the audio graph") { starts == 2 }
+        val lap = (events until recorder.events.size).first { recorder.events[it] is PlaybackEvent.RangeLooped }
+        awaitContract("the wrap's seek to complete") {
+          (lap + 1 until recorder.events.size).any { recorder.events[it] is PlaybackEvent.SeekCompleted }
+        }
+        val landed = (lap + 1 until recorder.events.size).first { recorder.events[it] is PlaybackEvent.SeekCompleted }
+        val landedAt = recorder.playheadsAtEvents[landed]
+        awaitContract("the playhead to be read $HELD_READINGS times past the landing") {
+          recorder.playheads.size >= landedAt + HELD_READINGS
+        }
+        val released = recorder.playheads.size
+        held.complete(Unit)
+        engine.pause()
+        awaitStep("the engine to go quiet") { engine.awaitQuiet() }
+
+        recorder.playheads.subList(recorder.playheadsAtEvents[lap], released).forEach { it shouldBe firstSlot }
+      }
+    }
+
   /**
    * Moves the loop range once, from inside the report of the first lap.
    */
@@ -116,5 +174,6 @@ class WebLoopWrapTest {
     val NEW_RANGE: TimeRange =
       TimeRange.of(800.milliseconds + FIXTURE_FRAME_STEP / 3, 950.milliseconds + FIXTURE_FRAME_STEP / 3)
     val APPROACH: Duration = 1000.milliseconds
+    const val HELD_READINGS = 10
   }
 }

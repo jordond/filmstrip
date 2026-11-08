@@ -48,12 +48,13 @@ without coroutines.
 <Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Player.kt" region="transport" />
 
 - `seekTo` always yields one `SeekCompleted`, carrying the frame it landed on. `SeekAccuracy.Nearest` asks for the nearest
-  sync sample, which suits a moving finger.
+  sync sample, which suits a moving finger. Until the newest seek completes, the playhead reads the position it asked for.
 - `beginScrub` and `endScrub` wrap a drag. Between them the engine relaxes seek accuracy, and `endScrub` settles on the
   exact frame.
 - `setLoopRange` wraps playback at the end of the range and reports `RangeLooped`. A range the composition ends inside wraps
   there and reports no `Ended`. A range that starts at or past the end has nothing to loop, so playback runs to the end. A
-  wrap only happens during playback, so a paused seek past the range stays where it lands.
+  wrap only happens during playback, so a paused seek past the range stays where it lands. A wrap is a seek too, so from
+  the wrap on the playhead reads the range's first frame and never reports the range's end again after a lap.
 - `setPlaybackRange` confines playback without changing the composition, which is how a trim drag previews without a
   rebuild.
 - `setVolume` sets monitor volume, which only the player hears. To change the export's level, see [Audio](/guides/audio/).

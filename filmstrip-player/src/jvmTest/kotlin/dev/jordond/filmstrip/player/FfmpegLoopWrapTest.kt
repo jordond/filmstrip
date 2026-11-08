@@ -21,6 +21,7 @@ import dev.jordond.filmstrip.player.internal.loopWrapOf
 import io.kotest.assertions.withClue
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldBeEmpty
+import io.kotest.matchers.collections.shouldBeIn
 import io.kotest.matchers.comparables.shouldBeLessThan
 import io.kotest.matchers.ranges.shouldBeIn
 import io.kotest.matchers.shouldBe
@@ -147,7 +148,8 @@ class FfmpegLoopWrapTest {
   // A seek goes out from inside a parameter change's report, before the change clears the guard, so the wrap that
   // follows waits behind that seek in the chase. It still goes out as a wrap, and a range changed while it is in flight
   // moves its landing onto the new range. The seek's debounce is held until the wrap has fired, so the pump the seek
-  // replaces always reaches the wrap first.
+  // replaces always reaches the wrap first. From the lap on, the playhead reads the wrap's landing and then the new
+  // range's first slot, never the seek's.
   @Test
   fun `a wrap held back behind a seek lands on the range standing`() =
     contractTest { scope ->
@@ -194,7 +196,19 @@ class FfmpegLoopWrapTest {
         registration.cancel()
 
         engine.setLoopRange(NEW_RANGE)
+        val newLanding = outputSlotTime(newWrap.firstSlot, FIXTURE_RATE)
+        val onward = planner.holdNextOpen(at = newLanding)
         release.complete(Unit)
+        awaitContract("the wrap's move onto $NEW_RANGE to be held", timeout = PLAY_BUDGET) {
+          planner.opens.lastOrNull() == newLanding && planner.openHeld
+        }
+        // Sent on to the new range, the wrap holds the playhead on the new range's first slot until it lands.
+        recorder.playhead shouldBe newLanding
+        val lap = (events until recorder.events.size).first { recorder.events[it] is PlaybackEvent.RangeLooped }
+        recorder.playheads
+          .drop(recorder.playheadsAtEvents[lap])
+          .forEach { it shouldBeIn setOf(wrapLanding, newLanding) }
+        onward.complete(Unit)
         awaitContract("the wrap to land") {
           recorder.events.drop(events).count { it is PlaybackEvent.SeekCompleted } >= 2
         }
@@ -305,6 +319,7 @@ private class GatedPlanner : FfmpegPreviewPlanner(CONTRACT_COMPONENTS) {
   private var openGateAt: Duration? = null
   private var frameHold: FrameHold? = null
 
+  // True while an open is held, and false again once it is let go.
   @Volatile
   var openHeld: Boolean = false
     private set
@@ -333,6 +348,7 @@ private class GatedPlanner : FfmpegPreviewPlanner(CONTRACT_COMPONENTS) {
       openGate = null
       openHeld = true
       gate.await()
+      openHeld = false
     }
     val end = outputSlotOf(plan.resolved.duration, plan.frameRate)
     return PreviewStreamResult.Opened(HeldStream(at, plan.frameRate, end, frameHold))

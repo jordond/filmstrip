@@ -200,7 +200,7 @@ internal class ContractFakeEngine(
     val wrap = range?.let { loopWrapOf(it, length, FAKE_FRAME_RATE) }
     when {
       range != null && wrap != null && next > wrap.lastSlot -> {
-        seekTo(outputSlotTime(wrap.firstSlot, FAKE_FRAME_RATE), SeekAccuracy.Exact)
+        seekToWrap(outputSlotTime(wrap.firstSlot, FAKE_FRAME_RATE))
         emitEvent(PlaybackEvent.RangeLooped(range))
       }
       next >= outputSlotOf(length, FAKE_FRAME_RATE) -> {

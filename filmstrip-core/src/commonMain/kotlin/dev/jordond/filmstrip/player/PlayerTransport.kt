@@ -29,7 +29,8 @@ public interface PlayerTransport {
    * wedges a scrubber.
    *
    * Completes with [PlaybackEvent.SeekCompleted] carrying the frame it landed on, which is the output slot nearest
-   * [position] on an exact seek, or the slot of the sync sample the platform settled on for a relaxed one.
+   * [position] on an exact seek, or the slot of the sync sample the platform settled on for a relaxed one. Until the
+   * newest seek completes, the playhead reads the position it asked for.
    *
    * @param accuracy How exact the landing frame has to be.
    */

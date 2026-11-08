@@ -45,6 +45,7 @@ import kotlin.time.Duration.Companion.microseconds
  * @param seekToWrap Hands a wrap's landing to the chase, marked as a wrap.
  * @param emitEvent Reports a playback event.
  * @param emitPosition Reports a playhead position.
+ * @param reportedPlayhead The playhead the engine reports, which holds a seek's target until the seek lands.
  */
 @OptIn(ExperimentalForeignApi::class)
 internal class AvTransport(
@@ -63,6 +64,7 @@ internal class AvTransport(
   private val seekToWrap: (Duration) -> Unit,
   private val emitEvent: (PlaybackEvent) -> Unit,
   private val emitPosition: (Duration) -> Unit,
+  private val reportedPlayhead: () -> Duration,
 ) {
   private var playing = false
   private var outsidePlayback = false
@@ -124,12 +126,11 @@ internal class AvTransport(
   }
 
   /**
-   * Moves the playhead to [position] and reports it, dropping any stop reading still due.
+   * Moves the playhead to [position], dropping any stop reading still due. The engine reports the jump.
    */
   fun jumpTo(position: Duration) {
     stopReadingDue = false
     playhead = position
-    emitPosition(position)
   }
 
   /**
@@ -266,7 +267,7 @@ internal class AvTransport(
    */
   private fun onTick(position: Duration) {
     onPlayhead(position)
-    if (outsidePlayback) emitPosition(playhead)
+    if (outsidePlayback) emitPosition(reportedPlayhead())
   }
 
   private fun atItemEnd(): Boolean {
@@ -292,18 +293,15 @@ internal class AvTransport(
   /**
    * Takes playback back to the slot the loop range starts on and reports the lap.
    *
-   * The playhead reports that slot from here on, rather than whatever the item reads, until the seek lands. The seek is
-   * marked as a wrap for as long as the chase holds it. The player is left as it is. A wrap off the item's end is
-   * played on by [wrapsAtEnd].
+   * The seek is marked as a wrap for as long as the chase holds it, and the engine reports that slot as the playhead
+   * until it lands. The player is left as it is. A wrap off the item's end is played on by [wrapsAtEnd].
    */
   private fun wrapLoop() {
     val range = loop.range ?: return
     val wrap = loop.wrap() ?: return
     val landing = outputSlotTime(wrap.firstSlot, resolved()?.frameRate ?: return)
-    playhead = landing
     seekToWrap(landing)
     emitEvent(PlaybackEvent.RangeLooped(range))
-    emitPosition(landing)
   }
 
   private companion object {

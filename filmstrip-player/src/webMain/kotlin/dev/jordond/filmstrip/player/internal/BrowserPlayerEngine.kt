@@ -113,7 +113,8 @@ internal class BrowserPlayerEngine(
   /**
    * Where the preview clock has the playhead, which is the time the next frame the surface asks for is drawn at.
    *
-   * The same reading the position ticker takes while playback runs.
+   * The same reading the position ticker takes while playback runs, apart from a seek in flight, where the ticker holds
+   * the seek's target.
    */
   val clockPosition: Duration get() = readPosition()
 
@@ -223,7 +224,7 @@ internal class BrowserPlayerEngine(
 
   override fun stepFrames(frames: Int) {
     if (frames == 0) return
-    val landing = plan?.resolved?.frameStepLanding(readPosition(), frames) ?: return
+    val landing = plan?.resolved?.frameStepLanding(reportedPosition, frames) ?: return
     seekTo(landing, SeekAccuracy.Exact)
   }
 
@@ -269,7 +270,7 @@ internal class BrowserPlayerEngine(
     next: BrowserPreviewPlan,
     request: SetCompositionRequest,
   ): PlaybackError? {
-    val current = readPosition()
+    val current = reportedPosition
     guard.reset()
     val standing = preview
     val swapped =
@@ -287,8 +288,14 @@ internal class BrowserPlayerEngine(
       request.startAt?.let(next.resolved::seekLandingOf)
         ?: built?.let { next.resolved.heldPosition(current, loopRange, isPlayWanted) }
     landing?.let { at ->
+      // A swap keeps the seek in flight, whose landing would otherwise write over this one. The guard forgets it too,
+      // since a stale landing never reports to it.
+      if (swapped) {
+        seeks.invalidate()
+        guard.reset()
+      }
       clock.moveTo(at)
-      emitPosition(at)
+      movePlayhead(at)
     }
     if (swapped) emitFrameRedrawn()
 
@@ -298,6 +305,11 @@ internal class BrowserPlayerEngine(
     when {
       request.playWhenReady -> {
         play()
+      }
+      // A swap moved to its start leaves the graph sounding the old playhead, so the transport starts again from the
+      // new one.
+      transport.wantsPlayback && swapped && landing != null -> {
+        transport.launchStart { landing }
       }
       transport.wantsPlayback && !transport.started && !transport.startPending -> {
         transport.launchStart { readPosition() }
@@ -328,7 +340,7 @@ internal class BrowserPlayerEngine(
         // Closing the graph this replaces reports a change too, which says nothing about this one.
         graph.onStateChanged { scope.launch { if (audio === graph) transport.onAudioStateChanged() } }
       }
-    clock = audio?.let { AudioClock(it) } ?: MonotonicClock()
+    clock = audio?.let { graph -> AudioClock({ graph.position }, { graph.isRunning }) } ?: MonotonicClock()
     transport.clearEnd()
     // Leaving Ready drops the seek in flight from the chase, so its landing is stale. A parameters-only swap stays
     // Ready and the chase still waits on that landing.

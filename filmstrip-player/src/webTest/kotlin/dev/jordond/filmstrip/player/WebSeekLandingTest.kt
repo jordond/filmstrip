@@ -3,6 +3,7 @@ package dev.jordond.filmstrip.player
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.outputSlotOf
 import dev.jordond.filmstrip.edit.outputSlotTime
+import dev.jordond.filmstrip.effects.color.Brightness
 import dev.jordond.filmstrip.player.contract.awaitComposition
 import dev.jordond.filmstrip.player.contract.awaitContract
 import dev.jordond.filmstrip.player.contract.awaitStep
@@ -13,7 +14,6 @@ import dev.jordond.filmstrip.player.internal.loopWrapOf
 import io.kotest.assertions.withClue
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldBeEmpty
-import io.kotest.matchers.comparables.shouldBeGreaterThanOrEqualTo
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlin.test.Test
@@ -57,8 +57,43 @@ class WebSeekLandingTest {
       }
     }
 
+  // The seek goes out from inside the edit's preview report, after the preview took the new parameters and before the
+  // edit moves to its start, so its landing is still to come when the edit lands. It writes nothing, and the seek
+  // completes where the edit put the playhead.
+  @Test
+  fun `a seek landing that outlives a parameter edit moved to a start writes nothing`() =
+    contractTest { scope ->
+      val engine = WebEngineUnderTest(scope).engine
+      withEngine(engine) { recorder ->
+        engine
+          .awaitComposition(webFixtureComposition(listOf(Brightness(DIM))))
+          .shouldBeInstanceOf<SetCompositionResult.Success>()
+        awaitContract("the engine to become seekable") { recorder.lastState.hasComposition }
+        val start = outputSlotTime(outputSlotOf(SWAP_START, FIXTURE_FRAME_RATE), FIXTURE_FRAME_RATE)
+        val loads = engine.platformLoads
+
+        val seeker = SeekOnPreviewInfo(engine, HELD_TARGET)
+        val registration = engine.addListener(seeker)
+        seeker.armed = true
+        val seeks = recorder.seekCompletions.size
+        engine
+          .awaitComposition(webFixtureComposition(listOf(Brightness(BRIGHT))), startAt = SWAP_START)
+          .shouldBeInstanceOf<SetCompositionResult.Success>()
+        awaitContract("the seek to complete") { recorder.seekCompletions.size > seeks }
+        engine.awaitQuietDone()
+        registration.cancel()
+
+        seeker.armed shouldBe false
+        engine.platformLoads shouldBe loads
+        engine.clockPosition shouldBe start
+        recorder.seekCompletions.drop(seeks).map { it.position } shouldBe listOf(start)
+        recorder.playhead shouldBe start
+      }
+    }
+
   // The playhead sits past the wrap point with playback running, and the relaxed seek back into the range is held.
-  // Nothing wraps until it lands, and the lap after it lands on the range's first slot.
+  // Nothing wraps until it lands, the playhead reads its target meanwhile, and the lap after it lands on the range's
+  // first slot.
   @Test
   fun `no wrap is taken while a seek that is not a wrap is in flight`() =
     contractTest { scope ->
@@ -107,7 +142,8 @@ class WebSeekLandingTest {
         withClue("The hold ended after ${waiting.size} playhead readings.") {
           (waiting.size >= HELD_READINGS).shouldBeTrue()
         }
-        waiting.forEach { it shouldBeGreaterThanOrEqualTo wrap.at }
+        // The playhead holds the seek's target until it lands, whatever the clock reads past the wrap.
+        waiting.forEach { it shouldBe HELD_TARGET }
         (entries[landed] as PlaybackEvent.SeekCompleted).position shouldBe landing
         hold.drained shouldBe true
 
@@ -226,6 +262,28 @@ class WebSeekLandingTest {
   }
 
   /**
+   * Seeks [engine] exactly to [target] from inside the next preview report once [armed], and only that once.
+   */
+  private class SeekOnPreviewInfo(
+    private val engine: BrowserPlayerEngine,
+    private val target: Duration,
+  ) : EngineListener {
+    var armed: Boolean = false
+
+    override fun onStateChanged(state: PlayerState) = Unit
+
+    override fun onEvent(event: PlaybackEvent) = Unit
+
+    override fun onPosition(position: Duration) = Unit
+
+    override fun onPreviewInfo(info: PreviewInfo) {
+      if (!armed) return
+      armed = false
+      engine.seekTo(target, SeekAccuracy.Exact)
+    }
+  }
+
+  /**
    * Every event and playhead reading an engine delivers, in one list and in the order they arrived.
    */
   private class EventLog : EngineListener {
@@ -259,7 +317,12 @@ class WebSeekLandingTest {
     val CHAINED_TARGET: Duration = 700.milliseconds
     val HELD_SYNC_SAMPLE: Duration = FIXTURE_SYNC_INTERVAL * 2
     val REBUILD_START: Duration = 300.milliseconds
+    val SWAP_START: Duration = 400.milliseconds
     val SHORTENED_LENGTH: Duration = 1400.milliseconds
+
+    // Two brightness amounts, so moving from one to the other is a parameter edit the preview takes in place.
+    const val DIM = 0.4f
+    const val BRIGHT = 1.4f
     val HOLD_POSITIONS: List<Duration> =
       listOf(CLIP_LENGTH - FIXTURE_FRAME_STEP, FIXTURE_SYNC_INTERVAL - FIXTURE_FRAME_STEP)
 

@@ -68,7 +68,12 @@ internal class BrowserSeeks(
             SeekAccuracy.Exact -> composition.seekLandingOf(requested)
             SeekAccuracy.Nearest -> composition.seekLandingOf(target.syncSampleAt(requested))
           }
-        if (seek != serial) return@launch
+        // A stale landing still answers its seek, from where the playhead stands. A chase that let the seek go ignores
+        // the answer, and one still waiting on it would otherwise wait for good.
+        if (seek != serial) {
+          onComplete(clock().position.coerceIn(Duration.ZERO, composition.duration))
+          return@launch
+        }
         val redirect =
           guard.seekLanded(
             loopRange()?.let { loopWrapOf(it, composition.duration, composition.frameRate) },
@@ -90,7 +95,7 @@ internal class BrowserSeeks(
   }
 
   /**
-   * Makes every seek in flight stale, so its landing writes nothing.
+   * Makes every seek in flight stale, so its landing writes nothing and completes where the playhead stands.
    */
   fun invalidate() {
     serial++

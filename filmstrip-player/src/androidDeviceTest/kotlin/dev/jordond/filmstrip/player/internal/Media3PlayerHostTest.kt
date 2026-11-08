@@ -145,6 +145,7 @@ class Media3PlayerHostTest {
             platformPositionMs = { 0L },
             loopWrap = { null },
             onIssued = { },
+            onRedirected = { },
           ),
         loops =
           Media3LoopRangeController(
@@ -158,7 +159,7 @@ class Media3PlayerHostTest {
             seekTo = { },
             seekToWrap = { },
             pause = { },
-            onLooped = { _, _ -> },
+            onLooped = { },
           ),
         surfaces =
           Media3SurfaceManager(

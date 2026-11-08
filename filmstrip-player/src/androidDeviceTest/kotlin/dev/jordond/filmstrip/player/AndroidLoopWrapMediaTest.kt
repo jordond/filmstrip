@@ -14,6 +14,7 @@ import dev.jordond.filmstrip.player.internal.Media3PlayerEngine
 import dev.jordond.filmstrip.player.internal.loopWrapOf
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldHaveSize
+import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.comparables.shouldBeGreaterThan
 import io.kotest.matchers.comparables.shouldBeLessThan
 import io.kotest.matchers.shouldBe
@@ -117,6 +118,15 @@ class AndroidLoopWrapMediaTest {
           .first { it is PlaybackEvent.SeekCompleted }
           .shouldBeInstanceOf<PlaybackEvent.SeekCompleted>()
           .position shouldBe movedFirstSlot
+
+        // The landing reports itself just before its completion. Every reading ahead of that one is the old range's
+        // first slot until the wrap is sent on, and the moved range's from there.
+        val lap = recorder.events.indexOfFirst { it is PlaybackEvent.RangeLooped }
+        val landed = (lap until recorder.events.size).first { recorder.events[it] is PlaybackEvent.SeekCompleted }
+        val held =
+          recorder.playheads.subList(recorder.playheadsAtEvents[lap], recorder.playheadsAtEvents[landed] - 1)
+        val firstSlot = outputSlotTime(wrap.firstSlot, FIXTURE_FRAME_RATE)
+        held.dropWhile { it == firstSlot }.shouldNotBeEmpty().forEach { it shouldBe movedFirstSlot }
       }
     }
 

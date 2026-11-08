@@ -125,6 +125,7 @@ class FfmpegRangeEndTest {
     slot shouldBe outputSlotOf(moved.start, rate)
     ends.subject.redirect(slot ?: error("no redirect"), plan)
     ends.position shouldBe slotTime(slot)
+    ends.redirects shouldBe listOf(slotTime(slot))
     ends.pumps.map { it.first } shouldBe listOf(slotTime(slot))
     ends.pumps.single().second shouldBe seek
     answers.shouldBeEmpty()
@@ -235,12 +236,14 @@ class FfmpegRangeEndTest {
     val wraps = mutableListOf<Duration>()
     val laps = mutableListOf<TimeRange>()
     val finishes = mutableListOf<Boolean>()
+    val redirects = mutableListOf<Duration>()
 
     val subject =
       FfmpegRangeEnd(
         presented = { presented },
         position = { position },
         moveTo = { position = it },
+        redirected = { redirects += it },
         wanted = wanted,
         startPump = { from, onLanded -> pumps += from to onLanded },
         seekToWrap = { wraps += it },

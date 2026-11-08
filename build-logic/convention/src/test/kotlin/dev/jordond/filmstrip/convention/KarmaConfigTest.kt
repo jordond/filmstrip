@@ -53,6 +53,15 @@ class KarmaConfigTest {
   }
 
   @Test
+  fun `the shared launcher lets an AudioContext run without a user gesture`() {
+    val launcher = BROWSER_TEST_CONFIG.substringAfter("FilmstripChrome: {")
+    val alwaysAppended = launcher.substringAfter(".concat([").substringBefore("])")
+
+    alwaysAppended shouldContain "'--autoplay-policy=no-user-gesture-required'"
+    alwaysAppended shouldContain "'--mute-audio'"
+  }
+
+  @Test
   fun `a module that applies the multiplatform plugin later reads the generated directory`() {
     writeBuild(
       plugins = "id 'org.jetbrains.kotlin.multiplatform' apply false",

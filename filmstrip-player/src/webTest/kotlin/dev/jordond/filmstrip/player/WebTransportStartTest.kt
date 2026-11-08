@@ -1,7 +1,9 @@
 package dev.jordond.filmstrip.player
 
+import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.outputSlotOf
 import dev.jordond.filmstrip.edit.outputSlotTime
+import dev.jordond.filmstrip.effects.color.Brightness
 import dev.jordond.filmstrip.player.contract.ContractRecorder
 import dev.jordond.filmstrip.player.contract.awaitComposition
 import dev.jordond.filmstrip.player.contract.awaitContract
@@ -101,6 +103,29 @@ class WebTransportStartTest {
       engine.clockRunning shouldBe true
     }
 
+  // A swap keeps the graph it had, which goes on sounding the old playhead, so an edit moved to a start begins again
+  // there.
+  @Test
+  fun `a parameter edit moved to a start while playing starts the transport there`() =
+    heldStart(webFixtureComposition(listOf(Brightness(DIM)))) { engine, gate ->
+      engine.play()
+      awaitContract("the start to reach the audio graph") { gate.entered == 1 }
+      gate.releaseAll()
+      awaitContract("the transport to start") { engine.transportStarted }
+
+      engine
+        .awaitComposition(webFixtureComposition(listOf(Brightness(BRIGHT))), startAt = SEEK_TARGET)
+        .shouldBeInstanceOf<SetCompositionResult.Success>()
+      awaitContract("the edit's start to reach the audio graph") { gate.entered == 2 }
+      gate.releaseAll()
+      engine.awaitQuietDone()
+
+      engine.platformLoads shouldBe 1
+      gate.starts shouldBe
+        listOf(Duration.ZERO, outputSlotTime(outputSlotOf(SEEK_TARGET, FIXTURE_FRAME_RATE), FIXTURE_FRAME_RATE))
+      engine.clockRunning shouldBe true
+    }
+
   @Test
   fun `a play before the first load starts once the load has its first frame`() =
     beforeLoad { engine, gate, recorder ->
@@ -156,17 +181,19 @@ class WebTransportStartTest {
       }
     }
 
-  private fun heldStart(body: suspend (BrowserPlayerEngine, AudioStartGate) -> Unit) =
-    contractTest { scope ->
-      val gate = AudioStartGate()
-      val engine = heldEngine(scope, gate)
-      withEngine(engine) { recorder ->
-        engine.awaitComposition(webFixtureComposition()).shouldBeInstanceOf<SetCompositionResult.Success>()
-        awaitContract("the engine to become seekable") { recorder.lastState.hasComposition }
-        body(engine, gate)
-        engine.pause()
-      }
+  private fun heldStart(
+    composition: EditComposition = webFixtureComposition(),
+    body: suspend (BrowserPlayerEngine, AudioStartGate) -> Unit,
+  ) = contractTest { scope ->
+    val gate = AudioStartGate()
+    val engine = heldEngine(scope, gate)
+    withEngine(engine) { recorder ->
+      engine.awaitComposition(composition).shouldBeInstanceOf<SetCompositionResult.Success>()
+      awaitContract("the engine to become seekable") { recorder.lastState.hasComposition }
+      body(engine, gate)
+      engine.pause()
     }
+  }
 
   private fun heldEngine(
     scope: CoroutineScope,
@@ -221,5 +248,7 @@ class WebTransportStartTest {
   private companion object {
     val SEEK_TARGET: Duration = 600.milliseconds
     val REBUILT_LENGTH: Duration = 1400.milliseconds
+    const val BRIGHT = 1.4f
+    const val DIM = 0.4f
   }
 }

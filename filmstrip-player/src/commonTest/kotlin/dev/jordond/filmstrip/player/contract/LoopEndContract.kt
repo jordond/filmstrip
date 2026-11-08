@@ -10,6 +10,7 @@ import dev.jordond.filmstrip.player.SeekAccuracy
 import dev.jordond.filmstrip.player.SetCompositionResult
 import dev.jordond.filmstrip.player.internal.loopWrapOf
 import io.kotest.matchers.comparables.shouldBeGreaterThanOrEqualTo
+import io.kotest.matchers.comparables.shouldBeLessThan
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.types.shouldBeInstanceOf
@@ -85,6 +86,26 @@ internal class LoopEndContract(
         drops.map { index -> positions[index] }.forEach { it shouldBe firstSlot }
         drops.size shouldBe looped.size
         positions.drop(drops.first()).forEach { it shouldBeGreaterThanOrEqualTo firstSlot }
+
+        // Once a wrap is decided the playhead reads its landing until the wrap's seek completes, whatever the platform
+        // reads in between, so the first reading after each lap is the first slot and so is every one up to that seek.
+        // From there the platform's own readings stay short of the wrap, up to the one straight before the next drop,
+        // which can read the wrap itself as the clock reaches it.
+        val events = recorder.events
+        val marks = recorder.playheadsAtEvents
+        val playheads = recorder.playheads
+        val allDrops = dropIndices(playheads)
+        val laps = (eventsMark until events.size).filter { events[it] is PlaybackEvent.RangeLooped }
+        laps.forEachIndexed { number, lap ->
+          playheads[marks[lap]] shouldBe firstSlot
+          val landed =
+            (lap + 1 until events.size).firstOrNull { events[it] is PlaybackEvent.SeekCompleted }
+              ?: fail("The wrap's seek after lap ${number + 1} never completed.")
+          playheads.subList(marks[lap], marks[landed]).forEach { it shouldBe firstSlot }
+          val nextDrop = allDrops.firstOrNull { it >= marks[landed] }
+          val playing = if (nextDrop == null) playheads.size else nextDrop - 1
+          playheads.subList(marks[landed], playing.coerceAtLeast(marks[landed])).forEach { it shouldBeLessThan wrap.at }
+        }
       }
     }
 
@@ -104,8 +125,22 @@ internal class LoopEndContract(
       val since = recorder.events.drop(eventsMark)
       since.firstOrNull { it is PlaybackEvent.Ended }?.let { fail("Playback reported $it instead of wrapping.") }
       val looped = since.count { it is PlaybackEvent.RangeLooped }
-      looped >= count && dropIndices(recorder.playheads.drop(positionsMark)).size >= count
+      looped >= count &&
+        dropIndices(recorder.playheads.drop(positionsMark)).size >= count &&
+        recorder.playheads.size > lastLapMark(recorder, eventsMark)
     }
+  }
+
+  /**
+   * How many playhead readings [recorder] held as the last [PlaybackEvent.RangeLooped] since [eventsMark] arrived.
+   */
+  private fun lastLapMark(
+    recorder: ContractRecorder,
+    eventsMark: Int,
+  ): Int {
+    val events = recorder.events
+    val lap = (eventsMark until events.size).last { events[it] is PlaybackEvent.RangeLooped }
+    return recorder.playheadsAtEvents[lap]
   }
 
   private companion object {

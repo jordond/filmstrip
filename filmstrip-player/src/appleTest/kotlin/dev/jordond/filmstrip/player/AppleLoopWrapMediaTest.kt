@@ -46,7 +46,8 @@ import kotlin.time.Duration
  * does not carry or cuts its last slot short. Playback started on the native player wraps the way the engine's own
  * does, at the range's wrap and at the item's end. A range changed while a wrap is in flight moves the landing onto
  * the range standing when it lands. A pause made on the native player stops playback there and never becomes a wrap.
- * A seek a load supersedes leaves the playhead where the load put it.
+ * A seek a load supersedes leaves the playhead where the load put it. A frame step taken as a wrap fires steps from the
+ * wrap's landing.
  */
 @OptIn(ExperimentalForeignApi::class)
 class AppleLoopWrapMediaTest {
@@ -81,6 +82,53 @@ class AppleLoopWrapMediaTest {
 
   @Test
   fun `a range cleared while a wrap is in flight keeps its landing`(): TestResult = landsOnTheRangeStanding(null)
+
+  /**
+   * Steps a frame from inside the first lap's report, while that wrap's seek is still in flight. The step goes from the
+   * wrap's landing, which is where the playhead reads, rather than from the range's end the item still sits on.
+   */
+  @Test
+  fun `a frame step taken as a wrap fires steps on from the wrap's landing`(): TestResult =
+    contractTest { scope ->
+      val engine = AppleEngineUnderTest(scope) { _, _ -> }.engine
+      withEngine(engine) { recorder ->
+        val duration = loadFixture(engine, recorder)
+        val range =
+          TimeRange.of(outputSlotTime(LOOP_FIRST_SLOT, FIXTURE_FRAME_RATE) + FIXTURE_FRAME_STEP / 3, LOOP_END_ROUNDS_UP)
+        val wrap = loopWrapOf(range, duration, FIXTURE_FRAME_RATE) ?: fail("The loop range has nothing to loop.")
+        approach(engine, recorder, wrap)
+        engine.setLoopRange(range)
+
+        var stepped = false
+        val stepper =
+          engine.addListener(
+            OnLap {
+              if (!stepped) {
+                stepped = true
+                engine.stepFrames(1)
+              }
+            },
+          )
+
+        val eventsMark = recorder.events.size
+        engine.play()
+        awaitContract("the step after the wrap to land") {
+          recorder.events
+            .drop(eventsMark)
+            .dropWhile { it !is PlaybackEvent.RangeLooped }
+            .count { it is PlaybackEvent.SeekCompleted } >= 2
+        }
+        engine.pause()
+        stepper.cancel()
+        awaitContract("the play axis to settle after pausing") { !recorder.lastState.playWhenReady }
+
+        recorder.events
+          .drop(eventsMark)
+          .dropWhile { it !is PlaybackEvent.RangeLooped }
+          .filterIsInstance<PlaybackEvent.SeekCompleted>()[1]
+          .position shouldBe outputSlotTime(wrap.firstSlot + 1, FIXTURE_FRAME_RATE)
+      }
+    }
 
   /**
    * Seeks from inside a parameter change's preview report, so the load's own seek to its start supersedes that seek on

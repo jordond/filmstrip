@@ -64,6 +64,7 @@ internal class FfmpegPlayerEngine(
       presented = { presented },
       position = { position },
       moveTo = { position = it },
+      redirected = ::movePlayhead,
       wanted = wanted,
       startPump = ::startPump,
       seekToWrap = ::seekToWrap,

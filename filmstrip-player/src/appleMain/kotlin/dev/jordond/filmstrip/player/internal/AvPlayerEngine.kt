@@ -132,7 +132,7 @@ internal class AvPlayerEngine(
       resolved = { plan?.resolved },
       guard = wrapGuard,
       loopWrap = { loop.wrap() },
-      playhead = { transport.playhead },
+      playhead = { reportedPosition },
       onIssued = {
         reachedEnd = false
         failures.resumed()
@@ -173,6 +173,7 @@ internal class AvPlayerEngine(
       seekToWrap = { seekToWrap(it) },
       emitEvent = { emitEvent(it) },
       emitPosition = { emitPosition(it) },
+      reportedPlayhead = { reportedPosition },
     )
 
   /**
@@ -275,7 +276,7 @@ internal class AvPlayerEngine(
 
   override fun stepFrames(frames: Int) {
     if (frames == 0 || item == null) return
-    val landing = plan?.resolved?.frameStepLanding(readPosition(), frames) ?: return
+    val landing = plan?.resolved?.frameStepLanding(reportedPosition, frames) ?: return
     // Not stepByCount. Measured on the macOS host, one step from 300 ms at 30 fps put the item at 550 ms rather than on
     // the next output frame.
     seekTo(landing, SeekAccuracy.Exact)
@@ -298,8 +299,7 @@ internal class AvPlayerEngine(
   /**
    * Watches [layer] for the moment it starts showing this player's pixels.
    *
-   * A surface calls this with the layer it draws into, and [PlaybackEvent.FirstFrameRendered] is
-   * emitted off it.
+   * A surface calls this with the layer it draws into, and [PlaybackEvent.FirstFrameRendered] is emitted off it.
    */
   fun attachSurfaceLayer(layer: AVPlayerLayer) {
     scope.launch { observeSurfaceLayer(layer) }
@@ -322,7 +322,7 @@ internal class AvPlayerEngine(
     next: PreviewPlan,
     request: SetCompositionRequest,
   ): PlaybackError? {
-    val current = transport.playhead
+    val current = reportedPosition
     wrapGuard.reset()
     drawFailure.clear()
     // A failed status is terminal for the item, so an edit over one rebuilds whatever it changed.
@@ -348,13 +348,13 @@ internal class AvPlayerEngine(
     emitPreviewInfo(next.info)
     val held = if (swappable) null else next.resolved.heldPosition(current, loop.range, isPlayWanted)
     val start = request.startAt?.let(next.resolved::seekLandingOf) ?: held
-    val target = item
-    if (start != null && target != null) {
-      seeks.start(target, next.resolved, start, SeekAccuracy.Exact, wrap = false) { }
-    }
     // A swapped item plays on where it was. A fresh one starts at zero and is sent to the held playhead, and neither
     // that start nor the load's seek landing reports itself, so the jump is reported here.
-    start?.let(transport::jumpTo)
+    if (start != null) {
+      item?.let { seeks.start(it, next.resolved, start, SeekAccuracy.Exact, wrap = false) { } }
+      transport.jumpTo(start)
+      movePlayhead(start)
+    }
     onPlatformChanged()
     if (swappable) emitFrameRedrawn()
     // A failure halts the transport and leaves the play standing, so this load is what starts it again.

@@ -258,6 +258,7 @@ class Media3RebuildGuardTest {
         platformPositionMs = { status.platformPositionMs },
         loopWrap = { null },
         onIssued = { },
+        onRedirected = { },
       )
 
     val loops =
@@ -272,7 +273,7 @@ class Media3RebuildGuardTest {
         seekTo = { },
         seekToWrap = { },
         pause = { },
-        onLooped = { _, _ -> },
+        onLooped = { },
       )
 
     val listener =

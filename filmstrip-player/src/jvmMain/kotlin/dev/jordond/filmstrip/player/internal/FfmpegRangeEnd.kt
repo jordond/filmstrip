@@ -17,6 +17,7 @@ import kotlin.time.Duration
  * @param presented The frame the transport last showed.
  * @param position The playhead.
  * @param moveTo Moves the playhead without reporting it.
+ * @param redirected Reports the slot time a wrap in flight was sent on to, which the playhead holds until it lands.
  * @param wanted Whether playback is wanted.
  * @param startPump Opens a pump at a position, with the seek completion it answers once it lands.
  * @param seekToWrap Seeks to the first slot of a wrap, through the engine's chase, as a wrap.
@@ -27,6 +28,7 @@ internal class FfmpegRangeEnd(
   private val presented: () -> PreviewFrame?,
   private val position: () -> Duration,
   private val moveTo: (Duration) -> Unit,
+  private val redirected: (Duration) -> Unit,
   private val wanted: StateFlow<Boolean>,
   private val startPump: (from: Duration, onLanded: ((Duration) -> Unit)?) -> Unit,
   private val seekToWrap: (Duration) -> Unit,
@@ -188,8 +190,8 @@ internal class FfmpegRangeEnd(
   /**
    * Opens a pump on [slot] of the grid of [current] for the wrap still waiting, without reporting another lap.
    *
-   * The wrap's seek stays unanswered until the new pump lands, so the playhead a listener sees next is the new range's
-   * first slot and never the old one's.
+   * The wrap's seek stays unanswered until the new pump lands. The playhead reads the new range's first slot from here
+   * on, where until now it held the old range's.
    */
   fun redirect(
     slot: Long,
@@ -197,7 +199,9 @@ internal class FfmpegRangeEnd(
   ) {
     val callback = landing
     landing = null
-    moveTo(outputSlotTime(slot, current.frameRate))
+    val at = outputSlotTime(slot, current.frameRate)
+    moveTo(at)
+    redirected(at)
     startPump(position(), callback)
   }
 

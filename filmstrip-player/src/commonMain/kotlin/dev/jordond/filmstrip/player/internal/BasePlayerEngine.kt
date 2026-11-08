@@ -73,12 +73,13 @@ internal abstract class BasePlayerEngine(
 
   private var isScrubbing = false
   private var scrubTarget: Duration? = null
+  private var heldPlayhead: Duration? = null
 
   private val ticker =
     PositionTicker(
       scope = scope,
       interval = positionTick,
-      read = { readPosition() },
+      read = { reportedPosition },
       emit = { position -> listeners.forEach { it.onPosition(position) } },
     )
 
@@ -110,6 +111,14 @@ internal abstract class BasePlayerEngine(
    * The playhead, read straight from the platform.
    */
   protected abstract fun readPosition(): Duration
+
+  /**
+   * The playhead as listeners read it.
+   *
+   * From a seek being asked for until it resolves this is the newest target asked for, whatever the platform reads, so
+   * a wrap never reports the range's end once it is decided. Otherwise it is [readPosition].
+   */
+  protected val reportedPosition: Duration get() = heldPlayhead ?: readPosition()
 
   /**
    * Whether the platform can seek right now.
@@ -175,6 +184,7 @@ internal abstract class BasePlayerEngine(
     position: Duration,
     accuracy: SeekAccuracy,
   ) {
+    heldPlayhead = position
     if (isScrubbing) scrubTarget = position
     chase.request(position, if (isScrubbing) SeekAccuracy.Nearest else accuracy)
     setSeeking(chase.isSeeking)
@@ -184,9 +194,12 @@ internal abstract class BasePlayerEngine(
    * Seeks exactly to [position] as a loop wrap, through the same chase as [seekTo].
    *
    * The request is marked as a wrap for as long as the chase holds it, so [isWrapSeek] reads true in the [performSeek]
-   * that finally issues it.
+   * that finally issues it. The playhead reports [position] straight away and holds it until the seek resolves, the way
+   * [seekTo] holds its target.
    */
   protected fun seekToWrap(position: Duration) {
+    heldPlayhead = position
+    emitPosition(position)
     if (isScrubbing) scrubTarget = position
     chase.request(position, if (isScrubbing) SeekAccuracy.Nearest else SeekAccuracy.Exact, wrap = true)
     setSeeking(chase.isSeeking)
@@ -209,6 +222,7 @@ internal abstract class BasePlayerEngine(
     // any other.
     val target = scrubTarget ?: return
     scrubTarget = null
+    heldPlayhead = target
     chase.request(target, SeekAccuracy.Exact)
     setSeeking(chase.isSeeking)
   }
@@ -239,7 +253,10 @@ internal abstract class BasePlayerEngine(
     // forever behind an early return.
     val moved = this.status != status
     this.status = status
-    if (moved) publish()
+    if (moved) {
+      heldPlayhead = null
+      publish()
+    }
 
     if (status == PlaybackStatus.Ready) {
       chase.onReady()
@@ -322,10 +339,25 @@ internal abstract class BasePlayerEngine(
 
   /**
    * Pushes one playhead reading outside the ticker, for a jump the ticker would not catch.
+   *
+   * While a seek holds the playhead the held target is pushed instead, so a frame shown or a seek landing on the way
+   * to it never reports somewhere else.
    */
   protected fun emitPosition(position: Duration) {
     if (isReleased) return
-    listeners.forEach { it.onPosition(position) }
+    val reported = heldPlayhead ?: position
+    listeners.forEach { it.onPosition(reported) }
+  }
+
+  /**
+   * Reports a jump to [position] the backend made outside the chase, and pushes it.
+   *
+   * A seek still holding the playhead holds [position] from here on instead of its own target, until it resolves. That
+   * is a wrap sent on to a loop range that moved while it was in flight, or a load moving to where it starts.
+   */
+  protected fun movePlayhead(position: Duration) {
+    if (heldPlayhead != null) heldPlayhead = position
+    emitPosition(position)
   }
 
   /**
@@ -353,6 +385,7 @@ internal abstract class BasePlayerEngine(
     // Both resolutions emit. A superseded request never reached the platform, so its completion is
     // synthesised, and a caller that waits for one before issuing the next seek would otherwise
     // wedge on the first request a burst threw away.
+    if (!chase.isSeeking) heldPlayhead = null
     if (resolution == SeekResolution.Landed) emitPosition(position)
     emitEvent(PlaybackEvent.SeekCompleted(position))
     setSeeking(chase.isSeeking)

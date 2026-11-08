@@ -26,7 +26,7 @@ import kotlin.time.Duration.Companion.milliseconds
  * @param seekTo Seeks exactly to a position through the chase.
  * @param seekToWrap Seeks to a wrap's landing through the chase, marked as a wrap.
  * @param pause Stops the transport.
- * @param onLooped Reports a lap of the range, and the slot playback wrapped to.
+ * @param onLooped Reports a lap of the range.
  */
 @ExperimentalApi
 internal class Media3LoopRangeController(
@@ -40,7 +40,7 @@ internal class Media3LoopRangeController(
   private val seekTo: (Duration) -> Unit,
   private val seekToWrap: (Duration) -> Unit,
   private val pause: () -> Unit,
-  private val onLooped: (range: TimeRange, landing: Duration) -> Unit,
+  private val onLooped: (range: TimeRange) -> Unit,
 ) {
   /**
    * The range playback loops over, or null when it does not loop.
@@ -151,8 +151,8 @@ internal class Media3LoopRangeController(
   /**
    * Takes playback back to the slot [range] starts on, as [wrap] places it, and reports the lap.
    *
-   * The playhead reports that slot from here on, rather than whatever media3 reads until the seek reaches it. The seek
-   * goes through the chase marked as a wrap, so the guard hears it as one even if the chase holds it back.
+   * The seek goes through the chase marked as a wrap, so the guard hears it as one even if the chase holds it back, and
+   * the engine reports that slot as the playhead until it lands.
    */
   private fun wrapLoop(
     range: TimeRange,
@@ -161,7 +161,7 @@ internal class Media3LoopRangeController(
     val rate = resolved()?.frameRate ?: return
     val landing = outputSlotTime(wrap.firstSlot, rate)
     seekToWrap(landing)
-    onLooped(range, landing)
+    onLooped(range)
   }
 
   companion object {

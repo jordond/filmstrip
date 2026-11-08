@@ -118,9 +118,23 @@ internal fun Project.configureBrowserTestsOnMultiplatform() {
  * The Karma config every module's browser tests share.
  *
  * It sets Mocha's per test timeout to 300 s and Karma's no activity, disconnect and capture windows, in milliseconds.
+ * It also defines the `FilmstripChrome` launcher, which a module picks with `browsers: ['FilmstripChrome']` in its own
+ * `karma.config.d`. That launcher gives headless Chrome WebGL through ANGLE over SwiftShader, mutes its output and lets
+ * an AudioContext run without a user gesture.
  */
 internal val BROWSER_TEST_CONFIG: String =
   """
+  // Karma's stock ChromeHeadless has no GL at all, so getContext('webgl2') returns null and every
+  // export fails on a null context. These flags give it ANGLE over SwiftShader, a software
+  // rasteriser, which is enough to composite correctly but far too slow to time anything against.
+  //
+  // Set FILMSTRIP_CHROME_FLAGS to override, for a run against a real GPU.
+  // FILMSTRIP_CHROME_BASE=Chrome with FILMSTRIP_CHROME_FLAGS='--headless=new --use-angle=metal'
+  // runs the same tests against a real GPU, because karma-chrome-launcher's ChromeHeadless base
+  // passes --disable-gpu and nothing later can undo it.
+  //
+  // The audio flags are always appended, overrides included. --mute-audio keeps the fixtures' tone
+  // off the speakers, and the autoplay policy lets an AudioContext run with no gesture to unlock it.
   config.set({
     browserNoActivityTimeout: 600000,
     browserDisconnectTimeout: 60000,
@@ -128,6 +142,21 @@ internal val BROWSER_TEST_CONFIG: String =
     client: {
       mocha: {
         timeout: 300000,
+      },
+    },
+    customLaunchers: {
+      FilmstripChrome: {
+        base: process.env.FILMSTRIP_CHROME_BASE || 'ChromeHeadless',
+        flags: (process.env.FILMSTRIP_CHROME_FLAGS || [
+          '--use-gl=angle',
+          '--use-angle=swiftshader',
+          '--enable-unsafe-swiftshader',
+          '--ignore-gpu-blocklist',
+          '--no-sandbox',
+        ].join(' ')).split(' ').filter(Boolean).concat([
+          '--mute-audio',
+          '--autoplay-policy=no-user-gesture-required',
+        ]),
       },
     },
   });

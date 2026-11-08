@@ -1,6 +1,5 @@
 package dev.jordond.filmstrip.player.internal
 
-import dev.jordond.filmstrip.webcodecs.internal.preview.BrowserAudioPreview
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 
@@ -36,7 +35,10 @@ internal interface PreviewClock {
   fun stop()
 
   /**
-   * Moves the playhead without starting or stopping it.
+   * Moves the playhead to [position].
+   *
+   * The silent branch keeps counting from there. The audio branch holds it until the next [start], since the graph
+   * only plays from a position once it is started there.
    */
   fun moveTo(position: Duration)
 }
@@ -75,17 +77,22 @@ internal class MonotonicClock : PreviewClock {
  * The audio branch: the playhead the live graph is sounding.
  *
  * The graph is anchored by whoever starts it, so this only decides whether to read the graph's
- * clock or the position it was last left at.
+ * clock or the position it was last left at. A clock moved while running reads the new position
+ * until it is started again, because until then the graph is still sounding the old one.
+ *
+ * @param graphPosition Reads the graph's own clock.
+ * @param graphRunning Whether the browser lets the graph run.
  */
 internal class AudioClock(
-  private val audio: BrowserAudioPreview,
+  private val graphPosition: () -> Duration,
+  private val graphRunning: () -> Boolean,
 ) : PreviewClock {
   private var held = Duration.ZERO
   private var running = false
 
-  override val isRunning: Boolean get() = running && audio.isRunning
+  override val isRunning: Boolean get() = running && graphRunning()
 
-  override val position: Duration get() = if (running) audio.position else held
+  override val position: Duration get() = if (running) graphPosition() else held
 
   override fun start(from: Duration) {
     held = from
@@ -99,5 +106,6 @@ internal class AudioClock(
 
   override fun moveTo(position: Duration) {
     held = position
+    running = false
   }
 }
