@@ -11,6 +11,7 @@ import dev.jordond.filmstrip.player.contract.contractTest
 import dev.jordond.filmstrip.player.contract.cutInTwo
 import dev.jordond.filmstrip.player.contract.withEngine
 import dev.jordond.filmstrip.player.internal.AvPlayerEngine
+import dev.jordond.filmstrip.player.internal.NEAREST_SEEK_TOLERANCE
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
@@ -27,6 +28,7 @@ import platform.AVFAudio.AVAudioSessionRouteChangeReasonOldDeviceUnavailable
 import platform.AVFoundation.AVPlayerRateDidChangeReasonAppBackgrounded
 import platform.AVFoundation.AVPlayerRateDidChangeReasonSetRateCalled
 import kotlin.test.Test
+import kotlin.time.Duration
 
 /**
  * The shared engine contracts, run against real AVFoundation on the iOS simulator.
@@ -69,6 +71,8 @@ class IosEngineContractMediaTest : PlayerEngineContractTest() {
   override val claimsLiveParameterRedraw: Boolean = true
 
   override val fixtureFrameRate: Int = FIXTURE_FRAME_RATE
+
+  override val relaxedSeekTolerance: Duration = NEAREST_SEEK_TOLERANCE
 
   override val stageableInterruptions: Set<Interruption> =
     setOf(Interruption.AudioFocusLost, Interruption.OutputRouteChanged, Interruption.AppBackgrounded)

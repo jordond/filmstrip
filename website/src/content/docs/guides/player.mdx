@@ -47,8 +47,8 @@ without coroutines.
 
 <Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Player.kt" region="transport" />
 
-- `seekTo` always yields one `SeekCompleted`, carrying the frame it landed on. `SeekAccuracy.Nearest` asks for the nearest
-  sync sample, which suits a moving finger. Until the newest seek completes, the playhead reads the position it asked for.
+- `seekTo` always yields one `SeekCompleted`, carrying the frame it landed on. `SeekAccuracy.Nearest` lands on a nearby frame,
+  before or after the one asked for, which suits a moving finger. Its `SeekCompleted` names the frame it shows. Until the newest seek completes, the playhead reads the position it asked for.
 - `beginScrub` and `endScrub` wrap a drag. Between them the engine relaxes seek accuracy, and `endScrub` settles on the
   exact frame.
 - `setLoopRange` wraps playback at the end of the range and reports `RangeLooped`. A range the composition ends inside wraps

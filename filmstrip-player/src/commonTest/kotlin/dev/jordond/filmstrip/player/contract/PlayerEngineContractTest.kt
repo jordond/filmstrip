@@ -16,6 +16,7 @@ import dev.jordond.filmstrip.player.PlaybackStatus
 import dev.jordond.filmstrip.player.SeekAccuracy
 import dev.jordond.filmstrip.player.SetCompositionResult
 import io.kotest.matchers.comparables.shouldBeGreaterThan
+import io.kotest.matchers.comparables.shouldBeGreaterThanOrEqualTo
 import io.kotest.matchers.comparables.shouldBeLessThanOrEqualTo
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
@@ -117,6 +118,14 @@ abstract class PlayerEngineContractTest {
    * Whether this backend's preview info carries the output frame an edit settled on.
    */
   protected open val reportsOutputFrame: Boolean get() = true
+
+  /**
+   * How far from its target a relaxed seek on this backend may land, on either side.
+   *
+   * Zero for a backend that lands every relaxed seek exactly. An override reads the backend's own tolerance, or the
+   * fixture's sync interval where the landing is a sync sample.
+   */
+  protected open val relaxedSeekTolerance: Duration get() = Duration.ZERO
 
   @Test
   fun theReportedDurationMatchesTheResolvedCompositionAndThePlatform() =
@@ -271,14 +280,18 @@ abstract class PlayerEngineContractTest {
         val rate = fixtureFrameRate
 
         val at = offGrid(duration, RELAXED_AT, rate, thirds = 1)
-        val exact = outputSlotTime(outputSlotOf(at, rate), rate)
+        val tolerance = relaxedSeekTolerance
+        val earliest = outputSlotTime(outputSlotOf((at - tolerance).coerceAtLeast(Duration.ZERO), rate), rate)
+        val latest = outputSlotTime(outputSlotOf(at + tolerance, rate), rate)
         val before = recorder.seekCompletions.size
         subject.engine.seekTo(at, SeekAccuracy.Nearest)
         awaitContract("the relaxed seek to $at to complete") { recorder.seekCompletions.size > before }
 
+        // The frame shown can sit on either side of the target, so the slot reported can too.
         val reported = recorder.seekCompletions.last().position
         outputSlotTime(outputSlotOf(reported, rate), rate) shouldBe reported
-        reported shouldBeLessThanOrEqualTo exact
+        reported shouldBeGreaterThanOrEqualTo earliest
+        reported shouldBeLessThanOrEqualTo latest
 
         subject.quiet()
         recorder.playhead shouldBe reported

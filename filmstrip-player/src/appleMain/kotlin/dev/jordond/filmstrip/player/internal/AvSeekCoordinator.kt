@@ -160,7 +160,7 @@ internal class AvSeekCoordinator(
     val seek = ++latestSeek
     val exact = accuracy == SeekAccuracy.Exact
     val landing = resolved.seekLandingOf(position)
-    val tolerance = if (exact) Duration.ZERO else NEAREST_TOLERANCE
+    val tolerance = if (exact) Duration.ZERO else NEAREST_SEEK_TOLERANCE
     target.seekToTime(
       time = (if (exact) landing else position).toCMTime(),
       toleranceBefore = tolerance.toCMTime(),
@@ -226,10 +226,12 @@ internal class AvSeekCoordinator(
     onLanded(landed)
     onComplete(landed)
   }
-
-  private companion object {
-    // A relaxed seek exists to keep up with a finger, and a tolerance tight enough to matter would
-    // decode from the preceding sync sample anyway.
-    val NEAREST_TOLERANCE = 250.milliseconds
-  }
 }
+
+/**
+ * How far either side of its target AVFoundation may land a [SeekAccuracy.Nearest] seek.
+ *
+ * A relaxed seek exists to keep up with a finger, and a tolerance tight enough to matter would decode from the
+ * preceding sync sample anyway.
+ */
+internal val NEAREST_SEEK_TOLERANCE: Duration = 250.milliseconds

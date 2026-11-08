@@ -113,6 +113,16 @@ filmstrip holds them within 16 codes, which a wrong colour breaks but a wrong fr
 apart by luma. A clip at 1/32 runs 32 times its source, so it writes mostly those frames only when it holds under about
 8.3 ms of a 30 fps source. Hardware encoders aren't measured.
 
+## Relaxed seek
+
+A `SeekAccuracy.Nearest` seek lands within each backend's own tolerance, and `PlaybackEvent.SeekCompleted` reports the
+slot of the frame it shows.
+
+- Apple lands on the nearest sync sample within ±250 ms of the target, either side, from `NEAREST_SEEK_TOLERANCE`.
+- The browser lands on the sync sample at or before the target, read by `readSyncSample` in `BrowserSeeks`.
+- ffmpeg lands exactly. It waits `SCRUB_DEBOUNCE` for the finger to settle instead of landing early.
+- Android lands exactly. media3 takes no seek tolerance, so `clampedAccuracy` turns a relaxed seek into an exact one.
+
 ## HDR text and pictures
 
 On an HDR grade, an opaque overlay texel lands at the light a fill of that color lands at, and soft edges, fades and

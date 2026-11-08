@@ -6,9 +6,11 @@ import dev.jordond.filmstrip.player.contract.FailingItem
 import dev.jordond.filmstrip.player.contract.Interruption
 import dev.jordond.filmstrip.player.contract.PlayerEngineContractTest
 import dev.jordond.filmstrip.player.contract.cutInTwo
+import dev.jordond.filmstrip.player.internal.NEAREST_SEEK_TOLERANCE
 import kotlinx.coroutines.CoroutineScope
 import platform.AppKit.NSWorkspace
 import platform.AppKit.NSWorkspaceWillSleepNotification
+import kotlin.time.Duration
 
 /**
  * The shared engine contracts, run against real AVFoundation on the macOS host.
@@ -34,6 +36,8 @@ class AppleEngineContractMediaTest : PlayerEngineContractTest() {
   override val claimsLiveParameterRedraw: Boolean = true
 
   override val fixtureFrameRate: Int = FIXTURE_FRAME_RATE
+
+  override val relaxedSeekTolerance: Duration = NEAREST_SEEK_TOLERANCE
 
   /**
    * The one occasion a macOS host process can raise.

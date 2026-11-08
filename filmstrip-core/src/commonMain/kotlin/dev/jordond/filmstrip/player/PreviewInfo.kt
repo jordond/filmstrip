@@ -74,7 +74,11 @@ public enum class SeekAccuracy {
   Exact,
 
   /**
-   * Land on the nearest sync sample. Near-instant, and the right choice while a finger is moving.
+   * Land on a frame near the requested one, before or after it, within the backend's own tolerance. Cheaper than
+   * [Exact], and the right choice while a finger is moving.
+   *
+   * The seek reports the slot of the frame it shows in [PlaybackEvent.SeekCompleted.position], not the time it was
+   * asked for. That frame may sit either side of the request, as far as the backend's own tolerance allows.
    *
    * Android does not reach it. media3's player takes no seek tolerance of any kind, so a relaxed
    * seek there lands on the requested frame and costs what an exact one costs.

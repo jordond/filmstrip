@@ -38,7 +38,7 @@ class AppleSeekLandingMediaTest {
       val at = MID_GOP_POSITION + FIXTURE_FRAME_STEP / 3
       engine.seekAndAwait(recorder, at, SeekAccuracy.Nearest)
 
-      // On the macOS host a tolerant seek reads back at the time it asked for, so this is the exact landing's slot.
+      // A tolerant seek can settle on either side of the request, so the slot is read off where the item settled.
       val reported = recorder.seekCompletions.last().position
       reported shouldBe slotTime(outputSlotOf(engine.itemTime(), FIXTURE_FRAME_RATE))
       slotTime(outputSlotOf(reported, FIXTURE_FRAME_RATE)) shouldBe reported

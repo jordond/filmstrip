@@ -80,6 +80,9 @@ class WebEngineContractTest : PlayerEngineContractTest() {
 
   override val fixtureFrameRate: Int = FIXTURE_FRAME_RATE
 
+  // A relaxed seek lands on the sync sample at or before the target, which is never further back than this.
+  override val relaxedSeekTolerance: Duration = FIXTURE_SYNC_INTERVAL
+
   override val plainFixture: EditComposition = webFixtureComposition(audio = AudioSpec.Keep)
 
   override suspend fun plainClipEditPrepares(): Boolean = firstEffectRebuilds(pageDevice())

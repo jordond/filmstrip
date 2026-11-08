@@ -30,8 +30,8 @@ public sealed interface PlaybackEvent {
    * A seek landed and its frame was presented.
    *
    * @property position Where the seek landed. For a seek that ran, the output slot nearest the request on an exact
-   * seek, or the slot of the sync sample the platform settled on for a relaxed one. For one a newer seek replaced
-   * before it ran, the position it asked for.
+   * seek, or the slot of the frame the platform shows for a relaxed one, which can sit either side of the request. For
+   * one a newer seek replaced before it ran, the position it asked for.
    */
   @Poko
   public class SeekCompleted(
