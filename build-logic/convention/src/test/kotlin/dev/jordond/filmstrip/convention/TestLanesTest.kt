@@ -258,6 +258,27 @@ class TestLanesTest {
   }
 
   @Test
+  fun `tasks packed with their cell spread each module's heaviest class across the shards`() {
+    val player = mapOf("player.HeavyTest" to 300.0, "player.LightTest" to 20.0)
+    val effects = mapOf("effects.HeavyTest" to 280.0, "effects.LightTest" to 30.0)
+    val transform = mapOf("transform.HeavyTest" to 260.0, "transform.LightTest" to 10.0)
+    val weights = player + effects + transform
+    val modules = listOf(player, effects, transform)
+
+    modules.map { assignShards(it.keys, 3, it).getValue(it.keys.first()) } shouldBe listOf(1, 1, 1)
+
+    val owners = modules.map { assignShards(it.keys, 3, weights, cell = weights.keys) }
+    owners.map { it.getValue(it.keys.first()) }.sorted() shouldBe listOf(1, 2, 3)
+    owners.forEachIndexed { index, owned -> owned.keys shouldBe modules[index].keys }
+    val loads =
+      owners
+        .flatMap { it.entries }
+        .groupBy({ it.value }) { weights.getValue(it.key) }
+        .mapValues { it.value.sum() }
+    loads shouldBe mapOf(1 to 300.0, 2 to 300.0, 3 to 300.0)
+  }
+
+  @Test
   fun `a class with no weight keeps its shard whatever else is weighted`() {
     val alone = assignShards(listOf("a.Unweighted"), 3, emptyMap()).getValue("a.Unweighted")
     val weights = mapOf("a.Heavy" to 300.0, "a.Mid" to 120.0, "a.Light" to 4.0)
@@ -287,6 +308,18 @@ class TestLanesTest {
   fun `the weights file reads class and seconds and skips comments`() {
     parseTestWeights("# made by hand\n\na.B 12.5\n  a.C   3\n") shouldBe mapOf("a.B" to 12.5, "a.C" to 3.0)
     assertFailsWith<GradleException> { parseTestWeights("a.B twelve\n") }.message shouldContain "line 1"
+  }
+
+  @Test
+  fun `a scoped weight is read only under its scope`() {
+    val text = "a.B 12.5\n@ffmpeg-9 a.B 40\n@ffmpeg-9 a.C 2.5\n@ffmpeg-8 a.D 7\n"
+
+    parseTestWeights(text) shouldBe mapOf("a.B" to 12.5)
+    parseTestWeights(text, "ffmpeg-9") shouldBe mapOf("a.B" to 40.0, "a.C" to 2.5)
+    parseTestWeights(text, "ffmpeg-7") shouldBe emptyMap()
+    for (line in listOf("@ffmpeg-9 a.B\n", "@ a.B 3\n", "@ffmpeg-9 a.B 3 4\n")) {
+      assertFailsWith<GradleException> { parseTestWeights(line) }.message shouldContain "line 1"
+    }
   }
 
   @Test

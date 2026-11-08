@@ -4,29 +4,32 @@
 # or missing line only costs balance. To regenerate from a media lane run:
 #
 #   gh run download <run> -D <dir>
-#   gh run view <run> --log > <dir>.log
-#   python3 .github/scripts/slowest-tests.py --weights <dir> <dir>.log [more result roots] > gradle/test-weights.txt
-dev.jordond.filmstrip.AllBackendsTest 2.67
-dev.jordond.filmstrip.CanonicalOrderTest 2.61
-dev.jordond.filmstrip.ComponentsReachFactoriesTest 3.32
-dev.jordond.filmstrip.CompositionModelTest 0.49
-dev.jordond.filmstrip.MediaSourceTest 0.21
-dev.jordond.filmstrip.MissingExportBackendTest 0.10
-dev.jordond.filmstrip.ProberChainTest 0.12
+#   python3 .github/scripts/slowest-tests.py --weights --keep gradle/test-weights.txt <dir> \
+#     --scope ffmpeg-8 <dir>/media-results-ffmpeg-8-* --scope ffmpeg-9 <dir>/media-results-ffmpeg-9-* > new.txt
+#   mv new.txt gradle/test-weights.txt
+#
+# An @scope line is read only by a call given -PtestWeights=scope, which packs every class of its scope as one, so
+# the ffmpeg cells balance across all the modules a call runs. Each ffmpeg major times its classes differently, so
+# each has its own scope.
+dev.jordond.filmstrip.AllBackendsTest 2.17
+dev.jordond.filmstrip.CanonicalOrderTest 1.98
+dev.jordond.filmstrip.ComponentsReachFactoriesTest 3.27
+dev.jordond.filmstrip.CompositionModelTest 3.72
+dev.jordond.filmstrip.MediaSourceTest 2.43
+dev.jordond.filmstrip.ProberChainTest 0.24
 dev.jordond.filmstrip.avfoundation.AppleAuthoredColorTest 1.01
 dev.jordond.filmstrip.avfoundation.AppleBitrateHardwareTest 1.00
 dev.jordond.filmstrip.avfoundation.AppleBlurredFillOverlayHardwareTest 1.00
 dev.jordond.filmstrip.avfoundation.AppleBlurredFillOverlayTest 2.02
-dev.jordond.filmstrip.avfoundation.AppleBytesSourceMediaTest 2.05
+dev.jordond.filmstrip.avfoundation.AppleBytesSourceMediaTest 4.25
 dev.jordond.filmstrip.avfoundation.AppleClipPlacementHardwareTest 1.00
-dev.jordond.filmstrip.avfoundation.AppleClipSpeedMediaTest 12.82
-dev.jordond.filmstrip.avfoundation.AppleCopyGridMediaTest 1.14
+dev.jordond.filmstrip.avfoundation.AppleClipSpeedMediaTest 21.16
 dev.jordond.filmstrip.avfoundation.AppleCrtHardwareTest 13.05
 dev.jordond.filmstrip.avfoundation.AppleEffectHardwareTest 2.01
 dev.jordond.filmstrip.avfoundation.AppleEffectTest 2.02
-dev.jordond.filmstrip.avfoundation.AppleExportCancelMediaTest 4.38
+dev.jordond.filmstrip.avfoundation.AppleExportCancelMediaTest 9.08
 dev.jordond.filmstrip.avfoundation.AppleExportHardwareTest 17.05
-dev.jordond.filmstrip.avfoundation.AppleExportSmokeTest 9.49
+dev.jordond.filmstrip.avfoundation.AppleExportSmokeTest 17.51
 dev.jordond.filmstrip.avfoundation.AppleExportTest 16.14
 dev.jordond.filmstrip.avfoundation.AppleFilmHardwareTest 13.05
 dev.jordond.filmstrip.avfoundation.AppleHdrColorGradeCanaryTest 9.70
@@ -48,366 +51,371 @@ dev.jordond.filmstrip.avfoundation.AppleOverlayIccSmallBadgeTest 1.00
 dev.jordond.filmstrip.avfoundation.AppleParameterSwapTest 1.01
 dev.jordond.filmstrip.avfoundation.AppleRotateHardwareTest 1.00
 dev.jordond.filmstrip.avfoundation.AppleSdRouteHardwareTest 28.10
-dev.jordond.filmstrip.avfoundation.AppleShownFrameMediaTest 6.42
+dev.jordond.filmstrip.avfoundation.AppleShownFrameMediaTest 17.02
 dev.jordond.filmstrip.avfoundation.AppleSourceColorSpaceHardwareTest 1.99
 dev.jordond.filmstrip.avfoundation.AppleSourceColorSpaceTest 2.01
-dev.jordond.filmstrip.avfoundation.AppleStretchedAudioMediaTest 1.06
+dev.jordond.filmstrip.avfoundation.AppleStepFailureExportMediaTest 1.01
+dev.jordond.filmstrip.avfoundation.AppleStretchedAudioMediaTest 1.01
 dev.jordond.filmstrip.avfoundation.AppleToneMapLadderHardwareTest 15.07
-dev.jordond.filmstrip.avfoundation.AppleUnlikeRateMediaTest 1.10
-dev.jordond.filmstrip.avfoundation.AvCompositionTest 2.13
-dev.jordond.filmstrip.avfoundation.AvCompositorRouteMediaTest 3.13
-dev.jordond.filmstrip.avfoundation.IosExportCanaryTest 2.15
-dev.jordond.filmstrip.avfoundation.SdSourceColorMediaTest 14.27
-dev.jordond.filmstrip.avfoundation.internal.interop.SampleTimesMediaTest 1.09
-dev.jordond.filmstrip.avfoundation.internal.interop.SyncSampleTest 1.13
-dev.jordond.filmstrip.avfoundation.internal.writer.WriterSessionMediaTest 1.38
-dev.jordond.filmstrip.color.AuthoredHdrLightTest 0.34
-dev.jordond.filmstrip.color.HdrSignalDoubleTest 4.31
-dev.jordond.filmstrip.color.NearestMatrixTest 42.48
-dev.jordond.filmstrip.color.PictureCodesForTest 0.50
-dev.jordond.filmstrip.color.PictureColorHdrTest 15.82
-dev.jordond.filmstrip.color.PictureColorTest 0.92
-dev.jordond.filmstrip.color.PictureLightJvmTest 2.16
-dev.jordond.filmstrip.color.PictureLightTest 6.54
-dev.jordond.filmstrip.color.YcbcrToRgbTest 0.55
-dev.jordond.filmstrip.color.icc.IccProfileTest 1.15
-dev.jordond.filmstrip.compose.FilmstripFrameTest 8.92
-dev.jordond.filmstrip.compose.FilmstripFramesTest 0.40
-dev.jordond.filmstrip.compose.FilmstripPlayerConfigTest 0.15
-dev.jordond.filmstrip.compose.PlatformImageBitmapTest 0.11
-dev.jordond.filmstrip.compose.PlaybackEventEffectTest 0.14
-dev.jordond.filmstrip.compose.PlayheadStateTest 0.14
-dev.jordond.filmstrip.compose.ReadbackSurfaceTest 2.74
-dev.jordond.filmstrip.compose.StripSpecExportTest 0.21
-dev.jordond.filmstrip.compose.VideoSurfaceAndroidTest 4.80
-dev.jordond.filmstrip.compose.VideoSurfaceIosTest 3.54
-dev.jordond.filmstrip.compose.ui.ClockLabelTest 5.20
-dev.jordond.filmstrip.compose.ui.FilmstripTimelineUiTest 10.47
-dev.jordond.filmstrip.compose.ui.TimelineOptionsUiTest 3.60
-dev.jordond.filmstrip.compose.ui.TimelineOverlayScopeUiTest 0.55
-dev.jordond.filmstrip.compose.ui.TimelineStateTest 0.95
-dev.jordond.filmstrip.compose.ui.TimelineViewportFitTest 4.27
-dev.jordond.filmstrip.compose.ui.component.CornerBracketsTest 0.14
-dev.jordond.filmstrip.compose.ui.component.CropOverlayUiTest 0.53
-dev.jordond.filmstrip.compose.ui.component.FilmstripImageTest 0.35
-dev.jordond.filmstrip.compose.ui.component.FilmstripStripTest 0.34
-dev.jordond.filmstrip.compose.ui.component.OverlayHandleTest 0.30
-dev.jordond.filmstrip.compose.ui.component.TimelineRulerTest 0.26
-dev.jordond.filmstrip.compose.ui.component.TrimOverlayTest 0.20
-dev.jordond.filmstrip.compose.ui.component.VideoStageTest 0.60
-dev.jordond.filmstrip.compose.ui.geometry.TimelineZoomTest 0.62
-dev.jordond.filmstrip.compose.ui.interaction.PlayheadFollowTest 0.48
-dev.jordond.filmstrip.compose.ui.interaction.ScrubTimelineUiTest 0.27
-dev.jordond.filmstrip.compose.ui.interaction.TimelineKeysUiTest 0.51
-dev.jordond.filmstrip.compose.ui.interaction.WheelZoomTimelineUiTest 0.31
-dev.jordond.filmstrip.compose.ui.interaction.ZoomTimelineUiTest 0.34
-dev.jordond.filmstrip.edit.CompositionDiffTest 0.16
-dev.jordond.filmstrip.effect.SidecarTest 0.15
+dev.jordond.filmstrip.avfoundation.AppleUnlikeRateMediaTest 3.40
+dev.jordond.filmstrip.avfoundation.AvCompositionTest 3.34
+dev.jordond.filmstrip.avfoundation.AvCompositorRouteMediaTest 3.15
+dev.jordond.filmstrip.avfoundation.AvDestinationTest 1.02
+dev.jordond.filmstrip.avfoundation.IosExportCanaryTest 1.59
+dev.jordond.filmstrip.avfoundation.SdSourceColorMediaTest 41.10
+dev.jordond.filmstrip.avfoundation.internal.AvTrackLayingTest 1.15
+dev.jordond.filmstrip.avfoundation.internal.interop.SampleTimesMediaTest 1.07
+dev.jordond.filmstrip.avfoundation.internal.interop.SyncSampleTest 1.14
+dev.jordond.filmstrip.avfoundation.internal.writer.WriterSessionMediaTest 3.42
+dev.jordond.filmstrip.color.AuthoredHdrLightTest 0.44
+dev.jordond.filmstrip.color.HdrSignalDoubleTest 2.82
+dev.jordond.filmstrip.color.NearestMatrixTest 34.25
+dev.jordond.filmstrip.color.PictureCodesForTest 0.82
+dev.jordond.filmstrip.color.PictureColorHdrTest 16.19
+dev.jordond.filmstrip.color.PictureColorTest 0.56
+dev.jordond.filmstrip.color.PictureLightJvmTest 1.83
+dev.jordond.filmstrip.color.PictureLightTest 5.43
+dev.jordond.filmstrip.color.SdColorTest 0.11
+dev.jordond.filmstrip.color.TenBitCodesTest 0.24
+dev.jordond.filmstrip.color.YcbcrReadingTest 0.11
+dev.jordond.filmstrip.color.YcbcrToRgbTest 1.14
+dev.jordond.filmstrip.color.icc.IccProfileTest 2.41
+dev.jordond.filmstrip.compose.FilmstripFrameTest 6.60
+dev.jordond.filmstrip.compose.FilmstripFramesTest 9.12
+dev.jordond.filmstrip.compose.FilmstripPlayerConfigTest 0.24
+dev.jordond.filmstrip.compose.PlaybackEventEffectTest 0.10
+dev.jordond.filmstrip.compose.ReadbackSurfaceTest 13.87
+dev.jordond.filmstrip.compose.StripSpecExportTest 0.20
+dev.jordond.filmstrip.compose.VideoSurfaceAndroidTest 4.51
+dev.jordond.filmstrip.compose.VideoSurfaceIosTest 0.20
+dev.jordond.filmstrip.compose.VideoSurfaceStateTest 0.32
+dev.jordond.filmstrip.compose.VideoSurfaceTest 2.74
+dev.jordond.filmstrip.compose.ui.ClockLabelTest 4.42
+dev.jordond.filmstrip.compose.ui.FilmstripTimelineUiTest 12.23
+dev.jordond.filmstrip.compose.ui.TimelineOptionsUiTest 15.40
+dev.jordond.filmstrip.compose.ui.TimelineOverlayScopeUiTest 9.09
+dev.jordond.filmstrip.compose.ui.TimelineStateTest 1.17
+dev.jordond.filmstrip.compose.ui.TimelineViewportFitTest 3.70
+dev.jordond.filmstrip.compose.ui.component.CropOverlayUiTest 0.40
+dev.jordond.filmstrip.compose.ui.component.FilmstripImageTest 0.49
+dev.jordond.filmstrip.compose.ui.component.FilmstripStripTest 0.55
+dev.jordond.filmstrip.compose.ui.component.OverlayHandleTest 0.25
+dev.jordond.filmstrip.compose.ui.component.TimelineRulerTest 0.22
+dev.jordond.filmstrip.compose.ui.component.TrimOverlayTest 0.61
+dev.jordond.filmstrip.compose.ui.component.VideoStageTest 0.59
+dev.jordond.filmstrip.compose.ui.geometry.TimelineZoomTest 0.63
+dev.jordond.filmstrip.compose.ui.interaction.PlayheadFollowTest 0.55
+dev.jordond.filmstrip.compose.ui.interaction.ScrubTimelineUiTest 0.16
+dev.jordond.filmstrip.compose.ui.interaction.TimelineKeysUiTest 0.41
+dev.jordond.filmstrip.compose.ui.interaction.WheelZoomTimelineUiTest 0.42
+dev.jordond.filmstrip.compose.ui.interaction.ZoomTimelineUiTest 0.23
 dev.jordond.filmstrip.effects.BuiltInEffectSerializersTest 0.55
-dev.jordond.filmstrip.effects.CoreImageTest 0.11
-dev.jordond.filmstrip.effects.HdrExpressionsTest 3.64
-dev.jordond.filmstrip.effects.HdrGradeTablesTest 10.18
-dev.jordond.filmstrip.effects.InertPredicateTest 0.20
-dev.jordond.filmstrip.effects.OverlayHeaderTest 1.61
-dev.jordond.filmstrip.effects.OverlayOrientedAnimationTest 0.56
+dev.jordond.filmstrip.effects.HdrExpressionsTest 3.46
+dev.jordond.filmstrip.effects.HdrGradeTablesTest 9.71
+dev.jordond.filmstrip.effects.InertPredicateTest 0.19
+dev.jordond.filmstrip.effects.OverlayHeaderTest 2.45
+dev.jordond.filmstrip.effects.OverlayOrientedAnimationTest 5.91
 dev.jordond.filmstrip.effects.OverlayOrientedCommandsTest 0.62
-dev.jordond.filmstrip.effects.OverlayPictureDecodeTest 0.65
-dev.jordond.filmstrip.effects.OverlayPictureLimitsTest 0.21
-dev.jordond.filmstrip.effects.OverlayPictureReadTest 0.39
-dev.jordond.filmstrip.effects.OverlayPictureShapeTest 0.90
-dev.jordond.filmstrip.effects.color.ColorFuseTest 0.34
-dev.jordond.filmstrip.effects.color.ColorMatrixTest 0.13
+dev.jordond.filmstrip.effects.OverlayPictureDecodeTest 4.96
+dev.jordond.filmstrip.effects.OverlayPictureLimitsTest 4.29
+dev.jordond.filmstrip.effects.OverlayPictureReadTest 1.28
+dev.jordond.filmstrip.effects.OverlayPictureShapeTest 1.05
 dev.jordond.filmstrip.effects.filters.crt.CrtCoreImageHardwareTest 3.01
-dev.jordond.filmstrip.effects.filters.crt.CrtLoweringMediaTest 7.91
-dev.jordond.filmstrip.effects.filters.crt.CrtShaderProgramMediaTest 1.58
-dev.jordond.filmstrip.effects.filters.crt.CrtSignalTest 7.75
-dev.jordond.filmstrip.effects.filters.crt.CrtTest 0.16
+dev.jordond.filmstrip.effects.filters.crt.CrtLoweringMediaTest 11.74
+dev.jordond.filmstrip.effects.filters.crt.CrtShaderProgramMediaTest 1.52
+dev.jordond.filmstrip.effects.filters.crt.CrtSignalTest 5.25
+dev.jordond.filmstrip.effects.filters.crt.CrtTest 0.25
 dev.jordond.filmstrip.effects.filters.film.FilmCoreImageHardwareTest 36.13
-dev.jordond.filmstrip.effects.filters.film.FilmExpressionMediaTest 20.57
-dev.jordond.filmstrip.effects.filters.film.FilmShaderProgramMediaTest 20.03
-dev.jordond.filmstrip.effects.filters.film.FilmSignalTest 1.64
-dev.jordond.filmstrip.effects.filters.lut.CubeLutTest 1.03
+dev.jordond.filmstrip.effects.filters.film.FilmExpressionMediaTest 30.58
+dev.jordond.filmstrip.effects.filters.film.FilmShaderProgramMediaTest 16.93
+dev.jordond.filmstrip.effects.filters.film.FilmSignalTest 5.53
+dev.jordond.filmstrip.effects.filters.film.FilmTest 0.36
+dev.jordond.filmstrip.effects.filters.lut.CubeLutTest 1.51
 dev.jordond.filmstrip.effects.filters.lut.LutCoreImageHardwareTest 18.06
-dev.jordond.filmstrip.effects.filters.lut.LutShaderProgramMediaTest 0.66
+dev.jordond.filmstrip.effects.filters.lut.LutLoweringTest 0.24
+dev.jordond.filmstrip.effects.filters.lut.LutShaderProgramMediaTest 0.55
+dev.jordond.filmstrip.effects.filters.lut.LutTest 0.46
 dev.jordond.filmstrip.effects.filters.vhs.VhsCoreImageHardwareTest 10.03
-dev.jordond.filmstrip.effects.filters.vhs.VhsHashExpressionMediaTest 0.28
-dev.jordond.filmstrip.effects.filters.vhs.VhsPlanesMediaTest 16.43
-dev.jordond.filmstrip.effects.filters.vhs.VhsShaderProgramMediaTest 2.50
-dev.jordond.filmstrip.effects.filters.vhs.VhsSignalTest 2.94
+dev.jordond.filmstrip.effects.filters.vhs.VhsHashExpressionMediaTest 0.65
+dev.jordond.filmstrip.effects.filters.vhs.VhsPlanesMediaTest 27.21
+dev.jordond.filmstrip.effects.filters.vhs.VhsShaderProgramMediaTest 2.52
+dev.jordond.filmstrip.effects.filters.vhs.VhsSignalTest 2.06
 dev.jordond.filmstrip.effects.geometry.KenBurnsStepHardwareTest 1.00
-dev.jordond.filmstrip.effects.geometry.KenBurnsTransformationTest 0.27
-dev.jordond.filmstrip.effects.overlay.AvifRouteTest 0.16
+dev.jordond.filmstrip.effects.geometry.KenBurnsTransformationTest 0.20
 dev.jordond.filmstrip.effects.overlay.CoreImageOverlaysHardwareTest 1.00
 dev.jordond.filmstrip.effects.overlay.CoreImageOverlaysTest 1.01
 dev.jordond.filmstrip.effects.overlay.EncodedPictureProfileHardwareTest 1.00
 dev.jordond.filmstrip.effects.overlay.EncodedPictureProfileTest 2.01
-dev.jordond.filmstrip.effects.overlay.GlyphInkMediaTest 0.97
-dev.jordond.filmstrip.effects.overlay.HdrOverlayGraphTest 0.49
-dev.jordond.filmstrip.effects.overlay.HeicDecoderMatrixMediaTest 4.63
-dev.jordond.filmstrip.effects.overlay.HiddenColorDescriptionsMediaTest 0.55
-dev.jordond.filmstrip.effects.overlay.ImageIoRouteTest 13.99
+dev.jordond.filmstrip.effects.overlay.GlyphInkMediaTest 0.96
+dev.jordond.filmstrip.effects.overlay.HdrOverlayGraphTest 0.65
+dev.jordond.filmstrip.effects.overlay.HdrOverlayRasterTest 1.10
+dev.jordond.filmstrip.effects.overlay.HeicDecoderMatrixMediaTest 4.48
+dev.jordond.filmstrip.effects.overlay.HiddenColorDescriptionsMediaTest 0.63
+dev.jordond.filmstrip.effects.overlay.ImageIoRouteTest 8.28
 dev.jordond.filmstrip.effects.overlay.ImageSequenceReadHardwareTest 3.02
-dev.jordond.filmstrip.effects.overlay.JvmTextRasterTest 1.68
-dev.jordond.filmstrip.effects.overlay.OrientedPictureRasterMediaTest 0.90
-dev.jordond.filmstrip.effects.overlay.OverlayAnimationTest 0.24
+dev.jordond.filmstrip.effects.overlay.JvmTextRasterTest 1.47
+dev.jordond.filmstrip.effects.overlay.OrientedPictureRasterMediaTest 0.63
+dev.jordond.filmstrip.effects.overlay.OverlayAnimationTest 0.17
 dev.jordond.filmstrip.effects.overlay.OverlayBlendHardwareTest 4.01
 dev.jordond.filmstrip.effects.overlay.OverlayBlendTest 4.03
-dev.jordond.filmstrip.effects.overlay.OverlayDslTest 0.10
-dev.jordond.filmstrip.effects.overlay.OverlayFrameTimeTest 0.99
-dev.jordond.filmstrip.effects.overlay.OverlayGraphTest 0.16
+dev.jordond.filmstrip.effects.overlay.OverlayDslTest 0.15
+dev.jordond.filmstrip.effects.overlay.OverlayFrameTimeTest 0.51
+dev.jordond.filmstrip.effects.overlay.OverlayGraphTest 0.11
 dev.jordond.filmstrip.effects.overlay.OverlayPictureProfileTest 1.01
-dev.jordond.filmstrip.effects.overlay.OverlaySideTest 0.16
-dev.jordond.filmstrip.effects.overlay.PlatedSamplesTest 9.16
-dev.jordond.filmstrip.effects.overlay.RestatedPictureTest 0.32
-dev.jordond.filmstrip.effects.overlay.StoredPictureTest 0.38
-dev.jordond.filmstrip.effects.overlay.TextBlockSizeTest 1.29
-dev.jordond.filmstrip.effects.overlay.TextPlateRasterMediaTest 0.74
-dev.jordond.filmstrip.effects.overlay.TextRasterPeakTest 1.33
-dev.jordond.filmstrip.effects.overlay.TextRasterRefusalTest 4.70
+dev.jordond.filmstrip.effects.overlay.OverlaySideTest 0.10
+dev.jordond.filmstrip.effects.overlay.PlatedSamplesTest 9.03
+dev.jordond.filmstrip.effects.overlay.RestatedPictureTest 0.38
+dev.jordond.filmstrip.effects.overlay.StoredOrientationTest 0.14
+dev.jordond.filmstrip.effects.overlay.StoredPictureTest 0.39
+dev.jordond.filmstrip.effects.overlay.TextPlateRasterMediaTest 0.66
+dev.jordond.filmstrip.effects.overlay.TextRasterRefusalTest 2.09
 dev.jordond.filmstrip.effects.overlay.TimedOverlayHardwareTest 2.01
 dev.jordond.filmstrip.effects.overlay.TimedOverlayTest 2.01
-dev.jordond.filmstrip.effects.overlay.TwelveBitHeicMediaTest 0.28
+dev.jordond.filmstrip.effects.overlay.TwelveBitHeicMediaTest 0.27
 dev.jordond.filmstrip.effects.overlay.TwelveBitStillHardwareTest 1.00
 dev.jordond.filmstrip.effects.overlay.UnsubsampledStillHardwareTest 4.01
 dev.jordond.filmstrip.effects.overlay.UnsubsampledStillTest 4.03
-dev.jordond.filmstrip.effects.overlay.WebColorGlyphTest 1.52
-dev.jordond.filmstrip.effects.overlay.WebGlyphInkTest 26.80
-dev.jordond.filmstrip.effects.overlay.WebOverlayClapTest 0.34
-dev.jordond.filmstrip.effects.overlay.WebOverlayFetchTimeoutTest 0.17
-dev.jordond.filmstrip.effects.overlay.WebOverlayMatrixTest 18.02
-dev.jordond.filmstrip.effects.overlay.WebOverlayTest 0.27
-dev.jordond.filmstrip.effects.overlay.WebTextCoverageTest 2.51
-dev.jordond.filmstrip.effects.overlay.WebTextCullingTest 3.98
-dev.jordond.filmstrip.effects.overlay.WebTextPlateTest 0.70
-dev.jordond.filmstrip.ffmpeg.AudioLoweringTest 0.84
-dev.jordond.filmstrip.ffmpeg.BlurredLetterboxTest 0.64
-dev.jordond.filmstrip.ffmpeg.BytesRootTest 1.61
-dev.jordond.filmstrip.ffmpeg.CanvasChromaGridTest 2.49
-dev.jordond.filmstrip.ffmpeg.CapabilityDeadlineTest 2.37
-dev.jordond.filmstrip.ffmpeg.CopyPacketReadTest 0.10
-dev.jordond.filmstrip.ffmpeg.EffectLoweringTest 1.86
-dev.jordond.filmstrip.ffmpeg.ExitCodesTest 1.55
-dev.jordond.filmstrip.ffmpeg.FfmpegAudioMediaTest 7.42
+dev.jordond.filmstrip.effects.overlay.WebColorGlyphTest 2.00
+dev.jordond.filmstrip.effects.overlay.WebGlyphInkTest 24.65
+dev.jordond.filmstrip.effects.overlay.WebOverlayClapTest 0.38
+dev.jordond.filmstrip.effects.overlay.WebOverlayFetchTimeoutTest 0.18
+dev.jordond.filmstrip.effects.overlay.WebOverlayMatrixTest 19.73
+dev.jordond.filmstrip.effects.overlay.WebOverlayTest 0.29
+dev.jordond.filmstrip.effects.overlay.WebTextCoverageTest 2.97
+dev.jordond.filmstrip.effects.overlay.WebTextCullingTest 4.85
+dev.jordond.filmstrip.effects.overlay.WebTextPlateTest 0.51
+dev.jordond.filmstrip.ffmpeg.AudioLoweringTest 3.18
+dev.jordond.filmstrip.ffmpeg.BlurredLetterboxTest 6.06
+dev.jordond.filmstrip.ffmpeg.BytesRootTest 2.19
+dev.jordond.filmstrip.ffmpeg.CanvasChromaGridTest 4.28
+dev.jordond.filmstrip.ffmpeg.CapabilityDeadlineTest 2.77
+dev.jordond.filmstrip.ffmpeg.CopyPacketReadTest 1.16
+dev.jordond.filmstrip.ffmpeg.CopyPacketsTest 3.69
+dev.jordond.filmstrip.ffmpeg.EffectLoweringTest 2.32
+dev.jordond.filmstrip.ffmpeg.ExitCodesTest 1.33
+dev.jordond.filmstrip.ffmpeg.FfmpegAudioMediaTest 14.95
 dev.jordond.filmstrip.ffmpeg.FfmpegAudioTest 2.41
-dev.jordond.filmstrip.ffmpeg.FfmpegBytesSourceMediaTest 7.62
-dev.jordond.filmstrip.ffmpeg.FfmpegCapabilityProbeMediaTest 1.77
+dev.jordond.filmstrip.ffmpeg.FfmpegBytesSourceMediaTest 14.03
+dev.jordond.filmstrip.ffmpeg.FfmpegCapabilityProbeMediaTest 4.28
 dev.jordond.filmstrip.ffmpeg.FfmpegCapabilityProbeTest 0.73
-dev.jordond.filmstrip.ffmpeg.FfmpegClipPlacementMediaTest 5.32
-dev.jordond.filmstrip.ffmpeg.FfmpegClipSpeedMediaTest 5.57
-dev.jordond.filmstrip.ffmpeg.FfmpegClipSpeedWindowMediaTest 22.66
-dev.jordond.filmstrip.ffmpeg.FfmpegColorEffectMediaTest 2.11
+dev.jordond.filmstrip.ffmpeg.FfmpegClipPlacementMediaTest 19.26
+dev.jordond.filmstrip.ffmpeg.FfmpegClipSpeedMediaTest 9.72
+dev.jordond.filmstrip.ffmpeg.FfmpegClipSpeedWindowMediaTest 38.20
+dev.jordond.filmstrip.ffmpeg.FfmpegColorEffectMediaTest 4.49
 dev.jordond.filmstrip.ffmpeg.FfmpegColorEffectTest 1.18
-dev.jordond.filmstrip.ffmpeg.FfmpegCopyMediaTest 5.38
-dev.jordond.filmstrip.ffmpeg.FfmpegCopyPacketsMediaTest 2.79
+dev.jordond.filmstrip.ffmpeg.FfmpegCopyMediaTest 7.43
+dev.jordond.filmstrip.ffmpeg.FfmpegCopyPacketsMediaTest 3.29
 dev.jordond.filmstrip.ffmpeg.FfmpegCopyTest 1.67
-dev.jordond.filmstrip.ffmpeg.FfmpegCrtHoistMediaTest 4.10
-dev.jordond.filmstrip.ffmpeg.FfmpegCrtMediaTest 48.34
-dev.jordond.filmstrip.ffmpeg.FfmpegCrtSourceMediaTest 7.15
-dev.jordond.filmstrip.ffmpeg.FfmpegDestinationMediaTest 15.29
+dev.jordond.filmstrip.ffmpeg.FfmpegCrtHoistMediaTest 7.41
+dev.jordond.filmstrip.ffmpeg.FfmpegCrtMediaTest 58.88
+dev.jordond.filmstrip.ffmpeg.FfmpegCrtSourceMediaTest 10.55
+dev.jordond.filmstrip.ffmpeg.FfmpegDestinationMediaTest 18.72
 dev.jordond.filmstrip.ffmpeg.FfmpegDestinationTest 3.67
-dev.jordond.filmstrip.ffmpeg.FfmpegDiagnosticsMediaTest 4.34
+dev.jordond.filmstrip.ffmpeg.FfmpegDiagnosticsMediaTest 3.79
 dev.jordond.filmstrip.ffmpeg.FfmpegDiagnosticsTest 0.74
-dev.jordond.filmstrip.ffmpeg.FfmpegExportMediaTest 30.68
-dev.jordond.filmstrip.ffmpeg.FfmpegExportSmokeTest 0.29
+dev.jordond.filmstrip.ffmpeg.FfmpegExportMediaTest 37.62
+dev.jordond.filmstrip.ffmpeg.FfmpegExportSmokeTest 0.90
 dev.jordond.filmstrip.ffmpeg.FfmpegExportTest 3.42
-dev.jordond.filmstrip.ffmpeg.FfmpegFillMediaTest 9.88
+dev.jordond.filmstrip.ffmpeg.FfmpegFillMediaTest 8.71
 dev.jordond.filmstrip.ffmpeg.FfmpegFillTest 2.43
-dev.jordond.filmstrip.ffmpeg.FfmpegFilmMediaTest 145.67
-dev.jordond.filmstrip.ffmpeg.FfmpegFilmPlanesMediaTest 195.11
-dev.jordond.filmstrip.ffmpeg.FfmpegFilmSourceMediaTest 18.21
-dev.jordond.filmstrip.ffmpeg.FfmpegFrameGridMediaTest 13.68
+dev.jordond.filmstrip.ffmpeg.FfmpegFilmMediaTest 223.44
+dev.jordond.filmstrip.ffmpeg.FfmpegFilmPlanesMediaTest 335.14
+dev.jordond.filmstrip.ffmpeg.FfmpegFilmSourceMediaTest 69.02
+dev.jordond.filmstrip.ffmpeg.FfmpegFrameGridMediaTest 8.06
 dev.jordond.filmstrip.ffmpeg.FfmpegFrameGridTest 1.91
-dev.jordond.filmstrip.ffmpeg.FfmpegHeldTailMediaTest 10.74
+dev.jordond.filmstrip.ffmpeg.FfmpegHeldTailMediaTest 10.55
 dev.jordond.filmstrip.ffmpeg.FfmpegHeldTailTest 4.19
-dev.jordond.filmstrip.ffmpeg.FfmpegLiveInputMediaTest 15.76
-dev.jordond.filmstrip.ffmpeg.FfmpegLookDecoderMediaTest 6.29
-dev.jordond.filmstrip.ffmpeg.FfmpegLoopingMediaTest 7.47
+dev.jordond.filmstrip.ffmpeg.FfmpegLiveInputMediaTest 17.11
+dev.jordond.filmstrip.ffmpeg.FfmpegLookDecoderMediaTest 20.57
+dev.jordond.filmstrip.ffmpeg.FfmpegLoopingMediaTest 7.36
 dev.jordond.filmstrip.ffmpeg.FfmpegLoopingTest 1.68
-dev.jordond.filmstrip.ffmpeg.FfmpegLutMediaTest 18.77
-dev.jordond.filmstrip.ffmpeg.FfmpegPlaneLanesMediaTest 1.01
+dev.jordond.filmstrip.ffmpeg.FfmpegLutMediaTest 19.79
+dev.jordond.filmstrip.ffmpeg.FfmpegPlaneLanesMediaTest 0.79
 dev.jordond.filmstrip.ffmpeg.FfmpegPlaneLanesTest 0.38
-dev.jordond.filmstrip.ffmpeg.FfmpegPreviewFormatMediaTest 358.12
-dev.jordond.filmstrip.ffmpeg.FfmpegPreviewMediaTest 22.85
-dev.jordond.filmstrip.ffmpeg.FfmpegPreviewSlideMediaTest 0.57
+dev.jordond.filmstrip.ffmpeg.FfmpegPreviewFormatMediaTest 347.61
+dev.jordond.filmstrip.ffmpeg.FfmpegPreviewMediaTest 8.72
+dev.jordond.filmstrip.ffmpeg.FfmpegPreviewSlideMediaTest 2.58
 dev.jordond.filmstrip.ffmpeg.FfmpegPreviewTest 2.81
-dev.jordond.filmstrip.ffmpeg.FfmpegProbeDeadlineMediaTest 9.24
-dev.jordond.filmstrip.ffmpeg.FfmpegProberReadMediaTest 1.18
+dev.jordond.filmstrip.ffmpeg.FfmpegProbeDeadlineMediaTest 9.10
+dev.jordond.filmstrip.ffmpeg.FfmpegProberReadMediaTest 2.90
 dev.jordond.filmstrip.ffmpeg.FfmpegProberReadTest 0.37
-dev.jordond.filmstrip.ffmpeg.FfmpegResolveMediaTest 8.47
+dev.jordond.filmstrip.ffmpeg.FfmpegResolveMediaTest 19.92
 dev.jordond.filmstrip.ffmpeg.FfmpegResolveTest 2.22
-dev.jordond.filmstrip.ffmpeg.FfmpegRotateMediaTest 3.25
-dev.jordond.filmstrip.ffmpeg.FfmpegSdColorMediaTest 25.95
-dev.jordond.filmstrip.ffmpeg.FfmpegUntimedCopyMediaTest 0.72
-dev.jordond.filmstrip.ffmpeg.FfmpegVhsMediaTest 50.89
-dev.jordond.filmstrip.ffmpeg.FfmpegVhsPlanesMediaTest 58.41
-dev.jordond.filmstrip.ffmpeg.FfmpegVhsSdMediaTest 8.08
-dev.jordond.filmstrip.ffmpeg.FfmpegVhsSignalMediaTest 28.70
-dev.jordond.filmstrip.ffmpeg.FfmpegVhsSourceMediaTest 12.30
-dev.jordond.filmstrip.ffmpeg.FfmpegX265NarrowFrameMediaTest 0.56
-dev.jordond.filmstrip.ffmpeg.FrameStreamExitMediaTest 1.95
+dev.jordond.filmstrip.ffmpeg.FfmpegRotateMediaTest 2.65
+dev.jordond.filmstrip.ffmpeg.FfmpegSdColorMediaTest 25.80
+dev.jordond.filmstrip.ffmpeg.FfmpegUntimedCopyMediaTest 0.70
+dev.jordond.filmstrip.ffmpeg.FfmpegVhsMediaTest 54.75
+dev.jordond.filmstrip.ffmpeg.FfmpegVhsPlanesMediaTest 94.43
+dev.jordond.filmstrip.ffmpeg.FfmpegVhsSdMediaTest 8.47
+dev.jordond.filmstrip.ffmpeg.FfmpegVhsSignalMediaTest 29.36
+dev.jordond.filmstrip.ffmpeg.FfmpegVhsSourceMediaTest 17.28
+dev.jordond.filmstrip.ffmpeg.FfmpegX265NarrowFrameMediaTest 0.64
+dev.jordond.filmstrip.ffmpeg.FrameStreamExitMediaTest 1.80
 dev.jordond.filmstrip.ffmpeg.FrameStreamExitTest 1.43
-dev.jordond.filmstrip.ffmpeg.GradedLoweringTest 12.87
-dev.jordond.filmstrip.ffmpeg.GraphLoweringTest 0.14
-dev.jordond.filmstrip.ffmpeg.HeldTailLoweringTest 0.12
-dev.jordond.filmstrip.ffmpeg.LiveFeedsTest 0.24
-dev.jordond.filmstrip.ffmpeg.PlannerTest 1.96
+dev.jordond.filmstrip.ffmpeg.GradedLoweringTest 11.86
+dev.jordond.filmstrip.ffmpeg.GraphLoweringTest 0.17
+dev.jordond.filmstrip.ffmpeg.HeldTailLoweringTest 0.13
+dev.jordond.filmstrip.ffmpeg.LiveFeedsTest 0.23
+dev.jordond.filmstrip.ffmpeg.PlannerTest 1.10
 dev.jordond.filmstrip.ffmpeg.ProbeDeadlineReadTest 4.09
 dev.jordond.filmstrip.ffmpeg.ProcessDeadlineTest 2.24
-dev.jordond.filmstrip.ffmpeg.RewrittenSourceTest 0.17
+dev.jordond.filmstrip.ffmpeg.RewrittenSourceTest 0.14
 dev.jordond.filmstrip.ffmpeg.ToolchainDeadlineTest 1.03
-dev.jordond.filmstrip.ffmpeg.ToolchainFloorTest 0.33
-dev.jordond.filmstrip.ffmpeg.ToolchainGateTest 0.26
-dev.jordond.filmstrip.ffmpeg.hdr.FfmpegHdrColorGraphMediaTest 55.30
+dev.jordond.filmstrip.ffmpeg.ToolchainGateTest 0.29
+dev.jordond.filmstrip.ffmpeg.hdr.FfmpegHdrColorGraphMediaTest 69.97
 dev.jordond.filmstrip.ffmpeg.hdr.FfmpegHdrColorGraphTest 42.75
-dev.jordond.filmstrip.ffmpeg.hdr.FfmpegHdrEffectMediaTest 80.40
+dev.jordond.filmstrip.ffmpeg.hdr.FfmpegHdrEffectMediaTest 77.59
 dev.jordond.filmstrip.ffmpeg.hdr.FfmpegHdrEffectTest 8.95
-dev.jordond.filmstrip.ffmpeg.hdr.FfmpegHdrFillMediaTest 35.34
+dev.jordond.filmstrip.ffmpeg.hdr.FfmpegHdrFillMediaTest 37.65
 dev.jordond.filmstrip.ffmpeg.hdr.FfmpegHdrFillTest 5.08
-dev.jordond.filmstrip.ffmpeg.hdr.FfmpegHdrMediaTest 32.46
+dev.jordond.filmstrip.ffmpeg.hdr.FfmpegHdrMediaTest 31.92
 dev.jordond.filmstrip.ffmpeg.hdr.FfmpegHdrTest 0.46
-dev.jordond.filmstrip.ffmpeg.hdr.FfmpegToneCurveMediaTest 3.24
-dev.jordond.filmstrip.ffmpeg.overlay.FfmpegOverlayAnimationMediaTest 12.23
+dev.jordond.filmstrip.ffmpeg.hdr.FfmpegToneCurveMediaTest 3.69
+dev.jordond.filmstrip.ffmpeg.overlay.FfmpegOverlayAnimationMediaTest 12.46
 dev.jordond.filmstrip.ffmpeg.overlay.FfmpegOverlayAnimationTest 2.82
-dev.jordond.filmstrip.ffmpeg.overlay.FfmpegOverlayClapMediaTest 0.68
+dev.jordond.filmstrip.ffmpeg.overlay.FfmpegOverlayClapMediaTest 0.70
 dev.jordond.filmstrip.ffmpeg.overlay.FfmpegOverlayClapTest 0.42
-dev.jordond.filmstrip.ffmpeg.overlay.FfmpegOverlayColorMediaTest 32.76
+dev.jordond.filmstrip.ffmpeg.overlay.FfmpegOverlayColorMediaTest 40.67
 dev.jordond.filmstrip.ffmpeg.overlay.FfmpegOverlayColorTest 20.38
-dev.jordond.filmstrip.ffmpeg.overlay.FfmpegOverlayDeterminismMediaTest 66.81
-dev.jordond.filmstrip.ffmpeg.overlay.FfmpegOverlayHdrFormatMediaTest 11.33
+dev.jordond.filmstrip.ffmpeg.overlay.FfmpegOverlayDeterminismMediaTest 97.28
+dev.jordond.filmstrip.ffmpeg.overlay.FfmpegOverlayHdrFormatMediaTest 16.62
 dev.jordond.filmstrip.ffmpeg.overlay.FfmpegOverlayHdrFormatTest 0.97
-dev.jordond.filmstrip.ffmpeg.overlay.FfmpegOverlayHdrGraphMediaTest 7.75
+dev.jordond.filmstrip.ffmpeg.overlay.FfmpegOverlayHdrGraphMediaTest 6.61
 dev.jordond.filmstrip.ffmpeg.overlay.FfmpegOverlayHdrGraphTest 4.66
-dev.jordond.filmstrip.ffmpeg.overlay.FfmpegOverlayHdrHoldMediaTest 38.41
+dev.jordond.filmstrip.ffmpeg.overlay.FfmpegOverlayHdrHoldMediaTest 41.59
 dev.jordond.filmstrip.ffmpeg.overlay.FfmpegOverlayHdrHoldTest 11.06
-dev.jordond.filmstrip.ffmpeg.overlay.FfmpegOverlayHdrMediaTest 80.45
+dev.jordond.filmstrip.ffmpeg.overlay.FfmpegOverlayHdrMediaTest 111.21
 dev.jordond.filmstrip.ffmpeg.overlay.FfmpegOverlayHdrTest 33.20
-dev.jordond.filmstrip.ffmpeg.overlay.FfmpegOverlayIccMediaTest 18.99
+dev.jordond.filmstrip.ffmpeg.overlay.FfmpegOverlayIccMediaTest 21.45
 dev.jordond.filmstrip.ffmpeg.overlay.FfmpegOverlayIccTest 8.53
-dev.jordond.filmstrip.ffmpeg.overlay.FfmpegOverlayMediaTest 5.79
-dev.jordond.filmstrip.ffmpeg.overlay.FfmpegOverlayOneReadMediaTest 0.25
-dev.jordond.filmstrip.ffmpeg.overlay.FfmpegOverlayOrientationMediaTest 9.72
+dev.jordond.filmstrip.ffmpeg.overlay.FfmpegOverlayMediaTest 7.47
+dev.jordond.filmstrip.ffmpeg.overlay.FfmpegOverlayOneReadMediaTest 0.30
+dev.jordond.filmstrip.ffmpeg.overlay.FfmpegOverlayOrientationMediaTest 11.92
 dev.jordond.filmstrip.ffmpeg.overlay.FfmpegOverlayOrientationTest 3.95
-dev.jordond.filmstrip.ffmpeg.overlay.FfmpegOverlayPictureAtExportMediaTest 59.17
-dev.jordond.filmstrip.ffmpeg.overlay.FfmpegOverlayPictureParityMediaTest 0.61
+dev.jordond.filmstrip.ffmpeg.overlay.FfmpegOverlayPictureAtExportMediaTest 82.16
+dev.jordond.filmstrip.ffmpeg.overlay.FfmpegOverlayPictureParityMediaTest 0.60
 dev.jordond.filmstrip.ffmpeg.overlay.FfmpegOverlayPictureParityTest 0.31
-dev.jordond.filmstrip.ffmpeg.overlay.FfmpegOverlaySizeMediaTest 0.26
+dev.jordond.filmstrip.ffmpeg.overlay.FfmpegOverlaySizeMediaTest 0.38
 dev.jordond.filmstrip.ffmpeg.overlay.FfmpegOverlayTest 2.24
-dev.jordond.filmstrip.ffmpeg.overlay.FfmpegOverlayWebpSlideMediaTest 5.23
-dev.jordond.filmstrip.ffmpeg.overlay.FfmpegOverlayWindowMediaTest 4.64
+dev.jordond.filmstrip.ffmpeg.overlay.FfmpegOverlayWebpSlideMediaTest 5.40
+dev.jordond.filmstrip.ffmpeg.overlay.FfmpegOverlayWindowMediaTest 5.84
 dev.jordond.filmstrip.ffmpeg.overlay.FfmpegOverlayWindowTest 2.00
-dev.jordond.filmstrip.ffmpeg.overlay.FfmpegTextOverlayMediaTest 4.05
-dev.jordond.filmstrip.ffmpeg.picture.FfmpegPictureAlphaFailureMediaTest 3.63
+dev.jordond.filmstrip.ffmpeg.overlay.FfmpegTextOverlayMediaTest 4.09
+dev.jordond.filmstrip.ffmpeg.picture.FfmpegPictureAlphaFailureMediaTest 3.67
 dev.jordond.filmstrip.ffmpeg.picture.FfmpegPictureAlphaFailureTest 3.54
-dev.jordond.filmstrip.ffmpeg.picture.FfmpegPictureAlphaMediaTest 1.31
+dev.jordond.filmstrip.ffmpeg.picture.FfmpegPictureAlphaMediaTest 1.12
 dev.jordond.filmstrip.ffmpeg.picture.FfmpegPictureAlphaTest 0.50
-dev.jordond.filmstrip.ffmpeg.picture.FfmpegPictureBoundsMediaTest 0.70
-dev.jordond.filmstrip.ffmpeg.picture.FfmpegPictureDecoderMediaTest 4.89
+dev.jordond.filmstrip.ffmpeg.picture.FfmpegPictureBoundsMediaTest 0.89
+dev.jordond.filmstrip.ffmpeg.picture.FfmpegPictureDecoderMediaTest 4.97
 dev.jordond.filmstrip.ffmpeg.picture.FfmpegPictureDecoderTest 1.93
-dev.jordond.filmstrip.ffmpeg.picture.FfmpegPictureIdentityMediaTest 0.79
+dev.jordond.filmstrip.ffmpeg.picture.FfmpegPictureIdentityMediaTest 1.13
 dev.jordond.filmstrip.ffmpeg.picture.FfmpegPictureIdentityTest 0.43
-dev.jordond.filmstrip.ffmpeg.picture.FfmpegPictureMatrixMediaTest 1.84
-dev.jordond.filmstrip.ffmpeg.picture.FfmpegPictureMatrixRouteMediaTest 2.56
+dev.jordond.filmstrip.ffmpeg.picture.FfmpegPictureMatrixMediaTest 2.55
+dev.jordond.filmstrip.ffmpeg.picture.FfmpegPictureMatrixRouteMediaTest 3.63
 dev.jordond.filmstrip.ffmpeg.picture.FfmpegPictureMatrixRouteTest 1.66
 dev.jordond.filmstrip.ffmpeg.picture.FfmpegPictureMatrixTest 1.20
-dev.jordond.filmstrip.ffmpeg.picture.FfmpegPictureOverlayColorMediaTest 0.78
-dev.jordond.filmstrip.ffmpeg.picture.FfmpegPictureOverlayMediaTest 2.91
+dev.jordond.filmstrip.ffmpeg.picture.FfmpegPictureOverlayColorMediaTest 0.65
+dev.jordond.filmstrip.ffmpeg.picture.FfmpegPictureOverlayMediaTest 2.92
 dev.jordond.filmstrip.ffmpeg.picture.FfmpegPictureOverlayTest 0.25
-dev.jordond.filmstrip.ffmpeg.picture.FfmpegPictureThumbnailMediaTest 0.45
+dev.jordond.filmstrip.ffmpeg.picture.FfmpegPictureThumbnailMediaTest 0.54
 dev.jordond.filmstrip.ffmpeg.picture.FfmpegPictureThumbnailTest 0.29
-dev.jordond.filmstrip.ffmpeg.picture.FfmpegPictureTwelveBitMediaTest 0.38
+dev.jordond.filmstrip.ffmpeg.picture.FfmpegPictureTwelveBitMediaTest 0.57
 dev.jordond.filmstrip.ffmpeg.picture.FfmpegPictureTwelveBitTest 0.27
-dev.jordond.filmstrip.ffmpeg.picture.FfmpegPictureUntaggedMediaTest 0.30
+dev.jordond.filmstrip.ffmpeg.picture.FfmpegPictureUntaggedMediaTest 0.42
 dev.jordond.filmstrip.ffmpeg.picture.FfmpegPictureUntaggedTest 0.18
-dev.jordond.filmstrip.ffmpeg.picture.FfmpegPictureYcbcrMediaTest 8.16
+dev.jordond.filmstrip.ffmpeg.picture.FfmpegPictureYcbcrMediaTest 11.23
 dev.jordond.filmstrip.ffmpeg.picture.FfmpegPictureYcbcrTest 4.55
-dev.jordond.filmstrip.ffmpeg.picture.PictureAssemblyTest 2.10
-dev.jordond.filmstrip.ffmpeg.picture.PictureRunsMediaTest 0.31
-dev.jordond.filmstrip.filekit.GalleryJvmTest 2.57
-dev.jordond.filmstrip.filekit.PlatformFilesAndroidTest 0.19
-dev.jordond.filmstrip.filekit.PlatformFilesJvmTest 1.67
-dev.jordond.filmstrip.filekit.PlatformFilesWebTest 0.16
-dev.jordond.filmstrip.filekit.compose.DownloadSinkJvmTest 3.60
-dev.jordond.filmstrip.filekit.compose.LaunchersJvmTest 2.63
-dev.jordond.filmstrip.filekit.compose.SaverWebTest 0.13
+dev.jordond.filmstrip.ffmpeg.picture.PictureAssemblyTest 2.07
+dev.jordond.filmstrip.ffmpeg.picture.PictureRunsMediaTest 0.42
+dev.jordond.filmstrip.filekit.GalleryJvmTest 2.75
+dev.jordond.filmstrip.filekit.PlatformFilesAndroidTest 0.16
+dev.jordond.filmstrip.filekit.PlatformFilesJvmTest 3.16
+dev.jordond.filmstrip.filekit.PlatformFilesWebTest 0.27
+dev.jordond.filmstrip.filekit.compose.DownloadSinkJvmTest 3.68
+dev.jordond.filmstrip.filekit.compose.LaunchersJvmTest 7.32
+dev.jordond.filmstrip.filekit.compose.SaverWebTest 0.19
 dev.jordond.filmstrip.internal.AndroidScratchTest 1.56
-dev.jordond.filmstrip.internal.DefaultFilmstripTest 0.50
-dev.jordond.filmstrip.internal.EngineVideoPlayerTest 0.32
-dev.jordond.filmstrip.internal.ImageMeasureAndroidMediaTest 0.18
-dev.jordond.filmstrip.internal.ImageMeasureJvmTest 0.28
-dev.jordond.filmstrip.internal.ImageMeasureWebTest 0.16
-dev.jordond.filmstrip.internal.PlatformProberBytesAppleTest 1.15
-dev.jordond.filmstrip.internal.ProbeImageTest 0.12
-dev.jordond.filmstrip.internal.ThumbnailDispatcherTest 0.11
-dev.jordond.filmstrip.iosharness.AvFilterProbeTest 3.32
-dev.jordond.filmstrip.iosharness.PlayerObserverTest 0.14
-dev.jordond.filmstrip.kotlinxio.KotlinxIoTest 4.88
-dev.jordond.filmstrip.media.ImageProbeAndroidMediaTest 0.23
-dev.jordond.filmstrip.media.ImageProbeJvmTest 0.13
-dev.jordond.filmstrip.media.ImageProbeWebTest 0.14
-dev.jordond.filmstrip.media.LateTagProbeJvmTest 1.96
-dev.jordond.filmstrip.media.LateTagProbeWebTest 4.76
-dev.jordond.filmstrip.media.MediaBytesFileAndroidMediaTest 0.24
-dev.jordond.filmstrip.media.MediaBytesFileJvmTest 0.46
-dev.jordond.filmstrip.media.MediaBytesFileTest 0.69
-dev.jordond.filmstrip.media.SourceOverloadsTest 0.24
-dev.jordond.filmstrip.media3.AacEncoderFlushMediaTest 4.52
-dev.jordond.filmstrip.media3.AndroidAuthoredColorMediaTest 29.81
-dev.jordond.filmstrip.media3.AndroidBitrateMediaTest 75.16
-dev.jordond.filmstrip.media3.AndroidClipPlacementMediaTest 17.03
-dev.jordond.filmstrip.media3.AndroidClipSpeedMediaTest 36.97
-dev.jordond.filmstrip.media3.AndroidColorStageMediaTest 7.05
-dev.jordond.filmstrip.media3.AndroidCrtMediaTest 10.62
-dev.jordond.filmstrip.media3.AndroidEffectMediaTest 56.72
-dev.jordond.filmstrip.media3.AndroidEncoderColorMediaTest 0.22
-dev.jordond.filmstrip.media3.AndroidExportMediaTest 145.82
-dev.jordond.filmstrip.media3.AndroidFillMediaTest 37.08
-dev.jordond.filmstrip.media3.AndroidFilmMediaTest 44.98
-dev.jordond.filmstrip.media3.AndroidGeometryMediaTest 8.13
-dev.jordond.filmstrip.media3.AndroidImageExportMediaTest 12.14
-dev.jordond.filmstrip.media3.AndroidKenBurnsMediaTest 13.91
-dev.jordond.filmstrip.media3.AndroidLutMediaTest 9.96
-dev.jordond.filmstrip.media3.AndroidOverlayAnimationMediaTest 27.44
-dev.jordond.filmstrip.media3.AndroidOverlayFillMediaTest 43.25
-dev.jordond.filmstrip.media3.AndroidOverlayIccMediaTest 100.38
-dev.jordond.filmstrip.media3.AndroidOverlayMediaTest 56.75
-dev.jordond.filmstrip.media3.AndroidOverlayOrientationMediaTest 2.81
-dev.jordond.filmstrip.media3.AndroidOverlayPictureAtExportMediaTest 5.95
-dev.jordond.filmstrip.media3.AndroidOverlaySdrMediaTest 17.28
-dev.jordond.filmstrip.media3.AndroidOverlayTimingMediaTest 36.31
-dev.jordond.filmstrip.media3.AndroidProbeTest 0.15
-dev.jordond.filmstrip.media3.AndroidRotateMediaTest 3.55
-dev.jordond.filmstrip.media3.AndroidSdColorMediaTest 3.33
-dev.jordond.filmstrip.media3.AndroidVhsMediaTest 72.74
-dev.jordond.filmstrip.media3.Media3CopyGridMediaTest 2.12
-dev.jordond.filmstrip.media3.internal.TransformerRunMediaTest 16.98
-dev.jordond.filmstrip.okio.OkioTest 6.82
-dev.jordond.filmstrip.picture.EmbeddedColorCorruptionTest 1.43
-dev.jordond.filmstrip.picture.EmbeddedColorFuzzTest 0.18
-dev.jordond.filmstrip.picture.EmbeddedColorHeifTest 0.14
-dev.jordond.filmstrip.picture.EmbeddedProfileHeifTest 3.32
-dev.jordond.filmstrip.picture.EmbeddedProfileTest 2.19
-dev.jordond.filmstrip.picture.PictureExtentTest 2.07
-dev.jordond.filmstrip.picture.PictureOrientationFetchTest 13.12
-dev.jordond.filmstrip.picture.PictureOrientationReadTest 1.15
-dev.jordond.filmstrip.picture.heif.Av1SequenceHeaderTest 0.27
-dev.jordond.filmstrip.picture.heif.AvifRewriteTest 8.66
-dev.jordond.filmstrip.picture.heif.HeifAuxiliaryDropTest 0.11
-dev.jordond.filmstrip.picture.heif.HeifCodestreamUnitsTest 1.02
-dev.jordond.filmstrip.picture.heif.HeifDropBoundsTest 11.10
-dev.jordond.filmstrip.picture.heif.HeifIdentityRewriteTest 1.00
-dev.jordond.filmstrip.picture.heif.HeifListingTest 1.08
-dev.jordond.filmstrip.picture.heif.HeifMetaTest 4.49
-dev.jordond.filmstrip.picture.heif.HeifOrientationDropTest 0.19
-dev.jordond.filmstrip.picture.heif.HeifRestatedColorTest 1.15
-dev.jordond.filmstrip.picture.heif.HeifRestatedNclxTest 1.00
-dev.jordond.filmstrip.picture.heif.HeifRewriteTest 7.64
-dev.jordond.filmstrip.picture.heif.HeifSampleLayoutTest 0.20
-dev.jordond.filmstrip.picture.heif.HeifTilesTest 1.06
-dev.jordond.filmstrip.picture.heif.HevcSpsTest 6.52
-dev.jordond.filmstrip.picture.png.InflateTest 2.21
-dev.jordond.filmstrip.picture.png.PngSamplesJvmTest 2.14
-dev.jordond.filmstrip.picture.png.PngSamplesMalformedTest 0.38
-dev.jordond.filmstrip.picture.png.PngSamplesTest 0.88
+dev.jordond.filmstrip.internal.DefaultFilmstripTest 1.57
+dev.jordond.filmstrip.internal.EngineVideoPlayerTest 1.32
+dev.jordond.filmstrip.internal.ImageMeasureAndroidMediaTest 0.33
+dev.jordond.filmstrip.internal.ImageMeasureJvmTest 0.29
+dev.jordond.filmstrip.internal.PlatformProberBytesAppleTest 1.01
+dev.jordond.filmstrip.internal.ProbeImageTest 0.39
+dev.jordond.filmstrip.internal.ThumbnailDispatcherFailureTest 0.14
+dev.jordond.filmstrip.internal.ThumbnailDispatcherTest 0.16
+dev.jordond.filmstrip.iosharness.AvFilterProbeTest 3.19
+dev.jordond.filmstrip.kotlinxio.KotlinxIoTest 3.79
+dev.jordond.filmstrip.media.ImageProbeJvmTest 0.19
+dev.jordond.filmstrip.media.ImageProbeWebTest 0.12
+dev.jordond.filmstrip.media.LateTagProbeJvmTest 1.60
+dev.jordond.filmstrip.media.LateTagProbeWebTest 3.64
+dev.jordond.filmstrip.media.MediaBytesFileAndroidMediaTest 0.67
+dev.jordond.filmstrip.media.MediaBytesFileJvmTest 0.58
+dev.jordond.filmstrip.media.MediaBytesFileTest 1.03
+dev.jordond.filmstrip.media.SourceOverloadsTest 0.36
+dev.jordond.filmstrip.media3.AacEncoderFlushMediaTest 4.61
+dev.jordond.filmstrip.media3.AndroidAuthoredColorMediaTest 26.24
+dev.jordond.filmstrip.media3.AndroidBitrateMediaTest 103.65
+dev.jordond.filmstrip.media3.AndroidBrightnessHdrMediaTest 0.36
+dev.jordond.filmstrip.media3.AndroidClipPlacementMediaTest 29.40
+dev.jordond.filmstrip.media3.AndroidClipSpeedMediaTest 40.92
+dev.jordond.filmstrip.media3.AndroidColorStageMediaTest 6.76
+dev.jordond.filmstrip.media3.AndroidCrtMediaTest 12.14
+dev.jordond.filmstrip.media3.AndroidEffectMediaTest 75.84
+dev.jordond.filmstrip.media3.AndroidEncoderColorMediaTest 0.24
+dev.jordond.filmstrip.media3.AndroidExportMediaTest 164.75
+dev.jordond.filmstrip.media3.AndroidFillMediaTest 43.56
+dev.jordond.filmstrip.media3.AndroidFilmMediaTest 55.97
+dev.jordond.filmstrip.media3.AndroidGeometryMediaTest 10.48
+dev.jordond.filmstrip.media3.AndroidImageExportMediaTest 14.24
+dev.jordond.filmstrip.media3.AndroidKenBurnsMediaTest 17.96
+dev.jordond.filmstrip.media3.AndroidLutMediaTest 14.05
+dev.jordond.filmstrip.media3.AndroidOverlayAnimationMediaTest 31.39
+dev.jordond.filmstrip.media3.AndroidOverlayFillMediaTest 53.21
+dev.jordond.filmstrip.media3.AndroidOverlayIccMediaTest 126.45
+dev.jordond.filmstrip.media3.AndroidOverlayMediaTest 65.89
+dev.jordond.filmstrip.media3.AndroidOverlayOrientationMediaTest 3.39
+dev.jordond.filmstrip.media3.AndroidOverlayPictureAtExportMediaTest 6.88
+dev.jordond.filmstrip.media3.AndroidOverlaySdrMediaTest 20.45
+dev.jordond.filmstrip.media3.AndroidOverlayTimingMediaTest 41.97
+dev.jordond.filmstrip.media3.AndroidProbeTest 0.23
+dev.jordond.filmstrip.media3.AndroidRotateMediaTest 4.54
+dev.jordond.filmstrip.media3.AndroidSdColorMediaTest 4.26
+dev.jordond.filmstrip.media3.AndroidVhsMediaTest 87.79
+dev.jordond.filmstrip.media3.Media3CopyGridMediaTest 2.55
+dev.jordond.filmstrip.media3.internal.TransformerRunMediaTest 27.41
+dev.jordond.filmstrip.okio.OkioTest 3.78
+dev.jordond.filmstrip.picture.EmbeddedColorCorruptionTest 3.12
+dev.jordond.filmstrip.picture.EmbeddedColorFuzzTest 0.41
+dev.jordond.filmstrip.picture.EmbeddedColorHeifTest 0.36
+dev.jordond.filmstrip.picture.EmbeddedColorTest 0.19
+dev.jordond.filmstrip.picture.EmbeddedProfileHeifTest 6.67
+dev.jordond.filmstrip.picture.EmbeddedProfileTest 5.84
+dev.jordond.filmstrip.picture.PictureExtentTest 2.09
+dev.jordond.filmstrip.picture.PictureOrientationFetchTest 13.27
+dev.jordond.filmstrip.picture.PictureOrientationReadTest 1.11
+dev.jordond.filmstrip.picture.PictureOrientationTagTest 0.11
+dev.jordond.filmstrip.picture.heif.Av1SequenceHeaderTest 0.19
+dev.jordond.filmstrip.picture.heif.AvifRewriteTest 9.88
+dev.jordond.filmstrip.picture.heif.HeifAuxiliaryDropTest 0.36
+dev.jordond.filmstrip.picture.heif.HeifCleanApertureTest 0.11
+dev.jordond.filmstrip.picture.heif.HeifCodestreamCodingTest 0.19
+dev.jordond.filmstrip.picture.heif.HeifCodestreamUnitsTest 0.26
+dev.jordond.filmstrip.picture.heif.HeifDropBoundsTest 15.15
+dev.jordond.filmstrip.picture.heif.HeifFirstIprpTest 0.14
+dev.jordond.filmstrip.picture.heif.HeifIdentityRewriteTest 1.14
+dev.jordond.filmstrip.picture.heif.HeifListingTest 1.13
+dev.jordond.filmstrip.picture.heif.HeifMetaTest 9.27
+dev.jordond.filmstrip.picture.heif.HeifOrientationDropTest 1.06
+dev.jordond.filmstrip.picture.heif.HeifRestatedColorTest 1.01
+dev.jordond.filmstrip.picture.heif.HeifRewriteTest 8.80
+dev.jordond.filmstrip.picture.heif.HeifSampleLayoutTest 1.12
+dev.jordond.filmstrip.picture.heif.HeifTilesTest 0.12
+dev.jordond.filmstrip.picture.heif.HevcSpsTest 6.54
+dev.jordond.filmstrip.picture.png.InflateTest 3.35
+dev.jordond.filmstrip.picture.png.PngSamplesJvmTest 1.92
+dev.jordond.filmstrip.picture.png.PngSamplesMalformedTest 1.14
+dev.jordond.filmstrip.picture.png.PngSamplesTest 0.99
 dev.jordond.filmstrip.playback.AndroidEngineContractTest 3.17
 dev.jordond.filmstrip.playback.AndroidGeometrySwapTest 10.78
 dev.jordond.filmstrip.playback.AndroidPixelContractTest 6.13
@@ -418,208 +426,659 @@ dev.jordond.filmstrip.playback.AndroidThumbnailStripBenchmark 0.22
 dev.jordond.filmstrip.playback.contract.FakeEngineContractTest 2.99
 dev.jordond.filmstrip.playback.internal.Media3PlaybackErrorTest 0.58
 dev.jordond.filmstrip.playback.internal.PreviewShutterTest 0.29
-dev.jordond.filmstrip.player.AndroidCallbackFenceMediaTest 2.06
-dev.jordond.filmstrip.player.AndroidCaptionChromaMediaTest 126.62
-dev.jordond.filmstrip.player.AndroidCaptionReadMediaTest 19.31
-dev.jordond.filmstrip.player.AndroidClipSpeedParityMediaTest 27.51
-dev.jordond.filmstrip.player.AndroidClipSpeedPreviewMediaTest 10.95
-dev.jordond.filmstrip.player.AndroidCopyPreviewMediaTest 0.12
-dev.jordond.filmstrip.player.AndroidEngineContractMediaTest 26.97
-dev.jordond.filmstrip.player.AndroidGeometrySwapMediaTest 29.61
-dev.jordond.filmstrip.player.AndroidHdrPreviewMediaTest 0.20
-dev.jordond.filmstrip.player.AndroidLoopWrapMediaTest 1.56
-dev.jordond.filmstrip.player.AndroidLoweringRefusalTest 0.11
-dev.jordond.filmstrip.player.AndroidPixelContractMediaTest 26.97
-dev.jordond.filmstrip.player.AndroidPlayerSwapMediaTest 3.35
-dev.jordond.filmstrip.player.AndroidPreviewSurfaceMediaTest 6.45
-dev.jordond.filmstrip.player.AndroidShortClipEverySlotMediaTest 167.07
-dev.jordond.filmstrip.player.AndroidShortClipOffGridMediaTest 85.84
-dev.jordond.filmstrip.player.AndroidShortClipSlotMediaTest 62.30
-dev.jordond.filmstrip.player.AndroidShortClipTieMediaTest 95.45
-dev.jordond.filmstrip.player.AndroidSpanStartReadMediaTest 7.35
-dev.jordond.filmstrip.player.AndroidStillOrientationMediaTest 0.35
-dev.jordond.filmstrip.player.AndroidSurfacePixelMediaTest 18.55
-dev.jordond.filmstrip.player.AndroidThumbnailContractMediaTest 13.12
-dev.jordond.filmstrip.player.AndroidThumbnailGapMediaTest 5.23
-dev.jordond.filmstrip.player.AndroidVideoTrackEndMediaTest 2.44
-dev.jordond.filmstrip.player.AppleBytesRootFailureMediaTest 6.56
-dev.jordond.filmstrip.player.AppleCallbackFenceMediaTest 2.15
+dev.jordond.filmstrip.player.AndroidCallbackFenceMediaTest 1.94
+dev.jordond.filmstrip.player.AndroidCaptionChromaMediaTest 118.47
+dev.jordond.filmstrip.player.AndroidCaptionReadMediaTest 18.73
+dev.jordond.filmstrip.player.AndroidClipSpeedParityMediaTest 32.33
+dev.jordond.filmstrip.player.AndroidClipSpeedPreviewMediaTest 10.79
+dev.jordond.filmstrip.player.AndroidEngineContractMediaTest 26.03
+dev.jordond.filmstrip.player.AndroidGeometrySwapMediaTest 32.70
+dev.jordond.filmstrip.player.AndroidHdrPreviewMediaTest 0.12
+dev.jordond.filmstrip.player.AndroidLoopWrapMediaTest 1.46
+dev.jordond.filmstrip.player.AndroidPixelContractMediaTest 27.23
+dev.jordond.filmstrip.player.AndroidPlayerSwapMediaTest 3.26
+dev.jordond.filmstrip.player.AndroidPreviewSurfaceMediaTest 6.58
+dev.jordond.filmstrip.player.AndroidShortClipEverySlotMediaTest 147.60
+dev.jordond.filmstrip.player.AndroidShortClipOffGridMediaTest 77.65
+dev.jordond.filmstrip.player.AndroidShortClipSlotMediaTest 59.35
+dev.jordond.filmstrip.player.AndroidShortClipTieMediaTest 82.95
+dev.jordond.filmstrip.player.AndroidSpanStartReadMediaTest 7.27
+dev.jordond.filmstrip.player.AndroidStillOrientationMediaTest 0.29
+dev.jordond.filmstrip.player.AndroidSurfacePixelMediaTest 23.63
+dev.jordond.filmstrip.player.AndroidThumbnailContractMediaTest 13.24
+dev.jordond.filmstrip.player.AndroidThumbnailGapMediaTest 4.85
+dev.jordond.filmstrip.player.AndroidVideoTrackEndMediaTest 2.31
+dev.jordond.filmstrip.player.AppleBytesRootFailureMediaTest 2.12
 dev.jordond.filmstrip.player.AppleCallbackFenceTest 1.01
-dev.jordond.filmstrip.player.AppleCopyPreviewMediaTest 6.50
-dev.jordond.filmstrip.player.AppleEngineContractMediaTest 11.14
-dev.jordond.filmstrip.player.AppleHeldTailSeekMediaTest 1.11
-dev.jordond.filmstrip.player.AppleItemFailureMediaTest 11.51
-dev.jordond.filmstrip.player.AppleLoopWrapMediaTest 6.87
+dev.jordond.filmstrip.player.AppleCopyPreviewMediaTest 6.43
+dev.jordond.filmstrip.player.AppleEngineContractMediaTest 10.80
+dev.jordond.filmstrip.player.AppleHeldTailSeekMediaTest 1.03
+dev.jordond.filmstrip.player.AppleItemFailureMediaTest 12.05
+dev.jordond.filmstrip.player.AppleLoopWrapMediaTest 7.59
 dev.jordond.filmstrip.player.AppleLoopWrapTest 5.05
 dev.jordond.filmstrip.player.ApplePixelContractTest 3.02
-dev.jordond.filmstrip.player.AppleRefusedLoadMediaTest 2.36
-dev.jordond.filmstrip.player.AppleSeekAbandonMediaTest 1.12
-dev.jordond.filmstrip.player.AppleSeekLandingMediaTest 0.67
-dev.jordond.filmstrip.player.AppleStepFailureMediaTest 1.49
-dev.jordond.filmstrip.player.AppleTextLayoutMediaTest 1.02
+dev.jordond.filmstrip.player.AppleRefusedLoadMediaTest 1.02
+dev.jordond.filmstrip.player.AppleSeekAbandonMediaTest 1.13
 dev.jordond.filmstrip.player.AppleThumbnailContractTest 1.01
 dev.jordond.filmstrip.player.AppleThumbnailGapTest 2.02
-dev.jordond.filmstrip.player.AppleThumbnailRunMediaTest 1.13
+dev.jordond.filmstrip.player.AppleThumbnailRunMediaTest 2.29
 dev.jordond.filmstrip.player.AppleThumbnailRunTest 1.01
-dev.jordond.filmstrip.player.AppleThumbnailStepFailureMediaTest 1.24
-dev.jordond.filmstrip.player.AvPreviewSurfaceMacosMediaTest 0.15
-dev.jordond.filmstrip.player.AvPreviewSurfaceMediaTest 1.32
-dev.jordond.filmstrip.player.FfmpegExportSpecMediaTest 19.89
-dev.jordond.filmstrip.player.FfmpegLoopWrapTest 1.47
-dev.jordond.filmstrip.player.FfmpegPreviewExitMediaTest 2.68
+dev.jordond.filmstrip.player.AvPreviewSurfaceMacosMediaTest 0.21
+dev.jordond.filmstrip.player.FfmpegExportSpecMediaTest 23.21
+dev.jordond.filmstrip.player.FfmpegLoopWrapTest 1.40
+dev.jordond.filmstrip.player.FfmpegPreviewExitMediaTest 22.38
 dev.jordond.filmstrip.player.FfmpegPreviewExitTest 2.05
-dev.jordond.filmstrip.player.FfmpegPreviewFailureTest 1.01
-dev.jordond.filmstrip.player.FfmpegPumpDrainTest 1.03
-dev.jordond.filmstrip.player.IosEngineContractMediaTest 18.71
+dev.jordond.filmstrip.player.FfmpegPreviewFailureTest 18.84
+dev.jordond.filmstrip.player.FfmpegPumpDrainTest 0.99
+dev.jordond.filmstrip.player.IosEngineContractMediaTest 12.55
 dev.jordond.filmstrip.player.IosEngineContractTest 7.08
-dev.jordond.filmstrip.player.IosPreviewLayerMediaTest 0.43
-dev.jordond.filmstrip.player.JvmClipSpeedParityMediaTest 12.14
-dev.jordond.filmstrip.player.JvmEngineContractMediaTest 12.42
+dev.jordond.filmstrip.player.JvmClipSpeedParityMediaTest 13.73
+dev.jordond.filmstrip.player.JvmEngineContractMediaTest 18.30
 dev.jordond.filmstrip.player.JvmEngineContractTest 2.78
-dev.jordond.filmstrip.player.JvmPixelContractMediaTest 1.83
+dev.jordond.filmstrip.player.JvmPixelContractMediaTest 4.88
 dev.jordond.filmstrip.player.JvmPixelContractTest 0.69
-dev.jordond.filmstrip.player.JvmProcessHygieneMediaTest 0.38
+dev.jordond.filmstrip.player.JvmProcessHygieneMediaTest 0.80
 dev.jordond.filmstrip.player.JvmProcessHygieneTest 0.17
-dev.jordond.filmstrip.player.JvmPumpFenceMediaTest 1.37
+dev.jordond.filmstrip.player.JvmPumpFenceMediaTest 2.02
 dev.jordond.filmstrip.player.JvmPumpFenceTest 1.09
-dev.jordond.filmstrip.player.JvmRangeEndMediaTest 11.96
+dev.jordond.filmstrip.player.JvmRangeEndMediaTest 13.27
 dev.jordond.filmstrip.player.JvmRangeEndTest 10.81
-dev.jordond.filmstrip.player.JvmSeekWhilePlayingMediaTest 0.82
+dev.jordond.filmstrip.player.JvmSeekWhilePlayingMediaTest 1.18
 dev.jordond.filmstrip.player.JvmSeekWhilePlayingTest 0.57
-dev.jordond.filmstrip.player.JvmShortClipEverySlotMediaTest 75.38
-dev.jordond.filmstrip.player.JvmShortClipOffGridMediaTest 52.26
-dev.jordond.filmstrip.player.JvmShortClipSlotMediaTest 65.68
-dev.jordond.filmstrip.player.JvmShortClipTieMediaTest 44.25
-dev.jordond.filmstrip.player.JvmThumbnailContractMediaTest 1.32
+dev.jordond.filmstrip.player.JvmShortClipEverySlotMediaTest 105.70
+dev.jordond.filmstrip.player.JvmShortClipOffGridMediaTest 68.63
+dev.jordond.filmstrip.player.JvmShortClipSlotMediaTest 193.03
+dev.jordond.filmstrip.player.JvmShortClipTieMediaTest 87.91
+dev.jordond.filmstrip.player.JvmThumbnailContractMediaTest 6.06
 dev.jordond.filmstrip.player.JvmThumbnailContractTest 0.47
-dev.jordond.filmstrip.player.JvmThumbnailGapMediaTest 3.46
+dev.jordond.filmstrip.player.JvmThumbnailGapMediaTest 5.79
 dev.jordond.filmstrip.player.JvmThumbnailGapTest 0.66
-dev.jordond.filmstrip.player.JvmTransportMediaTest 8.56
+dev.jordond.filmstrip.player.JvmTransportMediaTest 14.53
 dev.jordond.filmstrip.player.JvmTransportTest 7.14
-dev.jordond.filmstrip.player.WebClipSpeedParityMediaTest 15.94
-dev.jordond.filmstrip.player.WebEngineContractTest 39.54
-dev.jordond.filmstrip.player.WebFileReadbackMediaTest 0.98
-dev.jordond.filmstrip.player.WebFirstFrameRefusalTest 0.86
-dev.jordond.filmstrip.player.WebLoopWrapTest 2.38
-dev.jordond.filmstrip.player.WebMissingBackendTest 0.12
-dev.jordond.filmstrip.player.WebNoDecoderPreviewTest 4.32
-dev.jordond.filmstrip.player.WebNoEncoderPreviewTest 0.97
-dev.jordond.filmstrip.player.WebPixelContractMediaTest 7.88
-dev.jordond.filmstrip.player.WebRebuildTransportTest 6.14
-dev.jordond.filmstrip.player.WebSeekLandingTest 6.77
-dev.jordond.filmstrip.player.WebShortClipEverySlotMediaTest 230.73
-dev.jordond.filmstrip.player.WebShortClipOffGridMediaTest 143.80
-dev.jordond.filmstrip.player.WebShortClipSlotMediaTest 118.84
-dev.jordond.filmstrip.player.WebShortClipTieMediaTest 128.59
-dev.jordond.filmstrip.player.WebTextPlateParityMediaTest 1.83
-dev.jordond.filmstrip.player.WebThumbnailContractMediaTest 7.37
-dev.jordond.filmstrip.player.WebTransportStartTest 8.22
-dev.jordond.filmstrip.player.contract.FakeEngineContractTest 11.49
-dev.jordond.filmstrip.player.internal.AvDrawFailureMediaTest 1.11
-dev.jordond.filmstrip.player.internal.AvFrameReadbackMediaTest 1.04
+dev.jordond.filmstrip.player.WebClipSpeedParityMediaTest 19.73
+dev.jordond.filmstrip.player.WebEngineContractTest 48.58
+dev.jordond.filmstrip.player.WebFileReadbackMediaTest 1.22
+dev.jordond.filmstrip.player.WebFirstFrameRefusalTest 1.08
+dev.jordond.filmstrip.player.WebLoopWrapTest 3.07
+dev.jordond.filmstrip.player.WebNoDecoderPreviewTest 5.33
+dev.jordond.filmstrip.player.WebNoEncoderPreviewTest 1.21
+dev.jordond.filmstrip.player.WebPixelContractMediaTest 9.80
+dev.jordond.filmstrip.player.WebRebuildTransportTest 7.44
+dev.jordond.filmstrip.player.WebSeekLandingTest 7.75
+dev.jordond.filmstrip.player.WebShortClipEverySlotMediaTest 223.49
+dev.jordond.filmstrip.player.WebShortClipOffGridMediaTest 142.13
+dev.jordond.filmstrip.player.WebShortClipSlotMediaTest 116.07
+dev.jordond.filmstrip.player.WebShortClipTieMediaTest 130.76
+dev.jordond.filmstrip.player.WebTextPlateParityMediaTest 2.27
+dev.jordond.filmstrip.player.WebThumbnailContractMediaTest 9.16
+dev.jordond.filmstrip.player.WebTransportStartTest 10.27
+dev.jordond.filmstrip.player.contract.FakeEngineContractTest 12.40
+dev.jordond.filmstrip.player.internal.AvDrawFailureMediaTest 1.15
+dev.jordond.filmstrip.player.internal.AvFrameReadbackMediaTest 1.06
 dev.jordond.filmstrip.player.internal.AvFrameReadbackTest 1.01
-dev.jordond.filmstrip.player.internal.AvItemObserversMediaTest 1.04
-dev.jordond.filmstrip.player.internal.AvLoopRangeControllerMediaTest 1.14
+dev.jordond.filmstrip.player.internal.AvItemObserversMediaTest 1.13
+dev.jordond.filmstrip.player.internal.AvLoopRangeControllerMediaTest 2.24
 dev.jordond.filmstrip.player.internal.AvLoopRangeControllerTest 1.01
-dev.jordond.filmstrip.player.internal.AvObserversMediaTest 1.15
-dev.jordond.filmstrip.player.internal.AvSeekCoordinatorMediaTest 1.14
+dev.jordond.filmstrip.player.internal.AvSeekCoordinatorMediaTest 1.02
 dev.jordond.filmstrip.player.internal.AvSeekCoordinatorTest 1.01
-dev.jordond.filmstrip.player.internal.AvTransportMediaTest 12.51
-dev.jordond.filmstrip.player.internal.BrowserFidelityTest 2.63
-dev.jordond.filmstrip.player.internal.BrowserFrameReadbackTest 2.95
-dev.jordond.filmstrip.player.internal.BrowserInertNoticeTest 1.72
-dev.jordond.filmstrip.player.internal.BrowserPlaybackLoopsTest 0.12
-dev.jordond.filmstrip.player.internal.Media3FrameReadbackMediaTest 0.49
-dev.jordond.filmstrip.player.internal.thumbnail.FfmpegThumbnailSourceMediaTest 0.39
+dev.jordond.filmstrip.player.internal.AvTransportMediaTest 3.21
+dev.jordond.filmstrip.player.internal.BrowserFidelityTest 3.46
+dev.jordond.filmstrip.player.internal.BrowserFrameReadbackTest 3.82
+dev.jordond.filmstrip.player.internal.BrowserInertNoticeTest 2.21
+dev.jordond.filmstrip.player.internal.BrowserPlaybackLoopsTest 0.11
+dev.jordond.filmstrip.player.internal.Media3FrameReadbackMediaTest 0.51
+dev.jordond.filmstrip.player.internal.PreviewLoweringTest 0.15
+dev.jordond.filmstrip.player.internal.thumbnail.FfmpegThumbnailSourceMediaTest 0.65
 dev.jordond.filmstrip.player.internal.thumbnail.FfmpegThumbnailSourceTest 0.15
-dev.jordond.filmstrip.sample.DiagnosticsReportTest 0.62
-dev.jordond.filmstrip.sample.EditStateTest 0.58
-dev.jordond.filmstrip.sample.ExportRefusalTest 0.18
-dev.jordond.filmstrip.sample.PreviewStartTest 0.11
-dev.jordond.filmstrip.sample.SampleSessionTest 0.12
-dev.jordond.filmstrip.sample.tryit.BeachEditTest 1.37
-dev.jordond.filmstrip.sample.tryit.TryEngineLoadTest 0.46
-dev.jordond.filmstrip.sample.tryit.TryEngineRefusalTest 0.15
-dev.jordond.filmstrip.sample.tryit.TryEngineResumeTest 0.23
-dev.jordond.filmstrip.sample.tryit.TryEngineTest 0.17
-dev.jordond.filmstrip.sample.ui.PartsTest 1.85
-dev.jordond.filmstrip.sample.ui.ScreenInsetsTest 0.88
-dev.jordond.filmstrip.sample.ui.TokensMatchSiteTest 0.13
-dev.jordond.filmstrip.still.StillEncodeJvmTest 0.41
-dev.jordond.filmstrip.still.StillEncodeWebTest 0.30
-dev.jordond.filmstrip.still.StillFacadeTest 0.15
-dev.jordond.filmstrip.test.AppleStillSamplesTest 2.19
-dev.jordond.filmstrip.test.AppleTwelveBitStillsTest 3.27
-dev.jordond.filmstrip.test.AuthoredColorsTest 3.85
-dev.jordond.filmstrip.test.AvifCodestreamRewriteTest 1.09
-dev.jordond.filmstrip.test.CodestreamColorPicturesTest 1.09
-dev.jordond.filmstrip.test.ColorPicturesJvmTest 0.51
-dev.jordond.filmstrip.test.ColorPicturesTest 0.56
-dev.jordond.filmstrip.test.FrameComparisonTest 0.52
-dev.jordond.filmstrip.test.HdrSourceOverTest 0.15
-dev.jordond.filmstrip.test.HeicCodestreamRewriteTest 0.12
-dev.jordond.filmstrip.test.HeicRewriteColorTest 0.21
-dev.jordond.filmstrip.test.HeifAlphaTest 0.77
-dev.jordond.filmstrip.test.HeifCodedImagesTest 0.30
-dev.jordond.filmstrip.test.HeifOverlayTest 3.56
-dev.jordond.filmstrip.test.IccPicturesJvmTest 3.44
-dev.jordond.filmstrip.test.IccPicturesTest 0.35
-dev.jordond.filmstrip.test.OrientedHeifTest 0.33
-dev.jordond.filmstrip.test.StraightSamplesTest 0.66
+dev.jordond.filmstrip.sample.DiagnosticsReportTest 0.92
+dev.jordond.filmstrip.sample.EditStateTest 0.73
+dev.jordond.filmstrip.sample.ExportDiagnosticsTest 0.16
+dev.jordond.filmstrip.sample.ExportRefusalTest 0.26
+dev.jordond.filmstrip.sample.PreviewStartTest 0.71
+dev.jordond.filmstrip.sample.SampleSessionTest 0.26
+dev.jordond.filmstrip.sample.tryit.BeachEditTest 0.78
+dev.jordond.filmstrip.sample.tryit.LandingSnippetTest 1.00
+dev.jordond.filmstrip.sample.tryit.TryEngineLoadTest 0.36
+dev.jordond.filmstrip.sample.tryit.TryEngineRefusalTest 1.99
+dev.jordond.filmstrip.sample.tryit.TryEngineResumeTest 0.25
+dev.jordond.filmstrip.sample.tryit.TryEngineTest 0.36
+dev.jordond.filmstrip.sample.tryit.TryEngineTrimTest 0.32
+dev.jordond.filmstrip.sample.tryit.TryEngineWatchTest 0.11
+dev.jordond.filmstrip.sample.ui.PartsTest 2.51
+dev.jordond.filmstrip.sample.ui.ScreenInsetsTest 0.77
+dev.jordond.filmstrip.sample.ui.TokensMatchSiteTest 0.35
+dev.jordond.filmstrip.still.StillEncodeJvmTest 0.71
+dev.jordond.filmstrip.still.StillEncodeWebTest 0.19
+dev.jordond.filmstrip.still.StillFacadeTest 0.12
+dev.jordond.filmstrip.test.AppleStillSamplesTest 2.23
+dev.jordond.filmstrip.test.AppleTwelveBitStillsTest 4.22
+dev.jordond.filmstrip.test.AuthoredColorsTest 3.30
+dev.jordond.filmstrip.test.AvifCodestreamRewriteTest 4.67
+dev.jordond.filmstrip.test.CodestreamColorPicturesTest 4.39
+dev.jordond.filmstrip.test.ColorPicturesJvmTest 0.40
+dev.jordond.filmstrip.test.ColorPicturesTest 1.15
+dev.jordond.filmstrip.test.FrameComparisonTest 0.40
+dev.jordond.filmstrip.test.HdrEncodingTest 0.12
+dev.jordond.filmstrip.test.HeicCodestreamRewriteTest 0.21
+dev.jordond.filmstrip.test.HeicRewriteColorTest 0.23
+dev.jordond.filmstrip.test.HeifAlphaTest 1.33
+dev.jordond.filmstrip.test.HeifCodedImagesTest 0.26
+dev.jordond.filmstrip.test.HeifOverlayTest 2.52
+dev.jordond.filmstrip.test.HeifThumbnailTest 0.18
+dev.jordond.filmstrip.test.IccPicturesJvmTest 3.52
+dev.jordond.filmstrip.test.IccPicturesTest 0.17
+dev.jordond.filmstrip.test.OrientedHeifTest 1.09
+dev.jordond.filmstrip.test.StraightSamplesTest 0.63
 dev.jordond.filmstrip.test.ToneAnalysisTest 0.10
-dev.jordond.filmstrip.thumbnail.SerialThumbnailRunTest 0.36
-dev.jordond.filmstrip.transform.internal.BitratePlanTest 4.58
-dev.jordond.filmstrip.transform.internal.ClipFitPlanTest 0.69
-dev.jordond.filmstrip.transform.internal.CopyGapTest 2.07
+dev.jordond.filmstrip.thumbnail.SerialThumbnailRunTest 0.31
+dev.jordond.filmstrip.transform.internal.BitratePlanTest 4.71
+dev.jordond.filmstrip.transform.internal.ClipFitPlanTest 3.10
+dev.jordond.filmstrip.transform.internal.CopyGapTest 4.10
 dev.jordond.filmstrip.transform.internal.CopyPacketPlanTest 0.25
-dev.jordond.filmstrip.transform.internal.CrossEngineLadderTest 0.89
-dev.jordond.filmstrip.transform.internal.EffectPlanTest 0.17
-dev.jordond.filmstrip.transform.internal.EngineLoweringTest 0.82
-dev.jordond.filmstrip.transform.internal.ExportDriverTest 0.28
-dev.jordond.filmstrip.transform.internal.ExportPlannerTest 0.27
-dev.jordond.filmstrip.transform.internal.FrameCoverageTest 0.13
+dev.jordond.filmstrip.transform.internal.EffectNeedsSdrPlanTest 0.49
+dev.jordond.filmstrip.transform.internal.EffectPlanTest 0.23
+dev.jordond.filmstrip.transform.internal.EngineLoweringTest 0.86
+dev.jordond.filmstrip.transform.internal.ExportDriverTest 0.46
+dev.jordond.filmstrip.transform.internal.ExportPlannerTest 0.43
+dev.jordond.filmstrip.transform.internal.FillPlanTest 0.29
+dev.jordond.filmstrip.transform.internal.FrameCoverageTest 0.16
 dev.jordond.filmstrip.transform.internal.GainPlanTest 0.12
-dev.jordond.filmstrip.transform.internal.HdrOverlayCellsTest 0.46
-dev.jordond.filmstrip.transform.internal.InertPlanTest 0.18
+dev.jordond.filmstrip.transform.internal.HdrOverlayCellsTest 0.87
+dev.jordond.filmstrip.transform.internal.HdrPlanTest 0.27
+dev.jordond.filmstrip.transform.internal.InertPlanTest 0.29
 dev.jordond.filmstrip.transform.internal.ProbeCacheTest 0.35
-dev.jordond.filmstrip.transform.internal.TrackPlanTest 0.17
-dev.jordond.filmstrip.transform.internal.copy.CopyPrefixTest 0.11
-dev.jordond.filmstrip.transform.internal.hdr.SdrToneCurveTest 0.14
-dev.jordond.filmstrip.transform.internal.negotiation.TrackLayingTest 0.15
-dev.jordond.filmstrip.transform.internal.probe.PlanningReadsTest 0.17
-dev.jordond.filmstrip.webcodecs.AudioDecodeCloseMediaTest 0.46
-dev.jordond.filmstrip.webcodecs.BrowserAudioPreviewMediaTest 1.04
-dev.jordond.filmstrip.webcodecs.BrowserCapabilitiesTest 1.86
-dev.jordond.filmstrip.webcodecs.BrowserClipCanvasMediaTest 11.06
-dev.jordond.filmstrip.webcodecs.BrowserClipPlacementMediaTest 4.44
-dev.jordond.filmstrip.webcodecs.BrowserCopyGridMediaTest 1.85
-dev.jordond.filmstrip.webcodecs.BrowserCrtMediaTest 26.82
-dev.jordond.filmstrip.webcodecs.BrowserCrtScopeMediaTest 16.61
-dev.jordond.filmstrip.webcodecs.BrowserEncoderMediaTest 4.50
-dev.jordond.filmstrip.webcodecs.BrowserExportMediaTest 44.87
-dev.jordond.filmstrip.webcodecs.BrowserExportSmokeTest 0.96
-dev.jordond.filmstrip.webcodecs.BrowserFillEdgeMediaTest 2.70
-dev.jordond.filmstrip.webcodecs.BrowserFilmMediaTest 38.48
-dev.jordond.filmstrip.webcodecs.BrowserGeometryExportMediaTest 13.45
-dev.jordond.filmstrip.webcodecs.BrowserHdrMediaTest 21.64
-dev.jordond.filmstrip.webcodecs.BrowserHdrShaderMediaTest 0.23
-dev.jordond.filmstrip.webcodecs.BrowserKenBurnsMediaTest 5.83
-dev.jordond.filmstrip.webcodecs.BrowserLutMediaTest 24.37
-dev.jordond.filmstrip.webcodecs.BrowserMixSeamMediaTest 1.15
-dev.jordond.filmstrip.webcodecs.BrowserOverlayExportMediaTest 14.99
-dev.jordond.filmstrip.webcodecs.BrowserOverlayHdrMediaTest 36.18
-dev.jordond.filmstrip.webcodecs.BrowserOverlayIccMediaTest 68.03
-dev.jordond.filmstrip.webcodecs.BrowserOverlayPictureAtExportMediaTest 7.66
-dev.jordond.filmstrip.webcodecs.BrowserPassStepsMediaTest 7.36
-dev.jordond.filmstrip.webcodecs.BrowserPipelineMediaTest 5.43
-dev.jordond.filmstrip.webcodecs.BrowserPreviewMediaTest 21.84
-dev.jordond.filmstrip.webcodecs.BrowserResolveTest 1.69
-dev.jordond.filmstrip.webcodecs.BrowserSdColorMediaTest 7.44
-dev.jordond.filmstrip.webcodecs.BrowserShaderPassMediaTest 17.22
-dev.jordond.filmstrip.webcodecs.BrowserSpeedMixMediaTest 3.12
-dev.jordond.filmstrip.webcodecs.BrowserTimedPassMediaTest 1.93
-dev.jordond.filmstrip.webcodecs.BrowserToneMapMediaTest 14.85
-dev.jordond.filmstrip.webcodecs.BrowserVhsMediaTest 20.00
-dev.jordond.filmstrip.webcodecs.HdrPassTest 0.10
-dev.jordond.filmstrip.webcodecs.TimeStretchTest 1.56
-dev.jordond.filmstrip.webcodecs.WasmExportCanaryMediaTest 2.50
+dev.jordond.filmstrip.transform.internal.TrackPlanTest 0.39
+dev.jordond.filmstrip.transform.internal.copy.CopyPrefixTest 0.12
+dev.jordond.filmstrip.transform.internal.probe.PlanningReadsTest 0.13
+dev.jordond.filmstrip.transform.internal.probe.ProbeCacheTest 0.75
+dev.jordond.filmstrip.transform.internal.probe.ProcessProbeTest 0.72
+dev.jordond.filmstrip.webcodecs.AudioDecodeCloseMediaTest 0.18
+dev.jordond.filmstrip.webcodecs.BrowserAudioPreviewMediaTest 1.20
+dev.jordond.filmstrip.webcodecs.BrowserCapabilitiesTest 2.19
+dev.jordond.filmstrip.webcodecs.BrowserClipCanvasMediaTest 13.52
+dev.jordond.filmstrip.webcodecs.BrowserClipPlacementMediaTest 5.59
+dev.jordond.filmstrip.webcodecs.BrowserCopyGridMediaTest 2.32
+dev.jordond.filmstrip.webcodecs.BrowserCrtMediaTest 28.95
+dev.jordond.filmstrip.webcodecs.BrowserCrtScopeMediaTest 19.73
+dev.jordond.filmstrip.webcodecs.BrowserEncoderMediaTest 5.65
+dev.jordond.filmstrip.webcodecs.BrowserExportMediaTest 56.92
+dev.jordond.filmstrip.webcodecs.BrowserExportSmokeTest 1.19
+dev.jordond.filmstrip.webcodecs.BrowserFillEdgeMediaTest 3.37
+dev.jordond.filmstrip.webcodecs.BrowserFilmMediaTest 46.81
+dev.jordond.filmstrip.webcodecs.BrowserGeometryExportMediaTest 17.32
+dev.jordond.filmstrip.webcodecs.BrowserHdrMediaTest 27.38
+dev.jordond.filmstrip.webcodecs.BrowserHdrShaderMediaTest 0.34
+dev.jordond.filmstrip.webcodecs.BrowserKenBurnsMediaTest 7.45
+dev.jordond.filmstrip.webcodecs.BrowserLutMediaTest 27.52
+dev.jordond.filmstrip.webcodecs.BrowserMixSeamMediaTest 1.22
+dev.jordond.filmstrip.webcodecs.BrowserOverlayExportMediaTest 19.30
+dev.jordond.filmstrip.webcodecs.BrowserOverlayHdrMediaTest 46.30
+dev.jordond.filmstrip.webcodecs.BrowserOverlayIccMediaTest 87.18
+dev.jordond.filmstrip.webcodecs.BrowserOverlayPictureAtExportMediaTest 9.22
+dev.jordond.filmstrip.webcodecs.BrowserPassStepsMediaTest 9.36
+dev.jordond.filmstrip.webcodecs.BrowserPipelineMediaTest 6.86
+dev.jordond.filmstrip.webcodecs.BrowserPreviewMediaTest 27.89
+dev.jordond.filmstrip.webcodecs.BrowserResolveTest 2.17
+dev.jordond.filmstrip.webcodecs.BrowserSdColorMediaTest 9.38
+dev.jordond.filmstrip.webcodecs.BrowserShaderPassMediaTest 21.75
+dev.jordond.filmstrip.webcodecs.BrowserSpeedMixMediaTest 3.87
+dev.jordond.filmstrip.webcodecs.BrowserTimedPassMediaTest 2.40
+dev.jordond.filmstrip.webcodecs.BrowserToneMapMediaTest 18.93
+dev.jordond.filmstrip.webcodecs.BrowserVhsMediaTest 25.16
+dev.jordond.filmstrip.webcodecs.HdrPassTest 0.13
+dev.jordond.filmstrip.webcodecs.SampleReleaseMediaTest 0.10
+dev.jordond.filmstrip.webcodecs.TimeStretchTest 1.79
+dev.jordond.filmstrip.webcodecs.WasmExportCanaryMediaTest 2.41
+@ffmpeg-8 dev.jordond.filmstrip.AllBackendsTest 2.17
+@ffmpeg-8 dev.jordond.filmstrip.CanonicalOrderTest 1.98
+@ffmpeg-8 dev.jordond.filmstrip.ComponentsReachFactoriesTest 3.27
+@ffmpeg-8 dev.jordond.filmstrip.CompositionModelTest 3.72
+@ffmpeg-8 dev.jordond.filmstrip.MediaSourceTest 2.43
+@ffmpeg-8 dev.jordond.filmstrip.ProberChainTest 0.24
+@ffmpeg-8 dev.jordond.filmstrip.color.AuthoredHdrLightTest 0.44
+@ffmpeg-8 dev.jordond.filmstrip.color.HdrSignalDoubleTest 2.82
+@ffmpeg-8 dev.jordond.filmstrip.color.NearestMatrixTest 5.92
+@ffmpeg-8 dev.jordond.filmstrip.color.PictureCodesForTest 0.82
+@ffmpeg-8 dev.jordond.filmstrip.color.PictureColorHdrTest 4.57
+@ffmpeg-8 dev.jordond.filmstrip.color.PictureColorTest 0.56
+@ffmpeg-8 dev.jordond.filmstrip.color.PictureLightJvmTest 1.83
+@ffmpeg-8 dev.jordond.filmstrip.color.PictureLightTest 2.20
+@ffmpeg-8 dev.jordond.filmstrip.color.SdColorTest 0.11
+@ffmpeg-8 dev.jordond.filmstrip.color.TenBitCodesTest 0.24
+@ffmpeg-8 dev.jordond.filmstrip.color.YcbcrReadingTest 0.11
+@ffmpeg-8 dev.jordond.filmstrip.color.YcbcrToRgbTest 0.53
+@ffmpeg-8 dev.jordond.filmstrip.color.icc.IccProfileTest 0.63
+@ffmpeg-8 dev.jordond.filmstrip.compose.FilmstripFrameTest 6.60
+@ffmpeg-8 dev.jordond.filmstrip.compose.FilmstripFramesTest 9.12
+@ffmpeg-8 dev.jordond.filmstrip.compose.FilmstripPlayerConfigTest 0.24
+@ffmpeg-8 dev.jordond.filmstrip.compose.PlaybackEventEffectTest 0.10
+@ffmpeg-8 dev.jordond.filmstrip.compose.ReadbackSurfaceTest 13.87
+@ffmpeg-8 dev.jordond.filmstrip.compose.VideoSurfaceStateTest 0.32
+@ffmpeg-8 dev.jordond.filmstrip.compose.VideoSurfaceTest 2.74
+@ffmpeg-8 dev.jordond.filmstrip.compose.ui.ClockLabelTest 4.42
+@ffmpeg-8 dev.jordond.filmstrip.compose.ui.FilmstripTimelineUiTest 12.23
+@ffmpeg-8 dev.jordond.filmstrip.compose.ui.TimelineOptionsUiTest 15.40
+@ffmpeg-8 dev.jordond.filmstrip.compose.ui.TimelineOverlayScopeUiTest 9.09
+@ffmpeg-8 dev.jordond.filmstrip.compose.ui.TimelineStateTest 1.17
+@ffmpeg-8 dev.jordond.filmstrip.compose.ui.TimelineViewportFitTest 3.70
+@ffmpeg-8 dev.jordond.filmstrip.compose.ui.component.CropOverlayUiTest 0.40
+@ffmpeg-8 dev.jordond.filmstrip.compose.ui.component.FilmstripImageTest 0.49
+@ffmpeg-8 dev.jordond.filmstrip.compose.ui.component.FilmstripStripTest 0.55
+@ffmpeg-8 dev.jordond.filmstrip.compose.ui.component.OverlayHandleTest 0.25
+@ffmpeg-8 dev.jordond.filmstrip.compose.ui.component.TimelineRulerTest 0.22
+@ffmpeg-8 dev.jordond.filmstrip.compose.ui.component.TrimOverlayTest 0.61
+@ffmpeg-8 dev.jordond.filmstrip.compose.ui.component.VideoStageTest 0.59
+@ffmpeg-8 dev.jordond.filmstrip.compose.ui.geometry.TimelineZoomTest 0.63
+@ffmpeg-8 dev.jordond.filmstrip.compose.ui.interaction.PlayheadFollowTest 0.55
+@ffmpeg-8 dev.jordond.filmstrip.compose.ui.interaction.ScrubTimelineUiTest 0.16
+@ffmpeg-8 dev.jordond.filmstrip.compose.ui.interaction.TimelineKeysUiTest 0.41
+@ffmpeg-8 dev.jordond.filmstrip.compose.ui.interaction.WheelZoomTimelineUiTest 0.42
+@ffmpeg-8 dev.jordond.filmstrip.compose.ui.interaction.ZoomTimelineUiTest 0.23
+@ffmpeg-8 dev.jordond.filmstrip.effects.HdrExpressionsTest 3.46
+@ffmpeg-8 dev.jordond.filmstrip.effects.HdrGradeTablesTest 9.71
+@ffmpeg-8 dev.jordond.filmstrip.effects.OverlayHeaderTest 2.45
+@ffmpeg-8 dev.jordond.filmstrip.effects.OverlayOrientedAnimationTest 5.91
+@ffmpeg-8 dev.jordond.filmstrip.effects.OverlayPictureDecodeTest 4.96
+@ffmpeg-8 dev.jordond.filmstrip.effects.OverlayPictureLimitsTest 4.29
+@ffmpeg-8 dev.jordond.filmstrip.effects.OverlayPictureReadTest 1.28
+@ffmpeg-8 dev.jordond.filmstrip.effects.OverlayPictureShapeTest 1.05
+@ffmpeg-8 dev.jordond.filmstrip.effects.filters.crt.CrtLoweringMediaTest 11.74
+@ffmpeg-8 dev.jordond.filmstrip.effects.filters.crt.CrtSignalTest 1.57
+@ffmpeg-8 dev.jordond.filmstrip.effects.filters.crt.CrtTest 0.25
+@ffmpeg-8 dev.jordond.filmstrip.effects.filters.film.FilmExpressionMediaTest 30.58
+@ffmpeg-8 dev.jordond.filmstrip.effects.filters.film.FilmSignalTest 5.53
+@ffmpeg-8 dev.jordond.filmstrip.effects.filters.film.FilmTest 0.36
+@ffmpeg-8 dev.jordond.filmstrip.effects.filters.lut.CubeLutTest 1.51
+@ffmpeg-8 dev.jordond.filmstrip.effects.filters.lut.LutLoweringTest 0.14
+@ffmpeg-8 dev.jordond.filmstrip.effects.filters.lut.LutTest 0.46
+@ffmpeg-8 dev.jordond.filmstrip.effects.filters.vhs.VhsHashExpressionMediaTest 0.65
+@ffmpeg-8 dev.jordond.filmstrip.effects.filters.vhs.VhsPlanesMediaTest 27.21
+@ffmpeg-8 dev.jordond.filmstrip.effects.filters.vhs.VhsSignalTest 0.39
+@ffmpeg-8 dev.jordond.filmstrip.effects.overlay.HdrOverlayGraphTest 0.65
+@ffmpeg-8 dev.jordond.filmstrip.effects.overlay.HdrOverlayRasterTest 0.64
+@ffmpeg-8 dev.jordond.filmstrip.effects.overlay.JvmTextRasterTest 1.47
+@ffmpeg-8 dev.jordond.filmstrip.effects.overlay.OverlayAnimationTest 0.17
+@ffmpeg-8 dev.jordond.filmstrip.effects.overlay.OverlayDslTest 0.15
+@ffmpeg-8 dev.jordond.filmstrip.effects.overlay.OverlayFrameTimeTest 0.51
+@ffmpeg-8 dev.jordond.filmstrip.effects.overlay.OverlayGraphTest 0.11
+@ffmpeg-8 dev.jordond.filmstrip.effects.overlay.PlatedSamplesTest 4.01
+@ffmpeg-8 dev.jordond.filmstrip.effects.overlay.RestatedPictureTest 0.30
+@ffmpeg-8 dev.jordond.filmstrip.effects.overlay.StoredOrientationTest 0.14
+@ffmpeg-8 dev.jordond.filmstrip.effects.overlay.StoredPictureTest 0.39
+@ffmpeg-8 dev.jordond.filmstrip.ffmpeg.AudioLoweringTest 2.88
+@ffmpeg-8 dev.jordond.filmstrip.ffmpeg.BlurredLetterboxTest 6.06
+@ffmpeg-8 dev.jordond.filmstrip.ffmpeg.BytesRootTest 2.12
+@ffmpeg-8 dev.jordond.filmstrip.ffmpeg.CanvasChromaGridTest 4.28
+@ffmpeg-8 dev.jordond.filmstrip.ffmpeg.CapabilityDeadlineTest 2.77
+@ffmpeg-8 dev.jordond.filmstrip.ffmpeg.CopyPacketReadTest 0.69
+@ffmpeg-8 dev.jordond.filmstrip.ffmpeg.CopyPacketsTest 3.69
+@ffmpeg-8 dev.jordond.filmstrip.ffmpeg.EffectLoweringTest 2.32
+@ffmpeg-8 dev.jordond.filmstrip.ffmpeg.ExitCodesTest 1.21
+@ffmpeg-8 dev.jordond.filmstrip.ffmpeg.FfmpegAudioMediaTest 14.95
+@ffmpeg-8 dev.jordond.filmstrip.ffmpeg.FfmpegBytesSourceMediaTest 14.03
+@ffmpeg-8 dev.jordond.filmstrip.ffmpeg.FfmpegCapabilityProbeMediaTest 4.28
+@ffmpeg-8 dev.jordond.filmstrip.ffmpeg.FfmpegClipPlacementMediaTest 19.26
+@ffmpeg-8 dev.jordond.filmstrip.ffmpeg.FfmpegClipSpeedMediaTest 9.72
+@ffmpeg-8 dev.jordond.filmstrip.ffmpeg.FfmpegClipSpeedWindowMediaTest 38.20
+@ffmpeg-8 dev.jordond.filmstrip.ffmpeg.FfmpegColorEffectMediaTest 4.49
+@ffmpeg-8 dev.jordond.filmstrip.ffmpeg.FfmpegCopyMediaTest 7.43
+@ffmpeg-8 dev.jordond.filmstrip.ffmpeg.FfmpegCopyPacketsMediaTest 3.29
+@ffmpeg-8 dev.jordond.filmstrip.ffmpeg.FfmpegCrtHoistMediaTest 7.41
+@ffmpeg-8 dev.jordond.filmstrip.ffmpeg.FfmpegCrtMediaTest 58.88
+@ffmpeg-8 dev.jordond.filmstrip.ffmpeg.FfmpegCrtSourceMediaTest 10.55
+@ffmpeg-8 dev.jordond.filmstrip.ffmpeg.FfmpegDestinationMediaTest 18.72
+@ffmpeg-8 dev.jordond.filmstrip.ffmpeg.FfmpegDiagnosticsMediaTest 3.79
+@ffmpeg-8 dev.jordond.filmstrip.ffmpeg.FfmpegExportMediaTest 37.62
+@ffmpeg-8 dev.jordond.filmstrip.ffmpeg.FfmpegExportSmokeTest 0.85
+@ffmpeg-8 dev.jordond.filmstrip.ffmpeg.FfmpegFillMediaTest 8.71
+@ffmpeg-8 dev.jordond.filmstrip.ffmpeg.FfmpegFilmMediaTest 223.44
+@ffmpeg-8 dev.jordond.filmstrip.ffmpeg.FfmpegFilmPlanesMediaTest 335.14
+@ffmpeg-8 dev.jordond.filmstrip.ffmpeg.FfmpegFilmSourceMediaTest 69.02
+@ffmpeg-8 dev.jordond.filmstrip.ffmpeg.FfmpegFrameGridMediaTest 8.06
+@ffmpeg-8 dev.jordond.filmstrip.ffmpeg.FfmpegHeldTailMediaTest 10.55
+@ffmpeg-8 dev.jordond.filmstrip.ffmpeg.FfmpegLiveInputMediaTest 17.11
+@ffmpeg-8 dev.jordond.filmstrip.ffmpeg.FfmpegLookDecoderMediaTest 20.57
+@ffmpeg-8 dev.jordond.filmstrip.ffmpeg.FfmpegLoopingMediaTest 6.94
+@ffmpeg-8 dev.jordond.filmstrip.ffmpeg.FfmpegLutMediaTest 19.58
+@ffmpeg-8 dev.jordond.filmstrip.ffmpeg.FfmpegPlaneLanesMediaTest 0.79
+@ffmpeg-8 dev.jordond.filmstrip.ffmpeg.FfmpegPreviewFormatMediaTest 282.93
+@ffmpeg-8 dev.jordond.filmstrip.ffmpeg.FfmpegPreviewMediaTest 8.72
+@ffmpeg-8 dev.jordond.filmstrip.ffmpeg.FfmpegPreviewSlideMediaTest 2.58
+@ffmpeg-8 dev.jordond.filmstrip.ffmpeg.FfmpegProbeDeadlineMediaTest 8.42
+@ffmpeg-8 dev.jordond.filmstrip.ffmpeg.FfmpegProberReadMediaTest 2.90
+@ffmpeg-8 dev.jordond.filmstrip.ffmpeg.FfmpegResolveMediaTest 19.92
+@ffmpeg-8 dev.jordond.filmstrip.ffmpeg.FfmpegRotateMediaTest 2.65
+@ffmpeg-8 dev.jordond.filmstrip.ffmpeg.FfmpegSdColorMediaTest 25.80
+@ffmpeg-8 dev.jordond.filmstrip.ffmpeg.FfmpegUntimedCopyMediaTest 0.70
+@ffmpeg-8 dev.jordond.filmstrip.ffmpeg.FfmpegVhsMediaTest 54.75
+@ffmpeg-8 dev.jordond.filmstrip.ffmpeg.FfmpegVhsPlanesMediaTest 94.43
+@ffmpeg-8 dev.jordond.filmstrip.ffmpeg.FfmpegVhsSdMediaTest 8.47
+@ffmpeg-8 dev.jordond.filmstrip.ffmpeg.FfmpegVhsSignalMediaTest 29.36
+@ffmpeg-8 dev.jordond.filmstrip.ffmpeg.FfmpegVhsSourceMediaTest 17.28
+@ffmpeg-8 dev.jordond.filmstrip.ffmpeg.FfmpegX265NarrowFrameMediaTest 0.64
+@ffmpeg-8 dev.jordond.filmstrip.ffmpeg.FrameStreamExitMediaTest 1.80
+@ffmpeg-8 dev.jordond.filmstrip.ffmpeg.GradedLoweringTest 11.86
+@ffmpeg-8 dev.jordond.filmstrip.ffmpeg.GraphLoweringTest 0.10
+@ffmpeg-8 dev.jordond.filmstrip.ffmpeg.HeldTailLoweringTest 0.13
+@ffmpeg-8 dev.jordond.filmstrip.ffmpeg.LiveFeedsTest 0.23
+@ffmpeg-8 dev.jordond.filmstrip.ffmpeg.PlannerTest 1.10
+@ffmpeg-8 dev.jordond.filmstrip.ffmpeg.ProbeDeadlineReadTest 4.08
+@ffmpeg-8 dev.jordond.filmstrip.ffmpeg.ProcessDeadlineTest 2.24
+@ffmpeg-8 dev.jordond.filmstrip.ffmpeg.RewrittenSourceTest 0.14
+@ffmpeg-8 dev.jordond.filmstrip.ffmpeg.ToolchainDeadlineTest 1.03
+@ffmpeg-8 dev.jordond.filmstrip.ffmpeg.ToolchainGateTest 0.29
+@ffmpeg-8 dev.jordond.filmstrip.ffmpeg.hdr.FfmpegHdrColorGraphMediaTest 69.97
+@ffmpeg-8 dev.jordond.filmstrip.ffmpeg.hdr.FfmpegHdrEffectMediaTest 77.59
+@ffmpeg-8 dev.jordond.filmstrip.ffmpeg.hdr.FfmpegHdrFillMediaTest 37.65
+@ffmpeg-8 dev.jordond.filmstrip.ffmpeg.hdr.FfmpegHdrMediaTest 31.92
+@ffmpeg-8 dev.jordond.filmstrip.ffmpeg.hdr.FfmpegToneCurveMediaTest 3.69
+@ffmpeg-8 dev.jordond.filmstrip.ffmpeg.overlay.FfmpegOverlayAnimationMediaTest 12.46
+@ffmpeg-8 dev.jordond.filmstrip.ffmpeg.overlay.FfmpegOverlayClapMediaTest 0.70
+@ffmpeg-8 dev.jordond.filmstrip.ffmpeg.overlay.FfmpegOverlayColorMediaTest 37.05
+@ffmpeg-8 dev.jordond.filmstrip.ffmpeg.overlay.FfmpegOverlayDeterminismMediaTest 97.28
+@ffmpeg-8 dev.jordond.filmstrip.ffmpeg.overlay.FfmpegOverlayHdrFormatMediaTest 16.62
+@ffmpeg-8 dev.jordond.filmstrip.ffmpeg.overlay.FfmpegOverlayHdrGraphMediaTest 6.14
+@ffmpeg-8 dev.jordond.filmstrip.ffmpeg.overlay.FfmpegOverlayHdrHoldMediaTest 41.59
+@ffmpeg-8 dev.jordond.filmstrip.ffmpeg.overlay.FfmpegOverlayHdrMediaTest 111.21
+@ffmpeg-8 dev.jordond.filmstrip.ffmpeg.overlay.FfmpegOverlayIccMediaTest 21.45
+@ffmpeg-8 dev.jordond.filmstrip.ffmpeg.overlay.FfmpegOverlayMediaTest 7.47
+@ffmpeg-8 dev.jordond.filmstrip.ffmpeg.overlay.FfmpegOverlayOneReadMediaTest 0.30
+@ffmpeg-8 dev.jordond.filmstrip.ffmpeg.overlay.FfmpegOverlayOrientationMediaTest 11.92
+@ffmpeg-8 dev.jordond.filmstrip.ffmpeg.overlay.FfmpegOverlayPictureAtExportMediaTest 82.16
+@ffmpeg-8 dev.jordond.filmstrip.ffmpeg.overlay.FfmpegOverlayPictureParityMediaTest 0.60
+@ffmpeg-8 dev.jordond.filmstrip.ffmpeg.overlay.FfmpegOverlaySizeMediaTest 0.38
+@ffmpeg-8 dev.jordond.filmstrip.ffmpeg.overlay.FfmpegOverlayWebpSlideMediaTest 5.40
+@ffmpeg-8 dev.jordond.filmstrip.ffmpeg.overlay.FfmpegOverlayWindowMediaTest 5.54
+@ffmpeg-8 dev.jordond.filmstrip.ffmpeg.overlay.FfmpegTextOverlayMediaTest 4.09
+@ffmpeg-8 dev.jordond.filmstrip.ffmpeg.picture.FfmpegPictureAlphaFailureMediaTest 3.67
+@ffmpeg-8 dev.jordond.filmstrip.ffmpeg.picture.FfmpegPictureAlphaMediaTest 1.12
+@ffmpeg-8 dev.jordond.filmstrip.ffmpeg.picture.FfmpegPictureBoundsMediaTest 0.89
+@ffmpeg-8 dev.jordond.filmstrip.ffmpeg.picture.FfmpegPictureDecoderMediaTest 4.97
+@ffmpeg-8 dev.jordond.filmstrip.ffmpeg.picture.FfmpegPictureIdentityMediaTest 1.13
+@ffmpeg-8 dev.jordond.filmstrip.ffmpeg.picture.FfmpegPictureMatrixMediaTest 2.55
+@ffmpeg-8 dev.jordond.filmstrip.ffmpeg.picture.FfmpegPictureMatrixRouteMediaTest 3.63
+@ffmpeg-8 dev.jordond.filmstrip.ffmpeg.picture.FfmpegPictureOverlayColorMediaTest 0.65
+@ffmpeg-8 dev.jordond.filmstrip.ffmpeg.picture.FfmpegPictureOverlayMediaTest 2.92
+@ffmpeg-8 dev.jordond.filmstrip.ffmpeg.picture.FfmpegPictureThumbnailMediaTest 0.54
+@ffmpeg-8 dev.jordond.filmstrip.ffmpeg.picture.FfmpegPictureTwelveBitMediaTest 0.57
+@ffmpeg-8 dev.jordond.filmstrip.ffmpeg.picture.FfmpegPictureUntaggedMediaTest 0.42
+@ffmpeg-8 dev.jordond.filmstrip.ffmpeg.picture.FfmpegPictureYcbcrMediaTest 11.23
+@ffmpeg-8 dev.jordond.filmstrip.ffmpeg.picture.PictureAssemblyTest 2.06
+@ffmpeg-8 dev.jordond.filmstrip.ffmpeg.picture.PictureRunsMediaTest 0.42
+@ffmpeg-8 dev.jordond.filmstrip.filekit.GalleryJvmTest 2.75
+@ffmpeg-8 dev.jordond.filmstrip.filekit.PlatformFilesJvmTest 3.16
+@ffmpeg-8 dev.jordond.filmstrip.filekit.compose.DownloadSinkJvmTest 3.68
+@ffmpeg-8 dev.jordond.filmstrip.filekit.compose.LaunchersJvmTest 7.32
+@ffmpeg-8 dev.jordond.filmstrip.internal.DefaultFilmstripTest 1.57
+@ffmpeg-8 dev.jordond.filmstrip.internal.EngineVideoPlayerTest 1.32
+@ffmpeg-8 dev.jordond.filmstrip.internal.ImageMeasureJvmTest 0.29
+@ffmpeg-8 dev.jordond.filmstrip.internal.ProbeImageTest 0.39
+@ffmpeg-8 dev.jordond.filmstrip.internal.ThumbnailDispatcherFailureTest 0.14
+@ffmpeg-8 dev.jordond.filmstrip.internal.ThumbnailDispatcherTest 0.16
+@ffmpeg-8 dev.jordond.filmstrip.kotlinxio.KotlinxIoTest 3.79
+@ffmpeg-8 dev.jordond.filmstrip.media.ImageProbeJvmTest 0.19
+@ffmpeg-8 dev.jordond.filmstrip.media.LateTagProbeJvmTest 1.60
+@ffmpeg-8 dev.jordond.filmstrip.media.MediaBytesFileJvmTest 0.58
+@ffmpeg-8 dev.jordond.filmstrip.media.MediaBytesFileTest 1.03
+@ffmpeg-8 dev.jordond.filmstrip.media.SourceOverloadsTest 0.36
+@ffmpeg-8 dev.jordond.filmstrip.okio.OkioTest 3.78
+@ffmpeg-8 dev.jordond.filmstrip.picture.EmbeddedColorCorruptionTest 0.88
+@ffmpeg-8 dev.jordond.filmstrip.picture.EmbeddedColorFuzzTest 0.41
+@ffmpeg-8 dev.jordond.filmstrip.picture.EmbeddedColorHeifTest 0.36
+@ffmpeg-8 dev.jordond.filmstrip.picture.EmbeddedColorTest 0.19
+@ffmpeg-8 dev.jordond.filmstrip.picture.EmbeddedProfileHeifTest 0.53
+@ffmpeg-8 dev.jordond.filmstrip.picture.EmbeddedProfileTest 0.70
+@ffmpeg-8 dev.jordond.filmstrip.picture.PictureExtentTest 1.31
+@ffmpeg-8 dev.jordond.filmstrip.picture.PictureOrientationFetchTest 1.18
+@ffmpeg-8 dev.jordond.filmstrip.picture.PictureOrientationReadTest 0.24
+@ffmpeg-8 dev.jordond.filmstrip.picture.PictureOrientationTagTest 0.11
+@ffmpeg-8 dev.jordond.filmstrip.picture.heif.Av1SequenceHeaderTest 0.19
+@ffmpeg-8 dev.jordond.filmstrip.picture.heif.AvifRewriteTest 3.24
+@ffmpeg-8 dev.jordond.filmstrip.picture.heif.HeifAuxiliaryDropTest 0.36
+@ffmpeg-8 dev.jordond.filmstrip.picture.heif.HeifCleanApertureTest 0.11
+@ffmpeg-8 dev.jordond.filmstrip.picture.heif.HeifCodestreamCodingTest 0.19
+@ffmpeg-8 dev.jordond.filmstrip.picture.heif.HeifCodestreamUnitsTest 0.26
+@ffmpeg-8 dev.jordond.filmstrip.picture.heif.HeifDropBoundsTest 2.38
+@ffmpeg-8 dev.jordond.filmstrip.picture.heif.HeifFirstIprpTest 0.14
+@ffmpeg-8 dev.jordond.filmstrip.picture.heif.HeifIdentityRewriteTest 0.19
+@ffmpeg-8 dev.jordond.filmstrip.picture.heif.HeifListingTest 0.39
+@ffmpeg-8 dev.jordond.filmstrip.picture.heif.HeifMetaTest 1.87
+@ffmpeg-8 dev.jordond.filmstrip.picture.heif.HeifOrientationDropTest 0.11
+@ffmpeg-8 dev.jordond.filmstrip.picture.heif.HeifRestatedColorTest 0.63
+@ffmpeg-8 dev.jordond.filmstrip.picture.heif.HeifRewriteTest 2.67
+@ffmpeg-8 dev.jordond.filmstrip.picture.heif.HeifSampleLayoutTest 0.13
+@ffmpeg-8 dev.jordond.filmstrip.picture.heif.HeifTilesTest 0.12
+@ffmpeg-8 dev.jordond.filmstrip.picture.heif.HevcSpsTest 2.56
+@ffmpeg-8 dev.jordond.filmstrip.picture.png.InflateTest 0.48
+@ffmpeg-8 dev.jordond.filmstrip.picture.png.PngSamplesJvmTest 1.92
+@ffmpeg-8 dev.jordond.filmstrip.picture.png.PngSamplesMalformedTest 0.45
+@ffmpeg-8 dev.jordond.filmstrip.picture.png.PngSamplesTest 0.76
+@ffmpeg-8 dev.jordond.filmstrip.player.FfmpegExportSpecMediaTest 23.21
+@ffmpeg-8 dev.jordond.filmstrip.player.FfmpegLoopWrapTest 1.40
+@ffmpeg-8 dev.jordond.filmstrip.player.FfmpegPreviewExitMediaTest 22.38
+@ffmpeg-8 dev.jordond.filmstrip.player.FfmpegPreviewFailureTest 18.84
+@ffmpeg-8 dev.jordond.filmstrip.player.FfmpegPumpDrainTest 0.99
+@ffmpeg-8 dev.jordond.filmstrip.player.JvmClipSpeedParityMediaTest 13.73
+@ffmpeg-8 dev.jordond.filmstrip.player.JvmEngineContractMediaTest 18.30
+@ffmpeg-8 dev.jordond.filmstrip.player.JvmPixelContractMediaTest 4.88
+@ffmpeg-8 dev.jordond.filmstrip.player.JvmProcessHygieneMediaTest 0.72
+@ffmpeg-8 dev.jordond.filmstrip.player.JvmPumpFenceMediaTest 2.02
+@ffmpeg-8 dev.jordond.filmstrip.player.JvmRangeEndMediaTest 13.27
+@ffmpeg-8 dev.jordond.filmstrip.player.JvmSeekWhilePlayingMediaTest 1.18
+@ffmpeg-8 dev.jordond.filmstrip.player.JvmShortClipEverySlotMediaTest 105.70
+@ffmpeg-8 dev.jordond.filmstrip.player.JvmShortClipOffGridMediaTest 68.63
+@ffmpeg-8 dev.jordond.filmstrip.player.JvmShortClipSlotMediaTest 193.03
+@ffmpeg-8 dev.jordond.filmstrip.player.JvmShortClipTieMediaTest 87.91
+@ffmpeg-8 dev.jordond.filmstrip.player.JvmThumbnailContractMediaTest 6.06
+@ffmpeg-8 dev.jordond.filmstrip.player.JvmThumbnailGapMediaTest 5.79
+@ffmpeg-8 dev.jordond.filmstrip.player.JvmTransportMediaTest 14.53
+@ffmpeg-8 dev.jordond.filmstrip.player.contract.FakeEngineContractTest 12.40
+@ffmpeg-8 dev.jordond.filmstrip.player.internal.PreviewLoweringTest 0.15
+@ffmpeg-8 dev.jordond.filmstrip.player.internal.thumbnail.FfmpegThumbnailSourceMediaTest 0.65
+@ffmpeg-8 dev.jordond.filmstrip.sample.DiagnosticsReportTest 0.92
+@ffmpeg-8 dev.jordond.filmstrip.sample.EditStateTest 0.73
+@ffmpeg-8 dev.jordond.filmstrip.sample.ExportDiagnosticsTest 0.16
+@ffmpeg-8 dev.jordond.filmstrip.sample.ExportRefusalTest 0.26
+@ffmpeg-8 dev.jordond.filmstrip.sample.PreviewStartTest 0.71
+@ffmpeg-8 dev.jordond.filmstrip.sample.SampleSessionTest 0.26
+@ffmpeg-8 dev.jordond.filmstrip.sample.tryit.BeachEditTest 0.78
+@ffmpeg-8 dev.jordond.filmstrip.sample.tryit.LandingSnippetTest 1.00
+@ffmpeg-8 dev.jordond.filmstrip.sample.tryit.TryEngineLoadTest 0.36
+@ffmpeg-8 dev.jordond.filmstrip.sample.tryit.TryEngineRefusalTest 1.99
+@ffmpeg-8 dev.jordond.filmstrip.sample.tryit.TryEngineResumeTest 0.25
+@ffmpeg-8 dev.jordond.filmstrip.sample.tryit.TryEngineTest 0.36
+@ffmpeg-8 dev.jordond.filmstrip.sample.tryit.TryEngineTrimTest 0.32
+@ffmpeg-8 dev.jordond.filmstrip.sample.tryit.TryEngineWatchTest 0.11
+@ffmpeg-8 dev.jordond.filmstrip.sample.ui.PartsTest 2.51
+@ffmpeg-8 dev.jordond.filmstrip.sample.ui.ScreenInsetsTest 0.77
+@ffmpeg-8 dev.jordond.filmstrip.sample.ui.TokensMatchSiteTest 0.35
+@ffmpeg-8 dev.jordond.filmstrip.still.StillEncodeJvmTest 0.71
+@ffmpeg-8 dev.jordond.filmstrip.still.StillFacadeTest 0.12
+@ffmpeg-8 dev.jordond.filmstrip.test.AuthoredColorsTest 3.30
+@ffmpeg-8 dev.jordond.filmstrip.test.AvifCodestreamRewriteTest 4.67
+@ffmpeg-8 dev.jordond.filmstrip.test.CodestreamColorPicturesTest 4.39
+@ffmpeg-8 dev.jordond.filmstrip.test.ColorPicturesJvmTest 0.40
+@ffmpeg-8 dev.jordond.filmstrip.test.ColorPicturesTest 1.05
+@ffmpeg-8 dev.jordond.filmstrip.test.FrameComparisonTest 0.40
+@ffmpeg-8 dev.jordond.filmstrip.test.HdrEncodingTest 0.12
+@ffmpeg-8 dev.jordond.filmstrip.test.HeicCodestreamRewriteTest 0.21
+@ffmpeg-8 dev.jordond.filmstrip.test.HeicRewriteColorTest 0.23
+@ffmpeg-8 dev.jordond.filmstrip.test.HeifAlphaTest 1.33
+@ffmpeg-8 dev.jordond.filmstrip.test.HeifCodedImagesTest 0.26
+@ffmpeg-8 dev.jordond.filmstrip.test.HeifOverlayTest 1.47
+@ffmpeg-8 dev.jordond.filmstrip.test.HeifThumbnailTest 0.18
+@ffmpeg-8 dev.jordond.filmstrip.test.IccPicturesJvmTest 3.52
+@ffmpeg-8 dev.jordond.filmstrip.test.IccPicturesTest 0.17
+@ffmpeg-8 dev.jordond.filmstrip.test.OrientedHeifTest 0.23
+@ffmpeg-8 dev.jordond.filmstrip.test.StraightSamplesTest 0.63
+@ffmpeg-8 dev.jordond.filmstrip.test.ToneAnalysisTest 0.10
+@ffmpeg-8 dev.jordond.filmstrip.thumbnail.SerialThumbnailRunTest 0.31
+@ffmpeg-8 dev.jordond.filmstrip.transform.internal.BitratePlanTest 4.71
+@ffmpeg-8 dev.jordond.filmstrip.transform.internal.ClipFitPlanTest 3.10
+@ffmpeg-8 dev.jordond.filmstrip.transform.internal.CopyGapTest 4.10
+@ffmpeg-8 dev.jordond.filmstrip.transform.internal.CopyPacketPlanTest 0.25
+@ffmpeg-8 dev.jordond.filmstrip.transform.internal.EffectNeedsSdrPlanTest 0.49
+@ffmpeg-8 dev.jordond.filmstrip.transform.internal.EffectPlanTest 0.23
+@ffmpeg-8 dev.jordond.filmstrip.transform.internal.EngineLoweringTest 0.86
+@ffmpeg-8 dev.jordond.filmstrip.transform.internal.ExportDriverTest 0.46
+@ffmpeg-8 dev.jordond.filmstrip.transform.internal.ExportPlannerTest 0.43
+@ffmpeg-8 dev.jordond.filmstrip.transform.internal.FillPlanTest 0.29
+@ffmpeg-8 dev.jordond.filmstrip.transform.internal.FrameCoverageTest 0.16
+@ffmpeg-8 dev.jordond.filmstrip.transform.internal.GainPlanTest 0.12
+@ffmpeg-8 dev.jordond.filmstrip.transform.internal.HdrOverlayCellsTest 0.87
+@ffmpeg-8 dev.jordond.filmstrip.transform.internal.HdrPlanTest 0.27
+@ffmpeg-8 dev.jordond.filmstrip.transform.internal.InertPlanTest 0.29
+@ffmpeg-8 dev.jordond.filmstrip.transform.internal.TrackPlanTest 0.39
+@ffmpeg-8 dev.jordond.filmstrip.transform.internal.copy.CopyPrefixTest 0.12
+@ffmpeg-8 dev.jordond.filmstrip.transform.internal.probe.PlanningReadsTest 0.13
+@ffmpeg-8 dev.jordond.filmstrip.transform.internal.probe.ProbeCacheTest 0.75
+@ffmpeg-8 dev.jordond.filmstrip.transform.internal.probe.ProcessProbeTest 0.72
+@ffmpeg-9 dev.jordond.filmstrip.effects.HdrExpressionsTest 1.35
+@ffmpeg-9 dev.jordond.filmstrip.effects.HdrGradeTablesTest 8.43
+@ffmpeg-9 dev.jordond.filmstrip.effects.InertPredicateTest 0.19
+@ffmpeg-9 dev.jordond.filmstrip.effects.OverlayHeaderTest 1.29
+@ffmpeg-9 dev.jordond.filmstrip.effects.OverlayOrientedAnimationTest 3.01
+@ffmpeg-9 dev.jordond.filmstrip.effects.OverlayPictureDecodeTest 2.40
+@ffmpeg-9 dev.jordond.filmstrip.effects.OverlayPictureLimitsTest 1.58
+@ffmpeg-9 dev.jordond.filmstrip.effects.OverlayPictureReadTest 0.75
+@ffmpeg-9 dev.jordond.filmstrip.effects.OverlayPictureShapeTest 0.20
+@ffmpeg-9 dev.jordond.filmstrip.effects.filters.crt.CrtLoweringMediaTest 4.70
+@ffmpeg-9 dev.jordond.filmstrip.effects.filters.crt.CrtSignalTest 0.81
+@ffmpeg-9 dev.jordond.filmstrip.effects.filters.film.FilmExpressionMediaTest 27.97
+@ffmpeg-9 dev.jordond.filmstrip.effects.filters.film.FilmSignalTest 3.55
+@ffmpeg-9 dev.jordond.filmstrip.effects.filters.film.FilmTest 0.12
+@ffmpeg-9 dev.jordond.filmstrip.effects.filters.lut.CubeLutTest 0.52
+@ffmpeg-9 dev.jordond.filmstrip.effects.filters.lut.LutLoweringTest 0.24
+@ffmpeg-9 dev.jordond.filmstrip.effects.filters.lut.LutTest 0.16
+@ffmpeg-9 dev.jordond.filmstrip.effects.filters.vhs.VhsHashExpressionMediaTest 0.24
+@ffmpeg-9 dev.jordond.filmstrip.effects.filters.vhs.VhsPlanesMediaTest 11.72
+@ffmpeg-9 dev.jordond.filmstrip.effects.filters.vhs.VhsSignalTest 0.21
+@ffmpeg-9 dev.jordond.filmstrip.effects.overlay.HdrOverlayGraphTest 0.25
+@ffmpeg-9 dev.jordond.filmstrip.effects.overlay.HdrOverlayRasterTest 1.10
+@ffmpeg-9 dev.jordond.filmstrip.effects.overlay.JvmTextRasterTest 0.93
+@ffmpeg-9 dev.jordond.filmstrip.effects.overlay.OverlayAnimationTest 0.14
+@ffmpeg-9 dev.jordond.filmstrip.effects.overlay.OverlayDslTest 0.13
+@ffmpeg-9 dev.jordond.filmstrip.effects.overlay.OverlayFrameTimeTest 0.31
+@ffmpeg-9 dev.jordond.filmstrip.effects.overlay.OverlayGraphTest 0.11
+@ffmpeg-9 dev.jordond.filmstrip.effects.overlay.PlatedSamplesTest 1.70
+@ffmpeg-9 dev.jordond.filmstrip.effects.overlay.RestatedPictureTest 0.38
+@ffmpeg-9 dev.jordond.filmstrip.effects.overlay.StoredPictureTest 0.24
+@ffmpeg-9 dev.jordond.filmstrip.ffmpeg.AudioLoweringTest 3.18
+@ffmpeg-9 dev.jordond.filmstrip.ffmpeg.BlurredLetterboxTest 2.93
+@ffmpeg-9 dev.jordond.filmstrip.ffmpeg.BytesRootTest 2.19
+@ffmpeg-9 dev.jordond.filmstrip.ffmpeg.CanvasChromaGridTest 2.83
+@ffmpeg-9 dev.jordond.filmstrip.ffmpeg.CapabilityDeadlineTest 2.29
+@ffmpeg-9 dev.jordond.filmstrip.ffmpeg.CopyPacketReadTest 1.16
+@ffmpeg-9 dev.jordond.filmstrip.ffmpeg.CopyPacketsTest 1.91
+@ffmpeg-9 dev.jordond.filmstrip.ffmpeg.EffectLoweringTest 1.21
+@ffmpeg-9 dev.jordond.filmstrip.ffmpeg.ExitCodesTest 1.33
+@ffmpeg-9 dev.jordond.filmstrip.ffmpeg.FfmpegAudioMediaTest 8.71
+@ffmpeg-9 dev.jordond.filmstrip.ffmpeg.FfmpegBytesSourceMediaTest 7.37
+@ffmpeg-9 dev.jordond.filmstrip.ffmpeg.FfmpegCapabilityProbeMediaTest 1.59
+@ffmpeg-9 dev.jordond.filmstrip.ffmpeg.FfmpegClipPlacementMediaTest 18.59
+@ffmpeg-9 dev.jordond.filmstrip.ffmpeg.FfmpegClipSpeedMediaTest 4.08
+@ffmpeg-9 dev.jordond.filmstrip.ffmpeg.FfmpegClipSpeedWindowMediaTest 17.79
+@ffmpeg-9 dev.jordond.filmstrip.ffmpeg.FfmpegColorEffectMediaTest 2.20
+@ffmpeg-9 dev.jordond.filmstrip.ffmpeg.FfmpegCopyMediaTest 3.37
+@ffmpeg-9 dev.jordond.filmstrip.ffmpeg.FfmpegCopyPacketsMediaTest 2.05
+@ffmpeg-9 dev.jordond.filmstrip.ffmpeg.FfmpegCrtHoistMediaTest 3.89
+@ffmpeg-9 dev.jordond.filmstrip.ffmpeg.FfmpegCrtMediaTest 51.27
+@ffmpeg-9 dev.jordond.filmstrip.ffmpeg.FfmpegCrtSourceMediaTest 8.99
+@ffmpeg-9 dev.jordond.filmstrip.ffmpeg.FfmpegDestinationMediaTest 11.12
+@ffmpeg-9 dev.jordond.filmstrip.ffmpeg.FfmpegDiagnosticsMediaTest 2.24
+@ffmpeg-9 dev.jordond.filmstrip.ffmpeg.FfmpegExportMediaTest 20.34
+@ffmpeg-9 dev.jordond.filmstrip.ffmpeg.FfmpegExportSmokeTest 0.90
+@ffmpeg-9 dev.jordond.filmstrip.ffmpeg.FfmpegFillMediaTest 3.89
+@ffmpeg-9 dev.jordond.filmstrip.ffmpeg.FfmpegFilmMediaTest 62.99
+@ffmpeg-9 dev.jordond.filmstrip.ffmpeg.FfmpegFilmPlanesMediaTest 104.45
+@ffmpeg-9 dev.jordond.filmstrip.ffmpeg.FfmpegFilmSourceMediaTest 18.15
+@ffmpeg-9 dev.jordond.filmstrip.ffmpeg.FfmpegFrameGridMediaTest 5.77
+@ffmpeg-9 dev.jordond.filmstrip.ffmpeg.FfmpegHeldTailMediaTest 7.61
+@ffmpeg-9 dev.jordond.filmstrip.ffmpeg.FfmpegLiveInputMediaTest 10.10
+@ffmpeg-9 dev.jordond.filmstrip.ffmpeg.FfmpegLookDecoderMediaTest 3.67
+@ffmpeg-9 dev.jordond.filmstrip.ffmpeg.FfmpegLoopingMediaTest 7.36
+@ffmpeg-9 dev.jordond.filmstrip.ffmpeg.FfmpegLutMediaTest 19.79
+@ffmpeg-9 dev.jordond.filmstrip.ffmpeg.FfmpegPlaneLanesMediaTest 0.49
+@ffmpeg-9 dev.jordond.filmstrip.ffmpeg.FfmpegPreviewFormatMediaTest 347.61
+@ffmpeg-9 dev.jordond.filmstrip.ffmpeg.FfmpegPreviewMediaTest 7.85
+@ffmpeg-9 dev.jordond.filmstrip.ffmpeg.FfmpegPreviewSlideMediaTest 0.38
+@ffmpeg-9 dev.jordond.filmstrip.ffmpeg.FfmpegProbeDeadlineMediaTest 9.10
+@ffmpeg-9 dev.jordond.filmstrip.ffmpeg.FfmpegProberReadMediaTest 0.30
+@ffmpeg-9 dev.jordond.filmstrip.ffmpeg.FfmpegResolveMediaTest 6.28
+@ffmpeg-9 dev.jordond.filmstrip.ffmpeg.FfmpegRotateMediaTest 2.44
+@ffmpeg-9 dev.jordond.filmstrip.ffmpeg.FfmpegSdColorMediaTest 11.57
+@ffmpeg-9 dev.jordond.filmstrip.ffmpeg.FfmpegUntimedCopyMediaTest 0.29
+@ffmpeg-9 dev.jordond.filmstrip.ffmpeg.FfmpegVhsMediaTest 26.39
+@ffmpeg-9 dev.jordond.filmstrip.ffmpeg.FfmpegVhsPlanesMediaTest 34.92
+@ffmpeg-9 dev.jordond.filmstrip.ffmpeg.FfmpegVhsSdMediaTest 4.31
+@ffmpeg-9 dev.jordond.filmstrip.ffmpeg.FfmpegVhsSignalMediaTest 29.26
+@ffmpeg-9 dev.jordond.filmstrip.ffmpeg.FfmpegVhsSourceMediaTest 16.30
+@ffmpeg-9 dev.jordond.filmstrip.ffmpeg.FfmpegX265NarrowFrameMediaTest 0.31
+@ffmpeg-9 dev.jordond.filmstrip.ffmpeg.FrameStreamExitMediaTest 1.34
+@ffmpeg-9 dev.jordond.filmstrip.ffmpeg.GradedLoweringTest 7.33
+@ffmpeg-9 dev.jordond.filmstrip.ffmpeg.GraphLoweringTest 0.17
+@ffmpeg-9 dev.jordond.filmstrip.ffmpeg.LiveFeedsTest 0.23
+@ffmpeg-9 dev.jordond.filmstrip.ffmpeg.PlannerTest 0.97
+@ffmpeg-9 dev.jordond.filmstrip.ffmpeg.ProbeDeadlineReadTest 4.09
+@ffmpeg-9 dev.jordond.filmstrip.ffmpeg.ProcessDeadlineTest 2.23
+@ffmpeg-9 dev.jordond.filmstrip.ffmpeg.ToolchainDeadlineTest 1.02
+@ffmpeg-9 dev.jordond.filmstrip.ffmpeg.ToolchainGateTest 0.12
+@ffmpeg-9 dev.jordond.filmstrip.ffmpeg.hdr.FfmpegHdrColorGraphMediaTest 44.99
+@ffmpeg-9 dev.jordond.filmstrip.ffmpeg.hdr.FfmpegHdrEffectMediaTest 45.75
+@ffmpeg-9 dev.jordond.filmstrip.ffmpeg.hdr.FfmpegHdrFillMediaTest 20.43
+@ffmpeg-9 dev.jordond.filmstrip.ffmpeg.hdr.FfmpegHdrMediaTest 15.35
+@ffmpeg-9 dev.jordond.filmstrip.ffmpeg.hdr.FfmpegToneCurveMediaTest 3.50
+@ffmpeg-9 dev.jordond.filmstrip.ffmpeg.overlay.FfmpegOverlayAnimationMediaTest 5.87
+@ffmpeg-9 dev.jordond.filmstrip.ffmpeg.overlay.FfmpegOverlayClapMediaTest 0.42
+@ffmpeg-9 dev.jordond.filmstrip.ffmpeg.overlay.FfmpegOverlayColorMediaTest 40.67
+@ffmpeg-9 dev.jordond.filmstrip.ffmpeg.overlay.FfmpegOverlayDeterminismMediaTest 53.34
+@ffmpeg-9 dev.jordond.filmstrip.ffmpeg.overlay.FfmpegOverlayHdrFormatMediaTest 9.64
+@ffmpeg-9 dev.jordond.filmstrip.ffmpeg.overlay.FfmpegOverlayHdrGraphMediaTest 6.61
+@ffmpeg-9 dev.jordond.filmstrip.ffmpeg.overlay.FfmpegOverlayHdrHoldMediaTest 24.34
+@ffmpeg-9 dev.jordond.filmstrip.ffmpeg.overlay.FfmpegOverlayHdrMediaTest 65.05
+@ffmpeg-9 dev.jordond.filmstrip.ffmpeg.overlay.FfmpegOverlayIccMediaTest 12.65
+@ffmpeg-9 dev.jordond.filmstrip.ffmpeg.overlay.FfmpegOverlayMediaTest 4.22
+@ffmpeg-9 dev.jordond.filmstrip.ffmpeg.overlay.FfmpegOverlayOneReadMediaTest 0.16
+@ffmpeg-9 dev.jordond.filmstrip.ffmpeg.overlay.FfmpegOverlayOrientationMediaTest 5.11
+@ffmpeg-9 dev.jordond.filmstrip.ffmpeg.overlay.FfmpegOverlayPictureAtExportMediaTest 52.29
+@ffmpeg-9 dev.jordond.filmstrip.ffmpeg.overlay.FfmpegOverlayPictureParityMediaTest 0.48
+@ffmpeg-9 dev.jordond.filmstrip.ffmpeg.overlay.FfmpegOverlaySizeMediaTest 0.12
+@ffmpeg-9 dev.jordond.filmstrip.ffmpeg.overlay.FfmpegOverlayWebpSlideMediaTest 2.95
+@ffmpeg-9 dev.jordond.filmstrip.ffmpeg.overlay.FfmpegOverlayWindowMediaTest 5.84
+@ffmpeg-9 dev.jordond.filmstrip.ffmpeg.overlay.FfmpegTextOverlayMediaTest 2.28
+@ffmpeg-9 dev.jordond.filmstrip.ffmpeg.picture.FfmpegPictureAlphaFailureMediaTest 3.56
+@ffmpeg-9 dev.jordond.filmstrip.ffmpeg.picture.FfmpegPictureAlphaMediaTest 0.43
+@ffmpeg-9 dev.jordond.filmstrip.ffmpeg.picture.FfmpegPictureBoundsMediaTest 0.40
+@ffmpeg-9 dev.jordond.filmstrip.ffmpeg.picture.FfmpegPictureDecoderMediaTest 4.67
+@ffmpeg-9 dev.jordond.filmstrip.ffmpeg.picture.FfmpegPictureIdentityMediaTest 0.32
+@ffmpeg-9 dev.jordond.filmstrip.ffmpeg.picture.FfmpegPictureMatrixMediaTest 0.82
+@ffmpeg-9 dev.jordond.filmstrip.ffmpeg.picture.FfmpegPictureMatrixRouteMediaTest 1.58
+@ffmpeg-9 dev.jordond.filmstrip.ffmpeg.picture.FfmpegPictureOverlayColorMediaTest 0.36
+@ffmpeg-9 dev.jordond.filmstrip.ffmpeg.picture.FfmpegPictureOverlayMediaTest 1.08
+@ffmpeg-9 dev.jordond.filmstrip.ffmpeg.picture.FfmpegPictureThumbnailMediaTest 0.27
+@ffmpeg-9 dev.jordond.filmstrip.ffmpeg.picture.FfmpegPictureTwelveBitMediaTest 0.18
+@ffmpeg-9 dev.jordond.filmstrip.ffmpeg.picture.FfmpegPictureUntaggedMediaTest 0.15
+@ffmpeg-9 dev.jordond.filmstrip.ffmpeg.picture.FfmpegPictureYcbcrMediaTest 3.98
+@ffmpeg-9 dev.jordond.filmstrip.ffmpeg.picture.PictureAssemblyTest 2.07
+@ffmpeg-9 dev.jordond.filmstrip.ffmpeg.picture.PictureRunsMediaTest 0.22
+@ffmpeg-9 dev.jordond.filmstrip.player.FfmpegExportSpecMediaTest 11.94
+@ffmpeg-9 dev.jordond.filmstrip.player.FfmpegLoopWrapTest 1.29
+@ffmpeg-9 dev.jordond.filmstrip.player.FfmpegPreviewExitMediaTest 18.91
+@ffmpeg-9 dev.jordond.filmstrip.player.FfmpegPreviewFailureTest 7.90
+@ffmpeg-9 dev.jordond.filmstrip.player.FfmpegPumpDrainTest 0.95
+@ffmpeg-9 dev.jordond.filmstrip.player.JvmClipSpeedParityMediaTest 7.24
+@ffmpeg-9 dev.jordond.filmstrip.player.JvmEngineContractMediaTest 14.80
+@ffmpeg-9 dev.jordond.filmstrip.player.JvmPixelContractMediaTest 4.38
+@ffmpeg-9 dev.jordond.filmstrip.player.JvmProcessHygieneMediaTest 0.80
+@ffmpeg-9 dev.jordond.filmstrip.player.JvmPumpFenceMediaTest 1.89
+@ffmpeg-9 dev.jordond.filmstrip.player.JvmRangeEndMediaTest 12.70
+@ffmpeg-9 dev.jordond.filmstrip.player.JvmSeekWhilePlayingMediaTest 0.80
+@ffmpeg-9 dev.jordond.filmstrip.player.JvmShortClipEverySlotMediaTest 104.58
+@ffmpeg-9 dev.jordond.filmstrip.player.JvmShortClipOffGridMediaTest 32.06
+@ffmpeg-9 dev.jordond.filmstrip.player.JvmShortClipSlotMediaTest 90.12
+@ffmpeg-9 dev.jordond.filmstrip.player.JvmShortClipTieMediaTest 39.62
+@ffmpeg-9 dev.jordond.filmstrip.player.JvmThumbnailContractMediaTest 1.75
+@ffmpeg-9 dev.jordond.filmstrip.player.JvmThumbnailGapMediaTest 5.75
+@ffmpeg-9 dev.jordond.filmstrip.player.JvmTransportMediaTest 8.66
+@ffmpeg-9 dev.jordond.filmstrip.player.contract.FakeEngineContractTest 11.98
+@ffmpeg-9 dev.jordond.filmstrip.player.internal.thumbnail.FfmpegThumbnailSourceMediaTest 0.58

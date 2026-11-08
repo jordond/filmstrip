@@ -10,8 +10,13 @@ with the longest time any result directory gave it. Each source is a directory o
 lane artifact, or a saved log holding this script's own table, like `gh run view <id> --log`. Classes under a tenth of
 a second are left out, since a shard puts a class with no weight by its name instead.
 
+The sources after `--scope name` also write `@name class seconds` lines, the longest time those sources alone gave
+each class. A Gradle call given -PtestWeights=name packs by only those lines, across all its test tasks at once.
+`--keep file` reads an earlier weights file and carries over its unscoped lines for classes no source timed, like
+the hardware classes only a local lane runs.
+
 Usage: slowest-tests.py [root] [count]
-       slowest-tests.py --weights source...
+       slowest-tests.py --weights [--keep file] source... [--scope name source...]...
 """
 
 import os
@@ -34,8 +39,13 @@ WEIGHTS_HEADER = """\
 # or missing line only costs balance. To regenerate from a media lane run:
 #
 #   gh run download <run> -D <dir>
-#   gh run view <run> --log > <dir>.log
-#   python3 .github/scripts/slowest-tests.py --weights <dir> <dir>.log [more result roots] > gradle/test-weights.txt
+#   python3 .github/scripts/slowest-tests.py --weights --keep gradle/test-weights.txt <dir> \\
+#     --scope ffmpeg-8 <dir>/media-results-ffmpeg-8-* --scope ffmpeg-9 <dir>/media-results-ffmpeg-9-* > new.txt
+#   mv new.txt gradle/test-weights.txt
+#
+# An @scope line is read only by a call given -PtestWeights=scope, which packs every class of its scope as one, so
+# the ffmpeg cells balance across all the modules a call runs. Each ffmpeg major times its classes differently, so
+# each has its own scope.
 """
 
 
@@ -75,18 +85,46 @@ def logged_times(path):
     return totals
 
 
-def weights(sources):
+def kept_weights(path):
+    kept = {}
+    with open(path, encoding="utf-8") as lines:
+        for line in lines:
+            parts = line.split()
+            if len(parts) == 2 and not line.startswith("#"):
+                kept[parts[0]] = float(parts[1])
+    return kept
+
+
+def weights(arguments):
     longest = defaultdict(float)
-    for source in sources:
+    scoped = defaultdict(lambda: defaultdict(float))
+    kept = {}
+    scope = None
+    arguments = iter(arguments)
+    for source in arguments:
+        if source == "--scope":
+            scope = next(arguments)
+            continue
+        if source == "--keep":
+            kept.update(kept_weights(next(arguments)))
+            continue
         times = class_times(source) if os.path.isdir(source) else logged_times(source)
         for (name, _), seconds in times.items():
             # Kotlin/Native results can lead the class with the test task, which no filter sees.
             name = TASK_PREFIX.sub("", name)
             longest[name] = max(longest[name], seconds)
+            if scope:
+                scoped[scope][name] = max(scoped[scope][name], seconds)
+    for name, seconds in kept.items():
+        longest.setdefault(name, seconds)
     print(WEIGHTS_HEADER, end="")
     for name, seconds in sorted(longest.items()):
         if seconds >= WEIGHT_FLOOR:
             print(f"{name} {seconds:.2f}")
+    for scope, times in sorted(scoped.items()):
+        for name, seconds in sorted(times.items()):
+            if seconds >= WEIGHT_FLOOR:
+                print(f"@{scope} {name} {seconds:.2f}")
 
 
 def main():

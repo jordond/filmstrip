@@ -39,7 +39,8 @@ jobs:
   # takes over half an hour on it.
   #
   # A cell with a shard passes -PtestShard=i/n, which packs each test task's classes by gradle/test-weights.txt so every
-  # class runs in exactly one shard of the cell.
+  # class runs in exactly one shard of the cell. -PtestWeights=ffmpeg-<major> packs by that major's own times, across
+  # every module the call runs at once, so no shard takes each module's heaviest class.
   ffmpeg:
     name: "Test ffmpeg ${{ matrix.major }} ${{ matrix.shard }}"
     runs-on: ubuntu-26.04
@@ -110,7 +111,9 @@ jobs:
           cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
 
       - name: Run tests
-        run: ./gradlew ${{ matrix.tasks }} -Pmedia --scan -PtestShard=${{ matrix.shard }}
+        run: >-
+          ./gradlew ${{ matrix.tasks }} -Pmedia --scan -PtestShard=${{ matrix.shard }}
+          -PtestWeights=ffmpeg-${{ matrix.major }}
 
       - &slowest
         name: Slowest test classes

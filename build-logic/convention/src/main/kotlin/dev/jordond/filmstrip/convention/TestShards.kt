@@ -12,6 +12,7 @@ import java.util.zip.CRC32
 
 private const val TEST_SHARD_PROPERTY = "testShard"
 private const val TEST_FORKS_PROPERTY = "testForks"
+private const val TEST_WEIGHTS_PROPERTY = "testWeights"
 private const val IOS_SHARED_PROPERTY = "iosShared"
 private const val IOS_SIMULATOR_TEST_TASK = "iosSimulatorArm64Test"
 
@@ -71,44 +72,59 @@ internal fun Project.configureTestForks() {
 }
 
 /**
- * Reads a weights file, one `class seconds` pair per line. Blank lines and lines starting with `#` are skipped, and a
- * line that is neither fails naming its line number.
+ * Reads a weights file, one `class seconds` pair per line, or `@scope class seconds` for a line only a call given
+ * `-PtestWeights=scope` reads. With no [scope] it returns the unscoped lines, and with one it returns only that scope's
+ * lines. Blank lines and lines starting with `#` are skipped, and a line that is neither fails naming its line number.
  */
-internal fun parseTestWeights(text: String): Map<String, Double> =
+internal fun parseTestWeights(
+  text: String,
+  scope: String? = null,
+): Map<String, Double> =
   text
     .lineSequence()
     .withIndex()
     .filter { (_, line) -> line.isNotBlank() && !line.trimStart().startsWith("#") }
-    .associate { (number, line) ->
+    .mapNotNull { (number, line) ->
       val parts = line.trim().split(Regex("""\s+"""))
-      val seconds = parts.getOrNull(1)?.toDoubleOrNull()
-      if (parts.size != 2 || seconds == null) {
+      val lineScope = parts.first().takeIf { it.startsWith("@") }?.removePrefix("@")
+      val fields = if (lineScope == null) parts else parts.drop(1)
+      val seconds = fields.getOrNull(1)?.toDoubleOrNull()
+      if (fields.size != 2 || seconds == null || lineScope?.isEmpty() == true) {
         throw GradleException("$TEST_WEIGHTS_PATH line ${number + 1} is not a class and its seconds: $line")
       }
-      parts[0] to seconds
-    }
+      (fields[0] to seconds).takeIf { lineScope == scope }
+    }.toMap()
 
 /**
  * Gives each of [classes] a shard from 1 to [count], so every class lands in exactly one.
  *
  * Classes with a weight go longest first onto whichever shard has the least time so far, the lowest one on a tie. A
  * class with no weight goes to the shard its name's CRC-32 picks, so it stays put while the weighted classes move.
+ *
+ * The weighted classes of [cell] pack alongside [classes] without being returned. A test task given every class its
+ * Gradle call runs packs as one with the call's other tasks, so their heaviest classes spread across the shards
+ * rather than all landing on shard 1.
  */
 internal fun assignShards(
   classes: Collection<String>,
   count: Int,
   weights: Map<String, Double>,
+  cell: Collection<String> = emptyList(),
 ): Map<String, Int> {
   val (weighted, unweighted) = classes.distinct().partition { it in weights }
   val loads = DoubleArray(count)
   val owners = mutableMapOf<String, Int>()
-  weighted.sortedWith(compareByDescending<String> { weights.getValue(it) }.thenBy { it }).forEach { name ->
-    val lightest = loads.indices.minBy { loads[it] }
-    loads[lightest] += weights.getValue(name)
-    owners[name] = lightest + 1
-  }
+  (weighted + cell.filter { it in weights })
+    .distinct()
+    .sortedWith(compareByDescending<String> { weights.getValue(it) }.thenBy { it })
+    .forEach { name ->
+      val lightest = loads.indices.minBy { loads[it] }
+      loads[lightest] += weights.getValue(name)
+      owners[name] = lightest + 1
+    }
   unweighted.forEach { owners[it] = hashShard(it, count) }
-  return owners
+  val own = classes.toSet()
+  return owners.filterKeys { it in own }
 }
 
 private fun hashShard(
@@ -120,13 +136,14 @@ private fun hashShard(
 }
 
 /**
- * The [classes] that [assignShards] gives to any shard outside this slice, sorted. A slice excludes these and never
- * lists what it runs, so a class the scan missed runs in every slice rather than in none.
+ * The [classes] that [assignShards] gives to any shard outside this slice, packed alongside [cell], sorted. A slice
+ * excludes these and never lists what it runs, so a class the scan missed runs in every slice rather than in none.
  */
 internal fun TestShard.classesOwnedElsewhere(
   classes: Collection<String>,
   weights: Map<String, Double>,
-): List<String> = assignShards(classes, count, weights).filterValues { it !in shards }.keys.sorted()
+  cell: Collection<String> = emptyList(),
+): List<String> = assignShards(classes, count, weights, cell).filterValues { it !in shards }.keys.sorted()
 
 /**
  * The instrumentation runner arguments an Android device test gets in [shard], a `notClass` list of the [classes]
@@ -179,13 +196,19 @@ internal fun iosExcludedClasses(
  * the task excludes the classes other shards own, counting only classes its [lane] runs. A test task outside a Kotlin
  * Multiplatform target has no scan, so it runs whole in shard 1 and is skipped in the rest.
  *
+ * Under `-PtestWeights=scope` the task reads only that scope's weights and packs with every class in them, so the test
+ * tasks of one Gradle call share a single longest-first pack. The scope lists the classes the call runs, written from
+ * its own results.
+ *
  * `iosSimulatorArm64Test` also excludes the shared classes [iosExcludedClasses] names, unless Gradle is given
  * `-PiosShared`.
  */
 internal fun Project.configureTestShards(lane: TestLane) {
   val shard = providers.gradleProperty(TEST_SHARD_PROPERTY).orNull?.let(::parseTestShard)
   val iosShared = providers.gradleProperty(IOS_SHARED_PROPERTY).isPresent
-  val weights = if (shard == null) emptyMap() else testWeights()
+  val scope = providers.gradleProperty(TEST_WEIGHTS_PROPERTY).orNull
+  val weights = if (shard == null) emptyMap() else testWeights(scope)
+  val cell = if (scope == null) emptySet() else weights.keys
   val module = this
   tasks.withType(AbstractTestTask::class.java).configureEach {
     val iosRule = !iosShared && name == IOS_SIMULATOR_TEST_TASK
@@ -204,8 +227,11 @@ internal fun Project.configureTestShards(lane: TestLane) {
       }
     val elsewhere =
       shard
-        ?.classesOwnedElsewhere(module.testClasses(sourceSets).filter { lane.runs(it) && it !in excluded }, weights)
-        .orEmpty()
+        ?.classesOwnedElsewhere(
+          module.testClasses(sourceSets).filter { lane.runs(it) && it !in excluded },
+          weights,
+          cell,
+        ).orEmpty()
     excludeTestClasses((excluded + elsewhere).flatMap(::classPatterns))
   }
 }
@@ -256,9 +282,15 @@ private fun Project.testClasses(sourceSets: Collection<KotlinSourceSet>): List<S
     }.get()
 }
 
-private fun Project.testWeights(): Map<String, Double> =
-  providers
-    .fileContents(layout.settingsDirectory.file(TEST_WEIGHTS_PATH))
-    .asText.orNull
-    ?.let(::parseTestWeights)
-    .orEmpty()
+private fun Project.testWeights(scope: String? = null): Map<String, Double> {
+  val weights =
+    providers
+      .fileContents(layout.settingsDirectory.file(TEST_WEIGHTS_PATH))
+      .asText.orNull
+      ?.let { parseTestWeights(it, scope) }
+      .orEmpty()
+  if (scope != null && weights.isEmpty()) {
+    throw GradleException("-P$TEST_WEIGHTS_PROPERTY=$scope names no scope in $TEST_WEIGHTS_PATH")
+  }
+  return weights
+}
