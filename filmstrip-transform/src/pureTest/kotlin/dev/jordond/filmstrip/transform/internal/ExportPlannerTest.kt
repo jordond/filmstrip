@@ -11,13 +11,17 @@ import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.effects.geometry.Rotate
+import dev.jordond.filmstrip.export.CopyBlocker
 import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.Verdict
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.HdrTransfer
+import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.transform.internal.negotiation.audioFormat
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedHdr
+import io.kotest.matchers.collections.shouldBeEmpty
+import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlin.test.Test
@@ -91,6 +95,44 @@ class ExportPlannerTest {
     val verdict = fixture.plan(composition(fixture.clip()), muxerAccepts = { false })
 
     verdict.shouldBeInstanceOf<Verdict.Capable>().plan.path shouldBe ExportPath.Transcode
+  }
+
+  @Test
+  fun `a copy limit on an otherwise untouched clip transcodes and names its blocker`() {
+    val verdict = fixture.plan(composition(fixture.clip()), copyLimit = { CopyBlocker.NonSquarePixels })
+
+    val plan = verdict.shouldBeInstanceOf<Verdict.Capable>().plan
+    plan.path shouldBe ExportPath.Transcode
+    plan.copyBlockedBy shouldBe listOf(CopyBlocker.NonSquarePixels)
+  }
+
+  @Test
+  fun `the default copy limit keeps an untouched clip on the copy path`() {
+    val verdict = fixture.plan(composition(fixture.clip()))
+
+    val plan = verdict.shouldBeInstanceOf<Verdict.Capable>().plan
+    plan.path shouldBe ExportPath.Copy
+    plan.copyBlockedBy.shouldBeEmpty()
+  }
+
+  @Test
+  fun `a copy limit with nothing to say leaves a muxer refusal as the only blocker`() {
+    val edit = composition(fixture.clip())
+    val asked = mutableListOf<MediaInfo>()
+    val verdict =
+      fixture.plan(
+        edit,
+        muxerAccepts = { false },
+        copyLimit = {
+          asked += it
+          null
+        },
+      )
+
+    val plan = verdict.shouldBeInstanceOf<Verdict.Capable>().plan
+    plan.path shouldBe ExportPath.Transcode
+    plan.copyBlockedBy shouldBe listOf(CopyBlocker.MuxerRefusesSource)
+    asked shouldContain fixture.infos(edit).values.single()
   }
 
   @Test

@@ -29,8 +29,7 @@ nearest sync sample, up to the duration you give it, so the export can copy the 
 The default of zero keeps the cut exactly where the trim put it.
 
 A copied clip ends on the frame the trim's end lands on, the same one its preview ends on, though a B-frame there can
-bring a frame or two it decodes from along with it. Its audio runs to the trim's end, except on Android, where media3
-ends a clip's audio with its video, within one audio access unit of where its video ends. A source whose packets carry
+bring a frame or two it decodes from along with it. Its audio runs to the trim's end. A source whose packets carry
 no presentation times, like an AVI with B-frames, can't end a copy early, so a trim end on one re-encodes and
 `copyBlockedBy` names `SourceUntimed`. See [Limits](/reference/limits/#stream-copy).
 

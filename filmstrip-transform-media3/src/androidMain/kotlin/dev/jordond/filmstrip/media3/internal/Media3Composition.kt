@@ -30,8 +30,8 @@ import dev.jordond.filmstrip.transform.internal.resolve.showsFill
  * measurement in a composition-level effect is then a fraction of the frame that will really be written.
  *
  * A track's video lands on the output frame grid and its audio lands exactly where the plan put it, so a track carrying
- * both lowers to a video sequence followed by an audio one. A copy lays each track as one sequence at the exact times
- * the plan resolved, since it writes the source's own samples and has no grid to land them on.
+ * both lowers to a video sequence followed by an audio one. A copy lays each of a track's kinds as its own sequence at
+ * the exact times the plan resolved, so its video can stop on the plan's grid while its audio runs to the clip's end.
  *
  * Every clip's chain is lowered before the composition's, in track and clip order, which is the order [wrapper] sees
  * them in. A clip that covers no slot of the grid lays no video, so its chain is never lowered.
@@ -57,7 +57,7 @@ internal fun ResolvedComposition.toMedia3(
         // repeat itself. media3 repeats by item index and a leading gap is one of those items, which
         // would open a pass every start plus length where the other three open one every length.
         if (path == ExportPath.Copy) {
-          listOfNotNull(lowering.exactSequence(track, track.trackTypes(keepAudio, keepVideo)))
+          track.trackTypes(keepAudio, keepVideo).mapNotNull { lowering.exactSequence(track, setOf(it)) }
         } else {
           listOfNotNull(
             if (keepVideo && track.content != TrackContent.Audio) lowering.gridSequence(track) else null,
@@ -73,9 +73,13 @@ internal fun ResolvedComposition.toMedia3(
   if (sequences.isEmpty()) {
     throw Media3LoweringFailure("Nothing in this composition contributes a track to encode.")
   }
+  // media3 only transmuxes more than one sequence when told to, and a copy split across two is still a copy.
+  val transmuxes = path == ExportPath.Copy && sequences.size > 1
 
   return Composition
     .Builder(sequences)
+    .setTransmuxVideo(transmuxes)
+    .setTransmuxAudio(transmuxes)
     .setEffects(Effects(emptyList(), if (keepVideo) compositionVideoEffects(wrapper) else emptyList()))
     .setHdrMode(
       when (hdr) {

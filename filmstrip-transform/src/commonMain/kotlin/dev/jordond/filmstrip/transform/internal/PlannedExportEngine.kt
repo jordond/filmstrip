@@ -6,6 +6,7 @@ import dev.jordond.filmstrip.capability.EffectParity
 import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.effect.EffectResolver
+import dev.jordond.filmstrip.export.CopyBlocker
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.MediaInfo
@@ -25,6 +26,7 @@ import dev.jordond.filmstrip.transform.internal.resolve.ResolvedHdr
  * @param ladder The order this engine's driver tries video codecs in, most preferred first.
  * @param supportsCopy Whether this driver can copy a stream across without an encoder.
  * @param muxerAccepts Whether this driver's muxer will take a source's streams without re-encoding them.
+ * @param copyLimit The blocker a limit of this driver's own puts on copying a source, or null when it has none.
  */
 @InternalFilmstripApi
 public class PlannedExportEngine(
@@ -35,6 +37,7 @@ public class PlannedExportEngine(
   ladder: List<VideoCodec>,
   supportsCopy: Boolean,
   muxerAccepts: (MediaInfo) -> Boolean,
+  copyLimit: (MediaInfo) -> CopyBlocker? = { null },
 ) : LoweringExportEngine() {
   private val planner =
     ExportPlanner(
@@ -45,6 +48,7 @@ public class PlannedExportEngine(
       ladder = ladder,
       supportsCopy = supportsCopy,
       muxerAccepts = muxerAccepts,
+      copyLimit = copyLimit,
       toneMapLimit = backend::toneMapLimit,
     )
 

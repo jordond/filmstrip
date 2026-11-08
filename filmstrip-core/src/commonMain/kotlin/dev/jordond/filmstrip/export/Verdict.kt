@@ -267,6 +267,12 @@ public enum class CopyBlocker {
   MuxerRefusesSource,
 
   /**
+   * The source's pixels are not square and the backend cannot copy such a source as it is. On Android, media3's
+   * Transformer re-encodes it to square pixels or writes it across unchecked, so a copy never runs there.
+   */
+  NonSquarePixels,
+
+  /**
    * The source's codecs have no [VideoCodec] or [AudioCodec] member to name them by, so a copy
    * could not report what it wrote.
    */
@@ -346,8 +352,8 @@ public enum class InertReason {
  *   open rather than from where its trim was written. An [ExportPath.Copy] export writes the frames
  *   on every output slot of this length and stops there, unless the frame on its last slot decodes
  *   after references presented later. Those references are written too, so the file can run past
- *   this by up to the source's reorder depth, which is two frames on a stream with two B-frames. On
- *   Android a copy's audio ends with its video, within one audio access unit of this length.
+ *   this by up to the source's reorder depth, which is two frames on a stream with two B-frames. A
+ *   copy's audio runs to the end of its trim.
  * @property copyBlockedBy Why this export re-encodes rather than copying its streams across. Empty
  *   when [path] is [ExportPath.Copy], and otherwise every term that applied, so a caller can
  *   see which field to drop to get the near-instant path back.

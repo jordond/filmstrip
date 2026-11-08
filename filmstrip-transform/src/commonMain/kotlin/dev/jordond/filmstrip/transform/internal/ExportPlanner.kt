@@ -12,6 +12,7 @@ import dev.jordond.filmstrip.effect.EffectStage
 import dev.jordond.filmstrip.effect.RenderCapabilities
 import dev.jordond.filmstrip.effect.inCanonicalOrder
 import dev.jordond.filmstrip.export.AdjustmentKind
+import dev.jordond.filmstrip.export.CopyBlocker
 import dev.jordond.filmstrip.export.ExportEstimate
 import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.export.ExportPlan
@@ -69,7 +70,8 @@ public val DEFAULT_HDR_LADDER: List<VideoCodec> = listOf(VideoCodec.Hevc)
  * an export that keeps HDR, [noteOf] is what to tell a caller about an effect this engine only
  * approximates, `supportsCopy` says whether it can copy a stream across without an encoder at
  * all, `muxerAccepts` says whether the muxer will take a source's streams without re-encoding them,
- * and [canToneMap] says whether it can bring an HDR grade down to SDR.
+ * `copyLimit` names the blocker a limit of the engine's own puts on copying a source, and [canToneMap]
+ * says whether it can bring an HDR grade down to SDR.
  */
 @InternalFilmstripApi
 public class ExportPlanner(
@@ -84,9 +86,10 @@ public class ExportPlanner(
   private val canToneMap: Boolean = true,
   private val toneMapLimit: (List<MediaSource>) -> String? = { null },
   private val hdrLadder: List<VideoCodec> = DEFAULT_HDR_LADDER,
+  copyLimit: (MediaInfo) -> CopyBlocker? = { null },
 ) {
   private val lowering = StageLowering(resolvers, unclaimedMessage)
-  private val copySupport = CopySupport(supportsCopy, muxerAccepts)
+  private val copySupport = CopySupport(supportsCopy, muxerAccepts, copyLimit)
 
   /**
    * Negotiates [composition] against what [ask] read into a verdict and the graph an export would run.

@@ -18,9 +18,10 @@ so you can see what to drop to get it back. See [Export](/guides/export/).
 | Audio               | `AudioSpecChanged`, `CompositionGainChanged`, `TrackGainChanged`, `ClipGainChanged`                       |
 | Timing              | `ClipSpeedChanged`                                                                                        |
 | The source          | `TrimNotOnSyncSample`, `SourceUntimed`, `MuxerRefusesSource`, `SourceCodecUnnameable`, `GradeMustToneMap` |
-| The backend         | `BackendCannotCopy`                                                                                       |
+| The backend         | `BackendCannotCopy`, `NonSquarePixels`                                                                    |
 
-Every built-in backend can copy, so none of them reports `BackendCannotCopy`. `quality` blocks as `BitrateSet`, and
+Every built-in backend can copy, so none of them reports `BackendCannotCopy`. A source with non-square pixels always
+transcodes on Android, and `copyBlockedBy` names `NonSquarePixels`. `quality` blocks as `BitrateSet`, and
 `MatchSource` doesn't block at all.
 
 `Upload`, `Share` and `Archive` each name a codec, so those [presets](/guides/export/#presets) never copy. `Original`
@@ -31,15 +32,9 @@ order on the packet that holds the last of them. When that frame is a B-frame, t
 presented after the end, and the copy writes them too. That's the reorder residue, and it is never more than the
 source's reorder depth. A 30 fps H.264 source with two B-frames copied from 0 to 1.010 s writes the grid's 30 frames and
 nothing past them. Copied from 0 to 1.040 s it writes the grid's 31 and a residue of 2. Every backend writes those same
-frames, Android on API 30 and 36 alike. Everywhere but Android the audio runs to the trim's end either way.
+frames, Android on API 30 and 36 alike. The audio runs to the trim's end either way, on every backend.
 The residue is presented past the grid, so playing the file shows it after the grid's last frame. A preview of the copy
 ends on the grid at the plan's duration, holding its last frame there, and never shows the residue.
-
-On Android a copied clip's audio ends with its video, on the grid rather than at the trim's end, because media3 takes
-one clipping end for both tracks of a clip. Copied audio ends on a whole AAC access unit, 21.3 ms at 48 kHz, and media3
-picks which side of the grid's end that unit lands on, so the audio ends within one unit of the grid. For the 0 to
-1.010 s copy above, with a 1 s grid, it ran 1.003 s on API 30 and 0.981 s on API 36. For 0 to 1.040 s, with a 1.033 s
-grid, it ran 1.045 s on API 30.
 
 On ffmpeg, Apple and the browser the packet list a copy counts by is read when the export is planned, at up to 1000 fps
 over the window and one second past it. A source listing more packets than that, or one whose packets can't be listed,

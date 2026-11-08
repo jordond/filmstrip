@@ -62,7 +62,7 @@ internal class Lowering(
   /**
    * [track] laid at the exact times the plan resolved, carrying only [trackTypes].
    *
-   * This is the audio of a track whose video went on the grid, and the whole of a track on the copy path. A clip with
+   * This is the audio of a track whose video went on the grid, and each of a copied track's kinds. A clip with
    * nothing to contribute to an audio-only sequence, a still or a source with no sound, holds its span with silence.
    * Every gap here is media3's own, since a copy writes no frame of its own and has no fill to show through one.
    */
@@ -167,8 +167,9 @@ internal class Lowering(
   /**
    * A clip over the exact window the plan resolved it to, with its audio pinned to its span when it runs at a speed.
    *
-   * A copy that ends before its source does ends on the plan's grid instead, so the video it writes is the prefix
-   * [dev.jordond.filmstrip.transform.internal.copy.copyPrefixOf] counts.
+   * When a copy's video ends before its source does, it ends on the plan's grid instead, so it writes the prefix
+   * [dev.jordond.filmstrip.transform.internal.copy.copyPrefixOf] counts. The copy's audio rides in a sequence of its
+   * own and ends on the clip's end.
    */
   private fun ResolvedClip.exactItem(
     removeAudio: Boolean,
@@ -197,8 +198,7 @@ internal class Lowering(
       ).build()
 
   // Where a copy carrying this clip's video ends, which is the end of the plan's grid when the window ends before the
-  // source does. One item clips its audio at the same end, since media3 takes one clipping end for both tracks. Every
-  // other item ends on the clip's own end.
+  // source does. Every other item, a copy's audio included, ends on the clip's own end.
   private fun ResolvedClip.copyEnd(removeVideo: Boolean): Duration =
     if (plan.path == ExportPath.Copy && !removeVideo && info.video != null && end < info.duration) {
       start + outputSlotTime(plan.videoSlots, plan.output.frameRate)

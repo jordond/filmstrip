@@ -25,10 +25,12 @@ import kotlin.time.Duration
  *
  * @property supportsCopy Whether the engine can copy a stream at all.
  * @property muxerAccepts Whether its muxer takes a source's streams as they are.
+ * @property copyLimit The blocker a limit of the engine's own puts on copying a source, or null when it has none.
  */
 internal class CopySupport(
   val supportsCopy: Boolean,
   val muxerAccepts: (MediaInfo) -> Boolean,
+  val copyLimit: (MediaInfo) -> CopyBlocker? = { null },
 )
 
 /**
@@ -67,6 +69,7 @@ internal fun copyBlockers(
   buildList {
     if (!support.supportsCopy) add(CopyBlocker.BackendCannotCopy)
     if (!support.muxerAccepts(info)) add(CopyBlocker.MuxerRefusesSource)
+    support.copyLimit(info)?.let(::add)
     if (!codecsAreNameable(info)) add(CopyBlocker.SourceCodecUnnameable)
     if (spec.frameRate != null) add(CopyBlocker.FrameRateSet)
     if (spec.videoCodec != VideoCodec.Auto && spec.videoCodec != VideoCodec.MatchSource) {

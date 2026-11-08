@@ -19,6 +19,7 @@ import dev.jordond.filmstrip.effect.EffectResolver
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effect.RenderApi
 import dev.jordond.filmstrip.effect.RenderCapabilities
+import dev.jordond.filmstrip.export.CopyBlocker
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.AudioTrackInfo
@@ -51,6 +52,7 @@ internal class PlannerFixture {
     renderApi: RenderApi = RenderApi.OpenGlEs,
     ladder: List<VideoCodec> = listOf(VideoCodec.H264, VideoCodec.Hevc),
     toneMapLimit: (List<MediaSource>) -> String? = { null },
+    copyLimit: (MediaInfo) -> CopyBlocker? = { null },
   ) = ExportPlanner(
     resolvers = resolvers,
     renderCapabilities = { size, hdr ->
@@ -71,6 +73,7 @@ internal class PlannerFixture {
     canToneMap = canToneMap,
     muxerAccepts = muxerAccepts,
     toneMapLimit = toneMapLimit,
+    copyLimit = copyLimit,
   )
 
   // Every fabricated clip carries its own source, so the map is keyed the way the planner reads it.
@@ -91,7 +94,8 @@ internal class PlannerFixture {
     muxerAccepts: (MediaInfo) -> Boolean = { true },
     openings: Map<MediaSource, Duration> = emptyMap(),
     layoutSize: Size? = null,
-  ) = planner(resolvers, canToneMap = canToneMap, muxerAccepts = muxerAccepts)
+    copyLimit: (MediaInfo) -> CopyBlocker? = { null },
+  ) = planner(resolvers, canToneMap = canToneMap, muxerAccepts = muxerAccepts, copyLimit = copyLimit)
     .negotiate(composition, Ask(spec, device, infos(composition), openings, layoutSize))
     .verdict
 

@@ -224,8 +224,9 @@ public class Media3Preview internal constructor(
     bounds: Media3ClipReads,
   ): Boolean {
     if (!resolved.drawsSameFormatAs(next)) return false
-    // media3's own limit: a copy lowers to one exact sequence and a transcode to a grid sequence and an audio one, and
-    // a standing graph keeps the sequences it was built with.
+    // media3's own limit: a copy lowers to an exact video sequence and an exact audio one, a transcode to a grid video
+    // sequence and an exact audio one. The video items differ, and a standing graph keeps the sequences it was built
+    // with, so a change of path rebuilds.
     if (next.path != resolved.path) return false
 
     val incoming = mutableListOf<Effect>()

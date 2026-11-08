@@ -85,6 +85,33 @@ class Media3ClippingTest {
     clipping.startsAtKeyFrame shouldBe true
   }
 
+  // The grid end is the video's alone. The audio runs to the window's own end in a sequence of its own, and media3 is
+  // told to transmux both, since it only does so by itself for a single sequence.
+  @Test
+  fun `a copy carries its audio in its own sequence to the window's end`() {
+    val clip = clip(startsAtKeyFrame = true)
+    val media3 = composition(clip, ExportPath.Copy).toMedia3(Media3ClipReads.None)
+
+    val (video, audio) = media3.sequences.map { it.editedMediaItems.single() }
+
+    video.removeAudio shouldBe true
+    audio.removeVideo shouldBe true
+    audio.mediaItem.clippingConfiguration.startPositionUs shouldBe clip.start.inWholeMicroseconds
+    audio.mediaItem.clippingConfiguration.endPositionUs shouldBe clip.end.inWholeMicroseconds
+    media3.transmuxVideo shouldBe true
+    media3.transmuxAudio shouldBe true
+  }
+
+  // With one kind to carry there is one sequence, which media3 already transmuxes without being told.
+  @Test
+  fun `a copy without audio lays one sequence`() {
+    val media3 =
+      composition(clip(startsAtKeyFrame = true), ExportPath.Copy, AudioCodec.None).toMedia3(Media3ClipReads.None)
+
+    media3.sequences.size shouldBe 1
+    media3.transmuxVideo shouldBe false
+  }
+
   // Without the snap, the video opens on the cut and runs for the slots its span covers, and the
   // audio carries the exact window. An export that re-encodes decodes to the cut anyway, so the flag
   // going along for the ride would move a trim the caller asked to land exactly.
@@ -141,6 +168,7 @@ class Media3ClippingTest {
   private fun composition(
     clip: ResolvedClip,
     path: ExportPath,
+    audioCodec: AudioCodec = AudioCodec.Aac,
   ): ResolvedComposition =
     ResolvedComposition(
       tracks =
@@ -157,7 +185,7 @@ class Media3ClippingTest {
         OutputFormat(
           size = Size(640, 360),
           videoCodec = VideoCodec.H264,
-          audioCodec = AudioCodec.Aac,
+          audioCodec = audioCodec,
           bitrate = null,
           frameRate = 30,
           audioFormat = null,

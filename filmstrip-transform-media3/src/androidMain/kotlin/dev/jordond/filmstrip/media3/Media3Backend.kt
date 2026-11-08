@@ -7,8 +7,10 @@ import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.diagnostics.BackendInfo
 import dev.jordond.filmstrip.effect.EffectIds
 import dev.jordond.filmstrip.effects.builtInEffects
+import dev.jordond.filmstrip.export.CopyBlocker
 import dev.jordond.filmstrip.export.EngineComponents
 import dev.jordond.filmstrip.internal.chainedProber
+import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaProber
 import dev.jordond.filmstrip.media3.internal.Media3Driver
 import dev.jordond.filmstrip.transform.internal.PlannedExportEngine
@@ -51,7 +53,22 @@ public fun media3ExportEngine(
     supportsCopy = true,
     // Every export here writes mp4, so a copy is allowed for exactly what mp4 carries.
     muxerAccepts = { info -> Mp4Copy.accepts(info) },
+    copyLimit = ::media3CopyLimit,
   )
+
+/**
+ * The blocker media3 puts on copying [info]'s streams, or null when it can copy them.
+ *
+ * A source whose pixels are not square is blocked with [CopyBlocker.NonSquarePixels]. media3's own limit: its
+ * Transformer re-encodes such a source to square pixels on one sequence, and on the two a copy with audio and video
+ * lowers to it writes the samples across with no such check. Blocking the copy puts both on the transcode.
+ */
+internal fun media3CopyLimit(info: MediaInfo): CopyBlocker? {
+  val video = info.video ?: return null
+  return if (video.pixelAspectRatio == SQUARE_PIXELS) null else CopyBlocker.NonSquarePixels
+}
+
+private const val SQUARE_PIXELS = 1f
 
 private val MEDIA3_LADDER: List<VideoCodec> = listOf(VideoCodec.H264, VideoCodec.Hevc)
 
