@@ -22,10 +22,14 @@ cannot write ten-bit HEVC.
 
 ## Running the sample
 
-`sample/webApp` is the editor behind the docs site's demo and `sample/tryIt` is the widget its pages embed. Both run
-the browser backend through the public API, which makes the editor the quickest way to see a change there for real.
+`sample/demo` exercises every backend through the public API, which makes it the quickest way to see a change for real.
 
-Run `./gradlew :sample:webApp:wasmJsBrowserDevelopmentRun`, then open <http://localhost:8080> in Chrome.
+| Target | Command | Needs |
+|---|---|---|
+| Android | `./gradlew :sample:demo:androidApp:installDebug` | A running emulator or a connected device |
+| Desktop | `./gradlew :sample:demo:desktopApp:run` | ffmpeg and ffprobe 8.0 or newer on the `PATH` |
+| Browser | `./gradlew :sample:demo:webApp:wasmJsBrowserDevelopmentRun`, then <http://localhost:8080> | Chrome |
+| iOS | `open sample/demo/iosApp/iosApp.xcodeproj`, pick a simulator and press Run | A Mac with Xcode, and your own team for a physical iPhone |
 
 ## Test fixtures
 

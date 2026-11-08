@@ -60,11 +60,17 @@ needs and how the test fixtures are made and published.
 
 ## Running the sample
 
-`sample/` is the editor the docs site runs at [/demo](https://filmstrip.jordond.dev/demo). Pick a clip or one of the
-sample clips, edit it while it plays, then export it and download the result, all in the browser.
+`sample/demo` is a small editor over the library: pick a clip or one of the sample clips, edit it while it plays, export
+it. The docs site runs its browser build at [/demo](https://filmstrip.jordond.dev/demo).
 
-To run it locally, `./gradlew :sample:webApp:wasmJsBrowserDevelopmentRun`, then open <http://localhost:8080> in Chrome.
-[sample/webApp](sample/webApp/README.md) covers the editor and [sample/tryIt](sample/tryIt/README.md) the landing page's
+| Target | Command |
+|---|---|
+| Android | `./gradlew :sample:demo:androidApp:installDebug`, with an emulator running or a device connected. Then open filmstrip from the launcher. |
+| Desktop | `./gradlew :sample:demo:desktopApp:run`, with `ffmpeg` and `ffprobe` 8.0 or newer on the `PATH`. |
+| Browser | `./gradlew :sample:demo:webApp:wasmJsBrowserDevelopmentRun`, then open <http://localhost:8080> in Chrome. |
+| iOS | `open sample/demo/iosApp/iosApp.xcodeproj`, pick a simulator and press Run. A physical iPhone also needs your own team under Signing & Capabilities. |
+
+[sample/demo](sample/demo/README.md) covers the demo app and [sample/tryIt](sample/tryIt/README.md) the landing page's
 Try it TV.
 
 ## Releasing

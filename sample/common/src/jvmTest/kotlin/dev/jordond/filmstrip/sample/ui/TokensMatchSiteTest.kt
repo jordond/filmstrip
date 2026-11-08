@@ -100,8 +100,16 @@ class TokensMatchSiteTest {
   }
 
   @Test
+  fun `the Android window background is ground`() {
+    val themes = File(root, "sample/demo/androidApp/src/main/res/values/themes.xml").readText()
+    val background = Regex("""android:windowBackground">(#[0-9a-fA-F]{6})""").find(themes)!!.groupValues[1]
+
+    parseColour(background).hex() shouldBe Tokens.ground.argbHex()
+  }
+
+  @Test
   fun `the web page background is ground`() {
-    listOf("sample/webApp", "sample/tryIt").forEach { app ->
+    listOf("sample/demo/webApp", "sample/tryIt").forEach { app ->
       val html = File(root, "$app/src/wasmJsMain/resources/index.html").readText()
       val background = Regex("""background:\s*(#[0-9a-fA-F]{6})""").find(html)!!.groupValues[1]
 

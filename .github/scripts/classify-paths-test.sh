@@ -27,7 +27,7 @@ check "media workflow" '.github/workflows/media.yml\n' "library=false sample=fal
 check "renovate config" '.github/renovate.json\n' "library=false sample=false"
 check "markdown" 'README.md\nfilmstrip-core/NOTES.md\n' "library=false sample=false"
 check "build logic" 'build-logic/convention/src/main/kotlin/TestLanes.kt\n' "library=true sample=false"
-check "mixed" 'sample/webApp/build.gradle.kts\nREADME.md\nfilmstrip-player/build.gradle.kts\n' \
+check "mixed" 'sample/demo/androidApp/build.gradle.kts\nREADME.md\nfilmstrip-player/build.gradle.kts\n' \
   "library=true sample=true"
 check "nothing" '' "library=false sample=false"
 

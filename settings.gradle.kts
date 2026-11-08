@@ -71,7 +71,10 @@ include(
 
 include(
   ":sample:common",
-  ":sample:webApp",
+  ":sample:demo:shared",
+  ":sample:demo:androidApp",
+  ":sample:demo:desktopApp",
+  ":sample:demo:webApp",
   ":sample:tryIt",
 )
 

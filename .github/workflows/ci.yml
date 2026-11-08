@@ -166,8 +166,8 @@ jobs:
       - *checkout
       - *java
       - *gradle
-      - name: Run android host tests
-        run: ./gradlew testAndroidHostTest --scan
+      - name: Run android host tests and build the sample
+        run: ./gradlew testAndroidHostTest :sample:demo:androidApp:assembleDebug --scan
       - *slowest
       - *reports
 
@@ -184,9 +184,9 @@ jobs:
       - *checkout
       - *java
       - *gradle
-      - name: Run js browser tests and the sample's wasm tests
+      - name: Run js browser tests
         run: >-
-          ./gradlew jsBrowserTest :sample:webApp:wasmJsTest --scan
+          ./gradlew jsBrowserTest --scan
           "-Dorg.gradle.jvmargs=-Xmx2g -Dfile.encoding=UTF-8 -Dkotlin.daemon.jvm.options=-Xmx3g"
       - *slowest
       - *reports
@@ -224,8 +224,7 @@ jobs:
       - *slowest
       - *reports
 
-  # A pull request that touches only the sample, or the stylesheets it reads, runs the sample's tests and compiles the
-  # Try it app.
+  # A pull request that touches only the sample, or the stylesheets it reads, builds the app and runs its jvm tests.
   sample:
     name: "Test sample"
     needs: changes
@@ -236,11 +235,12 @@ jobs:
       - *checkout
       - *java
       - *gradle
-      - name: Run the sample's tests
+      - name: Build the sample and run its jvm tests
         run: >-
           ./gradlew --scan
+          :sample:demo:androidApp:assembleDebug
           :sample:common:jvmTest
-          :sample:webApp:wasmJsTest
+          :sample:demo:shared:jvmTest
           :sample:tryIt:jvmTest
           :sample:tryIt:compileKotlinWasmJs
       - *slowest

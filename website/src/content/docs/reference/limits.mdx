@@ -242,11 +242,11 @@ refuses.
 
 On the iOS 27.0 simulator runtime, a preview shown through an `AVPlayerLayer` in a window fails before play, a seek or a
 first frame, and its status can read `Ready` for a moment first. An item with a video composition fails this way, and
-every preview with video has one. A plain item with no video composition reached ready. A 720p H.264 clip, the same
-clip trimmed and a 1080p H.265 clip all failed. So did a composition from Apple's
-`videoCompositionWithPropertiesOfAsset` with no filmstrip code in it, tried once.
+every preview with video has one. A plain item with no video composition reached ready. In the demo app a 720p H.264
+clip, the same clip trimmed and a 1080p H.265 clip all failed. So did a composition from Apple's
+`videoCompositionWithPropertiesOfAsset` with no filmstrip code in it, tried once in the demo app.
 
-On the iOS 27.2 simulator runtime the 720p H.264 clip played. The trim and the H.265 clip reached ready
+On the iOS 27.2 simulator runtime the 720p H.264 clip played in the demo app. The trim and the H.265 clip reached ready
 there and weren't played through. On the iOS 26.5 simulator runtime a test read a video composition item in a window
 reaching ready, without playing it or reading a picture.
 
@@ -254,9 +254,9 @@ reaching ready, without playing it or reading a picture.
   message ends with `(NSOSStatusErrorDomain -12784)`. One `PlaybackEvent.Failed` reports it for each failed item.
 - `play()` on that item starts nothing and the status stays `Error`. Setting a new composition is what tries again.
 - An `AVPlayerItemVideoOutput` on an item with a video composition fails the same way on that runtime, with no layer.
-- Export isn't stopped there. The 720p H.264 clip whose preview had just failed exported and re-probed at its full
-  length, and filmstrip's tone map export tests and one other Apple export test pass on fixtures on that runtime.
-  Other clips and edits weren't exported.
+- Export isn't stopped there. In the demo app the 720p H.264 clip whose preview had just failed exported and
+  re-probed at its full length, and filmstrip's tone map export tests and one other Apple export test pass on fixtures
+  on that runtime. Other clips and edits weren't exported.
 
 A physical iPhone on iOS 27 is unmeasured, so whether a device does this too isn't known yet.
 
