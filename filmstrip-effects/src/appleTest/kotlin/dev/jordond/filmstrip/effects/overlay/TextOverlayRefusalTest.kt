@@ -45,7 +45,7 @@ class TextOverlayRefusalTest {
       withClue("empty text resolved as $resolved") {
         resolved.shouldBeInstanceOf<EffectResolution.Unsupported>()
       }
-    refused.message shouldBe "The text and its style leave nothing to draw."
+    refused.message shouldBe EMPTY_TEXT
   }
 
   // The size the raster would be drawn at, read where its bitmap would be made and refused there, so nothing is held.
