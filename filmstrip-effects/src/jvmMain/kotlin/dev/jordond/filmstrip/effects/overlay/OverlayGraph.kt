@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip.effects.overlay
 
+import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.effect.Attributes
 import dev.jordond.filmstrip.effect.AuxInput
@@ -20,12 +21,14 @@ import dev.jordond.filmstrip.picture.PictureOrientation
  * this needs decoded, so the texels are the ones the toolchain draws, and a picture decoded anyway is sized from that
  * decode. One that was not is sized by the frame [decoder] checks it yields. Without a decoder the JDK reads them all,
  * and [shownSize] reads the size off the header. A picture this process cannot read, one that yields no frame, or an
- * animation that cannot be driven at all, is refused before the graph is built.
+ * animation that cannot be driven at all, is refused before the graph is built. A decode stopped at its deadline fails
+ * with the [FilmstripError.TimedOut] it was stopped with.
  *
  * @param bytes The picture's bytes as this lowering read them, or null when this process cannot read them.
  *
  * @return The fragment, [EffectResolution.Degraded] by each limit the decode of its picture reports, or
- * [EffectResolution.Unsupported] when the picture or its animation cannot be lowered here.
+ * [EffectResolution.Unsupported] when the picture or its animation cannot be lowered here, or [EffectResolution.Failed]
+ * when its decode was stopped at its deadline.
  */
 internal fun filterGraphOverlay(
   spec: ImageOverlay,
@@ -43,6 +46,7 @@ internal fun filterGraphOverlay(
       when (val read = storedPicture(spec.image, decoder, bytes)) {
         is StoredRead.Read -> read.picture
         is StoredRead.Undecoded -> return spec.refused(UNREADABLE_HDR_IMAGE.saying(read.reason))
+        is StoredRead.Expired -> return EffectResolution.Failed(read.timedOut)
         is StoredRead.Undrawn -> return spec.refused(read.reason)
         StoredRead.Unread -> return spec.refused(UNREADABLE_HDR_IMAGE)
         StoredRead.Unseen -> return spec.refused(UNSEEN_COLOR)
@@ -56,6 +60,7 @@ internal fun filterGraphOverlay(
     when (val read = sdrOverlayImage(spec.image, decoder, bytes)) {
       is SdrOverlayImage.Drawn -> read
       is SdrOverlayImage.Refused -> return spec.refused(read.message)
+      is SdrOverlayImage.Expired -> return EffectResolution.Failed(read.timedOut)
     }
   val shown = drawn.size ?: drawn.image.shownSize { return spec.refused(it) }
   val placement = spec.placedOn(drawnOn, shown)

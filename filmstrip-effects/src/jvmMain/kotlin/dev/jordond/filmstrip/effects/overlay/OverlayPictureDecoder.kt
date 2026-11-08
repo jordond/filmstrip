@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip.effects.overlay
 
+import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.color.PictureColor
 import dev.jordond.filmstrip.effect.Degradation
@@ -9,6 +10,7 @@ import dev.jordond.filmstrip.picture.pictureColorFromDecodedPng
 import java.io.ByteArrayInputStream
 import java.io.IOException
 import javax.imageio.ImageIO
+import kotlin.time.Duration
 
 /**
  * Reads an overlay picture with the toolchain the backend draws pictures with.
@@ -34,7 +36,8 @@ public interface OverlayPictureDecoder {
    *
    * @return The picture, [OverlayPictureDecode.Undrawn] when its color is described in a way the toolchain does not
    * draw or it is an AVIF or HEIC whose `irot`, `imir` and `clap` cannot be dropped, or [OverlayPictureRead.Refused]
-   * with the toolchain's reason when it cannot decode it.
+   * with the toolchain's reason when it cannot decode it, or [OverlayPictureRead.Expired] when it was stopped at its
+   * deadline.
    */
   public fun decode(image: ImageSource): OverlayPictureDecode<DecodedPicture>
 
@@ -43,7 +46,8 @@ public interface OverlayPictureDecoder {
    * XL.
    *
    * @return The size, or [OverlayPictureRead.Refused] with the toolchain's reason when it cannot read the picture, or
-   * with core's sentence when it is an AVIF or HEIC whose `irot`, `imir` and `clap` cannot be dropped.
+   * with core's sentence when it is an AVIF or HEIC whose `irot`, `imir` and `clap` cannot be dropped, or
+   * [OverlayPictureRead.Expired] when it was stopped at its deadline.
    */
   public fun measure(image: ImageSource): OverlayPictureRead<Size>
 }
@@ -134,4 +138,25 @@ public sealed interface OverlayPictureRead<out T> : OverlayPictureDecode<T> {
   public class Refused(
     public val reason: String,
   ) : OverlayPictureRead<Nothing>
+
+  /**
+   * The toolchain was still reading the picture at its deadline and was stopped.
+   *
+   * @property operation The read that was stopped, the [FilmstripError.TimedOut.operation] it is refused with.
+   * @property deadline How long the read was given.
+   * @property reason Why the read was stopped, a sentence that reads on its own.
+   */
+  @InternalFilmstripApi
+  public class Expired(
+    public val operation: String,
+    public val deadline: Duration,
+    public val reason: String,
+  ) : OverlayPictureRead<Nothing> {
+    /**
+     * The error an effect that rests on this read is refused with, naming [operation] and [deadline].
+     *
+     * @return A [FilmstripError.TimedOut] carrying [operation], [deadline] and [reason].
+     */
+    public fun timedOut(): FilmstripError.TimedOut = FilmstripError.TimedOut(operation, deadline, reason)
+  }
 }

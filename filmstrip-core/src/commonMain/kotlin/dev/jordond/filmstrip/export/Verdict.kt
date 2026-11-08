@@ -52,8 +52,8 @@ public sealed interface Verdict {
    *
    * @property reasons Why it cannot run.
    * @property withoutUnsupported What would run with the impossible effects removed, or null when
-   *   nothing would. Its adjustments name each removed effect as [AdjustmentKind.EffectDropped],
-   *   alongside anything else the smaller edit changed.
+   *   nothing would or an effect's resolution failed. Its adjustments name each removed effect as
+   *   [AdjustmentKind.EffectDropped], alongside anything else the smaller edit changed.
    */
   @Poko
   public class Incapable(

@@ -1,7 +1,6 @@
 package dev.jordond.filmstrip.ffmpeg.internal
 
 import dev.jordond.filmstrip.CapabilitiesResult
-import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.capability.AudioEncoderCapability
 import dev.jordond.filmstrip.capability.DeviceCapabilities
 import dev.jordond.filmstrip.capability.VideoEncoderCapability
@@ -10,6 +9,7 @@ import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.FFMPEG_ENCODERS
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.FfmpegEncoder
 import dev.jordond.filmstrip.ffmpeg.internal.process.ProbeAnswer
+import dev.jordond.filmstrip.ffmpeg.internal.process.ProbeOperation
 import dev.jordond.filmstrip.ffmpeg.internal.process.Toolchain
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.transform.internal.DEFAULT_HDR_LADDER
@@ -27,7 +27,8 @@ import kotlin.time.Duration
  * Each rung encodes a single frame as cheaply as that encoder allows. Every codec in the table is probed, including the
  * ones CODEC_LADDER leaves out of Auto, so a caller who names one still gets an answer. One encoder's ladder does not
  * wait on another's, or a build carrying six of them would spend a second of somebody's startup. A rung still encoding
- * at its deadline fails the whole measurement, naming the encoder and the size it was stopped at.
+ * at its deadline fails the whole measurement as [dev.jordond.filmstrip.FilmstripError.TimedOut], naming the encoder
+ * and the size it was stopped at.
  */
 internal suspend fun FfmpegRuntime.measureCapabilities(toolchain: Toolchain): CapabilitiesResult =
   coroutineScope {
@@ -86,8 +87,7 @@ internal fun List<VideoEncoderCapability>.hdrEncoder(): FfmpegEncoder? =
     ?.encoderName
     ?.let { name -> FFMPEG_ENCODERS.values.flatten().firstOrNull { it.name == name } }
 
-private fun ProbeAnswer.Expired.refusal(): CapabilitiesResult.Failure =
-  CapabilitiesResult.Failure(FilmstripError.Underlying(FilmstripError.Underlying.NO_PLATFORM_CODE, reason))
+private fun ProbeAnswer.Expired.refusal(): CapabilitiesResult.Failure = CapabilitiesResult.Failure(timedOut())
 
 private suspend fun FfmpegRuntime.videoCapability(
   toolchain: Toolchain,
@@ -160,7 +160,9 @@ private suspend fun FfmpegRuntime.canEncode(
       },
       timeout,
     )
-  if (output.timedOut) return ProbeAnswer.Expired(rungExpiredReason(encoder, size, timeout))
+  if (output.timedOut) {
+    return ProbeAnswer.Expired(ProbeOperation.ENCODER_TEST, timeout, rungExpiredReason(encoder, size, timeout))
+  }
   return ProbeAnswer.Answered(output.started && output.exitCode == 0)
 }
 

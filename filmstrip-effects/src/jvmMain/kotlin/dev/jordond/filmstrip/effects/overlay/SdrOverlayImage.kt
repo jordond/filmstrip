@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip.effects.overlay
 
+import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.color.PictureColor
 import dev.jordond.filmstrip.color.pictureSrgbCodes
 import dev.jordond.filmstrip.effect.Degradation
@@ -59,6 +60,15 @@ internal sealed interface SdrOverlayImage {
    */
   class Refused(
     val message: String,
+  ) : SdrOverlayImage
+
+  /**
+   * The decode the picture needs was stopped at its deadline.
+   *
+   * @property timedOut The error the overlay is refused with.
+   */
+  class Expired(
+    val timedOut: FilmstripError.TimedOut,
   ) : SdrOverlayImage
 }
 
@@ -165,6 +175,9 @@ internal fun sdrOverlayImage(
           }
         return SdrOverlayImage.Refused(refusal.saying(read.reason))
       }
+      is StoredRead.Expired -> {
+        return SdrOverlayImage.Expired(read.timedOut)
+      }
       is StoredRead.Undrawn -> {
         return SdrOverlayImage.Refused(read.reason)
       }
@@ -207,6 +220,9 @@ private fun storedPicture(
     is OverlayPictureRead.Refused -> {
       StoredRead.Undecoded(read.reason)
     }
+    is OverlayPictureRead.Expired -> {
+      StoredRead.Expired(read.timedOut())
+    }
     is OverlayPictureDecode.Undrawn -> {
       StoredRead.Undrawn(read.reason)
     }
@@ -244,13 +260,14 @@ private fun decodedOnce(
 }
 
 // The stored size of the first frame of [bytes], the bytes of [image] that [opened] names, or [refuse] called when they
-// yield none, which the graph's `-loop` would spin on. Null when only the JDK looks at them, which sizes them later.
+// yield none, which the graph's `-loop` would spin on, or when [decoder] is stopped at its deadline. Null when only the
+// JDK looks at them, which sizes them later.
 private inline fun oneFrameOf(
   image: ImageSource,
   bytes: ByteArray,
   opened: ImageSource,
   decoder: OverlayPictureDecoder?,
-  refuse: (SdrOverlayImage.Refused) -> Nothing,
+  refuse: (SdrOverlayImage) -> Nothing,
 ): Size? {
   if (decoder == null) {
     if (readWithJdk(bytes) == null) refuse(SdrOverlayImage.Refused(unreadByJdk(image)))
@@ -259,6 +276,7 @@ private inline fun oneFrameOf(
   return when (val read = decoder.measure(opened)) {
     is OverlayPictureRead.Read -> read.value
     is OverlayPictureRead.Refused -> refuse(SdrOverlayImage.Refused(noFrame(image).saying(read.reason)))
+    is OverlayPictureRead.Expired -> refuse(SdrOverlayImage.Expired(read.timedOut()))
   }
 }
 

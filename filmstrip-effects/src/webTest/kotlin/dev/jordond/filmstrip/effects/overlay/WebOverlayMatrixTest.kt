@@ -234,6 +234,9 @@ class WebOverlayMatrixTest {
         val unreported = "resolved without its eight-bit decode".takeIf { cutOf(case.picture).isNotEmpty() }
         route to (miss ?: unreported)
       }
+      is EffectResolution.Failed -> {
+        "failed" to "failed with ${resolution.error.message}"
+      }
       null -> {
         "none" to "did not resolve"
       }

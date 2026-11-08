@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip.transform.internal.negotiation
 
+import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.effect.Attributes
 import dev.jordond.filmstrip.effect.EffectResolution
@@ -109,6 +110,9 @@ internal class StageLowering(
         is EffectResolution.Unsupported -> {
           LoweredEffect(spec, entry.sources, null, resolution.message)
         }
+        is EffectResolution.Failed -> {
+          LoweredEffect(spec, entry.sources, null, null, failed = resolution.error)
+        }
         null -> {
           LoweredEffect(spec, entry.sources, null, unclaimedMessage(entry.sources.authoredIds()))
         }
@@ -191,6 +195,8 @@ private fun List<EffectSpec>.authoredIds(): String = joinToString(", ") { it.id 
  *
  * @property sources The effects the caller wrote that [spec] stands for, which is [spec] alone
  *   unless a run of color effects folded into it.
+ * @property unsupported Why the effect cannot be realised here, or null when it can or its resolution failed.
+ * @property failed The error the effect's resolution failed with, or null when it did not fail.
  * @property degraded Each authored id paired with each thing given up, in the order the resolver gave the causes,
  * when a resolver realised the effect but not exactly as declared.
  */
@@ -200,6 +206,7 @@ internal class LoweredEffect(
   effect: PlatformEffect?,
   val unsupported: String?,
   degradedMessages: List<String> = emptyList(),
+  val failed: FilmstripError? = null,
 ) {
   val degraded: List<Pair<String, String>> =
     sources.flatMap { source -> degradedMessages.map { source.id to it } }

@@ -151,6 +151,9 @@ instead of catching.
 
 <Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Export.kt" region="failure" />
 
+`TimedOut` means a probe or platform read was stopped at its deadline. It says nothing about the source, so the same
+call may succeed later.
+
 <Aside type="caution">
 New error types arrive in minor versions, so always keep an `else` branch. Each `message` is safe to log but isn't
 meant to be parsed.

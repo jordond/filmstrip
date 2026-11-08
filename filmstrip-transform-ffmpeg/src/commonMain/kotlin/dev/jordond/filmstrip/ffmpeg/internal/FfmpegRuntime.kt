@@ -25,6 +25,7 @@ import dev.jordond.filmstrip.ffmpeg.internal.process.FrameStream
 import dev.jordond.filmstrip.ffmpeg.internal.process.LiveBinding
 import dev.jordond.filmstrip.ffmpeg.internal.process.LiveFeedRequest
 import dev.jordond.filmstrip.ffmpeg.internal.process.ProbeAnswer
+import dev.jordond.filmstrip.ffmpeg.internal.process.ProbeOperation
 import dev.jordond.filmstrip.ffmpeg.internal.process.ProcessOutput
 import dev.jordond.filmstrip.ffmpeg.internal.process.ProcessRunner
 import dev.jordond.filmstrip.ffmpeg.internal.process.TIMED_OUT
@@ -176,7 +177,7 @@ internal class FfmpegRuntime private constructor(
       sdColorSpawns++
       val timeout = deadline(Duration.ZERO)
       val output = capture(listOf(toolchain.ffprobe) + PROBE_ARGUMENTS + path, timeout)
-      if (output.timedOut) return@withLock ProbeAnswer.Expired(probeExpiredReason(FFPROBE, timeout))
+      if (output.timedOut) return@withLock expired(ProbeOperation.COLOR_READ, timeout)
       if (!output.started || output.exitCode != 0) return@withLock ProbeAnswer.Answered(null)
       ProbeAnswer.Answered(colorReadOf(output.stdout).also { colorReads[path] = Stamped(stamp, it) })
     }
@@ -282,7 +283,7 @@ internal class FfmpegRuntime private constructor(
     probeLock.withLock {
       copyPacketLock.withLock { copyPacketReads.remove(path) }
       val stamp = stampOf(path)
-      read(toolchain, path, stamp).also {
+      read(toolchain, path, stamp, ProbeOperation.OUTPUT_PROBE).also {
         val held = it.held
         if (held == null) {
           probes.remove(path)
@@ -297,11 +298,12 @@ internal class FfmpegRuntime private constructor(
     toolchain: Toolchain,
     path: String,
     stamp: FileStamp?,
+    operation: String = ProbeOperation.SOURCE_PROBE,
   ): ProbeAnswer<MediaInfo?> {
     probeSpawns++
     val timeout = deadline(Duration.ZERO)
     val output = capture(listOf(toolchain.ffprobe) + PROBE_ARGUMENTS + path, timeout)
-    if (output.timedOut) return ProbeAnswer.Expired(probeExpiredReason(FFPROBE, timeout))
+    if (output.timedOut) return expired(operation, timeout)
     if (!output.started || output.exitCode != 0) return ProbeAnswer.Answered(null)
     colorReads[path] = Stamped(stamp, colorReadOf(output.stdout))
     return ProbeAnswer.Answered(parseMediaInfo(output.stdout))
@@ -315,7 +317,7 @@ internal class FfmpegRuntime private constructor(
     syncSampleSpawns++
     val timeout = deadline(SYNC_SAMPLE_WINDOW)
     val output = capture(syncSampleArguments(toolchain, path, at), timeout)
-    if (output.timedOut) return ProbeAnswer.Expired(probeExpiredReason(FFPROBE, timeout))
+    if (output.timedOut) return expired(ProbeOperation.SYNC_SAMPLE_READ, timeout)
     return ProbeAnswer.Answered(
       if (output.started && output.exitCode == 0) parseSyncSample(output.stdout, at) else null,
     )
@@ -346,11 +348,26 @@ internal class FfmpegRuntime private constructor(
         return CopyPacketRead.Failed(packetCapReason(cap, from, to))
       }
     return when (code) {
-      0 -> CopyPacketRead.Read(packets)
-      TIMED_OUT -> CopyPacketRead.Failed(probeExpiredReason(FFPROBE, timeout))
-      else -> CopyPacketRead.Failed(UNLISTED_PACKETS)
+      0 -> {
+        CopyPacketRead.Read(packets)
+      }
+      TIMED_OUT -> {
+        CopyPacketRead.Expired(
+          ProbeOperation.COPY_PACKET_READ,
+          timeout,
+          probeExpiredReason(FFPROBE, timeout),
+        )
+      }
+      else -> {
+        CopyPacketRead.Failed(UNLISTED_PACKETS)
+      }
     }
   }
+
+  private fun expired(
+    operation: String,
+    timeout: Duration,
+  ): ProbeAnswer.Expired = ProbeAnswer.Expired(operation, timeout, probeExpiredReason(FFPROBE, timeout))
 
   // Thrown out of the line reader to stop a packet read at its cap, which also stops the child.
   private class PacketCapReached : RuntimeException()
@@ -365,7 +382,7 @@ internal class FfmpegRuntime private constructor(
       }
       is ToolchainResult.Available -> {
         when (val read = probe(result.toolchain, path)) {
-          is ProbeAnswer.Expired -> ProbeOutcome.Expired(read.reason)
+          is ProbeAnswer.Expired -> ProbeOutcome.Expired(read.operation, read.deadline, read.reason)
           is ProbeAnswer.Answered -> read.value?.let { ProbeOutcome.Read(it) } ?: ProbeOutcome.Unreadable
         }
       }
@@ -430,6 +447,8 @@ internal sealed interface ProbeOutcome {
   data object Unreadable : ProbeOutcome
 
   class Expired(
+    val operation: String,
+    val deadline: Duration,
     val reason: String,
   ) : ProbeOutcome
 }

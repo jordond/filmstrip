@@ -86,8 +86,8 @@ internal actual fun decodingOverlayPictures(
  *
  * Every read is a child process that never outlives the call, run by [ranToEnd]. A decode's children share one
  * deadline, [timeoutMillis] after the decode starts, and a measure has one of its own. A child still running at its
- * deadline is stopped and the read refused. One whose calling thread is interrupted, which is how a cancelled plan
- * reaches it, is stopped and the [InterruptedException] is thrown on to the caller.
+ * deadline is stopped and the read is [OverlayPictureRead.Expired]. One whose calling thread is interrupted, which is
+ * how a cancelled plan reaches it, is stopped and the [InterruptedException] is thrown on to the caller.
  *
  * @param scratch The directory picture bytes are written to, or null for the system's temporary directory.
  * @param write Writes picture bytes to the file ffmpeg reads them from.
@@ -163,6 +163,7 @@ internal class FfmpegPictureDecoder(
       }
     return when (color) {
       is OverlayPictureRead.Refused -> color
+      is OverlayPictureRead.Expired -> color
       is OverlayPictureRead.Read -> withAlpha(handed, alpha, deadline, color.value, read.sizeOf(color.value), draw)
     }
   }
@@ -225,6 +226,9 @@ internal class FfmpegPictureDecoder(
       is OverlayPictureRead.Refused -> {
         plane
       }
+      is OverlayPictureRead.Expired -> {
+        plane
+      }
       is OverlayPictureRead.Read -> {
         val read = pictureAlpha(plane.value, alpha)
         if (read.size != size) return OverlayPictureRead.Refused(alphaSizeReason(read.size, size))
@@ -279,6 +283,7 @@ internal class FfmpegPictureDecoder(
         when (val file = writtenToFile(it)) {
           is OverlayPictureRead.Read -> file.value
           is OverlayPictureRead.Refused -> return file
+          is OverlayPictureRead.Expired -> return file
         }
       }
     val input = written?.absolutePath ?: checkNotNull(named)

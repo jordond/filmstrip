@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip.ffmpeg.picture
 
+import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.color.YcbcrCoding
 import dev.jordond.filmstrip.color.pictureLight
 import dev.jordond.filmstrip.edit.TimeRange
@@ -15,7 +16,9 @@ import dev.jordond.filmstrip.effects.overlay.StoredSamples
 import dev.jordond.filmstrip.ffmpeg.internal.picture.FfmpegPictureDecoder
 import dev.jordond.filmstrip.ffmpeg.internal.picture.sizeOfFrameCrc
 import dev.jordond.filmstrip.ffmpeg.internal.picture.ycbcrScale
+import dev.jordond.filmstrip.ffmpeg.internal.process.ProbeOperation
 import dev.jordond.filmstrip.ffmpeg.internal.process.interruptibly
+import dev.jordond.filmstrip.ffmpeg.internal.process.probeExpiredReason
 import dev.jordond.filmstrip.ffmpeg.overlay.encoded
 import dev.jordond.filmstrip.ffmpeg.support.FfmpegExportFixture
 import dev.jordond.filmstrip.ffmpeg.support.OverlayConstants.OVERLAY_COLOR
@@ -54,6 +57,7 @@ import javax.imageio.ImageIO
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
 /**
@@ -113,14 +117,17 @@ class FfmpegPictureDecoderMediaTest {
     }
 
   @Test
-  fun `a decode that runs past its timeout is stopped and says why`() {
+  fun `a decode that runs past its timeout is stopped and expires naming its deadline`() {
     if (!posix) return
-    val decoder = FfmpegPictureDecoder(hangingBinary(), timeoutMillis = SHORT_TIMEOUT, scratch = scratch)
+    val binary = hangingBinary()
+    val decoder = FfmpegPictureDecoder(binary, timeoutMillis = SHORT_TIMEOUT, scratch = scratch)
 
-    val refused = decoder.decode(ImageSource.ofBytes(PICTURE)).shouldBeInstanceOf<OverlayPictureRead.Refused>()
+    val expired = decoder.decode(ImageSource.ofBytes(PICTURE)).shouldBeInstanceOf<OverlayPictureRead.Expired>()
 
     withClue("the decode's ffmpeg outlived its timeout") { alive(spawnedPid()).shouldBeFalse() }
-    withClue(refused.reason) { refused.reason.contains("$SHORT_TIMEOUT ms").shouldBeTrue() }
+    expired.operation shouldBe ProbeOperation.PICTURE_DECODE
+    expired.deadline shouldBe SHORT_TIMEOUT.milliseconds
+    expired.reason shouldBe probeExpiredReason(File(binary).name, SHORT_TIMEOUT.milliseconds)
     withClue("the picture's bytes were left in ${scratch.list()?.toList()}") {
       scratch
         .list()
@@ -128,6 +135,39 @@ class FfmpegPictureDecoderMediaTest {
         .isEmpty()
         .shouldBeTrue()
     }
+  }
+
+  @Test
+  fun `an overlay whose decode expires on an HDR grade fails as timed out`() {
+    if (!posix) return
+    val binary = hangingBinary()
+    val resolver = BuiltInEffectResolver(FfmpegPictureDecoder(binary, timeoutMillis = SHORT_TIMEOUT, scratch = scratch))
+    val spec = ImageOverlay(ImageSource.ofBytes(UNREADABLE), Corner.TopStart)
+
+    val failed = resolver.resolve(spec, capabilities, hdrAttributes).shouldBeInstanceOf<EffectResolution.Failed>()
+
+    failed.error shouldBe timedOut(binary)
+  }
+
+  @Test
+  fun `an overlay whose measure expires on an SDR grade fails as timed out`() {
+    if (!posix) return
+    val binary = hangingBinary()
+    val resolver = BuiltInEffectResolver(FfmpegPictureDecoder(binary, timeoutMillis = SHORT_TIMEOUT, scratch = scratch))
+    val spec = ImageOverlay(ImageSource.ofBytes(PICTURE), Corner.TopStart)
+
+    val failed = resolver.resolve(spec, capabilities, sdrAttributes).shouldBeInstanceOf<EffectResolution.Failed>()
+
+    failed.error shouldBe timedOut(binary)
+  }
+
+  private fun timedOut(binary: String): FilmstripError.TimedOut {
+    val deadline = SHORT_TIMEOUT.milliseconds
+    return FilmstripError.TimedOut(
+      ProbeOperation.PICTURE_DECODE,
+      deadline,
+      probeExpiredReason(File(binary).name, deadline),
+    )
   }
 
   @Test
@@ -330,6 +370,16 @@ class FfmpegPictureDecoderMediaTest {
         layoutSize = FRAME,
         colorSpace = ColorSpace.Bt2020,
         hdrTransfer = HdrTransfer.Pq,
+        frameRate = 30f,
+        span = TimeRange.of(Duration.ZERO, 2.seconds),
+      )
+    val sdrAttributes =
+      Attributes(
+        inputSize = FRAME,
+        outputSize = FRAME,
+        layoutSize = FRAME,
+        colorSpace = ColorSpace.Bt709,
+        hdrTransfer = null,
         frameRate = 30f,
         span = TimeRange.of(Duration.ZERO, 2.seconds),
       )

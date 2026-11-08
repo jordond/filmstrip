@@ -44,6 +44,8 @@ A non-null answer claims the spec, which ends the chain.
 - `EffectResolution.Resolved` renders it as declared.
 - `EffectResolution.Degraded` renders it with named `causes`, which `plan` reports before any work starts.
 - `EffectResolution.Unsupported` refuses it by name, and no later resolver can substitute another rendering.
+- `EffectResolution.Failed` refuses the export with its `error` when a read the effect needs failed, like a decode that
+  ran out of time. A later call may succeed, so `withoutUnsupported` never leaves the effect out.
 
 Each platform's answer is a `PlatformEffect`, in that platform's own terms. Gate on `capabilities.api` and decline what you
 didn't write for. `attributes` holds what the pipeline already worked out, so multiply a fraction by `inputSize` to get

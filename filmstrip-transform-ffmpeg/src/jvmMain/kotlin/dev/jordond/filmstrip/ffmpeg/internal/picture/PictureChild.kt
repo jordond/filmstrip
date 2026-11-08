@@ -3,13 +3,16 @@ package dev.jordond.filmstrip.ffmpeg.internal.picture
 import dev.jordond.filmstrip.effects.overlay.OverlayPictureRead
 import dev.jordond.filmstrip.ffmpeg.internal.process.FRAME_EXIT_GRACE_MILLIS
 import dev.jordond.filmstrip.ffmpeg.internal.process.FRAME_STOP_GRACE_MILLIS
+import dev.jordond.filmstrip.ffmpeg.internal.process.ProbeOperation
 import dev.jordond.filmstrip.ffmpeg.internal.process.StderrTail
+import dev.jordond.filmstrip.ffmpeg.internal.process.probeExpiredReason
 import java.io.File
 import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
+import kotlin.time.Duration.Companion.milliseconds
 
 /**
  * Runs one ffmpeg child of a picture read to its end and hands back what it wrote, or why not.
@@ -20,8 +23,9 @@ import java.util.concurrent.atomic.AtomicReference
  * on the stdout thread and may stop before the end, since the pipe is closed once it returns and a child still
  * writing then fails and exits. [parse] runs on the calling thread once the child has exited.
  *
- * The read is refused when the child fails, writes nothing [collect] and [parse] read, or runs past [deadline], a
- * System.nanoTime, which is [timeoutMillis] after the read it belongs to started. An interrupt stops the child and is
+ * The read is refused when the child fails or writes nothing [collect] and [parse] read. It is
+ * [OverlayPictureRead.Expired] when the child runs past [deadline], a System.nanoTime, which is [timeoutMillis] after
+ * the read it belongs to started. An interrupt stops the child and is
  * thrown on, so a cancelled plan sees its cancellation rather than a picture it could not read.
  */
 @Throws(InterruptedException::class)
@@ -55,7 +59,8 @@ internal fun <R : Any, T> ranToEnd(
   try {
     if (stdin == null) runCatching { process.outputStream.close() }
     if (!process.waitFor(deadline - System.nanoTime(), TimeUnit.NANOSECONDS)) {
-      return OverlayPictureRead.Refused("$name was still reading the picture after $timeoutMillis ms.")
+      val stoppedAt = timeoutMillis.milliseconds
+      return OverlayPictureRead.Expired(ProbeOperation.PICTURE_DECODE, stoppedAt, probeExpiredReason(name, stoppedAt))
     }
     drains.forEach { it.join(FRAME_EXIT_GRACE_MILLIS) }
     val read = stdout.get()?.takeIf { process.exitValue() == 0 }?.let(parse)

@@ -31,10 +31,18 @@ internal data class FfmpegProber(
       }
 
     return when (val outcome = runtime.probeSource(path)) {
-      is ProbeOutcome.Read -> ProbeResult.Success(outcome.info)
-      is ProbeOutcome.NoToolchain -> ProbeResult.Failure(outcome.error)
-      ProbeOutcome.Unreadable -> ProbeResult.Failure(FilmstripError.SourceUnreadable(source.describe(), UNREADABLE))
-      is ProbeOutcome.Expired -> ProbeResult.Failure(FilmstripError.SourceUnreadable(source.describe(), outcome.reason))
+      is ProbeOutcome.Read -> {
+        ProbeResult.Success(outcome.info)
+      }
+      is ProbeOutcome.NoToolchain -> {
+        ProbeResult.Failure(outcome.error)
+      }
+      ProbeOutcome.Unreadable -> {
+        ProbeResult.Failure(FilmstripError.SourceUnreadable(source.describe(), UNREADABLE))
+      }
+      is ProbeOutcome.Expired -> {
+        ProbeResult.Failure(FilmstripError.TimedOut(outcome.operation, outcome.deadline, outcome.reason))
+      }
     }
   }
 

@@ -8,6 +8,13 @@ public final class dev/jordond/filmstrip/transform/internal/copy/CopyAsk$Refused
 	public final fun getError ()Ldev/jordond/filmstrip/FilmstripError;
 }
 
+public final class dev/jordond/filmstrip/transform/internal/copy/CopyPacketRead$Expired : dev/jordond/filmstrip/transform/internal/copy/CopyPacketRead {
+	public synthetic fun <init> (Ljava/lang/String;JLjava/lang/String;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun getDeadline-UwyO8pc ()J
+	public final fun getOperation ()Ljava/lang/String;
+	public final fun getReason ()Ljava/lang/String;
+}
+
 public final class dev/jordond/filmstrip/transform/internal/copy/CopyPacketRead$Failed : dev/jordond/filmstrip/transform/internal/copy/CopyPacketRead {
 	public fun <init> (Ljava/lang/String;)V
 	public final fun getReason ()Ljava/lang/String;

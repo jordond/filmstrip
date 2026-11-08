@@ -224,9 +224,10 @@ private fun Verdict.plan(): ExportPlan? =
  * What a failed lowering, or a step that throws while the preview draws, means to a player.
  *
  * A source that cannot be read or exported, a missing backend and a missing toolchain each keep their own meaning. A
- * platform failure, a full disk, an unwritable scratch file and a backgrounded app read as [PlaybackError.Underlying],
- * keeping the platform's code where there is one. Everything else is a composition the planner refused or an effect
- * that could not draw, which reads as an unsupported format whichever it was.
+ * platform failure, a full disk, an unwritable scratch file, a backgrounded app and a read stopped at its deadline
+ * read as [PlaybackError.Underlying], keeping the platform's code where there is one. Everything else is a
+ * composition the planner refused or an effect that could not draw, which reads as an unsupported format whichever it
+ * was.
  */
 internal fun FilmstripError.toPlaybackError(): PlaybackError =
   when (this) {
@@ -259,6 +260,7 @@ internal fun FilmstripError.toPlaybackError(): PlaybackError =
     is FilmstripError.InterruptedByBackgrounding,
     is FilmstripError.InsufficientStorage,
     is FilmstripError.SinkUnwritable,
+    is FilmstripError.TimedOut,
     -> {
       PlaybackError.Underlying(PlaybackError.Underlying.NO_PLATFORM_CODE, message)
     }

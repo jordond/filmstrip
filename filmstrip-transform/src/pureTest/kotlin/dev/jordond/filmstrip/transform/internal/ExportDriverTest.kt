@@ -186,6 +186,17 @@ class ExportDriverTest {
     }
 
   @Test
+  fun `a packet read stopped at its deadline refuses the plan as timed out`() =
+    runTest {
+      val trimmed = composition(packetClip())
+      val driver = PacketDriver(fixture.device(), CopyPacketRead.Expired(PACKET_READ, 42.seconds, EXPIRED))
+
+      val verdict = engine(driver, trimmed).plan(trimmed, SPEC).shouldBeInstanceOf<Verdict.Incapable>()
+
+      verdict.reasons.single() shouldBe FilmstripError.TimedOut(PACKET_READ, 42.seconds, EXPIRED)
+    }
+
+  @Test
   fun `the driver exports the count the plan settled on its packets`() =
     runTest {
       val trimmed = composition(packetClip())
@@ -345,6 +356,8 @@ private fun firstResolvedClip(resolved: ResolvedComposition) =
 private val SPEC = ExportSpec()
 
 private const val UNLISTED = "the packets could not be listed"
+private const val PACKET_READ = "copy packet read"
+private const val EXPIRED = "the packet read was stopped"
 
 private val SINK = MediaSink.of("/out/driver.mp4")
 

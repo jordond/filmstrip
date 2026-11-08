@@ -63,6 +63,7 @@ internal fun OverlayPixels.centreSamples(): ShortArray? {
 internal fun describe(resolution: EffectResolution): String =
   when (resolution) {
     is EffectResolution.Unsupported -> "unsupported: ${resolution.message}"
+    is EffectResolution.Failed -> "failed: ${resolution.error.message}"
     is EffectResolution.Degraded -> "degraded: ${resolution.causes.map { it.message }}"
     is EffectResolution.Resolved -> "resolved"
   }

@@ -7,6 +7,7 @@ import dev.jordond.filmstrip.ffmpeg.internal.probe.SYNC_SAMPLE_WINDOW
 import dev.jordond.filmstrip.ffmpeg.internal.process.FfmpegVersion
 import dev.jordond.filmstrip.ffmpeg.internal.process.PACKET_DROP_FILTER
 import dev.jordond.filmstrip.ffmpeg.internal.process.ProbeAnswer
+import dev.jordond.filmstrip.ffmpeg.internal.process.ProbeOperation
 import dev.jordond.filmstrip.ffmpeg.internal.process.ProcessRunner
 import dev.jordond.filmstrip.ffmpeg.internal.process.Toolchain
 import dev.jordond.filmstrip.ffmpeg.internal.process.probeExpiredReason
@@ -50,12 +51,12 @@ class ProbeDeadlineReadTest {
   }
 
   @Test
-  fun `a source read past its deadline is refused naming it`() =
+  fun `a source read past its deadline is refused as timed out`() =
     runTest(timeout = TEST_TIMEOUT) {
       val result = FfmpegProber(runtime).probe(MediaSource.of(source.path))
 
-      val error = result.shouldBeInstanceOf<ProbeResult.Failure>().error
-      error.shouldBeInstanceOf<FilmstripError.SourceUnreadable>().message shouldBe expired
+      result.shouldBeInstanceOf<ProbeResult.Failure>().error shouldBe
+        FilmstripError.TimedOut(ProbeOperation.SOURCE_PROBE, DEADLINE, expired)
       childIsGone()
     }
 
@@ -71,7 +72,8 @@ class ProbeDeadlineReadTest {
   @Test
   fun `a colour read past its deadline is expired and asked again`() =
     runTest(timeout = TEST_TIMEOUT) {
-      runtime.colorRead(toolchain, source.path).shouldBeInstanceOf<ProbeAnswer.Expired>().reason shouldBe expired
+      runtime.colorRead(toolchain, source.path).shouldBeInstanceOf<ProbeAnswer.Expired>().timedOut() shouldBe
+        FilmstripError.TimedOut(ProbeOperation.COLOR_READ, DEADLINE, expired)
       runtime.colorRead(toolchain, source.path).shouldBeInstanceOf<ProbeAnswer.Expired>()
 
       runtime.sdColorSpawns shouldBe 2
@@ -81,7 +83,14 @@ class ProbeDeadlineReadTest {
   @Test
   fun `a sync sample read past its deadline is expired and asked again`() =
     runTest(timeout = TEST_TIMEOUT) {
-      runtime.syncSampleAtOrBefore(toolchain, source.path, CUT).shouldBeInstanceOf<ProbeAnswer.Expired>()
+      runtime
+        .syncSampleAtOrBefore(
+          toolchain,
+          source.path,
+          CUT,
+        ).shouldBeInstanceOf<ProbeAnswer.Expired>()
+        .timedOut() shouldBe
+        FilmstripError.TimedOut(ProbeOperation.SYNC_SAMPLE_READ, DEADLINE, expired)
       runtime.syncSampleAtOrBefore(toolchain, source.path, CUT).shouldBeInstanceOf<ProbeAnswer.Expired>()
 
       runtime.syncSampleSpawns shouldBe 2
@@ -90,14 +99,17 @@ class ProbeDeadlineReadTest {
     }
 
   @Test
-  fun `a packet read past its deadline fails naming it`() =
+  fun `a packet read past its deadline is expired naming it`() =
     runTest(timeout = TEST_TIMEOUT) {
       val from = 2.seconds
       val to = 2_250.milliseconds
 
       val read = runtime.copyPackets(toolchain, source.path, from, to)
 
-      read.shouldBeInstanceOf<CopyPacketRead.Failed>().reason shouldBe expired
+      val expiredRead = read.shouldBeInstanceOf<CopyPacketRead.Expired>()
+      expiredRead.operation shouldBe ProbeOperation.COPY_PACKET_READ
+      expiredRead.deadline shouldBe DEADLINE
+      expiredRead.reason shouldBe expired
       windows.last() shouldBe copyPacketSpan(from, to)
       childIsGone()
     }

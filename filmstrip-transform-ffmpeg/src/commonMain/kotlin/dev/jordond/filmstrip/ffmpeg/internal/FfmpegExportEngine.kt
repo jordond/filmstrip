@@ -41,7 +41,6 @@ import dev.jordond.filmstrip.internal.chainedProber
 import dev.jordond.filmstrip.media.MediaBytesFileFailure
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
-import dev.jordond.filmstrip.media.describe
 import dev.jordond.filmstrip.media.sinkParentRefusal
 import dev.jordond.filmstrip.transform.internal.EngineLowering
 import dev.jordond.filmstrip.transform.internal.ExportGrade
@@ -116,7 +115,7 @@ public class FfmpegExportEngine internal constructor(
       } ?: return OpeningRead.At(null)
     return when (val read = runtime.syncSampleAtOrBefore(foundToolchain(), path, cut)) {
       is ProbeAnswer.Answered -> OpeningRead.At(read.value)
-      is ProbeAnswer.Expired -> OpeningRead.Failed(FilmstripError.SourceUnreadable(source.describe(), read.reason))
+      is ProbeAnswer.Expired -> OpeningRead.Failed(read.timedOut())
     }
   }
 
@@ -368,7 +367,7 @@ public class FfmpegExportEngine internal constructor(
       val written =
         when (val read = runtime.reprobe(toolchain, outputPath)) {
           is ProbeAnswer.Expired -> {
-            return send(ExportStatus.Failure(FilmstripError.SinkUnwritable(outputPath, read.reason)))
+            return send(ExportStatus.Failure(read.timedOut()))
           }
           is ProbeAnswer.Answered -> {
             read.value ?: return send(ExportStatus.Failure(FilmstripError.SinkUnwritable(outputPath, NOT_READABLE)))

@@ -6,6 +6,7 @@ import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.ffmpeg.internal.FfmpegExportEngine
 import dev.jordond.filmstrip.ffmpeg.internal.FfmpegRuntime
 import dev.jordond.filmstrip.ffmpeg.internal.process.PACKET_DROP_FILTER
+import dev.jordond.filmstrip.ffmpeg.internal.process.ProbeOperation
 import dev.jordond.filmstrip.ffmpeg.internal.process.ProcessRunner
 import dev.jordond.filmstrip.transform.internal.RESOLUTION_LADDER
 import io.kotest.matchers.shouldBe
@@ -45,8 +46,11 @@ class CapabilityDeadlineTest {
     runTest(timeout = TEST_TIMEOUT) {
       val error = engine.capabilities().shouldBeInstanceOf<CapabilitiesResult.Failure>().error
 
-      error.shouldBeInstanceOf<FilmstripError.Underlying>().message shouldContain "`libx264`"
-      error.message shouldContain "$DEADLINE"
+      val timedOut = error.shouldBeInstanceOf<FilmstripError.TimedOut>()
+      timedOut.operation shouldBe ProbeOperation.ENCODER_TEST
+      timedOut.deadline shouldBe DEADLINE
+      timedOut.message shouldContain "`libx264`"
+      timedOut.message shouldContain "$DEADLINE"
       childIsGone()
     }
 

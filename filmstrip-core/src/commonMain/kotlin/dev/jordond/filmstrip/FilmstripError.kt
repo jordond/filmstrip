@@ -5,6 +5,7 @@ import dev.jordond.filmstrip.FilmstripError.Underlying.Companion.NO_PLATFORM_COD
 import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.still.StillFormat
+import kotlin.time.Duration
 
 /**
  * Every way a [Filmstrip] operation can fail, as branchable values.
@@ -221,6 +222,22 @@ public sealed interface FilmstripError {
   public class ToolchainMissing(
     public val tool: String,
     public val foundVersion: String?,
+    override val message: String,
+  ) : FilmstripError
+
+  /**
+   * A probe or platform read was still running at its deadline and was stopped.
+   *
+   * Nothing is known about the source or the platform from it, so a later call may succeed.
+   *
+   * @property operation What was being read when it was stopped, such as `source probe`.
+   * @property deadline How long the read was given before it was stopped.
+   * @property message A human-readable description naming the read and the deadline.
+   */
+  @Poko
+  public class TimedOut(
+    public val operation: String,
+    public val deadline: Duration,
     override val message: String,
   ) : FilmstripError
 

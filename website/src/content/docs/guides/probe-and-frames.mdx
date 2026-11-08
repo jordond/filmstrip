@@ -22,8 +22,8 @@ On a video track, size a target from `displaySize`, which has rotation and pixel
 Android and Apple read a container with core alone. The JVM and the browser need a registered backend. Without one, both
 fail with `BackendMissing`, naming the artifact to add. A still needs no backend on any target.
 
-On the JVM a probe that `ffprobe` hasn't finished within its deadline is stopped and comes back as `SourceUnreadable`
-naming the deadline, rather than leaving the call hanging. See [Limits](/reference/limits/#probe-deadline).
+On the JVM a probe that `ffprobe` hasn't finished within its deadline is stopped and refused as `TimedOut`, which names
+the read and its deadline, rather than leaving the call hanging. See [Limits](/reference/limits/#probe-deadline).
 
 ## Capabilities
 

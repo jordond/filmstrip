@@ -1,6 +1,7 @@
 package dev.jordond.filmstrip.effect
 
 import dev.drewhamilton.poko.Poko
+import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.edit.EditComposition
 
 /**
@@ -101,6 +102,20 @@ public sealed interface EffectResolution {
   public class Unsupported(
     public val specId: String,
     public val message: String,
+  ) : EffectResolution
+
+  /**
+   * The spec could not be resolved because a platform read it needs failed, such as a picture decode stopped at its
+   * deadline. Ends the chain for this spec.
+   *
+   * The failure says nothing about whether the platform can realize the spec, so a later call may succeed. The export
+   * is refused with [error], and dropping unsupported effects never drops this one.
+   *
+   * @property error The error the export is refused with.
+   */
+  @Poko
+  public class Failed(
+    public val error: FilmstripError,
   ) : EffectResolution
 }
 

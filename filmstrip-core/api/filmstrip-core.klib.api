@@ -698,6 +698,17 @@ sealed interface dev.jordond.filmstrip.effect/EffectResolution { // dev.jordond.
         final fun toString(): kotlin/String // dev.jordond.filmstrip.effect/EffectResolution.Degraded.toString|toString(){}[0]
     }
 
+    final class Failed : dev.jordond.filmstrip.effect/EffectResolution { // dev.jordond.filmstrip.effect/EffectResolution.Failed|null[0]
+        constructor <init>(dev.jordond.filmstrip/FilmstripError) // dev.jordond.filmstrip.effect/EffectResolution.Failed.<init>|<init>(dev.jordond.filmstrip.FilmstripError){}[0]
+
+        final val error // dev.jordond.filmstrip.effect/EffectResolution.Failed.error|{}error[0]
+            final fun <get-error>(): dev.jordond.filmstrip/FilmstripError // dev.jordond.filmstrip.effect/EffectResolution.Failed.error.<get-error>|<get-error>(){}[0]
+
+        final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.effect/EffectResolution.Failed.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.effect/EffectResolution.Failed.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // dev.jordond.filmstrip.effect/EffectResolution.Failed.toString|toString(){}[0]
+    }
+
     final class Resolved : dev.jordond.filmstrip.effect/EffectResolution { // dev.jordond.filmstrip.effect/EffectResolution.Resolved|null[0]
         constructor <init>(dev.jordond.filmstrip.effect/PlatformEffect) // dev.jordond.filmstrip.effect/EffectResolution.Resolved.<init>|<init>(dev.jordond.filmstrip.effect.PlatformEffect){}[0]
 
@@ -1565,6 +1576,21 @@ sealed interface dev.jordond.filmstrip/FilmstripError { // dev.jordond.filmstrip
         final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip/FilmstripError.SourceUnreadable.equals|equals(kotlin.Any?){}[0]
         final fun hashCode(): kotlin/Int // dev.jordond.filmstrip/FilmstripError.SourceUnreadable.hashCode|hashCode(){}[0]
         final fun toString(): kotlin/String // dev.jordond.filmstrip/FilmstripError.SourceUnreadable.toString|toString(){}[0]
+    }
+
+    final class TimedOut : dev.jordond.filmstrip/FilmstripError { // dev.jordond.filmstrip/FilmstripError.TimedOut|null[0]
+        constructor <init>(kotlin/String, kotlin.time/Duration, kotlin/String) // dev.jordond.filmstrip/FilmstripError.TimedOut.<init>|<init>(kotlin.String;kotlin.time.Duration;kotlin.String){}[0]
+
+        final val deadline // dev.jordond.filmstrip/FilmstripError.TimedOut.deadline|{}deadline[0]
+            final fun <get-deadline>(): kotlin.time/Duration // dev.jordond.filmstrip/FilmstripError.TimedOut.deadline.<get-deadline>|<get-deadline>(){}[0]
+        final val message // dev.jordond.filmstrip/FilmstripError.TimedOut.message|{}message[0]
+            final fun <get-message>(): kotlin/String // dev.jordond.filmstrip/FilmstripError.TimedOut.message.<get-message>|<get-message>(){}[0]
+        final val operation // dev.jordond.filmstrip/FilmstripError.TimedOut.operation|{}operation[0]
+            final fun <get-operation>(): kotlin/String // dev.jordond.filmstrip/FilmstripError.TimedOut.operation.<get-operation>|<get-operation>(){}[0]
+
+        final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip/FilmstripError.TimedOut.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // dev.jordond.filmstrip/FilmstripError.TimedOut.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // dev.jordond.filmstrip/FilmstripError.TimedOut.toString|toString(){}[0]
     }
 
     final class ToolchainMissing : dev.jordond.filmstrip/FilmstripError { // dev.jordond.filmstrip/FilmstripError.ToolchainMissing|null[0]

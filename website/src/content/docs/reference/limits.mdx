@@ -60,11 +60,12 @@ reads, so the packet read for a two hour copy gets 102 s. That covers the toolch
 packets a copy counts by, the encoder test encodes and decoding an overlay picture. A preview's opening reads are the
 same calls, so they share it.
 
-A call still running at its deadline is stopped and the plan refused with the deadline in its message. A source read is
-`SourceUnreadable`, and the toolchain lookup is `ToolchainMissing` naming the option ffmpeg didn't answer. An encoder
-test encode that runs out of time fails `capabilities()` with an `Underlying` error naming the encoder and the size,
-and so does a plan that needed them. That failure isn't kept, so the next call measures again. An export and a
-preview's frames run as long as their media does and have no deadline.
+A call still running at its deadline is stopped and the plan refused as `TimedOut`, which names the read in `operation`
+and the deadline it had in `deadline`. Reading the written file back at the end of an export fails it the same way. An
+encoder test encode that runs out of time fails `capabilities()` as `TimedOut` naming the encoder and the size, and so
+does a plan that needed them. None of these is kept, so the next call reads or measures again. The toolchain lookup is
+the exception, and is `ToolchainMissing` naming the option ffmpeg didn't answer. An export and a preview's frames run
+as long as their media does and have no deadline.
 
 ## Encoder color
 

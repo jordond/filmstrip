@@ -162,6 +162,16 @@ public final class dev/jordond/filmstrip/FilmstripError$SourceUnreadable : dev/j
 	public fun toString ()Ljava/lang/String;
 }
 
+public final class dev/jordond/filmstrip/FilmstripError$TimedOut : dev/jordond/filmstrip/FilmstripError {
+	public synthetic fun <init> (Ljava/lang/String;JLjava/lang/String;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getDeadline-UwyO8pc ()J
+	public fun getMessage ()Ljava/lang/String;
+	public final fun getOperation ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
 public final class dev/jordond/filmstrip/FilmstripError$ToolchainMissing : dev/jordond/filmstrip/FilmstripError {
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
 	public fun equals (Ljava/lang/Object;)Z
@@ -742,6 +752,14 @@ public final class dev/jordond/filmstrip/effect/EffectResolution$Degraded : dev/
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getCauses ()Ljava/util/List;
 	public final fun getEffect ()Ldev/jordond/filmstrip/effect/PlatformEffect;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/jordond/filmstrip/effect/EffectResolution$Failed : dev/jordond/filmstrip/effect/EffectResolution {
+	public fun <init> (Ldev/jordond/filmstrip/FilmstripError;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getError ()Ldev/jordond/filmstrip/FilmstripError;
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
 }

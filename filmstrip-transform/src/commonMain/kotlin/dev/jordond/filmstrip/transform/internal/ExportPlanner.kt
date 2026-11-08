@@ -105,6 +105,7 @@ public class ExportPlanner(
     val unsupported =
       when (val first = settle(composition.withoutEffectIds(dropped), dropped, ask)) {
         is Settlement.Settled -> return first.export
+        is Settlement.Failed -> return NegotiatedExport(Verdict.Incapable(first.reasons, null), null)
         is Settlement.Unsupported -> first.effects
       }
 
@@ -118,8 +119,7 @@ public class ExportPlanner(
       } else {
         null
       }
-    val reasons = unsupported.map { (id, message) -> FilmstripError.UnsupportedEffect(id, message) }
-    return NegotiatedExport(Verdict.Incapable(reasons, fallback), null)
+    return NegotiatedExport(Verdict.Incapable(unsupported.values.toList(), fallback), null)
   }
 
   /**
@@ -229,12 +229,25 @@ public class ExportPlanner(
       )
     val lowered = timeline.lowered + rest
 
-    val unsupported = linkedMapOf<String, String>()
+    val unsupported = linkedMapOf<String, FilmstripError>()
+    val reasons = mutableListOf<FilmstripError>()
+    var failed = false
     // A refused run is reported against every effect the caller wrote into it, so the retry that
     // drops the refused ids drops the run rather than a name the fold made up.
     lowered.forEach { effect ->
-      effect.unsupported?.let { message -> effect.sources.forEach { unsupported[it.id] = message } }
+      effect.failed?.let {
+        failed = true
+        reasons += it
+      }
+      effect.unsupported?.let { message ->
+        effect.sources.forEach {
+          val error = FilmstripError.UnsupportedEffect(it.id, message)
+          unsupported[it.id] = error
+          reasons += error
+        }
+      }
     }
+    if (failed) return Settlement.Failed(reasons)
     if (unsupported.isNotEmpty()) return Settlement.Unsupported(unsupported)
 
     val audio = resolveAudioCodec(ask.spec, ask.device, silent = !streams.keepAudio, graded = ask.writesNoFile)
@@ -329,15 +342,20 @@ public class ExportPlanner(
     val grade: Grade,
   )
 
-  // How one pass over the edit ended: settled on a verdict, or stopped on effects this device
-  // cannot run, which the caller may retry without.
+  // How one pass over the edit ended: settled on a verdict, stopped on an effect whose resolution failed, with every
+  // reason in chain order, or stopped on effects this device cannot run, each id paired with the error it is refused
+  // with, which the caller may retry without.
   private sealed interface Settlement {
     class Settled(
       val export: NegotiatedExport,
     ) : Settlement
 
+    class Failed(
+      val reasons: List<FilmstripError>,
+    ) : Settlement
+
     class Unsupported(
-      val effects: Map<String, String>,
+      val effects: Map<String, FilmstripError>,
     ) : Settlement
   }
 

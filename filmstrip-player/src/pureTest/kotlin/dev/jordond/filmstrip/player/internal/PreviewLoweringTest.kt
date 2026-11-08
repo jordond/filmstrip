@@ -217,6 +217,7 @@ class PreviewLoweringTest {
         FilmstripError.InterruptedByBackgrounding(MESSAGE) to unclassified,
         FilmstripError.InsufficientStorage(null, MESSAGE) to unclassified,
         FilmstripError.SinkUnwritable("out.mp4", MESSAGE) to unclassified,
+        FilmstripError.TimedOut("source probe", 30.seconds, MESSAGE) to unclassified,
       )
     val unsupported =
       listOf(

@@ -88,6 +88,9 @@ internal fun drawnSdrFrame(
         is EffectResolution.Unsupported -> {
           fail("an overlay drew nothing: ${resolved.message}")
         }
+        is EffectResolution.Failed -> {
+          fail("an overlay failed to resolve: ${resolved.error.message}")
+        }
       }
     effect.step.apply(image, FrameInfo(attributes, at))
   }

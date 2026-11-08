@@ -35,6 +35,7 @@ import dev.jordond.filmstrip.motion.Easing
 import dev.jordond.filmstrip.transform.internal.negotiation.Ask
 import io.kotest.assertions.withClue
 import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
@@ -63,6 +64,18 @@ class EffectPlanTest {
     val fallback = incapable.withoutUnsupported.shouldNotBeNull()
     fallback.plan.effectOrder shouldBe emptyList()
     fallback.adjustments.map { it.kind to it.requested } shouldBe listOf(AdjustmentKind.EffectDropped to Rotate(90).id)
+  }
+
+  @Test
+  fun `an effect whose read timed out is refused with that error and offers no plan without it`() {
+    val timedOut = FilmstripError.TimedOut("overlay picture decode", 1_500.milliseconds, "the decode was stopped")
+    val failing = EffectResolver { _, _, _ -> EffectResolution.Failed(timedOut) }
+
+    val verdict = fixture.plan(composition(fixture.clip(effects = listOf(Sepia(1f)))), resolvers = listOf(failing))
+
+    val incapable = verdict.shouldBeInstanceOf<Verdict.Incapable>()
+    incapable.reasons shouldBe listOf(timedOut)
+    incapable.withoutUnsupported.shouldBeNull()
   }
 
   @Test

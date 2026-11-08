@@ -178,6 +178,7 @@ internal fun <R : Any, T> assembled(
     painting.turnedDown?.let { return OverlayPictureRead.Refused(it) }
     when (read) {
       is OverlayPictureRead.Refused -> return read
+      is OverlayPictureRead.Expired -> return read
       is OverlayPictureRead.Read -> read.value.refusal?.let { return OverlayPictureRead.Refused(it) }
     }
   }

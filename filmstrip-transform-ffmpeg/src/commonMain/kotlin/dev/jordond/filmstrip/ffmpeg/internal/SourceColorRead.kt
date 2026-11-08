@@ -7,7 +7,6 @@ import dev.jordond.filmstrip.ffmpeg.internal.lowering.SdColor
 import dev.jordond.filmstrip.ffmpeg.internal.process.ProbeAnswer
 import dev.jordond.filmstrip.ffmpeg.internal.process.Toolchain
 import dev.jordond.filmstrip.media.MediaSource
-import dev.jordond.filmstrip.media.describe
 
 /**
  * What the video sources of an edit say about their colour, or why one of them could not be read.
@@ -34,7 +33,7 @@ internal sealed interface SourceColorRead {
  *
  * Audio has no colour to read, and a source [pathOf] finds no path for, or whose read finds nothing, is left out,
  * since a source a clip cannot read from is refused before these are looked at. A read stopped at its deadline refuses
- * the whole edit as [FilmstripError.SourceUnreadable] with that read's reason.
+ * the whole edit as [FilmstripError.TimedOut].
  *
  * @param pathOf The path ffprobe reads a source from, or null when it has none.
  */
@@ -54,7 +53,7 @@ internal suspend fun FfmpegRuntime.sourceColorsOf(
     val path = pathOf(source) ?: continue
     when (val read = colorRead(toolchain, path)) {
       is ProbeAnswer.Expired -> {
-        return SourceColorRead.Refused(FilmstripError.SourceUnreadable(source.describe(), read.reason))
+        return SourceColorRead.Refused(read.timedOut())
       }
       is ProbeAnswer.Answered -> {
         read.value?.let { reads[source] = it }

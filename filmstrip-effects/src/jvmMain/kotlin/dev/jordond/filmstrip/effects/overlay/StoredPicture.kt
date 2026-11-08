@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip.effects.overlay
 
+import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.color.PictureColor
 import dev.jordond.filmstrip.effect.Degradation
 import dev.jordond.filmstrip.geometry.Size
@@ -42,6 +43,15 @@ internal sealed interface StoredRead {
    */
   class Undecoded(
     val reason: String,
+  ) : StoredRead
+
+  /**
+   * The backend's decoder was still decoding the picture at its deadline and was stopped.
+   *
+   * @property timedOut The error the overlay is refused with.
+   */
+  class Expired(
+    val timedOut: FilmstripError.TimedOut,
   ) : StoredRead
 
   /**

@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip.ffmpeg.internal.process
 
+import dev.jordond.filmstrip.FilmstripError
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
@@ -24,7 +25,8 @@ internal fun probeExpiredReason(
 /**
  * What a read through a short child came back with.
  *
- * [Answered] holds what a finished read found, and [Expired] holds why a child stopped at its deadline was stopped.
+ * [Answered] holds what a finished read found. [Expired] holds the [Expired.operation] that was stopped, the
+ * [Expired.deadline] it was stopped at and why, and [Expired.timedOut] is the error a caller refuses with.
  */
 internal sealed interface ProbeAnswer<out T> {
   class Answered<T>(
@@ -32,8 +34,25 @@ internal sealed interface ProbeAnswer<out T> {
   ) : ProbeAnswer<T>
 
   class Expired(
+    val operation: String,
+    val deadline: Duration,
     val reason: String,
-  ) : ProbeAnswer<Nothing>
+  ) : ProbeAnswer<Nothing> {
+    fun timedOut(): FilmstripError.TimedOut = FilmstripError.TimedOut(operation, deadline, reason)
+  }
+}
+
+/**
+ * The [ProbeAnswer.Expired.operation] each short read names when it is stopped at its deadline.
+ */
+internal object ProbeOperation {
+  const val SOURCE_PROBE: String = "source probe"
+  const val OUTPUT_PROBE: String = "output probe"
+  const val COLOR_READ: String = "color read"
+  const val SYNC_SAMPLE_READ: String = "sync sample read"
+  const val COPY_PACKET_READ: String = "copy packet read"
+  const val ENCODER_TEST: String = "encoder test encode"
+  const val PICTURE_DECODE: String = "overlay picture decode"
 }
 
 // Long enough for a large picture or a slow disk on a loaded machine, and short of leaving a plan hung on a child

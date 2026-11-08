@@ -103,6 +103,7 @@ internal fun describeFailure(failure: ExportStatus.Failure): String {
       is FilmstripError.BackendMissing -> "Add ${error.artifact} to your dependencies"
       is FilmstripError.ToolchainMissing -> "Install ffmpeg: ${error.message}"
       is FilmstripError.InsufficientStorage -> "Free up some space and try again"
+      is FilmstripError.TimedOut -> "The ${error.operation} took longer than ${error.deadline}, try again"
       else -> error.message
     }
   // endregion

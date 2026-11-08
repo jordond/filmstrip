@@ -14,6 +14,7 @@ import dev.jordond.filmstrip.ffmpeg.internal.FfmpegExportEngine
 import dev.jordond.filmstrip.ffmpeg.internal.FfmpegProber
 import dev.jordond.filmstrip.ffmpeg.internal.FfmpegRuntime
 import dev.jordond.filmstrip.ffmpeg.internal.process.PROBE_DEADLINE_BASE
+import dev.jordond.filmstrip.ffmpeg.internal.process.ProbeOperation
 import dev.jordond.filmstrip.ffmpeg.internal.process.ProcessRunner
 import dev.jordond.filmstrip.ffmpeg.internal.process.probeExpiredReason
 import dev.jordond.filmstrip.ffmpeg.support.hostFfprobe
@@ -37,7 +38,7 @@ import kotlin.time.Duration.Companion.seconds
 
 /**
  * Plans and exports through the engine with a stand-in ffprobe that hangs on one kind of read and hands every other
- * to the host's, so each read the engine makes past its deadline is shown to refuse the edit with that read's reason.
+ * to the host's, so each read the engine makes past its deadline is shown to refuse the edit as timed out.
  *
  * Everything before the read under test runs under the real deadline. The deadline drops to [SHORT] only for it.
  */
@@ -65,7 +66,7 @@ class FfmpegProbeDeadlineMediaTest {
       val trimmed = composition(Clip(source, TimeRange.of(1.seconds, 2.seconds)))
       val refused = engine.resolve(trimmed, ExportSpec()).shouldBeInstanceOf<ResolveResult.Refused>()
 
-      refused.error.shouldBeInstanceOf<FilmstripError.SourceUnreadable>().message shouldBe expired
+      refused.error shouldBe FilmstripError.TimedOut(ProbeOperation.SYNC_SAMPLE_READ, SHORT, expired)
     }
 
   // A registered prober answers for the source, so the colour read is the only thing that reaches ffprobe.
@@ -81,11 +82,11 @@ class FfmpegProbeDeadlineMediaTest {
       deadline = SHORT
       val refused = engine.resolve(composition(Clip(source)), ExportSpec()).shouldBeInstanceOf<ResolveResult.Refused>()
 
-      refused.error.shouldBeInstanceOf<FilmstripError.SourceUnreadable>().message shouldBe expired
+      refused.error shouldBe FilmstripError.TimedOut(ProbeOperation.COLOR_READ, SHORT, expired)
     }
 
   @Test
-  fun `a read of the written file past its deadline fails the export as unwritable`() =
+  fun `a read of the written file past its deadline fails the export as timed out`() =
     runTest(timeout = TEST_TIMEOUT) {
       if (!landscape.isFile) return@runTest
       val output = File(directory, "$WRITTEN.mp4")
@@ -97,7 +98,7 @@ class FfmpegProbeDeadlineMediaTest {
       val status = engine.export(plan, MediaSink.Path(output.path)).last()
 
       val error = status.shouldBeInstanceOf<ExportStatus.Failure>().reasons.single()
-      error.shouldBeInstanceOf<FilmstripError.SinkUnwritable>().message shouldBe expired
+      error shouldBe FilmstripError.TimedOut(ProbeOperation.OUTPUT_PROBE, SHORT, expired)
     }
 
   private fun engine(

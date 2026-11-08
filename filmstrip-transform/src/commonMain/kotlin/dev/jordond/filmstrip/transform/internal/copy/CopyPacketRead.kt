@@ -4,6 +4,7 @@ import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.media.describe
 import dev.jordond.filmstrip.transform.internal.negotiation.Ask
+import kotlin.time.Duration
 
 /**
  * What a backend's read of a copy's video packets over a [CopyPacketWindow] found.
@@ -23,6 +24,16 @@ public sealed interface CopyPacketRead {
   public class Failed(
     public val reason: String,
   ) : CopyPacketRead
+
+  /**
+   * The read of [operation] was still running at [deadline] and was stopped, and [reason] says so in words a caller
+   * reads.
+   */
+  public class Expired(
+    public val operation: String,
+    public val deadline: Duration,
+    public val reason: String,
+  ) : CopyPacketRead
 }
 
 /**
@@ -38,7 +49,7 @@ public sealed interface CopyAsk {
   ) : CopyAsk
 
   /**
-   * The copy's packets could not be read, so the export is refused the way an unreadable source is.
+   * The copy's packets could not be read, so the export is refused before it is negotiated.
    */
   public class Refused(
     public val error: FilmstripError,
@@ -51,7 +62,8 @@ public sealed interface CopyAsk {
  *
  * [window] is what [dev.jordond.filmstrip.transform.internal.ExportPlanner.copyPacketWindowOf] names, and every plan,
  * preview grade and export of an engine reads its packets this way, so all three negotiate the same copy. A read that
- * fails refuses the export as [FilmstripError.SourceUnreadable] with the read's reason.
+ * fails refuses the export as [FilmstripError.SourceUnreadable] with the read's reason, and one stopped at its
+ * deadline refuses it as [FilmstripError.TimedOut].
  */
 @InternalFilmstripApi
 public suspend fun Ask.withCopyPackets(
@@ -65,6 +77,9 @@ public suspend fun Ask.withCopyPackets(
     }
     is CopyPacketRead.Failed -> {
       CopyAsk.Refused(FilmstripError.SourceUnreadable(window.source.describe(), listed.reason))
+    }
+    is CopyPacketRead.Expired -> {
+      CopyAsk.Refused(FilmstripError.TimedOut(listed.operation, listed.deadline, listed.reason))
     }
     is CopyPacketRead.Read -> {
       CopyAsk.Asked(Ask(spec, device, infos, openings, layoutSize, grade, listed.packets))
