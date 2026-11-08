@@ -64,6 +64,8 @@ needs and how the test fixtures are made and published.
 sample clips, edit it while it plays, then export it and download the result, all in the browser.
 
 To run it locally, `./gradlew :sample:webApp:wasmJsBrowserDevelopmentRun`, then open <http://localhost:8080> in Chrome.
+[sample/webApp](sample/webApp/README.md) covers the editor and [sample/tryIt](sample/tryIt/README.md) the landing page's
+Try it TV.
 
 ## Releasing
 
