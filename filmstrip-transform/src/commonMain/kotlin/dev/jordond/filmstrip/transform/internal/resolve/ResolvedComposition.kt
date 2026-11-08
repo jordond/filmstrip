@@ -17,6 +17,8 @@ import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSource
+import dev.jordond.filmstrip.transform.internal.copy.CopyPrefix
+import dev.jordond.filmstrip.transform.internal.copy.copyPrefixOf
 import dev.jordond.filmstrip.transform.internal.geometry.ClipPlacement
 import dev.jordond.filmstrip.transform.internal.geometry.derivesFromFrame
 import kotlin.time.Duration
@@ -45,6 +47,9 @@ import kotlin.time.Duration
  * @property naturalSize The frame the composition writes with no height asked of it and before any encoder ceiling,
  *   which is [OutputFormat.size] for a composition built at its own size. It stays the same at every height the edit
  *   is lowered at, so every clip's [ResolvedClip.placement] is measured against it.
+ * @property copyPrefix The video packets a copy that ends before its source does writes, from [copyPrefixOf] over the
+ *   packets the engine read into [dev.jordond.filmstrip.transform.internal.negotiation.Ask.copyPackets]. Null for
+ *   every other plan, which writes every packet its window holds.
  */
 @InternalFilmstripApi
 public class ResolvedComposition(
@@ -61,6 +66,7 @@ public class ResolvedComposition(
   public val adjustments: List<Adjustment>,
   public val encoderName: String? = null,
   public val naturalSize: Size = output.size,
+  public val copyPrefix: CopyPrefix.Packets? = null,
 )
 
 /**

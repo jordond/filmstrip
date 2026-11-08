@@ -48,7 +48,8 @@ internal sealed interface ToolchainResult {
  * Finds the binaries and remembers them once found.
  *
  * A missing or too old ffmpeg is looked for again on the next call, so a host that installs one or
- * sets `FILMSTRIP_FFMPEG` after the first attempt is picked up without a new runtime.
+ * sets `FILMSTRIP_FFMPEG` after the first attempt is picked up without a new runtime. A build without the
+ * [PACKET_DROP_FILTER] bitstream filter is refused the same way, here rather than part way through an export.
  *
  * Resolution is [FfmpegConfig.executablePath], then `FILMSTRIP_FFMPEG`, then a `PATH` search, and
  * the result is always made absolute before it is spawned.
@@ -83,6 +84,11 @@ internal class ToolchainLocator(
       locate(config.probePath, "FILMSTRIP_FFPROBE", FFPROBE)
         ?: siblingOf(ffmpeg)
         ?: return ToolchainResult.Unavailable(missing(FFPROBE, null))
+
+    val bitstreamFilters = runner.capture(listOf(ffmpeg, "-hide_banner", "-bsfs"))
+    if (PACKET_DROP_FILTER !in parseBitstreamFilters(bitstreamFilters.stdout)) {
+      return ToolchainResult.Unavailable(lacksPacketDrop(parsed.printed))
+    }
 
     val filters = runner.capture(listOf(ffmpeg, "-hide_banner", "-filters"))
     val encoders = runner.capture(listOf(ffmpeg, "-hide_banner", "-encoders"))
@@ -157,6 +163,16 @@ internal class ToolchainLocator(
           "whether it is ffmpeg $MINIMUM_MAJOR.$MINIMUM_MINOR or newer. Install a release build of ffmpeg " +
           "$MINIMUM_MAJOR.$MINIMUM_MINOR or newer, or point FfmpegConfig.executablePath at one, or set " +
           "FILMSTRIP_FFMPEG.",
+    )
+
+  private fun lacksPacketDrop(found: String): FilmstripError.ToolchainMissing =
+    FilmstripError.ToolchainMissing(
+      tool = FFMPEG,
+      foundVersion = found,
+      message =
+        "`$FFMPEG` $found has no `$PACKET_DROP_FILTER` bitstream filter, which a copy that ends before its source " +
+          "does needs to stop its video on the last frame it keeps. Install an ffmpeg $MINIMUM_MAJOR.$MINIMUM_MINOR " +
+          "or newer build that carries it, or point FfmpegConfig.executablePath at one, or set FILMSTRIP_FFMPEG.",
     )
 
   private companion object {

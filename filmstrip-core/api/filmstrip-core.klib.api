@@ -223,6 +223,7 @@ final enum class dev.jordond.filmstrip.export/CopyBlocker : kotlin/Enum<dev.jord
     enum entry MultipleTracks // dev.jordond.filmstrip.export/CopyBlocker.MultipleTracks|null[0]
     enum entry MuxerRefusesSource // dev.jordond.filmstrip.export/CopyBlocker.MuxerRefusesSource|null[0]
     enum entry SourceCodecUnnameable // dev.jordond.filmstrip.export/CopyBlocker.SourceCodecUnnameable|null[0]
+    enum entry SourceUntimed // dev.jordond.filmstrip.export/CopyBlocker.SourceUntimed|null[0]
     enum entry TrackDropsAStream // dev.jordond.filmstrip.export/CopyBlocker.TrackDropsAStream|null[0]
     enum entry TrackGainChanged // dev.jordond.filmstrip.export/CopyBlocker.TrackGainChanged|null[0]
     enum entry TrackHasEffects // dev.jordond.filmstrip.export/CopyBlocker.TrackHasEffects|null[0]

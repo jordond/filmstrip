@@ -219,6 +219,7 @@ internal class WriterSessionRig(
       composition = composition(),
       clockFrameRate = clockFrameRate,
       videoSlots = videoSlots,
+      copyVideoPackets = null,
       failure = { error, side ->
         FilmstripError.InvalidComposition("$side failed: $error").also {
           reported += it

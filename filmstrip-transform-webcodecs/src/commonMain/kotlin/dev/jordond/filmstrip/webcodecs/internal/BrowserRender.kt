@@ -158,6 +158,9 @@ internal class VideoEncoding(
  * on. Each of these slots is the fill alone, and the first clip opens on the slot after the last of them.
  * @property estimatedFrames Every slot the pipeline encodes, [leadFrames] included.
  * @property fill What the compositor fills the frame with where no clip's pixels land.
+ * @property copyVideoPackets How many video packets a copy that ends before its source does writes, the count the plan
+ * settled on [dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition.copyPrefix]. Null for every other
+ * render.
  * @property hdrTransfer The transfer function the written video carries, or null for SDR or for a
  * render that writes none.
  * @property compositionOverlays The rasters the composition composites over the whole output frame after the fill,
@@ -183,6 +186,7 @@ internal class BrowserRender(
   val hdrTransfer: HdrTransfer?,
   val compositionOverlays: List<WebGlOverlay>,
   val compositionPasses: List<WebGlPass> = emptyList(),
+  val copyVideoPackets: Int? = null,
 ) {
   /**
    * How long one output slot runs in microseconds at [frameRate]. Every pass that walks the output frame by frame
@@ -293,6 +297,7 @@ internal fun browserRenderOf(
     hdrTransfer = plan.hdrTransfer,
     compositionOverlays = plan.effectsOverFill.mapNotNull { it.effect.overlay },
     compositionPasses = plan.effectsOverFill.shaderPasses(),
+    copyVideoPackets = plan.copyPrefix?.count,
   )
 }
 

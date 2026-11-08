@@ -74,11 +74,11 @@ internal suspend fun AVAssetTrack.syncSampleAtOrBefore(
 
 // Where the cursor's sample is shown on the track's own timeline, and zero for one before the track opens.
 @OptIn(ExperimentalForeignApi::class)
-private fun AVSampleCursor.composedAt(shift: Duration): Duration =
+internal fun AVSampleCursor.composedAt(shift: Duration): Duration =
   (presentationTimeStamp.toDuration() + shift).coerceAtLeast(Duration.ZERO)
 
 @OptIn(ExperimentalForeignApi::class)
-private fun AVSampleCursor.isFullSync(): Boolean = currentSampleSyncInfo.useContents { sampleIsFullSync }
+internal fun AVSampleCursor.isFullSync(): Boolean = currentSampleSyncInfo.useContents { sampleIsFullSync }
 
 /**
  * How far this track's sample times sit from the times it is composed at.

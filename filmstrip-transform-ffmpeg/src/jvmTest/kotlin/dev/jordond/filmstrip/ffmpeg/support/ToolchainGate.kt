@@ -17,8 +17,9 @@ import kotlin.system.exitProcess
 /**
  * Why this host cannot run the ffmpeg suite, or null when it can.
  *
- * The toolchain is looked up the way the backend looks it up, so a missing ffmpeg or ffprobe, or one below the floor,
- * is refused by the same check the library runs. A toolchain that passes must also write HDR, since every HDR test
+ * The toolchain is looked up the way the backend looks it up, so a missing ffmpeg or ffprobe, one below the floor or
+ * one without the bitstream filter a copy ends on, is refused by the same check the library runs and named by its
+ * message. A toolchain that passes must also write HDR, since every HDR test
  * reads the ten-bit encoder the floor build always carries. The message names the encoder the HDR probe reached, which
  * on a Mac is `hevc_videotoolbox` rather than libx265.
  */
@@ -26,8 +27,9 @@ internal suspend fun suiteToolchainProblem(config: FfmpegConfig = FfmpegConfig()
   val located = ToolchainLocator(config, ProcessRunner()).toolchain()
   if (located is ToolchainResult.Unavailable) {
     val error = located.error
-    return "the ffmpeg tests need ffmpeg and ffprobe $FLOOR or newer, and found `${error.tool}` " +
-      "${error.foundVersion ?: "nowhere"}. ${error.message} Set $VARIABLE to an ffmpeg $FLOOR build to run them."
+    return "the ffmpeg tests need an ffmpeg and ffprobe the backend runs on, and found `${error.tool}` " +
+      "${error.foundVersion ?: "nowhere"}. ${error.message} Set $VARIABLE to an ffmpeg $FLOOR build the backend " +
+      "runs on to run them."
   }
 
   val capabilities = Filmstrip { ffmpegBackend(config) }.capabilities()

@@ -1,0 +1,41 @@
+public final class dev/jordond/filmstrip/transform/internal/copy/CopyAsk$Asked : dev/jordond/filmstrip/transform/internal/copy/CopyAsk {
+	public fun <init> (Ldev/jordond/filmstrip/transform/internal/negotiation/Ask;)V
+	public final fun getAsk ()Ldev/jordond/filmstrip/transform/internal/negotiation/Ask;
+}
+
+public final class dev/jordond/filmstrip/transform/internal/copy/CopyAsk$Refused : dev/jordond/filmstrip/transform/internal/copy/CopyAsk {
+	public fun <init> (Ldev/jordond/filmstrip/FilmstripError;)V
+	public final fun getError ()Ldev/jordond/filmstrip/FilmstripError;
+}
+
+public final class dev/jordond/filmstrip/transform/internal/copy/CopyPacketRead$Failed : dev/jordond/filmstrip/transform/internal/copy/CopyPacketRead {
+	public fun <init> (Ljava/lang/String;)V
+	public final fun getReason ()Ljava/lang/String;
+}
+
+public final class dev/jordond/filmstrip/transform/internal/copy/CopyPacketRead$Read : dev/jordond/filmstrip/transform/internal/copy/CopyPacketRead {
+	public fun <init> (Ljava/util/List;)V
+	public final fun getPackets ()Ljava/util/List;
+}
+
+public final class dev/jordond/filmstrip/transform/internal/copy/CopyPrefix$NoneOnGrid : dev/jordond/filmstrip/transform/internal/copy/CopyPrefix {
+	public static final field INSTANCE Ldev/jordond/filmstrip/transform/internal/copy/CopyPrefix$NoneOnGrid;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/jordond/filmstrip/transform/internal/copy/CopyPrefix$Packets : dev/jordond/filmstrip/transform/internal/copy/CopyPrefix {
+	public fun <init> (ILjava/util/List;)V
+	public final fun getCount ()I
+	public final fun getEnd-FghU774 ()Lkotlin/time/Duration;
+	public final fun getRuns ()Ljava/util/List;
+}
+
+public final class dev/jordond/filmstrip/transform/internal/copy/CopyPrefix$Untimed : dev/jordond/filmstrip/transform/internal/copy/CopyPrefix {
+	public static final field INSTANCE Ldev/jordond/filmstrip/transform/internal/copy/CopyPrefix$Untimed;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+

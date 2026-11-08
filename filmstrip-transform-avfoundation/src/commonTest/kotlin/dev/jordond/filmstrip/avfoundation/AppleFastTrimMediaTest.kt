@@ -5,6 +5,7 @@ import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.avfoundation.internal.composition.toAvComposition
 import dev.jordond.filmstrip.avfoundation.internal.export.AvDriver
 import dev.jordond.filmstrip.avfoundation.internal.interop.syncSampleAtOrBefore
+import dev.jordond.filmstrip.avfoundation.internal.time.MEDIA_TICK
 import dev.jordond.filmstrip.avfoundation.internal.time.toDuration
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.compositionOf
@@ -20,6 +21,8 @@ import dev.jordond.filmstrip.internal.chainedProber
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.transform.internal.ResolveResult
+import dev.jordond.filmstrip.transform.internal.copy.CopyPrefix
+import dev.jordond.filmstrip.transform.internal.copy.copyPrefixOf
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
 import io.kotest.assertions.withClue
 import io.kotest.matchers.booleans.shouldBeTrue
@@ -148,14 +151,28 @@ class AppleFastTrimMediaTest {
       throughDriver shouldBe track.syncSampleAtOrBefore(TRIM_START)
     }
 
+  // The window ends inside a reorder group, so a frame the copy leaves out sits between the ones it writes and the
+  // preview lays a cut on each side of it.
   @Test
-  fun `leaves the end of the cut where it was asked for`() =
+  fun `lays a cut for each run of the copy's counted video`() =
     runTest(timeout = TIMEOUT) {
       val resolved = trimmed()
 
-      val cut = resolved.toAvComposition().composition.firstCut(AVMediaTypeVideo)
+      val cuts =
+        resolved
+          .toAvComposition()
+          .composition
+          .joinedCuts(AVMediaTypeVideo)
+      val runs = resolved.copyPrefix.shouldNotBeNull().runs
 
-      cut?.end shouldBe TRIM_END
+      withClue("the cuts ${cuts.map { it.start to it.end }} against the runs") {
+        cuts.size shouldBe runs.size
+        // The composition holds each end on a whole tick of its own timescale.
+        cuts.zip(runs).forEach { (cut, run) ->
+          ((cut.start - run.start).absoluteValue <= MEDIA_TICK).shouldBeTrue()
+          ((cut.end - run.end.shouldNotBeNull()).absoluteValue <= MEDIA_TICK).shouldBeTrue()
+        }
+      }
     }
 
   @Test
@@ -241,10 +258,18 @@ class AppleFastTrimMediaTest {
             .last()
         }
 
+      // The copy keeps the shared prefix of the source's packets from the opening, so the file runs to the end of the
+      // last frame that prefix presents, which takes in any reference presented past the window.
+      val resolved = trimmed()
+      val packets = readerPacketsOf(sourceTrack(long, AVMediaTypeVideo))
+      val opens = packets.indexOfFirst { it.key && it.pts == opening }
+      val kept = packets.drop(opens).take(resolved.copyPrefixOf(packets).shouldBeInstanceOf<CopyPrefix.Packets>().count)
+      val runs = kept.maxOf { it.pts } + 1.seconds / resolved.output.frameRate - opening
+
       val success = written.shouldBeInstanceOf<ExportStatus.Success>()
       val length = success.info.duration
-      withClue("the file runs $length, and the copy opened at $opening so it should run ${TRIM_END - opening}") {
-        ((length - (TRIM_END - opening)).absoluteValue <= FRAME).shouldBeTrue()
+      withClue("the file runs $length, and the copy opened at $opening so it should run $runs") {
+        ((length - runs).absoluteValue <= FRAME).shouldBeTrue()
       }
       NSFileManager.defaultManager.removeItemAtPath(output, error = null)
     }
@@ -335,6 +360,28 @@ private fun AVAsset.firstCut(mediaType: String?): SourceCut? {
   return segment.timeMapping.useContents {
     SourceCut(source.start.readValue().toDuration(), source.duration.readValue().toDuration())
   }
+}
+
+// The source each segment reads, with a segment that carries on where the last one ended joined to it, since a held
+// frame is its own segment.
+@OptIn(ExperimentalForeignApi::class)
+private fun AVAsset.joinedCuts(mediaType: String?): List<SourceCut> {
+  val track = tracksWithMediaType(mediaType).firstOrNull() as? AVAssetTrack ?: return emptyList()
+  return track.segments
+    .filterIsInstance<AVAssetTrackSegment>()
+    .filterNot { it.empty }
+    .map { segment ->
+      segment.timeMapping.useContents {
+        SourceCut(source.start.readValue().toDuration(), source.duration.readValue().toDuration())
+      }
+    }.fold(emptyList()) { joined, cut ->
+      val last = joined.lastOrNull()
+      if (last != null && (cut.start - last.end).absoluteValue <= MEDIA_TICK) {
+        joined.dropLast(1) + SourceCut(last.start, cut.end - last.start)
+      } else {
+        joined + cut
+      }
+    }
 }
 
 private class SourceCut(

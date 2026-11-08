@@ -7,6 +7,7 @@ import dev.jordond.filmstrip.effect.LiveInput
 import dev.jordond.filmstrip.effect.Sidecar
 import dev.jordond.filmstrip.export.OutputFormat
 import dev.jordond.filmstrip.ffmpeg.FfmpegConfig
+import dev.jordond.filmstrip.ffmpeg.internal.process.PACKET_DROP_FILTER
 import dev.jordond.filmstrip.ffmpeg.internal.process.Scratch
 import dev.jordond.filmstrip.ffmpeg.internal.process.Toolchain
 import dev.jordond.filmstrip.media.HdrTransfer
@@ -106,8 +107,10 @@ internal sealed interface InputSource {
  * @property seekKeepsEarlierFrames Whether the seek keeps the frames ahead of where it lands, for a graph that reads
  *   them back off its own clock. An accurate seek drops them.
  * @property videoSlots How many output slots the video covers, which is how many frames the graph
- *   writes. A copy writes the source's own frames out to a whole packet, so on a copy this is only
- *   how many of them a preview pumps. Null for an output with no video.
+ *   writes and a preview pumps. A copy writes [copyVideoPackets] instead. Null for an output with no video.
+ * @property copyVideoPackets How many video packets a copy writes in decode order, from
+ *   [dev.jordond.filmstrip.transform.internal.copy.copyPrefixOf]. Null for a copy that runs to the source's end, and
+ *   for anything that is not a copy.
  * @property heldTail The output slots the graph holds the primary's last frame over, because an audio
  * track runs past it. Empty when nothing does, and for an output with no video.
  * @property sidecars The files [filterGraph] reads, which the caller writes down and hands back as
@@ -132,6 +135,7 @@ internal class Invocation(
   val seekSpeed: Double = 1.0,
   val seekKeepsEarlierFrames: Boolean = seekSpeed != 1.0,
   val videoSlots: Long? = null,
+  val copyVideoPackets: Int? = null,
   val heldTail: LongRange = LongRange.EMPTY,
   val sidecars: List<Sidecar> = emptyList(),
   val liveForm: Invocation? = null,
@@ -231,6 +235,12 @@ internal fun Invocation.arguments(
       add("0:a?")
       add("-c")
       add("copy")
+      // Drops the video packets past the count rather than stopping there, since -frames:v ends the whole file and
+      // cuts the audio short of the input bound it still runs to.
+      copyVideoPackets?.let {
+        add("-bsf:v")
+        add("$PACKET_DROP_FILTER=drop=gte(n\\,$it)")
+      }
     } else {
       add(GRAPH_FLAG)
       add(resolvedGraph(resolvedSidecars))

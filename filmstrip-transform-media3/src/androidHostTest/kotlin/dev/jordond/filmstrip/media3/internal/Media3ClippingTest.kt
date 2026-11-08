@@ -26,6 +26,8 @@ import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedGain
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedHdr
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedTrack
+import dev.jordond.filmstrip.transform.internal.videoSlots
+import io.kotest.assertions.withClue
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.mockk.every
@@ -62,20 +64,24 @@ class Media3ClippingTest {
   }
 
   // A copy has no decoder to walk to the cut, so the item has to say the start is a sync sample or
-  // Transformer decodes the leading group of pictures to reach it. It writes the source's own samples,
-  // so its window is the exact one in microseconds rather than one moved onto the output grid.
+  // Transformer decodes the leading group of pictures to reach it. It writes the source's own samples
+  // from its exact start in microseconds, and ends on the plan's grid so its video stops on the frames
+  // the grid holds.
   @Test
-  fun `a snapped trim carries its window and opens on a key frame`() {
+  fun `a snapped trim opens on a key frame and ends on the grid`() {
     val clip = clip(startsAtKeyFrame = true)
+    val plan = composition(clip, ExportPath.Copy)
+    val gridEnd = clip.start + outputSlotTime(plan.videoSlots, plan.output.frameRate)
 
     val clipping =
-      composition(clip, ExportPath.Copy)
+      plan
         .firstItem()
         .mediaItem.clippingConfiguration
         .shouldNotBeNull()
 
+    withClue("the grid was meant to end away from the window's own end") { (gridEnd != clip.end) shouldBe true }
     clipping.startPositionUs shouldBe clip.start.inWholeMicroseconds
-    clipping.endPositionUs shouldBe clip.end.inWholeMicroseconds
+    clipping.endPositionUs shouldBe gridEnd.inWholeMicroseconds
     clipping.startsAtKeyFrame shouldBe true
   }
 

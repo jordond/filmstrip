@@ -9,6 +9,7 @@ import dev.jordond.filmstrip.avfoundation.internal.chain.toneMapKernelLimit
 import dev.jordond.filmstrip.avfoundation.internal.composition.AvComposition
 import dev.jordond.filmstrip.avfoundation.internal.composition.toAvComposition
 import dev.jordond.filmstrip.avfoundation.internal.failure.AvLoweringFailure
+import dev.jordond.filmstrip.avfoundation.internal.interop.copyPacketsWithin
 import dev.jordond.filmstrip.avfoundation.internal.interop.syncSampleAtOrBefore
 import dev.jordond.filmstrip.avfoundation.internal.renderClipAudio
 import dev.jordond.filmstrip.avfoundation.internal.toNSURL
@@ -30,6 +31,8 @@ import dev.jordond.filmstrip.media.MediaProber
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.transform.internal.ExportDriver
+import dev.jordond.filmstrip.transform.internal.copy.CopyPacketRead
+import dev.jordond.filmstrip.transform.internal.copy.CopyPacketWindow
 import dev.jordond.filmstrip.transform.internal.probe.ProcessProbe
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
 import kotlinx.coroutines.Dispatchers
@@ -86,6 +89,25 @@ internal class AvDriver(
       track?.syncSampleAtOrBefore(cut)
     }
 
+  override suspend fun copyPackets(window: CopyPacketWindow): CopyPacketRead =
+    withContext(Dispatchers.Default) {
+      try {
+        val url = withContext(Dispatchers.IO) { window.source.toNSURL(bytesRoot) }
+        val track =
+          AVURLAsset(uRL = url, options = null)
+            .tracksWithMediaType(AVMediaTypeVideo)
+            .firstOrNull() as? AVAssetTrack
+        track
+          ?.copyPacketsWithin(window.from, window.to)
+          ?.let { CopyPacketRead.Read(it) }
+          ?: CopyPacketRead.Failed(UNLISTED_SAMPLES)
+      } catch (failure: AvLoweringFailure) {
+        CopyPacketRead.Failed(failure.reason)
+      } catch (failure: MediaBytesFileFailure) {
+        CopyPacketRead.Failed(failure.message)
+      }
+    }
+
   override fun unclaimed(specId: String): String =
     "No resolver claimed $specId on the Apple backend. Register the built-in catalogue with " +
       "builtInEffects(), or add a resolver that recognises RenderApi.CoreImage."
@@ -111,6 +133,7 @@ internal class AvDriver(
                 resolved = resolved,
                 composition = prepared.composition,
                 destination = prepared.destination,
+                copyVideoPackets = resolved.copyPrefix?.count,
                 announcesStart = !startsEarly,
               ).run(),
             )
@@ -131,17 +154,23 @@ internal class AvDriver(
     to: MediaSink,
     stretched: StretchedAudio,
   ): Preparation {
-    val composition =
-      try {
-        stretched.renderAll(resolved, bytesRoot)
-        resolved.toAvComposition(sdKernelLimit = { sdPrimariesKernelLimit() }, bytesRoot, stretched)
-      } catch (failure: AudioStretchFailure) {
-        return Preparation.Failed(failure.error)
-      } catch (failure: AvLoweringFailure) {
-        return Preparation.Failed(FilmstripError.InvalidComposition(failure.reason))
-      } catch (failure: MediaBytesFileFailure) {
-        return Preparation.Failed(FilmstripError.SourceUnreadable(failure.source, failure.message))
-      }
+    val composition: AvComposition
+    try {
+      stretched.renderAll(resolved, bytesRoot)
+      composition =
+        resolved.toAvComposition(
+          sdKernelLimit = { sdPrimariesKernelLimit() },
+          bytesRoot = bytesRoot,
+          stretched = stretched,
+          writesCopy = true,
+        )
+    } catch (failure: AudioStretchFailure) {
+      return Preparation.Failed(failure.error)
+    } catch (failure: AvLoweringFailure) {
+      return Preparation.Failed(FilmstripError.InvalidComposition(failure.reason))
+    } catch (failure: MediaBytesFileFailure) {
+      return Preparation.Failed(FilmstripError.SourceUnreadable(failure.source, failure.message))
+    }
 
     return when (val destination = resolveDestination(to)) {
       is DestinationResult.Failed -> Preparation.Failed(destination.error)
@@ -191,3 +220,7 @@ internal fun coreImageRenderCapabilities(
   )
 
 private const val MAX_TEXTURE_FLOOR = 8_192
+
+private const val UNLISTED_SAMPLES =
+  "The source's video samples could not be listed over the copy's window, and a copy that ends before its source " +
+    "does counts the video it keeps by them."

@@ -46,6 +46,9 @@ internal class CopySupport(
  * no encoder and so has no ceiling to be held to. Comparing it against [sourceSize] is what says
  * the geometry is identity.
  *
+ * [copyPackets] are the clip's video packets over a copy window that ends before its source does, and a listing that
+ * [lacksPresentationTimes] blocks the copy, since it gives the copy no frame to stop on.
+ *
  * Each scope's level reads the same way. A level that leaves a stream out blocks the copy as a
  * stream change, a level that scales the samples blocks it as a gain change, and a volume of one
  * blocks nothing.
@@ -59,6 +62,7 @@ internal fun copyBlockers(
   requestedSize: Size,
   copyOpening: Duration?,
   info: MediaInfo,
+  copyPackets: List<CopyPacket>? = null,
 ): List<CopyBlocker> =
   buildList {
     if (!support.supportsCopy) add(CopyBlocker.BackendCannotCopy)
@@ -95,6 +99,7 @@ internal fun copyBlockers(
     if (clip.altersGain) add(CopyBlocker.ClipGainChanged)
     if (clip.speed != 1.0 && clip.source !is MediaSource.Image) add(CopyBlocker.ClipSpeedChanged)
     if (copyOpening == null) add(CopyBlocker.TrimNotOnSyncSample)
+    if (copyPackets?.lacksPresentationTimes() == true) add(CopyBlocker.SourceUntimed)
   }
 
 /**

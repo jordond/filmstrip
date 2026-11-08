@@ -55,6 +55,7 @@ internal fun gradeOf(
       requestedSize = framing.requestedSize,
       copyOpening = copyOpening,
       info = ask.infos.getValue(framing.firstClip.source),
+      copyPackets = ask.copyPackets,
     )
   val copyKeepsHdr = blockers.isEmpty()
   val sdrForcedBy = if (sourceIsHdr) edit.effectsThatRequireSdr() else emptyList()

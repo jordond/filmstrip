@@ -79,8 +79,11 @@ import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.VideoTrackInfo
+import dev.jordond.filmstrip.media.describe
 import dev.jordond.filmstrip.media.trackCodecOf
 import dev.jordond.filmstrip.test.OrientedPictures
+import dev.jordond.filmstrip.transform.internal.copy.CopyPacket
+import dev.jordond.filmstrip.transform.internal.copy.NONE_ON_GRID_COPY
 import dev.jordond.filmstrip.transform.internal.encode.resolveVideoBitrate
 import dev.jordond.filmstrip.transform.internal.hdr.TONE_MAP_BT2020_TO_BT709
 import dev.jordond.filmstrip.transform.internal.negotiation.Ask
@@ -416,6 +419,20 @@ class PlannerTest {
         .single()
     clip.startsAtKeyFrame shouldBe false
     clip.start shouldBe TRIM_START
+  }
+
+  // Every packet has a time and none lands on the grid, so the count is zero and the copy would write no video.
+  @Test
+  fun `a copy no packet lands on the grid of is refused by name`() {
+    val composition = trimmed(snapWithin = SNAP_WITHIN)
+    val pastTheGrid = (0 until 30).map { CopyPacket(TRIM_END + it.seconds / 30, key = it == 0) }
+
+    val lowering =
+      planner().lower(composition, Ask(ExportSpec(), device(), infos, openings, copyPackets = pastTheGrid))
+
+    val verdict = lowering.verdict.shouldBeInstanceOf<Verdict.Incapable>()
+    verdict.reasons.single() shouldBe FilmstripError.SourceUnreadable(landscape.describe(), NONE_ON_GRID_COPY)
+    lowering.graph shouldBe null
   }
 
   // Zero is the default, and it means the cut lands where it was asked, which no stream copy can

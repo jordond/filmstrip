@@ -10,6 +10,8 @@ import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaProber
+import dev.jordond.filmstrip.transform.internal.copy.CopyAsk
+import dev.jordond.filmstrip.transform.internal.copy.withCopyPackets
 import dev.jordond.filmstrip.transform.internal.negotiation.Ask
 import dev.jordond.filmstrip.transform.internal.probe.PlanningReadResult
 import dev.jordond.filmstrip.transform.internal.probe.PlanningReads
@@ -59,28 +61,41 @@ public class PlannedExportEngine(
     spec: ExportSpec,
     layoutSize: Size?,
     grade: ResolvedHdr?,
-  ): LoweredExport<ResolvedComposition> =
-    when (val read = reads.read(composition)) {
-      is PlanningReadResult.Failed -> {
-        refusedLowering(read.error)
+  ): LoweredExport<ResolvedComposition> {
+    val read =
+      when (val result = reads.read(composition)) {
+        is PlanningReadResult.Failed -> return refusedLowering(result.error)
+        is PlanningReadResult.Read -> result
       }
-      is PlanningReadResult.Read -> {
-        val export =
-          planner.negotiate(composition, Ask(spec, read.device, read.infos, read.openings, layoutSize, grade))
+    val asked = Ask(spec, read.device, read.infos, read.openings, layoutSize, grade)
+    return when (val withPackets = askedWithPackets(composition, asked)) {
+      is CopyAsk.Refused -> {
+        refusedLowering(withPackets.error)
+      }
+      is CopyAsk.Asked -> {
+        val export = planner.negotiate(composition, withPackets.ask)
         LoweredExport(export, export.composition)
       }
     }
+  }
 
   private suspend fun grade(
     composition: EditComposition,
     spec: ExportSpec,
-  ): ExportGrade =
-    when (val read = reads.read(composition)) {
-      is PlanningReadResult.Failed -> {
-        ExportGrade.Refused(read.error)
+  ): ExportGrade {
+    val read =
+      when (val result = reads.read(composition)) {
+        is PlanningReadResult.Failed -> return ExportGrade.Refused(result.error)
+        is PlanningReadResult.Read -> result
       }
-      is PlanningReadResult.Read -> {
-        planner.exportGradeOf(composition, Ask(spec, read.device, read.infos, read.openings))
-      }
+    return when (val withPackets = askedWithPackets(composition, Ask(spec, read.device, read.infos, read.openings))) {
+      is CopyAsk.Refused -> ExportGrade.Refused(withPackets.error)
+      is CopyAsk.Asked -> planner.exportGradeOf(composition, withPackets.ask)
     }
+  }
+
+  private suspend fun askedWithPackets(
+    composition: EditComposition,
+    ask: Ask,
+  ): CopyAsk = ask.withCopyPackets(planner.copyPacketWindowOf(composition, ask), backend::copyPackets)
 }

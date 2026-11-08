@@ -645,12 +645,15 @@ class BrowserExportMediaTest {
       withClue("the copy opened on frame $openedFrame and the plan resolved the cut to ${resolved.start}") {
         openedFrame shouldBe frameIndexAt(resolved.start)
       }
-      // Between the window it was asked for and the window plus what the snap put in front of it,
-      // which is what says the tail was bounded as well as the head.
-      withClue("the copy wrote ${frames.size} frames for a window of ${TRIM_END_FRAME - TRIM_START_FRAME}") {
-        (frames.size in (TRIM_END_FRAME - TRIM_START_FRAME)..(TRIM_END_FRAME - openedFrame + REORDER_SLACK)) shouldBe
-          true
-      }
+      // The count the plan settled from the source's packets, which is what says the tail was bounded as well as the
+      // head.
+      val counted =
+        engine
+          .resolve(composition, ExportSpec())
+          .shouldBeInstanceOf<ResolveResult.Resolved>()
+          .composition.copyPrefix
+          .shouldNotBeNull()
+      frames.size shouldBe counted.count
     }
 
   // Zero is the default and it keeps the cut where it was asked for. Nothing is a sync sample there,
@@ -1347,7 +1350,6 @@ class BrowserExportMediaTest {
     val TRIM_START = 1000.milliseconds
     val TRIM_END = 1500.milliseconds
     const val TRIM_START_FRAME = 30
-    const val TRIM_END_FRAME = 45
 
     // Wide enough to reach the sync sample before the cut whichever frame the encoder rounded it
     // onto. Which one it actually reached is read off the plan, never off this.
@@ -1359,10 +1361,6 @@ class BrowserExportMediaTest {
     const val SNAPPED_FRAMES = 60
     const val SNAPPED_FRAME_RATE = 30
     const val SNAPPED_KEY_FRAME_SECONDS = 0.75
-
-    // What the last group of pictures can carry past the cut: a packet presenting after it is held
-    // rather than dropped while a packet before it is still to come in decode order.
-    const val REORDER_SLACK = 4
 
     // A copy carries whole packets, and an audio packet is a few milliseconds either way of where
     // a frame boundary falls.

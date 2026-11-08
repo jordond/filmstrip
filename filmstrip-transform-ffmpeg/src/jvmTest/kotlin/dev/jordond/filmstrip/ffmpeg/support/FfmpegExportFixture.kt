@@ -39,6 +39,7 @@ import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.ProbeResult
 import dev.jordond.filmstrip.transform.internal.LoweredExport
+import dev.jordond.filmstrip.transform.internal.copy.CopyPacketRead
 import dev.jordond.filmstrip.transform.internal.copy.copyOpenings
 import dev.jordond.filmstrip.transform.internal.negotiation.Ask
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedTrack
@@ -143,8 +144,17 @@ internal class FfmpegExportFixture {
       copyOpenings(composition) { source, cut ->
         runtime.syncSampleAtOrBefore(toolchain, readablePath(source).shouldNotBeNull(), cut)
       }
-    return FfmpegPlanner(toolchain, listOf(BuiltInEffectResolver()))
-      .lower(composition, Ask(spec, device, infos, openings))
+    val planner = FfmpegPlanner(toolchain, listOf(BuiltInEffectResolver()))
+    val ask = Ask(spec, device, infos, openings)
+    // Read the way the engine reads them, so a copy ending before its source does is counted by the same packets.
+    val packets =
+      planner.copyPacketWindowOf(composition, ask)?.let { window ->
+        runtime
+          .copyPackets(toolchain, readablePath(window.source).shouldNotBeNull(), window.from, window.to)
+          .shouldBeInstanceOf<CopyPacketRead.Read>()
+          .packets
+      }
+    return planner.lower(composition, Ask(spec, device, infos, openings, copyPackets = packets))
   }
 
   internal fun available(): Boolean = landscape.isFile && portrait.isFile

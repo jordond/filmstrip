@@ -2,6 +2,12 @@
 
 package dev.jordond.filmstrip.webcodecs.internal
 
+import dev.jordond.filmstrip.transform.internal.copy.COPY_PACKET_MARGIN
+import dev.jordond.filmstrip.transform.internal.copy.CopyPacket
+import dev.jordond.filmstrip.transform.internal.copy.CopyPacketRead
+import dev.jordond.filmstrip.transform.internal.copy.CopyPacketWindow
+import dev.jordond.filmstrip.transform.internal.copy.MAX_COPY_PACKET_RATE
+import dev.jordond.filmstrip.transform.internal.copy.copyPacketCap
 import dev.jordond.filmstrip.webcodecs.internal.interop.BufferTarget
 import dev.jordond.filmstrip.webcodecs.internal.interop.EncodedAudioPacketSource
 import dev.jordond.filmstrip.webcodecs.internal.interop.EncodedPacket
@@ -15,6 +21,8 @@ import dev.jordond.filmstrip.webcodecs.internal.interop.Output
 import kotlinx.coroutines.await
 import kotlin.js.ExperimentalWasmJsInterop
 import kotlin.js.JsAny
+import kotlin.time.Duration.Companion.seconds
+import kotlin.time.DurationUnit
 
 /**
  * The copy half of the pipeline: packets read out of the source container and written straight
@@ -75,13 +83,16 @@ internal class BrowserStreamCopy(
       // so the gap the source had between them survives.
       val origin = listOfNotNull(videoStart?.timestamp, audioStart?.timestamp).minOrNull() ?: 0.0
 
+      // A window that ends before the source does keeps the prefix of the video's packets the plan counted, which stops
+      // on the frames its grid holds. The audio runs to the window's own end.
+      val keptVideo = render.copyVideoPackets
       val copied =
         copyPackets(
           sink = videoSink,
           from = videoStart,
-          endSeconds = end,
           origin = origin,
           decoderConfig = videoTrack.getDecoderConfig().await(),
+          keeps = { count, _ -> keptVideo == null || count < keptVideo },
           add = { packet, meta -> videoSource.addPacket(packet, meta) },
           onPacket = onProgress,
         )
@@ -89,9 +100,9 @@ internal class BrowserStreamCopy(
         copyPackets(
           sink = audioSink,
           from = audioStart,
-          endSeconds = end,
           origin = origin,
           decoderConfig = audioTrack.getDecoderConfig().await(),
+          keeps = { _, packet -> packet.timestamp < end },
           add = { packet, meta -> audioSource.addPacket(packet, meta) },
           onPacket = { _, _ -> },
         )
@@ -107,16 +118,19 @@ internal class BrowserStreamCopy(
   }
 
   /**
-   * Reads [sink] from [from] and hands each packet [copyWindow] keeps to [add] in decode order,
-   * rebased onto [origin] and stopping at [endSeconds], with the decoder config on the first call
-   * and nothing after. Returns how many packets were copied.
+   * Reads [sink] from [from] and hands each packet to [add] in decode order, rebased onto [origin], until [keeps]
+   * turns one down. The decoder config goes with the first call and nothing after. Returns how many packets were
+   * copied.
+   *
+   * @param keeps Whether the packet read, given the count of packets copied so far, is copied too, which ends the walk
+   * when it is not.
    */
   private suspend fun copyPackets(
     sink: EncodedPacketSink,
     from: EncodedPacket?,
-    endSeconds: Double,
     origin: Double,
     decoderConfig: JsAny?,
+    keeps: (Long, EncodedPacket) -> Boolean,
     add: suspend (EncodedPacket, JsAny?) -> Unit,
     onPacket: suspend (Long, Double) -> Unit,
   ): Long {
@@ -127,12 +141,9 @@ internal class BrowserStreamCopy(
     val stream = PacketStream(if (from == null) sink.packets() else sink.packets(from)) {}
 
     try {
-      copyWindow(
-        endSeconds = endSeconds,
-        next = { stream.next() },
-        timestampOf = { it.timestamp },
-        isKeyPacket = { it.isKeyPacket },
-      ) { packet ->
+      while (true) {
+        val packet = stream.next() ?: break
+        if (!keeps(count, packet)) break
         add(packet.rebasedOnto(origin), meta)
         meta = null
         count++
@@ -158,6 +169,57 @@ private const val KEY_PACKET_TYPE = "key"
  */
 private val EncodedPacket.isKeyPacket: Boolean
   get() = type.toString() == KEY_PACKET_TYPE
+
+/**
+ * The video packets of [window]'s source in decode order, from the sync sample its copy opens on through
+ * [COPY_PACKET_MARGIN] past its end, read through [copyPacketsFrom] and capped at [copyPacketCap] over the window.
+ */
+internal suspend fun SourceCache.copyPacketsOf(window: CopyPacketWindow): CopyPacketRead {
+  val track = open(window.source)?.videoTrack() ?: return CopyPacketRead.Failed(unreadableMessage(window.source))
+  val sink = EncodedPacketSink(track)
+  return try {
+    val from = sink.openAt(window.from.toDouble(DurationUnit.SECONDS))
+    CopyPacketRead.Read(
+      sink.copyPacketsFrom(from, window.to.toDouble(DurationUnit.SECONDS), copyPacketCap(window.from, window.to)),
+    )
+  } catch (failure: BrowserExportFailure) {
+    CopyPacketRead.Failed(failure.message ?: unreadableMessage(window.source))
+  }
+}
+
+/**
+ * This track's packets in decode order from [from], or from its first packet when [from] is null, through the first
+ * one presented at or past [endSeconds] and [COPY_PACKET_MARGIN]. Only each packet's timestamp and type are read, never
+ * its data.
+ *
+ * @param cap The most packets the read lists, [copyPacketCap] over the copy's window.
+ * @throws BrowserExportFailure When the read lists more than [cap] packets.
+ */
+internal suspend fun EncodedPacketSink.copyPacketsFrom(
+  from: EncodedPacket?,
+  endSeconds: Double,
+  cap: Int,
+): List<CopyPacket> {
+  val metadataOnly = JsOptions().put("metadataOnly", true).build()
+  val closes = endSeconds + COPY_PACKET_MARGIN.toDouble(DurationUnit.SECONDS)
+  return buildList {
+    var packet = from ?: getFirstPacket(metadataOnly).await()
+    while (packet != null) {
+      if (size >= cap) throw BrowserExportFailure(pastCopyCap(cap, closes))
+      add(CopyPacket(packet.timestamp.seconds, packet.isKeyPacket))
+      if (packet.timestamp >= closes) break
+      packet = getNextPacket(packet, metadataOnly).await()
+    }
+  }
+}
+
+// Why a copy whose read listed more than cap packets up to closes seconds is refused.
+private fun pastCopyCap(
+  cap: Int,
+  closes: Double,
+): String =
+  "A copy lists more than $cap video packets up to $closes s, past the $MAX_COPY_PACKET_RATE fps a copy reads its " +
+    "packets at."
 
 /**
  * The packet this copy opens on for a window opening at [seconds], or null when the track names

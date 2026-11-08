@@ -988,6 +988,7 @@ public final class dev/jordond/filmstrip/export/CopyBlocker : java/lang/Enum {
 	public static final field MultipleTracks Ldev/jordond/filmstrip/export/CopyBlocker;
 	public static final field MuxerRefusesSource Ldev/jordond/filmstrip/export/CopyBlocker;
 	public static final field SourceCodecUnnameable Ldev/jordond/filmstrip/export/CopyBlocker;
+	public static final field SourceUntimed Ldev/jordond/filmstrip/export/CopyBlocker;
 	public static final field TrackDropsAStream Ldev/jordond/filmstrip/export/CopyBlocker;
 	public static final field TrackGainChanged Ldev/jordond/filmstrip/export/CopyBlocker;
 	public static final field TrackHasEffects Ldev/jordond/filmstrip/export/CopyBlocker;

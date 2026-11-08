@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip.ffmpeg
 
+import dev.jordond.filmstrip.ffmpeg.internal.process.parseBitstreamFilters
 import dev.jordond.filmstrip.ffmpeg.internal.process.parseInputProtocols
 import dev.jordond.filmstrip.ffmpeg.internal.process.parseNameListing
 import dev.jordond.filmstrip.ffmpeg.internal.process.parseVersion
@@ -149,5 +150,13 @@ class ToolchainReportTest {
     val encoders = parseNameListing(listing)
 
     encoders shouldBe setOf("libx264", "aac")
+  }
+
+  @Test
+  fun `reads a bitstream filter listing`() {
+    val listing = "Bitstream filters:\naac_adtstoasc\nnoise\nnull\n"
+
+    parseBitstreamFilters(listing) shouldBe setOf("aac_adtstoasc", "noise", "null")
+    parseBitstreamFilters("") shouldBe emptySet()
   }
 }

@@ -128,6 +128,19 @@ internal expect fun executableSuffixes(): List<String>
 // Windows, which is a way to run the wrong binary.
 internal expect fun absolutePathOf(path: String): String
 
+/**
+ * A file's size and when it was last written, which changes when the file is rewritten in place.
+ *
+ * @property modifiedNanos The last write, in nanoseconds since the epoch at the precision the file system keeps.
+ */
+internal data class FileStamp(
+  val size: Long,
+  val modifiedNanos: Long,
+)
+
+// Reads the stamp of the file at [path], or null when there is no file there to read.
+internal expect fun fileStampOf(path: String): FileStamp?
+
 // Runs [block] off the caller's thread and interrupts it when the caller is cancelled. The planner reads
 // overlay pictures through child processes from inside a blocking resolve, and the interrupt is what
 // stops them.

@@ -255,6 +255,13 @@ public enum class CopyBlocker {
   TrimNotOnSyncSample,
 
   /**
+   * The clip ends before its source does and the source's video packets carry no presentation times, the way an AVI
+   * with B-frames lists them, so a copy has no frame it knows to stop on. Running the clip to the source's end keeps
+   * the copy.
+   */
+  SourceUntimed,
+
+  /**
    * The muxer will not take this source's streams without re-encoding them.
    */
   MuxerRefusesSource,
@@ -336,9 +343,11 @@ public enum class InertReason {
  *   every effect is.
  * @property duration How long the file this export writes will run. A cut that moved back to a sync
  *   sample opens earlier than it was asked to, so this is measured from where each clip resolved to
- *   open rather than from where its trim was written. An [ExportPath.Copy] export cannot cut a
- *   packet in half, so its file runs out to the end of the last whole packet and can be a frame or
- *   two longer than this.
+ *   open rather than from where its trim was written. An [ExportPath.Copy] export writes the frames
+ *   on every output slot of this length and stops there, unless the frame on its last slot decodes
+ *   after references presented later. Those references are written too, so the file can run past
+ *   this by up to the source's reorder depth, which is two frames on a stream with two B-frames. On
+ *   Android a copy's audio ends with its video, within one audio access unit of this length.
  * @property copyBlockedBy Why this export re-encodes rather than copying its streams across. Empty
  *   when [path] is [ExportPath.Copy], and otherwise every term that applied, so a caller can
  *   see which field to drop to get the near-instant path back.

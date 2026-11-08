@@ -4,6 +4,8 @@ import dev.jordond.filmstrip.codec.AudioCodec
 import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.compositionOf
+import dev.jordond.filmstrip.edit.outputSlotOf
+import dev.jordond.filmstrip.edit.outputSlotTime
 import dev.jordond.filmstrip.effects.color.brightness
 import dev.jordond.filmstrip.export.CopyBlocker
 import dev.jordond.filmstrip.export.ExportPath
@@ -18,9 +20,14 @@ import dev.jordond.filmstrip.ffmpeg.support.hostFfmpeg
 import dev.jordond.filmstrip.ffmpeg.support.hostFfprobe
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
+import dev.jordond.filmstrip.transform.internal.copy.CopyPacket
+import dev.jordond.filmstrip.transform.internal.copy.CopyPrefix
+import dev.jordond.filmstrip.transform.internal.copy.copyPrefixOf
+import dev.jordond.filmstrip.transform.internal.videoSlots
 import io.kotest.assertions.withClue
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldContain
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.flow.toList
@@ -96,9 +103,13 @@ class FfmpegCopyMediaTest {
 
       // Where the planner moved the cut to. Read back off the resolved clip, since that one answer
       // is what every backend lays, and cross-checked against the container's own sample table.
-      val opensAt =
+      val negotiated =
         fixture
-          .plannedTracks(composition, ExportSpec(), listOf(source))
+          .plannedLowering(composition, ExportSpec(), listOf(source))
+          .export.composition
+          .shouldNotBeNull()
+      val opensAt =
+        negotiated.tracks
           .single()
           .clips
           .single()
@@ -115,13 +126,7 @@ class FfmpegCopyMediaTest {
       plan.path shouldBe ExportPath.Copy
       plan.copyBlockedBy shouldBe emptyList()
 
-      val finished =
-        fixture.filmstrip
-          .export(plan, MediaSink.of(output.absolutePath))
-          .toList()
-          .last()
-      if (finished is ExportStatus.Failure) error(finished.error.message)
-      val written = finished.shouldBeInstanceOf<ExportStatus.Success>().info
+      fixture.exported(plan, output)
 
       // Nothing was encoded, so the codecs are the source's, and the file is a fraction of it
       // rather than the whole container remuxed.
@@ -139,12 +144,11 @@ class FfmpegCopyMediaTest {
           .shouldBeTrue()
       }
 
-      // Measured from where the copy opened rather than from the cut, since that is the window the
-      // plan resolved and the one every backend lays.
-      val window = TRIM_END - opensAt
-      withClue("the copy runs for ${written.duration}, where the resolved window is $window") {
-        (written.duration in (window - COPY_SLOP)..(window + COPY_SLOP)).shouldBeTrue()
-      }
+      // Counted on the grid of the window the plan resolved, from where the copy opened rather than from the cut, so a
+      // copy that ran on past it or stopped short of it writes a different count.
+      val prefix =
+        negotiated.copyPrefixOf(sourcePackets(fixture.long.absolutePath)).shouldBeInstanceOf<CopyPrefix.Packets>()
+      videoPacketTimes(output.absolutePath).size shouldBe prefix.count
 
       output.delete()
     }
@@ -164,8 +168,12 @@ class FfmpegCopyMediaTest {
       withClue("the cut was meant to sit between two sync samples") {
         (keyFrameAtOrBefore(fixture.long.absolutePath, TRIM_START) < TRIM_START).shouldBeTrue()
       }
-      fixture
-        .plannedTracks(composition, ExportSpec(), listOf(source))
+      val negotiated =
+        fixture
+          .plannedLowering(composition, ExportSpec(), listOf(source))
+          .export.composition
+          .shouldNotBeNull()
+      negotiated.tracks
         .single()
         .clips
         .single()
@@ -179,20 +187,11 @@ class FfmpegCopyMediaTest {
       plan.path shouldBe ExportPath.Transcode
       plan.copyBlockedBy shouldContain CopyBlocker.TrimNotOnSyncSample
 
-      val finished =
-        fixture.filmstrip
-          .export(plan, MediaSink.of(output.absolutePath))
-          .toList()
-          .last()
-      if (finished is ExportStatus.Failure) error(finished.error.message)
-      val written = finished.shouldBeInstanceOf<ExportStatus.Success>().info
+      fixture.exported(plan, output)
 
-      // The snapped window runs longer than the asked one by the whole group of pictures, so a
-      // length is enough to say the cut never moved.
-      val window = TRIM_END - TRIM_START
-      withClue("the export runs for ${written.duration}, where the asked window is $window") {
-        (written.duration in (window - COPY_SLOP)..(window + COPY_SLOP)).shouldBeTrue()
-      }
+      // The snapped window runs longer than the asked one by the whole group of pictures, so the frame count on the
+      // asked window's grid is enough to say the cut never moved.
+      videoPacketTimes(output.absolutePath).size.toLong() shouldBe negotiated.videoSlots
 
       output.delete()
     }
@@ -259,6 +258,155 @@ class FfmpegCopyMediaTest {
       output.delete()
       silent.delete()
     }
+
+  // The long fixture reorders two B-frames behind each reference. The first 30 slots end on a whole reorder group, so
+  // the copy writes the grid and nothing past it, where an input bound alone wrote the three frames presented after.
+  @Test
+  fun `writes exactly the grid when the window ends on a whole reorder group`() =
+    runTest(timeout = TIMEOUT) {
+      if (!fixture.available()) return@runTest
+
+      val written = copiedWindow(WHOLE_GROUP_END)
+
+      withClue("the copy wrote ${written.packets} video packets on a grid of ${written.slots}") {
+        written.packets shouldBe written.slots
+      }
+      written.slotsCovered shouldBe (0 until written.slots).toList()
+      withClue("the audio runs ${written.audio}, short of the ${written.gridEnd} grid") {
+        (written.audio >= written.gridEnd).shouldBeTrue()
+      }
+    }
+
+  // Here the grid ends inside a reorder group, so its last frame decodes after references presented past it. Those
+  // are the residue, and it is bounded by the reorder depth the source itself reports.
+  @Test
+  fun `writes no more than the source's reorder depth past a grid ending inside a reorder group`() =
+    runTest(timeout = TIMEOUT) {
+      if (!fixture.available()) return@runTest
+
+      val written = copiedWindow(SPLIT_GROUP_END)
+      val residue = written.packets - written.slots
+      val depth = reorderDepth(fixture.long.absolutePath)
+
+      withClue("the window was meant to end inside a reorder group") { (residue > 0).shouldBeTrue() }
+      withClue("the copy wrote $residue frames past the grid, where the source reorders $depth") {
+        (residue <= depth).shouldBeTrue()
+      }
+      written.slotsCovered.take(written.slots) shouldBe (0 until written.slots).toList()
+      withClue("the audio runs ${written.audio}, short of the ${written.gridEnd} grid") {
+        (written.audio >= written.gridEnd).shouldBeTrue()
+      }
+    }
+
+  /**
+   * Copies the long fixture from its start to [end] and reads back what the file holds against the plan's grid.
+   */
+  private suspend fun copiedWindow(end: Duration): CopiedWindow {
+    val output = File.createTempFile("filmstrip-copy-grid", ".mp4").also { it.delete() }
+    val source = MediaSource.of(fixture.long.absolutePath)
+    val composition = compositionOf { clip(source) { trim(TimeRange.of(Duration.ZERO, end)) } }
+
+    val negotiated =
+      fixture
+        .plannedLowering(composition, ExportSpec(), listOf(source))
+        .export.composition
+        .shouldNotBeNull()
+    val plan =
+      fixture.filmstrip
+        .plan(composition, ExportSpec())
+        .shouldBeInstanceOf<Verdict.Capable>()
+        .plan
+    plan.path shouldBe ExportPath.Copy
+
+    val finished =
+      fixture.filmstrip
+        .export(plan, MediaSink.of(output.absolutePath))
+        .toList()
+        .last()
+    if (finished is ExportStatus.Failure) error(finished.error.message)
+    finished.shouldBeInstanceOf<ExportStatus.Success>()
+
+    val rate = negotiated.output.frameRate
+    val presented = videoPacketTimes(output.absolutePath)
+    val written =
+      CopiedWindow(
+        slots = negotiated.videoSlots.toInt(),
+        packets = presented.size,
+        slotsCovered = presented.sorted().map { outputSlotOf(it, rate).toInt() },
+        gridEnd = outputSlotTime(negotiated.videoSlots, rate),
+        audio = audioDuration(output.absolutePath),
+      )
+    output.delete()
+    return written
+  }
+
+  /**
+   * What a copy wrote, read with ffprobe rather than through anything under test.
+   *
+   * @property slots How many slots the plan's grid holds.
+   * @property packets How many video packets the file holds.
+   * @property slotsCovered The slot each written frame is presented on, in presentation order.
+   * @property gridEnd Where the grid's last slot ends.
+   * @property audio How long the audio stream runs.
+   */
+  private class CopiedWindow(
+    val slots: Int,
+    val packets: Int,
+    val slotsCovered: List<Int>,
+    val gridEnd: Duration,
+    val audio: Duration,
+  )
+
+  private fun videoPacketTimes(path: String): List<Duration> =
+    probed(path, "v:0", "packet=pts_time")
+      .lineSequence()
+      .mapNotNull { it.substringBefore(',').trim().toDoubleOrNull() }
+      .map { it.seconds }
+      .toList()
+
+  // The source's video packets in decode order, read with ffprobe rather than through the backend's own read.
+  private fun sourcePackets(path: String): List<CopyPacket> =
+    probed(path, "v:0", "packet=pts_time,flags")
+      .lineSequence()
+      .filter { it.isNotBlank() }
+      .map { line ->
+        CopyPacket(
+          line
+            .substringBefore(',')
+            .trim()
+            .toDouble()
+            .seconds,
+          line.substringAfter(',').startsWith('K'),
+        )
+      }.toList()
+
+  private fun audioDuration(path: String): Duration = probed(path, "a:0", "stream=duration").trim().toDouble().seconds
+
+  // How many frames the source's decoder holds back to put them in presentation order.
+  private fun reorderDepth(path: String): Int = probed(path, "v:0", "stream=has_b_frames").trim().toInt()
+
+  private fun probed(
+    path: String,
+    stream: String,
+    entries: String,
+  ): String {
+    val process =
+      ProcessBuilder(
+        hostFfprobe,
+        "-v",
+        "error",
+        "-select_streams",
+        stream,
+        "-show_entries",
+        entries,
+        "-of",
+        "csv=p=0",
+        path,
+      ).start()
+    val output = process.inputReader().readText()
+    process.waitFor()
+    return output
+  }
 
   /**
    * A copy of [source] with its audio stream dropped, made with real ffmpeg since nothing in this
@@ -328,15 +476,14 @@ class FfmpegCopyMediaTest {
     // reachable with room to spare rather than only just.
     val SNAP_WITHIN = 2.seconds
 
-    // How far a written run may sit from the window the plan resolved. A bounded copy ends on a
-    // whole packet rather than on the length it was given, and this build overshoots by around
-    // 80ms of it. Still well short of the group of pictures a cut that snapped when it should not
-    // have, or did not when it should have, would move by.
-    val COPY_SLOP = 200.milliseconds
-
     // How far a remux may land from the source it copied. The mp4 muxer sizes its own padding, and
     // builds differ by a byte or so in it. A re-encode of this fixture misses by
     // tens of kilobytes, so the band separates the two readings without pinning a muxer's spelling.
     const val CONTAINER_DRIFT_BYTES = 64L
+
+    // Two copy windows from the long fixture's start. Thirty slots close on a whole reorder group, and thirty one close
+    // with the frame on the last of them decoding behind two references presented past it.
+    val WHOLE_GROUP_END = 1_010.milliseconds
+    val SPLIT_GROUP_END = 1_040.milliseconds
   }
 }

@@ -19,6 +19,7 @@ import dev.jordond.filmstrip.media.describe
 import dev.jordond.filmstrip.transform.internal.ExportGrade
 import dev.jordond.filmstrip.transform.internal.ExportPlanner
 import dev.jordond.filmstrip.transform.internal.LoweredExport
+import dev.jordond.filmstrip.transform.internal.copy.CopyPacketWindow
 import dev.jordond.filmstrip.transform.internal.copy.Mp4Copy
 import dev.jordond.filmstrip.transform.internal.negotiation.Ask
 import dev.jordond.filmstrip.transform.internal.refusal
@@ -79,6 +80,17 @@ internal class BrowserPlanner(
       is ExportGrade.Settled -> grade
     }
   }
+
+  /**
+   * The window an export of [composition] at [ask] copies whose packets the engine reads into [Ask.copyPackets], or
+   * null when it does not copy, the copy runs to its source's end, or [lower] refuses the composition before
+   * negotiating it.
+   */
+  internal fun copyPacketWindowOf(
+    composition: EditComposition,
+    ask: Ask,
+  ): CopyPacketWindow? =
+    if (unconditionalRefusal(composition, ask.infos) == null) planner.copyPacketWindowOf(composition, ask) else null
 
   /**
    * Negotiates [composition] against [ask] and lowers what it settles on onto a render.

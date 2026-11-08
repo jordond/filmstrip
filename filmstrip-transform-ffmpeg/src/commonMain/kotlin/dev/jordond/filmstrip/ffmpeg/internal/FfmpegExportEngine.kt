@@ -24,6 +24,7 @@ import dev.jordond.filmstrip.ffmpeg.internal.lowering.readingGraphFrom
 import dev.jordond.filmstrip.ffmpeg.internal.probe.drift
 import dev.jordond.filmstrip.ffmpeg.internal.process.LIVE_FEED_FAILED
 import dev.jordond.filmstrip.ffmpeg.internal.process.ProgressParser
+import dev.jordond.filmstrip.ffmpeg.internal.process.READS_FILES
 import dev.jordond.filmstrip.ffmpeg.internal.process.SOURCE_GONE
 import dev.jordond.filmstrip.ffmpeg.internal.process.Scratch
 import dev.jordond.filmstrip.ffmpeg.internal.process.StderrTail
@@ -48,6 +49,9 @@ import dev.jordond.filmstrip.transform.internal.ExportGrade
 import dev.jordond.filmstrip.transform.internal.LoweredExport
 import dev.jordond.filmstrip.transform.internal.LoweringExportEngine
 import dev.jordond.filmstrip.transform.internal.ResolveResult
+import dev.jordond.filmstrip.transform.internal.copy.CopyAsk
+import dev.jordond.filmstrip.transform.internal.copy.CopyPacketRead
+import dev.jordond.filmstrip.transform.internal.copy.withCopyPackets
 import dev.jordond.filmstrip.transform.internal.negotiation.Ask
 import dev.jordond.filmstrip.transform.internal.probe.PlanningReadResult
 import dev.jordond.filmstrip.transform.internal.probe.PlanningReads
@@ -195,11 +199,18 @@ public class FfmpegExportEngine internal constructor(
     val sdColors = sdColorsOf(toolchain, composition)
     val bt709Sources = sourcesWhere(composition) { runtime.isTaggedBt709(toolchain, it) }
     val tailFormatSources = sourcesWhere(composition) { runtime.decodesToTailFormat(toolchain, it) }
+    val planner = FfmpegPlanner(toolchain, components.effectResolvers, runtime.bytesRoot)
+    val asked = Ask(spec, read.device, read.infos, read.openings, layoutSize, grade)
+    val ask =
+      when (val withPackets = askWithCopyPackets(toolchain, planner, composition, asked)) {
+        is CopyAsk.Refused -> return refusedLowering(withPackets.error)
+        is CopyAsk.Asked -> withPackets.ask
+      }
     val lowered =
       interruptibly {
-        FfmpegPlanner(toolchain, components.effectResolvers, runtime.bytesRoot).lower(
+        planner.lower(
           composition,
-          Ask(spec, read.device, read.infos, read.openings, layoutSize, grade),
+          ask,
           sdColors = sdColors,
           bt709Sources = bt709Sources,
           tailFormatSources = tailFormatSources,
@@ -210,6 +221,21 @@ public class FfmpegExportEngine internal constructor(
     if (graph == null || negotiated == null) return LoweredExport(lowered.export, null)
     return LoweredExport(lowered.export, FfmpegRun(toolchain, graph, negotiated.adjustments))
   }
+
+  /**
+   * [ask] with the video packets of the copy it plans read in through [withCopyPackets], for a copy whose window ends
+   * before its source does.
+   */
+  private suspend fun askWithCopyPackets(
+    toolchain: Toolchain,
+    planner: FfmpegPlanner,
+    composition: EditComposition,
+    ask: Ask,
+  ): CopyAsk =
+    ask.withCopyPackets(interruptibly { planner.copyPacketWindowOf(composition, ask) }) { window ->
+      sourcePath(window.source)?.let { runtime.copyPackets(toolchain, it, window.from, window.to) }
+        ?: CopyPacketRead.Failed(READS_FILES)
+    }
 
   // Audio has no colour to read, and a source a clip cannot read from is refused before these are looked at.
   private suspend fun sdColorsOf(
@@ -222,7 +248,7 @@ public class FfmpegExportEngine internal constructor(
       .map { it.source }
       .distinct()
       .mapNotNull { source ->
-        sdColorPath(source)?.let { runtime.sdColor(toolchain, it) }?.let { source to it }
+        sourcePath(source)?.let { runtime.sdColor(toolchain, it) }?.let { source to it }
       }.toMap()
 
   private suspend fun sourcesWhere(
@@ -234,10 +260,10 @@ public class FfmpegExportEngine internal constructor(
       .flatMap { it.clips }
       .map { it.source }
       .distinct()
-      .filter { source -> sdColorPath(source)?.let { holds(it) } == true }
+      .filter { source -> sourcePath(source)?.let { holds(it) } == true }
       .toSet()
 
-  private suspend fun sdColorPath(source: MediaSource): String? =
+  private suspend fun sourcePath(source: MediaSource): String? =
     try {
       withContext(Dispatchers.IO) { readablePath(source, runtime.bytesRoot) }
     } catch (_: MediaBytesFileFailure) {
@@ -259,9 +285,11 @@ public class FfmpegExportEngine internal constructor(
         ExportGrade.Refused(read.error)
       }
       is PlanningReadResult.Read -> {
-        interruptibly {
-          FfmpegPlanner(toolchain, components.effectResolvers, runtime.bytesRoot)
-            .exportGradeOf(composition, Ask(spec, read.device, read.infos, read.openings))
+        val planner = FfmpegPlanner(toolchain, components.effectResolvers, runtime.bytesRoot)
+        val asked = Ask(spec, read.device, read.infos, read.openings)
+        when (val withPackets = askWithCopyPackets(toolchain, planner, composition, asked)) {
+          is CopyAsk.Refused -> ExportGrade.Refused(withPackets.error)
+          is CopyAsk.Asked -> interruptibly { planner.exportGradeOf(composition, withPackets.ask) }
         }
       }
     }

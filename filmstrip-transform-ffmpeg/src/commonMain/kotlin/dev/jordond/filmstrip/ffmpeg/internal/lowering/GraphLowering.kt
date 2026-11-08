@@ -46,6 +46,8 @@ import kotlin.time.Duration
  * @param readsLivePlanes Whether a fragment carrying [dev.jordond.filmstrip.effect.FilterFragment.live] runs that form.
  * @param liveForm This plan's form that reads live planes, handed through on the invocation.
  * @param liveFallback Why this plan draws its maps with its graph, handed through on the invocation.
+ * @param copyVideoPackets How many video packets a copy bounding its end writes, from
+ *   [dev.jordond.filmstrip.transform.internal.copy.copyPrefixOf]. Null when they were not read.
  */
 internal class GraphLowering(
   private val negotiated: ResolvedComposition,
@@ -57,6 +59,7 @@ internal class GraphLowering(
   private val readsLivePlanes: Boolean = false,
   private val liveForm: Invocation? = null,
   private val liveFallback: String? = null,
+  private val copyVideoPackets: Int? = null,
 ) {
   private val tracks = negotiated.tracks
   private val output = negotiated.output
@@ -140,7 +143,11 @@ internal class GraphLowering(
     negotiated.hdr != ResolvedHdr.ToneMap && negotiated.hdrTransfer == null && !deferFill && !laidColor.writesBt709
 
   fun build(): Invocation {
-    if (negotiated.path == ExportPath.Copy) return negotiated.copyInvocation(seekBase, sdColors, bytesRoot)
+    if (negotiated.path ==
+      ExportPath.Copy
+    ) {
+      return negotiated.copyInvocation(seekBase, sdColors, bytesRoot, copyVideoPackets)
+    }
 
     // One input per clip the caller wrote, not per pass the plan laid. A looping track names the
     // same clip once for every pass, and a second decoder on the same file would decode it again.

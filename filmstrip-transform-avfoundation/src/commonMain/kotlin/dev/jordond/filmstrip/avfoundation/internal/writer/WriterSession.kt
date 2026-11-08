@@ -18,6 +18,7 @@ import platform.AVFoundation.AVAssetWriterStatusCompleted
 import platform.AVFoundation.AVAssetWriterStatusWriting
 import platform.AVFoundation.AVMediaTypeVideo
 import platform.CoreFoundation.CFRelease
+import platform.CoreMedia.CMSampleBufferGetNumSamples
 import platform.CoreMedia.CMSampleBufferGetPresentationTimeStamp
 import platform.CoreMedia.CMSampleBufferRef
 import platform.Foundation.NSError
@@ -71,6 +72,8 @@ internal sealed interface WriterOutcome {
  *
  * @param clockFrameRate The output rate a composition drawing on the clock renders at, or null when it draws a frame
  * for each sample. The video pump stops on the first frame at or past [videoSlots] when it is set.
+ * @param copyVideoPackets How many video samples a copy writes, in the order the reader hands them over, or null when
+ * the video pump writes every sample the reader has.
  * @param failure Maps what AVFoundation reported onto the error the run ends with.
  */
 @OptIn(ExperimentalForeignApi::class, BetaInteropApi::class)
@@ -83,6 +86,7 @@ internal class WriterSession(
   private val composition: AvComposition,
   private val clockFrameRate: Int?,
   private val videoSlots: Long,
+  private val copyVideoPackets: Int?,
   private val failure: (NSError?, FailingSide) -> FilmstripError,
 ) {
   /**
@@ -98,7 +102,9 @@ internal class WriterSession(
 
   private var drained = 0
 
-  // Set once the video pump stops on the slot cutoff rather than the output's own end,
+  private var videoWritten = 0
+
+  // Set once the video pump stops on the slot cutoff or a copy's count rather than the output's own end,
   // which leaves samples the reader never read, so finish() cancels the reader for them.
   private var stoppedEarly = false
 
@@ -189,12 +195,17 @@ internal class WriterSession(
    * Moves one sample across, and says how that went.
    */
   private fun step(pump: WriterPump): Step {
+    val video = pump.input.mediaType == AVMediaTypeVideo
+    if (video && copyVideoPackets != null && videoWritten >= copyVideoPackets) {
+      stoppedEarly = true
+      return Step.Drained
+    }
     val buffer: CMSampleBufferRef? = pump.read()
     if (buffer == null) {
       readerFailure = reader.error.takeIf { reader.status == AVAssetReaderStatusFailed }
       return Step.Drained
     }
-    if (clockFrameRate != null && pump.input.mediaType == AVMediaTypeVideo) {
+    if (clockFrameRate != null && video) {
       val slot = outputSlotOf(CMSampleBufferGetPresentationTimeStamp(buffer).toDuration(), clockFrameRate)
       if (slot >= videoSlots) {
         CFRelease(buffer)
@@ -203,6 +214,7 @@ internal class WriterSession(
       }
     }
     val appended = pump.append(buffer)
+    if (appended && video) videoWritten += CMSampleBufferGetNumSamples(buffer).toInt()
     if (appended && pump.reportsProgress) {
       writtenMicros = CMSampleBufferGetPresentationTimeStamp(buffer).toDuration().inWholeMicroseconds
     }

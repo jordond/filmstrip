@@ -10,6 +10,7 @@ import dev.jordond.filmstrip.edit.outputSlotOf
 import dev.jordond.filmstrip.edit.outputSlotTime
 import dev.jordond.filmstrip.edit.outputSlotsOf
 import dev.jordond.filmstrip.edit.sourceLengthOf
+import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSource
@@ -18,6 +19,7 @@ import dev.jordond.filmstrip.media3.internal.bounds.Media3ClipReads
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedClip
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedTrack
+import dev.jordond.filmstrip.transform.internal.videoSlots
 import kotlin.time.Duration
 
 /**
@@ -164,6 +166,9 @@ internal class Lowering(
 
   /**
    * A clip over the exact window the plan resolved it to, with its audio pinned to its span when it runs at a speed.
+   *
+   * A copy that ends before its source does ends on the plan's grid instead, so the video it writes is the prefix
+   * [dev.jordond.filmstrip.transform.internal.copy.copyPrefixOf] counts.
    */
   private fun ResolvedClip.exactItem(
     removeAudio: Boolean,
@@ -171,7 +176,7 @@ internal class Lowering(
     mixesAudio: Boolean,
   ): EditedMediaItem =
     EditedMediaItem
-      .Builder(clipped(start, end, always = speed != 1.0))
+      .Builder(clipped(start, copyEnd(removeVideo), always = speed != 1.0))
       .setRemoveAudio(removeAudio)
       .setRemoveVideo(removeVideo)
       .apply {
@@ -190,6 +195,16 @@ internal class Lowering(
           if (removeVideo) emptyList() else effects.toMedia3Effects().map(wrapper::wrap),
         ),
       ).build()
+
+  // Where a copy carrying this clip's video ends, which is the end of the plan's grid when the window ends before the
+  // source does. One item clips its audio at the same end, since media3 takes one clipping end for both tracks. Every
+  // other item ends on the clip's own end.
+  private fun ResolvedClip.copyEnd(removeVideo: Boolean): Duration =
+    if (plan.path == ExportPath.Copy && !removeVideo && info.video != null && end < info.duration) {
+      start + outputSlotTime(plan.videoSlots, plan.output.frameRate)
+    } else {
+      end
+    }
 
   // What runs this clip at its speed, or null at a speed of one, which is media3's own default.
   private fun ResolvedClip.atSpeed(

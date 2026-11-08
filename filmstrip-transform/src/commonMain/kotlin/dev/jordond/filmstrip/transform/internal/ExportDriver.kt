@@ -8,6 +8,8 @@ import dev.jordond.filmstrip.export.ExportStatus
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
+import dev.jordond.filmstrip.transform.internal.copy.CopyPacketRead
+import dev.jordond.filmstrip.transform.internal.copy.CopyPacketWindow
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
 import kotlinx.coroutines.flow.Flow
 import kotlin.time.Duration
@@ -52,6 +54,17 @@ public interface ExportDriver {
     source: MediaSource,
     cut: Duration,
   ): Duration? = null
+
+  /**
+   * Lists the video packets of [window]'s source in decode order, from the sync sample its copy opens on through
+   * [dev.jordond.filmstrip.transform.internal.copy.COPY_PACKET_MARGIN] past its end, for a copy that ends before its
+   * source does.
+   *
+   * The planner counts the frames the copy writes off them before the export runs, so a read that fails refuses the
+   * plan rather than the export. Null when this driver ends a copy some other way and reads no packets, which is the
+   * default.
+   */
+  public suspend fun copyPackets(window: CopyPacketWindow): CopyPacketRead? = null
 
   /**
    * Why this device cannot tone map an HDR source, or null when it can.

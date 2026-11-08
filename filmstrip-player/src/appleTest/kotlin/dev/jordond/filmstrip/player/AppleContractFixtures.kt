@@ -65,11 +65,16 @@ import kotlin.time.Duration.Companion.seconds
  * the build failed before a test ran. Nothing here skips: a suite that returns early on a missing
  * fixture reports green without having asserted anything.
  */
-internal fun appleFixtureClip(): String {
+internal fun appleFixtureClip(): String = appleFixture(CLIP_NAME)
+
+/**
+ * The path of the fixture file [name] the module's fixture task downloaded, failing when it is not there.
+ */
+internal fun appleFixture(name: String): String {
   val directory =
     NSProcessInfo.processInfo.environment[FIXTURES] as? String
       ?: fail("$FIXTURES was not set. The Apple test tasks are what provide it.")
-  val path = "$directory/$CLIP_NAME"
+  val path = "$directory/$name"
   if (!NSFileManager.defaultManager.fileExistsAtPath(path)) fail("The fixture $path was not downloaded.")
   return path
 }

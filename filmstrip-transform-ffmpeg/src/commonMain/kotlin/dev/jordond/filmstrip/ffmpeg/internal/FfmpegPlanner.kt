@@ -35,6 +35,7 @@ import dev.jordond.filmstrip.media.describe
 import dev.jordond.filmstrip.transform.internal.ExportGrade
 import dev.jordond.filmstrip.transform.internal.ExportPlanner
 import dev.jordond.filmstrip.transform.internal.LoweredExport
+import dev.jordond.filmstrip.transform.internal.copy.CopyPacketWindow
 import dev.jordond.filmstrip.transform.internal.copy.Mp4Copy
 import dev.jordond.filmstrip.transform.internal.geometry.backgroundGain
 import dev.jordond.filmstrip.transform.internal.negotiation.Ask
@@ -103,11 +104,28 @@ internal class FfmpegPlanner(
   }
 
   /**
+   * The window an export of [composition] at [ask] copies whose packets the engine reads into [Ask.copyPackets], or
+   * null when it does not copy, the copy runs to its source's end, or a source is one [lower] refuses.
+   */
+  fun copyPacketWindowOf(
+    composition: EditComposition,
+    ask: Ask,
+  ): CopyPacketWindow? =
+    try {
+      if (sourceRefusal(composition) == null) planner.copyPacketWindowOf(composition, ask) else null
+    } catch (_: MediaBytesFileFailure) {
+      // lower refuses the same source with the reason.
+      null
+    }
+
+  /**
    * Negotiates [composition] against [ask] and lowers what it settles on onto a filter graph.
    *
    * The engine reads the openings in [ask] with [FfmpegRuntime.syncSampleAtOrBefore], and the negotiator decides from
    * them whether the copy is reachable and where the window then opens. Each source in [sdColors] sits on SD primaries,
    * which takes this build's `colorspace` filter, since an export or a preview of it can draw the clip through one.
+   * The packets in [Ask.copyPackets] give the count a copy ending before its source does stops its video on, which the
+   * planner settles on [ResolvedComposition.copyPrefix].
    */
   fun lower(
     composition: EditComposition,
@@ -169,6 +187,7 @@ internal class FfmpegPlanner(
         readsLivePlanes = readsLivePlanes,
         liveForm = liveForm,
         liveFallback = liveFallback,
+        copyVideoPackets = negotiated.copyPrefix?.count,
       ).build()
     }
     val fragments = effects.map { it.effect.fragment }

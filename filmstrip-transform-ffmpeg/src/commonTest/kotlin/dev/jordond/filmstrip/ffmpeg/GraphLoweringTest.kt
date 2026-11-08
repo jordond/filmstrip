@@ -49,6 +49,9 @@ import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.VideoTrackInfo
 import dev.jordond.filmstrip.media.trackCodecOf
 import dev.jordond.filmstrip.transform.internal.NEAREST_FRAME_TIE
+import dev.jordond.filmstrip.transform.internal.copy.CopyPacket
+import dev.jordond.filmstrip.transform.internal.copy.CopyPrefix
+import dev.jordond.filmstrip.transform.internal.copy.copyPrefixOf
 import dev.jordond.filmstrip.transform.internal.encode.resolveVideoBitrate
 import dev.jordond.filmstrip.transform.internal.geometry.PixelRect
 import dev.jordond.filmstrip.transform.internal.geometry.backgroundGain
@@ -62,13 +65,16 @@ import dev.jordond.filmstrip.transform.internal.resolve.ResolvedEffect
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedGain
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedHdr
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedTrack
+import dev.jordond.filmstrip.transform.internal.videoSlotsOf
 import io.kotest.assertions.withClue
+import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.ints.shouldBeLessThan
 import io.kotest.matchers.longs.shouldBeLessThan
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.string.shouldNotContain
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlin.math.roundToInt
 import kotlin.math.roundToLong
 import kotlin.test.Test
@@ -616,6 +622,32 @@ class GraphLoweringTest {
 
     input.startSeconds shouldBe clip.start.toDouble(DurationUnit.SECONDS)
     input.durationSeconds shouldBe null
+  }
+
+  // The input bound ends the audio, and the video stops on the packet count every frame on the grid needs. The frame on
+  // the grid's last slot decodes behind two references presented past it, so the count runs two past the slots.
+  @Test
+  fun `a copy ending before its source stops its video on the packets the grid needs`() {
+    val clip = trimmedClip(end = TRIM_START + 200.milliseconds)
+    val packets = reorderedPackets(from = TRIM_START, frames = 12)
+
+    val invocation = copyInvocationFor(clip, packets)
+
+    val rate = invocation.output.frameRate
+    val slots = videoSlotsOf(clip.sourceDuration, rate)
+    val expected = copyPrefixOf(packets, clip.start, slots, rate).shouldBeInstanceOf<CopyPrefix.Packets>().count
+    withClue("the grid was meant to end inside a reorder group") { (expected > slots).shouldBeTrue() }
+    invocation.copyVideoPackets shouldBe expected
+    val arguments = invocation.arguments(TOOLCHAIN, FfmpegConfig(), listOf("/a.mp4"), emptyList(), "/out.mp4")
+    arguments[arguments.indexOf("-bsf:v") + 1] shouldBe "noise=drop=gte(n\\,$expected)"
+  }
+
+  // A copy that runs to the source's end has nothing past it to drop.
+  @Test
+  fun `a copy running to its source's end carries no packet count`() {
+    val clip = trimmedClip(end = SOURCE_LENGTH)
+
+    copyInvocationFor(clip, reorderedPackets(from = TRIM_START, frames = 12)).copyVideoPackets shouldBe null
   }
 
   // A looping track names the same clip once per pass, and one decoder per pass would mean opening
@@ -1386,7 +1418,20 @@ class GraphLoweringTest {
       speed = speed,
     )
 
-  private fun copyInvocationFor(clip: ResolvedClip): Invocation {
+  // A sync sample at [from], then groups of four in the order x264 writes them with two B-frames.
+  private fun reorderedPackets(
+    from: Duration,
+    frames: Int,
+  ): List<CopyPacket> {
+    val order =
+      listOf(0) + (1 until frames).chunked(4).flatMap { if (it.size < 4) it else listOf(it[3], it[1], it[0], it[2]) }
+    return order.map { CopyPacket(from + it.seconds / 30, key = it == 0) }
+  }
+
+  private fun copyInvocationFor(
+    clip: ResolvedClip,
+    packets: List<CopyPacket>? = null,
+  ): Invocation {
     val output = Size(1920, 1080)
     val negotiated =
       ResolvedComposition(
@@ -1420,7 +1465,8 @@ class GraphLoweringTest {
         encoderName = null,
       )
 
-    return GraphLowering(negotiated, hdrPixelFormat = null).build()
+    val count = packets?.let { negotiated.copyPrefixOf(it).shouldBeInstanceOf<CopyPrefix.Packets>().count }
+    return GraphLowering(negotiated, hdrPixelFormat = null, copyVideoPackets = count).build()
   }
 }
 

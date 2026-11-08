@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip.ffmpeg
 
+import dev.jordond.filmstrip.ffmpeg.internal.process.PACKET_DROP_FILTER
 import dev.jordond.filmstrip.ffmpeg.support.suiteToolchainProblem
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
@@ -66,23 +67,36 @@ class ToolchainGateTest {
     }
 
   @Test
+  fun `an ffmpeg at the floor without the bitstream filter a copy ends on is refused naming it`() =
+    runTest {
+      val problem = suiteToolchainProblem(stub("8.0.1-3ubuntu2", bitstreamFilters = emptyList())).shouldNotBeNull()
+
+      problem shouldContain "found `ffmpeg` 8.0.1-3ubuntu2"
+      problem shouldContain "no `$PACKET_DROP_FILTER` bitstream filter"
+      problem shouldContain "FILMSTRIP_FFMPEG"
+    }
+
+  @Test
   fun `the host toolchain passes`() =
     runTest {
       suiteToolchainProblem().shouldBeNull()
     }
 
   /**
-   * An ffmpeg that lists [encoders] and encodes with them, and fails any ten-bit encode.
+   * An ffmpeg that lists [encoders] and encodes with them, lists [bitstreamFilters], and fails any ten-bit encode.
    */
   private fun stub(
     version: String,
     encoders: List<String> = emptyList(),
+    bitstreamFilters: List<String> = listOf(PACKET_DROP_FILTER),
   ): FfmpegConfig {
     val listing = encoders.joinToString("\n") { " V..... $it  stub" }
+    val filters = (listOf("Bitstream filters:") + bitstreamFilters).joinToString("\n")
     script(
       "ffmpeg",
       "ffmpeg version $version Copyright (c) 2000-2025 the FFmpeg developers",
-      "*-encoders*) echo '$listing' ;; *format=p010le*|*format=yuv420p10le*) exit 1 ;; ",
+      "*-encoders*) echo '$listing' ;; *-bsfs*) echo '$filters' ;; " +
+        "*format=p010le*|*format=yuv420p10le*) exit 1 ;; ",
     )
     script("ffprobe", "ffprobe version $version")
     return FfmpegConfig(executablePath = File(directory, "ffmpeg").absolutePath)

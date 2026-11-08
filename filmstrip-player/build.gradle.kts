@@ -71,6 +71,7 @@ val playerFixtures =
     specs =
       listOf(
         FixtureSpec("apple_export_a", 640, 360, 30, 2.0, 48000, 2, bitrateKbps = 1_500),
+        FixtureSpec("apple_export_long", 1280, 720, 30, 12.0, 48000, 2, bitrateKbps = 6_000),
         FixtureSpec(
           "android_export_hdr",
           1280,

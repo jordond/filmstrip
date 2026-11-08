@@ -6,6 +6,10 @@ import dev.jordond.filmstrip.ffmpeg.FfmpegConfig
 import dev.jordond.filmstrip.ffmpeg.internal.FfmpegRuntime.Companion.of
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.SdColor
 import dev.jordond.filmstrip.ffmpeg.internal.probe.PROBE_ARGUMENTS
+import dev.jordond.filmstrip.ffmpeg.internal.probe.UNLISTED_PACKETS
+import dev.jordond.filmstrip.ffmpeg.internal.probe.copyPacketArguments
+import dev.jordond.filmstrip.ffmpeg.internal.probe.packetCapReason
+import dev.jordond.filmstrip.ffmpeg.internal.probe.parseCopyPacket
 import dev.jordond.filmstrip.ffmpeg.internal.probe.parseMediaInfo
 import dev.jordond.filmstrip.ffmpeg.internal.probe.parseSdColor
 import dev.jordond.filmstrip.ffmpeg.internal.probe.parseSyncSample
@@ -14,6 +18,7 @@ import dev.jordond.filmstrip.ffmpeg.internal.probe.parseVideoPixelFormat
 import dev.jordond.filmstrip.ffmpeg.internal.probe.syncSampleArguments
 import dev.jordond.filmstrip.ffmpeg.internal.process.BytesRoot
 import dev.jordond.filmstrip.ffmpeg.internal.process.DEFAULT_BYTES_ROOT
+import dev.jordond.filmstrip.ffmpeg.internal.process.FileStamp
 import dev.jordond.filmstrip.ffmpeg.internal.process.FrameStream
 import dev.jordond.filmstrip.ffmpeg.internal.process.LiveBinding
 import dev.jordond.filmstrip.ffmpeg.internal.process.LiveFeedRequest
@@ -24,9 +29,15 @@ import dev.jordond.filmstrip.ffmpeg.internal.process.ToolchainLocator
 import dev.jordond.filmstrip.ffmpeg.internal.process.ToolchainResult
 import dev.jordond.filmstrip.ffmpeg.internal.process.bindLiveFeeds
 import dev.jordond.filmstrip.ffmpeg.internal.process.exclusively
+import dev.jordond.filmstrip.ffmpeg.internal.process.fileStampOf
 import dev.jordond.filmstrip.media.MediaInfo
+import dev.jordond.filmstrip.transform.internal.copy.CopyPacket
+import dev.jordond.filmstrip.transform.internal.copy.CopyPacketRead
+import dev.jordond.filmstrip.transform.internal.copy.copyPacketCap
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import kotlin.time.Duration
 
 /**
@@ -45,14 +56,14 @@ internal class FfmpegRuntime private constructor(
   private val runner = ProcessRunner()
   private val locator = ToolchainLocator(config, runner)
   private val probeLock = Mutex()
-  private val probes = mutableMapOf<String, MediaInfo>()
+  private val probes = mutableMapOf<String, Stamped<MediaInfo>>()
 
   // Written beside probes by the one read that fills it, and held under the same lock.
-  private val sdColors = mutableMapOf<String, SdColor?>()
-  private val videoMatrices = mutableMapOf<String, String?>()
-  private val videoPixelFormats = mutableMapOf<String, String?>()
+  private val colorReads = mutableMapOf<String, Stamped<ColorRead>>()
   private val syncSampleLock = Mutex()
-  private val syncSamples = mutableMapOf<Pair<String, Duration>, Duration?>()
+  private val syncSamples = mutableMapOf<Triple<String, FileStamp?, Duration>, Duration?>()
+  private val copyPacketLock = Mutex()
+  private val copyPacketReads = mutableMapOf<String, PacketWindow>()
   private val capabilityLock = Mutex()
   private var capabilities: DeviceCapabilities? = null
 
@@ -67,6 +78,10 @@ internal class FfmpegRuntime private constructor(
 
   // How many times the sync-sample probe was actually spawned, counted the same way.
   var syncSampleSpawns: Int = 0
+    private set
+
+  // How many times a copy's packets were actually read, counted the same way.
+  var copyPacketSpawns: Int = 0
     private set
 
   // How many times the encoder ladder was actually measured, counted the same way.
@@ -118,16 +133,17 @@ internal class FfmpegRuntime private constructor(
   /**
    * Reads [path] through ffprobe, or null when it could not be read.
    *
-   * Each file read is cached by path, so a plan that names the same clip in several places spawns one ffprobe and a
-   * re-lowering spawns none. A path that could not be read is not held, so the next caller asks again and finds a
-   * file that turned up since.
+   * Each file read is cached by path and the file's [FileStamp], so a plan that names the same clip in several places
+   * spawns one ffprobe, a re-lowering spawns none, and a file rewritten at the same path is read again. A path that
+   * could not be read is not held, so the next caller asks again and finds a file that turned up since.
    */
   suspend fun probe(
     toolchain: Toolchain,
     path: String,
   ): MediaInfo? =
     probeLock.withLock {
-      probes[path] ?: read(toolchain, path)?.also { probes[path] = it }
+      val stamp = stampOf(path)
+      probes[path]?.valueAt(stamp) ?: read(toolchain, path, stamp)?.also { probes[path] = Stamped(stamp, it) }
     }
 
   /**
@@ -139,19 +155,7 @@ internal class FfmpegRuntime private constructor(
   suspend fun sdColor(
     toolchain: Toolchain,
     path: String,
-  ): SdColor? =
-    probeLock.withLock {
-      if (!sdColors.containsKey(path)) {
-        sdColorSpawns++
-        val output = capture(listOf(toolchain.ffprobe) + PROBE_ARGUMENTS + path)
-        if (output.started && output.exitCode == 0) {
-          sdColors[path] = parseSdColor(output.stdout)
-          videoMatrices[path] = parseVideoMatrix(output.stdout)
-          videoPixelFormats[path] = parseVideoPixelFormat(output.stdout)
-        }
-      }
-      sdColors[path]
-    }
+  ): SdColor? = colorRead(toolchain, path)?.sdColor
 
   /**
    * Whether [path]'s video stream is tagged BT.709, read off the spawn [sdColor] and [probe] already answer from.
@@ -159,10 +163,7 @@ internal class FfmpegRuntime private constructor(
   suspend fun isTaggedBt709(
     toolchain: Toolchain,
     path: String,
-  ): Boolean {
-    sdColor(toolchain, path)
-    return probeLock.withLock { videoMatrices[path] == BT709_MATRIX }
-  }
+  ): Boolean = colorRead(toolchain, path)?.matrix == BT709_MATRIX
 
   /**
    * Whether [path]'s video stream decodes to the plain 4:2:0 a clip's tail ends on, read the way [isTaggedBt709] is.
@@ -170,16 +171,27 @@ internal class FfmpegRuntime private constructor(
   suspend fun decodesToTailFormat(
     toolchain: Toolchain,
     path: String,
-  ): Boolean {
-    sdColor(toolchain, path)
-    return probeLock.withLock { videoPixelFormats[path] == TAIL_PIXEL_FORMAT }
-  }
+  ): Boolean = colorRead(toolchain, path)?.pixelFormat == TAIL_PIXEL_FORMAT
+
+  // What the probe spawn said about the video's colour, cached the way probe is, or null when it could not be read.
+  private suspend fun colorRead(
+    toolchain: Toolchain,
+    path: String,
+  ): ColorRead? =
+    probeLock.withLock {
+      val stamp = stampOf(path)
+      colorReads[path]?.valueAt(stamp)?.let { return@withLock it }
+      sdColorSpawns++
+      val output = capture(listOf(toolchain.ffprobe) + PROBE_ARGUMENTS + path)
+      if (!output.started || output.exitCode != 0) return@withLock null
+      colorReadOf(output.stdout).also { colorReads[path] = Stamped(stamp, it) }
+    }
 
   /**
    * The sync sample at or before [at] in [path]'s video stream, or null when there is none.
    *
-   * Cached by path and cut, negatives included, so the plan, the resolve behind a preview and the
-   * export of one edit read the same answer.
+   * Cached by path, the file's [FileStamp] and cut, negatives included, so the plan, the resolve behind a preview and
+   * the export of one edit read the same answer, and a file rewritten at the same path is read again.
    */
   suspend fun syncSampleAtOrBefore(
     toolchain: Toolchain,
@@ -187,28 +199,86 @@ internal class FfmpegRuntime private constructor(
     at: Duration,
   ): Duration? =
     syncSampleLock.withLock {
-      val key = path to at
+      val key = Triple(path, stampOf(path), at)
       if (syncSamples.containsKey(key)) return@withLock syncSamples[key]
       readSyncSample(toolchain, path, at).also { syncSamples[key] = it }
     }
 
   /**
+   * [path]'s video packets in decode order from [from] to [to], or why ffprobe could not list them.
+   *
+   * Only the latest window read for each path is held, with the file's [FileStamp], so the plan, the resolve behind a
+   * preview and the export of one edit count the same packets, a file rewritten at the same path is read again, and an
+   * edit whose window keeps moving holds one listing rather than one per window. A failed read is not held, so the
+   * next caller asks again. A read listing more than [dev.jordond.filmstrip.transform.internal.copy.copyPacketCap]
+   * packets is stopped there and fails naming the cap.
+   */
+  suspend fun copyPackets(
+    toolchain: Toolchain,
+    path: String,
+    from: Duration,
+    to: Duration,
+  ): CopyPacketRead =
+    copyPacketLock.withLock {
+      val stamp = stampOf(path)
+      copyPacketReads[path]
+        ?.takeIf { it.stamp == stamp && it.from == from && it.to == to }
+        ?.let { return@withLock CopyPacketRead.Read(it.packets) }
+      readCopyPackets(toolchain, path, from, to).also {
+        if (it is CopyPacketRead.Read) copyPacketReads[path] = PacketWindow(stamp, from, to, it.packets)
+      }
+    }
+
+  /**
+   * How many copy packet listings this runtime holds, one at most for each path.
+   */
+  suspend fun heldCopyPacketReads(): Int = copyPacketLock.withLock { copyPacketReads.size }
+
+  private suspend fun stampOf(path: String): FileStamp? = withContext(Dispatchers.IO) { fileStampOf(path) }
+
+  private class PacketWindow(
+    val stamp: FileStamp?,
+    val from: Duration,
+    val to: Duration,
+    val packets: List<CopyPacket>,
+  )
+
+  // An answer read off a file, held with the stamp the file had when it was read.
+  private class Stamped<T>(
+    val stamp: FileStamp?,
+    val value: T,
+  ) {
+    fun valueAt(current: FileStamp?): T? = value.takeIf { stamp == current }
+  }
+
+  private class ColorRead(
+    val sdColor: SdColor?,
+    val matrix: String?,
+    val pixelFormat: String?,
+  )
+
+  private fun colorReadOf(stdout: String): ColorRead =
+    ColorRead(parseSdColor(stdout), parseVideoMatrix(stdout), parseVideoPixelFormat(stdout))
+
+  /**
    * Reads [path] again, replacing whatever was cached for it.
    *
-   * For a file this process has just written. The cache is keyed by path, and a path written twice
-   * is two different files.
+   * For a file this process has just written, which a stamp read inside one tick of the file system's clock could take
+   * for the one it replaced. The packets a copy read off the old file are dropped too.
    */
   suspend fun reprobe(
     toolchain: Toolchain,
     path: String,
   ): MediaInfo? =
     probeLock.withLock {
-      read(toolchain, path).also {
+      copyPacketLock.withLock { copyPacketReads.remove(path) }
+      val stamp = stampOf(path)
+      read(toolchain, path, stamp).also {
         if (it == null) {
           probes.remove(path)
-          sdColors.remove(path)
+          colorReads.remove(path)
         } else {
-          probes[path] = it
+          probes[path] = Stamped(stamp, it)
         }
       }
     }
@@ -216,13 +286,12 @@ internal class FfmpegRuntime private constructor(
   private suspend fun read(
     toolchain: Toolchain,
     path: String,
+    stamp: FileStamp?,
   ): MediaInfo? {
     probeSpawns++
     val output = capture(listOf(toolchain.ffprobe) + PROBE_ARGUMENTS + path)
     if (!output.started || output.exitCode != 0) return null
-    sdColors[path] = parseSdColor(output.stdout)
-    videoMatrices[path] = parseVideoMatrix(output.stdout)
-    videoPixelFormats[path] = parseVideoPixelFormat(output.stdout)
+    colorReads[path] = Stamped(stamp, colorReadOf(output.stdout))
     return parseMediaInfo(output.stdout)
   }
 
@@ -235,6 +304,34 @@ internal class FfmpegRuntime private constructor(
     val output = capture(syncSampleArguments(toolchain, path, at))
     return if (output.started && output.exitCode == 0) parseSyncSample(output.stdout, at) else null
   }
+
+  private suspend fun readCopyPackets(
+    toolchain: Toolchain,
+    path: String,
+    from: Duration,
+    to: Duration,
+  ): CopyPacketRead {
+    copyPacketSpawns++
+    val cap = copyPacketCap(from, to)
+    val packets = mutableListOf<CopyPacket>()
+    val code =
+      try {
+        runner.run(
+          copyPacketArguments(toolchain, path, from, to),
+          onStdout = { line ->
+            parseCopyPacket(line)?.let { packets += it }
+            if (packets.size > cap) throw PacketCapReached()
+          },
+          onStderr = {},
+        )
+      } catch (_: PacketCapReached) {
+        return CopyPacketRead.Failed(packetCapReason(cap, from, to))
+      }
+    return if (code == 0) CopyPacketRead.Read(packets) else CopyPacketRead.Failed(UNLISTED_PACKETS)
+  }
+
+  // Thrown out of the line reader to stop a packet read at its cap, which also stops the child.
+  private class PacketCapReached : RuntimeException()
 
   /**
    * Resolves the toolchain and then reads [path], for a caller that holds no [Toolchain] of its own.

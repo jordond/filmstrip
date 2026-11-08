@@ -107,4 +107,22 @@ internal fun parseInputProtocols(output: String): Set<String> =
     .filter { it.isNotEmpty() }
     .toSet()
 
+/**
+ * The bitstream filter a copy that ends before its source does drops its video packets past the grid with.
+ *
+ * Every build this backend runs on carries it, and [ToolchainLocator] refuses one that does not.
+ */
+internal const val PACKET_DROP_FILTER: String = "noise"
+
+/**
+ * The names `-bsfs` lists, one a line under its heading.
+ */
+internal fun parseBitstreamFilters(output: String): Set<String> =
+  output
+    .substringAfter("Bitstream filters:", missingDelimiterValue = "")
+    .lineSequence()
+    .map { it.trim() }
+    .filter { it.isNotEmpty() }
+    .toSet()
+
 private val WHITESPACE = Regex("""\s+""")

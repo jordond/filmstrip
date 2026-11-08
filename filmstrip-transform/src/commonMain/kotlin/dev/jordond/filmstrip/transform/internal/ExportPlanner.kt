@@ -22,7 +22,9 @@ import dev.jordond.filmstrip.export.Verdict
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSource
+import dev.jordond.filmstrip.transform.internal.copy.CopyPacketWindow
 import dev.jordond.filmstrip.transform.internal.copy.CopySupport
+import dev.jordond.filmstrip.transform.internal.copy.copyPrefixPhaseOf
 import dev.jordond.filmstrip.transform.internal.negotiation.Ask
 import dev.jordond.filmstrip.transform.internal.negotiation.Framing
 import dev.jordond.filmstrip.transform.internal.negotiation.Grade
@@ -33,6 +35,7 @@ import dev.jordond.filmstrip.transform.internal.negotiation.concessionsOf
 import dev.jordond.filmstrip.transform.internal.negotiation.encodingOf
 import dev.jordond.filmstrip.transform.internal.negotiation.framingOf
 import dev.jordond.filmstrip.transform.internal.negotiation.gradeOf
+import dev.jordond.filmstrip.transform.internal.negotiation.laidWindowOf
 import dev.jordond.filmstrip.transform.internal.negotiation.orElse
 import dev.jordond.filmstrip.transform.internal.negotiation.outputFormatOf
 import dev.jordond.filmstrip.transform.internal.negotiation.resolveAudioCodec
@@ -135,6 +138,43 @@ public class ExportPlanner(
       is Phase.Next -> ExportGrade.Settled(graded.value.grade.hdr)
     }
 
+  /**
+   * The window an export of [composition] at [ask] copies whose packets an engine reads into [Ask.copyPackets], or
+   * null when it does not copy or the copy runs to its source's end.
+   *
+   * It runs the phases [exportGradeOf] does, so the window is the one the copy then opens and closes on. An edit
+   * carrying effects this device cannot run names the window of the plan [negotiate] falls back on without them, since
+   * that plan can copy where the edit itself cannot.
+   */
+  public fun copyPacketWindowOf(
+    composition: EditComposition,
+    ask: Ask,
+  ): CopyPacketWindow? {
+    windowOf(composition, ask)?.let { return it }
+    // Leaving every effect out is as far as the fallback can go, so an edit that does not copy even then is not
+    // negotiated again to find out which effects it would leave out.
+    val ids = composition.effectIds()
+    if (ids.isEmpty() || windowOf(composition.withoutEffectIds(ids), ask) == null) return null
+    val unsupported = (settle(composition, emptySet(), ask) as? Settlement.Unsupported)?.effects ?: return null
+    return windowOf(composition.withoutEffectIds(unsupported.keys), ask)
+  }
+
+  private fun windowOf(
+    composition: EditComposition,
+    ask: Ask,
+  ): CopyPacketWindow? {
+    val graded = (graded(composition, ask) as? Phase.Next)?.value ?: return null
+    val opensAt = graded.grade.copyOpensAt ?: return null
+    val clip =
+      graded.edit.tracks
+        .single()
+        .clips
+        .single()
+    val info = ask.infos.getValue(clip.source)
+    val window = laidWindowOf(clip, info, opensAt) ?: return null
+    return if (window.to < info.duration) CopyPacketWindow(clip.source, window.from, window.to) else null
+  }
+
   // The phases up to the grade, which an export goes on from and a preview reads its grade off.
   private fun graded(
     authored: EditComposition,
@@ -205,6 +245,9 @@ public class ExportPlanner(
       return Settlement.Settled(NegotiatedExport(refusal, null))
     }
     val adjustments = concessions.map { it.adjustment }
+    val copyPrefix =
+      copyPrefixPhaseOf(ask.copyPackets, grade.path, timeline.tracks, timeline.duration, output.frameRate)
+        .orElse { return refused(it) }
 
     val planned = plannedEffects(edit)
     val plan =
@@ -236,6 +279,7 @@ public class ExportPlanner(
         audio = edit.audio,
         adjustments = adjustments,
         encoderName = encoding.encoder?.encoderName,
+        copyPrefix = copyPrefix,
       )
     val verdict = if (adjustments.isEmpty()) Verdict.Capable(plan) else Verdict.Degraded(plan, adjustments)
     return Settlement.Settled(NegotiatedExport(verdict, resolved))
@@ -305,6 +349,9 @@ public class ExportPlanner(
     const val APPROXIMATE = "The preview and the export diverge by a bounded amount for this effect."
   }
 }
+
+private fun EditComposition.effectIds(): Set<String> =
+  (tracks.flatMap { track -> track.clips.flatMap { it.effects } + track.effects } + effects).map { it.id }.toSet()
 
 private fun EditComposition.withoutEffectIds(ids: Set<String>): EditComposition {
   if (ids.isEmpty()) return this

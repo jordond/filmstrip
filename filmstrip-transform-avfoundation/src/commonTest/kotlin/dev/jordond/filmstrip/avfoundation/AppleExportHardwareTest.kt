@@ -42,6 +42,8 @@ import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.test.LoopingCases
 import dev.jordond.filmstrip.test.ToneAnalysis
 import dev.jordond.filmstrip.transform.internal.ResolveResult
+import dev.jordond.filmstrip.transform.internal.copy.CopyPrefix
+import dev.jordond.filmstrip.transform.internal.copy.copyPrefixOf
 import dev.jordond.filmstrip.transform.internal.heldTail
 import dev.jordond.filmstrip.transform.internal.passesCovering
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedClip
@@ -1162,15 +1164,15 @@ class AppleExportHardwareTest {
   }
 
   /**
-   * A copy writes the source's own samples and shows them for exactly as long as the trim runs, so a trim ending off
-   * the frame grid shows every sample the source shows before that end.
+   * A copy trimmed off the frame grid writes the source's own samples and stops on the plan's grid, on the frames its
+   * preview shows.
    *
-   * 1.010 s is 30.3 frames of the fixture, so a copy cut on the grid would stop at 1.000 s and drop the sample shown
-   * from there. The samples a shown one is decoded from are written as well, past the end the copy stops showing at,
-   * so only the shown ones are compared.
+   * 1.010 s is 30.3 frames of the fixture, so the copy stops on the grid's 30 frames and drops the sample shown from
+   * 1.000 s. What it writes is the shared prefix of the source's samples, which takes in any reference presented past
+   * the grid that a frame on it decodes from.
    */
   @Test
-  fun `copies a clip trimmed off the frame grid sample for sample`() =
+  fun `copies a clip trimmed off the frame grid up to the grid`() =
     runTest(timeout = TIMEOUT) {
       val landscape = fixture("apple_export_a.mp4")
 
@@ -1179,15 +1181,28 @@ class AppleExportHardwareTest {
         .plan(composition, ExportSpec())
         .shouldBeInstanceOf<Verdict.Capable>()
         .plan.path shouldBe ExportPath.Copy
+      val resolved = resolved(composition, ExportSpec())
+      val gridEnd = outputSlotTime(resolved.videoSlots, resolved.output.frameRate)
+      withClue("the grid was meant to end before the trim") { (gridEnd < COPY_TRIM_END).shouldBeTrue() }
+      val packets =
+        readerPacketsOf(
+          AVURLAsset(uRL = NSURL.fileURLWithPath(landscape), options = null)
+            .tracksWithMediaType(AVMediaTypeVideo)
+            .single() as AVAssetTrack,
+        )
 
       val output = temporaryPath("off-grid-copy")
       filmstrip.exportOrFail(composition, ExportSpec(), output)
 
-      val shown = videoEndOf(output)
-      withClue("the copy shows its picture until $shown, not the $COPY_TRIM_END trim") {
-        ((shown - COPY_TRIM_END).absoluteValue <= SAMPLE_TOLERANCE).shouldBeTrue()
-      }
-      sampleTimesOf(output).filter { it < shown } shouldBe sampleTimesOf(landscape).filter { it < COPY_TRIM_END }
+      val written = sampleTimesOf(output)
+      val rate = resolved.output.frameRate
+      written.map { outputSlotOf(it, rate) } shouldBe
+        packets
+          .take(resolved.copyPrefixOf(packets).shouldBeInstanceOf<CopyPrefix.Packets>().count)
+          .map {
+            outputSlotOf(it.pts, rate)
+          }.sorted()
+      written.filter { it < gridEnd } shouldBe sampleTimesOf(landscape).filter { it < gridEnd }
 
       remove(output)
     }
@@ -1641,17 +1656,6 @@ class AppleExportHardwareTest {
         is ResolveResult.Resolved -> result.composition
       }
     }
-
-  /**
-   * Where the file at [path] stops showing its picture, read off its video track rather than the file's duration.
-   */
-  private fun videoEndOf(path: String): Duration {
-    val track =
-      AVURLAsset(uRL = NSURL.fileURLWithPath(path), options = null)
-        .tracksWithMediaType(AVMediaTypeVideo)
-        .single() as AVAssetTrack
-    return CMTimeRangeGetEnd(track.timeRange).toDuration()
-  }
 
   /**
    * The name the encoder stamped into this file's video format description.

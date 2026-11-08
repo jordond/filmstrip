@@ -63,9 +63,9 @@ val exportFixtures =
       ),
   )
 
-// Fails the build, naming why, before any test runs when this host's ffmpeg is missing, below the floor or has no
-// ten-bit encoder. It runs the same toolchain lookup the backend does, on the ffmpeg and ffprobe the tests get. Every
-// test task that calls usesHostFfmpeg depends on it.
+// Fails the build, naming why, before any test runs when this host's ffmpeg is missing, below the floor, lacks the
+// bitstream filter a copy ends on or has no ten-bit encoder. It runs the same toolchain lookup the backend does, on the
+// ffmpeg and ffprobe the tests get. Every test task that calls usesHostFfmpeg depends on it.
 tasks.register<JavaExec>("checkFfmpegTestToolchain") {
   description = "Fails when this host's ffmpeg cannot run the ffmpeg tests, naming why."
   val test = kotlin.jvm().compilations.getByName("test")

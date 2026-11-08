@@ -172,10 +172,25 @@ internal external class EncodedPacketSink(
   fun getFirstKeyPacket(): Promise<EncodedPacket?>
 
   /**
+   * The track's first packet in decode order, or null when it holds none, read with mediabunny's packet retrieval
+   * [options].
+   */
+  fun getFirstPacket(options: JsAny = definedExternally): Promise<EncodedPacket?>
+
+  /**
    * The last key packet whose timestamp is at or before [timestamp], in seconds, or null when the
    * track has none before it. This is the sample a relaxed seek lands on.
    */
   fun getKeyPacket(timestamp: Double): Promise<EncodedPacket?>
+
+  /**
+   * The packet after [packet] in decode order, or null when [packet] is the track's last. [options] is mediabunny's
+   * packet retrieval options, where `metadataOnly` reads the timestamp and type without the packet's data.
+   */
+  fun getNextPacket(
+    packet: EncodedPacket,
+    options: JsAny = definedExternally,
+  ): Promise<EncodedPacket?>
 
   /**
    * Packets from [startPacket] up to but excluding [endPacket], in decode order. Left at its

@@ -27,6 +27,8 @@ import dev.jordond.filmstrip.transform.internal.ExportGrade
 import dev.jordond.filmstrip.transform.internal.LoweredExport
 import dev.jordond.filmstrip.transform.internal.LoweringExportEngine
 import dev.jordond.filmstrip.transform.internal.ResolveResult
+import dev.jordond.filmstrip.transform.internal.copy.CopyAsk
+import dev.jordond.filmstrip.transform.internal.copy.withCopyPackets
 import dev.jordond.filmstrip.transform.internal.negotiation.Ask
 import dev.jordond.filmstrip.transform.internal.probe.PlanningReadResult
 import dev.jordond.filmstrip.transform.internal.probe.PlanningReads
@@ -90,7 +92,11 @@ public class BrowserExportEngine(
     // whatever the device can encode.
     val opaque = opaqueGrades(read.infos)
     val device = if (opaque.isEmpty()) read.device else read.device.withoutHdrEncoding()
-    return planner.lower(composition, Ask(spec, device, read.infos, read.openings, layoutSize, grade), opaque = opaque)
+    val asked = Ask(spec, device, read.infos, read.openings, layoutSize, grade)
+    return when (val withPackets = askedWithPackets(composition, asked)) {
+      is CopyAsk.Refused -> refusedLowering(withPackets.error)
+      is CopyAsk.Asked -> planner.lower(composition, withPackets.ask, opaque = opaque)
+    }
   }
 
   private suspend fun grade(
@@ -104,8 +110,18 @@ public class BrowserExportEngine(
       }
     val opaque = opaqueGrades(read.infos)
     val device = if (opaque.isEmpty()) read.device else read.device.withoutHdrEncoding()
-    return planner.exportGradeOf(composition, Ask(spec, device, read.infos, read.openings), opaque)
+    return when (val withPackets = askedWithPackets(composition, Ask(spec, device, read.infos, read.openings))) {
+      is CopyAsk.Refused -> ExportGrade.Refused(withPackets.error)
+      is CopyAsk.Asked -> planner.exportGradeOf(composition, withPackets.ask, opaque)
+    }
   }
+
+  // A copy ending before its source does has its video packets read before it is negotiated, so the plan counts the
+  // frames it writes and a read that fails refuses the plan rather than the export.
+  private suspend fun askedWithPackets(
+    composition: EditComposition,
+    ask: Ask,
+  ): CopyAsk = ask.withCopyPackets(planner.copyPacketWindowOf(composition, ask)) { sources.copyPacketsOf(it) }
 
   private fun run(
     render: BrowserRender,

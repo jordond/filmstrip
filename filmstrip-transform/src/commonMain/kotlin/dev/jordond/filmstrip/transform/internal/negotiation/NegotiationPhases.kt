@@ -19,6 +19,7 @@ import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.VideoTrackInfo
 import dev.jordond.filmstrip.transform.internal.ExportPlanner
+import dev.jordond.filmstrip.transform.internal.copy.CopyPacket
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedHdr
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedTrack
 import kotlin.time.Duration
@@ -58,6 +59,9 @@ internal class CodecChoice<C>(
  * @property grade The grade this negotiation takes as settled, which a preview reads off the export it stands in for
  * through [dev.jordond.filmstrip.transform.internal.ExportPlanner.exportGradeOf]. Null settles it from [spec], which is
  * what an export does.
+ * @property copyPackets The copied clip's video packets in decode order over the window
+ * [ExportPlanner.copyPacketWindowOf] names, for an engine that counts a copy ending before its source does by them.
+ * Packets with no presentation times block the copy with [CopyBlocker.SourceUntimed]. Null blocks nothing.
  */
 @InternalFilmstripApi
 public class Ask(
@@ -67,6 +71,7 @@ public class Ask(
   public val openings: Map<MediaSource, Duration> = emptyMap(),
   public val layoutSize: Size? = null,
   public val grade: ResolvedHdr? = null,
+  public val copyPackets: List<CopyPacket>? = null,
 ) {
   /**
    * Whether this negotiation writes no file, which is what being handed its [grade] means.

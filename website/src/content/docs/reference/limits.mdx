@@ -10,21 +10,48 @@ Each limit is named once here, with a link to the page that explains the feature
 An export that can copy its streams does, with no re-encode. `ExportPlan.copyBlockedBy` lists every reason one didn't,
 so you can see what to drop to get it back. See [Export](/guides/export/).
 
-| Source of the block | `CopyBlocker`                                                                             |
-| ------------------- | ----------------------------------------------------------------------------------------- |
-| The spec            | `FrameRateSet`, `VideoCodecNamed`, `AudioCodecNamed`, `HeightSet`, `BitrateSet`           |
-| The edit's shape    | `MultipleTracks`, `MultipleClips`, `TrackStartsLate`, `TrackDropsAStream`, `FrameResized` |
-| Effects             | `CompositionHasEffects`, `TrackHasEffects`, `ClipHasEffects`                              |
-| Audio               | `AudioSpecChanged`, `CompositionGainChanged`, `TrackGainChanged`, `ClipGainChanged`       |
-| Timing              | `ClipSpeedChanged`                                                                        |
-| The source          | `TrimNotOnSyncSample`, `MuxerRefusesSource`, `SourceCodecUnnameable`, `GradeMustToneMap`  |
-| The backend         | `BackendCannotCopy`                                                                       |
+| Source of the block | `CopyBlocker`                                                                                             |
+| ------------------- | --------------------------------------------------------------------------------------------------------- |
+| The spec            | `FrameRateSet`, `VideoCodecNamed`, `AudioCodecNamed`, `HeightSet`, `BitrateSet`                           |
+| The edit's shape    | `MultipleTracks`, `MultipleClips`, `TrackStartsLate`, `TrackDropsAStream`, `FrameResized`                 |
+| Effects             | `CompositionHasEffects`, `TrackHasEffects`, `ClipHasEffects`                                              |
+| Audio               | `AudioSpecChanged`, `CompositionGainChanged`, `TrackGainChanged`, `ClipGainChanged`                       |
+| Timing              | `ClipSpeedChanged`                                                                                        |
+| The source          | `TrimNotOnSyncSample`, `SourceUntimed`, `MuxerRefusesSource`, `SourceCodecUnnameable`, `GradeMustToneMap` |
+| The backend         | `BackendCannotCopy`                                                                                       |
 
 Every built-in backend can copy, so none of them reports `BackendCannotCopy`. `quality` blocks as `BitrateSet`, and
 `MatchSource` doesn't block at all.
 
 `Upload`, `Share` and `Archive` each name a codec, so those [presets](/guides/export/#presets) never copy. `Original`
 keeps the copy open.
+
+A copy writes the frames on every slot of the plan's `duration`, the count its preview shows, and stops in decode
+order on the packet that holds the last of them. When that frame is a B-frame, the references it decodes from are
+presented after the end, and the copy writes them too. That's the reorder residue, and it is never more than the
+source's reorder depth. A 30 fps H.264 source with two B-frames copied from 0 to 1.010 s writes the grid's 30 frames and
+nothing past them. Copied from 0 to 1.040 s it writes the grid's 31 and a residue of 2. Every backend writes those same
+frames, Android on API 30 and 36 alike. Everywhere but Android the audio runs to the trim's end either way.
+The residue can sit apart in time from the grid's frames. Playing the file, and every preview of the copy, holds the
+last frame before such a gap until the next written frame shows.
+
+On Android a copied clip's audio ends with its video, on the grid rather than at the trim's end, because media3 takes
+one clipping end for both tracks of a clip. Copied audio ends on a whole AAC access unit, 21.3 ms at 48 kHz, and media3
+picks which side of the grid's end that unit lands on, so the audio ends within one unit of the grid. For the 0 to
+1.010 s copy above, with a 1 s grid, it ran 1.003 s on API 30 and 0.981 s on API 36. For 0 to 1.040 s, with a 1.033 s
+grid, it ran 1.045 s on API 30.
+
+On ffmpeg, Apple and the browser the packet list a copy counts by is read when the export is planned, at up to 1000 fps
+over the window and one second past it. A source listing more packets than that, or one whose packets can't be listed,
+is refused at `plan()` with `SourceUnreadable`, naming why. So is a listing where no packet is presented on the copy's
+grid, since that copy would write no video.
+
+A copy counts its frames by the packets' presentation times, so a source that lists packets without them can't stop a
+copy that ends before the source does. An AVI holding B-frames reads that way. Such a clip transcodes and
+`copyBlockedBy` names `SourceUntimed`. Running the clip to the source's end keeps the copy, since that copy counts
+nothing.
+
+On Apple a copy's preview shows the frames its export writes, and holds the last of them where the audio runs past it.
 
 ## Encoder color
 

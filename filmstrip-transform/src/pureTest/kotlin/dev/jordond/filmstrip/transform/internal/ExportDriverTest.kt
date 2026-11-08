@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip.transform.internal
 
+import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.capability.DeviceCapabilities
 import dev.jordond.filmstrip.capability.EffectParity
 import dev.jordond.filmstrip.codec.VideoCodec
@@ -23,8 +24,15 @@ import dev.jordond.filmstrip.media.MediaProber
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.ProbeResult
+import dev.jordond.filmstrip.media.describe
+import dev.jordond.filmstrip.transform.internal.copy.CopyPacket
+import dev.jordond.filmstrip.transform.internal.copy.CopyPacketRead
+import dev.jordond.filmstrip.transform.internal.copy.CopyPacketWindow
+import dev.jordond.filmstrip.transform.internal.copy.CopyPrefix
+import dev.jordond.filmstrip.transform.internal.copy.copyPrefixOf
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
 import io.kotest.matchers.collections.shouldBeEmpty
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.flow.Flow
@@ -149,6 +157,67 @@ class ExportDriverTest {
     engine.parityOf("dev.jordond.filmstrip.unknown") shouldBe null
   }
 
+  // The packets are read before negotiating, so a plan, not the export after it, shows the copy is lost.
+  @Test
+  fun `packets the driver lists with no times move the plan off the copy`() =
+    runTest {
+      val trimmed = composition(packetClip())
+      val untimed = packets().map { CopyPacket(Duration.INFINITE, it.key) }
+      val driver = PacketDriver(fixture.device(), CopyPacketRead.Read(untimed))
+
+      val plan = engine(driver, trimmed).plan(trimmed, SPEC).shouldBeInstanceOf<Verdict.Capable>()
+
+      plan.plan.path shouldBe ExportPath.Transcode
+      plan.plan.copyBlockedBy shouldBe listOf(CopyBlocker.SourceUntimed)
+      driver.windows.single().from shouldBe 1_000.milliseconds
+      driver.windows.single().to shouldBe 3_000.milliseconds
+    }
+
+  @Test
+  fun `packets the driver cannot list refuse the plan as an unreadable source`() =
+    runTest {
+      val clip = packetClip()
+      val trimmed = composition(clip)
+      val driver = PacketDriver(fixture.device(), CopyPacketRead.Failed(UNLISTED))
+
+      val verdict = engine(driver, trimmed).plan(trimmed, SPEC).shouldBeInstanceOf<Verdict.Incapable>()
+
+      verdict.reasons.single() shouldBe FilmstripError.SourceUnreadable(clip.source.describe(), UNLISTED)
+    }
+
+  @Test
+  fun `the driver exports the count the plan settled on its packets`() =
+    runTest {
+      val trimmed = composition(packetClip())
+      val packets = packets()
+      val driver = PacketDriver(fixture.device(), CopyPacketRead.Read(packets))
+      val engine = engine(driver, trimmed)
+      val plan = engine.plan(trimmed, SPEC).shouldBeInstanceOf<Verdict.Capable>()
+
+      engine.export(plan.plan, SINK).toList()
+
+      val exported = driver.exported.single().first
+      val expected = exported.copyPrefixOf(packets).shouldBeInstanceOf<CopyPrefix.Packets>()
+      exported.copyPrefix.shouldNotBeNull().count shouldBe expected.count
+    }
+
+  @Test
+  fun `the grade an export resolves to reads the packets too`() =
+    runTest {
+      val trimmed = composition(packetClip())
+      val driver = PacketDriver(fixture.device(), CopyPacketRead.Failed(UNLISTED))
+
+      val grade = engine(driver, trimmed).exportGrade(trimmed, SPEC).shouldBeInstanceOf<ExportGrade.Refused>()
+
+      grade.error.shouldBeInstanceOf<FilmstripError.SourceUnreadable>().message shouldBe UNLISTED
+    }
+
+  private fun packetClip() =
+    fixture.clip(trim = TimeRange.of(1_000.milliseconds, 3_000.milliseconds), snapWithin = 500.milliseconds)
+
+  private fun packets(): List<CopyPacket> =
+    (0 until 90).map { CopyPacket(1_000.milliseconds + it.seconds / 30, key = it == 0) }
+
   private fun engine(
     driver: ExportDriver,
     composition: EditComposition,
@@ -240,6 +309,27 @@ private class RecordingDriver(
   }
 }
 
+/**
+ * A driver that names every cut as its own sync sample and answers each packet read with [read], recording the
+ * windows it was asked to read.
+ */
+private class PacketDriver(
+  device: DeviceCapabilities,
+  private val read: CopyPacketRead,
+) : DefaultSyncDriver(device) {
+  val windows = mutableListOf<CopyPacketWindow>()
+
+  override suspend fun syncSampleAtOrBefore(
+    source: MediaSource,
+    cut: Duration,
+  ): Duration = cut
+
+  override suspend fun copyPackets(window: CopyPacketWindow): CopyPacketRead {
+    windows += window
+    return read
+  }
+}
+
 private class MapProber(
   private val infos: Map<MediaSource, MediaInfo>,
 ) : MediaProber {
@@ -253,6 +343,8 @@ private fun firstResolvedClip(resolved: ResolvedComposition) =
     .first()
 
 private val SPEC = ExportSpec()
+
+private const val UNLISTED = "the packets could not be listed"
 
 private val SINK = MediaSink.of("/out/driver.mp4")
 

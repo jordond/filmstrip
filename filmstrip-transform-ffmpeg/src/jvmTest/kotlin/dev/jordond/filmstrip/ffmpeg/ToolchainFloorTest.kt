@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip.ffmpeg
 
+import dev.jordond.filmstrip.ffmpeg.internal.process.PACKET_DROP_FILTER
 import dev.jordond.filmstrip.ffmpeg.internal.process.ProcessRunner
 import dev.jordond.filmstrip.ffmpeg.internal.process.ToolchainLocator
 import dev.jordond.filmstrip.ffmpeg.internal.process.ToolchainResult
@@ -55,16 +56,33 @@ class ToolchainFloorTest {
       error.message shouldContain "ffmpeg 8.0 or newer"
     }
 
-  // Looks up a stand-in ffmpeg whose banner names [version], printing a libavformat line at [libavformat] when given.
+  @Test
+  fun `an ffmpeg without the bitstream filter a copy ends on is refused naming it`() =
+    runTest {
+      val error =
+        locate("8.0.1-3ubuntu2", bitstreamFilters = listOf("h264_mp4toannexb"))
+          .shouldBeInstanceOf<ToolchainResult.Unavailable>()
+          .error
+
+      error.tool shouldBe "ffmpeg"
+      error.foundVersion shouldBe "8.0.1-3ubuntu2"
+      error.message shouldContain "no `$PACKET_DROP_FILTER` bitstream filter"
+      error.message shouldContain "ffmpeg 8.0 or newer"
+    }
+
+  // Looks up a stand-in ffmpeg whose banner names [version], printing a libavformat line at [libavformat] when given,
+  // and listing [bitstreamFilters] when asked for them.
   private suspend fun locate(
     version: String,
     libavformat: Int? = null,
+    bitstreamFilters: List<String> = listOf(PACKET_DROP_FILTER),
   ): ToolchainResult {
     val directory = Files.createTempDirectory("filmstrip-floor").toFile()
     try {
       val library = libavformat?.let { "\nlibavformat    $it.  3.100 / $it.  3.100" }.orEmpty()
       val banner = "ffmpeg version $version Copyright (c) 2000-2025 the FFmpeg developers$library"
-      val ffmpeg = script(directory, "ffmpeg", banner)
+      val listing = (listOf("Bitstream filters:") + bitstreamFilters).joinToString("\n")
+      val ffmpeg = script(directory, "ffmpeg", banner, listing)
       script(directory, "ffprobe", "ffprobe version $version")
       return ToolchainLocator(FfmpegConfig(executablePath = ffmpeg.absolutePath), ProcessRunner()).toolchain()
     } finally {
@@ -76,9 +94,13 @@ class ToolchainFloorTest {
     directory: File,
     name: String,
     banner: String,
+    bitstreamFilters: String = "",
   ): File =
     File(directory, name).apply {
-      writeText("#!/bin/sh\nprintf '%s\\n' '$banner'\n")
+      writeText(
+        "#!/bin/sh\ncase \"$*\" in *-bsfs*) printf '%s\\n' '$bitstreamFilters' ;; " +
+          "*) printf '%s\\n' '$banner' ;; esac\n",
+      )
       setExecutable(true)
     }
 }

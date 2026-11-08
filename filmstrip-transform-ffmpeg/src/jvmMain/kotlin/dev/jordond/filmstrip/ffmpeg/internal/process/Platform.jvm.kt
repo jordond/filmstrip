@@ -7,6 +7,10 @@ import kotlinx.coroutines.runInterruptible
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.IOException
+import java.nio.file.Files
+import java.nio.file.InvalidPathException
+import java.nio.file.Paths
+import java.nio.file.attribute.BasicFileAttributes
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.coroutines.cancellation.CancellationException
@@ -144,6 +148,16 @@ internal actual fun executableSuffixes(): List<String> {
 internal actual fun absolutePathOf(path: String): String = File(path).absolutePath
 
 internal actual suspend fun <T> interruptibly(block: () -> T): T = runInterruptible(Dispatchers.IO, block)
+
+internal actual fun fileStampOf(path: String): FileStamp? =
+  try {
+    val attributes = Files.readAttributes(Paths.get(path), BasicFileAttributes::class.java)
+    FileStamp(attributes.size(), attributes.lastModifiedTime().to(TimeUnit.NANOSECONDS))
+  } catch (_: IOException) {
+    null
+  } catch (_: InvalidPathException) {
+    null
+  }
 
 /**
  * One ffmpeg child, read a frame at a time.

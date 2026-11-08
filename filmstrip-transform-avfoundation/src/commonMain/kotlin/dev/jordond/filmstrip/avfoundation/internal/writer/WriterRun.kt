@@ -63,6 +63,9 @@ import kotlin.time.TimeSource
  * A reader and a writer on every path, copy included, so a bitrate, an output size and a frame
  * rate are settable everywhere [dev.jordond.filmstrip.export.OutputFormat] promises them, and
  * progress stays linear in the work done.
+ *
+ * @param copyVideoPackets How many video samples a copy writes before its video stops, or null when it writes every
+ * sample the composition holds.
  */
 @OptIn(ExperimentalForeignApi::class, BetaInteropApi::class)
 internal class WriterRun(
@@ -70,6 +73,7 @@ internal class WriterRun(
   private val resolved: ResolvedComposition,
   private val composition: AvComposition,
   private val destination: AvDestination,
+  private val copyVideoPackets: Int? = null,
   private val announcesStart: Boolean = true,
 ) {
   private val queue = dispatch_queue_create(QUEUE_LABEL, attr = null)
@@ -151,16 +155,16 @@ internal class WriterRun(
     val videoHint = videoTracks.copyFormatHint()
     val audioHint = audioTracks.copyFormatHint()
 
+    // A copying input carries no output settings, so the only thing describing what it is
+    // writing is the source's format. Without one there is nothing to copy and the encode
+    // is the honest answer.
+    val copies =
+      resolved.path == ExportPath.Copy &&
+        videoHint != null &&
+        (audioTracks.isEmpty() || audioHint != null)
+
     val pumps =
       try {
-        // A copying input carries no output settings, so the only thing describing what it is
-        // writing is the source's format. Without one there is nothing to copy and the encode
-        // is the honest answer.
-        val copies =
-          resolved.path == ExportPath.Copy &&
-            videoHint != null &&
-            (audioTracks.isEmpty() || audioHint != null)
-
         if (refusesFallbackEncode(resolved.path, copies, resolved.hdrTransfer)) {
           return Startup.Rejected(FilmstripError.InvalidComposition(NO_HDR_COPY))
         }
@@ -184,6 +188,7 @@ internal class WriterRun(
         composition = composition,
         clockFrameRate = clockFrameRate,
         videoSlots = resolved.videoSlots,
+        copyVideoPackets = copyVideoPackets.takeIf { copies },
         failure = { error, side -> error.toFilmstripError(side) },
       )
     session.drive()

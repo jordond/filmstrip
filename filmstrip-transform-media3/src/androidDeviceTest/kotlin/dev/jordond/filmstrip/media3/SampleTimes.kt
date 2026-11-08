@@ -39,6 +39,15 @@ internal fun videoTrackLength(file: File): Duration =
   }
 
 /**
+ * How long [file]'s audio track runs, as its container records it.
+ */
+internal fun audioTrackLength(file: File): Duration =
+  MediaExtractor().releasing { extractor ->
+    extractor.setDataSource(file.path)
+    extractor.getTrackFormat(extractor.trackOf(AUDIO)).getLong(MediaFormat.KEY_DURATION).microseconds
+  }
+
+/**
  * Copies the opening of [source]'s picture into [target] without decoding it, ending the copy part way into its last
  * frame.
  *
@@ -98,6 +107,8 @@ private fun MediaExtractor.trackOf(kind: String): Int =
   (0 until trackCount).first { getTrackFormat(it).getString(MediaFormat.KEY_MIME)?.startsWith(kind) == true }
 
 private const val VIDEO = "video/"
+
+private const val AUDIO = "audio/"
 
 // Comfortably more than one encoded frame of any fixture this suite copies.
 private const val SAMPLE_BUFFER_BYTES = 4 * 1024 * 1024
