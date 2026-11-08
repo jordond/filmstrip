@@ -11,6 +11,7 @@ import dev.jordond.filmstrip.player.contract.contractTest
 import dev.jordond.filmstrip.player.contract.withEngine
 import dev.jordond.filmstrip.player.internal.BrowserPlayerEngine
 import dev.jordond.filmstrip.player.internal.loopWrapOf
+import dev.jordond.filmstrip.player.internal.seekLandingOf
 import dev.jordond.filmstrip.webcodecs.internal.preview.BrowserPreview
 import io.kotest.assertions.withClue
 import io.kotest.matchers.booleans.shouldBeTrue
@@ -94,8 +95,8 @@ class WebSeekLandingTest {
     }
 
   // The playhead sits past the wrap point with playback running, and the relaxed seek back into the range is held.
-  // Nothing wraps until it lands, the playhead reads its target meanwhile, and the lap after it lands on the range's
-  // first slot.
+  // Nothing wraps until it lands, the playhead reads the slot its target lands on meanwhile, and the lap after it lands
+  // on the range's first slot.
   @Test
   fun `no wrap is taken while a seek that is not a wrap is in flight`() =
     contractTest { scope ->
@@ -149,8 +150,8 @@ class WebSeekLandingTest {
         withClue("The hold ended after ${waiting.size} playhead readings.") {
           (waiting.size >= HELD_READINGS).shouldBeTrue()
         }
-        // The playhead holds the seek's target until it lands, whatever the clock reads past the wrap.
-        waiting.forEach { it shouldBe HELD_TARGET }
+        // The playhead holds the slot the target lands on until the seek lands, whatever the clock reads past the wrap.
+        waiting.forEach { it shouldBe seekLandingOf(HELD_TARGET, duration, FIXTURE_FRAME_RATE) }
         (entries[landed] as PlaybackEvent.SeekCompleted).position shouldBe landing
 
         val after = entries.drop(landed + 1).filterIsInstance<PlaybackEvent>()
