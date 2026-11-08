@@ -1,6 +1,7 @@
 package dev.jordond.filmstrip.effects.overlay
 
 import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.picture.picturePeakBytes
 import kotlinx.cinterop.BetaInteropApi
 import kotlinx.cinterop.CPointer
 import kotlinx.cinterop.ExperimentalForeignApi

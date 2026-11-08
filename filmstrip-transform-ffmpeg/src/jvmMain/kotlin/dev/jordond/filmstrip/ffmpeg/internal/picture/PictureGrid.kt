@@ -1,167 +1,240 @@
 package dev.jordond.filmstrip.ffmpeg.internal.picture
 
+import dev.jordond.filmstrip.color.PictureColor
+import dev.jordond.filmstrip.color.YcbcrReading
+import dev.jordond.filmstrip.color.pictureCodesFor
+import dev.jordond.filmstrip.color.ycbcrCodes
+import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.picture.heif.HeifCanvasFill
 import dev.jordond.filmstrip.picture.heif.HeifGrid
+import dev.jordond.filmstrip.picture.heif.HeifGridRead
 import dev.jordond.filmstrip.picture.heif.HeifOverlay
+import dev.jordond.filmstrip.picture.heif.HeifOverlayRead
 import dev.jordond.filmstrip.picture.heif.heifPrimaryGrid
 import dev.jordond.filmstrip.picture.heif.heifPrimaryOverlay
 import dev.jordond.filmstrip.picture.heifPrimaryIsTiled
 import kotlin.math.roundToInt
 
 /**
- * The ffmpeg arguments that take an AVIF or HEIC's primary image through a filter graph, or why it cannot be taken.
+ * How the primary image of an AVIF or HEIC is laid out, as [primaryLayout] reads it.
  */
-internal sealed interface PrimaryGraph {
+internal sealed interface PrimaryLayout {
   /**
-   * The graph arguments, which go after the input and before the output.
-   *
-   * @property arguments The arguments, a `-vf` or `-filter_complex` and its graph, with anything the graph needs.
+   * A primary image ffmpeg decodes as one stream, or a picture that is not an AVIF or HEIC.
    */
-  class Graph(
-    val arguments: List<String>,
-  ) : PrimaryGraph
+  object Single : PrimaryLayout
 
   /**
-   * A primary image this backend cannot put together.
+   * A primary image put together from coded images on a canvas of [size].
+   *
+   * @property size The width and height of the canvas.
+   */
+  sealed interface Assembled : PrimaryLayout {
+    val size: Size
+  }
+
+  /**
+   * A `grid`, as [heifPrimaryGrid] reads it.
+   *
+   * @property grid The layout.
+   */
+  class Grid(
+    val grid: HeifGrid,
+  ) : Assembled {
+    override val size: Size
+      get() = grid.size
+  }
+
+  /**
+   * An `iovl`, as [heifPrimaryOverlay] reads it.
+   *
+   * @property overlay The layout.
+   */
+  class Overlay(
+    val overlay: HeifOverlay,
+  ) : Assembled {
+    override val size: Size
+      get() = overlay.size
+  }
+
+  /**
+   * A primary image this backend does not put together.
    *
    * @property reason Why, in a sentence a person reads.
    */
   class Refused(
     val reason: String,
-  ) : PrimaryGraph
+  ) : PrimaryLayout
 }
 
 /**
- * How the primary image of a picture whose encoded [bytes] are given, or null when this process cannot read them,
- * goes through [filter].
+ * How the primary image of a picture whose encoded [bytes] are given, or null when this process cannot read them, is
+ * laid out.
  *
- * A `grid` goes through [assembledGrid] and an `iovl` through [assembledOverlay], each a complex graph that maps every
- * input by its item id. An `iovl`'s inputs are turned into RGB before they are drawn when [rgb] is set, which is how a
- * picture that comes back as RGB is read. One derived from its inputs any other way is refused, since ffmpeg would bind the graph to one
- * input alone. Every other picture goes through a simple graph, whose input is the stream ffmpeg picks for its output,
- * and for a HEIF file that is the primary item rather than a thumbnail written ahead of it.
+ * A `grid` that [heifPrimaryGrid] refuses or an `iovl` that [heifPrimaryOverlay] refuses is refused with core's
+ * reason. One derived from its inputs any other way, as [heifPrimaryIsTiled] reads it, is refused with
+ * [UNASSEMBLED_REASON]. Every other picture, and one whose bytes are null, is [PrimaryLayout.Single].
  */
-internal fun primaryGraph(
-  bytes: ByteArray?,
-  filter: String,
-  rgb: Boolean,
-): PrimaryGraph {
-  if (bytes == null) return PrimaryGraph.Graph(listOf("-vf", filter))
-  heifPrimaryGrid(bytes)?.let { return PrimaryGraph.Graph(listOf("-filter_complex", assembledGrid(it, filter))) }
-  heifPrimaryOverlay(bytes)?.let {
-    val graph = assembledOverlay(it, filter, rgb)
-    return PrimaryGraph.Graph(listOf("-filter_complex_threads", "1", "-filter_complex", graph))
+internal fun primaryLayout(bytes: ByteArray?): PrimaryLayout {
+  if (bytes == null) return PrimaryLayout.Single
+  heifPrimaryGrid(bytes)?.let { read ->
+    return when (read) {
+      is HeifGridRead.Read -> PrimaryLayout.Grid(read.grid)
+      is HeifGridRead.Refused -> PrimaryLayout.Refused(read.reason)
+    }
   }
-  if (heifPrimaryIsTiled(bytes)) return PrimaryGraph.Refused(UNASSEMBLED_REASON)
-  return PrimaryGraph.Graph(listOf("-vf", filter))
+  heifPrimaryOverlay(bytes)?.let { read ->
+    return when (read) {
+      is HeifOverlayRead.Read -> PrimaryLayout.Overlay(read.overlay)
+      is HeifOverlayRead.Refused -> PrimaryLayout.Refused(read.reason)
+    }
+  }
+  return if (heifPrimaryIsTiled(bytes)) PrimaryLayout.Refused(UNASSEMBLED_REASON) else PrimaryLayout.Single
 }
 
 /**
- * The filter graph that puts [grid]'s tiles together and runs the assembled picture through [filter].
+ * How [grid] is put together and run through [filter].
  *
- * Each tile is mapped by its id, which is the id ffmpeg gives the stream it reads the tile as, and stacked in rows by
- * [HeifGrid.columns]. The whole is cropped to [HeifGrid.size] from its top left before [filter] runs. No other stream
- * the file lists, such as a thumbnail, is an input.
+ * Each tile is decoded as it is stored, at its own depth and subsampling, and the tiles are laid in rows on a canvas
+ * the size of [HeifGrid.size], which crops the grid from its top left. The canvas takes the first tile's sample aspect
+ * ratio and range and then goes through [filter].
+ *
+ * A grid on the [planes] route whose reading is [YcbcrReading.Identity] runs each tile through [filter] instead. Its
+ * tiles decode as planar GBR, which `yuv4mpegpipe` does not carry, and the route's `mergeplanes` only renames each
+ * sample's planes, so it lands the same on a tile as on the canvas.
  */
-internal fun assembledGrid(
+internal fun gridAssembly(
   grid: HeifGrid,
   filter: String,
-): String {
-  val inputs = grid.tiles.joinToString("") { "[0:#$it]" }
-  val layout =
-    grid.tiles.indices.joinToString("|") { index ->
-      "${offset(index % grid.columns, "w0")}_${offset(index / grid.columns, "h0")}"
-    }
-  val stacked = if (grid.tiles.size == 1) "" else "xstack=inputs=${grid.tiles.size}:layout=$layout,"
-  return "$inputs${stacked}crop=${grid.size.width}:${grid.size.height}:0:0,$filter"
+  planes: PictureRoute.Planes? = null,
+): Assembly {
+  val merged = planes?.reading == YcbcrReading.Identity
+  val tile = if (merged) filter else PASS_THROUGH
+  val post = if (merged) PASS_THROUGH else filter
+  return Assembly(grid.size, AssemblyLayout.Tiles(grid), tile, FrameKind.Y4m, null, { null }, null, post)
 }
 
 /**
- * The filter graph that runs each of [overlay]'s inputs through [filter] and draws them over its canvas.
+ * How [overlay] is put together as RGB, each input run through [filter] on its own, so no input's subsampled color
+ * reaches the canvas beside it.
  *
- * Each input is mapped by its id and goes through [filter] on its own, so no input's subsampled color reaches the
- * canvas beside it. With [rgb] set it is held to eight or sixteen-bit RGB after that, so the canvas is painted in RGB
- * too. The inputs are placed at their offsets by `xstack`, which copies them in the order the overlay lists them, so a
- * later one lands over an earlier one where they meet. The graph only keeps that order when ffmpeg
- * runs it on one thread, so the arguments [primaryGraph] hands over hold it to one. Everything is moved right and down
- * by the farthest an input starts left of or above the canvas, then `pad` grows the frame to the whole canvas and the
- * canvas is cropped back out. Both paint what no input covers [HeifOverlay.fill], through the [canvasColor] ffmpeg
- * draws with.
+ * Each input is held to eight-bit RGB after [filter], with an alpha channel only when a fill that is not opaque shows,
+ * so the canvas keeps the fill's alpha and a canvas the inputs cover whole stays opaque. The part of each input
+ * [HeifOverlay.shown] says lands on the canvas is drawn at its offset in the order the overlay lists them, so a later
+ * one lands over an earlier one where they meet. What no input covers is [HeifOverlay.fill] in the texels
+ * [canvasTexels] gives for a picture described by [color]. The canvas takes the frame properties of the first input
+ * that lands on it, or of the first input when none does.
  */
-internal fun assembledOverlay(
+internal fun overlayAssembly(
   overlay: HeifOverlay,
   filter: String,
-  rgb: Boolean,
-): String {
-  val left = minOf(0, overlay.inputs.minOf { it.x })
-  val top = minOf(0, overlay.inputs.minOf { it.y })
-  val width = overlay.size.width - left
-  val height = overlay.size.height - top
-  val color = canvasColor(overlay.fill)
-  val pin = if (rgb) ",format=pix_fmts=rgb24|rgb48le" else ""
-  val inputs = overlay.inputs.indices.joinToString("") { "[$INPUT$it]" }
-  val read = overlay.inputs.withIndex().joinToString("") { (at, input) -> "[0:#${input.item}]$filter$pin[$INPUT$at];" }
-  val placed =
-    if (overlay.inputs.size == 1) {
-      val input = overlay.inputs.single()
-      val x = input.x - left
-      val y = input.y - top
-      "pad=w='max(iw+$x,$width)':h='max(ih+$y,$height)':x=$x:y=$y:color=$color"
-    } else {
-      val layout = overlay.inputs.joinToString("|") { "${it.x - left}_${it.y - top}" }
-      "xstack=inputs=${overlay.inputs.size}:layout=$layout:fill=$color," +
-        "pad=w='max(iw,$width)':h='max(ih,$height)':x=0:y=0:color=$color"
-    }
-  return "$read$inputs$placed,crop=${overlay.size.width}:${overlay.size.height}:${-left}:${-top}"
+  color: PictureColor?,
+): Assembly {
+  val pin = if (overlay.fill.opaque || !overlay.fillShown) "rgb24" else "rgba"
+  val read = "$filter,format=$pin"
+  val layout = AssemblyLayout.Cuts(overlay.shown, overlay.inputs.first().item)
+  val texels = { format: String -> canvasTexels(overlay.fill, color, format) }
+  return Assembly(overlay.size, layout, read, FrameKind.Pam, null, texels, "$read,$PASS_THROUGH", PASS_THROUGH)
 }
 
 /**
- * The color [fill] is painted in, as ffmpeg spells an opaque one.
+ * How [overlay] is put together as samples of [canvas]'s format, each input run through [filter] on its own.
  *
- * ffmpeg's limit, not the overlay's: `xstack` and `pad` take eight bits a channel, so each sixteen-bit channel is
- * rounded to the nearest eight-bit code, and they paint it into a frame with no alpha.
+ * The canvas is painted with [PlanesCanvas.codes], so no matrix ffmpeg picks touches it, and the part of each input
+ * [HeifOverlay.shown] says lands on it is drawn at its offset in the order the overlay lists them. The canvas and every
+ * input are tagged with one range and matrix, and the canvas goes through [post] after that.
  */
-internal fun canvasColor(fill: HeifCanvasFill): String {
-  val code = { wide: Int -> (wide * BYTE_MAX / WIDE_MAX).roundToInt() }
-  return "0x%02X%02X%02X".format(code(fill.red), code(fill.green), code(fill.blue))
-}
-
-/**
- * Why an `iovl` picture is not drawn, or null when it can be.
- *
- * Only a canvas color some texel shows matters. ffmpeg paints it into a frame with no alpha, so a fill that is not
- * opaque is refused. A picture whose [planes] route turns its samples into color in core is refused too, since its
- * canvas is painted into those YCbCr samples through a matrix ffmpeg picks, not the picture's.
- */
-internal fun overlayFillReason(
+internal fun planesAssembly(
   overlay: HeifOverlay,
-  planes: Boolean,
-): String? =
-  when {
-    !overlay.fillShown -> null
-    !overlay.fill.opaque -> TRANSLUCENT_FILL_REASON
-    planes -> PLANES_FILL_REASON
-    else -> null
-  }
+  filter: String,
+  canvas: PlanesCanvas,
+  post: String = "",
+): Assembly {
+  val tag = "setparams=range=${if (canvas.fullRange) "pc" else "tv"}:colorspace=bt709"
+  val texels = { format: String -> canvasPlanes(format)?.let { canvas.texels(it) } }
+  return Assembly(
+    overlay.size,
+    AssemblyLayout.Cuts(overlay.shown, unshown = null),
+    "$filter,$tag",
+    FrameKind.Y4m,
+    canvas.format,
+    texels,
+    null,
+    "$tag,setsar=1$post",
+  )
+}
 
-// [count] tiles of [side] along one axis, as an xstack layout expression.
-private fun offset(
-  count: Int,
-  side: String,
-): String = if (count == 0) "0" else List(count) { side }.joinToString("+")
+/**
+ * The texels [fill] paints on an RGB canvas of the ffmpeg pixel format [format], for a picture described by [color],
+ * or null for a format that is not packed RGB.
+ *
+ * The fill is sRGB, so its red, green and blue are the codes [pictureCodesFor] gives for [color], and its alpha is kept
+ * as it is, each rounded to the nearest eight-bit code. A canvas with no alpha channel leaves the alpha out.
+ */
+internal fun canvasTexels(
+  fill: HeifCanvasFill,
+  color: PictureColor?,
+  format: String,
+): List<ByteArray>? {
+  val (red, green, blue) = pictureCodesFor(fill.red, fill.green, fill.blue, color)
+  val codes = listOf(red, green, blue, fill.alpha).map { (it * BYTE_MAX / WIDE_MAX).roundToInt().toByte() }
+  val texel =
+    when (format) {
+      "rgb24" -> codes.take(RGB)
+      "rgba" -> codes
+      else -> return null
+    }
+  return listOf(texel.toByteArray())
+}
+
+/**
+ * A canvas laid as samples of [format], each plane holding one of [codes] in order, tagged with the range [fullRange]
+ * gives.
+ */
+internal class PlanesCanvas(
+  val format: String,
+  val codes: IntArray,
+  val fullRange: Boolean,
+) {
+  /**
+   * One texel a plane of [planes], each code one byte for a plane of one-byte samples and two little-endian bytes past
+   * that.
+   */
+  fun texels(planes: List<Plane>): List<ByteArray> =
+    planes.mapIndexed { index, plane ->
+      val code = codes[index]
+      if (plane.texelBytes ==
+        1
+      ) {
+        byteArrayOf(code.toByte())
+      } else {
+        byteArrayOf(code.toByte(), (code shr BYTE_BITS).toByte())
+      }
+    }
+
+  companion object {
+    /**
+     * The canvas that paints [fill] on a picture described by [color] whose frame [route] reads. The fill's codes in
+     * the picture's own color, as [pictureCodesFor] gives them, are coded the way [route] reads samples by
+     * [ycbcrCodes].
+     */
+    fun of(
+      fill: HeifCanvasFill,
+      color: PictureColor?,
+      route: PictureRoute.Planes,
+    ): PlanesCanvas {
+      val (red, green, blue) = pictureCodesFor(fill.red, fill.green, fill.blue, color)
+      val codes = route.reading.ycbcrCodes(red, green, blue, route.bitDepth, route.fullRange)
+      return PlanesCanvas(planarYuv(route.bitDepth), codes, route.fullRange)
+    }
+  }
+}
 
 internal const val UNASSEMBLED_REASON =
   "The overlay image's primary item is derived from other images in a way filmstrip does not put together on ffmpeg, " +
     "so this overlay picture cannot be drawn."
 
-internal const val TRANSLUCENT_FILL_REASON =
-  "The overlay image is an image overlay whose canvas color is not opaque, and ffmpeg paints the canvas into a frame " +
-    "with no alpha, so this overlay picture cannot be drawn."
-
-internal const val PLANES_FILL_REASON =
-  "The overlay image is an image overlay whose canvas shows, and ffmpeg paints the canvas through a YCbCr matrix the " +
-    "picture's own matrix is not, so this overlay picture cannot be drawn."
-
-private const val INPUT = "input"
+private const val RGB = 3
+private const val BYTE_BITS = 8
 private const val BYTE_MAX = 255.0
 private const val WIDE_MAX = 65535

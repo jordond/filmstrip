@@ -5,16 +5,11 @@ import dev.jordond.filmstrip.effects.overlay.OverlayPictureRead
 import dev.jordond.filmstrip.effects.overlay.StoredSamples
 import dev.jordond.filmstrip.ffmpeg.internal.picture.FfmpegPictureDecoder
 import dev.jordond.filmstrip.ffmpeg.internal.picture.PictureRoute
-import dev.jordond.filmstrip.ffmpeg.internal.picture.alphaFrame
-import dev.jordond.filmstrip.ffmpeg.internal.picture.assembledGrid
 import dev.jordond.filmstrip.ffmpeg.internal.picture.fullRangeAlpha
 import dev.jordond.filmstrip.ffmpeg.internal.picture.pictureRoute
-import dev.jordond.filmstrip.ffmpeg.internal.picture.tiledAlpha
 import dev.jordond.filmstrip.ffmpeg.support.alphaStill
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ImageSource
-import dev.jordond.filmstrip.picture.heif.HeifAlpha
-import dev.jordond.filmstrip.picture.heif.HeifGrid
 import dev.jordond.filmstrip.picture.pictureYcbcrCoding
 import dev.jordond.filmstrip.test.AlphaPlanes
 import dev.jordond.filmstrip.test.CicpTag
@@ -126,20 +121,6 @@ class FfmpegPictureAlphaTest {
     assertAlpha(decoded(grid(null)), drawn) { x, y ->
       AlphaPlanes.avifTileAlpha(x / tile + 3 * (y / tile), x % tile, y % tile)
     }
-  }
-
-  @Test
-  fun `alpha tiles stack in rows by the grid's columns and crop to its size`() {
-    val grid = HeifGrid((7L..12L).toList(), columns = 3, rows = 2, size = Size(20, 16))
-    assembledGrid(HeifGrid(listOf(2L, 3L), 2, 1, Size(15, 8)), "null") shouldBe
-      "[0:#2][0:#3]xstack=inputs=2:layout=0_0|w0_0,crop=15:8:0:0,null"
-    tiledAlpha(grid) shouldBe
-      "[0:#7][0:#8][0:#9][0:#10][0:#11][0:#12]xstack=inputs=6:layout=0_0|w0_0|w0+w0_0|0_h0|w0_h0|w0+w0_h0," +
-      "crop=20:16:0:0,setparams=range=pc,format=gray16le"
-    tiledAlpha(HeifGrid(listOf(4L), 1, 1, Size(6, 5))) shouldBe "[0:#4]crop=6:5:0:0,setparams=range=pc,format=gray16le"
-    alphaFrame(HeifAlpha(2L, grid = null, premultiplied = false, fullRange = false, bitDepth = 8)) shouldBe
-      listOf("-map", "0:#2", "-vf", "setparams=range=pc,format=gray16le") +
-      listOf("-frames:v", "1", "-c:v", "png", "-f", "image2pipe", "-")
   }
 
   private fun assertAlpha(

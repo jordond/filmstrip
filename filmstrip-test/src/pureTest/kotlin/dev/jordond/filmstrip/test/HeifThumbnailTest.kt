@@ -1,6 +1,7 @@
 package dev.jordond.filmstrip.test
 
 import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.picture.heif.HeifGridRead
 import dev.jordond.filmstrip.picture.heif.heifPrimaryGrid
 import dev.jordond.filmstrip.picture.heif.heifWithExplicitCodestreamColor
 import dev.jordond.filmstrip.picture.heifPrimaryIsTiled
@@ -10,6 +11,7 @@ import io.kotest.assertions.withClue
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlin.test.Test
 
 /**
@@ -37,11 +39,15 @@ class HeifThumbnailTest {
   @Test
   fun aGridsTilesFollowAThumbnailWrittenAheadOfIt() {
     for ((thumbnail, first) in listOf(null to 2L, avif.thumbnail() to 3L)) {
-      val grid = withClue("thumbnail $thumbnail") { heifPrimaryGrid(heic.gridBytes(thumbnail)).shouldNotBeNull() }
+      val grid =
+        withClue("thumbnail $thumbnail") {
+          heifPrimaryGrid(heic.gridBytes(thumbnail)).shouldBeInstanceOf<HeifGridRead.Read>().grid
+        }
       grid.tiles shouldBe (first until first + 4).toList()
       grid.columns shouldBe 2
       grid.rows shouldBe 2
       grid.size shouldBe Size(128, 128)
+      grid.tileSizes shouldBe List(4) { Size(64, 64) }
     }
   }
 

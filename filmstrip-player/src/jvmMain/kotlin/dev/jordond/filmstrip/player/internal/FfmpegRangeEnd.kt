@@ -124,8 +124,8 @@ internal class FfmpegRangeEnd(
    * Wraps a loop range, or stops a playback range, once [at] lands past the last slot the range carries on the grid of
    * [current].
    *
-   * A frame past a loop range is never shown. When a seek is in flight the wrap waits for it, and this pump stops on the
-   * range's last slot until the seek replaces it.
+   * A frame past a loop range is never shown. When a seek is in flight the wrap waits for it, and this pump stops on
+   * the range's last slot until the seek replaces it.
    *
    * @return true when [at] is outside what may play, so the caller stops presenting.
    */
@@ -208,11 +208,11 @@ internal class FfmpegRangeEnd(
   ): LoopWrap? = loopWrapOf(range, current.resolved.duration, current.frameRate)
 
   /**
-   * Seeks to the first slot of [wrap] on the grid of [current] and reports a lap of [range], when the guard says playback
-   * may wrap.
+   * Seeks to the first slot of [wrap] on the grid of [current] and reports a lap of [range], when the guard says
+   * playback may wrap.
    *
-   * Playback has already reached where [wrap] wraps when this is called. The seek is marked as a wrap for as long as the
-   * chase holds it.
+   * Playback has already reached where [wrap] wraps when this is called. The seek is marked as a wrap for as long as
+   * the chase holds it.
    *
    * @return true when playback wrapped.
    */

@@ -9,9 +9,9 @@ import kotlinx.coroutines.launch
  * What the preview item's chain could not draw, held as the preview's status until the next load since the item
  * itself plays on.
  *
- * [watch] hands the first failure a composition's chain reports to [onFailed] on [scope], once [error] holds it, as long
- * as that composition is still the one [current] gives when it lands. A failure from a composition a rebuild has since
- * replaced is dropped.
+ * [watch] hands the first failure a composition's chain reports to [onFailed] on [scope], once [error] holds it, as
+ * long as that composition is still the one [current] gives when it lands. A failure from a composition a rebuild has
+ * since replaced is dropped.
  *
  * @param current The composition the preview item draws through right now, or null when it has none.
  */

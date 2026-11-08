@@ -1,10 +1,11 @@
 package dev.jordond.filmstrip.ffmpeg.internal.picture
 
+import dev.jordond.filmstrip.color.ycbcrCodes
 import dev.jordond.filmstrip.effects.overlay.DecodedPicture
 import dev.jordond.filmstrip.effects.overlay.StoredSamples
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.picture.heif.HeifAlpha
-import dev.jordond.filmstrip.picture.heif.HeifGrid
+import dev.jordond.filmstrip.picture.heif.HeifOverlay
 import kotlin.math.roundToInt
 
 /**
@@ -124,28 +125,38 @@ internal fun fullRangeAlpha(
 }
 
 /**
- * The arguments that decode [alpha]'s plane as a sixteen-bit grey PNG on stdout, for the input ffmpeg was given ahead
- * of them.
+ * How [alpha]'s plane is put together as one sixteen-bit grey plane of raw codes, or null for an alpha item coded as
+ * one image, which [ALPHA_FORMAT] reads alone.
  *
- * An alpha item coded as one image is mapped by its id, which is the id ffmpeg gives the stream it reads the item as.
- * One laid out from tiles is assembled by [tiledAlpha]. Either way the plane is marked full range before it is
- * converted, so it arrives as the item's raw codes scaled to sixteen bits whatever range its codestream states.
+ * One laid out from tiles is put together by [gridAssembly] and run through [ALPHA_FORMAT]. One drawn over a canvas by
+ * [overlayAlpha]. Every way the plane is marked full range before it is converted, so it arrives as the item's raw
+ * codes scaled to sixteen bits whatever range its codestream states.
  */
-internal fun alphaFrame(alpha: HeifAlpha): List<String> {
-  val graph =
-    when (val grid = alpha.grid) {
-      null -> listOf("-map", "0:#${alpha.item}", "-vf", ALPHA_FORMAT)
-      else -> listOf("-filter_complex", tiledAlpha(grid))
-    }
-  return graph + listOf("-frames:v", "1", "-c:v", "png", "-f", "image2pipe", "-")
+internal fun alphaAssembly(alpha: HeifAlpha): Assembly? {
+  alpha.grid?.let { return gridAssembly(it, ALPHA_FORMAT) }
+  return alpha.overlay?.let { overlayAlpha(it, alpha) }
 }
 
 /**
- * The filter graph that assembles [grid]'s tiles into one sixteen-bit grey plane of raw codes.
+ * How [overlay], the layout of the alpha item [alpha], is put together as one sixteen-bit grey plane of raw codes.
  *
- * The tiles are put together by [assembledGrid], and the whole is marked full range before it is converted.
+ * The canvas is the luma sample [HeifAlpha.reading] codes the fill's red, green and blue as, at the item's depth and
+ * range, laid by [planesAssembly] as grey samples of that depth. Each input is marked full range and taken to grey at
+ * the same depth, so the canvas and the inputs hold raw codes alike and go to sixteen bits together.
  */
-internal fun tiledAlpha(grid: HeifGrid): String = assembledGrid(grid, ALPHA_FORMAT)
+internal fun overlayAlpha(
+  overlay: HeifOverlay,
+  alpha: HeifAlpha,
+): Assembly {
+  val fill = overlay.fill
+  val luma = alpha.reading.ycbcrCodes(fill.red, fill.green, fill.blue, alpha.bitDepth, alpha.fullRange).first()
+  val gray = planarGray(alpha.bitDepth)
+  val canvas = PlanesCanvas(gray, intArrayOf(luma), fullRange = true)
+  return planesAssembly(overlay, "setparams=range=pc,format=$gray", canvas, ",format=$WIDE_GRAY")
+}
+
+// The grey pixel format of [bitDepth] bits a sample, little-endian past eight.
+private fun planarGray(bitDepth: Int): String = if (bitDepth == EIGHT_BITS) "gray" else "gray${bitDepth}le"
 
 // Throws when the calling thread is interrupted, clearing its interrupt, naming the [row] the plane stopped at.
 @Throws(InterruptedException::class)
@@ -166,7 +177,12 @@ internal fun alphaSizeReason(
   "The overlay image's alpha plane is ${alpha.width}x${alpha.height} and its picture ${color.width}x" +
     "${color.height}, so this overlay picture cannot be drawn."
 
-private const val ALPHA_FORMAT = "setparams=range=pc,format=gray16le"
+private const val WIDE_GRAY = "gray16le"
+
+/**
+ * The filter that takes an alpha plane to sixteen-bit grey raw codes, marked full range before it is converted.
+ */
+internal const val ALPHA_FORMAT = "setparams=range=pc,format=$WIDE_GRAY"
 private const val RGB = 3
 private const val CHANNELS = 4
 private const val BYTE = 0xFF

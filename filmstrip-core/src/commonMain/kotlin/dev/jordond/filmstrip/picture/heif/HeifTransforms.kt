@@ -97,21 +97,34 @@ internal fun ByteView.heifListing(
   ipmas: List<Box>,
   item: Long,
   properties: List<Box>,
-): List<Box>? {
+): List<Box>? = heifListings(ipmas, setOf(item), properties)[item]
+
+/**
+ * What [heifListing] gives each of [items], read in one walk of [ipmas] that stops once every one of them is found.
+ *
+ * An item no entry lists is left out, and one whose entry lists an `ispe` above version 0 maps to null. Only an entry
+ * for one of [items] has its associations looked up, so only such an entry can throw [MalformedPicture] for an index
+ * past the end of [properties].
+ */
+internal fun ByteView.heifListings(
+  ipmas: List<Box>,
+  items: Set<Long>,
+  properties: List<Box>,
+): Map<Long, List<Box>?> {
+  val found = mutableMapOf<Long, List<Box>?>()
   for (ipma in ipmas) {
+    if (found.size == items.size) break
     val box = within(ipma.end)
-    var listing: List<Box>? = null
     box.forEachEntry(ipma) { entry, first, count ->
-      if (entry == item) {
+      if (entry in items && entry !in found) {
         val indices = List(count) { box.associationIndex(ipma, first, it) }.filter { it != 0 }
-        listing = indices.map { index -> properties.getOrElse(index - 1) { malformed() } }
+        val listed = indices.map { index -> properties.getOrElse(index - 1) { malformed() } }
+        found[entry] = listed.takeIf { it.none { property -> unsupportedIspe(property) } }
       }
-      entry != item
+      found.size < items.size
     }
-    val listed = listing ?: continue
-    return listed.takeIf { it.none { property -> unsupportedIspe(property) } }
   }
-  return null
+  return found
 }
 
 private fun ByteView.unsupportedIspe(property: Box): Boolean =

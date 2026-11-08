@@ -1,6 +1,7 @@
 package dev.jordond.filmstrip.effects.overlay
 
 import dev.jordond.filmstrip.media.ImageSource
+import dev.jordond.filmstrip.picture.PICTURE_PEAK_CEILING
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain

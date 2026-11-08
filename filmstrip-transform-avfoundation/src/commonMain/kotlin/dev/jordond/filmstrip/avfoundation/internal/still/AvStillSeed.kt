@@ -70,9 +70,9 @@ internal sealed interface SeedAttempt {
  *
  * Opened on whichever thread lowered first and read from every one after, so the open is behind a
  * lock. The lock is the rate's own, because a write runs for as long as the encoder behind it takes
- * and a lowering at any other rate has nothing to gain by waiting that out. A rate whose writer refused the write is remembered as having no
- * seed, because the write blocks on VideoToolbox while holding that lock and retrying a refusal once
- * per lowering turns it into a stall on every later request. A write that only ran out of patience is
+ * and a lowering at any other rate has nothing to gain by waiting that out. A rate whose writer refused the write is
+ * remembered as having no seed, because the write blocks on VideoToolbox while holding that lock and retrying a
+ * refusal once per lowering turns it into a stall on every later request. A write that only ran out of patience is
  * not remembered, so the next lowering asks for it again.
  */
 @OptIn(ExperimentalForeignApi::class)

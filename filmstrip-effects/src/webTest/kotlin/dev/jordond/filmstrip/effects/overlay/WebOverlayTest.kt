@@ -20,6 +20,7 @@ import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaSource
+import dev.jordond.filmstrip.picture.PICTURE_PEAK_CEILING
 import dev.jordond.filmstrip.picture.PictureOrientation
 import dev.jordond.filmstrip.picture.orientedSamples
 import dev.jordond.filmstrip.picture.pictureColor

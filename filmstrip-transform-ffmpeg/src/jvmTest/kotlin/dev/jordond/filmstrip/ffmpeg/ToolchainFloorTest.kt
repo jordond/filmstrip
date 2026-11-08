@@ -36,10 +36,35 @@ class ToolchainFloorTest {
       toolchain.version.printed shouldBe "8.0.1-3ubuntu2"
     }
 
-  private suspend fun locate(version: String): ToolchainResult {
+  @Test
+  fun `a git build is held to the floor by its libavformat major`() =
+    runTest {
+      val old = locate("N-121284-g4c9e0eb0e6", libavformat = 61)
+      old.shouldBeInstanceOf<ToolchainResult.Unavailable>().error.message shouldContain
+        "N-121284-g4c9e0eb0e6 is too old"
+      locate("N-121284-g4c9e0eb0e6", libavformat = 62).shouldBeInstanceOf<ToolchainResult.Available>()
+    }
+
+  @Test
+  fun `a git build that prints no libavformat version is refused for it`() =
+    runTest {
+      val error = locate("2025-09-01-git-1d33e7c3a5").shouldBeInstanceOf<ToolchainResult.Unavailable>().error
+
+      error.foundVersion shouldBe "2025-09-01-git-1d33e7c3a5"
+      error.message shouldContain "its libavformat version could not be read"
+      error.message shouldContain "ffmpeg 8.0 or newer"
+    }
+
+  // Looks up a stand-in ffmpeg whose banner names [version], printing a libavformat line at [libavformat] when given.
+  private suspend fun locate(
+    version: String,
+    libavformat: Int? = null,
+  ): ToolchainResult {
     val directory = Files.createTempDirectory("filmstrip-floor").toFile()
     try {
-      val ffmpeg = script(directory, "ffmpeg", "ffmpeg version $version Copyright (c) 2000-2025 the FFmpeg developers")
+      val library = libavformat?.let { "\nlibavformat    $it.  3.100 / $it.  3.100" }.orEmpty()
+      val banner = "ffmpeg version $version Copyright (c) 2000-2025 the FFmpeg developers$library"
+      val ffmpeg = script(directory, "ffmpeg", banner)
       script(directory, "ffprobe", "ffprobe version $version")
       return ToolchainLocator(FfmpegConfig(executablePath = ffmpeg.absolutePath), ProcessRunner()).toolchain()
     } finally {
@@ -53,7 +78,7 @@ class ToolchainFloorTest {
     banner: String,
   ): File =
     File(directory, name).apply {
-      writeText("#!/bin/sh\necho '$banner'\n")
+      writeText("#!/bin/sh\nprintf '%s\\n' '$banner'\n")
       setExecutable(true)
     }
 }

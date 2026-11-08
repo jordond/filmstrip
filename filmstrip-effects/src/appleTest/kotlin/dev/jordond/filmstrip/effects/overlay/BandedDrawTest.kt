@@ -10,7 +10,9 @@ import dev.jordond.filmstrip.effects.rasterReader
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.HdrTransfer
+import dev.jordond.filmstrip.picture.PICTURE_PEAK_CEILING
 import dev.jordond.filmstrip.picture.pictureColorFromDecodedProfile
+import dev.jordond.filmstrip.picture.picturePeakBytes
 import io.kotest.assertions.withClue
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull

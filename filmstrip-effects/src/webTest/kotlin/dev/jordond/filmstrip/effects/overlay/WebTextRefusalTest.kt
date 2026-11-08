@@ -5,6 +5,8 @@ package dev.jordond.filmstrip.effects.overlay
 import dev.jordond.filmstrip.effect.EffectResolution
 import dev.jordond.filmstrip.effects.BuiltInEffectResolver
 import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.picture.PICTURE_PEAK_CEILING
+import dev.jordond.filmstrip.picture.picturePeakBytes
 import dev.jordond.filmstrip.style.TextStyle
 import io.kotest.assertions.withClue
 import io.kotest.matchers.nulls.shouldBeNull

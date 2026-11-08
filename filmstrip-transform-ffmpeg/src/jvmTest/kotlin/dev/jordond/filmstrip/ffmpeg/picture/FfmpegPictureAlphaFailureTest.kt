@@ -27,8 +27,8 @@ import kotlin.test.assertFailsWith
  * How a decode answers when the child reading an AVIF's alpha item fails, runs long or is interrupted.
  *
  * Each decoder runs a stub in place of ffmpeg that hands every color read on to the ffmpeg on the path and answers
- * the alpha read, the one that maps a stream, with what the test gives it. So every branch runs on any ffmpeg that
- * decodes an AVIF.
+ * the alpha read, the one that takes the plane to sixteen-bit grey, with what the test gives it. So every branch runs
+ * on any ffmpeg that decodes an AVIF.
  */
 class FfmpegPictureAlphaFailureTest {
   private val scratch = Files.createTempDirectory("filmstrip-alpha-stub").toFile()
@@ -52,14 +52,6 @@ class FfmpegPictureAlphaFailureTest {
     val read = stubbed("echo 'Invalid data found when processing input' >&2; exit 1").decode(ImageSource.ofBytes(STILL))
     val refused = withClue("$read") { read.shouldBeInstanceOf<OverlayPictureRead.Refused>() }
     withClue(refused.reason) { ("Invalid data found" in refused.reason).shouldBeTrue() }
-  }
-
-  @Test
-  fun `an alpha item no stream is listed for refuses the picture rather than drawing it opaque`() {
-    val unlisted = "echo \"Stream map '0:#2' matches no streams.\" >&2; exit 1"
-    val read = stubbed(unlisted).decode(ImageSource.ofBytes(STILL))
-    val refused = withClue("$read") { read.shouldBeInstanceOf<OverlayPictureRead.Refused>() }
-    withClue(refused.reason) { ("matches no streams" in refused.reason).shouldBeTrue() }
   }
 
   @Test
@@ -88,9 +80,9 @@ class FfmpegPictureAlphaFailureTest {
       """
       |#!/bin/sh
       |for arg in "$@"; do
-      |  if [ "${'$'}arg" = "-map" ]; then
-      |    $alpha
-      |  fi
+      |  case "${'$'}arg" in
+      |    *gray16le*) $alpha ;;
+      |  esac
       |done
       |$color
       |exec ffmpeg "$@"

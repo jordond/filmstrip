@@ -92,6 +92,13 @@ on its [inert notices](/guides/export/#inert-notices).
 <Aside type="note" title="Limits">
 - A browser page can't read a file path, so an `ImageSource.Path` overlay is refused by name there. Pass bytes or a URI.
 - A path or URI picture's encoded bytes must fit in 1 GiB. Past that it's refused by name.
+- On desktop, an AVIF or HEIC image overlay (`iovl`) draws images that are none of them another grid or overlay. Its
+  canvas plus every image it draws, each at its whole size, must fit in 1 GiB at 8 bytes a pixel, and a grid's picture
+  plus its tiles the same. That's the only bound, however many images it holds. Past it the picture is refused by
+  name. So is a grid or overlay alpha that doesn't read.
+- An image overlay's canvas color is sRGB, and it's painted in the picture's own color. On a picture narrower than sRGB
+  a color it can't hold stops at the nearest one it can. An overlay alpha's canvas reads as the luma its own coding
+  gives that color, and an overlay alpha whose canvas shows under a matrix filmstrip can't read is refused by name.
 - media3 uploads each overlay as one texture, so a picture or text longer on a side than the device's
   `GL_MAX_TEXTURE_SIZE` is refused by name. The browser does the same with WebGL's `MAX_TEXTURE_SIZE`.
 - media3 holds an overlay's position inside the frame, so one animated off the frame stops at the edge there.

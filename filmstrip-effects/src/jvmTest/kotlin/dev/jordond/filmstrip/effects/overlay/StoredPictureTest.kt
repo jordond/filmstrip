@@ -16,6 +16,7 @@ import dev.jordond.filmstrip.effects.tagged
 import dev.jordond.filmstrip.geometry.Corner
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ImageSource
+import dev.jordond.filmstrip.picture.PICTURE_PEAK_CEILING
 import dev.jordond.filmstrip.picture.PictureOrientation
 import dev.jordond.filmstrip.picture.orientedSamples
 import dev.jordond.filmstrip.picture.pictureColor

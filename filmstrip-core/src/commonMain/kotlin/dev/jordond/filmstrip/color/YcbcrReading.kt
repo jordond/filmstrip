@@ -2,6 +2,7 @@ package dev.jordond.filmstrip.color
 
 import dev.jordond.filmstrip.InternalFilmstripApi
 import kotlin.math.abs
+import kotlin.math.roundToInt
 
 /**
  * The [YcbcrReading] the matrix coefficients code point [matrix] stands for, beside color primaries [primaries] and
@@ -115,6 +116,28 @@ public fun YcbcrReading.evaluator(
 ): YcbcrEvaluator = YcbcrEvaluator(this, sampleRange(bitDepth, fullRange))
 
 /**
+ * The [bitDepth]-bit luma, blue difference and red difference samples at full or limited range this reading codes the
+ * sixteen-bit [red], [green] and [blue] codes as.
+ *
+ * They come from the forward equations of H.273 section 8.3, the ones [ycbcrToRgb] undoes, each rounded to the nearest
+ * sample and held to the samples [bitDepth] bits store.
+ *
+ * @throws IllegalArgumentException for a [YcbcrReading.Refused] reading, or a [bitDepth] outside 8 to 16.
+ */
+@InternalFilmstripApi
+public fun YcbcrReading.ycbcrCodes(
+  red: Int,
+  green: Int,
+  blue: Int,
+  bitDepth: Int,
+  fullRange: Boolean,
+): IntArray {
+  val rgb = doubleArrayOf(red / WIDE_CODE, green / WIDE_CODE, blue / WIDE_CODE)
+  val top = (1 shl bitDepth) - 1
+  return encode(this, rgb, sampleRange(bitDepth, fullRange)).map { it.roundToInt().coerceIn(0, top) }.toIntArray()
+}
+
+/**
  * The matrix and offsets taking [bitDepth]-bit samples straight to red, green and blue in the range zero to one under
  * this reading, or null for [YcbcrReading.ConstantLuminance] and [YcbcrReading.Refused], whose decode is not linear.
  *
@@ -169,6 +192,7 @@ internal const val HDR_CONSTANT_LUMINANCE_REASON: String =
   "The picture names a constant luminance matrix beside the PQ or HLG transfer, which filmstrip does not read."
 
 private const val UNSPECIFIED = 2
+private const val WIDE_CODE = 65535.0
 private const val YCGCO_MATRIX = 8
 private const val BT2020_CONSTANT_MATRIX = 10
 private const val YDZDX_MATRIX = 11

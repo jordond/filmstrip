@@ -1,6 +1,8 @@
 package dev.jordond.filmstrip.effects.overlay
 
 import dev.jordond.filmstrip.color.YcbcrEvaluator
+import dev.jordond.filmstrip.picture.PICTURE_PEAK_CEILING
+import dev.jordond.filmstrip.picture.picturePeakBytes
 import kotlinx.cinterop.CPointer
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.UByteVar

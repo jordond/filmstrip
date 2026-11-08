@@ -2,6 +2,7 @@ package dev.jordond.filmstrip.effects.overlay
 
 import dev.jordond.filmstrip.color.PictureColor
 import dev.jordond.filmstrip.media.ImageSource
+import dev.jordond.filmstrip.picture.PICTURE_PEAK_CEILING
 import dev.jordond.filmstrip.picture.heif.heifWithExplicitCodestreamColor
 import dev.jordond.filmstrip.picture.pictureColor
 import dev.jordond.filmstrip.picture.pictureColorFromDecodedProfile

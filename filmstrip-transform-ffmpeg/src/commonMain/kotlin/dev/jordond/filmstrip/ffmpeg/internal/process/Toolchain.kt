@@ -74,7 +74,10 @@ internal class ToolchainLocator(
     if (!version.started) return ToolchainResult.Unavailable(missing(FFMPEG, null))
 
     val parsed = parseVersion(version.stdout)
-    if (!parsed.isUsable) return ToolchainResult.Unavailable(missing(FFMPEG, parsed.printed))
+    if (!parsed.meetsFloor()) {
+      val error = if (parsed.readable) missing(FFMPEG, parsed.printed) else unreadable(FFMPEG, parsed.printed)
+      return ToolchainResult.Unavailable(error)
+    }
 
     val ffprobe =
       locate(config.probePath, "FILMSTRIP_FFPROBE", FFPROBE)
@@ -140,6 +143,20 @@ internal class ToolchainLocator(
           "`$tool` $found is too old. filmstrip needs ffmpeg $MINIMUM_MAJOR.$MINIMUM_MINOR or newer, " +
             "because below it HEIF and AVIF pictures are read without their tiles or alpha."
         },
+    )
+
+  private fun unreadable(
+    tool: String,
+    found: String,
+  ): FilmstripError.ToolchainMissing =
+    FilmstripError.ToolchainMissing(
+      tool = tool,
+      foundVersion = found,
+      message =
+        "`$tool` $found names no release and its libavformat version could not be read, so filmstrip cannot tell " +
+          "whether it is ffmpeg $MINIMUM_MAJOR.$MINIMUM_MINOR or newer. Install a release build of ffmpeg " +
+          "$MINIMUM_MAJOR.$MINIMUM_MINOR or newer, or point FfmpegConfig.executablePath at one, or set " +
+          "FILMSTRIP_FFMPEG.",
     )
 
   private companion object {

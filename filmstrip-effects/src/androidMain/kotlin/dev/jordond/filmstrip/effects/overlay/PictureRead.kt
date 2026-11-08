@@ -10,6 +10,7 @@ import dev.jordond.filmstrip.color.PictureColor
 import dev.jordond.filmstrip.color.YcbcrCoding
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ImageSource
+import dev.jordond.filmstrip.picture.PICTURE_PEAK_CEILING
 import dev.jordond.filmstrip.picture.PictureContainer
 import dev.jordond.filmstrip.picture.PictureCrop
 import dev.jordond.filmstrip.picture.PictureOrientation

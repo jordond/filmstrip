@@ -43,11 +43,11 @@ import kotlin.test.Test
  * green, blue and red, decoded by this ffmpeg.
  *
  * The decoder takes an identity picture's planes as they are and turns them into RGB through core's evaluator, rather
- * than leaving the matrix to ffmpeg's decoders and swscale. Each still is held at its middle against [landedRgb], which a BT.601 decode would miss, on BT.709 with
- * sRGB, unspecified, Display P3 and BT.2020 with PQ, at full and limited range, flat and tiled, and at ten and twelve
- * bits for AVIF and ten for HEIC within [IDENTITY_DRIFT]. An identity `nclx` on subsampled samples, which AV1 and HEVC
- * cannot code, is not drawn with core's reason, and so is an identity AVIF whose `av1C` does not say its layout and
- * depth.
+ * than leaving the matrix to ffmpeg's decoders and swscale. Each still is held at its middle against [landedRgb], which
+ * a BT.601 decode would miss, on BT.709 with sRGB, unspecified, Display P3 and BT.2020 with PQ, at full and limited
+ * range, flat and tiled, and at ten and twelve bits for AVIF and ten for HEIC within [IDENTITY_DRIFT]. An identity
+ * `nclx` on subsampled samples, which AV1 and HEVC cannot code, is not drawn with core's reason, and so is an identity
+ * AVIF whose `av1C` does not say its layout and depth.
  */
 class FfmpegPictureIdentityTest {
   private val fixture = FfmpegExportFixture()

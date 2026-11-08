@@ -16,6 +16,7 @@ import dev.jordond.filmstrip.geometry.Corner
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.ImageSource
+import dev.jordond.filmstrip.picture.picturePeakBytes
 import dev.jordond.filmstrip.style.TextStyle
 import io.kotest.assertions.withClue
 import io.kotest.matchers.nulls.shouldNotBeNull

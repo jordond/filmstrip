@@ -4,6 +4,7 @@ import dev.jordond.filmstrip.effects.assertRasterReads
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.HdrTransfer
+import dev.jordond.filmstrip.picture.picturePeakBytes
 import dev.jordond.filmstrip.style.TextStyle
 import io.kotest.assertions.withClue
 import io.kotest.matchers.nulls.shouldNotBeNull

@@ -3,6 +3,7 @@
 package dev.jordond.filmstrip.effects.overlay
 
 import dev.jordond.filmstrip.media.toByteArray
+import dev.jordond.filmstrip.picture.PICTURE_PEAK_CEILING
 import kotlin.js.ExperimentalWasmJsInterop
 import kotlin.js.JsAny
 import kotlin.js.JsException

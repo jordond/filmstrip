@@ -1,6 +1,7 @@
 package dev.jordond.filmstrip.effects.overlay
 
 import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.picture.picturePeakBytes
 import dev.jordond.filmstrip.style.FontWeight
 import dev.jordond.filmstrip.style.TextStyle
 import dev.jordond.filmstrip.test.sampleOfCode

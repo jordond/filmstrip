@@ -9,6 +9,7 @@ import dev.jordond.filmstrip.effects.color.createCodeSpace
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.HdrTransfer
+import dev.jordond.filmstrip.picture.PICTURE_PEAK_CEILING
 import dev.jordond.filmstrip.picture.PictureCrop
 import dev.jordond.filmstrip.picture.PictureOrientation
 import kotlinx.cinterop.ExperimentalForeignApi
@@ -37,8 +38,9 @@ import platform.CoreImage.CIImage
  * one is made, the codes [held] included, is counted by [drawnPeakBytes], and a draw that would make the
  * floats for a picture past [ceiling], or cannot allocate them, throws [PictureTooLargeToDraw] instead, on that frame
  * and every one after it that needs the same image. At 48 MP an eight-bit picture peaks at 1,010 MB by that count and
- * draws, and a sixteen-bit or evaluated one, eight bytes a texel of codes, counts 1,202 MB and is refused. An SDR frame whose picture is untagged, or comes out at its own eight-bit codes in every band, draws [codes]
- * and holds no floats, so it draws at any size.
+ * draws, and a sixteen-bit or evaluated one, eight bytes a texel of codes, counts 1,202 MB and is refused. An SDR
+ * frame whose picture is untagged, or comes out at its own eight-bit codes in every band, draws [codes] and holds no
+ * floats, so it draws at any size.
  *
  * On an Apple M4 Max under macOS 26.6.2 (25G83), drawing an 8000 by 6000 picture tagged Display P3 in a debug build,
  * an eight-bit picture's footprint peaks at 1,252 MB on an SDR frame and 1,223 MB on a PQ frame, its decode of 198 MB

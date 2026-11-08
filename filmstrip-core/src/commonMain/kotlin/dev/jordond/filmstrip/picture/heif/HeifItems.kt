@@ -47,20 +47,25 @@ internal fun ByteView.itemId(
   version: Int,
 ): Long = if (version == 0) u16(at).toLong() else u32(at)
 
-// The item type of each item an iinf box lists. An infe of version 0 or 1 carries no item type and is skipped.
+// The item type of each item an iinf box lists, the first entry's for an id listed twice.
 internal fun ByteView.itemTypes(iinf: Box): Map<Long, Int> {
-  val countSize = if (u8(iinf.start) == 0) 2 else 4
   val types = mutableMapOf<Long, Int>()
-  for (infe in boxes(iinf.start + 4 + countSize, iinf.end)) {
-    if (infe.type != INFE) continue
+  for ((item, type) in itemEntries(iinf)) types.getOrPut(item) { type }
+  return types
+}
+
+// The id and item type of every entry an iinf box lists, in order. An infe of version 0 or 1 carries no item type and
+// is skipped.
+private fun ByteView.itemEntries(iinf: Box): Sequence<Pair<Long, Int>> {
+  val countSize = if (u8(iinf.start) == 0) 2 else 4
+  return boxes(iinf.start + 4 + countSize, iinf.end).mapNotNull { infe ->
     val entry = within(infe.end)
-    val version = entry.u8(infe.start)
-    if (version < 2) continue
+    val version = if (infe.type == INFE) entry.u8(infe.start) else 0
+    if (version < 2) return@mapNotNull null
     val idSize = if (version == 2) 2 else 4
     val item = entry.itemId(infe.start + 4, if (version == 2) 0 else 1)
-    types.getOrPut(item) { entry.u32(infe.start + 4 + idSize + 2).toInt() }
+    item to entry.u32(infe.start + 4 + idSize + 2).toInt()
   }
-  return types
 }
 
 internal fun codecOf(itemType: Int?): CodecKind =

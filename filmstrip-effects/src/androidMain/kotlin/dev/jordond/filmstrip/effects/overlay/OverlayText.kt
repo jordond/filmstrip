@@ -12,6 +12,7 @@ import android.text.StaticLayout
 import android.text.TextPaint
 import androidx.core.graphics.createBitmap
 import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.picture.PICTURE_PEAK_CEILING
 import dev.jordond.filmstrip.style.FontWeight
 import dev.jordond.filmstrip.style.TextAlignment
 import dev.jordond.filmstrip.style.TextStyle

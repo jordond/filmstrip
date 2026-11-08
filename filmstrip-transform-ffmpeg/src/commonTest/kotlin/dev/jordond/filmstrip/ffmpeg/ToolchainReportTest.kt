@@ -24,7 +24,7 @@ class ToolchainReportTest {
     version.major shouldBe 9
     version.minor shouldBe 0
     version.printed shouldBe "9.0.1"
-    version.isUsable shouldBe true
+    version.meetsFloor() shouldBe true
   }
 
   @Test
@@ -34,7 +34,7 @@ class ToolchainReportTest {
     version.major shouldBe 8
     version.minor shouldBe 0
     version.printed shouldBe "8.0.1-3ubuntu2"
-    version.isUsable shouldBe true
+    version.meetsFloor() shouldBe true
   }
 
   @Test
@@ -43,7 +43,7 @@ class ToolchainReportTest {
 
     version.major shouldBe 8
     version.minor shouldBe 0
-    version.isUsable shouldBe true
+    version.meetsFloor() shouldBe true
   }
 
   @Test
@@ -52,7 +52,7 @@ class ToolchainReportTest {
       val version = parseVersion("ffmpeg version $banner Copyright (c) 2000-2025")
 
       withClue(banner) {
-        version.isUsable shouldBe false
+        version.meetsFloor() shouldBe false
         version.printed shouldBe banner
       }
     }
@@ -61,22 +61,56 @@ class ToolchainReportTest {
   @Test
   fun `accepts the floor and every release after it`() {
     for (banner in listOf("8.0", "8.0.1", "8.1", "9.0.2", "10.0")) {
-      withClue(banner) { parseVersion("ffmpeg version $banner Copyright").isUsable shouldBe true }
+      withClue(banner) { parseVersion("ffmpeg version $banner Copyright").meetsFloor() shouldBe true }
     }
   }
 
-  // A git build names no release, so there is nothing to hold against the floor.
+  // A git build names no release, so its libavformat major is held against the floor's.
   @Test
-  fun `accepts a build with no release number`() {
+  fun `holds a build with no release number to its libavformat major`() {
     for (banner in listOf("N-121284-g4c9e0eb0e6", "2025-09-01-git-1d33e7c3a5")) {
-      val version = parseVersion("ffmpeg version $banner Copyright")
+      for ((libavformat, meets) in listOf(61 to false, 62 to true, 63 to true)) {
+        val version = parseVersion(versionOutput(banner, libavformat))
 
-      withClue(banner) {
-        version.major shouldBe null
-        version.isUsable shouldBe true
+        withClue("$banner on libavformat $libavformat") {
+          version.major shouldBe null
+          version.libavformatMajor shouldBe libavformat
+          version.readable shouldBe true
+          version.meetsFloor() shouldBe meets
+        }
       }
     }
   }
+
+  @Test
+  fun `refuses a build that prints neither a release nor a libavformat version`() {
+    for (banner in listOf("N-121284-g4c9e0eb0e6", "2025-09-01-git-1d33e7c3a5")) {
+      val version = parseVersion("ffmpeg version $banner Copyright\nbuilt with gcc 15\n")
+
+      withClue(banner) {
+        version.readable shouldBe false
+        version.meetsFloor() shouldBe false
+      }
+    }
+  }
+
+  @Test
+  fun `holds a release to its own number whatever libavformat it prints`() {
+    parseVersion(versionOutput("7.1.2", 62)).meetsFloor() shouldBe false
+    parseVersion(versionOutput("8.0.1", 61)).meetsFloor() shouldBe true
+    parseVersion(versionOutput("9.0.2", 63)).meetsFloor() shouldBe true
+  }
+
+  // What `ffmpeg -version` prints for [banner], with the libavformat line at [libavformat] among the libraries.
+  private fun versionOutput(
+    banner: String,
+    libavformat: Int,
+  ): String =
+    "ffmpeg version $banner Copyright (c) 2000-2025 the FFmpeg developers\n" +
+      "configuration: --enable-gpl\n" +
+      "libavutil      60.  8.100 / 60.  8.100\n" +
+      "libavcodec     62. 11.100 / 62. 11.100\n" +
+      "libavformat    $libavformat.  3.100 / $libavformat.  3.100\n"
 
   @Test
   fun `reads a filter listing`() {

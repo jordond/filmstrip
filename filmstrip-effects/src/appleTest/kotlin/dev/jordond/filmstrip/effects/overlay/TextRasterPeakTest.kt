@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip.effects.overlay
 
+import dev.jordond.filmstrip.picture.PICTURE_PEAK_CEILING
 import io.kotest.assertions.withClue
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull

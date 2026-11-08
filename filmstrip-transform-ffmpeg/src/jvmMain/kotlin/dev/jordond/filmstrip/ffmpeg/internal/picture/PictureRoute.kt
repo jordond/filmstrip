@@ -17,11 +17,13 @@ internal sealed interface PictureRoute {
   ) : PictureRoute
 
   // ffmpeg hands back the frame's 4:4:4 planes at [bitDepth] bits through [filter], and [evaluator] turns each
-  // sample into RGB.
+  // sample into RGB as [reading] reads samples at full range when [fullRange] holds.
   class Planes(
     val filter: String,
     val bitDepth: Int,
     val evaluator: YcbcrEvaluator,
+    val reading: YcbcrReading,
+    val fullRange: Boolean,
   ) : PictureRoute
 
   // The picture is not decoded, for [reason].
@@ -66,7 +68,7 @@ internal fun pictureRoute(coding: YcbcrCoding?): PictureRoute {
     } else {
       "setparams=colorspace=bt709,${resampled(bitDepth, coding.fullRange)}"
     }
-  return PictureRoute.Planes(filter, bitDepth, reading.evaluator(bitDepth, coding.fullRange))
+  return PictureRoute.Planes(filter, bitDepth, reading.evaluator(bitDepth, coding.fullRange), reading, coding.fullRange)
 }
 
 /**

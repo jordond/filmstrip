@@ -12,6 +12,7 @@ import dev.jordond.filmstrip.media.blobOf
 import dev.jordond.filmstrip.media.createImageBitmap
 import dev.jordond.filmstrip.media.describe
 import dev.jordond.filmstrip.media.toByteArray
+import dev.jordond.filmstrip.picture.PICTURE_PEAK_CEILING
 import dev.jordond.filmstrip.picture.PictureContainer
 import dev.jordond.filmstrip.picture.PictureCrop
 import dev.jordond.filmstrip.picture.PictureOrientation

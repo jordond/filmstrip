@@ -7,6 +7,7 @@ import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.describe
 import dev.jordond.filmstrip.media.filePathOf
+import dev.jordond.filmstrip.picture.PICTURE_PEAK_CEILING
 import dev.jordond.filmstrip.picture.PictureContainer
 import dev.jordond.filmstrip.picture.PictureOrientation
 import dev.jordond.filmstrip.picture.croppedSamples

@@ -2,22 +2,14 @@ package dev.jordond.filmstrip.effects.overlay
 
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.describe
-
-/**
- * The most bytes reading or drawing one overlay picture may hold at its peak, 1 GiB.
- *
- * Apple counts its reads and its draws at their color against it, a browser counts decoding a PNG's samples beside
- * the bitmap drawn from it, and a text raster on every backend counts itself, the floats an HDR frame draws it from
- * and any copies held on the way. A picture or text whose count passes it is refused by name, since iOS ends an app
- * past its memory limit without malloc ever failing and a browser tab runs out the same way. The reason names the
- * ceiling in force, which Android lowers in `textCeiling`. Every backend holds a path or URI picture's encoded bytes
- * under it too, as the reason [pictureTooLargeToRead] gives says.
- */
-internal const val PICTURE_PEAK_CEILING: Long = 1L shl 30
+import dev.jordond.filmstrip.picture.PICTURE_PEAK_CEILING
+import dev.jordond.filmstrip.picture.picturePeakBytes
 
 /**
  * The reason a picture is refused when its encoded bytes alone pass [ceiling], which is said before they are all read
  * wherever the backend can tell.
+ *
+ * The reason names the ceiling in force, which Android lowers for text in `textCeiling`.
  */
 internal fun pictureTooLargeToRead(
   image: ImageSource,
@@ -41,26 +33,6 @@ internal const val TEXT_TEXEL_BYTES: Int = 4 * Short.SIZE_BYTES
  * HDR frame draws it from the same way.
  */
 internal const val FLOAT_TEXEL_BYTES: Long = 16L
-
-/**
- * The bytes a read or a draw of an overlay picture or a text raster holds at its peak, or null when that count does
- * not fit in a [Long] or any part of it is null or negative.
- *
- * Every read and draw on Apple and every text raster is counted this way against [PICTURE_PEAK_CEILING]. [held] is
- * what the step works from, which stays held the whole time. [band] is everything else the step holds on the way, such
- * as copies of the samples or one band of rows. [made] is what the step writes. The three are held together at the
- * peak, so the count is their sum.
- */
-internal fun picturePeakBytes(
-  held: Long?,
-  band: Long?,
-  made: Long?,
-): Long? {
-  if (held == null || band == null || made == null) return null
-  if (held < 0 || band < 0 || made < 0) return null
-  if (held > Long.MAX_VALUE - band || held + band > Long.MAX_VALUE - made) return null
-  return held + band + made
-}
 
 /**
  * Whether a [width] by [height] text raster of [bytesPerTexel] bytes a texel fits under [ceiling].

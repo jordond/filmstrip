@@ -113,24 +113,8 @@ private fun ByteArray.sample(
     this[at].toInt() and BYTE
   }
 
-// One header line up to its newline, or null when the stream ends first or the line runs past any y4m header.
-private fun InputStream.line(): String? {
-  val line = StringBuilder()
-  while (line.length < MAX_HEADER) {
-    val next = read()
-    if (next < 0) return null
-    if (next == '\n'.code) return line.toString()
-    line.append(next.toChar())
-  }
-  return null
-}
-
-private fun String.removePrefixOrNull(prefix: String): String? =
-  if (startsWith(prefix)) substring(prefix.length) else null
-
 private const val Y4M_SIGNATURE = "YUV4MPEG2"
 private const val Y4M_FRAME = "FRAME"
-private const val MAX_HEADER = 256
 private const val PLANES = 3
 private const val RGB = 3
 private const val CHANNELS = 4

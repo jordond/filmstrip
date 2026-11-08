@@ -17,8 +17,8 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 
 /**
- * Measures what this toolchain's encoders can write by encoding a ladder of frames, since ffmpeg publishes no figure for
- * it.
+ * Measures what this toolchain's encoders can write by encoding a ladder of frames, since ffmpeg publishes no figure
+ * for it.
  *
  * Each rung encodes a single frame as cheaply as that encoder allows. Every codec in the table is probed, including the
  * ones CODEC_LADDER leaves out of Auto, so a caller who names one still gets an answer. One encoder's ladder does not

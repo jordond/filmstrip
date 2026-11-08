@@ -12,6 +12,8 @@ import dev.jordond.filmstrip.effects.BuiltInEffectResolver
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.HdrTransfer
+import dev.jordond.filmstrip.picture.PICTURE_PEAK_CEILING
+import dev.jordond.filmstrip.picture.picturePeakBytes
 import dev.jordond.filmstrip.style.TextStyle
 import dev.jordond.filmstrip.test.greySignal
 import dev.jordond.filmstrip.test.sampleOfCode

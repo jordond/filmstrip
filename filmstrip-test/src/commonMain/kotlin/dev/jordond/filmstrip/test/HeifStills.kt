@@ -94,6 +94,11 @@ public object HeifStills {
    * @param thumbnail A thumbnail item written ahead of the grid item, or null for none.
    * @param alpha The alpha plane of each tile in rows, written as a grid of the same layout and size after the tiles,
    * or null for none. The configuration and premultiplication are the first plane's.
+   * @param images The coded image each tile in rows holds in place of [tile], each with its own configuration in place
+   * of [configuration], or null for [tile] in every one. Each is sized [tileSize] whatever size it records.
+   * @param tileExtents How many times `iloc` lists each tile's one extent, so a reader that joins every extent reads
+   * the tile's data that many times over.
+   * @throws IllegalArgumentException When [tileExtents] is not from 1 to 65535.
    */
   public fun grid(
     brand: String,
@@ -108,7 +113,11 @@ public object HeifStills {
     bitDepth: Int = 8,
     thumbnail: HeifThumbnail? = null,
     alpha: List<HeifAlphaPlane>? = null,
+    images: List<HeifThumbnail>? = null,
+    tileExtents: Int = 1,
   ): ByteArray {
+    require(images == null || images.size == columns * rows) { "A grid takes one image a tile" }
+    require(tileExtents in 1..UShort.MAX_VALUE.toInt()) { "An iloc lists 1 to 65535 extents an item" }
     require(columns in 1..MAX_GRID_SIDE && rows in 1..MAX_GRID_SIDE) { "A grid is 1 to 256 tiles a side" }
     require(alpha == null || alpha.size == columns * rows) { "A grid takes one alpha plane a tile" }
     val width = size.width
@@ -122,15 +131,26 @@ public object HeifStills {
         configuration,
         nclx?.let { box("colr", "nclx".encodeToByteArray() + nclxFields(it)) },
       )
+    val distinct = images?.distinct().orEmpty()
+    val gridProperties = properties.size
     val gridId = FIRST_ID + if (thumbnail == null) 0 else 1
     val gridAssociations = listOfNotNull(1, 3, nclx?.let { 5 }).map { it.toByte() }.toByteArray()
-    val tileAssociations = byteArrayOf(2, 3, (ESSENTIAL or 4).toByte())
-    val tiles = List(columns * rows) { Item(gridId + 1 + it, itemType, tile, tileAssociations, hidden = true) }
+    val tileAssociations = { image: HeifThumbnail? ->
+      val configurationIndex = image?.let { gridProperties + 1 + distinct.indexOf(it) } ?: 4
+      byteArrayOf(2, 3, (ESSENTIAL or configurationIndex).toByte())
+    }
+    val tiles =
+      List(columns * rows) {
+        val image = images?.get(it)
+        val data = image?.codestream ?: tile
+        Item(gridId + 1 + it, image?.itemType ?: itemType, data, tileAssociations(image), true, tileExtents)
+      }
     val dimg = box("dimg", uInt16(gridId) + uInt16(tiles.size) + tiles.joined { uInt16(it.id) })
     val items = listOf(Item(gridId, "grid", gridData, gridAssociations)) + tiles
-    if (alpha == null) return heif(brand, properties, items, thumbnail, listOf(dimg))
+    val laid = properties + distinct.map { it.configuration }
+    if (alpha == null) return heif(brand, laid, items, thumbnail, listOf(dimg))
 
-    val first = properties.size + 1
+    val first = laid.size + 1
     val plane = alpha.first()
     val alphaProperties = plane.properties(size) + plane.properties(tileSize) + plane.configuration + plane.auxC()
     val alphaGridId = gridId + tiles.size + 1
@@ -142,7 +162,7 @@ public object HeifStills {
     val alphaDimg = box("dimg", uInt16(alphaGridId) + uInt16(alphaTiles.size) + alphaTiles.joined { uInt16(it.id) })
     return heif(
       brand,
-      properties + alphaProperties,
+      laid + alphaProperties,
       items + alphaGrid + alphaTiles,
       thumbnail,
       listOf(dimg, alphaDimg) + plane.references(alphaGridId, gridId),
@@ -193,7 +213,8 @@ public object HeifStills {
       val offsets = all.runningFold(dataOffset) { offset, item -> offset + item.data.size }
       val locations =
         all.withIndex().toList().joined { (index, item) ->
-          uInt16(item.id) + uInt16(0) + uInt16(1) + int32(offsets[index]) + int32(item.data.size)
+          val extent = int32(offsets[index]) + int32(item.data.size)
+          uInt16(item.id) + uInt16(0) + uInt16(item.extents) + List(item.extents) { extent }.joined { it }
         }
       return fullBox(
         "meta",
@@ -241,19 +262,19 @@ public object HeifStills {
     ByteArray(indices.size) { (if (it == 2) ESSENTIAL or indices[it] else indices[it]).toByte() }
 
   // The ispe of [size] and the one channel pixi the item carries.
-  private fun HeifAlphaPlane.properties(size: Size): List<ByteArray> =
+  internal fun HeifAlphaPlane.properties(size: Size): List<ByteArray> =
     listOf(
       fullBox("ispe", int32(size.width) + int32(size.height)),
       fullBox("pixi", byteArrayOf(1, bitDepth.toByte())),
     )
 
-  private fun HeifAlphaPlane.auxC(): ByteArray {
+  internal fun HeifAlphaPlane.auxC(): ByteArray {
     val type = if (itemType == "av01") AVIF_ALPHA else HEVC_ALPHA
     return fullBox("auxC", type.encodeToByteArray() + byteArrayOf(0))
   }
 
   // The auxl from [alpha] to [color], and the prem from [color] to [alpha] when the color is premultiplied.
-  private fun HeifAlphaPlane.references(
+  internal fun HeifAlphaPlane.references(
     alpha: Int,
     color: Int,
   ): List<ByteArray> =
@@ -262,8 +283,16 @@ public object HeifStills {
       box("prem", uInt16(color) + uInt16(1) + uInt16(alpha)).takeIf { premultiplied },
     )
 
-  internal fun <T> List<T>.joined(bytes: (T) -> ByteArray): ByteArray =
-    fold(ByteArray(0)) { joined, element -> joined + bytes(element) }
+  internal fun <T> List<T>.joined(bytes: (T) -> ByteArray): ByteArray {
+    val parts = map(bytes)
+    val joined = ByteArray(parts.sumOf { it.size })
+    var at = 0
+    for (part in parts) {
+      part.copyInto(joined, at)
+      at += part.size
+    }
+    return joined
+  }
 
   // One item of the file: its id, type and data, and the one-based ipco indices of its properties with the essential
   // ones flagged.
@@ -273,6 +302,7 @@ public object HeifStills {
     val data: ByteArray,
     val associations: ByteArray,
     val hidden: Boolean = false,
+    val extents: Int = 1,
   )
 
   private const val BOX_HEADER_BYTES = 8
@@ -397,103 +427,6 @@ public class AvifPicture internal constructor(
     const val BT709_LIMITED_CODESTREAM = "0a081808bfec80868082320c10000002dd90816283ea9354"
     const val IDENTITY_444_CODESTREAM = "0a053808bfec90320d100000062b9092e03662d8fc33"
     const val IDENTITY_444_CONFIGURATION = "81200000"
-  }
-}
-
-/**
- * A sixty-four-by-sixty-four HEIC still painted one flat color, as the color boxes it carries, the color its
- * codestream signals and the samples it decodes to.
- *
- * It carries no expected value. The codestream is HEVC Main Still Picture, 4:2:0 and eight-bit, and stores the same
- * luma and chroma at every sample, so its color depends on [nclx]'s matrix and range as well as its primaries and
- * transfer.
- *
- * @property name What the description is, for test messages.
- * @property nclx The code points of a `colr nclx` box, or null for none.
- * @property profile The ICC profile of a `colr prof` box, or null for none.
- * @property ycbcr The luma, blue difference and red difference codes every sample decodes to.
- * @property vui What the sequence parameter set's video usability information signals about range and color.
- * @property slice The coded slice behind its four byte length, as hex. It decodes to [ycbcr] under the parameter sets
- * of every [HevcVui].
- */
-@InternalFilmstripApi
-public class HeicPicture internal constructor(
-  override val name: String,
-  override val nclx: CicpTag?,
-  override val profile: ByteArray?,
-  override val ycbcr: List<Int>,
-  public val vui: HevcVui = HevcVui.Unsignalled,
-  internal val slice: String = CODESTREAM,
-) : HeifPicture {
-  /**
-   * The HEVC codestream the picture's item holds, one coded slice behind a four byte length.
-   */
-  override fun codestream(): ByteArray = slice.hex()
-
-  /**
-   * The `hvcC` box's payload, carrying the video, sequence and picture parameter sets, its sequence parameter set
-   * signalling what [vui] names.
-   */
-  internal fun configuration(): ByteArray = vui.configuration.hex()
-
-  /**
-   * The picture as the bytes of a HEIC file, built by [HeifStills.still].
-   *
-   * @param thumbnail A thumbnail item the file carries ahead of the picture, or null for none.
-   */
-  override fun bytes(thumbnail: HeifThumbnail?): ByteArray =
-    HeifStills.still(
-      brand = "heic",
-      itemType = "hvc1",
-      configuration = HeifStills.box("hvcC", configuration()),
-      codestream = codestream(),
-      size = HEIC_SIZE,
-      nclx = nclx,
-      profile = profile,
-      thumbnail = thumbnail,
-    )
-
-  /**
-   * The picture as a two-by-two grid of its codestream, with [nclx] on the grid item, built by [HeifStills.grid].
-   *
-   * It is 128 pixels a side and leaves out [profile].
-   *
-   * @param thumbnail A thumbnail item the file carries ahead of the grid, or null for none.
-   */
-  override fun gridBytes(thumbnail: HeifThumbnail?): ByteArray =
-    HeifStills.grid(
-      brand = "heic",
-      itemType = "hvc1",
-      configuration = HeifStills.box("hvcC", configuration()),
-      tile = codestream(),
-      tileSize = HEIC_SIZE,
-      nclx = nclx,
-      thumbnail = thumbnail,
-    )
-
-  /**
-   * The picture's coded item at sixty-four pixels a side, with the codestream signal [vui] names, for another HEIF
-   * still to carry as its thumbnail.
-   */
-  override fun thumbnail(): HeifThumbnail =
-    HeifThumbnail("hvc1", HeifStills.box("hvcC", configuration()), codestream(), HEIC_SIZE)
-
-  override fun toString(): String = name
-
-  internal companion object {
-    val HEIC_SIZE = Size(64, 64)
-
-    // The codestream and configurations come from x265 4.3 and ffmpeg 9.0.2 on macOS, from a raw frame of luma 128,
-    // blue difference 96 and red difference 176 at every sample:
-    //   python3 -c "open('flat.yuv','wb').write(bytes([128])*4096+bytes([96])*1024+bytes([176])*1024)"
-    //   x265 --input flat.yuv --input-res 64x64 --fps 1 --frames 1 --profile mainstillpicture --qp 4 --no-info \
-    //     -o flat.hevc
-    //   ffmpeg -i flat.hevc -c copy -tag:v hvc1 flat.mp4
-    // adding --range full for FullRange, --range full --colorprim bt709 --transfer iec61966-2-1 --colormatrix bt709
-    // for FullRangeBt709, and --colorprim bt709 --transfer iec61966-2-1 --colormatrix bt709 for LimitedRangeBt709.
-    // Each configuration is its mp4's hvcC payload. The codestream is the one coded slice of flat.hevc behind its
-    // length, the same in all four. Decoding any of them back with ffmpeg gives 128, 96 and 176 at every sample.
-    const val CODESTREAM = "00000015" + "2801af067861867ffff023ff21f9476f01d8453dbf"
   }
 }
 

@@ -201,7 +201,8 @@ private val BT2020_TO_BT709: DoubleArray by lazy {
 
 private val IDENTITY = doubleArrayOf(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0)
 
-private fun taggedColor(color: PictureColor?): ColorEvaluation? = color?.evaluator()?.takeUnless { it.profile.isSrgb }
+// How [color] is evaluated, or null when the picture lands exactly as an untagged one does.
+internal fun taggedColor(color: PictureColor?): ColorEvaluation? = color?.evaluator()?.takeUnless { it.profile.isSrgb }
 
 private fun rgbFromXyz(chromaticities: DoubleArray): DoubleArray =
   checkNotNull(rgbToXyz(chromaticities)?.let(::invert)) { "a fixed output gamut spans no color space" }

@@ -41,8 +41,9 @@ import androidx.compose.ui.geometry.Size as ComposeSize
  * back in. A caller that drops the change draws a rectangle that does not move.
  *
  * The overlay measures itself and builds its own [CropFrame] from [output] and [contentScale], so a host cannot hand it
- * a rectangle sized against a mismatched letterbox. Inside a [dev.jordond.filmstrip.compose.ui.VideoStage] the stage has measured that already, and the
- * overload on `VideoStageScope` reads its letterbox rather than taking an [output] of its own.
+ * a rectangle sized against a mismatched letterbox. Inside a [dev.jordond.filmstrip.compose.ui.VideoStage] the stage
+ * has measured that already, and the overload on `VideoStageScope` reads its letterbox rather than taking an [output]
+ * of its own.
  *
  * A [constraint] that arrives after the rectangle was drawn corrects it once, through [onRectChange], so a lock picked
  * from a chip reaches the rectangle without waiting for the next drag.

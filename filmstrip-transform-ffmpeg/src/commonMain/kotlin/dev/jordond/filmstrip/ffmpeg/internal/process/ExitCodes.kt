@@ -21,7 +21,8 @@ private const val PERMISSION_DENIED = "Permission denied"
  * stderr is read first, for the two failures it names in words: running out of disk and being refused a path. A
  * refusal is pinned on the input or the output whose path ffmpeg named with it, and one that names neither falls
  * through. What the engine found on disk after the run comes next, because a missing file comes back as
- * AVERROR(ENOENT) whichever side was missing. The exit code is the fallback, and in every case stderr is only the message.
+ * AVERROR(ENOENT) whichever side was missing. The exit code is the fallback, and in every case stderr is only the
+ * message.
  *
  * @param stderr The tail of what the child wrote, which becomes the error's message.
  * @param sink Where the output was going, for a failure that is about the destination.
@@ -61,7 +62,8 @@ internal fun classifyExit(
  * Whether this stderr names [path] as the [side] ffmpeg was refused.
  *
  * An output's refusal is a line of the path followed by the reason, with a prefix in front of it. An input's reason
- * goes on a line of its own and the path on the `Error opening input file` line that follows it. Whole lines are matched, so a path that ends another path is not taken for it.
+ * goes on a line of its own and the path on the `Error opening input file` line that follows it. Whole lines are
+ * matched, so a path that ends another path is not taken for it.
  */
 private fun String.refuses(
   path: String,
