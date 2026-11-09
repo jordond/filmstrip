@@ -157,7 +157,6 @@ frames, except where media3 shows one source frame on several, as its sparse slo
 | ------------ | ----------------------------------------------------------------------------------------- |
 | AVFoundation | An export renders sped audio to temporary disk, 16-bit PCM for the output length.         |
 | media3       | The AAC encoder runs at most 32 ms past the output length.                                |
-| media3       | On API 30 the AAC encoder ends up to 55 ms before the output length, at any speed.        |
 | media3       | Slow motion is sparse. Nothing duplicates a frame, so a clip's frames sit apart by speed. |
 | ffmpeg       | A preview has no audio, at any speed.                                                     |
 | ffmpeg       | Picks frames off the probed rate's grid from zero, timed to 1/1000 of an output frame.    |
@@ -178,11 +177,6 @@ is the earlier of the two shows the later instead, which sits less than a tick f
 most 10,000,000 source frames, more than an eight hour clip at 120 fps holds. A clip past that, a source whose frame
 times AVFoundation won't give, or a frame it won't lay is refused by name. An export fails with `InvalidComposition`
 and a preview with `UnsupportedFormat`, both with the same reason, and nothing of the clip is left on the track.
-
-On API 30 `c2.android.aac.encoder` flushes nothing at the end of the stream and keeps only the whole access units it was
-fed, so the last of the audio never reaches the file. On an emulator that measured 33 to 53 ms, and the same PCM through
-the same encoder on API 36 keeps all of it. The levels between aren't measured. An export that copies its audio isn't
-affected.
 
 A media3 clip whose source frames come faster than the output's, from its speed or its source rate, leaves out the
 ones between the frames it shows through media3's frame rate cap. The cap keeps a frame only at or past its next tick,
