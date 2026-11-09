@@ -30,8 +30,8 @@ Branch: fix/<slug>.
 Runs on: <Mac | cerebro via `scratchpad/remote/gradle.sh <this worktree> <slug> <task>`, the script lives in
 the main checkout at /Users/jordon/dev/filmstrip>.
 Gradle: one test task per call, foreground, never piped to head. ffmpeg jvmTest and any Apple suite never in one
-call or at once. Iterate on the touched classes with `--tests`. Run each suite in your scope once at the final head,
-again only if an edit after that touches what it covers. `spotlessApply` once before each commit, never
+call or at once. Iterate on the touched classes with `--tests`. Run the touched classes on each target in your scope
+once at the final head, never a whole suite, the batch lane does that. `spotlessApply` once before each commit, never
 `spotlessCheck` in a loop. Report fresh counts from the result XML against the baseline below.
 Baseline: <the board's last verified counts for the suites this unit runs, or "none recorded, your head run sets it">.
 Verification scope: <the rules below, filled in for this unit>.
@@ -49,9 +49,14 @@ Point at the plan sections, never paste them. A pixel path unit gets `connectedA
 
 ## Verification scope
 Fill in the brief's scope from the files the unit owns.
-- Android device: API 30 and 36. A sweep of every level only when the unit edits a decoder conversion table (`decoderConversionOf`, `readableMatrices`, `DecoderLimit`).
+- Each unit compiles and runs its new or changed test classes on one target. The touched classes on every target
+  the plan names run once, at the plan's head, not per unit. Never a whole suite, the batch lane does that.
+- Android device: API 36 only, touched classes only. API 30 joins only when the unit edits an encoder or decoder
+  limit, otherwise the batch lane covers it. A sweep of every level only when the unit edits a decoder conversion
+  table (`decoderConversionOf`, `readableMatrices`, `DecoderLimit`).
 - Apple: macOS with `--tests` on the touched classes. iOS simulator only when the unit edits a simulator decode model, or in the final lane.
 - Player suites only when the unit touches the player.
+- A `*MediaTest` class needs `-Pmedia`, a `*HardwareTest` class `-Phardware`, or Gradle finds no tests.
 - ffmpeg on one host. A core-only unit runs the picture classes only.
 
 ## Watch

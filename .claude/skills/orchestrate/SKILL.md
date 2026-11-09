@@ -30,9 +30,12 @@ when the plan has a unit on another machine (Mac vs cerebro) with no shared file
    docs, build files). Only 🔴, and 🟠 with a failing input, go back: one fresh builder with every such line, no
    re-review unless a 🔴 was in it. 🟡, 🔵 and anything outside the plan's goal go to the board, never into the chain.
    A second fix-first verdict → **stop** with the lines.
-5. **Verify once.** `/ci <branch worktree>` in the background, with `--device` when a pixel path changed. Red → one
-   fresh builder with the failing lines, one rerun. Red again → **stop** with the digest.
-6. Green → write the verified line and counts into the plan's `upnext.md` section and stop for the owner's go.
+5. **Verify once per batch, not per plan.** Plans this call runs stack on one integration branch. When every plan
+   has landed, one `/ci --plan <base>` on its head in the background (only the suites the batch owes), `--device`
+   only when a pixel path changed in the batch. A test-only or script-only plan owes no lane, its builder's touched
+   run is its verification. Red → bisect to the plan, one fresh builder with the failing lines, one rerun of the red
+   steps only. Red again → **stop** with the digest.
+6. Green → write the verified line and counts into each plan's `upnext.md` section and stop for the owner's go.
    **Never squash onto `main`, push, or open a PR without it.**
 
 A plan normally costs one builder and one reviewer, at most one fix builder. Past four agents for one plan → stop and
