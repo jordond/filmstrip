@@ -45,6 +45,7 @@ import NoWebCodecs from '../NoWebCodecs.astro'
     writeText,
   } from '../../lib/beachTv'
   import { demoIframe, gateLoad, webCodecsSupport } from '../../lib/demo'
+  import { STEPS_EVENT } from '../../lib/tryCode'
   import { connectFrame, type FrameLink, type Status, type Steps } from '../../lib/tryProtocol'
 
   const root = document.querySelector<HTMLElement>('[data-try-tv]')
@@ -132,6 +133,7 @@ import NoWebCodecs from '../NoWebCodecs.astro'
         steps = { ...steps, [step]: !steps[step] }
         link?.send({ name: 'steps', ...steps })
         draw()
+        root.dispatchEvent(new CustomEvent<Steps>(STEPS_EVENT, { detail: steps, bubbles: true }))
       })
     }
     exporter.addEventListener('click', () => link?.send(exportKey(status).control))
@@ -140,8 +142,7 @@ import NoWebCodecs from '../NoWebCodecs.astro'
 
 <style>
   .try-tv {
-    max-width: 960px;
-    margin: 0 auto;
+    min-width: 0;
   }
 
   .try-tv :global(iframe) {
@@ -198,21 +199,21 @@ import NoWebCodecs from '../NoWebCodecs.astro'
   .load {
     cursor: pointer;
     min-height: 44px;
-    padding: 0 clamp(24px, 4vw, 48px);
+    padding: 0 clamp(24px, calc(48 * var(--tv-px)), 48px);
     background: var(--amber);
     color: var(--ground);
     border: 3px solid var(--ground);
     box-shadow:
       0 0 0 3px var(--amber),
       6px 6px 0 3px var(--red);
-    font-size: clamp(26px, 4vw, 52px);
+    font-size: clamp(26px, calc(52 * var(--tv-px)), 52px);
     letter-spacing: 0.08em;
   }
 
   .size {
     background: var(--backdrop);
     padding: 2px 12px;
-    font-size: clamp(16px, 1.8vw, 24px);
+    font-size: clamp(16px, calc(24 * var(--tv-px)), 24px);
     color: var(--text);
     text-align: center;
   }
@@ -231,7 +232,7 @@ import NoWebCodecs from '../NoWebCodecs.astro'
     cursor: pointer;
     min-height: 44px;
     padding: 0 4px;
-    font-size: clamp(18px, 2.4vw, 28px);
+    font-size: clamp(18px, calc(28 * var(--tv-px)), 28px);
     color: var(--text);
     background: var(--knob);
     border: 2px solid var(--line-strong);
@@ -271,7 +272,7 @@ import NoWebCodecs from '../NoWebCodecs.astro'
   .note {
     margin: 8px 0 0;
     min-height: 1.2em;
-    font-size: clamp(16px, 1.8vw, 22px);
+    font-size: clamp(16px, calc(22 * var(--tv-px)), 22px);
     line-height: 1.2;
     color: var(--amber);
     overflow-wrap: anywhere;

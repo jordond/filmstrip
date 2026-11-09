@@ -1,78 +1,96 @@
 ---
 // The CRT both the hero and the Try it section show: a status bar, a beach scene and four lanes under a playhead. It
 // draws one frame and moves nothing itself, `drawFrame` in `lib/beachTv.ts` does that. The `over` slot sits on top of
-// the picture, and the `controls` slot sits between the screen and the chin. Any other attribute lands on the screen.
+// the picture, the `controls` slot sits under the tube, and the control panel stands beside it. Any other attribute
+// lands on the screen.
+//
+// The tube is a size container, so the picture and the slots scale with the tube's own width rather than the window's.
+// A size is written as `calc(22 * var(--tv-px))`, which is 22px on a tube `designWidth` wide. The bezel scales with
+// the set's width.
 import type { HTMLAttributes } from 'astro/types'
 import type { HeroFrame, Span } from '../../lib/heroTimeline'
-import TvChin from './TvChin.astro'
+import TvPanel from './TvPanel.astro'
 
 interface Props extends HTMLAttributes<'div'> {
   /** What the TV shows until a script draws over it. */
   frame: HeroFrame
-  /** The LED on the chin. */
+  /** The LED on the control panel. */
   led: 'rec' | 'demo'
+  /** The tube width in px its sizes are drawn for. Wider or narrower tubes scale every size by the same ratio. */
+  designWidth?: number
 }
 
-const { frame, led, ...screen } = Astro.props
+const { frame, led, designWidth = 900, ...screen } = Astro.props
 const span = (it: Span | null) => (it ? `--left: ${it.left}%; --width: ${it.width}%` : '--left: 0%; --width: 0%')
 ---
 
-<div class="tv">
-  <div class="screen scan flicker" {...screen}>
-    <div class="roll"></div>
-    <div class="vignette"></div>
-    <div class="glass"></div>
-    <div class="osd picture">
-      <div class="status">
-        <span class="rgb-sm mode" data-tv="mode">{frame.mode}</span>
-        <span class="rgb-sm step" data-tv="step">{frame.step}</span>
-        <span class="rgb-sm timecode" data-tv="timecode">{frame.timecode}</span>
-      </div>
-      <div class="well" data-tv="well">
-        <div class:list={['scene', { graded: frame.graded }]} data-tv="scene">
-          <div class="sky"></div>
-          <div class="sun"></div>
-          <div class="sea"></div>
-          <svg class="palm-tree" viewBox="0 0 100 120">
-            <path
-              class="palm"
-              d="M52 120 C50 95 49 75 54 52 L57 52 C53 75 55 95 58 120 Z M55 52 C40 40 22 42 8 52 C24 40 40 38 55 50 Z M55 52 C66 36 84 34 96 42 C82 36 66 40 56 50 Z M55 50 C50 34 38 24 24 22 C40 28 50 38 56 49 Z M56 50 C64 32 76 24 90 24 C76 30 66 38 57 50 Z M55 52 C58 62 70 70 82 72 C70 66 62 60 57 51 Z"
-            ></path>
-          </svg>
-          <span class="raw">RAW</span>
-          <span class:list={['disp rgb-sm title', { shown: frame.showTitle }]} data-tv="title">SUMMER '96</span>
-        </div>
-        <slot name="over" />
-      </div>
-      <div class="timeline">
-        <div class="ruler"></div>
-        <div class="lane cut">
-          <div class="block clip" data-tv="clip" style={span(frame.clip)}>
-            <span>beach.mp4</span>
+<div class="set" style={`--tv-px: calc(100cqi / ${designWidth})`}>
+  <div class="tv">
+    <div class="face">
+      <div class="tube">
+        <div class="screen scan flicker" {...screen}>
+          <div class="roll"></div>
+          <div class="vignette"></div>
+          <div class="glass"></div>
+          <div class="osd picture">
+            <div class="status">
+              <span class="rgb-sm mode" data-tv="mode">{frame.mode}</span>
+              <span class="rgb-sm step" data-tv="step">{frame.step}</span>
+              <span class="rgb-sm timecode" data-tv="timecode">{frame.timecode}</span>
+            </div>
+            <div class="well" data-tv="well">
+              <div class:list={['scene', { graded: frame.graded }]} data-tv="scene">
+                <div class="sky"></div>
+                <div class="sun"></div>
+                <div class="sea"></div>
+                <svg class="palm-tree" viewBox="0 0 100 120">
+                  <path
+                    class="palm"
+                    d="M52 120 C50 95 49 75 54 52 L57 52 C53 75 55 95 58 120 Z M55 52 C40 40 22 42 8 52 C24 40 40 38 55 50 Z M55 52 C66 36 84 34 96 42 C82 36 66 40 56 50 Z M55 50 C50 34 38 24 24 22 C40 28 50 38 56 49 Z M56 50 C64 32 76 24 90 24 C76 30 66 38 57 50 Z M55 52 C58 62 70 70 82 72 C70 66 62 60 57 51 Z"
+                  ></path>
+                </svg>
+                <span class="raw">RAW</span>
+                <span class:list={['disp rgb-sm title', { shown: frame.showTitle }]} data-tv="title">SUMMER '96</span>
+              </div>
+              <slot name="over" />
+            </div>
+            <div class="timeline">
+              <div class="ruler"></div>
+              <div class="lane cut">
+                <div class="block clip" data-tv="clip" style={span(frame.clip)}>
+                  <span>beach.mp4</span>
+                </div>
+              </div>
+              <div class="lane">
+                <div class="block grade" data-tv="grade" style={span(frame.grade)}><span>GRADE</span></div>
+              </div>
+              <div class="lane">
+                <div class="block text" data-tv="text" style={span(frame.text)}><span>TEXT</span></div>
+              </div>
+              <div class="lane render">
+                <div class="block export" data-tv="export" style={span(frame.export)}></div>
+              </div>
+              <div class="playhead" data-tv="playhead" style={`--at: ${frame.playhead}%`}></div>
+            </div>
           </div>
         </div>
-        <div class="lane">
-          <div class="block grade" data-tv="grade" style={span(frame.grade)}><span>GRADE</span></div>
-        </div>
-        <div class="lane">
-          <div class="block text" data-tv="text" style={span(frame.text)}><span>TEXT</span></div>
-        </div>
-        <div class="lane render">
-          <div class="block export" data-tv="export" style={span(frame.export)}></div>
-        </div>
-        <div class="playhead" data-tv="playhead" style={`--at: ${frame.playhead}%`}></div>
+        <slot name="controls" />
       </div>
+      <TvPanel led={led} />
     </div>
   </div>
-  <slot name="controls" />
-  <TvChin led={led} />
 </div>
 
 <style>
+  .set {
+    container-type: inline-size;
+  }
+
   .tv {
     background: var(--bezel);
-    border-radius: clamp(20px, 3vw, 36px);
-    padding: clamp(14px, 2.4vw, 30px) clamp(14px, 2.4vw, 30px) clamp(12px, 1.6vw, 18px);
+    border-radius: clamp(18px, 2.9cqi, 28px);
+    padding: clamp(14px, 2.7cqi, 26px);
+    container: tv-set / inline-size;
     box-shadow:
       0 40px 80px rgba(0, 0, 0, 0.6),
       inset 0 2px 0 rgba(255, 255, 255, 0.08),
@@ -80,23 +98,41 @@ const span = (it: Span | null) => (it ? `--left: ${it.left}%; --width: ${it.widt
     border: 1px solid var(--line);
   }
 
+  .face {
+    display: flex;
+    gap: 22px;
+  }
+
+  .tube {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    container-type: inline-size;
+  }
+
   .screen {
     aspect-ratio: 4 / 3;
     background: var(--screen);
-    border-radius: clamp(18px, 3vw, 40px) / clamp(22px, 4vw, 50px);
+    border-radius: clamp(13px, calc(28 * var(--tv-px)), 28px) / clamp(15px, calc(34 * var(--tv-px)), 34px);
     overflow: hidden;
-    border: 8px solid var(--ground-deep);
+    border: 2px solid var(--line);
+  }
+
+  .vignette {
+    box-shadow: inset 0 0 48px 6px rgba(0, 0, 0, 0.6);
   }
 
   .picture {
     position: absolute;
     inset: 0;
     z-index: 2;
-    padding: 6% 6.5% 5.5%;
+    padding: 3.5% 4%;
     display: flex;
     flex-direction: column;
     gap: 10px;
-    font-size: clamp(16px, 1.6vw, 22px);
+    font-size: clamp(16px, calc(22 * var(--tv-px)), 22px);
     line-height: 1.1;
   }
 
@@ -263,7 +299,7 @@ const span = (it: Span | null) => (it ? `--left: ${it.left}%; --width: ${it.widt
     top: 18%;
     text-align: center;
     color: var(--title-cream);
-    font-size: clamp(16px, 2.4vw, 32px);
+    font-size: clamp(16px, calc(32 * var(--tv-px)), 32px);
     letter-spacing: 0.04em;
     visibility: hidden;
   }
@@ -372,6 +408,13 @@ const span = (it: Span | null) => (it ? `--left: ${it.left}%; --width: ${it.widt
     margin-left: -1px;
     background: var(--text);
     box-shadow: 0 0 6px var(--text);
+  }
+
+  @container tv-set (max-width: 470px) {
+    .face {
+      flex-direction: column;
+      gap: 14px;
+    }
   }
 
   @media (prefers-reduced-motion: reduce) {

@@ -1,17 +1,62 @@
 ---
+import TryCode from '../try/TryCode.astro'
 import TryTv from '../try/TryTv.astro'
 ---
 
-<section id="try" class="section" aria-labelledby="try-title">
+<section id="try" class="section try" aria-labelledby="try-title">
   <h2 id="try-title" class="disp section-title heading">Try it</h2>
-  <TryTv />
+  <div class="stage">
+    <TryTv />
+    <div class="code">
+      <TryCode />
+    </div>
+  </div>
   <p class="more">Want the whole thing? <a href="/demo/">Open the full sample app</a>.</p>
 </section>
 
 <style>
+  .section.try {
+    max-width: calc(1440px + 2 * var(--gutter));
+  }
+
   .heading {
     text-align: center;
     margin-bottom: 48px;
+  }
+
+  /*
+   * Side by side, the card column is as wide as its longest line and the TV takes the rest. The card adds nothing to
+   * the row's height, so it stretches to the TV and scrolls inside when its code runs taller.
+   */
+  .stage {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: clamp(24px, 2.5vw, 40px);
+  }
+
+  .code {
+    display: flex;
+    flex-direction: column;
+    height: 0;
+    min-height: 100%;
+  }
+
+  .code > :global(*) {
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+
+  @media (max-width: 75rem) {
+    .stage {
+      grid-template-columns: minmax(0, 1fr);
+      max-width: 960px;
+      margin: 0 auto;
+    }
+
+    .code {
+      height: auto;
+      min-height: 0;
+    }
   }
 
   .more {

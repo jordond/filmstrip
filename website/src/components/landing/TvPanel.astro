@@ -1,0 +1,197 @@
+---
+// The control panel beside a CRT tube: the brand plate, a channel readout, three knobs, a speaker grille and a status
+// LED. All decoration. It reads as a column next to the tube, and as a strip under it when the set's `tv-set`
+// container is narrow, where the grille is hidden.
+interface Props {
+  /** `rec` blinks red. `demo` follows the Try it screen's state through `data-state` on the LED. */
+  led: 'rec' | 'demo'
+}
+
+const { led } = Astro.props
+---
+
+<div class="panel" aria-hidden="true">
+  <span class="disp brand">FS-VISION</span>
+  <div class="osd readout"><span>CH</span><span>03</span></div>
+  <div class="knobs">
+    <div class="knob big"><div class="tick amber"></div></div>
+    <div class="pair">
+      <div class="knob small left"><div class="tick"></div></div>
+      <div class="knob small right"><div class="tick"></div></div>
+    </div>
+  </div>
+  <div class="grille"></div>
+  <div class="lamp">
+    {
+      led === 'rec' ? (
+        <span class="led rec blink" />
+      ) : (
+        <span class="led demo" data-demo-led data-state="idle" />
+      )
+    }
+    <span class="osd label">{led === 'rec' ? 'REC' : 'TAPE'}</span>
+  </div>
+</div>
+
+<style>
+  .panel {
+    --big-knob-size: 72px;
+    --knob-size: 30px;
+    flex: none;
+    width: 118px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .brand {
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+
+  .readout {
+    align-self: stretch;
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 4px 10px;
+    background: var(--screen);
+    border: 1px solid var(--line);
+    font-size: 22px;
+    line-height: 1;
+    color: var(--amber);
+    text-shadow: 0 0 6px color-mix(in srgb, var(--amber) 50%, transparent);
+  }
+
+  .knobs {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .pair {
+    display: flex;
+    gap: 12px;
+  }
+
+  .knob {
+    --size: var(--knob-size);
+    position: relative;
+    width: var(--size);
+    height: var(--size);
+    border-radius: 50%;
+    background: var(--knob);
+    box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.5);
+  }
+
+  .knob.big {
+    --size: var(--big-knob-size);
+    transform: rotate(-30deg);
+  }
+
+  .knob.left {
+    transform: rotate(120deg);
+  }
+
+  .knob.right {
+    transform: rotate(40deg);
+  }
+
+  .tick {
+    position: absolute;
+    left: calc(50% - 2px);
+    top: calc(var(--size) * 0.12);
+    width: 4px;
+    height: calc(var(--size) * 0.3);
+    border-radius: 2px;
+    background: var(--text);
+  }
+
+  .tick.amber {
+    background: var(--amber);
+  }
+
+  .grille {
+    align-self: stretch;
+    flex: 1 1 auto;
+    min-height: 60px;
+    background: repeating-linear-gradient(to bottom, var(--ground-deep) 0 4px, transparent 4px 9px);
+  }
+
+  .lamp {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .led {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+  }
+
+  .led.rec {
+    background: var(--red);
+  }
+
+  .led.demo {
+    background: var(--line-strong);
+  }
+
+  .led.demo[data-state='loading'] {
+    background: var(--amber);
+    box-shadow: 0 0 8px var(--amber);
+  }
+
+  .led.demo[data-state='ready'] {
+    background: var(--cyan);
+    box-shadow: 0 0 8px var(--cyan);
+  }
+
+  .label {
+    font-size: 16px;
+    line-height: 1;
+    color: var(--muted);
+  }
+
+  @container tv-set (max-width: 470px) {
+    .panel {
+      --big-knob-size: 26px;
+      --knob-size: 20px;
+      width: auto;
+      flex-direction: row;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      gap: 8px 6px;
+    }
+
+    .brand {
+      font-size: 10px;
+      letter-spacing: 0.1em;
+    }
+
+    .readout {
+      align-self: center;
+      padding: 2px 5px;
+      font-size: 18px;
+    }
+
+    .knobs,
+    .pair {
+      flex-direction: row;
+      gap: 5px;
+    }
+
+    .lamp {
+      gap: 5px;
+    }
+
+    .grille {
+      display: none;
+    }
+  }
+</style>

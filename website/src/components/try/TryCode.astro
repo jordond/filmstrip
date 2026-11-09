@@ -1,0 +1,222 @@
+---
+// The Kotlin behind the Try it edit, in a viewfinder card beside the TV. Every line is tagged with the steps it belongs
+// to at build time, and the script shows a step's lines while its key is on. A `none` line shows until a key is.
+import { Code } from 'astro:components'
+import type { ShikiTransformer } from 'shiki'
+import { NO_STEPS } from '../../lib/beachTv'
+import { readSnippet } from '../../lib/snippets'
+import { lineShown, readStepLines, untaggedCode } from '../../lib/tryCode'
+import { vhsTheme } from '../../lib/vhsTheme'
+
+const lines = readStepLines(readSnippet('commonMain/kotlin/dev/jordond/filmstrip/docs/landing/TryIt.kt', 'try-it'))
+
+const stepTags: ShikiTransformer = {
+  name: 'try-step-tags',
+  // Each line becomes a block that folds on its own, so the newlines between them would only add blank rows.
+  code(node) {
+    node.children = node.children.filter((child) => !(child.type === 'text' && child.value === '\n'))
+  },
+  line(node, number) {
+    const line = lines[number - 1]
+    if (line.steps.length === 0) return
+    node.properties['data-step'] = line.steps.join(' ')
+    if (lineShown(line, NO_STEPS)) this.addClassToHast(node, 'on')
+  },
+}
+---
+
+<figure class="card" aria-labelledby="try-code-caption" data-try-code>
+  <figcaption id="try-code-caption" class="visually-hidden">The Kotlin for the edit the keys build</figcaption>
+  <div class="corner tl" aria-hidden="true"></div>
+  <div class="corner tr" aria-hidden="true"></div>
+  <div class="corner bl" aria-hidden="true"></div>
+  <div class="corner br" aria-hidden="true"></div>
+  <div class="osd viewfinder" aria-hidden="true">
+    <span><span class="blink rec">●</span> EDIT</span>
+    <span class="file">TryIt.kt</span>
+  </div>
+  <Code code={untaggedCode(lines)} lang="kotlin" theme={vhsTheme} transformers={[stepTags]} class="snippet-vhs" />
+</figure>
+
+<script>
+  import { lineShown, STEPS_EVENT, stepsOfAttribute } from '../../lib/tryCode'
+  import type { Steps } from '../../lib/tryProtocol'
+
+  const card = document.querySelector<HTMLElement>('[data-try-code]')
+  if (card) {
+    const lines = [...card.querySelectorAll<HTMLElement>('.line[data-step]')].map((element) => ({
+      element,
+      steps: stepsOfAttribute(element.dataset.step),
+    }))
+
+    document.addEventListener(STEPS_EVENT, (event) => {
+      const steps = (event as CustomEvent<Steps>).detail
+      for (const line of lines) {
+        const shown = lineShown(line, steps)
+        const was = line.element.classList.contains('on')
+        line.element.classList.toggle('on', shown)
+        if (shown && !was) {
+          line.element.classList.remove('flash')
+          void line.element.offsetWidth
+          line.element.classList.add('flash')
+        }
+      }
+    })
+  }
+</script>
+
+<style>
+  .card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    margin: 0;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    padding: 64px 0 48px;
+    box-shadow: 0 30px 60px rgba(0, 0, 0, 0.45);
+  }
+
+  .corner {
+    position: absolute;
+    width: 36px;
+    height: 36px;
+    border: 0 solid var(--text);
+  }
+
+  .corner.tl {
+    top: 14px;
+    left: 14px;
+    border-top-width: 3px;
+    border-left-width: 3px;
+  }
+
+  .corner.tr {
+    top: 14px;
+    right: 14px;
+    border-top-width: 3px;
+    border-right-width: 3px;
+  }
+
+  .corner.bl {
+    bottom: 14px;
+    left: 14px;
+    border-bottom-width: 3px;
+    border-left-width: 3px;
+  }
+
+  .corner.br {
+    bottom: 14px;
+    right: 14px;
+    border-bottom-width: 3px;
+    border-right-width: 3px;
+  }
+
+  .viewfinder {
+    position: absolute;
+    top: 18px;
+    left: 64px;
+    right: 64px;
+    display: flex;
+    justify-content: space-between;
+    font-size: 24px;
+  }
+
+  .rec {
+    color: var(--red);
+  }
+
+  .file {
+    color: var(--muted);
+  }
+
+  .card :global(.snippet-vhs) {
+    --row: 1.7em;
+    flex: 1 1 auto;
+    min-height: 0;
+    margin: 0;
+    overflow: auto;
+    font-family: var(--font-body);
+    font-size: clamp(12px, 1.1vw, 14px);
+    line-height: var(--row);
+    padding: 0 clamp(20px, 3vw, 44px);
+  }
+
+  .card :global(.snippet-vhs:focus-visible) {
+    outline-offset: -3px;
+  }
+
+  .card :global(.snippet-vhs code) {
+    display: block;
+    width: max-content;
+    min-width: 100%;
+    font-family: inherit;
+  }
+
+  .card :global(.line) {
+    display: block;
+    max-height: var(--row);
+    overflow-x: visible;
+    overflow-y: clip;
+    transition:
+      max-height 0.28s ease-out,
+      opacity 0.28s ease-out,
+      visibility 0s;
+  }
+
+  .card :global(.line:empty::before) {
+    content: ' ';
+  }
+
+  .card :global(.line[data-step]:not(.on)) {
+    max-height: 0;
+    opacity: 0;
+    visibility: hidden;
+    transition:
+      max-height 0.28s ease-in,
+      opacity 0.2s ease-in,
+      visibility 0s linear 0.28s;
+  }
+
+  .card :global(.line[data-step^='none']) {
+    --flash: var(--text);
+  }
+
+  .card :global(.line[data-step^='trim']) {
+    --flash: var(--amber);
+  }
+
+  .card :global(.line[data-step^='grade']) {
+    --flash: var(--cyan);
+  }
+
+  .card :global(.line[data-step^='title']) {
+    --flash: var(--pink);
+  }
+
+  .card :global(.line.flash) {
+    animation: stepflash 0.9s ease-out;
+  }
+
+  @keyframes stepflash {
+    0%,
+    30% {
+      background: color-mix(in srgb, var(--flash) 28%, transparent);
+    }
+    100% {
+      background: transparent;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .card :global(.line),
+    .card :global(.line[data-step]:not(.on)) {
+      transition: none;
+    }
+
+    .card :global(.line.flash) {
+      animation: none;
+    }
+  }
+</style>

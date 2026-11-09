@@ -1,11 +1,12 @@
 ---
 // A big CRT showing colour bars until the reader presses LOAD, then the wasm sample in an iframe. Nothing downloads
-// before the click. The screen layers stay on top of the iframe and let every pointer event through. On narrow widths
-// LOAD also grows the screen and slims the bezel, so the sample has room to be used. A browser with no WebCodecs keeps
-// the bars and gets a note in place of LOAD.
+// before the click. The screen layers stay on top of the iframe and let every pointer event through. The control panel
+// stands beside the tube, or under it on a narrow set. On narrow widths LOAD also grows the screen and slims the bezel
+// and panel, so the sample has room to be used. A browser with no WebCodecs keeps the bars and gets a note in place of
+// LOAD.
 import { DEMO_SIZE, DEMO_SRC } from '../lib/demo'
 import NoWebCodecs from './NoWebCodecs.astro'
-import TvChin from './landing/TvChin.astro'
+import TvPanel from './landing/TvPanel.astro'
 
 interface Props {
   /** Where the sample's index.html is served from. */
@@ -27,44 +28,46 @@ const bottom = [
 ---
 
 <div class="tv not-content" data-demo data-src={src}>
-  <div id="demo-screen" class="screen scan flicker">
-    <div class="roll"></div>
-    <div class="vignette"></div>
-    <div class="glass"></div>
-    <div class="bars" aria-hidden="true" data-demo-idle>
-      <div class="row top">{top.map((colour) => <div style={`background: ${colour}`}></div>)}</div>
-      <div class="row middle">{middle.map((colour) => <div style={`background: ${colour}`}></div>)}</div>
-      <div class="row bottom">
-        {bottom.map((it) => <div style={`background: ${it.colour}; flex: ${it.flex}`}></div>)}
-      </div>
-    </div>
-    <div class="osd overlay" data-demo-idle>
-      <div class="channel" aria-hidden="true">
-        <span class="rgb-sm">CH 03</span>
-        <span class="rgb-sm">AUX</span>
-      </div>
-      <div class="centre" aria-live="polite">
-        <div class="idle" data-demo-panel="idle">
-          <button type="button" class="osd load" data-demo-load>
-            <svg width="22" height="24" viewBox="0 0 18 20" aria-hidden="true">
-              <path d="M2 2 L16 10 L2 18 Z" fill="currentColor"></path>
-            </svg>LOAD
-          </button>
-          <span class="rgb-sm note">{size.toUpperCase()} DOWNLOAD · STARTS WHEN YOU PRESS LOAD</span>
+  <div class="face">
+    <div id="demo-screen" class="screen scan flicker">
+      <div class="roll"></div>
+      <div class="vignette"></div>
+      <div class="glass"></div>
+      <div class="bars" aria-hidden="true" data-demo-idle>
+        <div class="row top">{top.map((colour) => <div style={`background: ${colour}`}></div>)}</div>
+        <div class="row middle">{middle.map((colour) => <div style={`background: ${colour}`}></div>)}</div>
+        <div class="row bottom">
+          {bottom.map((it) => <div style={`background: ${it.colour}; flex: ${it.flex}`}></div>)}
         </div>
-        <NoWebCodecs />
-        <div class="loading" data-demo-panel="loading" tabindex="-1" hidden>
-          <span class="rgb-sm loading-title">LOADING TAPE <span class="blink" aria-hidden="true">▮</span></span>
-          <div class="cells" aria-hidden="true">
-            {Array.from({ length: 16 }, (_, index) => <div class="cell" style={`--index: ${index}`}></div>)}
+      </div>
+      <div class="osd overlay" data-demo-idle>
+        <div class="channel" aria-hidden="true">
+          <span class="rgb-sm">CH 03</span>
+          <span class="rgb-sm">AUX</span>
+        </div>
+        <div class="centre" aria-live="polite">
+          <div class="idle" data-demo-panel="idle">
+            <button type="button" class="osd load" data-demo-load>
+              <svg width="22" height="24" viewBox="0 0 18 20" aria-hidden="true">
+                <path d="M2 2 L16 10 L2 18 Z" fill="currentColor"></path>
+              </svg>LOAD
+            </button>
+            <span class="rgb-sm note">{size.toUpperCase()} DOWNLOAD · STARTS WHEN YOU PRESS LOAD</span>
           </div>
-          <span class="loading-size">{size.toUpperCase()}</span>
+          <NoWebCodecs />
+          <div class="loading" data-demo-panel="loading" tabindex="-1" hidden>
+            <span class="rgb-sm loading-title">LOADING TAPE <span class="blink" aria-hidden="true">▮</span></span>
+            <div class="cells" aria-hidden="true">
+              {Array.from({ length: 16 }, (_, index) => <div class="cell" style={`--index: ${index}`}></div>)}
+            </div>
+            <span class="loading-size">{size.toUpperCase()}</span>
+          </div>
         </div>
+        <div class="spacer"></div>
       </div>
-      <div class="spacer"></div>
     </div>
+    <TvPanel led="demo" />
   </div>
-  <TvChin led="demo" size="lg" />
 </div>
 
 <script>
@@ -108,8 +111,9 @@ const bottom = [
     max-width: 1040px;
     margin: 0 auto;
     background: var(--bezel);
-    border-radius: clamp(20px, 3vw, 44px);
-    padding: clamp(14px, 2.4vw, 36px) clamp(14px, 2.4vw, 36px) clamp(12px, 1.6vw, 20px);
+    border-radius: clamp(18px, 2.6vw, 28px);
+    padding: clamp(14px, 2.4vw, 26px);
+    container: tv-set / inline-size;
     box-shadow:
       0 50px 100px rgba(0, 0, 0, 0.6),
       inset 0 2px 0 rgba(255, 255, 255, 0.08),
@@ -117,12 +121,28 @@ const bottom = [
     border: 1px solid var(--line);
   }
 
+  .face {
+    display: flex;
+    align-items: center;
+    gap: 22px;
+  }
+
   .screen {
+    flex: 1;
+    min-width: 0;
     aspect-ratio: 16 / 10;
     background: var(--screen);
-    border-radius: clamp(18px, 3vw, 44px) / clamp(22px, 4vw, 56px);
+    border-radius: clamp(13px, 2.1vw, 28px) / clamp(15px, 2.8vw, 34px);
     overflow: hidden;
-    border: 10px solid var(--ground-deep);
+    border: 2px solid var(--line);
+  }
+
+  .face > :global(.panel) {
+    align-self: stretch;
+  }
+
+  .vignette {
+    box-shadow: inset 0 0 48px 6px rgba(0, 0, 0, 0.6);
   }
 
   .screen :global(iframe) {
@@ -176,7 +196,7 @@ const bottom = [
     display: flex;
     flex-direction: column;
     justify-content: space-between;
-    padding: 5% 6%;
+    padding: 3.5% 4%;
   }
 
   .channel {
@@ -293,6 +313,14 @@ const bottom = [
     box-shadow: inset 0 0 32px 4px rgba(0, 0, 0, 0.6);
   }
 
+  @container tv-set (max-width: 470px) {
+    .face {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 14px;
+    }
+  }
+
   @media (max-width: 48rem) {
     .tv[data-demo-loaded] {
       padding: 6px 6px 8px;
@@ -302,18 +330,16 @@ const bottom = [
     .tv[data-demo-loaded] .screen {
       width: 100%;
       min-height: min(75svh, 48rem);
-      border-width: 4px;
       border-radius: 12px;
     }
 
-    .tv[data-demo-loaded] :global(.chin.lg) {
-      --knob-size: 24px;
-      padding-top: 8px;
+    .tv[data-demo-loaded] .face {
+      gap: 8px;
     }
 
-    .tv[data-demo-loaded] :global(.chin.lg .tick) {
-      top: 3px;
-      height: 8px;
+    .tv[data-demo-loaded] :global(.panel) {
+      --big-knob-size: 22px;
+      --knob-size: 18px;
     }
   }
 

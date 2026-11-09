@@ -1,6 +1,7 @@
 ---
 // What a television shows in place of LOAD when this browser has no WebCodecs. It starts hidden, and `gateLoad` in
-// `lib/demo.ts` is what reveals it.
+// `lib/demo.ts` is what reveals it. Inside a BeachTv its type scales with the TV through `--tv-px`, and anywhere else
+// it scales with the window, 1px per 0.075vw.
 ---
 
 <div class="no-webcodecs osd" data-no-webcodecs hidden>
@@ -23,7 +24,7 @@
   .title {
     background: var(--backdrop);
     padding: 4px 16px;
-    font-size: clamp(24px, 3vw, 40px);
+    font-size: clamp(24px, calc(40 * var(--tv-px, 0.075vw)), 40px);
     color: var(--amber);
     text-align: center;
   }
@@ -31,7 +32,7 @@
   .line {
     background: var(--backdrop);
     padding: 2px 12px;
-    font-size: clamp(18px, 1.8vw, 24px);
+    font-size: clamp(18px, calc(24 * var(--tv-px, 0.075vw)), 24px);
     color: var(--text);
     text-align: center;
   }
