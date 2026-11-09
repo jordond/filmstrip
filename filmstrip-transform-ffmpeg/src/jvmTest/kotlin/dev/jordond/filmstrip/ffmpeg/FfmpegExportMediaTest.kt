@@ -169,10 +169,11 @@ class FfmpegExportMediaTest {
       failure.error.shouldBeInstanceOf<FilmstripError.ToolchainMissing>()
     }
 
-  // The probe looks for libvpx before allowing VP9. Nothing else in the pipeline is VP9-aware, so
-  // the check is that a whole export survives it.
+  // The probe looks for libvpx before allowing VP9. Nothing else in the pipeline is VP9-aware, so the check is that a
+  // whole export survives it. A build without libvpx gets the codec fallback the planner names, and that plan is
+  // exported instead.
   @Test
-  fun `exports VP9 on a build that carries libvpx`() =
+  fun `exports VP9 or the codec it falls back to without libvpx`() =
     runTest(timeout = TIMEOUT) {
       if (!fixture.available()) return@runTest
 
@@ -181,36 +182,41 @@ class FfmpegExportMediaTest {
           .capabilities()
           .shouldBeInstanceOf<CapabilitiesResult.Success>()
           .capabilities
-      if (capabilities.encoderFor(VideoCodec.Vp9) == null) return@runTest
-
       val output = File.createTempFile("filmstrip-vp9", ".mp4").also { it.delete() }
       val composition = compositionOf { clip(MediaSource.of(fixture.landscape.absolutePath)) }
-      // Half of the fixture's 640x360, so nothing rounds and the verdict stays Capable.
+      // Half of the fixture's 640x360, so nothing rounds and the only adjustment is the fallback, if any.
       val spec = ExportSpec(heightPx = 180, videoCodec = VideoCodec.Vp9)
 
       val verdict = fixture.filmstrip.plan(composition, spec)
-      verdict
-        .shouldBeInstanceOf<Verdict.Capable>()
-        .plan.output.videoCodec shouldBe VideoCodec.Vp9
+      val plan =
+        if (capabilities.encoderFor(VideoCodec.Vp9) != null) {
+          verdict.shouldBeInstanceOf<Verdict.Capable>().plan.also { it.output.videoCodec shouldBe VideoCodec.Vp9 }
+        } else {
+          val degraded = verdict.shouldBeInstanceOf<Verdict.Degraded>()
+          val fallback = degraded.adjustments.single { it.kind == AdjustmentKind.CodecFallback }
+          fallback.requested shouldBe VideoCodec.Vp9.name
+          fallback.resolved shouldBe degraded.plan.output.videoCodec.name
+          degraded.plan
+        }
 
       val finished =
         fixture.filmstrip
-          .export(verdict.plan, MediaSink.of(output.absolutePath))
+          .export(plan, MediaSink.of(output.absolutePath))
           .toList()
           .last()
       if (finished is ExportStatus.Failure) error(finished.error.message)
       finished.shouldBeInstanceOf<ExportStatus.Success>()
 
-      ffprobe(output.absolutePath).endsWith("vp9 aac") shouldBe true
+      ffprobe(output.absolutePath).endsWith("${plan.output.videoCodec.name.lowercase()} aac") shouldBe true
 
       output.delete()
     }
 
-  // ALAC has never had a CodecKind of its own, so the written file's audio track reads back as
-  // one drift() cannot name. Proving the export still succeeds is what keeps that gap from
-  // failing a file that matches the plan exactly.
+  // ALAC has never had a CodecKind of its own, so the written file's audio track reads back as one drift() cannot
+  // name. Proving the export still succeeds is what keeps that gap from failing a file that matches the plan exactly.
+  // A build without an ALAC encoder gets the codec fallback the planner names, and that plan is exported instead.
   @Test
-  fun `exports ALAC on a build that carries it`() =
+  fun `exports ALAC or the codec it falls back to without an ALAC encoder`() =
     runTest(timeout = TIMEOUT) {
       if (!fixture.available()) return@runTest
 
@@ -219,26 +225,31 @@ class FfmpegExportMediaTest {
           .capabilities()
           .shouldBeInstanceOf<CapabilitiesResult.Success>()
           .capabilities
-      if (capabilities.audio.none { it.codec == AudioCodec.Alac }) return@runTest
-
       val output = File.createTempFile("filmstrip-alac", ".mp4").also { it.delete() }
       val composition = compositionOf { clip(MediaSource.of(fixture.landscape.absolutePath)) }
       val spec = ExportSpec(heightPx = 180, audioCodec = AudioCodec.Alac)
 
       val verdict = fixture.filmstrip.plan(composition, spec)
-      verdict
-        .shouldBeInstanceOf<Verdict.Capable>()
-        .plan.output.audioCodec shouldBe AudioCodec.Alac
+      val plan =
+        if (capabilities.audio.any { it.codec == AudioCodec.Alac }) {
+          verdict.shouldBeInstanceOf<Verdict.Capable>().plan.also { it.output.audioCodec shouldBe AudioCodec.Alac }
+        } else {
+          val degraded = verdict.shouldBeInstanceOf<Verdict.Degraded>()
+          val fallback = degraded.adjustments.single { it.kind == AdjustmentKind.CodecFallback }
+          fallback.requested shouldBe AudioCodec.Alac.name
+          fallback.resolved shouldBe degraded.plan.output.audioCodec.name
+          degraded.plan
+        }
 
       val finished =
         fixture.filmstrip
-          .export(verdict.plan, MediaSink.of(output.absolutePath))
+          .export(plan, MediaSink.of(output.absolutePath))
           .toList()
           .last()
       if (finished is ExportStatus.Failure) error(finished.error.message)
       finished.shouldBeInstanceOf<ExportStatus.Success>()
 
-      ffprobe(output.absolutePath).endsWith("h264 alac") shouldBe true
+      ffprobe(output.absolutePath).endsWith("h264 ${plan.output.audioCodec.name.lowercase()}") shouldBe true
 
       output.delete()
     }

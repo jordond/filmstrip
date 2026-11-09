@@ -47,16 +47,21 @@ class FfmpegCapabilityProbeMediaTest {
       measured(narrowed(setOf("libx264"))).supportsHdrEncoding shouldBe false
     }
 
+  // A build without libx265 still lists it here, so the probe has to open it to find it cannot encode anything.
   @Test
   fun `hdr is answered by the encoder an hdr export opens`() =
     runTest {
-      val real = toolchain()
-      if (!real.hasEncoder("libx265")) return@runTest
+      val carried = toolchain().hasEncoder("libx265")
 
       val capabilities = measured(narrowed(setOf("libx265")))
 
-      capabilities.video.single().encoderName shouldBe "libx265"
-      capabilities.supportsHdrEncoding shouldBe true
+      if (carried) {
+        capabilities.video.single().encoderName shouldBe "libx265"
+        capabilities.supportsHdrEncoding shouldBe true
+      } else {
+        capabilities.video.shouldBeEmpty()
+        capabilities.supportsHdrEncoding shouldBe false
+      }
     }
 
   // Audio is read off the encoder list rather than probed, so it is the one answer a binary that will

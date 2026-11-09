@@ -1,8 +1,13 @@
 package dev.jordond.filmstrip.ffmpeg
 
+import dev.jordond.filmstrip.CapabilitiesResult
 import dev.jordond.filmstrip.codec.AudioCodec
 import dev.jordond.filmstrip.codec.VideoCodec
+import dev.jordond.filmstrip.edit.compositionOf
+import dev.jordond.filmstrip.export.AdjustmentKind
+import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.OutputFormat
+import dev.jordond.filmstrip.export.Verdict
 import dev.jordond.filmstrip.ffmpeg.internal.FfmpegRuntime
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.InputSource
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.InputSpec
@@ -12,12 +17,17 @@ import dev.jordond.filmstrip.ffmpeg.internal.process.ToolchainResult
 import dev.jordond.filmstrip.ffmpeg.support.ExportConstants.CODE_TOLERANCE
 import dev.jordond.filmstrip.ffmpeg.support.ExportConstants.COLOR_READ_BITRATE
 import dev.jordond.filmstrip.ffmpeg.support.ExportConstants.TIMEOUT
+import dev.jordond.filmstrip.ffmpeg.support.FfmpegExportFixture
 import dev.jordond.filmstrip.ffmpeg.support.tenBitCodesAt
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.HdrTransfer
+import dev.jordond.filmstrip.media.MediaSource
 import io.kotest.assertions.withClue
 import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.test.runTest
 import java.io.File
 import kotlin.math.abs
@@ -27,10 +37,12 @@ import kotlin.time.Duration.Companion.seconds
 /**
  * Real libx265 encodes at a width inside the range it crashes on, run from the arguments the lowering writes and read
  * back against a lossless copy of the same frames. A planned export picks hevc_videotoolbox where there is one, so
- * these name libx265 themselves to run on every machine that has it.
+ * these name libx265 themselves to run on every machine that has it. A build without libx265 is held to an HEVC plan
+ * that never reaches it instead, through another HEVC encoder or the codec fallback the planner names.
  */
 class FfmpegX265NarrowFrameMediaTest {
   private val runtime = FfmpegRuntime.unshared(FfmpegConfig())
+  private val fixture = FfmpegExportFixture()
 
   @Test
   fun `libx265 writes an SDR frame at a width it crashes on`() =
@@ -52,9 +64,8 @@ class FfmpegX265NarrowFrameMediaTest {
     source: String,
     hdrTransfer: HdrTransfer?,
   ) {
-    val available = runtime.toolchain() as? ToolchainResult.Available ?: return
-    val toolchain = available.toolchain
-    if (!toolchain.hasEncoder("libx265")) return
+    val toolchain = runtime.toolchain().shouldBeInstanceOf<ToolchainResult.Available>().toolchain
+    if (!toolchain.hasEncoder("libx265")) return assertPlannedWithoutLibx265()
 
     val encoded = File.createTempFile("filmstrip-x265-narrow", ".mp4")
     val lossless = File.createTempFile("filmstrip-x265-narrow", ".mkv")
@@ -92,6 +103,34 @@ class FfmpegX265NarrowFrameMediaTest {
       encoded.delete()
       lossless.delete()
     }
+  }
+
+  private suspend fun assertPlannedWithoutLibx265() {
+    withClue("the fixtures are absent") { fixture.available().shouldBeTrue() }
+    val source = MediaSource.of(fixture.landscape.absolutePath)
+    // Half of the fixture's 640x360, so nothing rounds and the only adjustment is the fallback, if any.
+    val spec = ExportSpec(heightPx = 180, videoCodec = VideoCodec.Hevc)
+    val capabilities =
+      fixture.filmstrip
+        .capabilities()
+        .shouldBeInstanceOf<CapabilitiesResult.Success>()
+        .capabilities
+
+    val lowering = fixture.plannedLowering(compositionOf { clip(source) }, spec, listOf(source))
+
+    if (capabilities.encoderFor(VideoCodec.Hevc) != null) {
+      lowering.verdict
+        .shouldBeInstanceOf<Verdict.Capable>()
+        .plan.output.videoCodec shouldBe VideoCodec.Hevc
+    } else {
+      val degraded = lowering.verdict.shouldBeInstanceOf<Verdict.Degraded>()
+      val fallback = degraded.adjustments.single { it.kind == AdjustmentKind.CodecFallback }
+      fallback.requested shouldBe VideoCodec.Hevc.name
+      fallback.resolved shouldBe degraded.plan.output.videoCodec.name
+    }
+    lowering.graph
+      .shouldNotBeNull()
+      .videoEncoder shouldNotBe "libx265"
   }
 
   private suspend fun run(command: List<String>) {
