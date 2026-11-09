@@ -140,6 +140,10 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends ffmpeg fontconfig fonts-dejavu-core
+      - name: Check ffmpeg major
+        env:
+          INTENDED_MAJOR: 8
+        run: bash .github/scripts/check-ffmpeg-major.sh
       - *gradle
       - name: Run jvm tests
         run: ./gradlew jvmTest --scan

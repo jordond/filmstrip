@@ -94,19 +94,17 @@ class AudioLoweringTest {
     lowered.graph shouldContain "[ad0]atrim=end="
   }
 
-  // The lead is as long as the longest track, here the bed that opens late and runs on past the
-  // primary, and every track is mixed without amix dividing it by the input count.
+  // Every track is mixed without amix dividing it by the input count, and the mix runs as long as the longer track.
   @Test
-  fun `two tracks mix behind a silent lead as long as the longer one`() {
+  fun `two tracks mix as long as the longer one`() {
     val primary = track(TrackContent.AudioAndVideo, clip(2.seconds))
     val bed = track(TrackContent.Audio, clip(1_500.milliseconds), start = 1.seconds)
 
     val lowered = lower(primary, bed, duration = 2_500.milliseconds)
 
+    lowered.graph shouldNotContain "anullsrc"
     lowered.graph shouldContain
-      "anullsrc=r=48000:cl=stereo,atrim=end=${formatSeconds(2.5)},$STEREO_FORMAT[alead]"
-    lowered.graph shouldContain
-      "[alead][a0c0][ad1]amix=inputs=3:duration=longest:dropout_transition=0:normalize=0[amixed]"
+      "[a0c0][ad1]amix=inputs=2:duration=longest:dropout_transition=0:normalize=0[amixed]"
     lowered.graph shouldContain "[amixed]atrim=end=${formatSeconds(2.5)}"
   }
 

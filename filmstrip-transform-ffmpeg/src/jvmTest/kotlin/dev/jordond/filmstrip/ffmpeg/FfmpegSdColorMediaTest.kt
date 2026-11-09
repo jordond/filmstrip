@@ -1,6 +1,8 @@
 package dev.jordond.filmstrip.ffmpeg
 
+import dev.jordond.filmstrip.CapabilitiesResult
 import dev.jordond.filmstrip.ComponentRegistry
+import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.color.EBU_PRIMARIES
 import dev.jordond.filmstrip.color.SMPTE_C_PRIMARIES
 import dev.jordond.filmstrip.color.sdSourceDisplayed
@@ -8,8 +10,10 @@ import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.effects.BuiltInEffectResolver
 import dev.jordond.filmstrip.effects.color.Invert
+import dev.jordond.filmstrip.export.AdjustmentKind
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.HdrMode
+import dev.jordond.filmstrip.export.Verdict
 import dev.jordond.filmstrip.ffmpeg.internal.FfmpegExportEngine
 import dev.jordond.filmstrip.ffmpeg.internal.FfmpegProber
 import dev.jordond.filmstrip.ffmpeg.internal.FfmpegRuntime
@@ -17,6 +21,7 @@ import dev.jordond.filmstrip.ffmpeg.internal.process.BytesRoot
 import dev.jordond.filmstrip.ffmpeg.support.regionAverage
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.transform.internal.ResolveResult
+import io.kotest.assertions.withClue
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
@@ -131,6 +136,37 @@ internal class FfmpegSdColorMediaTest : SdColorTestCase() {
 
       BAR_CENTRES.forEach { x -> assertWithin(readOf(output, x), invertedDisplay(source, x), "the bar at $x") }
       tagsOf(output) shouldBe BT709_TAGS
+    }
+
+  // The tags come off the graph's frames alone, so every encoder the build ranks first for a codec has to write them.
+  // A build without one gets the codec fallback the planner names, and the file it writes is held to the same tags.
+  @Test
+  fun `an invert on an SD clip writes BT709 through the HEVC and VP9 encoders`() =
+    runTest(timeout = TIMEOUT) {
+      val source = clip("invert-encoders.mp4", TAGS_170M)
+      val capabilities =
+        fixture.filmstrip
+          .capabilities()
+          .shouldBeInstanceOf<CapabilitiesResult.Success>()
+          .capabilities
+      for (codec in listOf(VideoCodec.Hevc, VideoCodec.Vp9)) {
+        val spec = ExportSpec(videoCodec = codec)
+        val encoder = capabilities.encoderFor(codec)?.encoderName
+        val plan =
+          if (encoder != null) {
+            fixture.plannedRun(inverted(source), spec)
+          } else {
+            val degraded = fixture.filmstrip.plan(inverted(source), spec).shouldBeInstanceOf<Verdict.Degraded>()
+            val fallback = degraded.adjustments.single { it.kind == AdjustmentKind.CodecFallback }
+            fallback.requested shouldBe codec.name
+            fallback.resolved shouldBe degraded.plan.output.videoCodec.name
+            degraded.plan
+          }
+        val output = File(folder, "invert-$codec.mp4")
+        fixture.exported(plan, output)
+
+        withClue("$codec written by ${encoder ?: "the fallback for it"}") { tagsOf(output) shouldBe BT709_TAGS }
+      }
     }
 
   @Test

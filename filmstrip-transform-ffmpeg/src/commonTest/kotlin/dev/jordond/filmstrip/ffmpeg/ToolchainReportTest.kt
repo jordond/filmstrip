@@ -66,21 +66,44 @@ class ToolchainReportTest {
     }
   }
 
-  // A git build names no release, so its libavformat major is held against the floor's.
+  // A git build names no release, so its libavformat version is held against the one the floor ships. Master reached
+  // major 62 ahead of the 8.0 branch, so a 62 below the floor's minor is refused.
   @Test
-  fun `holds a build with no release number to its libavformat major`() {
+  fun `holds a build with no release number to its libavformat version`() {
+    val cases =
+      listOf(
+        Triple(61, 3, false),
+        Triple(62, 2, false),
+        Triple(62, 3, true),
+        Triple(62, 4, true),
+        Triple(63, 1, true),
+      )
     for (banner in listOf("N-121284-g4c9e0eb0e6", "2025-09-01-git-1d33e7c3a5")) {
-      for ((libavformat, meets) in listOf(61 to false, 62 to true, 63 to true)) {
-        val version = parseVersion(versionOutput(banner, libavformat))
+      for ((libavformat, libavformatMinor, meets) in cases) {
+        val version = parseVersion(versionOutput(banner, libavformat, libavformatMinor))
 
-        withClue("$banner on libavformat $libavformat") {
+        withClue("$banner on libavformat $libavformat.$libavformatMinor") {
           version.major shouldBe null
           version.libavformatMajor shouldBe libavformat
+          version.libavformatMinor shouldBe libavformatMinor
           version.readable shouldBe true
           version.meetsFloor() shouldBe meets
         }
       }
     }
+  }
+
+  // The libavformat lines 8.0.1 and 9.0.2 print, under a banner that names no release.
+  @Test
+  fun `accepts the libavformat versions 8_0_1 and 9_0_2 print`() {
+    val floor = parseVersion(versionOutput("N-121284-g4c9e0eb0e6", 62, 3))
+    val nine = parseVersion(versionOutput("N-121284-g4c9e0eb0e6", 63, 1, micro = 102))
+
+    floor.libavformatMinor shouldBe 3
+    floor.meetsFloor() shouldBe true
+    nine.libavformatMajor shouldBe 63
+    nine.libavformatMinor shouldBe 1
+    nine.meetsFloor() shouldBe true
   }
 
   @Test
@@ -102,16 +125,21 @@ class ToolchainReportTest {
     parseVersion(versionOutput("9.0.2", 63)).meetsFloor() shouldBe true
   }
 
-  // What `ffmpeg -version` prints for [banner], with the libavformat line at [libavformat] among the libraries.
+  // What `ffmpeg -version` prints for [banner], with the libavformat line at [libavformat].[minor].[micro] among the
+  // libraries.
   private fun versionOutput(
     banner: String,
     libavformat: Int,
-  ): String =
-    "ffmpeg version $banner Copyright (c) 2000-2025 the FFmpeg developers\n" +
+    minor: Int = 3,
+    micro: Int = 100,
+  ): String {
+    val library = "$libavformat.${minor.toString().padStart(3)}.$micro"
+    return "ffmpeg version $banner Copyright (c) 2000-2025 the FFmpeg developers\n" +
       "configuration: --enable-gpl\n" +
       "libavutil      60.  8.100 / 60.  8.100\n" +
       "libavcodec     62. 11.100 / 62. 11.100\n" +
-      "libavformat    $libavformat.  3.100 / $libavformat.  3.100\n"
+      "libavformat    $library / $library\n"
+  }
 
   @Test
   fun `reads a filter listing`() {

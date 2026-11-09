@@ -722,11 +722,9 @@ class GraphLoweringTest {
     graph shouldContain "]concat=n=${laid.clips.size}:v=1:a=0"
   }
 
-  // amix below ffmpeg 7 throws away what it still holds of its first input once that input ends,
-  // which cost a looping first track every pass after its first. Silence reads first instead, as long
-  // as the longest track rather than the first one, so it neither cuts the mix short nor pads it.
+  // A looping track mixed with a longer one reads first, and the mix runs on to the longer track's end.
   @Test
-  fun `a mix reads silence as long as its longest track ahead of every track`() {
+  fun `a mix reads every track and runs as long as its longest`() {
     val looping = loopingTrack()
     val underlay = underlayTrack()
     withClue("the underlay has to outlast the loop to tell them apart") {
@@ -735,9 +733,8 @@ class GraphLoweringTest {
 
     val graph = loopingInvocationFor(looping, underlay).filterGraph
 
-    val longest = formatSeconds(underlay.duration.toDouble(DurationUnit.SECONDS))
-    graph shouldContain "anullsrc=r=48000:cl=stereo,atrim=end=$longest,"
-    graph shouldContain "[alead][at0][ad1]amix=inputs=3:"
+    graph shouldNotContain "anullsrc"
+    graph shouldContain "[at0][ad1]amix=inputs=2:duration=longest:"
   }
 
   // A clip's frames are cut to the slots its span covers on the output grid, and its last frame is
@@ -751,7 +748,7 @@ class GraphLoweringTest {
     val graph = gridInvocationFor(laid).filterGraph
 
     graph shouldContain
-      "setsar=r=1,setpts=expr=PTS+eq(PTS\\,PREV_INPTS)/($GRID_RATE*TB),fps=fps=$GRID_RATE," +
+      "setsar=r=1,setpts=expr=PTS+eq(PTS\\,PREV_INPTS)*ceil(1/($GRID_RATE*TB)),fps=fps=$GRID_RATE," +
       "tpad=stop_mode=clone:stop=2,trim=end_frame=$slots,setpts=expr=PTS-STARTPTS,format=pix_fmts=yuv420p[v0]"
   }
 
@@ -838,7 +835,7 @@ class GraphLoweringTest {
 
     graph shouldContain
       "overlay=x=${blurredAt().first}:y=${blurredAt().second}:format=yuv420:alpha=straight,setsar=r=1," +
-      "setpts=expr=PTS+eq(PTS\\,PREV_INPTS)/($GRID_RATE*TB)," +
+      "setpts=expr=PTS+eq(PTS\\,PREV_INPTS)*ceil(1/($GRID_RATE*TB))," +
       "fps=fps=$GRID_RATE,tpad=stop_mode=clone:stop=2,trim=end_frame=$slots,"
   }
 
@@ -1073,7 +1070,7 @@ class GraphLoweringTest {
         "[1:v]setpts=expr=PTS-STARTPTS[v0m0a0]",
         "[v0m0pre][v0m0a0]overlay=x=0:y=0:format=yuv420:alpha=straight[v0m0]",
         "[v0m0]" + containedTail("black@0") + ",setsar=r=1," +
-          "setpts=expr=PTS+eq(PTS\\,PREV_INPTS)/(30*TB),fps=fps=30,tpad=stop_mode=clone:stop=2," +
+          "setpts=expr=PTS+eq(PTS\\,PREV_INPTS)*ceil(1/(30*TB)),fps=fps=30,tpad=stop_mode=clone:stop=2," +
           "trim=end_frame=60,setpts=expr=PTS-STARTPTS,format=pix_fmts=yuva420p[v0]",
         "[v0]eq=brightness=0.1[vfx0]",
         "color=c=0x000000:s=1920x1080:r=30[vbg]",

@@ -189,7 +189,6 @@ internal class GraphLowering(
       videoEncoder = negotiated.encoderName,
       duration = duration,
       hdrTransfer = negotiated.hdrTransfer,
-      writesBt709 = laidColor.writesBt709,
       previewColor = laidColor.kept?.toBt709Nodes(output.size).orEmpty(),
       seekBase = seekBase,
       seekSpeed = windowedClip?.speed ?: 1.0,

@@ -66,10 +66,8 @@ internal fun FilterGraphBuilder.overBlack(
 /**
  * Restates the grade on [transfer] onto a pad named [label] after [read], or hands [read] back when there is none.
  *
- * The effect chain is where a frame can go through RGB and come back, and what comes back is
- * untagged. ffmpeg 7 and newer reads the grade off the frames either side of it, but below that
- * the conversion out of RGB falls back to BT.601 and the picture is written through the wrong
- * matrix.
+ * The effect chain can carry a frame through plane lanes, and the `mergeplanes` that puts the lanes back together
+ * writes a frame with no primaries or transfer. The grade is set on it again so the encoder writes the file under it.
  */
 internal fun FilterGraphBuilder.restateGrade(
   read: String,
@@ -86,10 +84,9 @@ internal fun FilterGraphBuilder.restateGrade(
 /**
  * Restates the HDR grade on [transfer] for a stage that drops it, or nothing when there is no grade.
  *
- * `color` names no color attributes of its own, and a frame that has been through RGB carries
- * none either. ffmpeg 7 and newer take them from the neighbouring input, so restating costs
- * nothing there, but below that the frame comes out untagged and every conversion after it reads
- * a BT.2020 picture through the wrong matrix.
+ * `color` and `lutyuv` name no color attributes of their own, so a fill they paint comes out with no matrix. A
+ * conversion after it reads those codes through its own default rather than BT.2020, and the codes it writes are not
+ * the ones the fill was painted in.
  */
 internal fun gradeNodes(transfer: HdrTransfer?): List<FilterNode> {
   if (transfer == null) return emptyList()

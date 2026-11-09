@@ -57,10 +57,12 @@ import dev.jordond.filmstrip.ffmpeg.internal.lowering.SD_COLOR_FILTER
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.SdColor
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.TONE_MAP_FILTERS
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.arguments
+import dev.jordond.filmstrip.ffmpeg.internal.lowering.bt709Tags
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.ffmpegEncoderNamed
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.ffmpegEncoders
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.filterNames
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.formatSeconds
+import dev.jordond.filmstrip.ffmpeg.internal.lowering.render
 import dev.jordond.filmstrip.ffmpeg.internal.process.FfmpegVersion
 import dev.jordond.filmstrip.ffmpeg.internal.process.READS_FILES
 import dev.jordond.filmstrip.ffmpeg.internal.process.Toolchain
@@ -678,12 +680,12 @@ class PlannerTest {
     val sd = mapOf<MediaSource, SdColor>(landscape to SdColor(SMPTE_C_PRIMARIES, "smpte170m"))
 
     val kept = lowered(Clip(landscape), Clip(landscape), sdColors = sd)
-    kept.writesBt709 shouldBe false
+    kept.filterGraph shouldNotContain bt709Tags().render()
     kept.previewColor.single().name shouldBe SD_COLOR_FILTER
     kept.filterGraph shouldNotContain SD_COLOR_FILTER
 
     val beside = lowered(Clip(landscape), Clip(portrait), sdColors = sd)
-    beside.writesBt709 shouldBe true
+    beside.filterGraph shouldContain bt709Tags().render()
     beside.previewColor shouldBe emptyList()
     beside.filterGraph shouldContain "colorspace=ispace=smpte170m:iprimaries=smpte170m"
     Regex("colorspace=ispace").findAll(beside.filterGraph).count() shouldBe 1
@@ -712,7 +714,7 @@ class PlannerTest {
       onClip(Scale(360)),
     ).forEach { composition ->
       val kept = lowered(composition)
-      kept.writesBt709 shouldBe false
+      kept.filterGraph shouldNotContain bt709Tags().render()
       kept.filterGraph shouldNotContain SD_COLOR_FILTER
     }
 
@@ -725,7 +727,7 @@ class PlannerTest {
       Composition(listOf(Track(listOf(Clip(landscape)))), effects = listOf(Invert())),
     ).forEach { composition ->
       val moved = lowered(composition)
-      moved.writesBt709 shouldBe true
+      moved.filterGraph shouldContain bt709Tags().render()
       moved.previewColor shouldBe emptyList()
       moved.filterGraph shouldContain "colorspace=ispace=smpte170m:iprimaries=smpte170m"
     }
@@ -775,8 +777,7 @@ class PlannerTest {
 
     val graph = capableGraph(composition, ExportSpec())
 
-    // Two tracks and the silence the mix reads ahead of them.
-    graph shouldContain "amix=inputs=3:duration=longest:dropout_transition=0:normalize=0"
+    graph shouldContain "amix=inputs=2:duration=longest:dropout_transition=0:normalize=0"
     graph shouldContain "adelay=delays=1000:all=1"
     graph shouldContain "volume=volume=0.3"
     // A gain that holds one number needs neither a per-frame read nor the frames a ramp is cut to.

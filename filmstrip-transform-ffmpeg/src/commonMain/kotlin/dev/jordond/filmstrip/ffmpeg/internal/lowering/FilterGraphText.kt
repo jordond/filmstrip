@@ -44,8 +44,8 @@ private const val BLACK = 0xFF000000.toInt()
  * with `split` instead.
  *
  * A [PlaneLanes] node in a chain is expanded rather than written. The filters before it end in a `format` that pins the
- * frame to the sixteen-bit planar format of the named planes' family, with alpha when alpha is named, a video range tag
- * and an `extractplanes`. Each plane is carried to a gray float format on a lane of its own, and a `mergeplanes`
+ * frame to the sixteen-bit planar format of the named planes' family, with alpha when alpha is named, and an
+ * `extractplanes`. Each plane is carried to a gray float format on a lane of its own, and a `mergeplanes`
  * puts each lane into the slot its plane owns in the node's format: green, blue, red and alpha for RGB planes, y, u, v
  * and alpha for Y'CbCr planes. The merged frame is tagged video range and runs the filters after it. The pads in
  * between are named after the chain's output and plane, and go through the same proof as any other.
@@ -87,8 +87,8 @@ internal class FilterGraphBuilder {
         reads = planeLanes(reads, pending, target, "$output$LANE_PAD${lanes++}")
         pending.clear()
         pending += target.merge
-        // mergeplanes writes an untagged frame on 6.1.1 and 9.0.2 alike, so the merged frame is tagged
-        // with the range its lanes were read in. setrange only relabels, so no sample moves.
+        // mergeplanes writes an untagged frame, so the merged frame is tagged with the range its lanes
+        // were read in. setrange only relabels, so no sample moves.
         pending += FilterNode("setrange", "range" to "limited")
       } else {
         pending += node
@@ -106,18 +106,11 @@ internal class FilterGraphBuilder {
     prefix: String,
   ): List<String> {
     require(pending.isNotEmpty() || reads.size == 1) { "A plane lanes node reads one pad, not $reads" }
-    // ffmpeg 6.1.1 squeezes a gray16 plane cut from a full range or untagged frame into video range
-    // on its way to float, by up to 80 ten-bit codes. A tag on the lane lands after that conversion,
-    // since setrange takes whatever format the filter after it asks for, so the frame is tagged before
-    // it is cut. setrange only relabels, so no sample moves.
-    val tag = FilterNode("setrange", "range" to "limited")
     // extractplanes only picks its formats once its input is down to one depth, and filters such as
-    // pad, crop and colorchannelmixer leave every format open, so the frame is pinned first. The tag
-    // goes after the pin: swscale reads RGB as full range whatever its tag and writes the range the
-    // frame is tagged with, so RGB tagged video range ahead of a conversion is squeezed into it.
+    // pad, crop and colorchannelmixer leave every format open, so the frame is pinned first.
     val pin = FilterNode("format", "pix_fmts" to target.pin)
     val extract = FilterNode("extractplanes", "planes" to target.extracted.joinToString("+"))
-    write(reads, pending + pin + tag + extract, target.extracted.map { "$prefix$it" })
+    write(reads, pending + pin + extract, target.extracted.map { "$prefix$it" })
     return target.slots.map { plane ->
       "$prefix$plane$FLOAT_PAD".also {
         write(listOf("$prefix$plane"), listOf(FilterNode("format", "pix_fmts" to target.lane)), listOf(it))

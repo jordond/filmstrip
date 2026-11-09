@@ -38,12 +38,14 @@ class ToolchainFloorTest {
     }
 
   @Test
-  fun `a git build is held to the floor by its libavformat major`() =
+  fun `a git build is held to the floor by its libavformat version`() =
     runTest {
-      val old = locate("N-121284-g4c9e0eb0e6", libavformat = 61)
-      old.shouldBeInstanceOf<ToolchainResult.Unavailable>().error.message shouldContain
-        "N-121284-g4c9e0eb0e6 is too old"
-      locate("N-121284-g4c9e0eb0e6", libavformat = 62).shouldBeInstanceOf<ToolchainResult.Available>()
+      for (old in listOf(61 to 3, 62 to 2)) {
+        locate("N-121284-g4c9e0eb0e6", libavformat = old)
+          .shouldBeInstanceOf<ToolchainResult.Unavailable>()
+          .error.message shouldContain "N-121284-g4c9e0eb0e6 is too old"
+      }
+      locate("N-121284-g4c9e0eb0e6", libavformat = 62 to 3).shouldBeInstanceOf<ToolchainResult.Available>()
     }
 
   @Test
@@ -70,16 +72,19 @@ class ToolchainFloorTest {
       error.message shouldContain "ffmpeg 8.0 or newer"
     }
 
-  // Looks up a stand-in ffmpeg whose banner names [version], printing a libavformat line at [libavformat] when given,
-  // and listing [bitstreamFilters] when asked for them.
+  // Looks up a stand-in ffmpeg whose banner names [version], printing a libavformat line at the major and minor of
+  // [libavformat] when given, and listing [bitstreamFilters] when asked for them.
   private suspend fun locate(
     version: String,
-    libavformat: Int? = null,
+    libavformat: Pair<Int, Int>? = null,
     bitstreamFilters: List<String> = listOf(PACKET_DROP_FILTER),
   ): ToolchainResult {
     val directory = Files.createTempDirectory("filmstrip-floor").toFile()
     try {
-      val library = libavformat?.let { "\nlibavformat    $it.  3.100 / $it.  3.100" }.orEmpty()
+      val library =
+        libavformat
+          ?.let { (major, minor) -> "\nlibavformat    $major.  $minor.100 / $major.  $minor.100" }
+          .orEmpty()
       val banner = "ffmpeg version $version Copyright (c) 2000-2025 the FFmpeg developers$library"
       val listing = (listOf("Bitstream filters:") + bitstreamFilters).joinToString("\n")
       val ffmpeg = script(directory, "ffmpeg", banner, listing)
