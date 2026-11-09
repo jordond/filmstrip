@@ -1,7 +1,5 @@
 package dev.jordond.filmstrip.webcodecs
 
-import dev.jordond.filmstrip.codec.AudioCodec
-import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.Composition
@@ -45,16 +43,16 @@ class WasmExportCanaryMediaTest {
   @Test
   fun aTrimmedClipEncodesAudibleAudio() =
     runTest {
-      if (!browserEncodesAac()) return@runTest
       val bytes = makeClipWithAudio(frames = 60, frameRate = 30)
       val composition =
         Composition(
           tracks = listOf(Track(listOf(Clip(MediaSource.Bytes(bytes), trim = TimeRange(TRIM_START, TRIM_END))))),
           audio = AudioSpec.Keep,
         )
-      val spec = ExportSpec(videoCodec = VideoCodec.H264, audioCodec = AudioCodec.Aac)
+      val spec = autoAudioSpec()
       val success = exportOf(composition, MediaSink.Uri(""), spec)
 
+      shouldCarryAudioIn(success, plannedAudioOf(composition, spec))
       val audio =
         withClue("the export produced no readable audio track") {
           decodeAudio(outputOf(success)).shouldNotBeNull()

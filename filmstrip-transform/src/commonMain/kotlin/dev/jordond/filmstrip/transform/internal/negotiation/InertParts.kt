@@ -267,6 +267,17 @@ private fun clipOutFrame(
   ask: Ask,
 ): Size? = clipEntryFrame(clip, ask)?.let { frameThrough(it, listOf(clip.effects + track.effects)) }
 
+/**
+ * Whether any clip in [edit] can still be heard once [streams] and every mute along the way are applied.
+ *
+ * A composition that keeps an audio track but mutes all of it has nothing here.
+ */
+internal fun hasAudibleAudio(
+  edit: Composition,
+  streams: Streams,
+  ask: Ask,
+): Boolean = edit.tracks.any { track -> track.clips.any { !clipIsSilent(edit, streams, track, it, ask) } }
+
 private fun clipIsSilent(
   edit: Composition,
   streams: Streams,

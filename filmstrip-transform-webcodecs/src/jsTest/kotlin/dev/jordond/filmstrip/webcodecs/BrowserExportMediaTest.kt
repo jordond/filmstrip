@@ -20,6 +20,7 @@ import dev.jordond.filmstrip.effects.BuiltInEffectResolver
 import dev.jordond.filmstrip.effects.color.Brightness
 import dev.jordond.filmstrip.effects.color.Contrast
 import dev.jordond.filmstrip.effects.geometry.CropRect
+import dev.jordond.filmstrip.export.AdjustmentKind
 import dev.jordond.filmstrip.export.CopyBlocker
 import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.export.ExportPlan
@@ -38,6 +39,8 @@ import dev.jordond.filmstrip.transform.internal.resolve.ResolvedClip
 import dev.jordond.filmstrip.transform.internal.videoSlots
 import dev.jordond.filmstrip.webcodecs.internal.BrowserExportEngine
 import dev.jordond.filmstrip.webcodecs.internal.BrowserProber
+import dev.jordond.filmstrip.webcodecs.internal.interop.containerFor
+import dev.jordond.filmstrip.webcodecs.internal.interop.fileExtensionOf
 import dev.jordond.filmstrip.webcodecs.internal.render.BrowserCompositor
 import io.kotest.assertions.withClue
 import io.kotest.matchers.doubles.plusOrMinus
@@ -839,7 +842,6 @@ class BrowserExportMediaTest {
   @Test
   fun aTranscodedExportCarriesAudibleAudio() =
     runTest {
-      if (!browserEncodesAac()) return@runTest
       val bytes = makeClipWithAudio(frames = 60, frameRate = 30)
       val composition =
         Composition(
@@ -847,9 +849,10 @@ class BrowserExportMediaTest {
             listOf(Track(listOf(Clip(MediaSource.Bytes(bytes), trim = TimeRange(TRIM_START, TRIM_END))))),
           audio = AudioSpec.Keep,
         )
-      val spec = ExportSpec(videoCodec = VideoCodec.H264, audioCodec = AudioCodec.Aac)
+      val spec = autoAudioSpec()
       val success = exportOf(composition, MediaSink.Uri(""), spec)
 
+      shouldCarryAudioIn(success, plannedAudioOf(composition, spec))
       val audio =
         withClue("the export produced no readable audio track") {
           decodeAudio(outputOf(success)).shouldNotBeNull()
@@ -865,7 +868,6 @@ class BrowserExportMediaTest {
   @Test
   fun aMusicBedOnASecondAudioOnlyTrackReachesTheOutput() =
     runTest {
-      if (!browserEncodesAac()) return@runTest
       val video = makeClip(frames = 30, frameRate = 30)
       val bed = makeClipWithAudio(frames = 30, frameRate = 30)
       val composition =
@@ -877,9 +879,10 @@ class BrowserExportMediaTest {
             ),
           audio = AudioSpec.Keep,
         )
-      val spec = ExportSpec(videoCodec = VideoCodec.H264, audioCodec = AudioCodec.Aac)
+      val spec = autoAudioSpec()
       val success = exportOf(composition, MediaSink.Uri(""), spec)
 
+      shouldCarryAudioIn(success, plannedAudioOf(composition, spec))
       val audio =
         withClue("the export produced no readable audio track") {
           decodeAudio(outputOf(success)).shouldNotBeNull()
@@ -894,16 +897,16 @@ class BrowserExportMediaTest {
   @Test
   fun aMutedClipEncodesSilence() =
     runTest {
-      if (!browserEncodesAac()) return@runTest
       val bytes = makeClipWithAudio(frames = 30, frameRate = 30)
       val composition =
         Composition(
           tracks = listOf(Track(listOf(Clip(MediaSource.Bytes(bytes)).withAudio(AudioLevel.Mute)))),
           audio = AudioSpec.Keep,
         )
-      val spec = ExportSpec(videoCodec = VideoCodec.H264, audioCodec = AudioCodec.Aac)
+      val spec = autoAudioSpec()
       val success = exportOf(composition, MediaSink.Uri(""), spec)
 
+      shouldCarryAudioIn(success, plannedAudioOf(composition, spec))
       val audio =
         withClue("the export produced no readable audio track") {
           decodeAudio(outputOf(success)).shouldNotBeNull()
@@ -918,8 +921,7 @@ class BrowserExportMediaTest {
   @Test
   fun anAudioOnlyExportWritesNoVideoTrack() =
     runTest {
-      if (!browserEncodesAac()) return@runTest
-      val success = exportOf(audioOnlyComposition(), MediaSink.Uri(""), aacSpec())
+      val success = exportOf(audioOnlyComposition(), MediaSink.Uri(""), autoAudioSpec())
 
       withClue("an audio-only export wrote a video track") { hasVideoTrack(outputOf(success)) shouldBe false }
     }
@@ -927,9 +929,10 @@ class BrowserExportMediaTest {
   @Test
   fun anAudioOnlyExportCarriesAudibleAudio() =
     runTest {
-      if (!browserEncodesAac()) return@runTest
-      val success = exportOf(audioOnlyComposition(), MediaSink.Uri(""), aacSpec())
+      val spec = autoAudioSpec()
+      val success = exportOf(audioOnlyComposition(), MediaSink.Uri(""), spec)
 
+      shouldCarryAudioIn(success, plannedAudioOf(audioOnlyComposition(), spec))
       val audio =
         withClue("the export produced no readable audio track") {
           decodeAudio(outputOf(success)).shouldNotBeNull()
@@ -943,8 +946,7 @@ class BrowserExportMediaTest {
   @Test
   fun anAudioOnlyExportReportsAnAudioTrackAndNoVideoOne() =
     runTest {
-      if (!browserEncodesAac()) return@runTest
-      val success = exportOf(audioOnlyComposition(), MediaSink.Uri(""), aacSpec())
+      val success = exportOf(audioOnlyComposition(), MediaSink.Uri(""), autoAudioSpec())
 
       withClue("an audio-only export reported a video track") { success.info.video.shouldBeNull() }
       val audio = withClue("an audio-only export reported no audio track") { success.info.audio.shouldNotBeNull() }
@@ -962,14 +964,13 @@ class BrowserExportMediaTest {
   @Test
   fun anExportCarryingBothTracksReportsBothOfThem() =
     runTest {
-      if (!browserEncodesAac()) return@runTest
       val bytes = makeClipWithAudio(frames = 30, frameRate = 30)
       val composition =
         Composition(
           tracks = listOf(Track(listOf(Clip(MediaSource.Bytes(bytes))))),
           audio = AudioSpec.Keep,
         )
-      val success = exportOf(composition, MediaSink.Uri(""), aacSpec())
+      val success = exportOf(composition, MediaSink.Uri(""), autoAudioSpec())
 
       withClue("an export carrying both tracks reported no video track") { success.info.video.shouldNotBeNull() }
       val audio =
@@ -984,7 +985,6 @@ class BrowserExportMediaTest {
   @Test
   fun anExportWithAudioOutlastingItsVideoReportsTheDurationAProbeOfTheFileReads() =
     runTest {
-      if (!browserEncodesAac()) return@runTest
       val bytes = makeClipWithAudio(frames = 60, frameRate = 30)
       val composition =
         Composition(
@@ -994,7 +994,7 @@ class BrowserExportMediaTest {
             ),
           audio = AudioSpec.Keep,
         )
-      val success = exportOf(composition, MediaSink.Uri(""), aacSpec())
+      val success = exportOf(composition, MediaSink.Uri(""), autoAudioSpec())
       val output = outputOf(success)
       val lastFrame = decodeFrames(output).last()
 
@@ -1007,13 +1007,91 @@ class BrowserExportMediaTest {
     }
 
   @Test
-  fun anAudioOnlyExportLandsAsM4a() =
+  fun anAudioOnlyExportLandsUnderItsContainersExtension() =
     runTest {
-      if (!browserEncodesAac()) return@runTest
-      val success = exportOf(audioOnlyComposition(), MediaSink.Temporary, aacSpec())
+      val spec = autoAudioSpec()
+      val success = exportOf(audioOnlyComposition(), MediaSink.Temporary, spec)
 
+      val extension = fileExtensionOf(containerFor(null, plannedAudioOf(audioOnlyComposition(), spec)), false)
       val output = success.output.shouldBeInstanceOf<MediaSink.Path>()
-      withClue("an audio-only export resolved to ${output.path}") { output.path.endsWith(".m4a") shouldBe true }
+      withClue("an audio-only export resolved to ${output.path}") { output.path.endsWith(".$extension") shouldBe true }
+    }
+
+  // Asking for AAC on a browser without it is what a Linux runner does, so this is that path run where AAC exists.
+  @Test
+  fun anAacAskOnABrowserWithOnlyOpusFallsBackAndWritesOpus() =
+    runTest {
+      val engine = opusOnlyEngine()
+      val bytes = makeClipWithAudio(frames = 60, frameRate = 30)
+      val composition =
+        Composition(
+          tracks =
+            listOf(Track(listOf(Clip(MediaSource.Bytes(bytes), trim = TimeRange(TRIM_START, TRIM_END))))),
+          audio = AudioSpec.Keep,
+        )
+
+      val verdict =
+        engine
+          .plan(composition, ExportSpec(videoCodec = VideoCodec.H264, audioCodec = AudioCodec.Aac))
+          .shouldBeInstanceOf<Verdict.Degraded>()
+      val fallback = verdict.adjustments.single()
+      fallback.kind shouldBe AdjustmentKind.CodecFallback
+      fallback.resolved shouldBe AudioCodec.Opus.name
+      val success = engine.export(verdict.plan, MediaSink.Uri("")).toList().filterIsInstance<ExportStatus.Success>()
+
+      shouldCarryAudioIn(success.single(), AudioCodec.Opus)
+      val audio =
+        withClue("the export produced no readable audio track") {
+          decodeAudio(outputOf(success.single())).shouldNotBeNull()
+        }
+      withClue("the export's audio peaked at ${audio.peakAmplitude}, expected an audible tone") {
+        (audio.peakAmplitude > SILENCE_THRESHOLD) shouldBe true
+      }
+    }
+
+  @Test
+  fun anAudioOnlyExportOnABrowserWithOnlyOpusLandsAsWebm() =
+    runTest {
+      val engine = opusOnlyEngine()
+      val plan = engine.plan(audioOnlyComposition(), autoAudioSpec()).shouldBeInstanceOf<Verdict.Capable>().plan
+
+      val success =
+        engine
+          .export(plan, MediaSink.Temporary)
+          .toList()
+          .filterIsInstance<ExportStatus.Success>()
+          .single()
+
+      plan.output.audioCodec shouldBe AudioCodec.Opus
+      val extension = fileExtensionOf(containerFor(null, AudioCodec.Opus), false)
+      val output = success.output.shouldBeInstanceOf<MediaSink.Path>()
+      withClue("an audio-only Opus export resolved to ${output.path}") {
+        output.path.endsWith(".$extension") shouldBe true
+      }
+      shouldCarryAudioIn(success, AudioCodec.Opus)
+    }
+
+  // Opus codes at 48 kHz only, so a 44.1 kHz source has to come out at 48 kHz rather than at its own rate.
+  @Test
+  fun anOpusExportOfAFortyFourOneSourceIsWrittenAtFortyEightKilohertz() =
+    runTest {
+      val engine = opusOnlyEngine()
+      val bytes = makeClipWithAudio(frames = 30, frameRate = 30, sampleRate = 44_100)
+      val composition =
+        Composition(tracks = listOf(Track(listOf(Clip(MediaSource.Bytes(bytes))))), audio = AudioSpec.Keep)
+      val plan = engine.plan(composition, autoAudioSpec()).shouldBeInstanceOf<Verdict.Capable>().plan
+
+      val success =
+        engine
+          .export(plan, MediaSink.Uri(""))
+          .toList()
+          .filterIsInstance<ExportStatus.Success>()
+          .single()
+
+      plan.output.audioFormat
+        .shouldNotBeNull()
+        .sampleRate shouldBe 48_000
+      decodeAudioSamples(outputOf(success)).sampleRate shouldBe 48_000
     }
 
   // Length and pitch are the contract at a speed. The level is read as RMS because a stretch that overlaps grains may
@@ -1022,11 +1100,10 @@ class BrowserExportMediaTest {
   @Test
   fun aSpedClipKeepsItsPitchAndLengthThroughAnAudioOnlyExport() =
     runTest {
-      if (!browserEncodesAac()) return@runTest
       listOf(1.0 / 32.0 to 500.milliseconds, 0.7 to 1500.milliseconds, 1.5 to 2.seconds, 32.0 to 16.seconds)
         .forEach { (speed, trim) ->
           val bytes = makeClipWithAudio(frames = (trim.toDouble(DurationUnit.SECONDS) * 30).roundToInt() + 3)
-          val spec = aacSpec()
+          val spec = autoAudioSpec()
           val unity = exportedAudio(bytes, trim, 1.0, AudioSpec.AudioOnly, spec)
 
           val audio = exportedAudio(bytes, trim, speed, AudioSpec.AudioOnly, spec)
@@ -1042,15 +1119,16 @@ class BrowserExportMediaTest {
   @Test
   fun aSpedClipWritesTheAudioAndFrameCountTheSharedFunctionsName() =
     runTest {
-      if (!browserEncodesAac()) return@runTest
       listOf(0.7, 1.5).forEach { speed ->
         val bytes = makeClipWithAudio(frames = 60, frameRate = 30)
         val trim = TRIM_END - TRIM_START
-        val spec = ExportSpec(videoCodec = VideoCodec.H264, audioCodec = AudioCodec.Aac)
+        val spec = autoAudioSpec()
         val unity = exportedAudio(bytes, trim, 1.0, AudioSpec.Keep, spec, from = TRIM_START)
 
         val composition = speedComposition(bytes, trim, speed, AudioSpec.Keep, from = TRIM_START)
-        val output = outputOf(exportOf(composition, MediaSink.Uri(""), spec))
+        val success = exportOf(composition, MediaSink.Uri(""), spec)
+        shouldCarryAudioIn(success, plannedAudioOf(composition, spec))
+        val output = outputOf(success)
 
         val audio = decodeAudioSamples(output)
         withClue("at speed $speed") {
@@ -1119,7 +1197,7 @@ class BrowserExportMediaTest {
   ) {
     val added = unity.durationUs - trim.toDouble(DurationUnit.MICROSECONDS)
     val expected = outputLengthOf(trim, speed).toDouble(DurationUnit.MICROSECONDS) + added
-    durationUs shouldBe (expected plusOrMinus AAC_SLACK_US)
+    durationUs shouldBe (expected plusOrMinus ENCODER_SLACK_US)
   }
 
   private fun DecodedSamples.middleRms(): Double = samples.rms(samples.size / 4, samples.size * 3 / 4)
@@ -1294,14 +1372,13 @@ class BrowserExportMediaTest {
     )
   }
 
-  private fun aacSpec(): ExportSpec = ExportSpec(videoCodec = VideoCodec.H264, audioCodec = AudioCodec.Aac)
-
   private companion object {
     const val TONE_HZ = 440.0
     const val RMS_PERCENT = 20.0
 
-    // AAC writes whole frames of 1024 samples, so two lengths can land one of them apart at 48kHz either way.
-    const val AAC_SLACK_US = 22_000.0
+    // An audio encoder writes whole frames, 1024 samples for AAC and 20 milliseconds for Opus, so two lengths can land
+    // one of them apart at 48kHz either way.
+    const val ENCODER_SLACK_US = 22_000.0
     const val HALF = 32
     const val STRETCHED_CONTRAST = 1.5f
 
@@ -1365,7 +1442,7 @@ class BrowserExportMediaTest {
     const val CONTEXT_CHURN = 24
     val AUDIO_ONLY_DURATION = 1.seconds
 
-    // An AAC encoder pads the last frame out to its own block size, so the file runs a little past
+    // An audio encoder pads the last frame out to its own block size, so the file runs a little past
     // the composition however exact the mix was.
     val DURATION_TOLERANCE = 250.milliseconds
   }

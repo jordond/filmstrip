@@ -2,6 +2,7 @@ package dev.jordond.filmstrip.player
 
 import dev.jordond.filmstrip.capability.AudioEncoderCapability
 import dev.jordond.filmstrip.capability.DeviceCapabilities
+import dev.jordond.filmstrip.codec.AudioCodec
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
@@ -21,8 +22,9 @@ import dev.jordond.filmstrip.player.contract.awaitStep
 import dev.jordond.filmstrip.player.contract.contractTest
 import dev.jordond.filmstrip.player.contract.cutInTwo
 import dev.jordond.filmstrip.player.contract.withEngine
+import dev.jordond.filmstrip.player.internal.BrowserPreviewPlanner
+import dev.jordond.filmstrip.player.internal.PlanResult
 import dev.jordond.filmstrip.player.internal.loopWrapOf
-import dev.jordond.filmstrip.transform.internal.negotiation.encodesAudio
 import dev.jordond.filmstrip.webcodecs.BROWSER_AAC_ENCODER
 import io.kotest.matchers.comparables.shouldBeGreaterThanOrEqualTo
 import io.kotest.matchers.comparables.shouldBeLessThan
@@ -85,7 +87,9 @@ class WebEngineContractTest : PlayerEngineContractTest() {
 
   override val plainFixture: Composition = webFixtureComposition(audio = AudioSpec.Keep)
 
-  override suspend fun plainClipEditPrepares(): Boolean = firstEffectRebuilds(pageDevice())
+  // Any brightness reads the same audio, so the edit planned here stands in for the contract's own.
+  override suspend fun plainClipEditPrepares(): Boolean =
+    firstEffectRebuilds(plainFixture.withEffects(listOf(Brightness(FIRST_BRIGHTNESS))), ::pageDevice)
 
   override val stageableInterruptions: Set<Interruption> =
     setOf(Interruption.AutoplayBlocked, Interruption.AppBackgrounded)
@@ -264,11 +268,12 @@ class WebEngineContractTest : PlayerEngineContractTest() {
   // Each engine plans against the page's own device with its audio encoders swapped for the ones given.
   private fun firstEffectOn(audio: List<AudioEncoderCapability>): TestResult {
     val read: suspend () -> DeviceCapabilities = { pageDeviceWith(audio) }
+    val edited = plainFixture.withEffects(listOf(Brightness(FIRST_BRIGHTNESS)))
     return RebuildContract({ scope -> WebEngineUnderTest(scope, readDevice = read) }, fixture, fixtureFrameRate)
       .plainClipEditHoldsTheTransport(
         plain = plainFixture,
-        edited = plainFixture.withEffects(listOf(Brightness(FIRST_BRIGHTNESS))),
-        prepares = { firstEffectRebuilds(read()) },
+        edited = edited,
+        prepares = { firstEffectRebuilds(edited, read) },
       )
   }
 
@@ -278,12 +283,22 @@ class WebEngineContractTest : PlayerEngineContractTest() {
     const val FIRST_BRIGHTNESS = 0.7f
 
     /**
-     * Whether a plain clip's first effect rebuilds the graph on [device].
+     * Whether [edited] rebuilds the graph on the device [read] returns, read off the plan its preview settles on.
      *
      * A preview on a device that can export reads as its export does, so when that lowering writes no audio the edit
      * drops the audio the copy path carried and the new graph no longer draws the same format.
      */
-    fun firstEffectRebuilds(device: DeviceCapabilities): Boolean = !device.encodesAudio(ExportSpec(), graded = true)
+    suspend fun firstEffectRebuilds(
+      edited: Composition,
+      read: suspend () -> DeviceCapabilities,
+    ): Boolean =
+      when (
+        val result =
+          BrowserPreviewPlanner(CONTRACT_COMPONENTS, read).plan(edited, PreviewQualityPolicy.Full, ExportSpec())
+      ) {
+        is PlanResult.Ready -> result.plan.resolved.output.audioCodec == AudioCodec.None
+        is PlanResult.Refused -> fail("the preview refused the edited fixture: ${result.error.message}")
+      }
 
     // A loop range with both ends a third of a slot past a slot and well clear of the fixture's last one, and where
     // playback into it starts.

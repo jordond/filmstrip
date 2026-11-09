@@ -1,7 +1,9 @@
 package dev.jordond.filmstrip.webcodecs.internal
 
+import dev.jordond.filmstrip.capability.AudioEncoderCapability
 import dev.jordond.filmstrip.capability.DeviceCapabilities
 import dev.jordond.filmstrip.capability.VideoEncoderCapability
+import dev.jordond.filmstrip.codec.AudioCodec
 import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.internal.awaitCatching
@@ -41,8 +43,10 @@ internal class BrowserCapabilities {
 
     val video = SUPPORTED_CODECS.mapNotNull { codec -> probeVideo(codec) }
     val audio =
-      if (hasAudioEncoder() && probeAudio()) {
-        listOf(BROWSER_AAC_ENCODER)
+      if (hasAudioEncoder()) {
+        BROWSER_AUDIO_ENCODERS
+          .filter { (codec, encoder) -> audioEncoderSupports(codec, encoder.maxChannelCount) }
+          .map { it.second }
       } else {
         emptyList()
       }
@@ -83,32 +87,51 @@ internal class BrowserCapabilities {
     }
   }
 
-  private suspend fun probeAudio(): Boolean =
-    awaitCatching {
-      AudioEncoder
-        .isConfigSupported(
-          JsOptions()
-            .put("codec", AAC_CODEC)
-            .put("sampleRate", PROBE_SAMPLE_RATE)
-            .put("numberOfChannels", BROWSER_AAC_ENCODER.maxChannelCount)
-            .put("bitrate", PROBE_AUDIO_BITRATE)
-            .build(),
-        ).await()
-        .supported
-    }.getOrDefault(false)
-
   private companion object {
     // Every browser encoder config is even-dimensioned, and odd sizes are rejected outright.
     const val SIZE_ALIGNMENT = 2
 
-    const val AAC_CODEC = "mp4a.40.2"
-
-    const val PROBE_SAMPLE_RATE = 48_000
-    const val PROBE_AUDIO_BITRATE = 128_000
-
     val SUPPORTED_CODECS = listOf(VideoCodec.H264, VideoCodec.Hevc, VideoCodec.Vp9)
   }
 }
+
+/**
+ * The audio encoders this backend asks the browser about, each under the WebCodecs string it is asked with.
+ *
+ * AAC comes first, so an export that leaves the codec to filmstrip writes AAC wherever its container carries it.
+ */
+internal val BROWSER_AUDIO_ENCODERS: List<Pair<String, AudioEncoderCapability>>
+  get() = listOf("mp4a.40.2" to BROWSER_AAC_ENCODER, "opus" to BROWSER_OPUS_ENCODER)
+
+/**
+ * Whether the browser's `AudioEncoder` takes [codec] at 48 kHz with [channelCount] channels.
+ *
+ * The bitrate is the probe's own, since what is being asked about is the codec.
+ */
+internal suspend fun audioEncoderSupports(
+  codec: String,
+  channelCount: Int,
+): Boolean =
+  awaitCatching {
+    AudioEncoder
+      .isConfigSupported(
+        JsOptions()
+          .put("codec", codec)
+          .put("sampleRate", PROBE_SAMPLE_RATE)
+          .put("numberOfChannels", channelCount)
+          .put("bitrate", PROBE_AUDIO_BITRATE)
+          .build(),
+      ).await()
+      .supported
+  }.getOrDefault(false)
+
+/**
+ * The Opus encoder WebCodecs lists on a browser whose `AudioEncoder` takes Opus.
+ *
+ * It is listed at 48 kHz only, the rate Opus codes at, so the mix is resampled to it before encoding.
+ */
+internal val BROWSER_OPUS_ENCODER: AudioEncoderCapability =
+  AudioEncoderCapability(codec = AudioCodec.Opus, sampleRates = listOf(PROBE_SAMPLE_RATE), maxChannelCount = 2)
 
 /**
  * Whether the browser's encoder takes [codec] at [size].
@@ -144,4 +167,6 @@ internal suspend fun encoderSupports(
 internal suspend fun browserEncodesHdrVp9(): Boolean = encoderSupports(HDR_VP9_CODEC, HDR_PROBE_SIZE)
 
 private const val PROBE_BITRATE = 8_000_000
+private const val PROBE_SAMPLE_RATE = 48_000
+private const val PROBE_AUDIO_BITRATE = 128_000
 private const val PROBE_FRAME_RATE = 30

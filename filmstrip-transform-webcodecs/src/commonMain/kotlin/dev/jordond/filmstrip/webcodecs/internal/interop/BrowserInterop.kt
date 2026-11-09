@@ -2,6 +2,7 @@
 
 package dev.jordond.filmstrip.webcodecs.internal.interop
 
+import dev.jordond.filmstrip.codec.AudioCodec
 import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.geometry.Size
 import kotlin.js.ExperimentalWasmJsInterop
@@ -184,24 +185,69 @@ internal fun muxCodecKey(codec: VideoCodec): String =
   }
 
 /**
- * The container a codec belongs in: VP8, VP9 and AV1 go in WebM, the others in MP4.
+ * The codec key mediabunny's audio encoder takes for [codec].
+ */
+internal fun muxAudioCodecKey(codec: AudioCodec): String =
+  when (codec) {
+    AudioCodec.Aac -> "aac"
+    AudioCodec.Opus -> "opus"
+    else -> error("$codec has no browser audio encoder")
+  }
+
+/**
+ * The container an encode writes: VP8, VP9 and AV1 go in WebM, the others in MP4.
  *
  * An HDR VP9 encode is the exception and goes in MP4. Both containers carry a complete color tag,
  * but mediabunny rewrites the VP9 frame header's color space bits on every WebM key frame from a
  * map that has no entry for `bt2020-ncl` and writes zero there, while the MP4 muxer leaves the
  * encoder's own header alone.
  *
+ * A file with no video track follows its audio instead, so Opus goes in WebM and anything else in MP4.
+ *
+ * @param video The codec the video track is written with, or null when the file has none.
+ * @param audio The codec the audio track is written with.
  * @param hdr Whether the encode carries a grade.
  */
 internal fun containerFor(
-  codec: VideoCodec,
+  video: VideoCodec?,
+  audio: AudioCodec = AudioCodec.None,
   hdr: Boolean = false,
 ): String =
   when {
-    codec == VideoCodec.Vp9 && hdr -> "mp4"
-    codec == VideoCodec.Vp8 || codec == VideoCodec.Vp9 || codec == VideoCodec.Av1 -> "webm"
-    else -> "mp4"
+    video == null -> if (audio == AudioCodec.Opus) WEBM else MP4
+    video == VideoCodec.Vp9 && hdr -> MP4
+    video == VideoCodec.Vp8 || video == VideoCodec.Vp9 || video == VideoCodec.Av1 -> WEBM
+    else -> MP4
   }
+
+/**
+ * Whether the file [containerFor] picks for this encode carries [audio].
+ *
+ * mediabunny's WebM muxer takes no AAC and throws on it, so WebM carries Opus only of the codecs this backend encodes.
+ * MP4 carries both AAC and Opus.
+ *
+ * @param video The codec the video track is written with, or null when the file has none.
+ * @param audio The codec the audio track would be written with.
+ * @param hdr Whether the encode carries a grade.
+ */
+internal fun containerCarries(
+  video: VideoCodec?,
+  audio: AudioCodec,
+  hdr: Boolean,
+): Boolean = containerFor(video, audio, hdr) != WEBM || audio == AudioCodec.Opus || audio == AudioCodec.None
+
+/**
+ * The extension a file written in [container] is named with.
+ *
+ * An MP4 with no video track is named `.m4a`, the extension a player expects such a file to carry.
+ */
+internal fun fileExtensionOf(
+  container: String,
+  writesVideo: Boolean,
+): String = if (!writesVideo && container == MP4) "m4a" else container
+
+internal const val MP4: String = "mp4"
+internal const val WEBM: String = "webm"
 
 private const val HEIGHT_720 = 720
 private const val HEIGHT_1080 = 1080

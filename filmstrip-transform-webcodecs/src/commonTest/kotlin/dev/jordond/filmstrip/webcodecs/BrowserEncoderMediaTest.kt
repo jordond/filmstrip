@@ -19,6 +19,7 @@ import io.kotest.assertions.withClue
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import kotlinx.coroutines.test.runTest
 import kotlin.math.abs
 import kotlin.test.Test
@@ -81,12 +82,9 @@ class BrowserEncoderMediaTest {
   @Test
   fun anAudioOnlyEncoderRefusesAFrame() =
     runTest {
-      if (!browserEncodesAac()) return@runTest
-      val render =
-        renderOf(
-          videoComposition(audio = AudioSpec.AudioOnly, bytes = makeClipWithAudio(frames = 30)),
-          ExportSpec(videoCodec = VideoCodec.H264, audioCodec = AudioCodec.Aac),
-        )
+      val composition = videoComposition(audio = AudioSpec.AudioOnly, bytes = makeClipWithAudio(frames = 30))
+      val render = renderOf(composition, autoAudioSpec())
+      withClue("this browser encodes no audio, so the plan drops it") { render.audioCodec shouldNotBe AudioCodec.None }
       val encoder = BrowserEncoder.open(render)
       val frame = greyFrame(0)
 

@@ -881,6 +881,7 @@ public final class dev/jordond/filmstrip/export/Adjustment {
 }
 
 public final class dev/jordond/filmstrip/export/AdjustmentKind : java/lang/Enum {
+	public static final field AudioDropped Ldev/jordond/filmstrip/export/AdjustmentKind;
 	public static final field BitrateClamped Ldev/jordond/filmstrip/export/AdjustmentKind;
 	public static final field CodecFallback Ldev/jordond/filmstrip/export/AdjustmentKind;
 	public static final field ColorSpaceChanged Ldev/jordond/filmstrip/export/AdjustmentKind;

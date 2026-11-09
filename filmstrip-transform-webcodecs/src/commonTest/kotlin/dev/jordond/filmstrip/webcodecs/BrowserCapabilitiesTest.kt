@@ -3,11 +3,14 @@ package dev.jordond.filmstrip.webcodecs
 import dev.jordond.filmstrip.CapabilitiesResult
 import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.FilmstripError
+import dev.jordond.filmstrip.codec.AudioCodec
 import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.effect.RenderFeature
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.ProbeResult
+import dev.jordond.filmstrip.webcodecs.internal.BROWSER_AUDIO_ENCODERS
+import dev.jordond.filmstrip.webcodecs.internal.audioEncoderSupports
 import dev.jordond.filmstrip.webcodecs.internal.browserCanRenderFloat
 import dev.jordond.filmstrip.webcodecs.internal.browserEncodesHdrVp9
 import dev.jordond.filmstrip.webcodecs.internal.encoderSupports
@@ -15,6 +18,7 @@ import dev.jordond.filmstrip.webcodecs.internal.interop.JsOptions
 import dev.jordond.filmstrip.webcodecs.internal.interop.OffscreenCanvas
 import dev.jordond.filmstrip.webcodecs.internal.renderCapabilities
 import io.kotest.assertions.withClue
+import io.kotest.matchers.ints.shouldBeLessThan
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
@@ -62,6 +66,34 @@ class BrowserCapabilitiesTest {
 
       withClue("the HDR claim and what this browser can actually do parted ways") {
         capabilities.supportsHdrEncoding shouldBe (browserCanRenderFloat() && browserEncodesHdrVp9())
+      }
+    }
+
+  // Asked against the same encoder question the probe asks rather than pinned, since which audio codecs a browser
+  // encodes depends on the platform it runs on.
+  @Test
+  fun everyAudioEncoderTheBrowserTakesIsListedAacFirst() =
+    runTest {
+      val result = filmstrip().capabilities()
+      val capabilities =
+        withClue("capabilities failed: $result") {
+          result.shouldBeInstanceOf<CapabilitiesResult.Success>()
+        }.capabilities
+      val taken =
+        BROWSER_AUDIO_ENCODERS
+          .filter { (codec, encoder) -> audioEncoderSupports(codec, encoder.maxChannelCount) }
+          .map { it.second }
+
+      capabilities.audio shouldBe taken
+      capabilities.audio
+        .firstOrNull { it.codec == AudioCodec.Opus }
+        ?.sampleRates
+        ?.shouldBe(listOf(OPUS_RATE))
+      val codecs = capabilities.audio.map { it.codec }
+      if (AudioCodec.Aac in codecs && AudioCodec.Opus in codecs) {
+        withClue("Opus was listed before AAC") {
+          codecs.indexOf(AudioCodec.Aac) shouldBeLessThan codecs.indexOf(AudioCodec.Opus)
+        }
       }
     }
 
@@ -147,5 +179,6 @@ class BrowserCapabilitiesTest {
     const val MAX_TEXTURE_SIZE = 0x0D33
     const val VP9_PROBE = "vp09.00.10.08"
     const val PROBE_SIDE = 640
+    const val OPUS_RATE = 48_000
   }
 }

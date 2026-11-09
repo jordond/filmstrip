@@ -1,20 +1,18 @@
 package dev.jordond.filmstrip.webcodecs
 
-import dev.jordond.filmstrip.codec.AudioCodec
-import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.outputSlotOf
 import dev.jordond.filmstrip.edit.outputSlotTime
-import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.webcodecs.internal.BrowserPipeline
 import dev.jordond.filmstrip.webcodecs.internal.BrowserRender
 import dev.jordond.filmstrip.webcodecs.internal.FrameStream
 import dev.jordond.filmstrip.webcodecs.internal.PipelineResult
 import dev.jordond.filmstrip.webcodecs.internal.SourceCache
+import dev.jordond.filmstrip.webcodecs.internal.interop.muxAudioCodecKey
 import dev.jordond.filmstrip.webcodecs.internal.verify
 import dev.jordond.filmstrip.webcodecs.internal.verifyAudio
 import io.kotest.assertions.withClue
@@ -159,12 +157,8 @@ class BrowserPipelineMediaTest {
   @Test
   fun anAudioOnlyRunMixesWithoutReportingProgress() =
     runTest {
-      if (!browserEncodesAac()) return@runTest
-      val render =
-        renderOf(
-          compositionOf(makeClipWithAudio(frames = FRAME_RATE), audio = AudioSpec.AudioOnly),
-          ExportSpec(videoCodec = VideoCodec.H264, audioCodec = AudioCodec.Aac),
-        )
+      val composition = compositionOf(makeClipWithAudio(frames = FRAME_RATE), audio = AudioSpec.AudioOnly)
+      val render = renderOf(composition, autoAudioSpec())
 
       val (result, progress) = runAndRecord(render)
 
@@ -172,7 +166,7 @@ class BrowserPipelineMediaTest {
       withClue("an audio-only run reported $progress") { progress.isEmpty() shouldBe true }
       val verified = withClue("the audio-only file did not read back") { result.file.verifyAudio().shouldNotBeNull() }
       verified.video.shouldBeNull()
-      verified.audio.shouldNotBeNull()
+      verified.audio.shouldNotBeNull().codec shouldBe muxAudioCodecKey(plannedAudioOf(composition, autoAudioSpec()))
     }
 
   private suspend fun runAndRecord(render: BrowserRender): Pair<PipelineResult, List<Pair<Long, Double>>> {

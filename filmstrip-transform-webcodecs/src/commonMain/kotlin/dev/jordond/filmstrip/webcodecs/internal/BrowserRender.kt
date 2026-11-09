@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip.webcodecs.internal
 
+import dev.jordond.filmstrip.codec.AudioCodec
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.Track
@@ -34,6 +35,7 @@ import dev.jordond.filmstrip.transform.internal.resolve.effectsOverFill
 import dev.jordond.filmstrip.transform.internal.resolve.effectsUnderFill
 import dev.jordond.filmstrip.transform.internal.sourceTimeOfSlot
 import dev.jordond.filmstrip.webcodecs.internal.audio.BrowserAudioMix
+import dev.jordond.filmstrip.webcodecs.internal.interop.MP4
 import dev.jordond.filmstrip.webcodecs.internal.interop.containerFor
 import dev.jordond.filmstrip.webcodecs.internal.interop.muxCodecKey
 import dev.jordond.filmstrip.webcodecs.internal.interop.webCodecString
@@ -128,19 +130,6 @@ internal class RenderedClip(
 }
 
 /**
- * The codec strings and container one video encode is opened with.
- *
- * @property encoderCodec The WebCodecs string [BrowserEncoder] opens its encoder with.
- * @property muxCodec The codec key [BrowserEncoder] hands mediabunny.
- * @property container The container [BrowserEncoder] writes, which is also the exported file's extension.
- */
-internal class VideoEncoding(
-  val encoderCodec: String,
-  val muxCodec: String,
-  val container: String,
-)
-
-/**
  * Everything the pipeline needs that is not per-frame.
  *
  * @property writesVideo Whether the output carries a video track. False for an [AudioSpec.AudioOnly]
@@ -150,6 +139,9 @@ internal class VideoEncoding(
  * @property videoEncoding The video encoder [BrowserEncoder] opens, or null on an audio-only render and on a
  * [dev.jordond.filmstrip.export.ExportPath.Copy] render, which never opens one. [BrowserStreamCopy] always writes mp4
  * regardless of what a copy's source codec would map to.
+ * @property container The container the file is written in, from [containerFor]. A copy is always mp4, since
+ * [BrowserStreamCopy] writes nothing else.
+ * @property audioCodec The codec the plan writes audio with, [AudioCodec.None] when it writes none.
  * @property audioFormat The format the composition's audio is normalised to, or null when there is
  * none to mix.
  * @property audioTracks Every track of the negotiated composition, video and audio-only alike, for
@@ -176,6 +168,8 @@ internal class BrowserRender(
   val width: Int,
   val height: Int,
   val videoEncoding: VideoEncoding?,
+  val container: String,
+  val audioCodec: AudioCodec,
   val bitrate: Int,
   val leadFrames: Long,
   val estimatedFrames: Long,
@@ -271,11 +265,12 @@ internal fun browserRenderOf(
         VideoEncoding(
           encoderCodec = webCodecString(videoCodec, outputSize, plan.hdrTransfer != null),
           muxCodec = muxCodecKey(videoCodec),
-          container = containerFor(videoCodec, plan.hdrTransfer != null),
         )
       } else {
         null
       },
+    container = if (encodes) containerFor(videoCodec, plan.output.audioCodec, plan.hdrTransfer != null) else MP4,
+    audioCodec = plan.output.audioCodec,
     // Handed to mediabunny as an Int, since a Kotlin Long is no JS number. No encoder takes a rate near the cap.
     bitrate =
       if (encodes) {
@@ -395,6 +390,8 @@ private fun audioOnlyRender(plan: ResolvedComposition): BrowserRender =
     width = 0,
     height = 0,
     videoEncoding = null,
+    container = containerFor(null, plan.output.audioCodec),
+    audioCodec = plan.output.audioCodec,
     bitrate = 0,
     leadFrames = 0,
     estimatedFrames = 0,

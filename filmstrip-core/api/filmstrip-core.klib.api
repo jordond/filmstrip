@@ -188,6 +188,7 @@ final enum class dev.jordond.filmstrip.effect/RenderFeature : kotlin/Enum<dev.jo
 }
 
 final enum class dev.jordond.filmstrip.export/AdjustmentKind : kotlin/Enum<dev.jordond.filmstrip.export/AdjustmentKind> { // dev.jordond.filmstrip.export/AdjustmentKind|null[0]
+    enum entry AudioDropped // dev.jordond.filmstrip.export/AdjustmentKind.AudioDropped|null[0]
     enum entry BitrateClamped // dev.jordond.filmstrip.export/AdjustmentKind.BitrateClamped|null[0]
     enum entry CodecFallback // dev.jordond.filmstrip.export/AdjustmentKind.CodecFallback|null[0]
     enum entry ColorSpaceChanged // dev.jordond.filmstrip.export/AdjustmentKind.ColorSpaceChanged|null[0]

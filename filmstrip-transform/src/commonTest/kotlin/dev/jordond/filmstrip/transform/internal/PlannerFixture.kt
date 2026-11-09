@@ -53,6 +53,8 @@ internal class PlannerFixture {
     ladder: List<VideoCodec> = listOf(VideoCodec.H264, VideoCodec.Hevc),
     toneMapLimit: (List<MediaSource>) -> String? = { null },
     copyLimit: (MediaInfo) -> CopyBlocker? = { null },
+    containerCarries: (VideoCodec?, AudioCodec, Boolean) -> Boolean = { _, _, _ -> true },
+    containerName: (VideoCodec?, Boolean) -> String? = { _, _ -> null },
   ) = ExportPlanner(
     resolvers = resolvers,
     renderCapabilities = { size, hdr ->
@@ -74,6 +76,8 @@ internal class PlannerFixture {
     muxerAccepts = muxerAccepts,
     toneMapLimit = toneMapLimit,
     copyLimit = copyLimit,
+    containerCarries = containerCarries,
+    containerName = containerName,
   )
 
   // Every fabricated clip carries its own source, so the map is keyed the way the planner reads it.

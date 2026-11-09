@@ -1,7 +1,6 @@
 package dev.jordond.filmstrip.transform.internal.negotiation
 
 import dev.jordond.filmstrip.FilmstripError
-import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.capability.AudioEncoderCapability
 import dev.jordond.filmstrip.capability.DeviceCapabilities
 import dev.jordond.filmstrip.codec.AudioCodec
@@ -81,27 +80,58 @@ internal fun resolveVideoCodec(
  * The audio codec to encode with, [AudioCodec.None] when the output carries no audio or the device
  * encodes none.
  *
+ * A device that encodes no audio while there is audio to hear drops it and reports
+ * [AdjustmentKind.AudioDropped], which a strict spec refuses. So does a device whose every audio encoder writes a
+ * codec the output's container does not carry.
+ *
  * @param silent Whether nothing survives to be encoded, which settles on [AudioCodec.None] whatever
  *   was asked for.
  * @param graded Whether the negotiation was handed its grade, so it writes no file. A device with no video encoder has
  * no export to disagree with, so having no audio encoder either keeps the audio under the codec that was asked for. A
  * device that can export reads as its export does.
+ * @param copied Whether the plan copies the source's audio across rather than encoding it. A copy needs no encoder, so
+ * a device with none drops nothing, and the file it writes is not the one [carried] describes.
+ * @param audible Whether any of the audio that survives can be heard. Muted audio that cannot be encoded is left out
+ * without an [AdjustmentKind.AudioDropped], since there is nothing to hear in it.
+ * @param container The output's container, named the way the messages begin a sentence with it.
+ * @param carried Whether the output's container carries an audio codec. One it does not is passed over the way a codec
+ * the device has no encoder for is.
  */
 internal fun resolveAudioCodec(
   spec: ExportSpec,
   device: DeviceCapabilities,
   silent: Boolean,
   graded: Boolean = false,
+  copied: Boolean = false,
+  audible: Boolean = true,
+  container: String = UNNAMED_CONTAINER,
+  carried: (AudioCodec) -> Boolean = { true },
 ): CodecChoice<AudioCodec> {
   val requested = spec.audioCodec
   if (silent) return CodecChoice(AudioCodec.None, null)
-  if (device.audio.any { it.codec == requested }) return CodecChoice(requested, null)
+  if (device.audio.isEmpty()) {
+    return when {
+      graded && device.video.isEmpty() -> CodecChoice(requested, null)
+      copied || !audible -> CodecChoice(AudioCodec.None, null)
+      else -> audioDropped(requested, NO_ENCODER)
+    }
+  }
+  val usable = device.audio.map { it.codec }.filter { copied || carried(it) }
+  if (requested in usable) return CodecChoice(requested, null)
   val fallback =
-    device.audio.firstOrNull()?.codec
-      ?: return CodecChoice(if (graded && device.video.isEmpty()) requested else AudioCodec.None, null)
+    usable.firstOrNull() ?: return when {
+      audible -> audioDropped(requested, noneCarried(container))
+      else -> CodecChoice(AudioCodec.None, null)
+    }
   if (requested == AudioCodec.Auto) return CodecChoice(fallback, null)
 
-  val message = "This device has no $requested encoder, so $fallback is used instead."
+  val reason =
+    if (device.audio.any { it.codec == requested }) {
+      "$container does not carry $requested"
+    } else {
+      "This device has no $requested encoder"
+    }
+  val message = "$reason, so $fallback is used instead."
   return CodecChoice(
     codec = fallback,
     fallback =
@@ -118,19 +148,27 @@ internal fun resolveAudioCodec(
   )
 }
 
-/**
- * Whether an edit carrying audio keeps it when it is lowered for this device under [spec].
- *
- * It is true when [resolveAudioCodec] settles on any codec other than [AudioCodec.None].
- *
- * @param spec The export spec whose audio codec is asked for.
- * @param graded Whether the lowering is a preview's, which writes no file. See [resolveAudioCodec].
- */
-@InternalFilmstripApi
-public fun DeviceCapabilities.encodesAudio(
-  spec: ExportSpec,
-  graded: Boolean = false,
-): Boolean = resolveAudioCodec(spec, this, silent = false, graded = graded).codec != AudioCodec.None
+private fun audioDropped(
+  requested: AudioCodec,
+  message: String,
+): CodecChoice<AudioCodec> =
+  CodecChoice(
+    codec = AudioCodec.None,
+    fallback =
+      Concession(
+        adjustment =
+          Adjustment(
+            kind = AdjustmentKind.AudioDropped,
+            requested = requested.name,
+            resolved = AudioCodec.None.name,
+            message = message,
+          ),
+        strictRefusal = FilmstripError.InvalidComposition(message),
+      ),
+  )
+
+private fun noneCarried(container: String): String =
+  "$container carries no codec this device encodes audio with, so the export is written without audio."
 
 /**
  * The format the export writes.
@@ -303,5 +341,8 @@ internal fun tightest(
 private const val DEFAULT_RATE = 30
 private const val DEFAULT_SAMPLE_RATE = 44_100
 private const val CHANNEL_COUNT = 2
+
+private const val NO_ENCODER = "This device has no audio encoder, so the export is written without audio."
+private const val UNNAMED_CONTAINER = "This export's container"
 
 private const val COPY_UNNAMEABLE = "A copy was planned over a stream whose codec VideoCodec or AudioCodec cannot name."

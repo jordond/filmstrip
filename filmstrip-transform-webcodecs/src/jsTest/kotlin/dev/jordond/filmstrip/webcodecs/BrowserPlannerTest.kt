@@ -68,6 +68,7 @@ import dev.jordond.filmstrip.transform.internal.passesCovering
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedHdr
 import dev.jordond.filmstrip.transform.internal.resolve.stillUnsupportedMessage
 import dev.jordond.filmstrip.transform.internal.videoSlots
+import dev.jordond.filmstrip.webcodecs.internal.BROWSER_OPUS_ENCODER
 import dev.jordond.filmstrip.webcodecs.internal.BrowserExportEngine
 import dev.jordond.filmstrip.webcodecs.internal.BrowserPlanner
 import dev.jordond.filmstrip.webcodecs.internal.BrowserRender
@@ -1119,8 +1120,107 @@ class BrowserPlannerTest {
     lowering.verdict.shouldBeInstanceOf<Verdict.Capable>()
     lowering.graph
       .shouldNotBeNull()
-      .videoEncoding
-      ?.container shouldBe "webm"
+      .container shouldBe "webm"
+  }
+
+  @Test
+  fun aacAskedWithOnlyOpusListedFallsBackToOpus() {
+    val lowering =
+      audioExport(ExportSpec(videoCodec = VideoCodec.H264, audioCodec = AudioCodec.Aac), listOf(BROWSER_OPUS_ENCODER))
+
+    val adjustment =
+      lowering.verdict
+        .shouldBeInstanceOf<Verdict.Degraded>()
+        .adjustments
+        .single()
+    adjustment.kind shouldBe AdjustmentKind.CodecFallback
+    adjustment.requested shouldBe AudioCodec.Aac.name
+    adjustment.resolved shouldBe AudioCodec.Opus.name
+    lowering.graph.shouldNotBeNull().audioCodec shouldBe AudioCodec.Opus
+  }
+
+  // WebM carries no AAC, so a VP9 export writes Opus even where the browser encodes both.
+  @Test
+  fun vp9WithAacAndOpusListedPlansOpus() {
+    val encoders = listOf(BROWSER_AAC_ENCODER, BROWSER_OPUS_ENCODER)
+
+    val auto = audioExport(ExportSpec(videoCodec = VideoCodec.Vp9), encoders)
+    val aac = audioExport(ExportSpec(videoCodec = VideoCodec.Vp9, audioCodec = AudioCodec.Aac), encoders)
+
+    auto.verdict.shouldBeInstanceOf<Verdict.Capable>()
+    auto.graph.shouldNotBeNull().audioCodec shouldBe AudioCodec.Opus
+    auto.graph.shouldNotBeNull().container shouldBe "webm"
+    val fallback =
+      aac.verdict
+        .shouldBeInstanceOf<Verdict.Degraded>()
+        .adjustments
+        .single()
+    fallback.kind shouldBe AdjustmentKind.CodecFallback
+    fallback.resolved shouldBe AudioCodec.Opus.name
+    aac.graph.shouldNotBeNull().audioCodec shouldBe AudioCodec.Opus
+  }
+
+  @Test
+  fun anH264ExportKeepsAacWhereBothAreListed() {
+    val lowering =
+      audioExport(ExportSpec(videoCodec = VideoCodec.H264), listOf(BROWSER_AAC_ENCODER, BROWSER_OPUS_ENCODER))
+
+    lowering.verdict.shouldBeInstanceOf<Verdict.Capable>()
+    lowering.graph.shouldNotBeNull().audioCodec shouldBe AudioCodec.Aac
+    lowering.graph.shouldNotBeNull().container shouldBe "mp4"
+  }
+
+  @Test
+  fun audioOnlyOpusPlansWebm() {
+    val lowering = audioExport(ExportSpec(), listOf(BROWSER_OPUS_ENCODER), AudioSpec.AudioOnly)
+
+    val render = lowering.graph.shouldNotBeNull()
+    render.audioCodec shouldBe AudioCodec.Opus
+    render.container shouldBe "webm"
+  }
+
+  // The video codec asked for writes no file here, so the container follows the audio and mp4 keeps AAC.
+  @Test
+  fun audioOnlyAskingForVp9KeepsAacOnAnAacOnlyDevice() {
+    val lowering =
+      audioExport(ExportSpec(videoCodec = VideoCodec.Vp9), listOf(BROWSER_AAC_ENCODER), AudioSpec.AudioOnly)
+
+    lowering.verdict.shouldBeInstanceOf<Verdict.Capable>()
+    val render = lowering.graph.shouldNotBeNull()
+    render.audioCodec shouldBe AudioCodec.Aac
+    render.container shouldBe "mp4"
+  }
+
+  // Opus codes at 48 kHz only, so a 44.1 kHz source is resampled up to it. Opus is asked for so the AAC source is
+  // encoded rather than copied.
+  @Test
+  fun opusPlansFortyEightKilohertzFromAFortyFourOneSource() {
+    val spec = ExportSpec(audioCodec = AudioCodec.Opus)
+    val lowering = audioExport(spec, listOf(BROWSER_OPUS_ENCODER), sampleRate = 44_100)
+
+    val output =
+      lowering.verdict
+        .shouldBeInstanceOf<Verdict.Capable>()
+        .plan.output
+    output.audioCodec shouldBe AudioCodec.Opus
+    output.audioFormat.shouldNotBeNull().sampleRate shouldBe 48_000
+  }
+
+  private fun audioExport(
+    spec: ExportSpec,
+    encoders: List<AudioEncoderCapability>,
+    audio: AudioSpec = AudioSpec.Keep,
+    sampleRate: Int = 48_000,
+  ): LoweredExport<BrowserRender> {
+    val clip = Clip(source("a"))
+    return planner.lower(
+      Composition(tracks = listOf(Track(listOf(clip))), audio = audio),
+      Ask(
+        spec,
+        device(VideoCodec.H264, VideoCodec.Vp9, audio = encoders),
+        mapOf(clip.source to info(audio = AudioTrackInfo(trackCodecOf("mp4a"), sampleRate, 2, null))),
+      ),
+    )
   }
 
   @Test

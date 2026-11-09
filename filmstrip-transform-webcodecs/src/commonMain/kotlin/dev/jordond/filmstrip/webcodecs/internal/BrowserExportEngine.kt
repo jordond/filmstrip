@@ -36,6 +36,7 @@ import dev.jordond.filmstrip.transform.internal.probe.PlanningReads
 import dev.jordond.filmstrip.transform.internal.refusedLowering
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedHdr
 import dev.jordond.filmstrip.webcodecs.internal.interop.Date
+import dev.jordond.filmstrip.webcodecs.internal.interop.fileExtensionOf
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.flow
@@ -231,9 +232,7 @@ public class BrowserExportEngine(
         estimatedRemaining = Duration.ZERO,
       ),
     )
-    // A copy opens no encoder and is always mp4. An audio-only export writes mp4 too, under the extension a player
-    // expects a file with no video track to carry.
-    val extension = render.videoEncoding?.container ?: if (render.writesVideo) MP4_EXTENSION else M4A_EXTENSION
+    val extension = fileExtensionOf(render.container, render.writesVideo)
     emit(
       ExportStatus.Success(
         output = deliver(result.file, to, extension),
@@ -306,8 +305,6 @@ public class BrowserExportEngine(
 
   private companion object {
     const val PROGRESS_STEP = 0.05f
-    const val MP4_EXTENSION = "mp4"
-    const val M4A_EXTENSION = "m4a"
 
     const val UNKNOWN_FAILURE = "The browser export failed without saying why."
 

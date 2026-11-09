@@ -82,7 +82,8 @@ public class Adjustment(
  * What kind of change an [Adjustment] describes.
  *
  * Not every kind needs to reach the user. [HdrToneMapped] and [EffectDropped] change how the output looks next to the
- * preview the user just watched, and [ColorSpaceChanged] can on a color-managed player, so surface those.
+ * preview the user just watched, [AudioDropped] takes away audio the composition has, and [ColorSpaceChanged] can
+ * change it on a color-managed player, so surface those.
  */
 public enum class AdjustmentKind {
   /**
@@ -126,6 +127,16 @@ public enum class AdjustmentKind {
    * export that ran its plan.
    */
   EffectDropped,
+
+  /**
+   * The composition has audio to hear and the output is written without it.
+   *
+   * Either the device encodes no audio at all, or the output's container carries none of the codecs the device
+   * encodes. A composition with nothing to hear, such as one muted with [dev.jordond.filmstrip.edit.AudioSpec.Mute]
+   * or with every clip at [dev.jordond.filmstrip.edit.AudioLevel.Mute], reports nothing here, and neither does a spec
+   * asking for [AudioCodec.None].
+   */
+  AudioDropped,
 
   /**
    * A hardware path was unavailable and a slower one was substituted.

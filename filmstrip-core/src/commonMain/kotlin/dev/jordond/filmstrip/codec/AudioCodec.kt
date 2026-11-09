@@ -23,7 +23,7 @@ public enum class AudioCodec {
   Alac,
 
   /**
-   * Opus. No backend encodes it, so it only ever reaches an output by copy.
+   * Opus. Only the browser encodes it, and every other backend reaches it by copy alone.
    */
   Opus,
 

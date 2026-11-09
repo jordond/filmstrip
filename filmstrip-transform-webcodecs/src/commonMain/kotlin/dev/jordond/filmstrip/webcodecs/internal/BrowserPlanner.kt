@@ -29,6 +29,8 @@ import dev.jordond.filmstrip.transform.internal.refusal
 import dev.jordond.filmstrip.transform.internal.refusedLowering
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
 import dev.jordond.filmstrip.transform.internal.resolve.stillUnsupportedMessage
+import dev.jordond.filmstrip.webcodecs.internal.interop.containerCarries
+import dev.jordond.filmstrip.webcodecs.internal.interop.containerFor
 import dev.jordond.filmstrip.webcodecs.internal.render.MAX_CANVASES
 
 /**
@@ -67,6 +69,8 @@ internal class BrowserPlanner(
       // There is no browser encoder for HEVC Main10, and VP9 Profile 2 is the one HDR profile
       // Chromium was measured to encode.
       hdrLadder = listOf(VideoCodec.Vp9),
+      containerCarries = ::containerCarries,
+      containerName = { video, hdr -> containerFor(video, hdr = hdr) },
     )
 
   /**

@@ -5,6 +5,7 @@ import dev.jordond.filmstrip.capability.DeviceCapabilities
 import dev.jordond.filmstrip.codec.AudioCodec
 import dev.jordond.filmstrip.codec.Bitrate
 import dev.jordond.filmstrip.codec.VideoCodec
+import dev.jordond.filmstrip.edit.AudioLevel
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.Composition
@@ -164,26 +165,86 @@ class NoEncoderNegotiationTest {
     val silent = fixture.device(audio = emptyList())
     val spec = ExportSpec(audioCodec = AudioCodec.Aac)
 
-    val output = graded(edit, silent, spec = spec).output
-    val plan = exported(edit, silent, spec).shouldBeInstanceOf<Verdict.Capable>().plan
+    val resolved = graded(edit, silent, spec = spec)
+    val verdict = exported(edit, silent, spec).shouldBeInstanceOf<Verdict.Degraded>()
 
-    output.audioCodec shouldBe AudioCodec.None
-    output.audioFormat.shouldBeNull()
-    output.audioCodec shouldBe plan.output.audioCodec
-    output.audioFormat shouldBe plan.output.audioFormat
+    resolved.output.audioCodec shouldBe AudioCodec.None
+    resolved.output.audioFormat.shouldBeNull()
+    resolved.output.audioCodec shouldBe verdict.plan.output.audioCodec
+    resolved.output.audioFormat shouldBe verdict.plan.output.audioFormat
+    resolved.adjustments shouldBe verdict.adjustments
   }
 
   @Test
-  fun `an export with no audio encoder still writes no audio`() {
+  fun `an export with no audio encoder writes no audio and says it dropped it`() {
     val edit = composition(clip(audioRate = AUDIO_RATE))
 
-    val output =
-      exported(edit, fixture.device(audio = emptyList()))
-        .shouldBeInstanceOf<Verdict.Capable>()
-        .plan.output
+    val verdict = exported(edit, fixture.device(audio = emptyList())).shouldBeInstanceOf<Verdict.Degraded>()
 
-    output.audioCodec shouldBe AudioCodec.None
-    output.audioFormat.shouldBeNull()
+    verdict.plan.output.audioCodec shouldBe AudioCodec.None
+    verdict.plan.output.audioFormat
+      .shouldBeNull()
+    verdict.adjustments.map { it.kind } shouldBe listOf(AdjustmentKind.AudioDropped)
+  }
+
+  @Test
+  fun `a strict export with no audio encoder refuses to drop the audio`() {
+    val edit = composition(clip(audioRate = AUDIO_RATE))
+    val strict = ExportSpec(strict = true)
+
+    exported(edit, fixture.device(audio = emptyList()), strict)
+      .shouldBeInstanceOf<Verdict.Incapable>()
+      .reasons
+      .single()
+      .shouldBeInstanceOf<FilmstripError.InvalidComposition>()
+  }
+
+  // With the audio gone there is no stream left to write, so the file would have no track in it.
+  @Test
+  fun `an audio-only export with no audio encoder is refused by name`() {
+    val edit = composition(clip(audioRate = AUDIO_RATE)).withAudio(AudioSpec.AudioOnly)
+    val device = fixture.device(audio = emptyList())
+
+    for (spec in listOf(ExportSpec(), ExportSpec(strict = true))) {
+      exported(edit, device, spec)
+        .shouldBeInstanceOf<Verdict.Incapable>()
+        .reasons
+        .single()
+        .shouldBeInstanceOf<FilmstripError.InvalidComposition>()
+        .message shouldBe NO_AUDIO_TO_WRITE
+    }
+  }
+
+  @Test
+  fun `a muted composition with no audio encoder drops nothing and strict accepts it`() {
+    val muted = composition(clip(audioRate = AUDIO_RATE)).withAudio(AudioSpec.Mute)
+    val everyClipMuted =
+      composition(
+        clip(audioRate = AUDIO_RATE).withAudio(AudioLevel.Mute),
+        clip(audioRate = AUDIO_RATE).withAudio(AudioLevel.Mute),
+      )
+    val device = fixture.device(audio = emptyList())
+
+    for (edit in listOf(muted, everyClipMuted)) {
+      for (spec in listOf(ExportSpec(), ExportSpec(strict = true))) {
+        exported(edit, device, spec)
+          .shouldBeInstanceOf<Verdict.Capable>()
+          .plan.output.audioCodec shouldBe AudioCodec.None
+      }
+    }
+  }
+
+  @Test
+  fun `an export with no audio encoder and nothing to hear reports nothing`() {
+    val removed = composition(clip(audioRate = AUDIO_RATE)).withAudio(AudioSpec.Remove)
+    val noTrack = composition(clip())
+    val device = fixture.device(audio = emptyList())
+
+    listOf(exported(removed, device), exported(noTrack, device)).forEach { verdict ->
+      verdict
+        .shouldBeInstanceOf<Verdict.Capable>()
+        .plan.output.audioCodec shouldBe AudioCodec.None
+    }
   }
 
   @Test

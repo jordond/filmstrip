@@ -35,6 +35,12 @@ Each preset is a plain `ExportSpec` you opt into, so you can copy one and change
 the source's codec. When the device has no encoder for the source's codec it falls back and reports a
 `CodecFallback`. It never blocks a stream copy, so an edit that could be copied still is.
 
+When the composition has audio to hear and the export can't encode any of it, the file is written without audio and
+the plan reports an `AudioDropped` adjustment. That happens when the device has no audio encoder, or when the container
+carries none of the codecs it encodes. A `strict` spec refuses instead, and so does an `AudioOnly` composition, which
+would be left with nothing to write. A muted composition has nothing to drop and reports nothing. See
+[Codecs](/reference/codecs/#audio) for which audio codecs each backend encodes.
+
 ### Height
 
 `heightPx` is a maximum. A height below the composition's own scales it down, and one at or above it keeps the

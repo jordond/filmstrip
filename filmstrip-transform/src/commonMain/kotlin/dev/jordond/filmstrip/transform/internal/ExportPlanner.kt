@@ -4,7 +4,9 @@ import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.capability.EffectParity
 import dev.jordond.filmstrip.capability.ParityNote
+import dev.jordond.filmstrip.codec.AudioCodec
 import dev.jordond.filmstrip.codec.VideoCodec
+import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.effect.EffectResolver
@@ -29,6 +31,7 @@ import dev.jordond.filmstrip.transform.internal.copy.copyPrefixPhaseOf
 import dev.jordond.filmstrip.transform.internal.negotiation.Ask
 import dev.jordond.filmstrip.transform.internal.negotiation.Framing
 import dev.jordond.filmstrip.transform.internal.negotiation.Grade
+import dev.jordond.filmstrip.transform.internal.negotiation.NO_AUDIO_TO_WRITE
 import dev.jordond.filmstrip.transform.internal.negotiation.Phase
 import dev.jordond.filmstrip.transform.internal.negotiation.StageLowering
 import dev.jordond.filmstrip.transform.internal.negotiation.Streams
@@ -36,6 +39,8 @@ import dev.jordond.filmstrip.transform.internal.negotiation.concessionsOf
 import dev.jordond.filmstrip.transform.internal.negotiation.encodingOf
 import dev.jordond.filmstrip.transform.internal.negotiation.framingOf
 import dev.jordond.filmstrip.transform.internal.negotiation.gradeOf
+import dev.jordond.filmstrip.transform.internal.negotiation.hasAudibleAudio
+import dev.jordond.filmstrip.transform.internal.negotiation.invalid
 import dev.jordond.filmstrip.transform.internal.negotiation.laidWindowOf
 import dev.jordond.filmstrip.transform.internal.negotiation.orElse
 import dev.jordond.filmstrip.transform.internal.negotiation.outputFormatOf
@@ -70,8 +75,11 @@ public val DEFAULT_HDR_LADDER: List<VideoCodec> = listOf(VideoCodec.Hevc)
  * an export that keeps HDR, [noteOf] is what to tell a caller about an effect this engine only
  * approximates, `supportsCopy` says whether it can copy a stream across without an encoder at
  * all, `muxerAccepts` says whether the muxer will take a source's streams without re-encoding them,
- * `copyLimit` names the blocker a limit of the engine's own puts on copying a source, and [canToneMap]
- * says whether it can bring an HDR grade down to SDR.
+ * `copyLimit` names the blocker a limit of the engine's own puts on copying a source, [canToneMap]
+ * says whether it can bring an HDR grade down to SDR, [containerCarries] says whether the file an encode writes
+ * carries an audio codec, given the video codec it writes, or null when it writes none, the audio codec, and whether
+ * that video keeps HDR, and [containerName] names that file's container from the same video codec and HDR, or null
+ * when the engine has no name for it.
  */
 @InternalFilmstripApi
 public class ExportPlanner(
@@ -87,6 +95,8 @@ public class ExportPlanner(
   private val toneMapLimit: (List<MediaSource>) -> String? = { null },
   private val hdrLadder: List<VideoCodec> = DEFAULT_HDR_LADDER,
   copyLimit: (MediaInfo) -> CopyBlocker? = { null },
+  private val containerCarries: (VideoCodec?, AudioCodec, Boolean) -> Boolean = { _, _, _ -> true },
+  private val containerName: (VideoCodec?, Boolean) -> String? = { _, _ -> null },
 ) {
   private val lowering = StageLowering(resolvers, unclaimedMessage)
   private val copySupport = CopySupport(supportsCopy, muxerAccepts, copyLimit)
@@ -268,8 +278,20 @@ public class ExportPlanner(
     if (failed) return Settlement.Failed(reasons)
     if (unsupported.isNotEmpty()) return Settlement.Unsupported(unsupported)
 
-    val audio = resolveAudioCodec(ask.spec, ask.device, silent = !streams.keepAudio, graded = ask.writesNoFile)
+    val video = encoding.video.codec.takeUnless { edit.audio == AudioSpec.AudioOnly }
+    val hdr = grade.hdrTransfer != null
+    val audio =
+      resolveAudioCodec(
+        spec = ask.spec,
+        device = ask.device,
+        silent = !streams.keepAudio,
+        graded = ask.writesNoFile,
+        copied = grade.path == ExportPath.Copy,
+        audible = hasAudibleAudio(edit, streams, ask),
+        container = containerLabel(video, hdr),
+      ) { codec -> containerCarries(video, codec, hdr) }
     val output = outputFormatOf(ask, framing, grade, encoding, audio, timeline.tracks)
+    if (!streams.keepVideo && output.audioCodec == AudioCodec.None) return refused(invalid(NO_AUDIO_TO_WRITE))
     val concessions = concessionsOf(ask.spec, framing, grade, encoding, audio, lowered, dropped)
     if (ask.spec.strict && concessions.isNotEmpty()) {
       val refusal = Verdict.Incapable(concessions.map { it.strictRefusal }, withoutUnsupported = null)
@@ -347,6 +369,16 @@ public class ExportPlanner(
       approximateDuration = null,
       isCopy = path == ExportPath.Copy,
     )
+  }
+
+  // How the audio messages name the file an encode writes, with the video codec that chose its container.
+  private fun containerLabel(
+    video: VideoCodec?,
+    hdr: Boolean,
+  ): String {
+    val name = containerName(video, hdr) ?: return "This export's container"
+    val export = if (video == null) "this audio-only export" else "this ${if (hdr) "HDR " else ""}$video export"
+    return "The $name file $export writes"
   }
 
   private fun refused(error: FilmstripError): Settlement =

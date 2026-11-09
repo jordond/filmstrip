@@ -10,6 +10,7 @@ import dev.jordond.filmstrip.webcodecs.internal.interop.AudioBufferSource
 import dev.jordond.filmstrip.webcodecs.internal.interop.Blob
 import dev.jordond.filmstrip.webcodecs.internal.interop.BufferTarget
 import dev.jordond.filmstrip.webcodecs.internal.interop.JsOptions
+import dev.jordond.filmstrip.webcodecs.internal.interop.MP4
 import dev.jordond.filmstrip.webcodecs.internal.interop.Mp4OutputFormat
 import dev.jordond.filmstrip.webcodecs.internal.interop.Output
 import dev.jordond.filmstrip.webcodecs.internal.interop.Quality
@@ -17,6 +18,7 @@ import dev.jordond.filmstrip.webcodecs.internal.interop.VideoSample
 import dev.jordond.filmstrip.webcodecs.internal.interop.VideoSampleSource
 import dev.jordond.filmstrip.webcodecs.internal.interop.WebMOutputFormat
 import dev.jordond.filmstrip.webcodecs.internal.interop.jsArrayOf
+import dev.jordond.filmstrip.webcodecs.internal.interop.muxAudioCodecKey
 import kotlinx.coroutines.await
 import kotlin.js.ExperimentalWasmJsInterop
 import kotlin.js.JsAny
@@ -67,13 +69,11 @@ internal class BrowserEncoder private constructor(
 
   companion object {
     suspend fun open(render: BrowserRender): BrowserEncoder {
-      // A file with no video track is mp4 as well, since AAC is the only codec encoded here and
-      // mp4 is what carries it.
       val video = render.videoEncoding
-      val container = video?.container ?: MP4_CONTAINER
+      val container = render.container
 
       val target = BufferTarget()
-      val format: JsAny = if (container == MP4_CONTAINER) Mp4OutputFormat() else WebMOutputFormat()
+      val format: JsAny = if (container == MP4) Mp4OutputFormat() else WebMOutputFormat()
       val output =
         Output(
           JsOptions()
@@ -107,7 +107,7 @@ internal class BrowserEncoder private constructor(
           val source =
             AudioBufferSource(
               JsOptions()
-                .put("codec", AUDIO_CODEC)
+                .put("codec", muxAudioCodecKey(render.audioCodec))
                 .put("quality", Quality(JsOptions().put("bitrate", AUDIO_BITRATE).build()))
                 .build(),
             )
@@ -121,13 +121,22 @@ internal class BrowserEncoder private constructor(
     }
 
     private const val KEY_FRAME_SECONDS = 1.0
-    private const val AUDIO_CODEC = "aac"
     private const val AUDIO_BITRATE = 128_000
-    private const val MP4_CONTAINER = "mp4"
     private const val NO_BUFFER = "The muxer finalized without producing a buffer."
     private const val NO_VIDEO_TRACK = "This output writes no video track, so it takes no frames."
   }
 }
+
+/**
+ * The codec strings one video encode is opened with.
+ *
+ * @property encoderCodec The WebCodecs string [BrowserEncoder] opens its encoder with.
+ * @property muxCodec The codec key [BrowserEncoder] hands mediabunny.
+ */
+internal class VideoEncoding(
+  val encoderCodec: String,
+  val muxCodec: String,
+)
 
 /**
  * A finished file, still in memory.

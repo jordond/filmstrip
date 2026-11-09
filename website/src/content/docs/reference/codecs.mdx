@@ -30,14 +30,20 @@ Keeping an HDR grade needs a specific codec, HEVC on Android, Apple and ffmpeg, 
 | ------------ | ------- | ----- | ---------------------- | --- |
 | `Aac`        | ✓       | ✓     | Depends on the browser | ✓   |
 | `Alac`       | ✗       | ✗     | ✗                      | ✓   |
-| `Opus`       | ✗       | ✗     | ✗                      | ✗   |
+| `Opus`       | ✗       | ✗     | Depends on the browser | ✗   |
 | `Mp3`        | ✗       | ✗     | ✗                      | ✗   |
 | `Flac`       | ✗       | ✗     | ✗                      | ✗   |
 | `Vorbis`     | ✗       | ✗     | ✗                      | ✗   |
 
 `AudioCodec.None` writes no audio track.
 
-Whether a browser encodes AAC depends on the platform it runs on. Without it the browser can't export audio.
+If the composition has audio but no encoder writes a codec the container takes, the export is written without audio
+and reports an `AudioDropped` adjustment. A `strict` spec refuses instead, and an `AudioOnly` composition is always
+refused. A muted composition reports nothing.
+
+Whether a browser encodes AAC and Opus depends on the platform it runs on. `Auto` writes AAC where the container takes
+it and Opus otherwise. Opus is encoded at 48 kHz only. WebM can't hold AAC, so a WebM export writes Opus, and asking for
+AAC there reports a `CodecFallback`.
 
 ## Stream copy
 
@@ -52,8 +58,9 @@ What stops a copy is on [Limits](/reference/limits/#stream-copy).
 
 ## Containers
 
-Android and Apple write MP4. The browser writes MP4 too, apart from an SDR VP9 export, which is WebM. ffmpeg picks the
-container from the sink's file extension, and uses MP4 for a temporary sink.
+Android and Apple write MP4. The browser writes MP4 too, apart from an SDR VP9 export and an audio-only Opus export,
+which are WebM. An audio-only MP4 is named `.m4a`. ffmpeg picks the container from the sink's file extension, and uses
+MP4 for a temporary sink.
 
 ## Overlay pictures
 

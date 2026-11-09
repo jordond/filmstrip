@@ -100,6 +100,10 @@ internal fun invalid(message: String): FilmstripError = FilmstripError.InvalidCo
 
 internal const val NO_PRIMARY_VIDEO = "The primary track contributes no video, so there is nothing to encode."
 
+internal const val NO_AUDIO_TO_WRITE =
+  "An audio-only export needs its audio written, and this device encodes none the file can carry, so there is " +
+    "nothing to write."
+
 /**
  * Whether this track still writes something once the output's audio and video have been settled.
  */

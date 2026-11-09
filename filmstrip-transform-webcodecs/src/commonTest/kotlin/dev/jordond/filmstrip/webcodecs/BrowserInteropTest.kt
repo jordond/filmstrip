@@ -1,9 +1,13 @@
 package dev.jordond.filmstrip.webcodecs
 
+import dev.jordond.filmstrip.codec.AudioCodec
 import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.webcodecs.internal.interop.HDR_VP9_CODEC
+import dev.jordond.filmstrip.webcodecs.internal.interop.containerCarries
 import dev.jordond.filmstrip.webcodecs.internal.interop.containerFor
+import dev.jordond.filmstrip.webcodecs.internal.interop.fileExtensionOf
+import dev.jordond.filmstrip.webcodecs.internal.interop.muxAudioCodecKey
 import dev.jordond.filmstrip.webcodecs.internal.interop.muxCodecKey
 import dev.jordond.filmstrip.webcodecs.internal.interop.webCodecString
 import io.kotest.matchers.shouldBe
@@ -11,8 +15,8 @@ import kotlin.test.Test
 import kotlin.test.assertFailsWith
 
 /**
- * The pure codec-string and container lookups [webCodecString], [muxCodecKey] and [containerFor]
- * drive, without a browser encoder or a wired-up pipeline behind them.
+ * The pure codec-string and container lookups [webCodecString], [muxCodecKey], [muxAudioCodecKey], [containerFor],
+ * [containerCarries] and [fileExtensionOf] drive, without a browser encoder or a wired-up pipeline behind them.
  */
 class BrowserInteropTest {
   @Test
@@ -62,5 +66,44 @@ class BrowserInteropTest {
   fun `an hdr vp9 encode routes to mp4 where an sdr one stays in webm`() {
     containerFor(VideoCodec.Vp9, hdr = false) shouldBe "webm"
     containerFor(VideoCodec.Vp9, hdr = true) shouldBe "mp4"
+  }
+
+  @Test
+  fun `a file with no video track follows its audio`() {
+    containerFor(null, AudioCodec.Opus) shouldBe "webm"
+    containerFor(null, AudioCodec.Aac) shouldBe "mp4"
+    containerFor(null) shouldBe "mp4"
+  }
+
+  // mediabunny's WebM muxer throws on AAC, and mp4 takes both codecs this backend encodes.
+  @Test
+  fun `webm carries opus and not aac where mp4 carries both`() {
+    containerCarries(VideoCodec.Vp9, AudioCodec.Aac, hdr = false) shouldBe false
+    containerCarries(VideoCodec.Vp9, AudioCodec.Opus, hdr = false) shouldBe true
+    containerCarries(VideoCodec.Vp9, AudioCodec.None, hdr = false) shouldBe true
+    containerCarries(VideoCodec.H264, AudioCodec.Aac, hdr = false) shouldBe true
+    containerCarries(VideoCodec.H264, AudioCodec.Opus, hdr = false) shouldBe true
+    containerCarries(null, AudioCodec.Aac, hdr = false) shouldBe true
+  }
+
+  // An HDR VP9 encode goes in mp4, so it keeps AAC an SDR one has to give up.
+  @Test
+  fun `an hdr vp9 encode keeps aac in mp4`() {
+    containerCarries(VideoCodec.Vp9, AudioCodec.Aac, hdr = true) shouldBe true
+  }
+
+  @Test
+  fun `an mp4 with no video track is named m4a`() {
+    fileExtensionOf("mp4", writesVideo = false) shouldBe "m4a"
+    fileExtensionOf("mp4", writesVideo = true) shouldBe "mp4"
+    fileExtensionOf("webm", writesVideo = false) shouldBe "webm"
+    fileExtensionOf("webm", writesVideo = true) shouldBe "webm"
+  }
+
+  @Test
+  fun `each browser audio codec has its mediabunny key`() {
+    muxAudioCodecKey(AudioCodec.Aac) shouldBe "aac"
+    muxAudioCodecKey(AudioCodec.Opus) shouldBe "opus"
+    assertFailsWith<IllegalStateException> { muxAudioCodecKey(AudioCodec.Flac) }
   }
 }

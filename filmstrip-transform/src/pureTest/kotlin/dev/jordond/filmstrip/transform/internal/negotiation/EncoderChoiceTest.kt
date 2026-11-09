@@ -12,6 +12,7 @@ import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.HdrMode
 import dev.jordond.filmstrip.export.OutputFormat
+import dev.jordond.filmstrip.export.Verdict
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.geometry.frameWithin
 import dev.jordond.filmstrip.transform.internal.DEFAULT_HDR_LADDER
@@ -20,7 +21,6 @@ import dev.jordond.filmstrip.transform.internal.composition
 import dev.jordond.filmstrip.transform.internal.refusal
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedHdr
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedTrack
-import io.kotest.assertions.withClue
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
@@ -141,8 +141,89 @@ class EncoderChoiceTest {
   }
 
   @Test
-  fun `a device with no audio encoder writes no audio and reports nothing`() {
+  fun `a device with no audio encoder drops the audio and is refused strictly`() {
     val choice = resolveAudioCodec(ExportSpec(audioCodec = AudioCodec.Aac), fixture.device(audio = emptyList()), false)
+
+    val message = "This device has no audio encoder, so the export is written without audio."
+    choice.codec shouldBe AudioCodec.None
+    val dropped = choice.fallback.shouldNotBeNull()
+    dropped.adjustment shouldBe Adjustment(AdjustmentKind.AudioDropped, "Aac", "None", message)
+    dropped.strictRefusal.shouldBeInstanceOf<FilmstripError.InvalidComposition>().message shouldBe message
+  }
+
+  @Test
+  fun `a copy with no audio encoder drops nothing`() {
+    val choice = resolveAudioCodec(ExportSpec(), fixture.device(audio = emptyList()), silent = false, copied = true)
+
+    choice.codec shouldBe AudioCodec.None
+    choice.fallback.shouldBeNull()
+  }
+
+  @Test
+  fun `a codec the container does not carry falls to the next encoder it does`() {
+    val device = fixture.device(audio = listOf(AAC, OPUS))
+    val opusOnly = { codec: AudioCodec -> codec == AudioCodec.Opus }
+
+    val auto = resolveAudioCodec(ExportSpec(), device, silent = false, carried = opusOnly)
+    val aac = resolveAudioCodec(ExportSpec(audioCodec = AudioCodec.Aac), device, silent = false, carried = opusOnly)
+
+    auto.codec shouldBe AudioCodec.Opus
+    auto.fallback.shouldBeNull()
+    val message = "This export's container does not carry Aac, so Opus is used instead."
+    aac.fallback.shouldNotBeNull().adjustment shouldBe Adjustment(AdjustmentKind.CodecFallback, "Aac", "Opus", message)
+  }
+
+  @Test
+  fun `a container that carries none of the device's codecs drops the audio`() {
+    val choice = resolveAudioCodec(ExportSpec(), fixture.device(audio = listOf(AAC)), false, carried = { false })
+
+    choice.codec shouldBe AudioCodec.None
+    choice.fallback
+      .shouldNotBeNull()
+      .adjustment.kind shouldBe AdjustmentKind.AudioDropped
+  }
+
+  // The webm file a VP9 export writes takes Opus only, and this device encodes AAC alone.
+  @Test
+  fun `a container that drops the audio is named with the video codec that chose it`() {
+    val vp9 = listOf(VideoCodec.Vp9)
+    val planner =
+      fixture.planner(
+        ladder = vp9,
+        containerCarries = { video, audio, _ -> video != VideoCodec.Vp9 || audio == AudioCodec.Opus },
+        containerName = { video, _ -> if (video == VideoCodec.Vp9) "webm" else "mp4" },
+      )
+    val edit = composition(fixture.clip(audioRate = 48_000))
+    val device = fixture.device(video = listOf(fixture.encoder(VideoCodec.Vp9)))
+
+    val verdict =
+      planner
+        .negotiate(edit, Ask(ExportSpec(videoCodec = VideoCodec.Vp9), device, fixture.infos(edit)))
+        .verdict
+        .shouldBeInstanceOf<Verdict.Degraded>()
+
+    val message =
+      "The webm file this Vp9 export writes carries no codec this device encodes audio with, so the export is " +
+        "written without audio."
+    verdict.adjustments.single() shouldBe Adjustment(AdjustmentKind.AudioDropped, "Auto", "None", message)
+  }
+
+  @Test
+  fun `muted audio a device cannot encode is left out without a drop`() {
+    val spec = ExportSpec(audioCodec = AudioCodec.Aac)
+    val noEncoder = resolveAudioCodec(spec, fixture.device(audio = emptyList()), silent = false, audible = false)
+    val noneCarried =
+      resolveAudioCodec(spec, fixture.device(), silent = false, audible = false, carried = { false })
+
+    for (choice in listOf(noEncoder, noneCarried)) {
+      choice.codec shouldBe AudioCodec.None
+      choice.fallback.shouldBeNull()
+    }
+  }
+
+  @Test
+  fun `a device with no audio encoder reports nothing for a silent output`() {
+    val choice = resolveAudioCodec(ExportSpec(), fixture.device(audio = emptyList()), silent = true)
 
     choice.codec shouldBe AudioCodec.None
     choice.fallback.shouldBeNull()
@@ -163,36 +244,16 @@ class EncoderChoiceTest {
 
   // An export runs here and writes no audio, and the preview reads what it writes.
   @Test
-  fun `a device with a video encoder and no audio encoder resolves to none with or without a grade`() {
+  fun `a device with a video encoder and no audio encoder drops the audio with or without a grade`() {
     val device = fixture.device(audio = emptyList())
 
     for (graded in listOf(true, false)) {
       val choice = resolveAudioCodec(ExportSpec(audioCodec = AudioCodec.Aac), device, silent = false, graded = graded)
 
       choice.codec shouldBe AudioCodec.None
-      choice.fallback.shouldBeNull()
-    }
-  }
-
-  // Each device's answer under a grade and under an export, the same for Auto and for AAC.
-  @Test
-  fun `a device encodes audio when it lists an audio encoder or grades with no encoder at all`() {
-    val alac = listOf(AudioEncoderCapability(AudioCodec.Alac, listOf(48_000), 2))
-    val answers =
-      listOf(
-        Triple("an AAC encoder", fixture.device(), true to true),
-        Triple("an ALAC encoder", fixture.device(audio = alac), true to true),
-        Triple("video and no audio encoder", fixture.device(audio = emptyList()), false to false),
-        Triple("no encoder at all", fixture.device(video = emptyList(), audio = emptyList()), true to false),
-      )
-
-    answers.forEach { (name, device, answer) ->
-      listOf(ExportSpec(), ExportSpec(audioCodec = AudioCodec.Aac)).forEach { spec ->
-        withClue("$name under ${spec.audioCodec}") {
-          device.encodesAudio(spec, graded = true) shouldBe answer.first
-          device.encodesAudio(spec, graded = false) shouldBe answer.second
-        }
-      }
+      choice.fallback
+        .shouldNotBeNull()
+        .adjustment.kind shouldBe AdjustmentKind.AudioDropped
     }
   }
 
