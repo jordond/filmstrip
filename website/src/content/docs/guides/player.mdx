@@ -36,7 +36,8 @@ before you issue commands.
 <Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Player.kt" region="events" />
 
 `positionFlow` follows the playhead, snapped to the tick you ask for. `currentPosition` reads it once. Both report a
-seek's target as soon as it's issued, so a scrubber thumb doesn't snap back.
+seek's target as soon as it's issued, so a scrubber thumb doesn't snap back to where it was. A `SeekAccuracy.Nearest`
+seek moves once more when it lands, to the frame it landed on.
 
 <Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Player.kt" region="playhead" />
 
@@ -48,7 +49,9 @@ without coroutines.
 <Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Player.kt" region="transport" />
 
 - `seekTo` always yields one `SeekCompleted`, carrying the frame it landed on. `SeekAccuracy.Nearest` lands on a nearby frame,
-  before or after the one asked for, which suits a moving finger. Its `SeekCompleted` names the frame it shows. Until the newest seek completes, the playhead reads the position it asked for.
+  before or after the one asked for, which suits a moving finger. Its `SeekCompleted` names the frame it shows. Until the
+  newest seek completes, the playhead reads the frame it asked for. A `Nearest` seek then moves the playhead once, to the
+  frame it landed on, which can be before the one asked for on the browser and Apple.
 - `beginScrub` and `endScrub` wrap a drag. Between them the engine relaxes seek accuracy, and `endScrub` settles on the
   exact frame.
 - `setLoopRange` wraps playback at the end of the range and reports `RangeLooped`. A range the composition ends inside wraps

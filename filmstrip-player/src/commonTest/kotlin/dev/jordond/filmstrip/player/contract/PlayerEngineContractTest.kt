@@ -29,12 +29,13 @@ import kotlin.time.Duration
  * The contracts every player backend must honour that need nothing but an engine and a
  * composition.
  *
- * A backend inherits this, supplies [createEngine], [fixture] and [fixtureFrameRate], and gets the ten behaviours
+ * A backend inherits this, supplies [createEngine], [fixture] and [fixtureFrameRate], and gets the eleven behaviours
  * that drift silently between backends: the duration a snapshot reports, what the preview reports it is delivering, one
- * completion per issued seek, the slot a seek reports it landed on, an equal composition doing no platform work, a
- * rebuild leaving the transport and the playhead where they were, how an interruption from outside filmstrip reaches a
- * listener, a loop range the composition ends inside wrapping at that end rather than ending there, a surface reading a
- * paused player getting the first frame and then a parameter edit, and a play or pause given before the first load.
+ * completion per issued seek, the slot a seek reports it landed on, the playhead moving once when a relaxed seek lands,
+ * an equal composition doing no platform work, a rebuild leaving the transport and the playhead where they were, how an
+ * interruption from outside filmstrip reaches a listener, a loop range the composition ends inside wrapping at that end
+ * rather than ending there, a surface reading a paused player getting the first frame and then a parameter edit, and a
+ * play or pause given before the first load.
  *
  * Pixel work is in [PlayerPixelContractTest] instead, so a backend with no export to compare
  * against is not made to stub out half of one class.
@@ -299,6 +300,14 @@ abstract class PlayerEngineContractTest {
     }
 
   @Test
+  fun aPausedRelaxedSeekHoldsTheRequestedSlotThenStaysWhereItLanded() =
+    relaxedSeeks.holdsThenStaysWhereItLanded(ROUNDS_UP_AT)
+
+  @Test
+  fun aPlayingRelaxedSeekHoldsTheRequestedSlotThenPlaysOnFromWhereItLanded() =
+    relaxedSeeks.holdsThenPlaysOnFromWhereItLanded(ROUNDS_UP_AT)
+
+  @Test
   fun anEqualCompositionDoesNoPlatformWork() =
     contractTest { scope ->
       val subject = createEngine(scope)
@@ -434,6 +443,8 @@ abstract class PlayerEngineContractTest {
   }
 
   private val rebuilds: RebuildContract get() = RebuildContract(::createEngine, fixture, fixtureFrameRate)
+
+  private val relaxedSeeks: RelaxedSeekContract get() = RelaxedSeekContract(::createEngine, fixture, fixtureFrameRate)
 
   private val loopEnds: LoopEndContract get() = LoopEndContract(::createEngine, fixture, fixtureFrameRate)
 

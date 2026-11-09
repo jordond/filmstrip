@@ -57,8 +57,9 @@ public interface VideoPlayer :
   /**
    * Reads the playhead.
    *
-   * Optimistic: a seek's target is returned as soon as it is issued, before the backend has landed
-   * on it, so a scrubber thumb does not snap backwards under the user's finger.
+   * Optimistic: a seek's target is returned as soon as it is issued, before the backend has landed on it, so a scrubber
+   * thumb does not snap back to where it was under the user's finger. A relaxed seek moves it once more when it lands,
+   * to the frame it landed on, which can be before the target on the browser and Apple.
    *
    * @return the current position.
    */
@@ -134,8 +135,8 @@ public interface VideoPlayer :
   /**
    * Observes the playhead without coroutines, at most once per [tick].
    *
-   * Reads the same playhead as [positionFlow]. The current position arrives as soon as the listener
-   * is registered, and a seek's target arrives as soon as it is issued.
+   * Reads the same playhead as [positionFlow]. The current position arrives as soon as the listener is registered, a
+   * seek's target arrives as soon as it is issued, and a relaxed seek's landing arrives when it lands.
    *
    * @param tick The grid to snap callbacks to.
    * @param listener Receives each tick.

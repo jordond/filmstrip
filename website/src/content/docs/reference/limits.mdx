@@ -120,7 +120,8 @@ apart by luma. A clip at 1/32 runs 32 times its source, so it writes mostly thos
 ## Relaxed seek
 
 A `SeekAccuracy.Nearest` seek lands within each backend's own tolerance, and `PlaybackEvent.SeekCompleted` reports the
-slot of the frame it shows.
+slot of the frame it shows. Until then the playhead reads the frame asked for, and it moves once, as the seek completes,
+to the frame shown. On Apple and the browser that can be before the frame asked for.
 
 - Apple lands on the nearest sync sample within ±250 ms of the target, either side, from `NEAREST_SEEK_TOLERANCE`.
 - The browser lands on the sync sample at or before the target, read by `readSyncSample` in `BrowserSeeks`.

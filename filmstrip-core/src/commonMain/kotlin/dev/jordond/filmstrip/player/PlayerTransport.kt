@@ -30,7 +30,8 @@ public interface PlayerTransport {
    *
    * Completes with [PlaybackEvent.SeekCompleted] carrying the frame it landed on, which is the output slot nearest
    * [position] on an exact seek, or the slot of the sync sample the platform settled on for a relaxed one. Until the
-   * newest seek completes, the playhead reads the position it asked for.
+   * newest seek completes, the playhead reads the output slot nearest the position it asked for. A relaxed seek then
+   * moves the playhead once, to the slot it landed on, which can be before [position] on the browser and Apple.
    *
    * @param accuracy How exact the landing frame has to be.
    */

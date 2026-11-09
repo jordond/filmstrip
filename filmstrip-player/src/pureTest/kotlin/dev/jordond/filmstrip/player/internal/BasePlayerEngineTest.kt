@@ -70,6 +70,27 @@ class BasePlayerEngineTest {
     listener.positions.last() shouldBe 680.milliseconds
   }
 
+  // A relaxed seek reads the slot it asked for while in flight, then moves once to where the platform landed, here a
+  // sync sample before it. Nothing after the landing reads the requested slot again.
+  @Test
+  fun `a relaxed seek holds the requested slot then moves once to an earlier landing`() {
+    engine.becomeReady(10.seconds)
+    engine.position = 400.milliseconds
+
+    engine.seekTo(1050.milliseconds, SeekAccuracy.Nearest)
+    engine.position = 900.milliseconds
+    engine.push(900.milliseconds)
+    engine.reported shouldBe 1050.milliseconds
+
+    engine.platform.issued[0].complete(landed = 1000.milliseconds)
+    engine.position = 1000.milliseconds
+    engine.push(1000.milliseconds)
+
+    listener.positions shouldBe listOf(1050.milliseconds, 1000.milliseconds, 1000.milliseconds)
+    listener.seekCompletions.map { it.position } shouldBe listOf(1000.milliseconds)
+    engine.reported shouldBe 1000.milliseconds
+  }
+
   // A backend that reaches Ready before the item is seekable says Ready again once it is. The
   // status has not moved, so an early return would strand the queued seek.
   @Test
