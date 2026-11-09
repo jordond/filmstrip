@@ -21,6 +21,7 @@ fun main() {
   val engine = TryEngine(scope, exporter = { edit, spec -> writeExport(filmstrip, edit, spec, exportSink()) })
   val bridge = TryBridge(engine::apply, engine::onPageHidden, engine::onGesture)
   bridge.start()
+
   ComposeViewport(document.body!!) {
     TryScreen(engine, filmstrip)
     // Composing needs no WebGL and a frame's callback runs ahead of its draw, so the second frame is what shows the
@@ -31,9 +32,11 @@ fun main() {
       bridge.send(encodeReady())
     }
   }
+
   scope.launch {
     statusesOf(engine.state).collect { bridge.send(encodeStatus(it)) }
   }
+
   scope.launch { engine.onCapabilities(filmstrip.capabilities()) }
   engine.load()
 }
