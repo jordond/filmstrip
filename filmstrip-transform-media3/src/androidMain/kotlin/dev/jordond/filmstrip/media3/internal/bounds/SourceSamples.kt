@@ -22,10 +22,10 @@ import kotlin.time.Duration.Companion.microseconds
  * video sample there.
  *
  * The extractor walks samples in decode order, so the walk opens on the sync sample before [start] and reads on past
- * the end until a second sync sample beyond it, which is as far as a frame can be reordered. The end is [end] or the
- * source's own end, whichever comes first. The last sample read stops showing at that second sync sample, or where the
- * video track ends when the walk runs out first. A track naming no end of its own runs one frame interval past its last
- * sample.
+ * the end until a second sync sample beyond it, which is as far as a frame can be reordered. [end] is the clip's
+ * planned end, which the planner already holds to the source's probed length. The last sample read stops showing at
+ * that second sync sample, or where the video track ends when the walk runs out first. A track naming no end of its own
+ * runs one frame interval past its last sample.
  */
 internal suspend fun frameBoundsOf(
   source: MediaSource,
@@ -37,11 +37,10 @@ internal suspend fun frameBoundsOf(
     try {
       if (!extractor.open(source)) return@withContext null
       val track = extractor.videoTrackIndex() ?: return@withContext null
-      val sourceEnd = extractor.longestTrackUs()
       val trackEnd = extractor.getTrackFormat(track).durationUs()
       extractor.selectTrack(track)
 
-      val cut = sourceEnd?.let { minOf(end.inWholeMicroseconds, it) } ?: end.inWholeMicroseconds
+      val cut = end.inWholeMicroseconds
       extractor.seekTo(start.inWholeMicroseconds, MediaExtractor.SEEK_TO_PREVIOUS_SYNC)
       val read = mutableListOf<Long>()
       val stoppedOn =
@@ -121,16 +120,6 @@ private inline fun MediaExtractor.walkUntilSecondSyncFrom(
   }
   return null
 }
-
-/**
- * How long this extractor's longest track runs, in microseconds, which is where media3 ends a clip that asks for more
- * than the source holds. Null when no track says.
- */
-private fun MediaExtractor.longestTrackUs(): Long? =
-  (0 until trackCount)
-    .mapNotNull {
-      getTrackFormat(it).durationUs()
-    }.maxOrNull()
 
 // How long a track runs, in microseconds, or null when its format doesn't say.
 private fun MediaFormat.durationUs(): Long? =

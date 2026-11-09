@@ -5,6 +5,7 @@ import android.media.MediaExtractor
 import android.media.MediaFormat
 import android.media.MediaMetadataRetriever
 import android.net.Uri
+import android.os.ParcelFileDescriptor
 import dev.jordond.filmstrip.FilmstripContext
 import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.codec.Bitrate
@@ -19,11 +20,17 @@ import dev.jordond.filmstrip.media.ProbeResult
 import dev.jordond.filmstrip.media.VideoTrackInfo
 import dev.jordond.filmstrip.media.describe
 import dev.jordond.filmstrip.media.displaySizeOf
+import dev.jordond.filmstrip.media.movieDurationOf
 import dev.jordond.filmstrip.media.trackCodecOf
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.io.FileInputStream
 import java.io.IOException
+import java.nio.ByteBuffer
+import java.nio.channels.FileChannel
+import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 
 internal actual class PlatformProber actual constructor() {
@@ -99,9 +106,11 @@ internal actual class PlatformProber actual constructor() {
       val retriever = MediaMetadataRetriever()
       try {
         retriever.open()
-        ProbeResult.Success(retriever.readInfo(tracks()))
+        ProbeResult.Success(retriever.readInfo(tracks(), movieDuration()))
       } catch (error: IllegalArgumentException) {
         ProbeResult.Failure(unreadable(error.message))
+      } catch (cancelled: CancellationException) {
+        throw cancelled
       } catch (error: RuntimeException) {
         // setDataSource throws a bare RuntimeException for a malformed or unsupported container.
         ProbeResult.Failure(unreadable(error.message))
@@ -139,6 +148,45 @@ internal actual class PlatformProber actual constructor() {
     }
   }
 
+  /**
+   * How long the source plays for by its MP4 or QuickTime movie header, or null when it has none [movieDurationOf]
+   * can read or it cannot be opened for random access.
+   */
+  private suspend fun MediaSource.movieDuration(): Duration? =
+    try {
+      val channel =
+        when (this) {
+          is MediaSource.Path -> {
+            FileInputStream(path).channel
+          }
+          is MediaSource.Uri -> {
+            val android = FilmstripContext.get() ?: return null
+            val descriptor = android.contentResolver.openFileDescriptor(Uri.parse(uri), "r") ?: return null
+            ParcelFileDescriptor.AutoCloseInputStream(descriptor).channel
+          }
+          is MediaSource.Bytes, is MediaSource.Image -> {
+            return null
+          }
+        }
+      channel.use { movieDurationOf(it.size()) { start, count -> it.readAt(start, count) } }
+    } catch (unreadable: IOException) {
+      null
+    } catch (cancelled: CancellationException) {
+      throw cancelled
+    } catch (unopened: RuntimeException) {
+      // A content:// URI the resolver cannot open throws SecurityException or IllegalArgumentException.
+      null
+    }
+
+  private fun FileChannel.readAt(
+    start: Long,
+    count: Int,
+  ): ByteArray {
+    val buffer = ByteBuffer.allocate(count)
+    while (buffer.hasRemaining() && read(buffer, start + buffer.position()) >= 0) Unit
+    return buffer.array().copyOf(buffer.position())
+  }
+
   private fun MediaExtractor.readTracks(): SourceTracks {
     var video: MediaFormat? = null
     var audio: MediaFormat? = null
@@ -154,7 +202,10 @@ internal actual class PlatformProber actual constructor() {
     return SourceTracks(video = video, audio = audio)
   }
 
-  private fun MediaMetadataRetriever.readInfo(tracks: SourceTracks?): MediaInfo {
+  private fun MediaMetadataRetriever.readInfo(
+    tracks: SourceTracks?,
+    movieDuration: Duration?,
+  ): MediaInfo {
     val video = tracks?.video
     val audio = tracks?.audio
     val hasVideo = extractMetadata(MediaMetadataRetriever.METADATA_KEY_HAS_VIDEO) == "yes"
@@ -168,7 +219,9 @@ internal actual class PlatformProber actual constructor() {
     val pixelAspect = video?.pixelAspectRatio() ?: SQUARE
 
     return MediaInfo(
-      duration = (long(MediaMetadataRetriever.METADATA_KEY_DURATION) ?: 0L).milliseconds,
+      // On API 30 the retriever reports an MP4 track's length ahead of its edit list, so an AAC track that opens on an
+      // encoder delay runs long by that delay. The movie header carries the edited length whatever the API level.
+      duration = movieDuration ?: (long(MediaMetadataRetriever.METADATA_KEY_DURATION) ?: 0L).milliseconds,
       video =
         if (!hasVideo) {
           null

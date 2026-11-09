@@ -16,6 +16,10 @@ to catch.
 `MediaInfo` has the `duration`, a `video` and an `audio` track, either of which is null when the source has none, and
 `isExportable`, which is false for DRM-protected files. Those can't be exported or previewed, so check it first.
 
+For an MP4 or QuickTime file, `duration` is the length its movie header gives, which counts only what each track's
+edit list presents. An AAC track that opens on an encoder delay doesn't run long by that delay, and every platform
+reports the same length for the same file. Any other container gets the length the platform reads.
+
 On a video track, size a target from `displaySize`, which has rotation and pixel aspect applied, rather than `codedSize`.
 `bitDepth` is often null, since only HEVC carries it somewhere every backend can read. `hdrTransfer` is null for SDR.
 

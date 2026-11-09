@@ -13,7 +13,9 @@ import kotlin.time.Duration
  * Read it before planning an edit. Pair it with [DeviceCapabilities] to know whether this device
  * can handle the source.
  *
- * @property duration How long the source runs.
+ * @property duration How long the source plays for. For an MP4 or QuickTime file this is the length its movie header
+ * gives, which counts only what each track's edit list presents, on every platform. For any other container it is
+ * the length the platform reports.
  * @property video The video track, or null when the source has none.
  * @property audio The audio track, or null when the source has none.
  * @property isExportable False for DRM-protected assets and anything else the platform refuses to

@@ -8,6 +8,8 @@ import dev.jordond.filmstrip.ffmpeg.support.FfmpegExportFixture
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.ProbeResult
+import dev.jordond.filmstrip.test.PrimedAudio
+import io.kotest.matchers.comparables.shouldBeLessThanOrEqualTo
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
@@ -15,6 +17,7 @@ import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.test.runTest
 import java.io.File
 import kotlin.test.Test
+import kotlin.time.Duration.Companion.microseconds
 
 /**
  * What [FfmpegProber] reports once a real ffprobe has read the file.
@@ -32,6 +35,23 @@ class FfmpegProberReadMediaTest {
       val info = probed.shouldBeInstanceOf<ProbeResult.Success>().info
       info.video.shouldNotBeNull().displaySize shouldBe Size(640, 360)
       info.audio.shouldNotBeNull().sampleRate shouldBe 48_000
+    }
+
+  // ffprobe prints the length to six decimals, so a microsecond is as close as its figure can get.
+  @Test
+  fun `a primed audio file reports the length its movie header gives`() =
+    runTest(timeout = TIMEOUT) {
+      if (!fixture.available()) return@runTest
+
+      val primed = File.createTempFile("filmstrip-primed", ".mp4").apply { writeBytes(PrimedAudio.mp4()) }
+      try {
+        val probed = FfmpegProber(FfmpegRuntime.unshared(FfmpegConfig())).probe(MediaSource.of(primed.path))
+
+        val duration = probed.shouldBeInstanceOf<ProbeResult.Success>().info.duration
+        (duration - PrimedAudio.presentedLength).absoluteValue shouldBeLessThanOrEqualTo 1.microseconds
+      } finally {
+        primed.delete()
+      }
     }
 
   @Test

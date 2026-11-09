@@ -52,6 +52,9 @@ kotlin {
 
     // Reads a still's header through the platform decoder, on the targets that measure one off the host. Android
     // decodes through BitmapFactory, which the device suite covers.
+    // The primed audio file sits with the shared test fixtures, which depend on core, so core compiles its source in.
+    commonTest { kotlin.srcDir("../filmstrip-test/src/primedAudio/kotlin") }
+
     val imageProbeTest = create("imageProbeTest") { dependsOn(commonTest.get()) }
     listOf("jvmTest", "macosArm64Test", "jsTest").forEach { named(it) { dependsOn(imageProbeTest) } }
 
@@ -78,6 +81,7 @@ kotlin {
 
     named("androidDeviceTest") {
       kotlin.srcDir("src/commonTest/kotlin/dev/jordond/filmstrip/media/probe")
+      kotlin.srcDir("../filmstrip-test/src/primedAudio/kotlin")
       dependencies {
         implementation(kotlin("test"))
         implementation(libs.kotest.assertions)

@@ -133,7 +133,9 @@ internal actual class PlatformProber internal constructor(
 
       ProbeResult.Success(
         MediaInfo(
-          duration = CMTimeGetSeconds(asset.duration).seconds,
+          // AVFoundation takes its own priming off an AAC track rather than the delay its edit list names, so an
+          // audio-only file runs short of the length the movie header carries, the figure every backend reports.
+          duration = withContext(Dispatchers.IO) { movieDurationAt(url) } ?: CMTimeGetSeconds(asset.duration).seconds,
           video = videoTrack?.toInfo(),
           audio =
             audioTrack?.let {
