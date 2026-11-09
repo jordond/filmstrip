@@ -131,7 +131,8 @@ internal fun Project.configureBrowserTestsOnMultiplatform() {
  * It sets Mocha's per test timeout to 300 s and Karma's no activity, disconnect and capture windows, in milliseconds.
  * It also defines the `FilmstripChrome` launcher and runs every module's browser tests on it. That launcher gives
  * headless Chrome WebGL through ANGLE over SwiftShader, mutes its output and lets an AudioContext run without a user
- * gesture.
+ * gesture. It runs Chrome without its sandbox and on a DevTools port the OS picks, so browsers from several checkouts
+ * can run on one host at once.
  */
 internal val BROWSER_TEST_CONFIG: String =
   """
@@ -146,6 +147,10 @@ internal val BROWSER_TEST_CONFIG: String =
   //
   // The audio flags are always appended, overrides included. --mute-audio keeps the fixtures' tone
   // off the speakers, and the autoplay policy lets an AudioContext run with no gesture to unlock it.
+  //
+  // --no-sandbox is always appended too, so an override still starts on a Linux host without a sandbox.
+  // --remote-debugging-port=0 lets the OS pick a free DevTools port for each run. Without a port
+  // karma-chrome-launcher passes a fixed 9222, so two checkouts on one host collide.
   config.set({
     browsers: ['FilmstripChrome'],
     browserNoActivityTimeout: 600000,
@@ -164,8 +169,9 @@ internal val BROWSER_TEST_CONFIG: String =
           '--use-angle=swiftshader',
           '--enable-unsafe-swiftshader',
           '--ignore-gpu-blocklist',
-          '--no-sandbox',
         ].join(' ')).split(' ').filter(Boolean).concat([
+          '--no-sandbox',
+          '--remote-debugging-port=0',
           '--mute-audio',
           '--autoplay-policy=no-user-gesture-required',
         ]),

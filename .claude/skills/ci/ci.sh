@@ -94,8 +94,9 @@ light=""
 for h in "${remote_hosts[@]}"; do [ "$h" = "$(host_address cerebro)" ] && heavy=$h; done
 for h in "${remote_hosts[@]}"; do [ "$h" != "$heavy" ] && light=$h; done
 
-# name|gradle tasks|mac, heavy or any. wasm and js are mac because ChromeHeadless capture fails on cerebro. An any
-# step goes to the light host when there are two.
+# name|gradle tasks|mac, heavy or any. An any step goes to the light host when there are two. wasm and js are mac
+# because cerebro's software-rendered Chrome runs them about 3.5x slower, mostly player and webcodecs. Capture works
+# there, it is only speed.
 steps=(
   "spotless|spotlessCheck|any"
   "build-logic|-p build-logic :convention:test|any"
@@ -306,10 +307,12 @@ cached_dirs() {
 # Credits every result XML in the checkout newer than the step's marker to that step. That holds only while one
 # local step runs at a time. Remote steps write their XML on the remote host, and every local step sits in the mac
 # chain, which runs its steps one after the other. So no other step can write local XML while this one runs.
+# The Karma times under test-results/karma repeat the browser tests Gradle already wrote, so they are left out.
 summarise() {
   local marker=$1 log=$2
   {
-    find "$checkout" -path '*/build/*' -name '*.xml' -newer "$marker" \( -path '*test-results*' -o -path '*androidTest-results*' \)
+    find "$checkout" -path '*/build/*' -name '*.xml' -newer "$marker" \( -path '*test-results*' -o -path '*androidTest-results*' \) \
+      ! -path '*/test-results/karma/*'
     cached_dirs "$log" | while IFS= read -r dir; do find "$dir" -name '*.xml'; done
   } | sort -u | tr '\n' '\0' | xargs -0 grep -l --null '<testsuite' 2>/dev/null | python3 -c '
 import sys, re, os, collections

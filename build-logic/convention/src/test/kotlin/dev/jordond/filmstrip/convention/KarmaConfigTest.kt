@@ -80,6 +80,15 @@ class KarmaConfigTest {
   }
 
   @Test
+  fun `the shared launcher keeps its sandbox and port flags under an override`() {
+    val launcher = BROWSER_TEST_CONFIG.substringAfter("FilmstripChrome: {")
+    val alwaysAppended = launcher.substringAfter(".concat([").substringBefore("])")
+
+    alwaysAppended shouldContain "'--no-sandbox'"
+    alwaysAppended shouldContain "'--remote-debugging-port=0'"
+  }
+
+  @Test
   fun `a module that applies the multiplatform plugin later reads the generated directory`() {
     writeBuild(
       plugins = "id 'org.jetbrains.kotlin.multiplatform' apply false",
