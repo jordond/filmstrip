@@ -1,9 +1,9 @@
 name: docs
 
-# Only `check` installs dependencies, and it has no secrets. The jobs holding CLOUDFLARE_API_TOKEN
-# deploy the built artifact with the Wrangler pinned below, so no dependency bump reaches the token.
-
 on:
+  push:
+    branches:
+      - main
   pull_request:
     branches:
       - main
