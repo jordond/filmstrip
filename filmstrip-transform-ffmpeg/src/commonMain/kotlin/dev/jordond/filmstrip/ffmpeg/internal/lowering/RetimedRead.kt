@@ -19,35 +19,23 @@ import kotlin.time.Duration.Companion.microseconds
 import kotlin.time.Duration.Companion.seconds
 
 /**
- * How one clip's picture is read off its input before any effect runs.
- *
- * @property nodes The trim and the clock the clip's frames leave on.
- * @property clockOrigin Where the clock's zero lands in the composition, which an effect reading the composition's time
- * counts from.
- */
-internal class ClipRead(
-  val nodes: List<FilterNode>,
-  val clockOrigin: Duration,
-)
-
-/**
- * How this clip's picture is read at [frameRate].
+ * The trim and the clock this clip's picture is read off its input with at [frameRate], ahead of any effect.
  *
  * The frame nearest a slot's source time can sit outside the trim, so a retimed read opens on the frame its first slot
- * shows and runs a frame past the trim's end, and the retimed clock and the tail's cut decide what shows. A retimed
- * clock opens on the clip's first slot, so that slot's time is its origin. A plain read restarts on the first frame the
- * trim holds.
+ * shows and runs a frame past the trim's end, and the retimed clock and the tail's cut decide what shows. A plain read
+ * restarts on the first frame the trim holds, which is the frame its first slot shows. Both clocks open on that slot,
+ * so [readClockOrigin] is the origin of either.
  */
-internal fun ResolvedClip.readAt(frameRate: Int): ClipRead {
+internal fun ResolvedClip.readAt(frameRate: Int): List<FilterNode> {
   if (!retimes(frameRate)) {
     val trim = FilterNode("trim", "start" to formatSeconds(start.seconds()), "end" to formatSeconds(end.seconds()))
-    return ClipRead(listOf(trim, RESTART_PTS), span.start)
+    return listOf(trim, RESTART_PTS)
   }
   val sourceRate = sourceRateOr(frameRate)
   val opens = formatSeconds(retimedReadOpens(frameRate).seconds())
   val trim = FilterNode("trim", "start" to opens, "end" to formatSeconds((end + 1.seconds / sourceRate).seconds()))
   val lead = spanLead(frameRate)
-  return ClipRead(listOf(trim) + retimedNodes(start, speed, frameRate, sourceRate, lead), span.start - lead)
+  return listOf(trim) + retimedNodes(start, speed, frameRate, sourceRate, lead)
 }
 
 /**
@@ -115,8 +103,16 @@ private const val TICKS_PER_SLOT = 1_000
 /**
  * How far past its first slot's time this clip's span opens at [frameRate], negative when it opens ahead of it.
  */
-internal fun ResolvedClip.spanLead(frameRate: Int): Duration =
-  span.start - outputSlotTime(outputSlotOf(span.start, frameRate), frameRate)
+internal fun ResolvedClip.spanLead(frameRate: Int): Duration = span.start - readClockOrigin(frameRate)
+
+/**
+ * Where the clock a read of this clip hands its effects has its zero in the composition at [frameRate].
+ *
+ * It is the time of the first slot the clip covers, so the frame on each slot reads that slot's own time, whether the
+ * clip opens on a slot or between two.
+ */
+internal fun ResolvedClip.readClockOrigin(frameRate: Int): Duration =
+  outputSlotTime(outputSlotOf(span.start, frameRate), frameRate)
 
 /**
  * Whether a clock restarted on the first frame this clip's trim holds shows on each slot the frame [nearestSourceFrame]

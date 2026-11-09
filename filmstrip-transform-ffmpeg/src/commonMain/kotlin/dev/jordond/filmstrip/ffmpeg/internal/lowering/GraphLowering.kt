@@ -368,9 +368,8 @@ internal class GraphLowering(
   ): String {
     var pad = branch
     var merged = 0
-    val read = clip.readAt(frameRate)
-    val clockOrigin = read.clockOrigin
-    val pending = read.nodes.toMutableList()
+    val clockOrigin = clip.readClockOrigin(frameRate)
+    val pending = clip.readAt(frameRate).toMutableList()
 
     // Ahead of every effect, and only on the clips that carry a grade. A composition can mix an HDR
     // clip with an SDR one, and running the curve over the SDR clip would change a frame that was

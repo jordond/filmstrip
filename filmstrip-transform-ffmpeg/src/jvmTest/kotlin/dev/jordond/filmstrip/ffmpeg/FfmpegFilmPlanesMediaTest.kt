@@ -85,8 +85,8 @@ class FfmpegFilmPlanesMediaTest {
   fun `a 59_94 clip past a long seek`() = runBlocking<Unit> { assertAgreesPastSeek("60000/1001") }
 
   @Test
-  fun `a 30 fps clip with a frame 3_667 us under a tick opening`() =
-    runBlocking<Unit> { assertAgreesPlaced("30", 24_008_330.microseconds, frames = 724) }
+  fun `a 30 fps clip with a frame 1 us under a tick opening`() =
+    runBlocking<Unit> { assertAgreesPlaced("30", 24_033_333.microseconds, frames = 726) }
 
   @Test
   fun `grain alone keeps the alpha that marks an unpainted bar`() =

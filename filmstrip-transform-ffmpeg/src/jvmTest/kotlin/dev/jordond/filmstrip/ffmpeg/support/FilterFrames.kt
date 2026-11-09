@@ -74,6 +74,7 @@ internal class FilterFrames(
     Filmstrip {
       ffmpegBackend()
       filters()
+      extraResolver?.let { addEffectResolver(it) }
     }
 
   /**

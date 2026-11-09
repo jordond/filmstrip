@@ -97,8 +97,8 @@ class FfmpegVhsPlanesMediaTest {
   fun `a 50 fps clip past a long seek`() = runBlocking<Unit> { assertAgreesPastSeek("50") }
 
   @Test
-  fun `a 30 fps clip with a frame 3_003 us under a tick opening`() =
-    runBlocking<Unit> { assertAgreesPlaced("30", 27_636_000.microseconds, frames = 832) }
+  fun `a 30 fps clip with a frame 1 us under a tick opening`() =
+    runBlocking<Unit> { assertAgreesPlaced("30", 23_766_666.microseconds, frames = 751) }
 
   @Test
   fun `a 29_97 clip with a frame 3 us under a tick opening`() =
