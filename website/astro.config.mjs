@@ -92,6 +92,8 @@ export default defineConfig({
           projectName: 'filmstrip',
           description:
             'filmstrip is a Kotlin Multiplatform library for encoding, editing and previewing video on Android, iOS, macOS, the JVM and the browser.',
+          // The demo and playgrounds are LOAD buttons for a browser, nothing a reader of the text can use.
+          customSelectors: { all: ['[data-demo]', '[data-playground]'] },
         }),
         starlightImageZoom(),
       ],
