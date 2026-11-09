@@ -21,9 +21,6 @@ import dev.jordond.filmstrip.media.HdrTransfer
 @InternalFilmstripApi
 public val PIXEL: List<String> = listOf("r(X,Y)", "g(X,Y)", "b(X,Y)")
 
-// geq's default bilinear sampling on ffmpeg 6.1.1 reads the last column and row of a frame from the ones next to them.
-private val NEAREST_SAMPLE = "interpolation" to "nearest"
-
 /**
  * The nodes that carry the grade's ten-bit Y'CbCr onto planar float, each plane holding one code.
  *
@@ -157,13 +154,12 @@ public const val NEAREST: String = "nearest"
 public const val LINEAR: String = "linear"
 
 /**
- * A geq on planar float RGB that writes [rgb] to the red, green and blue planes, each pixel read at its own position.
+ * A geq on planar float RGB that writes [rgb] to the red, green and blue planes, in that order.
  *
- * It samples the nearest pixel, so the last column and row read their own values.
+ * Each entry is one geq expression, and reads the pixel being written through [PIXEL].
  */
 @InternalFilmstripApi
-public fun geq(rgb: List<String>): FilterNode =
-  FilterNode("geq", "r" to rgb[0], "g" to rgb[1], "b" to rgb[2], NEAREST_SAMPLE)
+public fun geq(rgb: List<String>): FilterNode = FilterNode("geq", "r" to rgb[0], "g" to rgb[1], "b" to rgb[2])
 
 /**
  * Planar float RGB, which geq and maskedmerge run on, so a signal or linear light is held without banding.

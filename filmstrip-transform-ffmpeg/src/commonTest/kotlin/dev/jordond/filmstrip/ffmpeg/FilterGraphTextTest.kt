@@ -89,7 +89,7 @@ class FilterGraphTextTest {
     )
 
     graph.build("out") shouldBe
-      "[in]format=pix_fmts=yuv444p16le,format=pix_fmts=yuv444p16le,setrange=range=limited,extractplanes=planes=y+u+v" +
+      "[in]format=pix_fmts=yuv444p16le,format=pix_fmts=yuv444p16le,extractplanes=planes=y+u+v" +
       "[outlane0y][outlane0u][outlane0v];" +
       "[outlane0y]format=pix_fmts=grayf32le[outlane0yf];" +
       "[outlane0u]format=pix_fmts=grayf32le[outlane0uf];" +
@@ -111,7 +111,7 @@ class FilterGraphTextTest {
 
     text shouldBe rendered(listOf("g", "b", "r", "a"))
     text shouldStartWith
-      "[0:v]format=pix_fmts=gbrap16le,setrange=range=limited,extractplanes=planes=r+g+b+a" +
+      "[0:v]format=pix_fmts=gbrap16le,extractplanes=planes=r+g+b+a" +
       "[alane0r][alane0g][alane0b][alane0a];"
     text shouldContain "[alane0a]format=pix_fmts=grayf32le[alane0af]"
     text shouldContain "[alane0gf][alane0bf][alane0rf][alane0af]mergeplanes="
@@ -140,12 +140,12 @@ class FilterGraphTextTest {
     val text = graph.build("a", "b")
 
     text shouldContain
-      "format=gbrpf32le,setrange=range=limited,hflip,format=pix_fmts=yuv444p16le,setrange=range=limited," +
+      "format=gbrpf32le,setrange=range=limited,hflip,format=pix_fmts=yuv444p16le," +
       "extractplanes=planes=y+u+v[alane1y]"
     text shouldContain "[blane0y]"
   }
 
-  // The frame is pinned to the sixteen-bit planar format of the named planes' family before it is tagged and cut, with
+  // The frame is pinned to the sixteen-bit planar format of the named planes' family before it is cut, with
   // alpha only when alpha is named, so extractplanes always reads one depth.
   @Test
   fun `pins the frame to the sixteen-bit format of the named planes before cutting it`() {
@@ -158,10 +158,10 @@ class FilterGraphTextTest {
         .build("a")
         .substringBefore("extractplanes")
 
-    cut(listOf("y", "u", "v"), FLOAT_RGB) shouldBe "[0:v]format=pix_fmts=yuv444p16le,setrange=range=limited,"
-    cut(listOf("y", "u", "v", "a"), FLOAT_RGBA) shouldBe "[0:v]format=pix_fmts=yuva444p16le,setrange=range=limited,"
-    cut(listOf("r", "g", "b"), FLOAT_RGB) shouldBe "[0:v]format=pix_fmts=gbrp16le,setrange=range=limited,"
-    cut(listOf("r", "g", "b", "a"), FLOAT_RGBA) shouldBe "[0:v]format=pix_fmts=gbrap16le,setrange=range=limited,"
+    cut(listOf("y", "u", "v"), FLOAT_RGB) shouldBe "[0:v]format=pix_fmts=yuv444p16le,"
+    cut(listOf("y", "u", "v", "a"), FLOAT_RGBA) shouldBe "[0:v]format=pix_fmts=yuva444p16le,"
+    cut(listOf("r", "g", "b"), FLOAT_RGB) shouldBe "[0:v]format=pix_fmts=gbrp16le,"
+    cut(listOf("r", "g", "b", "a"), FLOAT_RGBA) shouldBe "[0:v]format=pix_fmts=gbrap16le,"
   }
 
   @Test

@@ -1,0 +1,151 @@
+---
+// One docs playground sample in a framed box. Nothing downloads until the reader presses LOAD, which puts the
+// playground in an iframe over the box. A browser with no WebCodecs gets a note in place of LOAD.
+import { playgroundUrl } from '../lib/demo'
+import NoWebCodecs from './NoWebCodecs.astro'
+
+interface Props {
+  /** The sample the playground runs, such as `effects`. */
+  sample: string
+  /** What the sample lets the reader do, shown under LOAD. */
+  label: string
+  /** Fill the parent's height, as in the docs' right column, rather than taking a fixed one. */
+  fill?: boolean
+}
+
+const { sample, label, fill = false } = Astro.props
+---
+
+<div class:list={['playground not-content', { fill }]} data-playground data-src={playgroundUrl(sample)}>
+  <div class="idle osd" aria-live="polite">
+    <div class="offer" data-playground-offer>
+      <button type="button" class="load" data-playground-load>
+        <svg width="18" height="20" viewBox="0 0 18 20" aria-hidden="true">
+          <path d="M2 2 L16 10 L2 18 Z" fill="currentColor"></path>
+        </svg>LOAD
+      </button>
+      <span class="label">{label.toUpperCase()}</span>
+    </div>
+    <span class="loading" data-playground-loading tabindex="-1" hidden>LOADING</span>
+    <NoWebCodecs />
+  </div>
+</div>
+
+<script>
+  import { gateLoad, webCodecsSupport } from '../lib/demo'
+
+  const support = webCodecsSupport(globalThis)
+
+  for (const box of document.querySelectorAll<HTMLElement>('[data-playground]')) {
+    const offer = box.querySelector<HTMLElement>('[data-playground-offer]')!
+    const loading = box.querySelector<HTMLElement>('[data-playground-loading]')!
+    const noWebCodecs = box.querySelector<HTMLElement>('[data-no-webcodecs]')!
+
+    gateLoad(support, { offer, noWebCodecs }, () => {
+      box.querySelector('[data-playground-load]')!.addEventListener(
+        'click',
+        () => {
+          offer.hidden = true
+          loading.hidden = false
+          loading.focus({ preventScroll: true })
+          const iframe = document.createElement('iframe')
+          iframe.src = box.dataset.src!
+          iframe.title = 'filmstrip playground'
+          iframe.addEventListener(
+            'load',
+            () => {
+              iframe.classList.add('ready')
+              iframe.focus({ preventScroll: true })
+            },
+            { once: true },
+          )
+          box.append(iframe)
+        },
+        { once: true },
+      )
+    })
+  }
+</script>
+
+<style>
+  .playground {
+    position: relative;
+    margin-block: 1.5rem;
+    height: clamp(640px, 160vw, 1120px);
+    background: var(--ground);
+    border: 1px solid var(--line);
+    overflow: hidden;
+  }
+
+  .playground.fill {
+    height: 100%;
+    margin: 0;
+  }
+
+  .idle {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--scanlines-faint), var(--panel);
+  }
+
+  .offer {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .offer[hidden],
+  .loading[hidden] {
+    display: none;
+  }
+
+  .load {
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 52px;
+    padding: 0 32px;
+    font: inherit;
+    font-size: 32px;
+    letter-spacing: 0.08em;
+    background: var(--amber);
+    color: var(--ground);
+    border: 3px solid var(--ground);
+    box-shadow:
+      0 0 0 3px var(--amber),
+      6px 6px 0 3px var(--red);
+  }
+
+  .load:active {
+    transform: translate(3px, 3px);
+    box-shadow:
+      0 0 0 3px var(--amber),
+      3px 3px 0 3px var(--red);
+  }
+
+  .label,
+  .loading {
+    font-size: 22px;
+    color: var(--muted-strong);
+    text-align: center;
+    padding-inline: 16px;
+  }
+
+  .playground :global(iframe) {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    border: 0;
+    opacity: 0;
+  }
+
+  .playground :global(iframe.ready) {
+    opacity: 1;
+  }
+</style>

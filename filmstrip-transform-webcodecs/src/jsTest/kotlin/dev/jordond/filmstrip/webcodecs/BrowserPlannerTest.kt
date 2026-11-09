@@ -1197,10 +1197,9 @@ class BrowserPlannerTest {
     )
 
   private companion object {
-    // A window inside the fabricated source's two seconds, clear of both its ends, so a lowering
-    // that dropped one bound cannot land on the same answer by accident.
+    // Opens a window up to the shared TRIM_END inside the fabricated source's two seconds, clear of
+    // both its ends, so a lowering that dropped one bound cannot land on the same answer by accident.
     val TRIM_START = 700.milliseconds
-    val TRIM_END = 1_500.milliseconds
 
     // The sync sample a copy would open on, four hundred milliseconds back from the cut, with a
     // tolerance either side of that gap so neither answer is the one a broken snap gives anyway.

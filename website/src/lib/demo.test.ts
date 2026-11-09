@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { canLoadDemo, demoUrl, gateLoad, type WebCodecsSupport, webCodecsSupport } from './demo'
+import { canLoadDemo, demoUrl, gateLoad, playgroundUrl, type WebCodecsSupport, webCodecsSupport } from './demo'
 
 describe('demoUrl', () => {
   test('asks the app to sit inside the television', () => {
@@ -57,5 +57,11 @@ describe('gateLoad', () => {
 
   test('shows the note and arms nothing with no decoder, so nothing can build the iframe', () => {
     expect(gated(webCodecsSupport({}))).toEqual({ armed: 0, offer: true, note: false })
+  })
+})
+
+describe('playgroundUrl', () => {
+  test('names the sample in the query', () => {
+    expect(playgroundUrl('effects')).toBe('/demo/playground/?sample=effects')
   })
 })

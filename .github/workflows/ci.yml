@@ -106,6 +106,7 @@ jobs:
           :internal:docs-samples:compileAndroidMain
           :internal:docs-samples:compileKotlinIosArm64
           :sample:tryIt:compileKotlinWasmJs
+          :sample:playground:compileKotlinWasmJs
 
       - name: Build logic tests
         run: ./gradlew -p build-logic :convention:test
@@ -140,6 +141,10 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends ffmpeg fontconfig fonts-dejavu-core
+      - name: Check ffmpeg major
+        env:
+          INTENDED_MAJOR: 8
+        run: bash .github/scripts/check-ffmpeg-major.sh
       - *gradle
       - name: Run jvm tests
         run: ./gradlew jvmTest --scan
@@ -261,6 +266,8 @@ jobs:
           :sample:demo:shared:jvmTest
           :sample:tryIt:jvmTest
           :sample:tryIt:compileKotlinWasmJs
+          :sample:playground:jvmTest
+          :sample:playground:compileKotlinWasmJs
       - *slowest
       - *artifact
       - *reports

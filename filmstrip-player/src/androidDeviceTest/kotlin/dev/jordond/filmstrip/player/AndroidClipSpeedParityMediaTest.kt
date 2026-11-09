@@ -50,8 +50,9 @@ internal object AndroidClipParity : ClipParityBackend {
   // bounds the chroma.
   override fun comparedPart(frame: TestFrame): TestFrame = frame.bt709Luma()
 
-  // media3's limit: a slowed clip's audio runs past the length while its video ends on it. 4 s at 1/32 was measured
-  // writing 4.416 s of audio on API 30 and 4.457 s on API 36.
+  // media3's limit: a clip's audio starts on the first access unit at or after its trim start, placed at that unit's
+  // time scaled by speed, so silence ahead of it runs a slowed clip's audio past the length while its video ends on it.
+  // A 125 ms trim at 1/32 measured 426.7 ms of it on API 36, plus the encoder's tail.
   override fun writtenLengthSlack(speed: Double): Duration =
     minOf(1.seconds / FIXTURE_FRAME_RATE / speed, 457.milliseconds)
 

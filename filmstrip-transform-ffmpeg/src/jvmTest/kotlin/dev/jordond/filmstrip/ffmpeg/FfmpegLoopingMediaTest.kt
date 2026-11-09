@@ -3,10 +3,12 @@ package dev.jordond.filmstrip.ffmpeg
 import dev.jordond.filmstrip.edit.AudioLevel
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.TrackContent
+import dev.jordond.filmstrip.edit.audioFramesOf
 import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.export.ExportPlan
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.ExportStatus
+import dev.jordond.filmstrip.ffmpeg.support.ExportConstants.AUDIO_SAMPLE_RATE
 import dev.jordond.filmstrip.ffmpeg.support.ExportConstants.BED_GAIN
 import dev.jordond.filmstrip.ffmpeg.support.ExportConstants.BED_HZ
 import dev.jordond.filmstrip.ffmpeg.support.ExportConstants.BED_START
@@ -30,6 +32,7 @@ import dev.jordond.filmstrip.transform.internal.resolve.ResolvedTrack
 import dev.jordond.filmstrip.transform.internal.runLengthOf
 import io.kotest.assertions.withClue
 import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.longs.shouldBeInRange
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
@@ -266,7 +269,12 @@ class FfmpegLoopingMediaTest {
       tracks.first().assertLaysPasses(LoopingCases.VIDEO_LENGTHS, plan.duration)
       assertRunsFor(plan, written)
 
+      // The mix runs to the longer track's end, and a decode of AAC reads up to one frame of priming past it.
       val samples = decodedAudio(output.absolutePath)
+      val expected = audioFramesOf(plan.duration, AUDIO_SAMPLE_RATE)
+      withClue("the mix decoded to ${samples.size} samples, where the plan runs $expected") {
+        samples.size.toLong() shouldBeInRange expected..expected + AAC_FRAME_SAMPLES
+      }
       val fixtures = fixtureRatio()
 
       LoopingCases.VIDEO_READINGS.forEach { (pass, into) ->
@@ -421,6 +429,10 @@ class FfmpegLoopingMediaTest {
 
     // Inside the first pass, where the audio track's level is read before the loop repeats.
     val LOOP_VIDEO_REFERENCE = 500.milliseconds
+
+    // AAC's limit rather than the mix's: the encoder writes whole frames of 1024 samples, so a decoded file can run up
+    // to one frame past the samples the graph wrote.
+    const val AAC_FRAME_SAMPLES = 1024
 
     // How much of the fixture's own range a written frame has to span to count as carrying its
     // picture. A flat fill spans almost nothing, so half is generous and still nowhere near it.

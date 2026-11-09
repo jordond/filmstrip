@@ -1303,7 +1303,6 @@ class BrowserExportMediaTest {
     // AAC writes whole frames of 1024 samples, so two lengths can land one of them apart at 48kHz either way.
     const val AAC_SLACK_US = 22_000.0
     const val HALF = 32
-    const val HALF_BRIGHTNESS = 0.5f
     const val STRETCHED_CONTRAST = 1.5f
 
     // One channel under mid grey, one over it and one on it, so a contrast has to push two apart
@@ -1347,8 +1346,6 @@ class BrowserExportMediaTest {
     const val TIMESTAMP_TOLERANCE_US = 1.0
     const val RATE_TOLERANCE = 2f
     const val RAMP_STEP = 4
-    val TRIM_START = 1000.milliseconds
-    val TRIM_END = 1500.milliseconds
     const val TRIM_START_FRAME = 30
 
     // Wide enough to reach the sync sample before the cut whichever frame the encoder rounded it
@@ -1366,7 +1363,6 @@ class BrowserExportMediaTest {
     // a frame boundary falls.
     const val TRACK_SKEW_TOLERANCE_US = 60_000.0
     const val CONTEXT_CHURN = 24
-    const val SILENCE_THRESHOLD = 0.01f
     val AUDIO_ONLY_DURATION = 1.seconds
 
     // An AAC encoder pads the last frame out to its own block size, so the file runs a little past

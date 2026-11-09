@@ -1,13 +1,11 @@
 package dev.jordond.filmstrip.media3
 
-import android.os.Build
 import dev.jordond.filmstrip.edit.CLIP_SPEED_RANGE
 import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.TrackContent
-import dev.jordond.filmstrip.edit.audioFramesOf
 import dev.jordond.filmstrip.edit.outputLengthOf
 import dev.jordond.filmstrip.edit.outputSlotTime
 import dev.jordond.filmstrip.export.ExportSpec
@@ -160,22 +158,14 @@ class AndroidClipSpeedMediaTest {
   }
 
   // The PCM is pinned to the length, and the AAC encoder's limit is what it adds to that: it rounds up to a whole
-  // access unit and then flushes some of another, the same way a clip at speed 1 runs over. On API 30 it flushes
-  // nothing, so the file holds the whole access units of that PCM less the priming the decoder skips, which
-  // AacEncoderFlushMediaTest pins without media3.
+  // access unit and then flushes some of another, the same way a clip at speed 1 runs over.
   private fun assertAudioLength(
     audio: DecodedAudio,
     length: Duration,
   ) {
     withClue("wrote ${audio.duration} of audio for a length of $length") {
-      if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.R) {
-        val units = audioFramesOf(length, audio.sampleRate) / AAC_UNIT_FRAMES
-        val written = 1.seconds * (units * AAC_UNIT_FRAMES - AAC_PRIMING_FRAMES).toDouble() / audio.sampleRate
-        ((audio.duration - written).absoluteValue <= AUDIO_TOLERANCE).shouldBeTrue()
-      } else {
-        val over = audio.duration - length
-        (over >= -AUDIO_TOLERANCE && over <= AAC_TAIL + AUDIO_TOLERANCE).shouldBeTrue()
-      }
+      val over = audio.duration - length
+      (over >= -AUDIO_TOLERANCE && over <= AAC_TAIL + AUDIO_TOLERANCE).shouldBeTrue()
     }
   }
 
@@ -204,8 +194,6 @@ class AndroidClipSpeedMediaTest {
     // The container's own time scale, which the track's length is rounded to.
     val TRACK_END_TOLERANCE = 1.milliseconds
     val AAC_TAIL = 1.seconds * 1_536 / 48_000
-    const val AAC_UNIT_FRAMES = 1_024L
-    const val AAC_PRIMING_FRAMES = 1_600L
     val SEAM_TOLERANCE = 10.milliseconds
     val TONE_WINDOW = 100.milliseconds
     const val PRIMARY_HZ = 440

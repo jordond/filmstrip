@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Usage: assemble.sh [--skip-api] [--skip-demo]
-# Builds the site into website/dist, then copies in the Dokka HTML as /api, the wasm sample as /demo/app and the Try it
-# app as /demo/try. All must be built first, with `./gradlew dokkaGenerate`,
-# `./gradlew :sample:demo:webApp:wasmJsBrowserDistribution` and `./gradlew :sample:tryIt:wasmJsBrowserDistribution`.
+# Builds the site into website/dist, then copies in the Dokka HTML as /api, the wasm sample as /demo/app, the Try it
+# app as /demo/try and the docs playground as /demo/playground. All must be built first, with `./gradlew dokkaGenerate`,
+# `./gradlew :sample:demo:webApp:wasmJsBrowserDistribution`, `./gradlew :sample:tryIt:wasmJsBrowserDistribution` and
+# `./gradlew :sample:playground:wasmJsBrowserDistribution`.
 # The skip flags are for a local preview without one of them, never for a deploy.
 set -euo pipefail
 
@@ -11,6 +12,7 @@ root=$(dirname "$website")
 api="$root/dokka"
 demo="$root/sample/demo/webApp/build/dist/wasmJs/productionExecutable"
 try="$root/sample/tryIt/build/dist/wasmJs/productionExecutable"
+playground="$root/sample/playground/build/dist/wasmJs/productionExecutable"
 
 skip_api=false
 skip_demo=false
@@ -37,6 +39,10 @@ if ! $skip_demo && [ ! -f "$try/index.html" ]; then
   echo "No Try it app at $try. Run ./gradlew :sample:tryIt:wasmJsBrowserDistribution, or pass --skip-demo." >&2
   exit 1
 fi
+if ! $skip_demo && [ ! -f "$playground/index.html" ]; then
+  echo "No playground at $playground. Run ./gradlew :sample:playground:wasmJsBrowserDistribution, or pass --skip-demo." >&2
+  exit 1
+fi
 
 cd "$website"
 bun x astro build
@@ -51,4 +57,6 @@ if ! $skip_demo; then
   cp -R "$demo" dist/demo/app
   rm -rf dist/demo/try
   cp -R "$try" dist/demo/try
+  rm -rf dist/demo/playground
+  cp -R "$playground" dist/demo/playground
 fi

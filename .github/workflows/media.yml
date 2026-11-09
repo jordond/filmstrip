@@ -92,19 +92,10 @@ jobs:
           tar -xJf "$dir/ffmpeg.tar.xz" -C "$dir" --strip-components=1
           echo "$dir/bin" >> "$GITHUB_PATH"
 
-      # Checks the cell got the major it means to test. Whether a build meets the backend's floor is
-      # checkFfmpegTestToolchain's call, which every ffmpeg jvmTest runs first with the backend's own rule.
       - name: Check ffmpeg major
         env:
           INTENDED_MAJOR: ${{ matrix.major }}
-        run: |
-          banner=$(ffmpeg -version | head -1)
-          echo "$banner"
-          major=$(echo "$banner" | sed -nE 's/^ffmpeg version n?([0-9]+)\..*/\1/p')
-          if [ "$major" != "$INTENDED_MAJOR" ]; then
-            echo "::error::expected a release of ffmpeg $INTENDED_MAJOR, got '$banner'"
-            exit 1
-          fi
+        run: bash .github/scripts/check-ffmpeg-major.sh
 
       - &gradle
         name: Setup Gradle

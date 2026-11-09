@@ -11,7 +11,9 @@ import dev.jordond.filmstrip.export.ExportStatus
 import dev.jordond.filmstrip.export.Verdict
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
+import io.kotest.assertions.fail
 import io.kotest.assertions.withClue
+import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.flow.toList
@@ -43,7 +45,7 @@ internal suspend fun planOf(
   when (val verdict = filmstrip.plan(composition, spec)) {
     is Verdict.Capable -> verdict.plan
     is Verdict.Degraded -> verdict.plan
-    is Verdict.Incapable -> throw AssertionError("the plan was refused: ${verdict.reasons.map { it.message }}")
+    is Verdict.Incapable -> fail("the plan was refused: ${verdict.reasons.map { it.message }}")
   }
 
 /**
@@ -58,7 +60,7 @@ internal suspend fun exportOf(
   val filmstrip = webCodecsFilmstrip()
   val statuses = filmstrip.export(planOf(filmstrip, composition, spec), to).toList()
   val failure = statuses.filterIsInstance<ExportStatus.Failure>().firstOrNull()
-  if (failure != null) throw AssertionError("the export failed: ${failure.error.message}")
+  withClue("the export failed: ${failure?.error?.message}") { failure.shouldBeNull() }
   return withClue("statuses were ${statuses.map { it::class.simpleName }}") {
     (statuses.filterIsInstance<ExportStatus.Success>().singleOrNull()).shouldNotBeNull()
   }

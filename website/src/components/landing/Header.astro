@@ -14,6 +14,14 @@ import { DOCS_ENTRY, REPO_URL } from '../../lib/site'
     <a href={REPO_URL}>GITHUB</a>
   </nav>
 </header>
+<script is:inline>
+  {
+    const header = document.currentScript.previousElementSibling
+    new ResizeObserver(([entry]) => {
+      document.documentElement.style.setProperty('--header-height', `${entry.borderBoxSize[0].blockSize}px`)
+    }).observe(header)
+  }
+</script>
 
 <style>
   .header {

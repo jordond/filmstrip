@@ -215,6 +215,11 @@ ff -ss 00:05:30 -t 10 -i https://download.blender.org/demo/movies/ToS/tears_of_s
   -c:v libx264 -preset medium -crf 23 -pix_fmt yuv420p -c:a aac -b:a 128k -ac 2 \
   -movflags +faststart "$out/tears-of-steel-720p.mp4"
 
+echo "Tears of Steel, ten seconds on the bridge (CC BY 3.0, Blender Foundation)"
+ff -ss 00:00:27 -t 10 -i https://download.blender.org/demo/movies/ToS/tears_of_steel_720p.mov \
+  -c:v libx264 -preset medium -crf 23 -pix_fmt yuv420p -c:a aac -b:a 128k -ac 2 \
+  -movflags +faststart "$out/tears-of-steel-bridge-720p.mp4"
+
 echo "Orion looking back at Earth (NASA, public domain)"
 ff -t 10 -i https://images-assets.nasa.gov/video/jsc2022m000270_Orion_First_Imagery_Timelapse_and_Original_221117/jsc2022m000270_Orion_First_Imagery_Timelapse_and_Original_221117~medium.mp4 \
   -c:v libx264 -preset medium -crf 23 -pix_fmt yuv420p -c:a aac -b:a 128k -ac 2 \

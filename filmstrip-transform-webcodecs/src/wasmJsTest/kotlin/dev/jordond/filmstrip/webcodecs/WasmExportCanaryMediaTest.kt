@@ -16,13 +16,11 @@ import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
-import kotlin.time.Duration.Companion.milliseconds
 
 /**
  * One export per path the wasm bindings cross on the way to a file: a video frame through the
  * compositor and encoder, audio through the mixer and encoder, and compressed packets straight into
- * the muxer. The js suite runs the full export and planner tests against the same Kotlin, so these
- * only prove the wasm side of each binding holds.
+ * the muxer.
  */
 class WasmExportCanaryMediaTest {
   @Test
@@ -86,11 +84,4 @@ class WasmExportCanaryMediaTest {
         }
       }
     }
-
-  private companion object {
-    const val HALF_BRIGHTNESS = 0.5f
-    const val SILENCE_THRESHOLD = 0.01f
-    val TRIM_START = 1000.milliseconds
-    val TRIM_END = 1500.milliseconds
-  }
 }

@@ -5,11 +5,12 @@ tableOfContents: false
 ---
 
 import DemoFrame from '../../components/DemoFrame.astro'
+import { DEMO_HOST } from '../../lib/site'
 import { versions, TESTED_BROWSERS } from '../../lib/versions'
 
 This is the filmstrip sample app, built for the browser with Kotlin/Wasm and Compose Multiplatform
 {versions.composeMultiplatform}. It plays, edits and exports the sample clips with the WebCodecs backend, all inside
-this page. Nothing is uploaded anywhere.
+this page. Nothing is uploaded anywhere. For more room, open it <a href={DEMO_HOST}>full screen</a>.
 
 <DemoFrame />
 

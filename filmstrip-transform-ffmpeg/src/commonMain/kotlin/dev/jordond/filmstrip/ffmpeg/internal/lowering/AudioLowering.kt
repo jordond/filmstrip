@@ -34,12 +34,7 @@ internal class AudioLowering(
     if (contributing.isEmpty()) return silence()
 
     val trackLabels = contributing.map { (trackIndex, track) -> trackLabel(trackIndex, track) }
-    val mixed =
-      if (trackLabels.size == 1) {
-        trackLabels.single()
-      } else {
-        mix(trackLabels, contributing.maxOf { (_, track) -> track.duration })
-      }
+    val mixed = if (trackLabels.size == 1) trackLabels.single() else mix(trackLabels)
     return finish(mixed)
   }
 
@@ -84,29 +79,11 @@ internal class AudioLowering(
     return label
   }
 
-  // Every track mixed into one behind a silent lead as long as the longest of them.
-  private fun mix(
-    trackLabels: List<String>,
-    longest: Duration,
-  ): String {
-    // amix's limit, not the mix's: below ffmpeg 7 it stops reading its first input the moment
-    // that input ends and throws away whatever of it has not been mixed yet. On ffmpeg 6 a
-    // looping track hands its later passes over in one burst just before it ends, so as the
-    // first input it lost every pass after the first. Silence as long as the longest track takes
-    // that place instead, and it only ends once amix asks for more of it, when none is waiting.
-    val lead = "alead"
-    graph.chain(
-      emptyList(),
-      listOf(
-        FilterNode("anullsrc", "r" to format.sampleRate.toString(), "cl" to "stereo"),
-        atrimTo(longest),
-        aformat(),
-      ),
-      lead,
-    )
-    return "amixed".also { label ->
+  // Every track mixed into one, running as long as the longest of them.
+  private fun mix(trackLabels: List<String>): String =
+    "amixed".also { label ->
       graph.chain(
-        listOf(lead) + trackLabels,
+        trackLabels,
         // normalize defaults to true and divides the output by the input count, which would
         // silently halve the dialogue the moment a music bed is added. dropout_transition
         // defaults to a two-second ramp when an input ends, which would fade the primary track
@@ -114,7 +91,7 @@ internal class AudioLowering(
         listOf(
           FilterNode(
             "amix",
-            "inputs" to (trackLabels.size + 1).toString(),
+            "inputs" to trackLabels.size.toString(),
             "duration" to "longest",
             "dropout_transition" to "0",
             "normalize" to "0",
@@ -123,7 +100,6 @@ internal class AudioLowering(
         label,
       )
     }
-  }
 
   // The mix cut to the composition's duration, with its timestamps restarted and its format pinned.
   private fun finish(mixed: String): String {

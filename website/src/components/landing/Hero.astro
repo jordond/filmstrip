@@ -8,7 +8,6 @@ const targets = ['ANDROID', 'IOS', 'MACOS', 'JVM', 'BROWSER']
 
 <section class="hero" aria-labelledby="hero-title">
   <div class="copy">
-    <p class="osd kicker">KOTLIN MULTIPLATFORM · <span class="stage">PRE-ALPHA</span></p>
     <h1 id="hero-title" class="disp rgb title">filmstrip</h1>
     <p class="pitch">
       A Kotlin Multiplatform library for editing, encoding and previewing video. Build a composition, preview it in the
@@ -36,12 +35,15 @@ const targets = ['ANDROID', 'IOS', 'MACOS', 'JVM', 'BROWSER']
 <style>
   .hero {
     max-width: var(--page-width);
+    min-height: calc(100vh - var(--header-height, 0px));
+    min-height: calc(100svh - var(--header-height, 0px));
     margin: 0 auto;
-    padding: clamp(32px, 6vw, 80px) clamp(16px, 4vw, 48px) var(--section-gap);
+    padding: clamp(32px, 6vw, 80px) clamp(16px, 4vw, 48px);
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(min(100%, 460px), 1fr));
     gap: clamp(48px, 7vw, 104px);
     align-items: center;
+    align-content: center;
   }
 
   .copy {
@@ -50,16 +52,6 @@ const targets = ['ANDROID', 'IOS', 'MACOS', 'JVM', 'BROWSER']
     gap: 28px;
     max-width: 540px;
     min-width: 0;
-  }
-
-  .kicker {
-    margin: 0;
-    font-size: 26px;
-    color: var(--muted);
-  }
-
-  .stage {
-    color: var(--red);
   }
 
   .title {

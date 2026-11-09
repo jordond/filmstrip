@@ -150,29 +150,17 @@ class InvocationTest {
     argumentsFor(VideoCodec.H264, "libx264", size = Size(42, 42)).shouldNotContain("-x265-params")
   }
 
+  // An SDR export's tags come from its frames, which the graph's own last node sets, so only a kept
+  // grade names its colour on the command line.
+  @Test
+  fun `names color tags only for a kept grade`() {
+    argumentsFor(VideoCodec.H264, "libx264").shouldNotContain("-color_primaries")
+    argumentsFor(VideoCodec.Hevc, "libx265", HdrTransfer.Pq).after("-color_primaries") shouldBe "bt2020"
+  }
+
   // AudioSpec.AudioOnly lowers to a plan with no videoLabel, which is what audioArgumentsFor
   // already builds. This is the shape that reaches the command line: -vn instead of a video map,
   // and no -c:v at all since there is no encoder to name for a track that is not written.
-  // Only ffmpeg 7 and newer carries the tone-map nodes' own BT.709 attributes onto the written
-  // stream, so the flags are what make the file read the same on every build.
-  @Test
-  fun `tags a tone-mapped output as BT709 rather than leaving the matrix unwritten`() {
-    val arguments = argumentsFor(VideoCodec.H264, "libx264", writesBt709 = true)
-
-    arguments.after("-color_primaries") shouldBe "bt709"
-    arguments.after("-colorspace") shouldBe "bt709"
-    arguments.after("-color_trc") shouldBe "bt709"
-  }
-
-  // A grade that is kept writes BT.2020, so the tone-map tags must not reach it, and an ordinary
-  // SDR export carries the source's own attributes rather than being relabelled BT.709.
-  @Test
-  fun `leaves color tags alone when nothing was tone-mapped`() {
-    argumentsFor(VideoCodec.H264, "libx264").shouldNotContain("-color_primaries")
-    argumentsFor(VideoCodec.Hevc, "libx265", HdrTransfer.Pq, writesBt709 = true)
-      .after("-color_primaries") shouldBe "bt2020"
-  }
-
   @Test
   fun `an audio-only plan writes -vn rather than mapping a video stream`() {
     val arguments = audioArgumentsFor(AudioCodec.Aac)
@@ -341,7 +329,6 @@ class InvocationTest {
     codec: VideoCodec,
     encoder: String?,
     hdrTransfer: HdrTransfer? = null,
-    writesBt709: Boolean = false,
     bitrate: Bitrate? = PLANNED_BITRATE,
     size: Size = Size(1280, 720),
   ): List<String> =
@@ -362,7 +349,6 @@ class InvocationTest {
       videoEncoder = encoder,
       duration = 2.seconds,
       hdrTransfer = hdrTransfer,
-      writesBt709 = writesBt709,
     ).arguments(TOOLCHAIN, FfmpegConfig(), listOf("/fixtures/a.mp4"), emptyList(), "/out.mp4")
 
   private companion object {

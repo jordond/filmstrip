@@ -1,6 +1,7 @@
 package dev.jordond.filmstrip.media3.internal.encoder
 
 import android.media.metrics.LogSessionId
+import android.os.Build
 import android.os.SystemClock
 import androidx.media3.common.C
 import androidx.media3.common.ColorInfo
@@ -206,6 +207,44 @@ class EncoderColorTest {
   }
 
   @Test
+  fun `a software aac encoder that drops its tail is padded by the units it writes`() {
+    val cases =
+      listOf(
+        Triple(SOFTWARE_AAC, Build.VERSION_CODES.R, 0L),
+        Triple(SOFTWARE_AAC, Build.VERSION_CODES.TIRAMISU, 0L),
+        Triple(SOFTWARE_AAC, Build.VERSION_CODES.VANILLA_ICE_CREAM, 0L),
+        Triple(OMX_AAC, Build.VERSION_CODES.P, 1L),
+        Triple(OMX_AAC, Build.VERSION_CODES.Q, 1L),
+      )
+    cases.forEach { (name, sdkInt, tailUnits) ->
+      val factory = FakeFactory(names = listOf(name))
+      val color = audioColor(factory, sdkInt)
+
+      withClue("$name on API $sdkInt") {
+        color.createForAudioEncoding(aacFormat(), null).shouldBeInstanceOf<AacTailPad>().tailUnits shouldBe tailUnits
+      }
+    }
+  }
+
+  @Test
+  fun `any other audio encoder or a flushing api level passes through`() {
+    val cases =
+      listOf(
+        SOFTWARE_AAC to Build.VERSION_CODES.BAKLAVA,
+        OTHER_AAC to Build.VERSION_CODES.R,
+        OTHER_AAC to Build.VERSION_CODES.Q,
+      )
+    cases.forEach { (name, sdkInt) ->
+      val factory = FakeFactory(names = listOf(name))
+      val color = audioColor(factory, sdkInt)
+
+      withClue("$name on API $sdkInt") {
+        color.createForAudioEncoding(aacFormat(), null) shouldBeSameInstanceAs factory.made.single().codec
+      }
+    }
+  }
+
+  @Test
   fun `a retag reports the encoder and both colors`() {
     val adjustment = retagReport(ExportPath.Transcode, Retag(SOFTWARE, ColorInfo.SDR_BT709_LIMITED, BT601_LIMITED))
 
@@ -247,7 +286,20 @@ class EncoderColorTest {
     probe: EncoderColorProbe,
   ) = EncoderColor(factory, { encoder -> factory.also { pinnedTo += encoder } }, probe, logs::add)
 
+  private fun audioColor(
+    factory: FakeFactory,
+    sdkInt: Int,
+  ) = EncoderColor(factory, { factory }, probe(ColorInfo.SDR_BT709_LIMITED), logs::add, sdkInt)
+
   private fun probe(answer: ColorInfo) = EncoderColorProbe { WrittenColor.Measured(answer) }
+
+  private fun aacFormat(): Format =
+    Format
+      .Builder()
+      .setSampleMimeType(MimeTypes.AUDIO_AAC)
+      .setSampleRate(SAMPLE_RATE)
+      .setChannelCount(2)
+      .build()
 
   private fun sdrFormat(color: ColorInfo? = ColorInfo.SDR_BT709_LIMITED): Format =
     Format
@@ -289,7 +341,7 @@ class EncoderColorTest {
     override fun createForAudioEncoding(
       format: Format,
       logSessionId: LogSessionId?,
-    ): Codec = throw UnsupportedOperationException()
+    ): Codec = Made(names[made.size], format).also { made += it }.codec
 
     override fun createForVideoEncoding(
       format: Format,
@@ -315,6 +367,10 @@ class EncoderColorTest {
     const val SINK = "/sdcard/out.mp4"
     const val SOFTWARE = "c2.android.avc.encoder"
     const val OTHER = "c2.vendor.avc.encoder"
+    const val SOFTWARE_AAC = "c2.android.aac.encoder"
+    const val OTHER_AAC = "c2.vendor.aac.encoder"
+    const val OMX_AAC = "OMX.google.aac.encoder"
+    const val SAMPLE_RATE = 48_000
     const val UNCLEAR = "it wrote green as nothing near"
     const val CONFIGURED_WIDTH = 1280
     const val CONFIGURED_HEIGHT = 720

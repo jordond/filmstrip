@@ -110,6 +110,14 @@ public val samplePresets: List<SamplePreset> =
       attribution = "(CC) Blender Foundation, CC BY 3.0",
     ),
     SamplePreset(
+      name = "Tears of Steel, on the bridge",
+      detail = "Real footage in daylight: two faces, trees and brick, one shot with no cut.",
+      file = "tears-of-steel-bridge-720p.mp4",
+      bytes = 1_488_201,
+      duration = 10_000.milliseconds,
+      attribution = "(CC) Blender Foundation, CC BY 3.0",
+    ),
+    SamplePreset(
       name = "Orion looking back at Earth",
       detail = "Real footage, shot in space and lit like nothing on the ground.",
       file = "nasa-orion-earth.mp4",

@@ -60,8 +60,13 @@ internal suspend fun landingExport(composition: Composition) {
       is Verdict.Incapable -> return
     }
 
-  filmstrip.export(plan, MediaSink.temporary()).collect { status ->
-    if (status is ExportStatus.Progress) println(status.fraction)
+  filmstrip.export(plan, MediaSink.of("summer96.mp4")).collect { status ->
+    when (status) {
+      is ExportStatus.Progress -> println("Exporting ${(status.fraction * 100).toInt()}%")
+      is ExportStatus.Success -> println("Saved summer96.mp4")
+      is ExportStatus.Failure -> println("Export failed")
+      else -> Unit
+    }
   }
   // endregion
 }

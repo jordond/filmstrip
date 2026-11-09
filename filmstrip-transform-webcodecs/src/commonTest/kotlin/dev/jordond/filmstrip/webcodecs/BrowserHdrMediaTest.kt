@@ -2,7 +2,6 @@
 
 package dev.jordond.filmstrip.webcodecs
 
-import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.codec.AudioCodec
 import dev.jordond.filmstrip.color.authoredHdrNits
 import dev.jordond.filmstrip.color.hlgNitsFromSignal
@@ -19,11 +18,9 @@ import dev.jordond.filmstrip.effects.color.Saturation
 import dev.jordond.filmstrip.effects.color.colorMatrixOf
 import dev.jordond.filmstrip.effects.color.transformNits
 import dev.jordond.filmstrip.effects.geometry.CropRect
-import dev.jordond.filmstrip.export.ExportPlan
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.ExportStatus
 import dev.jordond.filmstrip.export.HdrMode
-import dev.jordond.filmstrip.export.Verdict
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.media.CodecKind
@@ -36,9 +33,7 @@ import dev.jordond.filmstrip.webcodecs.internal.SourceReader
 import io.kotest.assertions.withClue
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
-import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.await
-import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
 import kotlin.js.ExperimentalWasmJsInterop
 import kotlin.math.abs
@@ -60,10 +55,10 @@ class BrowserHdrMediaTest {
   @Test
   fun aCroppedGradeKeepsItsCodesAndItsTag() =
     runTest {
-      if (!filmstrip().encodesHdr()) return@runTest
+      if (!webCodecsFilmstrip().encodesHdr()) return@runTest
 
       val bytes = makeHdrClip(HdrTransfer.Pq) { y -> if (y < HALF) DIM else BRIGHT }
-      val success = exportOf(cropped(bytes), HdrTransfer.Pq)
+      val success = hdrExportOf(cropped(bytes), HdrTransfer.Pq)
 
       val video = success.info.video.shouldNotBeNull()
       video.hdrTransfer shouldBe HdrTransfer.Pq
@@ -108,10 +103,10 @@ class BrowserHdrMediaTest {
   @Test
   fun aLetterboxBarCarriesTheFillsOwnSignalOnBothTransfers() =
     runTest {
-      if (!filmstrip().encodesHdr()) return@runTest
+      if (!webCodecsFilmstrip().encodesHdr()) return@runTest
 
       HdrTransfer.entries.forEach { transfer ->
-        val success = exportOf(letterboxed(transfer, Fill.Solid(PURPLE_ARGB)), transfer)
+        val success = hdrExportOf(letterboxed(transfer, Fill.Solid(PURPLE_ARGB)), transfer)
         val frame =
           withClue("the letterboxed export decoded no frames on $transfer") {
             decodeTenBitFrames(outputOf(success), transfer).lastOrNull().shouldNotBeNull()
@@ -132,7 +127,7 @@ class BrowserHdrMediaTest {
   @Test
   fun aLateStartCarriesTheFillsOwnSignalThroughItsGapOnBothTransfers() =
     runTest {
-      if (!filmstrip().encodesHdr()) return@runTest
+      if (!webCodecsFilmstrip().encodesHdr()) return@runTest
 
       HdrTransfer.entries.forEach { transfer ->
         val bytes = makeHdrClip(transfer) { BRIGHT }
@@ -142,7 +137,7 @@ class BrowserHdrMediaTest {
             audio = AudioSpec.Remove,
             fill = Fill.Solid(PURPLE_ARGB),
           )
-        val frames = decodeTenBitFrames(outputOf(exportOf(composition, transfer)), transfer)
+        val frames = decodeTenBitFrames(outputOf(hdrExportOf(composition, transfer)), transfer)
         val startUs = LATE_START.toDouble(DurationUnit.MICROSECONDS)
 
         val gap = frames.minBy { abs(it.timestampUs - startUs / 2) }
@@ -168,7 +163,7 @@ class BrowserHdrMediaTest {
   @Test
   fun aBlurredFillDimsTheBackgroundOfAGrade() =
     runTest {
-      if (!filmstrip().encodesHdr()) return@runTest
+      if (!webCodecsFilmstrip().encodesHdr()) return@runTest
 
       val bright = barLightOf(Fill.Blurred(dim = 0f))
       val dimmed = barLightOf(Fill.Blurred(dim = HALF_DIM))
@@ -188,7 +183,7 @@ class BrowserHdrMediaTest {
   @Test
   fun aBlurredFillOnHlgMixesItsColorsInDisplayLight() =
     runTest {
-      if (!filmstrip().encodesHdr()) return@runTest
+      if (!webCodecsFilmstrip().encodesHdr()) return@runTest
 
       val flat = pillarBarCodesOf { MAGENTA }
       assertCodes(hlgBlurCodesOf(MAGENTA, MAGENTA), flat, "the flat magenta bar")
@@ -226,7 +221,7 @@ class BrowserHdrMediaTest {
     spec: EffectSpec,
     tolerance: Float = NITS_TOLERANCE,
   ) {
-    if (!filmstrip().encodesHdr()) return
+    if (!webCodecsFilmstrip().encodesHdr()) return
 
     val bytes = makeHdrClip(transfer) { COLORED }
     val composition =
@@ -234,7 +229,7 @@ class BrowserHdrMediaTest {
         tracks = listOf(Track(listOf(Clip(MediaSource.Bytes(bytes), effects = listOf(spec))))),
         audio = AudioSpec.Remove,
       )
-    val success = exportOf(composition, transfer)
+    val success = hdrExportOf(composition, transfer)
 
     val frame = decodeTenBitFrames(outputOf(success), transfer).firstOrNull().shouldNotBeNull()
     val matrix = checkNotNull(colorMatrixOf(spec))
@@ -255,7 +250,7 @@ class BrowserHdrMediaTest {
    * The light the letterbox bar carries under [fill], which the blur has spread the clip into.
    */
   private suspend fun barLightOf(fill: Fill): Float {
-    val success = exportOf(letterboxed(HdrTransfer.Pq, fill), HdrTransfer.Pq)
+    val success = hdrExportOf(letterboxed(HdrTransfer.Pq, fill), HdrTransfer.Pq)
     val frame =
       withClue("the blurred export decoded no frames") {
         decodeTenBitFrames(outputOf(success), HdrTransfer.Pq).lastOrNull().shouldNotBeNull()
@@ -279,7 +274,7 @@ class BrowserHdrMediaTest {
     val frame =
       withClue("the pillarboxed export decoded no frames") {
         decodeTenBitFrames(
-          outputOf(exportOf(composition, HdrTransfer.Hlg)),
+          outputOf(hdrExportOf(composition, HdrTransfer.Hlg)),
           HdrTransfer.Hlg,
         ).lastOrNull().shouldNotBeNull()
       }
@@ -386,35 +381,13 @@ class BrowserHdrMediaTest {
     }
   }
 
-  private fun filmstrip(): Filmstrip = Filmstrip { webCodecsBackend() }
-
-  private suspend fun exportOf(
+  private suspend fun hdrExportOf(
     composition: Composition,
     transfer: HdrTransfer,
   ): ExportStatus.Success {
-    val filmstrip = filmstrip()
     val spec = ExportSpec(bitrate = MEASURING_BITRATE, audioCodec = AudioCodec.None, hdr = HdrMode.KeepHdr)
-    val statuses = filmstrip.export(planOf(filmstrip, composition, spec), MediaSink.Uri("")).toList()
-    val failure = statuses.filterIsInstance<ExportStatus.Failure>().firstOrNull()
-    if (failure != null) throw AssertionError("the $transfer export failed: ${failure.error.message}")
-    return withClue("statuses were ${statuses.map { it::class.simpleName }}") {
-      (statuses.filterIsInstance<ExportStatus.Success>().singleOrNull()).shouldNotBeNull()
-    }
+    return withClue("the $transfer export") { exportOf(composition = composition, to = MediaSink.Uri(""), spec = spec) }
   }
-
-  private suspend fun planOf(
-    filmstrip: Filmstrip,
-    composition: Composition,
-    spec: ExportSpec,
-  ): ExportPlan =
-    when (val verdict = filmstrip.plan(composition, spec)) {
-      is Verdict.Capable -> verdict.plan
-      is Verdict.Degraded -> verdict.plan
-      is Verdict.Incapable -> throw AssertionError("the plan was refused: ${verdict.reasons.map { it.message }}")
-    }
-
-  private fun outputOf(success: ExportStatus.Success): MediaSource =
-    MediaSource.Uri(success.output.shouldBeInstanceOf<MediaSink.Uri>().uri)
 
   private fun assertNear(
     expected: Int,

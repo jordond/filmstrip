@@ -108,8 +108,9 @@ private val EIGHT_BIT_420 = setOf("yuv420p", "yuva420p")
  * Pins the sample aspect, the frame rate and the pixel format so `concat` sees uniform inputs
  * across every clip, and cuts the clip to exactly [slots] frames, the output slots its span covers.
  * The clip's last frame is cloned ahead of the cut, so a span whose end runs past the source's last
- * frame still has a frame for every slot it covers. A branch that ends on its last frame's own time
- * has that end moved a slot on before `fps` reads it, so the frame is written rather than dropped.
+ * frame still has a frame for every slot it covers. A branch that ends on its last frame's own time, as one
+ * through a framesync node ending with its shortest input does, has that end moved at least a slot on before `fps`
+ * reads it, so the frame is written rather than dropped.
  * [pixelFormat] is the encoder's own 10-bit format for an HDR export, or `yuv420p` for everything
  * else.
  */
@@ -122,11 +123,14 @@ internal fun trailingNodes(
     // scale does not reset the sample aspect ratio and concat refuses to join clips whose sample
     // aspects differ, so this is not cosmetic.
     FilterNode("setsar", "r" to "1"),
-    // ffmpeg 6.1.1 ends an overlay on its last frame's own time rather than after it, and fps drops
-    // the frame its input ends on. setpts evaluates the end too, and only there does PTS equal the
-    // frame before it, so that end moves a slot on and every frame keeps its time. Builds that end
-    // after the frame pass through unchanged.
-    FilterNode("setpts", "expr" to "PTS+eq(PTS,PREV_INPTS)/($frameRate*TB)"),
+    // A framesync node set to end with its shortest input, such as a look's lut2, ends on its last
+    // frame's own time rather than after it, and fps drops the frame its input ends on. setpts
+    // evaluates the end too, and only there does PTS equal the frame before it, so that end moves a
+    // slot on and every frame keeps its time. A branch that ends after its last frame passes through
+    // unchanged. setpts truncates to whole ticks, so the move is a slot rounded up to the next tick,
+    // which on a time base coarser than a slot is one tick. Any time past the slot only holds the
+    // last frame, which the clones after fps do anyway.
+    FilterNode("setpts", "expr" to "PTS+eq(PTS,PREV_INPTS)*ceil(1/($frameRate*TB))"),
     FilterNode("fps", "fps" to frameRate.toString()),
     FilterNode("tpad", "stop_mode" to "clone", "stop" to HELD_FRAMES.toString()),
     FilterNode("trim", "end_frame" to slots.toString()),

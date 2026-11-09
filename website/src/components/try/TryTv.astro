@@ -3,7 +3,7 @@
 // the page draws everything around that from what the app reports. Each key only sends a control. A browser with no
 // WebCodecs keeps the scene and gets a note in place of LOAD.
 import { NO_STEPS, tvFrame, WAITING } from '../../lib/beachTv'
-import { TRY_SIZE, TRY_SRC } from '../../lib/demo'
+import { TRY_SRC } from '../../lib/demo'
 import BeachTv from '../landing/BeachTv.astro'
 import NoWebCodecs from '../NoWebCodecs.astro'
 ---
@@ -13,7 +13,6 @@ import NoWebCodecs from '../NoWebCodecs.astro'
     <div slot="over" class="over" aria-live="polite" data-try-over>
       <div class="offer" data-try-offer>
         <button type="button" class="osd load" data-try-load>LOAD</button>
-        <span class="osd rgb-sm size">{TRY_SIZE.toUpperCase()} DOWNLOAD · STARTS WHEN YOU PRESS LOAD</span>
       </div>
       <span class="osd rgb-sm size" data-try-loading tabindex="-1" hidden>LOADING beach.mp4</span>
       <span class="osd rgb-sm size" data-try-tap hidden>TAP TO PLAY</span>
@@ -92,7 +91,7 @@ import NoWebCodecs from '../NoWebCodecs.astro'
       writeText(exporter, key.label)
       exporter.disabled = key.disabled
       writeText(note, noteOf(status))
-      if (heldFocus && overlay !== 'loading') (up ? stepKeys[0] : load).focus()
+      if (heldFocus && overlay !== 'loading') (up ? stepKeys[0] : load).focus({ preventScroll: true })
     }
 
     const openFrame = () => {
@@ -123,7 +122,7 @@ import NoWebCodecs from '../NoWebCodecs.astro'
         if (link) link.send({ name: 'retry' })
         else openFrame()
         draw()
-        if (!loading.hidden) loading.focus()
+        if (!loading.hidden) loading.focus({ preventScroll: true })
       })
     })
 

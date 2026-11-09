@@ -144,7 +144,7 @@ class CrtLoweringMediaTest {
         "-frames:v",
         "1",
         "-vf",
-        "format=gbrap16le,geq=interpolation=nearest:r=$coded:g=$coded:b=$coded:a=$coded,$down",
+        "format=gbrap16le,geq=r=$coded:g=$coded:b=$coded:a=$coded,$down",
         "-f",
         "rawvideo",
         "-",

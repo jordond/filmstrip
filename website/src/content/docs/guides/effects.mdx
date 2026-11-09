@@ -1,13 +1,19 @@
 ---
 title: Effects
 description: Apply the built-in geometry and color effects to a clip, a track or the whole edit.
+playground:
+  sample: effects
+  label: Rotate, crop, grade and zoom a beach clip
 ---
 
 import { Aside } from '@astrojs/starlight/components'
+import PagePlayground from '../../../components/docs/PagePlayground.astro'
 import Snippet from '../../../components/Snippet.astro'
 
 Effects are declared inside an `effects { }` block. The calls live in `filmstrip-effects`, which comes with the
 `filmstrip` bundle.
+
+<PagePlayground {...frontmatter.playground} />
 
 ## Where an effect applies
 

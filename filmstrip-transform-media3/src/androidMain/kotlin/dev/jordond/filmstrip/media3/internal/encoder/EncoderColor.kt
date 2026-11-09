@@ -2,6 +2,7 @@ package dev.jordond.filmstrip.media3.internal.encoder
 
 import android.content.Context
 import android.media.metrics.LogSessionId
+import android.os.Build
 import android.util.Log
 import androidx.annotation.OptIn
 import androidx.media3.common.C
@@ -40,16 +41,21 @@ import dev.jordond.filmstrip.media.ColorSpace
  * measured is released too, and fails as an [ExportException] for an encoder that could not be set up, so media3 fails
  * the export rather than writing codes the file misnames.
  *
+ * An audio encoder is passed through [aacTailPadded], so one that flushes nothing at the end of the stream on [sdkInt]
+ * still writes every frame.
+ *
  * @param delegate The factory that picks each encoder.
  * @param pinned Gives a factory that makes only the encoder of the name it is given.
  * @param probe What tells the color an encoder writes.
  * @param log Where a kept request is explained.
+ * @param sdkInt The API level the encoders run on.
  */
 internal class EncoderColor(
   private val delegate: Codec.EncoderFactory,
   private val pinned: (encoder: String) -> Codec.EncoderFactory,
   private val probe: EncoderColorProbe,
   private val log: (String) -> Unit = { Log.w(TAG, it) },
+  private val sdkInt: Int = Build.VERSION.SDK_INT,
 ) : Codec.EncoderFactory {
   /**
    * The encoder whose output was tagged with another color than media3 asked for, or null while none was.
@@ -63,7 +69,7 @@ internal class EncoderColor(
   override fun createForAudioEncoding(
     format: Format,
     logSessionId: LogSessionId?,
-  ): Codec = delegate.createForAudioEncoding(format, logSessionId)
+  ): Codec = aacTailPadded(delegate.createForAudioEncoding(format, logSessionId), sdkInt)
 
   override fun createForVideoEncoding(
     format: Format,

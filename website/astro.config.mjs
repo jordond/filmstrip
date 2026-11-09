@@ -1,20 +1,26 @@
 import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
+import { satteri } from '@astrojs/markdown-satteri'
 import starlight from '@astrojs/starlight'
 import { ExpressiveCodeTheme } from '@astrojs/starlight/expressive-code'
 import { defineConfig } from 'astro/config'
 import starlightImageZoom from 'starlight-image-zoom'
 import starlightLinksValidator from 'starlight-links-validator'
 import starlightLlmsTxt from 'starlight-llms-txt'
-import { isPreviewBuild as preview, REPO_URL as repo } from './src/lib/site.ts'
+import { builtMounts } from './src/lib/devMounts.ts'
+import { tableMarks } from './src/lib/tableMarks.ts'
+import { isPreviewBuild as preview, REPO_URL as repo, SITE_URL } from './src/lib/site.ts'
 import { tokenValue } from './src/lib/tokens.ts'
 import { vhsTheme } from './src/lib/vhsTheme.ts'
 
 const tokensCss = readFileSync(new URL('./src/styles/tokens.css', import.meta.url), 'utf8')
 
 export default defineConfig({
-  site: 'https://filmstrip.jordond.dev',
+  site: SITE_URL,
   output: 'static',
   trailingSlash: 'ignore',
+  markdown: { processor: satteri({ hastPlugins: [tableMarks] }) },
+  vite: { plugins: [builtMounts(fileURLToPath(new URL('..', import.meta.url)))] },
   integrations: [
     starlight({
       title: 'filmstrip',
@@ -28,6 +34,7 @@ export default defineConfig({
       customCss: ['./src/styles/fonts.css', './src/styles/tokens.css', './src/styles/crt.css', './src/styles/docs.css'],
       components: {
         Footer: './src/components/docs/Footer.astro',
+        PageSidebar: './src/components/docs/PageSidebar.astro',
         Pagination: './src/components/docs/Pagination.astro',
         SiteTitle: './src/components/docs/SiteTitle.astro',
         SocialIcons: './src/components/docs/SocialIcons.astro',
@@ -85,6 +92,8 @@ export default defineConfig({
           projectName: 'filmstrip',
           description:
             'filmstrip is a Kotlin Multiplatform library for encoding, editing and previewing video on Android, iOS, macOS, the JVM and the browser.',
+          // The demo and playgrounds are LOAD buttons for a browser, nothing a reader of the text can use.
+          customSelectors: { all: ['[data-demo]', '[data-playground]'] },
         }),
         starlightImageZoom(),
       ],

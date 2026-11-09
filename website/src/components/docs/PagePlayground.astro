@@ -1,0 +1,18 @@
+---
+// The page's playground sample inline in the content, for screens too narrow for the right column that holds it
+// otherwise. A page passes its `playground` frontmatter in, as `<PagePlayground {...frontmatter.playground} />`.
+import Playground from '../Playground.astro'
+
+interface Props {
+  /** The sample the playground runs, such as `effects`. */
+  sample: string
+  /** What the sample lets the reader do, shown under LOAD. */
+  label: string
+}
+
+const { sample, label } = Astro.props
+---
+
+<div class="lg:sl-hidden">
+  <Playground sample={sample} label={label} />
+</div>

@@ -50,7 +50,7 @@ jobs:
         run: ./gradlew dokkaGenerate
       - name: Build the wasm sample
         working-directory: .
-        run: ./gradlew :sample:demo:webApp:wasmJsBrowserDistribution :sample:tryIt:wasmJsBrowserDistribution
+        run: ./gradlew :sample:demo:webApp:wasmJsBrowserDistribution :sample:tryIt:wasmJsBrowserDistribution :sample:playground:wasmJsBrowserDistribution
       - &node
         name: Install Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -92,13 +92,15 @@ jobs:
       cancel-in-progress: false
     steps:
       - &checkout-config
-        name: Check out the Wrangler and Node configs
+        name: Check out the Wrangler config, worker and Node version
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
           sparse-checkout: |
             website/.node-version
             website/wrangler.jsonc
+            website/worker
+            website/src/lib/hosts.ts
             .github/scripts
           sparse-checkout-cone-mode: false
       - &download

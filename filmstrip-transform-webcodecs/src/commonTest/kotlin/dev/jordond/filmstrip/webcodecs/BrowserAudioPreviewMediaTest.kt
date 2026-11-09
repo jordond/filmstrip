@@ -18,6 +18,8 @@ import io.kotest.assertions.withClue
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.doubles.plusOrMinus
 import io.kotest.matchers.shouldBe
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -105,8 +107,7 @@ class BrowserAudioPreviewMediaTest {
       }
     }
 
-  // The stop lands inside the first of the start's two passes, the way a pause does while a decode
-  // is still in flight.
+  // The stop lands inside the first pass.
   @Test
   fun aStopDuringAStartSchedulesNoFurtherWindow() =
     runTest {
@@ -118,6 +119,33 @@ class BrowserAudioPreviewMediaTest {
         preview.start(FROM)
 
         reads.count shouldBe 1
+      } finally {
+        preview.release()
+      }
+    }
+
+  // The new start schedules its own two windows inside the old start's first pass. The old pass must
+  // not move the window cursor back to where it had reached.
+  @Test
+  fun aStartDuringAStalePassKeepsItsOwnWindowCursor() =
+    runTest {
+      lateinit var preview: BrowserAudioPreview
+      var restarted = false
+      val reads =
+        TrackReads(onRead = {
+          if (!restarted) {
+            restarted = true
+            launch(start = CoroutineStart.UNDISPATCHED) { preview.start(LATER) }
+          }
+        })
+      preview = BrowserAudioPreview(reads::tracks, SourceCache())
+
+      try {
+        preview.start(FROM)
+        reads.count shouldBe 3
+
+        preview.pump(LATER)
+        reads.count shouldBe 3
       } finally {
         preview.release()
       }
@@ -293,6 +321,7 @@ class BrowserAudioPreviewMediaTest {
 
   private companion object {
     val FROM = 5.seconds
+    val LATER = 8.seconds
     const val RATE = 48_000
     const val LOW_HZ = 440.0
     const val HIGH_HZ = 880.0
