@@ -3,7 +3,7 @@ package dev.jordond.filmstrip.player
 import android.media.MediaExtractor
 import android.media.MediaFormat
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.TrackContent
@@ -34,7 +34,7 @@ class AndroidVideoTrackEndMediaTest {
     contractTest { _ ->
       val clip = androidFixtureClip()
       val edit =
-        EditComposition(
+        Composition(
           listOf(
             Track(listOf(Clip(clip, TimeRange.of(Duration.ZERO, 1.seconds)))),
             Track(listOf(Clip(clip, TimeRange.of(Duration.ZERO, BED))), content = TrackContent.Audio),

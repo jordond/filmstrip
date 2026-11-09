@@ -22,7 +22,7 @@ import kotlin.math.PI
  * The v1 preview chain on iOS, as Core Image.
  *
  * The stages match the Android chain one for one (crop, rotate, overlay composite) because the
- * whole point of the effect catalogue is that one `EditComposition` maps to `GlEffect` on Android
+ * whole point of the effect catalogue is that one `Composition` maps to `GlEffect` on Android
  * and `CIFilter` here. The overlay is composited inside the image chain with
  * `CISourceOverCompositing`, never as a `CALayer` above the video. That is the standing rule, and
  * it is what lets still mode re-render the overlay at all.

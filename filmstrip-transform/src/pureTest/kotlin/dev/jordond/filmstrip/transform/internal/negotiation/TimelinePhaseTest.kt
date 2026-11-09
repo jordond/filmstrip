@@ -3,7 +3,7 @@ package dev.jordond.filmstrip.transform.internal.negotiation
 import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.TrackContent
@@ -35,7 +35,7 @@ class TimelinePhaseTest {
     val bed =
       Track(listOf(fixture.audioOnlyClip(duration = 2.seconds)), content = TrackContent.Audio, start = 2.seconds)
 
-    val timeline = next(EditComposition(listOf(primary, bed)))
+    val timeline = next(Composition(listOf(primary, bed)))
 
     timeline.duration shouldBe 4.seconds
     timeline.span shouldBe TimeRange.of(Duration.ZERO, 4.seconds)
@@ -47,7 +47,7 @@ class TimelinePhaseTest {
   fun `a trimmed clip bounds the composition by its window`() {
     val clip = fixture.clip(duration = 6.seconds, trim = TimeRange.of(1.seconds, 3_500.milliseconds))
 
-    next(EditComposition(listOf(Track(listOf(clip))))).duration shouldBe 2_500.milliseconds
+    next(Composition(listOf(Track(listOf(clip))))).duration shouldBe 2_500.milliseconds
   }
 
   // The looping bed is laid over the run the bounded track sets, as many passes as that takes, and
@@ -57,7 +57,7 @@ class TimelinePhaseTest {
     val primary = Track(listOf(fixture.clip(duration = 5.seconds)))
     val bed = Track(listOf(fixture.audioOnlyClip(duration = 2.seconds)), content = TrackContent.Audio, looping = true)
 
-    val timeline = next(EditComposition(listOf(primary, bed)))
+    val timeline = next(Composition(listOf(primary, bed)))
 
     timeline.duration shouldBe 5.seconds
     val laid = timeline.tracks[1]
@@ -69,12 +69,12 @@ class TimelinePhaseTest {
   fun `a clip that trims to nothing is refused by name`() {
     val emptied = fixture.clip(duration = 2.seconds, trim = TimeRange.of(3.seconds, 4.seconds))
 
-    refusal(EditComposition(listOf(Track(listOf(emptied))))) shouldContain "trims to nothing"
+    refusal(Composition(listOf(Track(listOf(emptied))))) shouldContain "trims to nothing"
   }
 
   @Test
   fun `a negative composition volume is refused`() {
-    val edit = EditComposition(listOf(Track(listOf(fixture.clip()))), audio = AudioSpec.Volume(-0.5f))
+    val edit = Composition(listOf(Track(listOf(fixture.clip()))), audio = AudioSpec.Volume(-0.5f))
 
     refusal(edit) shouldContain "negative or non-finite gain"
   }
@@ -85,7 +85,7 @@ class TimelinePhaseTest {
     val late = Track(listOf(fixture.clip(duration = 1.seconds)), start = 6.seconds, looping = true)
     val bed = Track(listOf(fixture.audioOnlyClip(duration = 5.seconds)), content = TrackContent.Audio)
 
-    refusal(EditComposition(listOf(late, bed))) shouldContain "starts at or after the composition ends"
+    refusal(Composition(listOf(late, bed))) shouldContain "starts at or after the composition ends"
   }
 
   // Both ends of a 10 ms primary land on the first slot of a 30 fps grid, so it starts and ends on
@@ -94,20 +94,20 @@ class TimelinePhaseTest {
   fun `a primary whose video covers no output frame is refused`() {
     val sliver = Track(listOf(fixture.clip(duration = 10.milliseconds)))
 
-    refusal(EditComposition(listOf(sliver))) shouldContain "covers none"
+    refusal(Composition(listOf(sliver))) shouldContain "covers none"
   }
 
   @Test
   fun `an audio only export writes no picture for the primary to cover`() {
     val sliver = Track(listOf(fixture.clip(duration = 10.milliseconds, audioRate = 48_000)))
 
-    next(EditComposition(listOf(sliver)), keepVideo = false).duration shouldBe 10.milliseconds
+    next(Composition(listOf(sliver)), keepVideo = false).duration shouldBe 10.milliseconds
   }
 
   @Test
   fun `laid windows read a trimmed clip as its trim`() {
     val clip = fixture.clip(duration = 6.seconds, trim = TimeRange.of(1.seconds, 3_500.milliseconds))
-    val edit = EditComposition(listOf(Track(listOf(clip))))
+    val edit = Composition(listOf(Track(listOf(clip))))
 
     val windows = laidWindows(edit, ask(edit)) { fail("the clip keeps frames") }
 
@@ -121,7 +121,7 @@ class TimelinePhaseTest {
   @Test
   fun `laid windows hold a still for its span`() {
     val still = fixture.imageClip(duration = 5.seconds, trim = TimeRange.of(1.seconds, 3.seconds))
-    val edit = EditComposition(listOf(Track(listOf(still))))
+    val edit = Composition(listOf(Track(listOf(still))))
 
     val windows = laidWindows(edit, ask(edit)) { fail("the still holds for a while") }
 
@@ -136,7 +136,7 @@ class TimelinePhaseTest {
   fun `laid windows leave a looping track out of the composition duration`() {
     val primary = Track(listOf(fixture.clip(duration = 2.seconds)), start = 1.seconds)
     val bed = Track(listOf(fixture.audioOnlyClip(duration = 9.seconds)), content = TrackContent.Audio, looping = true)
-    val edit = EditComposition(listOf(primary, bed))
+    val edit = Composition(listOf(primary, bed))
 
     val windows = laidWindows(edit, ask(edit)) { fail("every clip keeps frames") }
 
@@ -148,7 +148,7 @@ class TimelinePhaseTest {
   @Test
   fun `laid windows name the clip that trims to nothing`() {
     val emptied = fixture.clip(duration = 2.seconds, trim = TimeRange.of(3.seconds, 4.seconds))
-    val edit = EditComposition(listOf(Track(listOf(emptied))))
+    val edit = Composition(listOf(Track(listOf(emptied))))
 
     clipTrimmedToNothing(edit) shouldBe emptied
   }
@@ -157,7 +157,7 @@ class TimelinePhaseTest {
   fun `the timeline and the public model read the same length at speed`() {
     listOf(0.7, 1.5).forEach { speed ->
       val clip = fixture.clip(duration = 6.seconds, trim = TimeRange.of(1.seconds, 4.seconds)).withSpeed(speed)
-      val edit = EditComposition(listOf(Track(listOf(clip))))
+      val edit = Composition(listOf(Track(listOf(clip))))
 
       val timeline = next(edit)
 
@@ -178,7 +178,7 @@ class TimelinePhaseTest {
         looping = true,
       )
 
-    val timeline = next(EditComposition(listOf(primary, bed)))
+    val timeline = next(Composition(listOf(primary, bed)))
 
     timeline.duration shouldBe outputLengthOf(3.seconds, speed)
     timeline.tracks[1].clips.fold(Duration.ZERO) { total, clip -> total + clip.outputDuration } shouldBe
@@ -188,23 +188,23 @@ class TimelinePhaseTest {
     }
   }
 
-  private fun clipTrimmedToNothing(edit: EditComposition): Clip {
+  private fun clipTrimmedToNothing(edit: Composition): Clip {
     laidWindows(edit, ask(edit)) { return it }
     fail("every clip keeps frames")
   }
 
   private fun next(
-    edit: EditComposition,
+    edit: Composition,
     keepVideo: Boolean = true,
   ): Timeline = timeline(edit, keepVideo).shouldBeInstanceOf<Phase.Next<Timeline>>().value
 
-  private fun refusal(edit: EditComposition): String {
+  private fun refusal(edit: Composition): String {
     val error = timeline(edit, keepVideo = true).shouldBeInstanceOf<Phase.Refused>().error
     return error.shouldBeInstanceOf<FilmstripError.InvalidComposition>().message
   }
 
   private fun timeline(
-    edit: EditComposition,
+    edit: Composition,
     keepVideo: Boolean,
   ): Phase<Timeline> =
     timelineOf(
@@ -217,7 +217,7 @@ class TimelinePhaseTest {
       naturalSize = OUTPUT,
     )
 
-  private fun ask(edit: EditComposition): Ask =
+  private fun ask(edit: Composition): Ask =
     Ask(
       spec = ExportSpec(),
       device = fixture.device(),

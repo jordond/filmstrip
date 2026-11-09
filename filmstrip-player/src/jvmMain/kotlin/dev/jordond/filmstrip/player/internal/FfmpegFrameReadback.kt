@@ -2,7 +2,7 @@ package dev.jordond.filmstrip.player.internal
 
 import dev.jordond.filmstrip.Cancellable
 import dev.jordond.filmstrip.FilmstripError
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.outputSlotOf
 import dev.jordond.filmstrip.edit.outputSlotTime
 import dev.jordond.filmstrip.ffmpeg.internal.preview.PreviewStream
@@ -81,7 +81,7 @@ internal class FfmpegFrameReadback(
   private val scope: CoroutineScope,
   private val planner: FfmpegPreviewPlanner,
   private val plan: () -> PreviewPlan?,
-  private val composition: () -> EditComposition?,
+  private val composition: () -> Composition?,
   private val presented: () -> PreviewFrame?,
   private val snap: (Duration) -> Duration,
 ) : PreviewFrameReadback {

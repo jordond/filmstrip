@@ -9,7 +9,7 @@ import android.media.MediaExtractor
 import android.media.MediaFormat
 import android.media.MediaMuxer
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.media.ImageSource
@@ -37,7 +37,7 @@ internal suspend fun Media3ExportProbe.writeBarsClip(
   val bitmap = barsBitmap(width, height, bars)
   still.writeAtomically { bitmap.compress(Bitmap.CompressFormat.PNG, BARS_PNG_QUALITY, it) }
   val source = MediaSource.Image(ImageSource.of(still.path), LENGTH)
-  val picture = export(EditComposition(listOf(Track(listOf(Clip(source))))), ExportSpec(heightPx = height))
+  val picture = export(Composition(listOf(Track(listOf(Clip(source))))), ExportSpec(heightPx = height))
   copyNaming(picture, target, colorStandard)
 }
 

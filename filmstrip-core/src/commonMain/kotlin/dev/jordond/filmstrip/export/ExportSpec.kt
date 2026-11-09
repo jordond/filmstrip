@@ -4,12 +4,12 @@ import dev.drewhamilton.poko.Poko
 import dev.jordond.filmstrip.codec.AudioCodec
 import dev.jordond.filmstrip.codec.Bitrate
 import dev.jordond.filmstrip.codec.VideoCodec
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 
 /**
  * What the output should look like.
  *
- * Separate from [EditComposition] so one edit can be exported several ways. A 1080p upload and a
+ * Separate from [Composition] so one edit can be exported several ways. A 1080p upload and a
  * 480p preview share a composition and differ only here.
  *
  * @property heightPx The most the output can be tall, in pixels. Width follows from the composition's aspect. A height

@@ -8,7 +8,7 @@ import dev.jordond.filmstrip.avfoundation.internal.composition.sdSourceColor
 import dev.jordond.filmstrip.avfoundation.internal.composition.toAvComposition
 import dev.jordond.filmstrip.color.EBU_PRIMARIES
 import dev.jordond.filmstrip.color.SMPTE_C_PRIMARIES
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.effects.BuiltInEffectResolver
 import dev.jordond.filmstrip.export.ExportSpec
@@ -213,10 +213,10 @@ class SdSourceColorMediaTest {
     }
   }
 
-  private suspend fun graphOf(composition: EditComposition): AvComposition =
+  private suspend fun graphOf(composition: Composition): AvComposition =
     withContext(Dispatchers.Default) { resolved(composition).toAvComposition() }
 
-  private suspend fun resolved(composition: EditComposition) =
+  private suspend fun resolved(composition: Composition) =
     when (val result = avFoundationExportEngine(COMPONENTS).resolve(composition, SPEC)) {
       is ResolveResult.Refused -> error(result.error.message)
       is ResolveResult.Resolved -> result.composition

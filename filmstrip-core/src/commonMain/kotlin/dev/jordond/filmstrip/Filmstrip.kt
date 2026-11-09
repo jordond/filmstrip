@@ -2,7 +2,7 @@ package dev.jordond.filmstrip
 
 import androidx.compose.runtime.Stable
 import dev.jordond.filmstrip.capability.EffectParity
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.export.ExportPlan
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.ExportStatus
@@ -21,7 +21,7 @@ import kotlinx.coroutines.flow.Flow
  * function. Implemented by filmstrip, never by a consumer.
  *
  * [probe] asks what a file is, [capabilities] asks what the device can encode, [plan] asks what this device will do
- * with an edit, and [export], [preview] and [frame] do the work, all three over the same [EditComposition] value,
+ * with an edit, and [export], [preview] and [frame] do the work, all three over the same [Composition] value,
  * built with [dev.jordond.filmstrip.edit.compositionOf].
  *
  * The last two are what [FrameRenderer] and [PreviewFactory] declare, so a component that only
@@ -73,7 +73,7 @@ public interface Filmstrip :
    * @return What this device will do with the edit.
    */
   public suspend fun plan(
-    composition: EditComposition,
+    composition: Composition,
     spec: ExportSpec,
   ): Verdict
 
@@ -108,7 +108,7 @@ public interface Filmstrip :
    * @return A flow of statuses ending in [ExportStatus.Finished].
    */
   public fun export(
-    composition: EditComposition,
+    composition: Composition,
     spec: ExportSpec,
     to: MediaSink,
   ): Flow<ExportStatus>

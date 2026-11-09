@@ -2,8 +2,8 @@ package dev.jordond.filmstrip.player
 
 import dev.jordond.filmstrip.codec.Bitrate
 import dev.jordond.filmstrip.edit.AudioSpec
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.CompositionDiff
-import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.diff
 import dev.jordond.filmstrip.effects.color.Brightness
 import dev.jordond.filmstrip.export.ExportSpec
@@ -155,7 +155,7 @@ class WebRebuildTransportTest {
     }
 
   private fun held(
-    composition: EditComposition,
+    composition: Composition,
     planner: BrowserPreviewPlanner = BrowserPreviewPlanner(CONTRACT_COMPONENTS),
     body: suspend (BrowserPlayerEngine, ContractRecorder, HeldDraws) -> Unit,
   ) = contractTest { scope ->
@@ -185,7 +185,7 @@ class WebRebuildTransportTest {
 
   // Sets composition and suspends once its first frame draw is being held.
   private suspend fun BrowserPlayerEngine.loadHeld(
-    composition: EditComposition,
+    composition: Composition,
     draws: HeldDraws,
   ) {
     draws.holdNext()
@@ -197,7 +197,7 @@ class WebRebuildTransportTest {
   private fun webFixtureTrimmedBy(
     brightness: Float,
     audio: AudioSpec = AudioSpec.Remove,
-  ): EditComposition =
+  ): Composition =
     webFixtureComposition(listOf(Brightness(brightness)), audio).withClips(webFixtureTrimmed(REBUILT_LENGTH).clips)
 
   /**
@@ -207,7 +207,7 @@ class WebRebuildTransportTest {
     val specs = mutableListOf<ExportSpec>()
 
     override suspend fun plan(
-      composition: EditComposition,
+      composition: Composition,
       policy: PreviewQualityPolicy,
       exportSpec: ExportSpec,
     ): PlanResult<BrowserPreviewPlan, PlaybackError> {

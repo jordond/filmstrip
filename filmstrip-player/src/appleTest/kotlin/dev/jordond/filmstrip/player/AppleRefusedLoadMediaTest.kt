@@ -1,7 +1,7 @@
 package dev.jordond.filmstrip.player
 
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.media.MediaSource
@@ -103,19 +103,18 @@ class AppleRefusedLoadMediaTest {
 
   private suspend fun AvPlayerEngine.awaitReady(
     recorder: ContractRecorder,
-    composition: EditComposition,
+    composition: Composition,
   ) {
     awaitComposition(composition).shouldBeInstanceOf<SetCompositionResult.Success>()
     awaitContract("the item to be ready") { recorder.lastState.status == PlaybackStatus.Ready }
   }
 
-  private fun unreadable(): EditComposition = clipOf(MediaSource.of(appleFixtureClip() + ".absent"), CLIP_LENGTH)
+  private fun unreadable(): Composition = clipOf(MediaSource.of(appleFixtureClip() + ".absent"), CLIP_LENGTH)
 
-  private fun shorter(): EditComposition = clipOf(MediaSource.of(appleFixtureClip()), CLIP_LENGTH / 2)
+  private fun shorter(): Composition = clipOf(MediaSource.of(appleFixtureClip()), CLIP_LENGTH / 2)
 
   private fun clipOf(
     source: MediaSource,
     length: Duration,
-  ): EditComposition =
-    EditComposition(tracks = listOf(Track(listOf(Clip(source, TimeRange.of(Duration.ZERO, length))))))
+  ): Composition = Composition(tracks = listOf(Track(listOf(Clip(source, TimeRange.of(Duration.ZERO, length))))))
 }

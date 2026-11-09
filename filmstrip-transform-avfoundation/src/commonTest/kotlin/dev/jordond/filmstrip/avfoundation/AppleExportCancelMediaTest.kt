@@ -4,7 +4,7 @@ import dev.jordond.filmstrip.ComponentRegistry
 import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.avfoundation.internal.composition.AvCompositorInstruction
 import dev.jordond.filmstrip.avfoundation.internal.composition.toAvComposition
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.effects.BuiltInEffectResolver
@@ -114,7 +114,7 @@ class AppleExportCancelMediaTest {
   // An export that ends before the status arrives stops the wait too, and then the check on the last status fails
   // rather than a successful export's file reading as a cancel that left one.
   private suspend inline fun <reified S : ExportStatus> cancelOn(
-    composition: EditComposition,
+    composition: Composition,
     spec: ExportSpec,
   ) {
     val last =
@@ -133,12 +133,12 @@ class AppleExportCancelMediaTest {
   }
 
   // Three passes, since one can encode in under 400 ms on a fast Mac and the first Progress comes at 250 ms.
-  private fun sdrClip(): EditComposition = passesOf("apple_export_long.mp4", count = 3)
+  private fun sdrClip(): Composition = passesOf("apple_export_long.mp4", count = 3)
 
   // Twelve passes, since a pass of this short clip renders in under 150 ms and three can end before the first Progress.
-  private fun gradedClip(): EditComposition = passesOf(hdrFixtureName(HdrTransfer.Pq), count = 12)
+  private fun gradedClip(): Composition = passesOf(hdrFixtureName(HdrTransfer.Pq), count = 12)
 
-  private fun heldTailClip(): EditComposition {
+  private fun heldTailClip(): Composition {
     val graded = MediaSource.of(hdrFixture(HdrTransfer.Hlg))
     val bed = MediaSource.of(fixture("tone_bed_880.mp4"))
     return compositionOf {
@@ -150,13 +150,13 @@ class AppleExportCancelMediaTest {
   private fun passesOf(
     name: String,
     count: Int,
-  ): EditComposition {
+  ): Composition {
     val source = MediaSource.of(fixture(name))
     return compositionOf { repeat(count) { clip(source) } }
   }
 
   private suspend fun drawsThroughCompositor(
-    composition: EditComposition,
+    composition: Composition,
     spec: ExportSpec,
   ): Boolean =
     resolved(composition, spec)
@@ -167,7 +167,7 @@ class AppleExportCancelMediaTest {
       .any { it is AvCompositorInstruction }
 
   private suspend fun resolved(
-    composition: EditComposition,
+    composition: Composition,
     spec: ExportSpec,
   ): ResolvedComposition =
     withContext(Dispatchers.Default) {

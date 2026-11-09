@@ -2,7 +2,7 @@ package dev.jordond.filmstrip.player
 
 import dev.jordond.filmstrip.avfoundation.internal.composition.toAvComposition
 import dev.jordond.filmstrip.avfoundation.internal.time.toCMTime
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.PlatformImage
 import dev.jordond.filmstrip.player.contract.CONTRACT_TIMEOUT
@@ -44,7 +44,7 @@ import kotlin.time.Duration
  * without also measuring how the two AVFoundation paths convert the clip's color.
  */
 internal suspend fun appleFixtureExportFrame(
-  composition: EditComposition,
+  composition: Composition,
   position: Duration,
 ): TestFrame {
   if (!fixtureColorSplits()) return appleExportFrame(composition, position)

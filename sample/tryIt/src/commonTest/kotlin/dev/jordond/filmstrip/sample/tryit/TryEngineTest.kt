@@ -1,6 +1,6 @@
 package dev.jordond.filmstrip.sample.tryit
 
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.export.ExportStatus
 import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSink
@@ -34,10 +34,10 @@ class TryEngineTest {
 
   private fun engine(
     scope: CoroutineScope,
-    exporter: (EditComposition) -> Flow<ExportStatus>,
+    exporter: (Composition) -> Flow<ExportStatus>,
   ) = TryEngine(scope, { edit, _ -> exporter(edit) }, { source }, saved::add, released::add)
 
-  private fun TestScope.loaded(exporter: (EditComposition) -> Flow<ExportStatus>): TryEngine {
+  private fun TestScope.loaded(exporter: (Composition) -> Flow<ExportStatus>): TryEngine {
     val engine = engine(backgroundScope, exporter)
     engine.load()
     runCurrent()
@@ -58,7 +58,7 @@ class TryEngineTest {
   @Test
   fun `export writes the edit the steps describe`() =
     runTest {
-      var edit: EditComposition? = null
+      var edit: Composition? = null
       val engine =
         loaded {
           edit = it

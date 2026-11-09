@@ -6,7 +6,7 @@ import dev.jordond.filmstrip.capability.VideoEncoderCapability
 import dev.jordond.filmstrip.codec.AudioCodec
 import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effects.BuiltInEffectResolver
@@ -130,7 +130,7 @@ class CanvasChromaGridTest {
   }
 
   private fun lowered(effects: List<EffectSpec>): Pair<String, Size> {
-    val composition = EditComposition(listOf(Track(listOf(Clip(landscape), Clip(odd, effects = effects)))))
+    val composition = Composition(listOf(Track(listOf(Clip(landscape), Clip(odd, effects = effects)))))
     val lowering =
       FfmpegPlanner(TOOLCHAIN, listOf(BuiltInEffectResolver(), FilterEffectResolver()))
         .lower(composition, Ask(ExportSpec(), DEVICE, infos))

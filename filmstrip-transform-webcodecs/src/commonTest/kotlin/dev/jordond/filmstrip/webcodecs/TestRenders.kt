@@ -6,7 +6,7 @@ import dev.jordond.filmstrip.CapabilitiesResult
 import dev.jordond.filmstrip.ComponentRegistry
 import dev.jordond.filmstrip.codec.AudioCodec
 import dev.jordond.filmstrip.codec.VideoCodec
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.effects.BuiltInEffectResolver
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.transform.internal.ResolveResult
@@ -25,7 +25,7 @@ import kotlin.js.ExperimentalWasmJsInterop
  * The render the planner lowers [composition] to, the same one an export of it would run.
  */
 internal suspend fun renderOf(
-  composition: EditComposition,
+  composition: Composition,
   spec: ExportSpec = ExportSpec(videoCodec = VideoCodec.H264, audioCodec = AudioCodec.None),
 ): BrowserRender {
   val resolved = engine().resolve(composition, spec).shouldBeInstanceOf<ResolveResult.Resolved>().composition

@@ -2,7 +2,7 @@ package dev.jordond.filmstrip.media3
 
 import android.graphics.Color
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.effects.overlay.ImageOverlay
 import dev.jordond.filmstrip.effects.overlay.TextOverlay
@@ -152,8 +152,8 @@ class AndroidOverlayMediaTest {
     runTest(timeout = TIMEOUT) {
       val source = probe.fixture()
       val mark = probe.watermark(Corner.BottomEnd, margin = 0f)
-      val onComposition = EditComposition(listOf(Track(listOf(Clip(source)))), listOf(mark))
-      val onClip = EditComposition(listOf(Track(listOf(Clip(source, effects = listOf(mark))))))
+      val onComposition = Composition(listOf(Track(listOf(Clip(source)))), listOf(mark))
+      val onClip = Composition(listOf(Track(listOf(Clip(source, effects = listOf(mark))))))
 
       val composed = probe.frame(probe.export(onComposition))
       val clipped = probe.frame(probe.export(onClip))
@@ -176,7 +176,7 @@ class AndroidOverlayMediaTest {
       val source = probe.fixture()
       val missing = ImageOverlay(ImageSource.of("/does/not/exist.png"), Corner.BottomEnd)
 
-      val verdict = probe.filmstrip.plan(EditComposition(listOf(Track(listOf(Clip(source)))), listOf(missing)), SPEC)
+      val verdict = probe.filmstrip.plan(Composition(listOf(Track(listOf(Clip(source)))), listOf(missing)), SPEC)
 
       // Refused before an encoder starts, with no throw on the GL thread mid-export.
       val incapable = verdict.shouldBeInstanceOf<Verdict.Incapable>()

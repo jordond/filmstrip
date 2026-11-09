@@ -1,6 +1,6 @@
 package dev.jordond.filmstrip.internal
 
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.player.PlaybackError
@@ -107,6 +107,6 @@ class MissingEnginePlayerTest {
 
     const val PLAYER_ARTIFACT = "dev.jordond.filmstrip:filmstrip-player"
 
-    val COMPOSITION: EditComposition = compositionOf { clip(MediaSource.of("/fixtures/clip.mp4")) }
+    val COMPOSITION: Composition = compositionOf { clip(MediaSource.of("/fixtures/clip.mp4")) }
   }
 }

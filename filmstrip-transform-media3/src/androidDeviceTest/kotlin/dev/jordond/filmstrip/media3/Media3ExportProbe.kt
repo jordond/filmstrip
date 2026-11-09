@@ -6,7 +6,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.FilmstripBuilder
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.effect.EffectSpec
@@ -59,7 +59,7 @@ internal class Media3ExportProbe(
    * A refused plan or a failed export throws, so the test fails with the reason.
    */
   suspend fun export(
-    composition: EditComposition,
+    composition: Composition,
     spec: ExportSpec = SPEC,
   ): File = export(plan(composition, spec))
 
@@ -69,7 +69,7 @@ internal class Media3ExportProbe(
   suspend fun export(
     source: MediaSource,
     effects: List<EffectSpec>,
-  ): File = export(EditComposition(listOf(Track(listOf(Clip(source)))), effects))
+  ): File = export(Composition(listOf(Track(listOf(Clip(source)))), effects))
 
   /**
    * Runs [plan] to a temporary file and returns that file, throwing when the export fails.
@@ -91,7 +91,7 @@ internal class Media3ExportProbe(
    * `MediaMetadataRetriever`'s conversion.
    */
   suspend fun written(
-    composition: EditComposition,
+    composition: Composition,
     spec: ExportSpec = SPEC,
   ): Written = writtenBy(finish(plan(composition, spec)))
 
@@ -121,7 +121,7 @@ internal class Media3ExportProbe(
    * Plans [composition] at [spec], throwing with the reasons when the plan is refused.
    */
   suspend fun plan(
-    composition: EditComposition,
+    composition: Composition,
     spec: ExportSpec = SPEC,
   ): ExportPlan =
     when (val verdict = filmstrip.plan(composition, spec)) {

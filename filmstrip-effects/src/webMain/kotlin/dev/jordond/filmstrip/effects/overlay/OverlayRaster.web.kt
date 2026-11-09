@@ -2,7 +2,7 @@
 
 package dev.jordond.filmstrip.effects.overlay
 
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.internal.awaitCatching
 import dev.jordond.filmstrip.media.FetchResponse
@@ -128,7 +128,7 @@ internal class OverlayImages(
  * browser's fallback, the way a missing face is drawn everywhere else.
  */
 internal suspend fun preloadOverlays(
-  composition: EditComposition,
+  composition: Composition,
   images: OverlayImages,
 ) {
   val effects = overlayEffectsOf(composition)

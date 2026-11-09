@@ -13,7 +13,7 @@ import dev.jordond.filmstrip.codec.AudioCodec
 import dev.jordond.filmstrip.codec.Bitrate
 import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.diagnostics.BackendInfo
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.export.Adjustment
 import dev.jordond.filmstrip.export.ExportPlan
@@ -405,7 +405,7 @@ public class SampleAppState(
     backStack.add(SampleRoute.Start)
   }
 
-  fun composition(): EditComposition? {
+  fun composition(): Composition? {
     val source = source ?: return null
     return edit.composition(source, sourceDuration)
   }
@@ -416,7 +416,7 @@ public class SampleAppState(
    * Omits the rectangle crop while [croppingRect] is true, since the overlay drawn over the player
    * authors that rectangle against the frame before the crop rather than after it.
    */
-  private fun previewComposition(): EditComposition? {
+  private fun previewComposition(): Composition? {
     val source = source ?: return null
     return edit.composition(source, sourceDuration, cropped = !croppingRect)
   }
@@ -427,7 +427,7 @@ public class SampleAppState(
    * Built for the timeline strip, which lays the source out end to end and draws the trim window
    * over it rather than following it.
    */
-  fun filmstripComposition(): EditComposition? {
+  fun filmstripComposition(): Composition? {
     val source = source ?: return null
     return edit.composition(source, sourceDuration, trimmed = false)
   }

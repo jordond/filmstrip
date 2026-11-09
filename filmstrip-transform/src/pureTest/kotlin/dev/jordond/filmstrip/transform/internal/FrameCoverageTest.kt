@@ -3,7 +3,7 @@ package dev.jordond.filmstrip.transform.internal
 import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.CLIP_SPEED_RANGE
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.TrackContent
@@ -59,7 +59,7 @@ class FrameCoverageTest {
   fun `a short primary run that reaches half way between two frames covers one and plans`() {
     val primary = Track(listOf(fixture.clip(trim = TimeRange.of(Duration.ZERO, SHORT_RUN))), start = STRADDLING_START)
 
-    val verdict = fixture.plan(EditComposition(listOf(primary)), gridSpec())
+    val verdict = fixture.plan(Composition(listOf(primary)), gridSpec())
 
     assertCoversAFrameAndPlans(verdict, TimeRange.of(STRADDLING_START, STRADDLING_START + SHORT_RUN), GRID_RATE)
   }
@@ -68,7 +68,7 @@ class FrameCoverageTest {
   @Test
   fun `a primary run that covers no frame under a longer audio track is refused`() {
     val composition =
-      EditComposition(
+      Composition(
         listOf(
           Track(listOf(fixture.clip(trim = TimeRange.of(Duration.ZERO, SHORT_RUN)))),
           Track(listOf(fixture.audioOnlyClip(duration = 5_000.milliseconds)), content = TrackContent.Audio),
@@ -95,7 +95,7 @@ class FrameCoverageTest {
   fun `a looping primary whose first pass covers no frame plans on the run its passes cover`() {
     val bed = Track(listOf(fixture.audioOnlyClip(duration = 1_000.milliseconds)), content = TrackContent.Audio)
     val primary = Track(listOf(fixture.clip(trim = TimeRange.of(Duration.ZERO, SHORT_RUN))), looping = true)
-    val composition = EditComposition(listOf(primary, bed))
+    val composition = Composition(listOf(primary, bed))
 
     assertCoversAFrameAndPlans(
       fixture.plan(composition, gridSpec()),
@@ -168,7 +168,7 @@ class FrameCoverageTest {
     val primary = Track(listOf(fixture.clip(trim = TimeRange.of(Duration.ZERO, SHORT_RUN))), start = 1_000.milliseconds)
     withClue("the fixture's start leaves no lead") { (outputSlotOf(1_000.milliseconds, GRID_RATE) > 0).shouldBeTrue() }
 
-    val verdict = fixture.plan(EditComposition(listOf(primary)), gridSpec())
+    val verdict = fixture.plan(Composition(listOf(primary)), gridSpec())
 
     assertRefusedForCoveringNoFrame(
       verdict,

@@ -2,7 +2,7 @@ package dev.jordond.filmstrip.docs.guides
 
 import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.allBackends
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.effects.filters.crt.crt
 import dev.jordond.filmstrip.effects.filters.filters
@@ -23,7 +23,7 @@ internal fun filtersSetup(): Filmstrip {
   return filmstrip
 }
 
-internal fun crtLook(): EditComposition {
+internal fun crtLook(): Composition {
   // region crt
   val composition =
     compositionOf {
@@ -36,7 +36,7 @@ internal fun crtLook(): EditComposition {
   return composition
 }
 
-internal fun vhsLook(): EditComposition {
+internal fun vhsLook(): Composition {
   // region vhs
   val composition =
     compositionOf {
@@ -49,7 +49,7 @@ internal fun vhsLook(): EditComposition {
   return composition
 }
 
-internal fun lutLook(cubeFileText: String): EditComposition {
+internal fun lutLook(cubeFileText: String): Composition {
   // region lut
   val table = CubeLut.parse(cubeFileText)
   val composition =

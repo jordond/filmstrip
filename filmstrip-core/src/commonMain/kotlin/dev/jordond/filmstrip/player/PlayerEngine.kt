@@ -5,7 +5,7 @@ import dev.drewhamilton.poko.Poko
 import dev.jordond.filmstrip.Cancellable
 import dev.jordond.filmstrip.FilmstripComponents
 import dev.jordond.filmstrip.InternalFilmstripApi
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.export.ExportSpec
 import kotlin.time.Duration
 
@@ -117,7 +117,7 @@ public class PlayerConfig(
  */
 @Poko
 public class SetCompositionRequest(
-  public val composition: EditComposition,
+  public val composition: Composition,
   public val startAt: Duration? = null,
   public val playWhenReady: Boolean = false,
 )

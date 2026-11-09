@@ -8,7 +8,7 @@ import dev.jordond.filmstrip.avfoundation.internal.composition.toAvComposition
 import dev.jordond.filmstrip.color.SMPTE_C_PRIMARIES
 import dev.jordond.filmstrip.color.sdSourceDisplayed
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effects.BuiltInEffectResolver
@@ -90,8 +90,8 @@ class AppleVhsHardwareTest {
       HdrTransfer.entries.forEach { transfer ->
         val vhs = Vhs()
         val clip = Clip(MediaSource.of(hdrFixture(transfer)))
-        val plainPath = exported(EditComposition(listOf(Track(listOf(clip)))), HDR_SPEC, "plain-$transfer")
-        val vhsPath = exported(EditComposition(listOf(Track(listOf(clip))), listOf(vhs)), HDR_SPEC, "signal-$transfer")
+        val plainPath = exported(Composition(listOf(Track(listOf(clip)))), HDR_SPEC, "plain-$transfer")
+        val vhsPath = exported(Composition(listOf(Track(listOf(clip))), listOf(vhs)), HDR_SPEC, "signal-$transfer")
         val plain = codeFramesOf(plainPath, 1).single().at(CENTRE, CENTRE)
         val frames = codeFramesOf(vhsPath, LATER_FRAME + 1)
         val means =
@@ -132,8 +132,8 @@ class AppleVhsHardwareTest {
       val vhs = Vhs(intensity = 0.5f)
       mapOf(
         "clip" to
-          EditComposition(listOf(Track(listOf(Clip(MediaSource.of(source), effects = listOf(vhs)))))),
-        "composition" to EditComposition(listOf(Track(listOf(Clip(MediaSource.of(source))))), listOf(vhs)),
+          Composition(listOf(Track(listOf(Clip(MediaSource.of(source), effects = listOf(vhs)))))),
+        "composition" to Composition(listOf(Track(listOf(Clip(MediaSource.of(source))))), listOf(vhs)),
       ).forEach { (scope, edit) ->
         val graph = graphOf(edit)
         withClue("$scope scope draws through the compositor") { graph.drawsThroughCompositor() shouldBe true }
@@ -164,7 +164,7 @@ class AppleVhsHardwareTest {
   @Test
   fun `an hdr source is tone mapped and reported under a vhs`() =
     runTest(timeout = TIMEOUT) {
-      val edit = EditComposition(listOf(Track(listOf(Clip(MediaSource.of(hdrFixture(HdrTransfer.Pq)))))), listOf(Vhs()))
+      val edit = Composition(listOf(Track(listOf(Clip(MediaSource.of(hdrFixture(HdrTransfer.Pq)))))), listOf(Vhs()))
 
       val verdict = filmstrip.plan(edit, ExportSpec(heightPx = HDR_HEIGHT)).shouldBeInstanceOf<Verdict.Degraded>()
 
@@ -174,7 +174,7 @@ class AppleVhsHardwareTest {
   @Test
   fun `keep hdr is refused by name`() =
     runTest(timeout = TIMEOUT) {
-      val edit = EditComposition(listOf(Track(listOf(Clip(MediaSource.of(hdrFixture(HdrTransfer.Pq)))))), listOf(Vhs()))
+      val edit = Composition(listOf(Track(listOf(Clip(MediaSource.of(hdrFixture(HdrTransfer.Pq)))))), listOf(Vhs()))
 
       val refused =
         filmstrip
@@ -187,7 +187,7 @@ class AppleVhsHardwareTest {
   @Test
   fun `no filters on the builder refuses by name`() =
     runTest(timeout = TIMEOUT) {
-      val edit = EditComposition(listOf(Track(listOf(Clip(MediaSource.of(fixture(CLIP)))))), listOf(Vhs()))
+      val edit = Composition(listOf(Track(listOf(Clip(MediaSource.of(fixture(CLIP)))))), listOf(Vhs()))
 
       val refused =
         Filmstrip { avFoundationBackend() }
@@ -238,7 +238,7 @@ class AppleVhsHardwareTest {
     runTest(timeout = TIMEOUT) {
       val vhs = Vhs()
       val edit =
-        EditComposition(listOf(Track(listOf(Clip(MediaSource.of(fixture(CLIP)))))), listOf(swatch(), vhs))
+        Composition(listOf(Track(listOf(Clip(MediaSource.of(fixture(CLIP)))))), listOf(swatch(), vhs))
 
       abs(meanOfSwatch(edit, "overlay-clean") - cleanSwatch()) shouldBeLessThan halfLift(vhs)
     }
@@ -248,7 +248,7 @@ class AppleVhsHardwareTest {
     runTest(timeout = TIMEOUT) {
       val vhs = Vhs()
       val edit =
-        EditComposition(
+        Composition(
           listOf(Track(listOf(Clip(MediaSource.of(fixture(CLIP)), effects = listOf(swatch()))))),
           listOf(vhs),
         )
@@ -259,7 +259,7 @@ class AppleVhsHardwareTest {
   private fun barsEdit(
     clip: Clip,
     effects: List<EffectSpec>,
-  ) = EditComposition(listOf(Track(listOf(clip))), effects, fill = Fill.Solid(BLACK))
+  ) = Composition(listOf(Track(listOf(clip))), effects, fill = Fill.Solid(BLACK))
 
   // Reads the canvas [fill] leaves under a clip Vhs against the same crop over [plainFill] with no Vhs. Both are read
   // ahead of the encoder, whose chroma rings by more than the lift this tells apart beside a picture's edge.
@@ -270,7 +270,7 @@ class AppleVhsHardwareTest {
     val vhs = Vhs(intensity = 0.5f)
     val crop = Crop(WIDE_CANVAS, fit = Fit.Contain)
     val edit = { effects: List<EffectSpec>, over: Fill ->
-      EditComposition(listOf(Track(listOf(Clip(MediaSource.of(fixture(CLIP)), effects = effects)))), fill = over)
+      Composition(listOf(Track(listOf(Clip(MediaSource.of(fixture(CLIP)), effects = effects)))), fill = over)
     }
     val taped = drawnFrameOf(edit(listOf(crop, vhs), fill))
     val plain = drawnFrameOf(edit(listOf(crop), plainFill))
@@ -330,7 +330,7 @@ class AppleVhsHardwareTest {
   }
 
   private suspend fun meanOfBar(
-    edit: EditComposition,
+    edit: Composition,
     name: String,
   ): Double {
     val path = exported(edit, ExportSpec(), name)
@@ -340,7 +340,7 @@ class AppleVhsHardwareTest {
   }
 
   private suspend fun meanOfSwatch(
-    edit: EditComposition,
+    edit: Composition,
     name: String,
   ): Double {
     val path = exported(edit, ExportSpec(), name)
@@ -351,7 +351,7 @@ class AppleVhsHardwareTest {
 
   private suspend fun cleanSwatch(): Double =
     meanOfSwatch(
-      EditComposition(listOf(Track(listOf(Clip(MediaSource.of(fixture(CLIP)))))), listOf(swatch())),
+      Composition(listOf(Track(listOf(Clip(MediaSource.of(fixture(CLIP)))))), listOf(swatch())),
       "overlay",
     )
 
@@ -362,14 +362,14 @@ class AppleVhsHardwareTest {
       scale = SWATCH_SCALE,
     )
 
-  private suspend fun graphOf(edit: EditComposition): AvComposition {
+  private suspend fun graphOf(edit: Composition): AvComposition {
     val resolved = avFoundationExportEngine(components).resolve(edit, ExportSpec())
     return withContext(Dispatchers.Default) {
       resolved.shouldBeInstanceOf<ResolveResult.Resolved>().composition.toAvComposition()
     }
   }
 
-  private suspend fun drawnFrameOf(edit: EditComposition): FrameProbe {
+  private suspend fun drawnFrameOf(edit: Composition): FrameProbe {
     val graph = graphOf(edit)
     return withContext(Dispatchers.Default) { frameOf(graph.composition, graph.videoComposition, Duration.ZERO) }
   }
@@ -379,7 +379,7 @@ class AppleVhsHardwareTest {
       (compositorClass() as ObjCObject).objcPtr()
 
   private suspend fun exported(
-    edit: EditComposition,
+    edit: Composition,
     spec: ExportSpec,
     name: String,
   ): String {

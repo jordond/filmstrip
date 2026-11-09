@@ -6,7 +6,7 @@ import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.capability.DeviceCapabilities
 import dev.jordond.filmstrip.capability.EffectParity
 import dev.jordond.filmstrip.codec.Bitrate
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.export.EngineComponents
 import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.export.ExportPlan
@@ -79,7 +79,7 @@ public class BrowserExportEngine(
   override fun parityOf(specId: String): EffectParity? = browserParityOf(specId)
 
   private suspend fun lower(
-    composition: EditComposition,
+    composition: Composition,
     spec: ExportSpec,
     layoutSize: Size?,
     grade: ResolvedHdr?,
@@ -109,7 +109,7 @@ public class BrowserExportEngine(
   }
 
   private suspend fun grade(
-    composition: EditComposition,
+    composition: Composition,
     spec: ExportSpec,
   ): ExportGrade {
     val read =
@@ -128,7 +128,7 @@ public class BrowserExportEngine(
   // A copy ending before its source does has its video packets read before it is negotiated, so the plan counts the
   // frames it writes and a read that fails refuses the plan rather than the export.
   private suspend fun askedWithPackets(
-    composition: EditComposition,
+    composition: Composition,
     ask: Ask,
   ): CopyAsk = ask.withCopyPackets(planner.copyPacketWindowOf(composition, ask)) { sources.copyPacketsOf(it) }
 

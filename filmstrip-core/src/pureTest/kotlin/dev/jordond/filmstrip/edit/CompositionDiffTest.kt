@@ -9,7 +9,7 @@ import io.kotest.matchers.shouldBe
 import kotlin.test.Test
 import kotlin.time.Duration.Companion.seconds
 
-// diff() and effectsRevision() both read straight off EditComposition, with no device and no
+// diff() and effectsRevision() both read straight off Composition, with no device and no
 // resolver, so every case here runs on the host with fabricated sources and fabricated effects.
 class CompositionDiffTest {
   @Test
@@ -77,24 +77,24 @@ class CompositionDiffTest {
 
   @Test
   fun `changing a track's start is structural`() {
-    val previous = EditComposition(listOf(Track(listOf(clip()), start = 0.seconds)))
-    val next = EditComposition(listOf(Track(listOf(clip()), start = 1.seconds)))
+    val previous = Composition(listOf(Track(listOf(clip()), start = 0.seconds)))
+    val next = Composition(listOf(Track(listOf(clip()), start = 1.seconds)))
 
     diff(previous, next) shouldBe CompositionDiff.Structural
   }
 
   @Test
   fun `changing a track's looping is structural`() {
-    val previous = EditComposition(listOf(Track(listOf(clip()), looping = false)))
-    val next = EditComposition(listOf(Track(listOf(clip()), looping = true)))
+    val previous = Composition(listOf(Track(listOf(clip()), looping = false)))
+    val next = Composition(listOf(Track(listOf(clip()), looping = true)))
 
     diff(previous, next) shouldBe CompositionDiff.Structural
   }
 
   @Test
   fun `changing a track's content is structural`() {
-    val previous = EditComposition(listOf(Track(listOf(clip()), content = TrackContent.AudioAndVideo)))
-    val next = EditComposition(listOf(Track(listOf(clip()), content = TrackContent.Video)))
+    val previous = Composition(listOf(Track(listOf(clip()), content = TrackContent.AudioAndVideo)))
+    val next = Composition(listOf(Track(listOf(clip()), content = TrackContent.Video)))
 
     diff(previous, next) shouldBe CompositionDiff.Structural
   }
@@ -227,7 +227,7 @@ class CompositionDiffTest {
     vararg clips: Clip,
     fill: Fill = Fill.Black,
     audio: AudioSpec = AudioSpec.Keep,
-  ): EditComposition = EditComposition(listOf(Track(clips.toList())), audio = audio, fill = fill)
+  ): Composition = Composition(listOf(Track(clips.toList())), audio = audio, fill = fill)
 
   private fun clip(
     path: String = "/fixtures/clip.mp4",

@@ -7,7 +7,7 @@ import dev.jordond.filmstrip.avfoundation.internal.StretchedAudio
 import dev.jordond.filmstrip.avfoundation.internal.export.AvDriver
 import dev.jordond.filmstrip.avfoundation.internal.renderClipAudio
 import dev.jordond.filmstrip.edit.CLIP_SPEED_RANGE
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.audioFramesOf
 import dev.jordond.filmstrip.edit.compositionOf
@@ -208,7 +208,7 @@ class AppleStretchedAudioMediaTest {
 
   private fun MediaSink.pathOrThrow(): String = (this as MediaSink.Path).path
 
-  private suspend fun resolved(composition: EditComposition): ResolvedComposition =
+  private suspend fun resolved(composition: Composition): ResolvedComposition =
     withContext(Dispatchers.Default) {
       val components = ComponentRegistry.Builder().addEffectResolver(BuiltInEffectResolver()).build()
       when (val result = avFoundationExportEngine(components).resolve(composition, ExportSpec(frameRate = RATE))) {

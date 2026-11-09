@@ -3,7 +3,7 @@ package dev.jordond.filmstrip.internal
 import dev.jordond.filmstrip.Cancellable
 import dev.jordond.filmstrip.ComponentRegistry
 import dev.jordond.filmstrip.FilmstripError
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.edit.effectsRevision
 import dev.jordond.filmstrip.export.ExportSpec
@@ -135,7 +135,7 @@ class ThumbnailDispatcherFailureTest {
     }
 
   private companion object {
-    val COMPOSITION: EditComposition = compositionOf { clip(MediaSource.of("/fixtures/strip.mp4")) }
+    val COMPOSITION: Composition = compositionOf { clip(MediaSource.of("/fixtures/strip.mp4")) }
 
     val POSITIONS = listOf(0.milliseconds, 400.milliseconds, 800.milliseconds)
 

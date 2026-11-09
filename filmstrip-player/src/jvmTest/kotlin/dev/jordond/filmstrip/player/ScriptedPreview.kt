@@ -1,7 +1,7 @@
 package dev.jordond.filmstrip.player
 
 import dev.jordond.filmstrip.FilmstripError
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.ffmpeg.internal.preview.PreviewStream
 import dev.jordond.filmstrip.ffmpeg.internal.preview.PreviewStreamResult
 import dev.jordond.filmstrip.geometry.Size
@@ -24,7 +24,7 @@ internal class ScriptedPlanner(
 
   override suspend fun open(
     plan: PreviewPlan,
-    composition: EditComposition,
+    composition: Composition,
     at: Duration,
   ): PreviewStreamResult = PreviewStreamResult.Opened(script(at).also { opened = opened + it })
 }

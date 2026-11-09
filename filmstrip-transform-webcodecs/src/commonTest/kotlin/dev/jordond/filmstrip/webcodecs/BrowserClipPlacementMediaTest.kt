@@ -5,7 +5,7 @@ import dev.jordond.filmstrip.codec.AudioCodec
 import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effects.geometry.Crop
@@ -52,7 +52,7 @@ class BrowserClipPlacementMediaTest {
   fun aSecondClipIsPlacedUnderItsOwnFit() =
     runTest {
       val composition =
-        EditComposition(
+        Composition(
           tracks = listOf(Track(listOf(clipOf(WIDE), clipOf(PORTRAIT)))),
           audio = AudioSpec.Remove,
           fill = Fill.Solid(SLATE),
@@ -74,7 +74,7 @@ class BrowserClipPlacementMediaTest {
     runTest {
       val geometry = listOf(Crop(AspectRatio.Square, Fit.Contain), CropRect(RECT))
       val composition =
-        EditComposition(
+        Composition(
           tracks = listOf(Track(listOf(clipOf(WIDE)))),
           effects = geometry,
           audio = AudioSpec.Remove,
@@ -119,7 +119,7 @@ class BrowserClipPlacementMediaTest {
     runTest {
       val effects = listOf(Crop(AspectRatio.Square, Fit.Crop), Crop(AspectRatio(4, 5), Fit.Stretch))
       val composition =
-        EditComposition(
+        Composition(
           tracks = listOf(Track(listOf(clipOf(WIDE), clipOf(WIDE, effects)))),
           audio = AudioSpec.Remove,
           fill = Fill.Blurred(),
@@ -140,8 +140,8 @@ class BrowserClipPlacementMediaTest {
   private suspend fun single(
     size: Size,
     effects: List<EffectSpec>,
-  ): EditComposition =
-    EditComposition(
+  ): Composition =
+    Composition(
       tracks = listOf(Track(listOf(clipOf(size, effects)))),
       audio = AudioSpec.Remove,
       fill = Fill.Solid(SLATE),

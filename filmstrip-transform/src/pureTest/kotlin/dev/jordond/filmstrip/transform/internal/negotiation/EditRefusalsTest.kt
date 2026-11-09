@@ -4,7 +4,7 @@ import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.codec.AudioCodec
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.CLIP_SPEED_RANGE
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.effect.EffectIds
@@ -43,7 +43,7 @@ class EditRefusalsTest {
   @Test
   fun `audio goes when the edit removes it the spec drops it or no source carries any`() {
     val withAudio = fixture.clip(audioRate = 48_000)
-    val removed = EditComposition(listOf(Track(listOf(withAudio))), audio = AudioSpec.Remove)
+    val removed = Composition(listOf(Track(listOf(withAudio))), audio = AudioSpec.Remove)
     val silent = composition(fixture.clip())
 
     streamsOf(removed, ExportSpec(), fixture.infos(removed)).keeps() shouldBe (true to false)
@@ -55,7 +55,7 @@ class EditRefusalsTest {
 
   @Test
   fun `an audio only edit drops the video and keeps the audio`() {
-    val edit = EditComposition(listOf(Track(listOf(fixture.clip(audioRate = 48_000)))), audio = AudioSpec.AudioOnly)
+    val edit = Composition(listOf(Track(listOf(fixture.clip(audioRate = 48_000)))), audio = AudioSpec.AudioOnly)
 
     streamsOf(edit, ExportSpec(), fixture.infos(edit)).keeps() shouldBe (false to true)
   }
@@ -63,7 +63,7 @@ class EditRefusalsTest {
   @Test
   fun `a well formed edit is not refused`() {
     val edit =
-      EditComposition(
+      Composition(
         listOf(
           Track(listOf(fixture.clip(effects = listOf(PUSH_IN)))),
           Track(listOf(fixture.audioOnlyClip()), content = TrackContent.Audio, looping = true),
@@ -75,16 +75,16 @@ class EditRefusalsTest {
 
   @Test
   fun `the shape of the tracks is refused in the order the planner reads it`() {
-    message(EditComposition(emptyList())) shouldBe "A composition needs at least one track."
-    message(EditComposition(listOf(Track(listOf(fixture.clip())), Track(listOf(fixture.clip()))))) shouldBe
+    message(Composition(emptyList())) shouldBe "A composition needs at least one track."
+    message(Composition(listOf(Track(listOf(fixture.clip())), Track(listOf(fixture.clip()))))) shouldBe
       "This backend renders video from the primary track only. A second video track needs a compositor, which has " +
       "not landed here. A second audio-only track works."
-    message(EditComposition(listOf(Track(emptyList())))) shouldBe "The primary track has no clips."
-    message(EditComposition(listOf(Track(listOf(fixture.clip()), content = TrackContent.Audio)))) shouldBe
+    message(Composition(listOf(Track(emptyList())))) shouldBe "The primary track has no clips."
+    message(Composition(listOf(Track(listOf(fixture.clip()), content = TrackContent.Audio)))) shouldBe
       NO_PRIMARY_VIDEO
-    message(EditComposition(listOf(Track(listOf(fixture.clip()), looping = true)))) shouldBe
+    message(Composition(listOf(Track(listOf(fixture.clip()), looping = true)))) shouldBe
       "Every track loops, so the composition has nothing to bound it."
-    message(EditComposition(listOf(Track(listOf(fixture.clip()), start = (-1).milliseconds)))) shouldBe
+    message(Composition(listOf(Track(listOf(fixture.clip()), start = (-1).milliseconds)))) shouldBe
       "A track's start is negative, so it would begin before the composition does. A start is measured from the " +
       "start of the composition and has to be zero or later."
   }
@@ -111,7 +111,7 @@ class EditRefusalsTest {
   @Test
   fun `an edit whose every track is cancelled out has nothing to encode`() {
     val edit =
-      EditComposition(listOf(Track(listOf(fixture.clip()), content = TrackContent.Video)), audio = AudioSpec.AudioOnly)
+      Composition(listOf(Track(listOf(fixture.clip()), content = TrackContent.Video)), audio = AudioSpec.AudioOnly)
 
     message(edit) shouldBe
       "No track survives what the composition and the spec ask for, so the export would write a file with no " +
@@ -139,8 +139,8 @@ class EditRefusalsTest {
 
   @Test
   fun `a clip only effect off a clip is refused by id`() {
-    val onTrack = EditComposition(listOf(Track(listOf(fixture.clip()), effects = listOf(PUSH_IN))))
-    val onComposition = EditComposition(listOf(Track(listOf(fixture.clip()))), effects = listOf(PUSH_IN))
+    val onTrack = Composition(listOf(Track(listOf(fixture.clip()), effects = listOf(PUSH_IN))))
+    val onComposition = Composition(listOf(Track(listOf(fixture.clip()))), effects = listOf(PUSH_IN))
 
     for (edit in listOf(onTrack, onComposition)) {
       val error = refusal(edit).shouldBeInstanceOf<FilmstripError.UnsupportedEffect>()
@@ -155,7 +155,7 @@ class EditRefusalsTest {
   @Test
   fun `a clip only effect on a looping track's clip is refused by id`() {
     val edit =
-      EditComposition(
+      Composition(
         listOf(
           Track(listOf(fixture.clip())),
           Track(listOf(fixture.clip(effects = listOf(PUSH_IN))), content = TrackContent.Audio, looping = true),
@@ -175,7 +175,7 @@ class EditRefusalsTest {
   @Test
   fun `an effect any scope may hold is not refused on a looping track`() {
     val edit =
-      EditComposition(
+      Composition(
         listOf(
           Track(listOf(fixture.clip())),
           Track(listOf(fixture.clip(effects = listOf(Brightness(2f)))), content = TrackContent.Audio, looping = true),
@@ -188,7 +188,7 @@ class EditRefusalsTest {
   @Test
   fun `the first refusal wins when an edit breaks several rules`() {
     val edit =
-      EditComposition(listOf(Track(listOf(fixture.clip(exportable = false)), start = (-1).milliseconds)))
+      Composition(listOf(Track(listOf(fixture.clip(exportable = false)), start = (-1).milliseconds)))
 
     message(edit, ExportSpec(frameRate = 0)) shouldBe
       "A track's start is negative, so it would begin before the composition does. A start is measured from the " +
@@ -216,13 +216,13 @@ class EditRefusalsTest {
   }
 
   private fun refusal(
-    edit: EditComposition,
+    edit: Composition,
     spec: ExportSpec = ExportSpec(),
     infos: Map<MediaSource, MediaInfo> = fixture.infos(edit),
   ): FilmstripError? = structuralRefusal(edit, spec, infos, streamsOf(edit, spec, infos))
 
   private fun message(
-    edit: EditComposition,
+    edit: Composition,
     spec: ExportSpec = ExportSpec(),
   ): String = refusal(edit, spec).shouldBeInstanceOf<FilmstripError.InvalidComposition>().message
 

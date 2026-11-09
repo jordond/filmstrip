@@ -6,7 +6,7 @@ import dev.jordond.filmstrip.capability.VideoEncoderCapability
 import dev.jordond.filmstrip.codec.AudioCodec
 import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.TrackContent
@@ -238,7 +238,7 @@ class HeldTailLoweringTest {
     previewOf(invocationOf(lowering), insideTail(negotiated)).after("-itsoffset") shouldBe secondsOf(lastCovered)
   }
 
-  private fun lowered(composition: EditComposition): LoweredExport<Invocation> =
+  private fun lowered(composition: Composition): LoweredExport<Invocation> =
     FfmpegPlanner(TOOLCHAIN, listOf(BuiltInEffectResolver()))
       .lower(composition, Ask(ExportSpec(frameRate = GRID_RATE), DEVICE, infos))
 
@@ -270,8 +270,8 @@ class HeldTailLoweringTest {
     bedLength: Duration = BED_LENGTH,
     clipEffects: List<EffectSpec> = emptyList(),
     effects: List<EffectSpec> = emptyList(),
-  ): EditComposition =
-    EditComposition(
+  ): Composition =
+    Composition(
       tracks =
         listOf(
           Track(listOf(Clip(picture, trim = PICTURE_TRIM, effects = clipEffects))),

@@ -10,7 +10,7 @@ import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.color.SMPTE_C_PRIMARIES
 import dev.jordond.filmstrip.edit.AudioLevel
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.EnvelopePoint
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
@@ -145,7 +145,7 @@ class PlannerTest {
   @Test
   fun `reframes to the requested aspect and height`() {
     val composition =
-      EditComposition(listOf(Track(listOf(Clip(landscape, effects = listOf(Crop(AspectRatio.Portrait)))))))
+      Composition(listOf(Track(listOf(Clip(landscape, effects = listOf(Crop(AspectRatio.Portrait)))))))
 
     val plan = capablePlan(composition, ExportSpec(heightPx = 720))
 
@@ -159,8 +159,8 @@ class PlannerTest {
   @Test
   fun `is handed no effect that renders nothing`() {
     val inert = listOf(Brightness(1f), HueRotate(360f), Crop(AspectRatio(16, 9)), Rotate(360))
-    val composition = EditComposition(listOf(Track(listOf(Clip(landscape, effects = inert)))))
-    val plain = EditComposition(listOf(Track(listOf(Clip(landscape)))))
+    val composition = Composition(listOf(Track(listOf(Clip(landscape, effects = inert)))))
+    val plain = Composition(listOf(Track(listOf(Clip(landscape)))))
 
     capableGraph(composition, ExportSpec(heightPx = 360)) shouldBe capableGraph(plain, ExportSpec(heightPx = 360))
     capablePlan(composition, ExportSpec(heightPx = 360)).inertNotices.size shouldBe inert.size
@@ -171,10 +171,10 @@ class PlannerTest {
   @Test
   fun `is handed no brightness its track undoes`() {
     val composition =
-      EditComposition(
+      Composition(
         listOf(Track(listOf(Clip(landscape, effects = listOf(Brightness(2f)))), effects = listOf(Brightness(0.5f)))),
       )
-    val plain = EditComposition(listOf(Track(listOf(Clip(landscape)))))
+    val plain = Composition(listOf(Track(listOf(Clip(landscape)))))
 
     capableGraph(composition, ExportSpec(heightPx = 360)) shouldBe capableGraph(plain, ExportSpec(heightPx = 360))
     capablePlan(composition, ExportSpec(heightPx = 360)).inertNotices.size shouldBe 2
@@ -184,7 +184,7 @@ class PlannerTest {
   // size stage before the join.
   @Test
   fun `normalises every clip before the concat`() {
-    val composition = EditComposition(listOf(Track(listOf(Clip(landscape), Clip(portrait)))))
+    val composition = Composition(listOf(Track(listOf(Clip(landscape), Clip(portrait)))))
 
     val graph = capableGraph(composition, ExportSpec(heightPx = 360))
 
@@ -201,7 +201,7 @@ class PlannerTest {
   @Test
   fun `crops each clip in its own frame when the crop is on the composition`() {
     val composition =
-      EditComposition(
+      Composition(
         tracks = listOf(Track(listOf(Clip(landscape), Clip(portrait)))),
         effects = listOf(CropRect(NormalizedRect(left = 0f, top = 0f, right = 0.5f, bottom = 1f))),
       )
@@ -219,7 +219,7 @@ class PlannerTest {
   fun `overlays a watermark declared on a clip`() {
     val mark = ImageOverlay(ImageSource.ofBytes(OrientedPictures.png()), Corner.TopStart)
     val composition =
-      EditComposition(listOf(Track(listOf(Clip(landscape, effects = listOf(mark)), Clip(portrait)))))
+      Composition(listOf(Track(listOf(Clip(landscape, effects = listOf(mark)), Clip(portrait)))))
 
     val invocation = planner().lower(composition, Ask(ExportSpec(), device(), infos)).graph!!
 
@@ -240,7 +240,7 @@ class PlannerTest {
   fun `loops the overlay image across the clip it is drawn on`() {
     val mark = ImageOverlay(ImageSource.ofBytes(OrientedPictures.png()), Corner.TopStart)
     val composition =
-      EditComposition(listOf(Track(listOf(Clip(landscape, effects = listOf(mark)), Clip(portrait)))))
+      Composition(listOf(Track(listOf(Clip(landscape, effects = listOf(mark)), Clip(portrait)))))
 
     val invocation = planner().lower(composition, Ask(ExportSpec(), device(), infos)).graph!!
 
@@ -263,7 +263,7 @@ class PlannerTest {
         visibleDuring = TimeRange.of(5_000.milliseconds, 6_000.milliseconds),
       )
     val composition =
-      EditComposition(listOf(Track(listOf(Clip(landscape), Clip(portrait, effects = listOf(mark))))))
+      Composition(listOf(Track(listOf(Clip(landscape), Clip(portrait, effects = listOf(mark))))))
 
     val build = toolchain(CATALOGUE_FILTERS + "colorchannelmixer")
     val graph = planner(build).lower(composition, Ask(ExportSpec(), device(), infos)).graph!!.filterGraph
@@ -283,7 +283,7 @@ class PlannerTest {
   fun `loops a composition overlay across the whole composition`() {
     val mark = ImageOverlay(ImageSource.ofBytes(OrientedPictures.png()), Corner.TopStart)
     val composition =
-      EditComposition(listOf(Track(listOf(Clip(landscape), Clip(portrait)))), effects = listOf(mark))
+      Composition(listOf(Track(listOf(Clip(landscape), Clip(portrait)))), effects = listOf(mark))
 
     val invocation = planner().lower(composition, Ask(ExportSpec(), device(), infos)).graph!!
 
@@ -294,7 +294,7 @@ class PlannerTest {
   // frame the pixels decode to. The curve runs ahead of every effect, and only on the graded clip.
   @Test
   fun `tone-maps only the clip that carries a grade`() {
-    val composition = EditComposition(listOf(Track(listOf(Clip(graded), Clip(landscape)))))
+    val composition = Composition(listOf(Track(listOf(Clip(graded), Clip(landscape)))))
 
     val graph = capableGraph(composition, ExportSpec(), toolchain(TONE_MAPPING))
 
@@ -311,7 +311,7 @@ class PlannerTest {
   // tone map this test is actually about.
   @Test
   fun `reports the tone map it performs`() {
-    val composition = EditComposition(listOf(Track(listOf(Clip(graded, effects = listOf(Rotate(90)))))))
+    val composition = Composition(listOf(Track(listOf(Clip(graded, effects = listOf(Rotate(90)))))))
 
     val verdict = planner(toolchain(TONE_MAPPING)).lower(composition, Ask(ExportSpec(), device(), infos)).verdict
 
@@ -324,7 +324,7 @@ class PlannerTest {
   // would otherwise have preserved the grade with no tone map needed at all.
   @Test
   fun `refuses a graded source on a build that cannot run the tone curve`() {
-    val composition = EditComposition(listOf(Track(listOf(Clip(graded, effects = listOf(Rotate(90)))))))
+    val composition = Composition(listOf(Track(listOf(Clip(graded, effects = listOf(Rotate(90)))))))
 
     val verdict = planner().lower(composition, Ask(ExportSpec(), device(), infos)).verdict
 
@@ -339,7 +339,7 @@ class PlannerTest {
   @Test
   fun `an untouched clip mp4 cannot carry is encoded rather than copied`() {
     val source = MediaSource.of("/clips/untouched-vp8.webm")
-    val composition = EditComposition(listOf(Track(listOf(Clip(source)))))
+    val composition = Composition(listOf(Track(listOf(Clip(source)))))
     val infos = mapOf(source to info(Size(1920, 1080), 6_000.milliseconds, codec = "vp8"))
 
     val verdict = planner().lower(composition, Ask(ExportSpec(), device(), infos)).verdict
@@ -351,7 +351,7 @@ class PlannerTest {
   // all, so a copy keeps the grade exactly whatever the build can do.
   @Test
   fun `an untouched graded source copies on a build that cannot tone map`() {
-    val composition = EditComposition(listOf(Track(listOf(Clip(graded)))))
+    val composition = Composition(listOf(Track(listOf(Clip(graded)))))
 
     val verdict = planner().lower(composition, Ask(ExportSpec(), device(), infos)).verdict
 
@@ -391,7 +391,7 @@ class PlannerTest {
   @Test
   fun `a snapped clip with an effect transcodes from the cut it asked for`() {
     val composition =
-      EditComposition(
+      Composition(
         listOf(
           Track(
             listOf(
@@ -474,7 +474,7 @@ class PlannerTest {
   @Test
   fun `keeps hdr and writes the encoder's own pixel format when the device can encode it`() {
     val source = MediaSource.of("/clips/graded-mpeg2.mov")
-    val composition = EditComposition(listOf(Track(listOf(Clip(source)))))
+    val composition = Composition(listOf(Track(listOf(Clip(source)))))
     val device = device(listOf(VideoCodec.H264, VideoCodec.Hevc), supportsHdrEncoding = true)
     val sourceInfos =
       infos + (source to info(Size(1920, 1080), 4_000.milliseconds, hdr = HdrTransfer.Pq, codec = "mpeg2video"))
@@ -495,7 +495,7 @@ class PlannerTest {
   @Test
   fun `carries HLG rather than assuming PQ`() {
     val hlg = MediaSource.of("/clips/hlg.mov")
-    val composition = EditComposition(listOf(Track(listOf(Clip(hlg)))))
+    val composition = Composition(listOf(Track(listOf(Clip(hlg)))))
     val device = device(listOf(VideoCodec.H264, VideoCodec.Hevc), supportsHdrEncoding = true)
     val hlgInfos = infos + (hlg to info(Size(1920, 1080), 4_000.milliseconds, hdr = HdrTransfer.Hlg))
 
@@ -508,7 +508,7 @@ class PlannerTest {
   // would hand ffmpeg a filter it does not have.
   @Test
   fun `refuses a blurred fill on a build with no gblur`() {
-    val composition = EditComposition(listOf(Track(listOf(Clip(landscape), Clip(portrait)))), fill = Fill.Blurred())
+    val composition = Composition(listOf(Track(listOf(Clip(landscape), Clip(portrait)))), fill = Fill.Blurred())
 
     val verdict = planner().lower(composition, Ask(ExportSpec(), device(), infos)).verdict
 
@@ -519,7 +519,7 @@ class PlannerTest {
   // Each of these is a filter Vhs lowers, read one at a time so a name missing from the check fails on its own.
   @Test
   fun `refuses a film by name on a build missing any filter it lowers`() {
-    val composition = EditComposition(listOf(Track(listOf(Clip(landscape)))), listOf(Film()))
+    val composition = Composition(listOf(Track(listOf(Clip(landscape)))), listOf(Film()))
     val named = FILM_FILTERS + TONE_MAPPING
     val spec = ExportSpec(heightPx = 720)
     val resolvers = listOf(BuiltInEffectResolver(), FilterEffectResolver())
@@ -540,7 +540,7 @@ class PlannerTest {
 
   @Test
   fun `refuses a crt by name on a build missing any filter it lowers`() {
-    val composition = EditComposition(listOf(Track(listOf(Clip(landscape)))), listOf(Crt()))
+    val composition = Composition(listOf(Track(listOf(Clip(landscape)))), listOf(Crt()))
     val named = CRT_FILTERS + TONE_MAPPING
     val spec = ExportSpec(heightPx = 720)
     val resolvers = listOf(BuiltInEffectResolver(), FilterEffectResolver())
@@ -562,7 +562,7 @@ class PlannerTest {
   @Test
   fun refusesALutByNameOnABuildMissingAnyFilterItLowers() {
     val table = CubeLut.parse("LUT_3D_SIZE 2\n" + "0.5 0.25 0.75\n".repeat(8))
-    val composition = EditComposition(listOf(Track(listOf(Clip(landscape)))), listOf(Lut(table)))
+    val composition = Composition(listOf(Track(listOf(Clip(landscape)))), listOf(Lut(table)))
     val named = LUT_FILTERS + TONE_MAPPING
     val spec = ExportSpec(heightPx = 720)
     val resolvers = listOf(BuiltInEffectResolver(), FilterEffectResolver())
@@ -583,7 +583,7 @@ class PlannerTest {
 
   @Test
   fun `refuses a vhs by name on a build missing any filter it lowers`() {
-    val composition = EditComposition(listOf(Track(listOf(Clip(landscape)))), listOf(Vhs()))
+    val composition = Composition(listOf(Track(listOf(Clip(landscape)))), listOf(Vhs()))
     val named = VHS_FILTERS + TONE_MAPPING
     val spec = ExportSpec(heightPx = 720)
     val resolvers = listOf(BuiltInEffectResolver(), FilterEffectResolver())
@@ -621,7 +621,7 @@ class PlannerTest {
   // since a copy never reaches the filter graph at all.
   @Test
   fun `lowers a blurred fill once the build has gblur`() {
-    val composition = EditComposition(listOf(Track(listOf(Clip(landscape), Clip(portrait)))), fill = Fill.Blurred())
+    val composition = Composition(listOf(Track(listOf(Clip(landscape), Clip(portrait)))), fill = Fill.Blurred())
 
     val graph = capableGraph(composition, ExportSpec(heightPx = 720), toolchain(TONE_MAPPING + "gblur"))
 
@@ -633,7 +633,7 @@ class PlannerTest {
   @Test
   fun `refuses a dimmed blurred fill on a build with no colorchannelmixer`() {
     val composition =
-      EditComposition(listOf(Track(listOf(Clip(landscape), Clip(portrait)))), fill = Fill.Blurred(dim = 0.5f))
+      Composition(listOf(Track(listOf(Clip(landscape), Clip(portrait)))), fill = Fill.Blurred(dim = 0.5f))
 
     val verdict =
       planner(toolchain(CATALOGUE_FILTERS + "gblur"))
@@ -646,7 +646,7 @@ class PlannerTest {
 
   @Test
   fun `refuses a clip on SD primaries on a build missing any filter it lowers to`() {
-    val composition = EditComposition(listOf(Track(listOf(Clip(landscape)))))
+    val composition = Composition(listOf(Track(listOf(Clip(landscape)))))
     val color = SdColor(SMPTE_C_PRIMARIES, "smpte170m")
 
     color.filterNames() shouldBe setOf("pad", SD_COLOR_FILTER, "crop", "setparams")
@@ -670,7 +670,7 @@ class PlannerTest {
       checkNotNull(
         planner(toolchain(SD_FILTERS))
           .lower(
-            EditComposition(listOf(Track(clips.toList()))),
+            Composition(listOf(Track(clips.toList()))),
             Ask(ExportSpec(), device(), infos),
             sdColors = sdColors,
           ).graph,
@@ -693,7 +693,7 @@ class PlannerTest {
   fun `one SD colour writes BT709 only under an effect that draws`() {
     val sd = mapOf<MediaSource, SdColor>(landscape to SdColor(SMPTE_C_PRIMARIES, "smpte170m"))
 
-    fun lowered(composition: EditComposition): Invocation =
+    fun lowered(composition: Composition): Invocation =
       checkNotNull(
         planner(toolchain(CATALOGUE_FILTERS + SD_FILTERS))
           .lower(composition, Ask(ExportSpec(), device(), infos), sdColors = sd)
@@ -701,7 +701,7 @@ class PlannerTest {
       )
 
     fun onClip(vararg effects: EffectSpec) =
-      EditComposition(listOf(Track(listOf(Clip(landscape, effects = effects.toList())))))
+      Composition(listOf(Track(listOf(Clip(landscape, effects = effects.toList())))))
 
     listOf(
       onClip(Brightness(1f)),
@@ -721,8 +721,8 @@ class PlannerTest {
       onClip(Brightness(1.5f)),
       onClip(TextOverlay("hi")),
       onClip(Flip(FlipAxis.Horizontal), Invert()),
-      EditComposition(listOf(Track(listOf(Clip(landscape)), effects = listOf(Invert())))),
-      EditComposition(listOf(Track(listOf(Clip(landscape)))), effects = listOf(Invert())),
+      Composition(listOf(Track(listOf(Clip(landscape)), effects = listOf(Invert())))),
+      Composition(listOf(Track(listOf(Clip(landscape)))), effects = listOf(Invert())),
     ).forEach { composition ->
       val moved = lowered(composition)
       moved.writesBt709 shouldBe true
@@ -736,7 +736,7 @@ class PlannerTest {
   @Test
   fun `does not refuse a blurred fill that fit never shows`() {
     val composition =
-      EditComposition(
+      Composition(
         listOf(Track(listOf(Clip(landscape, effects = listOf(Scale(360, fit = Fit.Crop)))))),
         fill = Fill.Blurred(),
       )
@@ -749,7 +749,7 @@ class PlannerTest {
   @Test
   fun `trims to the requested window`() {
     val composition =
-      EditComposition(
+      Composition(
         listOf(Track(listOf(Clip(landscape, trim = TimeRange.of(1_000.milliseconds, 3_000.milliseconds))))),
       )
 
@@ -761,7 +761,7 @@ class PlannerTest {
   @Test
   fun `mixes a music bed without normalising`() {
     val composition =
-      EditComposition(
+      Composition(
         listOf(
           Track(listOf(Clip(landscape))),
           Track(
@@ -790,7 +790,7 @@ class PlannerTest {
   fun `a clip fade lowers to a volume expression over the curve it resolved`() {
     val fade = 1_000.milliseconds
     val level = AudioLevel.Envelope(listOf(EnvelopePoint(Duration.ZERO, 0f), EnvelopePoint(fade, 1f)))
-    val composition = EditComposition(listOf(Track(listOf(Clip(landscape, audio = level)))))
+    val composition = Composition(listOf(Track(listOf(Clip(landscape, audio = level)))))
 
     val graph = capableGraph(composition, ExportSpec())
     val clipLength = infos.getValue(landscape).duration
@@ -813,7 +813,7 @@ class PlannerTest {
       AudioLevel.Envelope(
         (0..MANY_POINTS).map { EnvelopePoint((it * 50).milliseconds, it.toFloat() / MANY_POINTS) },
       )
-    val composition = EditComposition(listOf(Track(listOf(Clip(landscape, audio = level)))))
+    val composition = Composition(listOf(Track(listOf(Clip(landscape, audio = level)))))
 
     val graph = capableGraph(composition, ExportSpec())
     val segments = level.curveOver(infos.getValue(landscape).duration).segments.size
@@ -831,7 +831,7 @@ class PlannerTest {
   @Test
   fun `a ramping gain cuts the frames volume steps on`() {
     val level = AudioLevel.Envelope(listOf(EnvelopePoint(Duration.ZERO, 0f), EnvelopePoint(1_000.milliseconds, 1f)))
-    val composition = EditComposition(listOf(Track(listOf(Clip(landscape, audio = level)))))
+    val composition = Composition(listOf(Track(listOf(Clip(landscape, audio = level)))))
 
     capableGraph(composition, ExportSpec()) shouldContain "asetnsamples=n=64:p=0"
   }
@@ -839,7 +839,7 @@ class PlannerTest {
   @Test
   fun `plans text beside the clip's other effects`() {
     val composition =
-      EditComposition(listOf(Track(listOf(Clip(landscape, effects = listOf(Rotate(90), TextOverlay("hi")))))))
+      Composition(listOf(Track(listOf(Clip(landscape, effects = listOf(Rotate(90), TextOverlay("hi")))))))
 
     val lowered = planner().lower(composition, Ask(ExportSpec(), device(), infos))
     val verdict = lowered.verdict.shouldBeInstanceOf<Verdict.Capable>()
@@ -851,7 +851,7 @@ class PlannerTest {
   @Test
   fun `refuses a second video track by name`() {
     val composition =
-      EditComposition(listOf(Track(listOf(Clip(landscape))), Track(listOf(Clip(portrait)))))
+      Composition(listOf(Track(listOf(Clip(landscape))), Track(listOf(Clip(portrait)))))
 
     val verdict = planner().lower(composition, Ask(ExportSpec(), device(), infos)).verdict
     verdict.shouldBeInstanceOf<Verdict.Incapable>()
@@ -863,7 +863,7 @@ class PlannerTest {
   @Test
   fun `refuses a still by kind`() {
     val still = MediaSource.Image(ImageSource.of("/photos/one.png"), 3_000.milliseconds)
-    val composition = EditComposition(listOf(Track(listOf(Clip(still)))))
+    val composition = Composition(listOf(Track(listOf(Clip(still)))))
 
     val verdict = planner().lower(composition, Ask(ExportSpec(), device(), emptyMap())).verdict
 
@@ -877,7 +877,7 @@ class PlannerTest {
   fun `refuses a still on a secondary track`() {
     val still = MediaSource.Image(ImageSource.of("/photos/one.png"), 3_000.milliseconds)
     val composition =
-      EditComposition(
+      Composition(
         listOf(
           Track(listOf(Clip(landscape))),
           Track(clips = listOf(Clip(still)), content = TrackContent.Audio),
@@ -919,7 +919,7 @@ class PlannerTest {
   @Test
   fun `opens a clip named by a file uri at the decoded path`() {
     val source = MediaSource.ofUri("file:///clips/my%20holiday.mp4")
-    val composition = EditComposition(listOf(Track(listOf(Clip(source)))))
+    val composition = Composition(listOf(Track(listOf(Clip(source)))))
     val infos = mapOf(source to info(Size(1920, 1080), 4_000.milliseconds))
 
     val invocation = planner().lower(composition, Ask(ExportSpec(), device(), infos)).graph!!
@@ -934,7 +934,7 @@ class PlannerTest {
   @Test
   fun `refuses a clip named by a uri this backend cannot open`() {
     val source = MediaSource.ofUri("content://media/external/video/1")
-    val composition = EditComposition(listOf(Track(listOf(Clip(source)))))
+    val composition = Composition(listOf(Track(listOf(Clip(source)))))
 
     val verdict = planner().lower(composition, Ask(ExportSpec(), device(), emptyMap())).verdict
 
@@ -944,7 +944,7 @@ class PlannerTest {
 
   @Test
   fun `rounds an odd frame down and reports it`() {
-    val composition = EditComposition(listOf(Track(listOf(Clip(landscape)))))
+    val composition = Composition(listOf(Track(listOf(Clip(landscape)))))
 
     val verdict = planner().lower(composition, Ask(ExportSpec(heightPx = 721), device(), infos)).verdict
     verdict.shouldBeInstanceOf<Verdict.Degraded>()
@@ -978,7 +978,7 @@ class PlannerTest {
 
   @Test
   fun `carries the weakest parity onto the plan`() {
-    val composition = EditComposition(listOf(Track(listOf(Clip(landscape, effects = listOf(Scale(360)))))))
+    val composition = Composition(listOf(Track(listOf(Clip(landscape, effects = listOf(Scale(360)))))))
 
     capablePlan(composition, ExportSpec()).parity shouldBe EffectParity.Approximate
   }
@@ -987,7 +987,7 @@ class PlannerTest {
   @Test
   fun `an exact effect beside an approximate one plans approximate`() {
     val effects = listOf(Rotate(90), Scale(360))
-    val composition = EditComposition(listOf(Track(listOf(Clip(landscape, effects = effects)))))
+    val composition = Composition(listOf(Track(listOf(Clip(landscape, effects = effects)))))
 
     capablePlan(composition, ExportSpec()).parity shouldBe EffectParity.Approximate
   }
@@ -996,7 +996,7 @@ class PlannerTest {
   // absent and the plan never names a codec the encode would fail to open.
   @Test
   fun `an unavailable codec falls back to h264 and reports it`() {
-    val composition = EditComposition(listOf(Track(listOf(Clip(landscape)))))
+    val composition = Composition(listOf(Track(listOf(Clip(landscape)))))
 
     val verdict = planner().lower(composition, Ask(ExportSpec(videoCodec = VideoCodec.Hevc), device(), infos)).verdict
 
@@ -1009,7 +1009,7 @@ class PlannerTest {
   // build that carries libvpx.
   @Test
   fun `plans VP9 when the build has an encoder for it`() {
-    val composition = EditComposition(listOf(Track(listOf(Clip(landscape)))))
+    val composition = Composition(listOf(Track(listOf(Clip(landscape)))))
     val device = device(listOf(VideoCodec.H264, VideoCodec.Vp9))
 
     val lowering = planner().lower(composition, Ask(ExportSpec(videoCodec = VideoCodec.Vp9), device, infos))
@@ -1024,7 +1024,7 @@ class PlannerTest {
   // unavailable Hevc does rather than being silently downgraded.
   @Test
   fun `a codec this build cannot encode falls back to h264 and reports it`() {
-    val composition = EditComposition(listOf(Track(listOf(Clip(landscape)))))
+    val composition = Composition(listOf(Track(listOf(Clip(landscape)))))
 
     val verdict = planner().lower(composition, Ask(ExportSpec(videoCodec = VideoCodec.Vp9), device(), infos)).verdict
 
@@ -1041,7 +1041,7 @@ class PlannerTest {
     // A codec this backend cannot stream-copy, so the ladder is what has to answer rather than
     // a copy carrying the source's own codec straight across.
     val source = MediaSource.of("/clips/mpeg2.mp4")
-    val composition = EditComposition(listOf(Track(listOf(Clip(source)))))
+    val composition = Composition(listOf(Track(listOf(Clip(source)))))
     val sourceInfos = infos + (source to info(Size(1920, 1080), 4_000.milliseconds, codec = "mpeg2video"))
 
     val verdict = planner().lower(composition, Ask(ExportSpec(), device(listOf(VideoCodec.Hevc)), sourceInfos)).verdict
@@ -1053,7 +1053,7 @@ class PlannerTest {
 
   @Test
   fun `a build with no video encoder at all is refused`() {
-    val composition = EditComposition(listOf(Track(listOf(Clip(landscape)))))
+    val composition = Composition(listOf(Track(listOf(Clip(landscape)))))
 
     val verdict = planner().lower(composition, Ask(ExportSpec(), device(emptyList()), infos)).verdict
 
@@ -1068,7 +1068,7 @@ class PlannerTest {
   // tier at the size and rate the export writes.
   @Test
   fun `encodes at the bitrate the planner settled on`() {
-    val composition = EditComposition(listOf(Track(listOf(Clip(landscape)))))
+    val composition = Composition(listOf(Track(listOf(Clip(landscape)))))
     val lowered = planner().lower(composition, Ask(ExportSpec(heightPx = 720), device(), infos))
     val plan = lowered.verdict.shouldBeInstanceOf<Verdict.Capable>().plan
     val arguments =
@@ -1085,8 +1085,8 @@ class PlannerTest {
 
   private fun planner(toolchain: Toolchain = toolchain()) = FfmpegPlanner(toolchain, listOf(BuiltInEffectResolver()))
 
-  private fun trimmed(snapWithin: Duration = Duration.ZERO): EditComposition =
-    EditComposition(
+  private fun trimmed(snapWithin: Duration = Duration.ZERO): Composition =
+    Composition(
       listOf(Track(listOf(Clip(landscape, trim = TimeRange.of(TRIM_START, TRIM_END), snapWithin = snapWithin)))),
     )
 
@@ -1112,7 +1112,7 @@ class PlannerTest {
   )
 
   private fun capablePlan(
-    composition: EditComposition,
+    composition: Composition,
     spec: ExportSpec,
   ) = when (val verdict = planner().lower(composition, Ask(spec, device(), infos)).verdict) {
     is Verdict.Capable -> verdict.plan
@@ -1121,7 +1121,7 @@ class PlannerTest {
   }
 
   private fun capableGraph(
-    composition: EditComposition,
+    composition: Composition,
     spec: ExportSpec,
     toolchain: Toolchain = toolchain(),
   ): String = planner(toolchain).lower(composition, Ask(spec, device(), infos)).graph!!.filterGraph

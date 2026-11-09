@@ -1,6 +1,6 @@
 package dev.jordond.filmstrip.transform.internal.probe
 
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.export.ExportSpec
@@ -22,7 +22,7 @@ class ReadSourcesTest {
   fun `a one source export names that source`() {
     val clip = fixture.clip()
 
-    resolved(EditComposition(listOf(Track(listOf(clip))))).readSources shouldBe clip.source.describe()
+    resolved(Composition(listOf(Track(listOf(clip))))).readSources shouldBe clip.source.describe()
   }
 
   // The primary repeats its first source after the second, and a looping bed lays its own source more than once, so
@@ -33,7 +33,7 @@ class ReadSourcesTest {
     val second = fixture.clip(duration = 1.seconds)
     val bed = fixture.audioOnlyClip(1.seconds)
     val composition =
-      EditComposition(
+      Composition(
         listOf(
           Track(listOf(first, second, first)),
           Track(listOf(bed), content = TrackContent.Audio, looping = true),
@@ -44,6 +44,6 @@ class ReadSourcesTest {
       listOf(first, second, bed).joinToString(", ") { it.source.describe() }
   }
 
-  private fun resolved(composition: EditComposition): ResolvedComposition =
+  private fun resolved(composition: Composition): ResolvedComposition =
     fixture.resolve(composition, ExportSpec(frameRate = 25), resolvers = emptyList())
 }

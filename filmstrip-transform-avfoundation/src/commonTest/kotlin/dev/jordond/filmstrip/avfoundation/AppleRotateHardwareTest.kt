@@ -1,7 +1,7 @@
 package dev.jordond.filmstrip.avfoundation
 
 import dev.jordond.filmstrip.Filmstrip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.effects.geometry.Rotate
 import dev.jordond.filmstrip.effects.geometry.rotate
@@ -77,13 +77,13 @@ class AppleRotateHardwareTest {
   private fun composition(
     source: String,
     rotate: Rotate?,
-  ): EditComposition =
+  ): Composition =
     compositionOf {
       clip(MediaSource.of(source)) { trim(0.seconds, 1.seconds) }
       if (rotate != null) effects { rotate(rotate.degrees) }
     }
 
-  private suspend fun planned(composition: EditComposition): Size =
+  private suspend fun planned(composition: Composition): Size =
     when (val verdict = filmstrip.plan(composition, ExportSpec())) {
       is Verdict.Capable -> verdict.plan.output.size
       is Verdict.Degraded -> verdict.plan.output.size
@@ -91,7 +91,7 @@ class AppleRotateHardwareTest {
     }
 
   private suspend fun exported(
-    composition: EditComposition,
+    composition: Composition,
     name: String,
   ): FrameProbe {
     val output = NSTemporaryDirectory() + "filmstrip-apple-$name.mp4"

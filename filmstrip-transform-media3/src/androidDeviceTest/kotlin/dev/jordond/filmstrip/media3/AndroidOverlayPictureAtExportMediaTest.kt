@@ -2,7 +2,7 @@ package dev.jordond.filmstrip.media3
 
 import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.effect.Attributes
@@ -86,7 +86,7 @@ class AndroidOverlayPictureAtExportMediaTest {
     runTest(timeout = TIMEOUT) {
       picture.writeBytes(OverlayPixels.pngOf(PLANNED_SIZE, AuthoredColors.MID_GREEN))
       val second = ImageOverlay(ImageSource.of(picture.path), Corner.TopStart)
-      val composition = EditComposition(listOf(Track(listOf(Clip(probe.fixture())))), listOf(badge, second))
+      val composition = Composition(listOf(Track(listOf(Clip(probe.fixture())))), listOf(badge, second))
       val resolver = BuiltInEffectResolver()
 
       resolver.prepare(composition)
@@ -124,8 +124,7 @@ class AndroidOverlayPictureAtExportMediaTest {
       }
     }
 
-  private fun composition(): EditComposition =
-    EditComposition(listOf(Track(listOf(Clip(probe.fixture())))), listOf(badge))
+  private fun composition(): Composition = Composition(listOf(Track(listOf(Clip(probe.fixture())))), listOf(badge))
 
   private fun distance(
     drawn: Triple<Int, Int, Int>,

@@ -4,7 +4,7 @@ import android.graphics.Bitmap
 import dev.jordond.filmstrip.Cancellable
 import dev.jordond.filmstrip.color.pictureSrgbCodes
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.outputSlotOf
@@ -187,14 +187,14 @@ class AndroidThumbnailGapMediaTest {
     )
 
   private fun request(
-    composition: EditComposition,
+    composition: Composition,
     position: Duration,
     revision: Long,
   ) = ThumbnailRequest(composition, position, FIXTURE_FRAME.height, revision, precise = true)
 
   // The fixture clip waits GAP_LENGTH on its track, so the video opens on a gap the fill covers.
-  private fun lateComposition(effects: List<EffectSpec> = emptyList()): EditComposition =
-    EditComposition(
+  private fun lateComposition(effects: List<EffectSpec> = emptyList()): Composition =
+    Composition(
       tracks =
         listOf(Track(listOf(Clip(androidFixtureClip(), TimeRange.of(Duration.ZERO, CLIP_LENGTH))), start = GAP_LENGTH)),
       effects = effects,

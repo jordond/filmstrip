@@ -2,7 +2,7 @@ package dev.jordond.filmstrip.player
 
 import dev.jordond.filmstrip.Cancellable
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.outputSlotOf
@@ -123,7 +123,7 @@ class AndroidClipSpeedPreviewMediaTest {
     )
 
   private suspend fun ThumbnailSource.frameAt(
-    composition: EditComposition,
+    composition: Composition,
     position: Duration,
     revision: Long,
   ): TestFrame {
@@ -149,20 +149,20 @@ class AndroidClipSpeedPreviewMediaTest {
 
   private suspend fun movingSource(): MediaSource {
     val panned = Clip(androidFixtureClip(), TimeRange.of(Duration.ZERO, CLIP_LENGTH), effects = listOf(FIXTURE_PAN))
-    return MediaSource.of(export(EditComposition(listOf(Track(listOf(panned))))).path)
+    return MediaSource.of(export(Composition(listOf(Track(listOf(panned))))).path)
   }
 
   private fun composition(
     source: MediaSource,
     speed: Double,
-  ): EditComposition =
-    EditComposition(listOf(Track(listOf(Clip(source, TimeRange.of(Duration.ZERO, CLIP_LENGTH), speed = speed)))))
+  ): Composition =
+    Composition(listOf(Track(listOf(Clip(source, TimeRange.of(Duration.ZERO, CLIP_LENGTH), speed = speed)))))
 
   // A bare clip at speed 1 is a copy and draws its source as it stands, while a clip at speed transcodes, which moves
   // an SD source onto BT.709's primaries. The panned source is SD wherever the encoder writes BT.601, as on API 30. A
   // fade over the first slot makes this clip transcode too and leaves every frame read here untouched.
-  private fun reference(source: MediaSource): EditComposition =
-    EditComposition(
+  private fun reference(source: MediaSource): Composition =
+    Composition(
       listOf(
         Track(
           listOf(Clip(source, TimeRange.of(Duration.ZERO, CLIP_LENGTH))),

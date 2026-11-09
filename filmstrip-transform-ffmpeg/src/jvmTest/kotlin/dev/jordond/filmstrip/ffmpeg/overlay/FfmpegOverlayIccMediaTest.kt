@@ -9,7 +9,7 @@ import dev.jordond.filmstrip.color.pictureSrgbCodes
 import dev.jordond.filmstrip.color.signalFromNits
 import dev.jordond.filmstrip.color.tenBitCodesFromSignal
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.effect.Attributes
@@ -230,7 +230,7 @@ class FfmpegOverlayIccMediaTest {
       val picture = IccPictures.LINEAR_SRGB
       val overlay = ImageOverlay(ImageSource.ofBytes(picture.pngOf(OVERLAY_SIZE)), Corner.TopStart)
       val composition =
-        EditComposition(
+        Composition(
           tracks = listOf(Track(listOf(Clip(MediaSource.of(fixture.landscape.absolutePath))))),
           effects = listOf(overlay),
         )

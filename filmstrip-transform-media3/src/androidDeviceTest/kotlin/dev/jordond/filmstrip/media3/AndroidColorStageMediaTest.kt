@@ -1,7 +1,7 @@
 package dev.jordond.filmstrip.media3
 
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.effects.color.Brightness
 import dev.jordond.filmstrip.effects.color.colorMatrixOf
@@ -28,10 +28,10 @@ class AndroidColorStageMediaTest {
   fun aClipGradeClampsBeforeTheCompositionGradeRuns() =
     runTest(timeout = TIMEOUT) {
       val source = probe.fixture()
-      val plain = probe.frame(probe.export(EditComposition(listOf(Track(listOf(Clip(source)))))))
+      val plain = probe.frame(probe.export(Composition(listOf(Track(listOf(Clip(source)))))))
       val graded =
         probe.frame(
-          probe.export(EditComposition(listOf(Track(listOf(Clip(source, effects = listOf(UP))))), listOf(DOWN))),
+          probe.export(Composition(listOf(Track(listOf(Clip(source, effects = listOf(UP))))), listOf(DOWN))),
         )
 
       val before = plain.averageAt(CYAN_BAR, CENTRE)

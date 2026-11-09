@@ -6,7 +6,7 @@ import dev.jordond.filmstrip.codec.AudioCodec
 import dev.jordond.filmstrip.codec.Bitrate
 import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.export.ExportSpec
@@ -36,10 +36,10 @@ class ExportGradeTest {
       override val requiresSdr = true
     }
 
-  private fun edit(clip: Clip) = EditComposition(listOf(Track(listOf(clip))))
+  private fun edit(clip: Clip) = Composition(listOf(Track(listOf(clip))))
 
   private fun export(
-    edit: EditComposition,
+    edit: Composition,
     spec: ExportSpec,
     device: DeviceCapabilities,
   ): ResolvedComposition =
@@ -50,13 +50,13 @@ class ExportGradeTest {
       .shouldNotBeNull()
 
   private fun grade(
-    edit: EditComposition,
+    edit: Composition,
     spec: ExportSpec,
     device: DeviceCapabilities,
   ): ExportGrade = fixture.planner().exportGradeOf(edit, Ask(spec, device, fixture.infos(edit)))
 
   private fun preview(
-    edit: EditComposition,
+    edit: Composition,
     spec: ExportSpec,
     device: DeviceCapabilities,
     frame: ExportSpec = ExportSpec(),
@@ -160,7 +160,7 @@ class ExportGradeTest {
     val keepNamed = ExportSpec(hdr = HdrMode.KeepHdr, bitrate = Bitrate.mbps(8))
 
     fun exportRefusal(
-      edit: EditComposition,
+      edit: Composition,
       spec: ExportSpec,
       device: DeviceCapabilities,
     ): FilmstripError =

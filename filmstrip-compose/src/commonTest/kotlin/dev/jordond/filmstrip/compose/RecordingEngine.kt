@@ -4,7 +4,7 @@ import dev.jordond.filmstrip.Cancellable
 import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.capability.EffectParity
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.export.ExportSpec
@@ -45,7 +45,7 @@ internal class RecordingEngine(
   private var listeners: List<EngineListener> = emptyList()
   private var state = initialState
 
-  val loads: MutableList<EditComposition> = mutableListOf()
+  val loads: MutableList<Composition> = mutableListOf()
   val seeks: MutableList<Duration> = mutableListOf()
   val policies: MutableList<PreviewQualityPolicy> = mutableListOf()
   val exportSpecs: MutableList<ExportSpec> = mutableListOf()
@@ -146,8 +146,8 @@ internal val CLIP_LENGTH: Duration = 4.seconds
 /**
  * A one clip composition over [path], which nothing here ever opens.
  */
-internal fun testComposition(path: String): EditComposition =
-  EditComposition(
+internal fun testComposition(path: String): Composition =
+  Composition(
     tracks = listOf(Track(listOf(Clip(MediaSource.of(path), TimeRange.of(Duration.ZERO, CLIP_LENGTH))))),
   )
 

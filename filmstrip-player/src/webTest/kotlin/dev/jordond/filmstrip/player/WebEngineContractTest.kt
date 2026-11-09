@@ -3,7 +3,7 @@ package dev.jordond.filmstrip.player
 import dev.jordond.filmstrip.capability.AudioEncoderCapability
 import dev.jordond.filmstrip.capability.DeviceCapabilities
 import dev.jordond.filmstrip.edit.AudioSpec
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.outputSlotOf
 import dev.jordond.filmstrip.edit.outputSlotTime
@@ -71,10 +71,10 @@ class WebEngineContractTest : PlayerEngineContractTest() {
     return FailingItem(subject, fixture.cutInTwo(fixtureFrameRate), refusedAtLoad = true)
   }
 
-  override val fixture: EditComposition = webFixtureComposition()
+  override val fixture: Composition = webFixtureComposition()
 
   // A page has no file to name, so the fixture is already a buffer.
-  override val bytesFixture: EditComposition = fixture
+  override val bytesFixture: Composition = fixture
 
   override val claimsLiveParameterRedraw: Boolean = true
 
@@ -83,7 +83,7 @@ class WebEngineContractTest : PlayerEngineContractTest() {
   // A relaxed seek lands on the sync sample at or before the target, which is never further back than this.
   override val relaxedSeekTolerance: Duration = FIXTURE_SYNC_INTERVAL
 
-  override val plainFixture: EditComposition = webFixtureComposition(audio = AudioSpec.Keep)
+  override val plainFixture: Composition = webFixtureComposition(audio = AudioSpec.Keep)
 
   override suspend fun plainClipEditPrepares(): Boolean = firstEffectRebuilds(pageDevice())
 

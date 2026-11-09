@@ -3,7 +3,7 @@ package dev.jordond.filmstrip.media3
 import android.graphics.Bitmap
 import android.graphics.Color
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.effects.geometry.Rotate
 import dev.jordond.filmstrip.effects.geometry.turnedFrame
@@ -72,7 +72,7 @@ class AndroidRotateMediaTest {
   private fun composition(
     source: MediaSource,
     rotate: Rotate?,
-  ): EditComposition = EditComposition(listOf(Track(listOf(Clip(source)))), listOfNotNull(rotate))
+  ): Composition = Composition(listOf(Track(listOf(Clip(source)))), listOfNotNull(rotate))
 
   private fun assertReadsPlain(
     turned: Bitmap,

@@ -7,7 +7,7 @@ import dev.jordond.filmstrip.capability.EffectParity
 import dev.jordond.filmstrip.diagnostics.DiagnosticEvent
 import dev.jordond.filmstrip.diagnostics.DiagnosticEvent.Detail
 import dev.jordond.filmstrip.diagnostics.report
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.export.Adjustment
 import dev.jordond.filmstrip.export.EngineComponents
 import dev.jordond.filmstrip.export.ExportPlan
@@ -183,7 +183,7 @@ public class FfmpegExportEngine internal constructor(
   }
 
   private suspend fun lower(
-    composition: EditComposition,
+    composition: Composition,
     spec: ExportSpec,
     layoutSize: Size?,
     grade: ResolvedHdr?,
@@ -238,7 +238,7 @@ public class FfmpegExportEngine internal constructor(
   private suspend fun askWithCopyPackets(
     toolchain: Toolchain,
     planner: FfmpegPlanner,
-    composition: EditComposition,
+    composition: Composition,
     ask: Ask,
   ): CopyAsk {
     val window = interruptibly { planner.copyPacketWindowOf(composition, ask) }
@@ -261,7 +261,7 @@ public class FfmpegExportEngine internal constructor(
     }
 
   private suspend fun grade(
-    composition: EditComposition,
+    composition: Composition,
     spec: ExportSpec,
   ): ExportGrade {
     val toolchain =

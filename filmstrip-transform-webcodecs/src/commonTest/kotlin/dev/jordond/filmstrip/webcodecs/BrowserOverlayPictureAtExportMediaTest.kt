@@ -4,7 +4,7 @@ import dev.jordond.filmstrip.ComponentRegistry
 import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.effect.Attributes
 import dev.jordond.filmstrip.effect.EffectResolution
@@ -58,7 +58,7 @@ class BrowserOverlayPictureAtExportMediaTest {
       val badge = ImageOverlay(ImageSource.ofUri(uri), Corner.TopEnd)
       val engine = engine()
       val composition =
-        EditComposition(
+        Composition(
           tracks = listOf(Track(listOf(Clip(MediaSource.Bytes(clipBytes()))))),
           effects = listOf(badge),
           audio = AudioSpec.Remove,
@@ -83,7 +83,7 @@ class BrowserOverlayPictureAtExportMediaTest {
       routeFetch(uri, dataUriOf(OverlayPixels.pngOf(PLANNED_SIZE, AuthoredColors.MID_GREEN)))
       val badge = ImageOverlay(ImageSource.ofUri(uri), Corner.TopEnd)
       val clip = Clip(MediaSource.Bytes(clipBytes()), effects = listOf(badge))
-      val composition = EditComposition(listOf(Track(listOf(clip, clip))), audio = AudioSpec.Remove)
+      val composition = Composition(listOf(Track(listOf(clip, clip))), audio = AudioSpec.Remove)
       val engine = engine()
 
       plannedOn(engine, composition)
@@ -102,7 +102,7 @@ class BrowserOverlayPictureAtExportMediaTest {
       val widening = WideningResolver()
       val engine = engine(widening)
       val composition =
-        EditComposition(
+        Composition(
           tracks = listOf(Track(listOf(Clip(MediaSource.Bytes(clipBytes()))))),
           effects = listOf(badge),
           audio = AudioSpec.Remove,
@@ -132,7 +132,7 @@ class BrowserOverlayPictureAtExportMediaTest {
       val clip =
         Clip(MediaSource.Bytes(clipBytes()), effects = listOf(ImageOverlay(ImageSource.ofUri(uri), Corner.TopEnd)))
 
-      plannedOn(engine(), EditComposition(listOf(Track(listOf(clip))), audio = AudioSpec.Remove))
+      plannedOn(engine(), Composition(listOf(Track(listOf(clip))), audio = AudioSpec.Remove))
 
       fetchCacheOf(uri) shouldBe "no-cache"
     }
@@ -145,7 +145,7 @@ class BrowserOverlayPictureAtExportMediaTest {
       val badge = ImageOverlay(ImageSource.ofUri(uri), Corner.TopEnd)
       val engine = engine()
       val composition =
-        EditComposition(
+        Composition(
           tracks = listOf(Track(listOf(Clip(MediaSource.Bytes(clipBytes()))))),
           effects = listOf(badge),
           audio = AudioSpec.Remove,
@@ -172,7 +172,7 @@ class BrowserOverlayPictureAtExportMediaTest {
       val badge = ImageOverlay(ImageSource.ofUri(uri), Corner.TopEnd)
       val engine = engine()
       val composition =
-        EditComposition(
+        Composition(
           tracks = listOf(Track(listOf(Clip(MediaSource.Bytes(clipBytes()))))),
           effects = listOf(badge),
           audio = AudioSpec.Remove,
@@ -196,7 +196,7 @@ class BrowserOverlayPictureAtExportMediaTest {
 
   private suspend fun plannedOn(
     engine: BrowserExportEngine,
-    composition: EditComposition,
+    composition: Composition,
   ): ExportPlan =
     when (val verdict = engine.plan(composition, SPEC)) {
       is Verdict.Capable -> verdict.plan
@@ -236,7 +236,7 @@ class BrowserOverlayPictureAtExportMediaTest {
       attributes: Attributes,
     ): EffectResolution? = null
 
-    override suspend fun prepare(composition: EditComposition) {
+    override suspend fun prepare(composition: Composition) {
       if (millis > 0) withContext(Dispatchers.Default) { delay(millis) }
     }
   }

@@ -8,7 +8,7 @@ import dev.jordond.filmstrip.color.signalFromTenBitCodes
 import dev.jordond.filmstrip.color.tenBitCodesFromSignal
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.effects.BuiltInEffectResolver
 import dev.jordond.filmstrip.effects.geometry.Scale
@@ -83,7 +83,7 @@ class BrowserToneMapMediaTest {
       val hdr = patchClip(HdrTransfer.Pq, PQ_PATCHES)
       val sdr = MediaSource.Bytes(makeClip { _, _ -> Rgb.Green })
       val composition =
-        EditComposition(tracks = listOf(Track(listOf(Clip(hdr), Clip(sdr)))), audio = AudioSpec.Remove)
+        Composition(tracks = listOf(Track(listOf(Clip(hdr), Clip(sdr)))), audio = AudioSpec.Remove)
       val success = exportOf(composition, MediaSink.Uri(""), AUTO)
 
       success.adjustments.map { it.kind } shouldBe listOf(AdjustmentKind.HdrToneMapped)
@@ -154,7 +154,7 @@ class BrowserToneMapMediaTest {
 
       val clip = patchClip(HdrTransfer.Pq, PQ_PATCHES, scale = 2)
       val composition =
-        EditComposition(
+        Composition(
           tracks = listOf(Track(listOf(Clip(clip)))),
           effects = listOf(Scale(PATCH_ROWS * PQ_PATCHES.size)),
           audio = AudioSpec.Remove,
@@ -175,7 +175,7 @@ class BrowserToneMapMediaTest {
       val small = patchClip(HdrTransfer.Pq, PQ_PATCHES)
       val large = patchClip(HdrTransfer.Pq, PQ_PATCHES, scale = 2)
       val composition =
-        EditComposition(tracks = listOf(Track(listOf(Clip(small), Clip(large), Clip(small)))), audio = AudioSpec.Remove)
+        Composition(tracks = listOf(Track(listOf(Clip(small), Clip(large), Clip(small)))), audio = AudioSpec.Remove)
       val frames = decodeFrames(outputOf(exportOf(composition, MediaSink.Uri(""), TONE_MAP)))
 
       for (clip in 0 until 3) {
@@ -254,7 +254,7 @@ class BrowserToneMapMediaTest {
     )
 
   private suspend fun resolve(
-    composition: EditComposition,
+    composition: Composition,
     spec: ExportSpec,
     grade: ResolvedHdr? = null,
   ): ResolvedComposition =
@@ -265,8 +265,8 @@ class BrowserToneMapMediaTest {
       .shouldBeInstanceOf<ResolveResult.Resolved>()
       .composition
 
-  private fun single(source: MediaSource): EditComposition =
-    EditComposition(tracks = listOf(Track(listOf(Clip(source)))), audio = AudioSpec.Remove)
+  private fun single(source: MediaSource): Composition =
+    Composition(tracks = listOf(Track(listOf(Clip(source)))), audio = AudioSpec.Remove)
 
   // The signal the fixture really stores for a patch, which is its codes read back, through the shared curve.
   private fun curveCodes(

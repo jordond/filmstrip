@@ -5,7 +5,7 @@ import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.outputSlotTime
 import dev.jordond.filmstrip.effect.EffectResolution
@@ -96,7 +96,7 @@ class BrowserPassStepsMediaTest {
       val square = Crop(AspectRatio.Square, Fit.Contain)
       val chain = listOf(halved("half"), mix("half"))
       val composition =
-        EditComposition(
+        Composition(
           tracks = listOf(Track(listOf(Clip(source, effects = listOf(StepsEffect(chain)))))),
           effects = listOf(square, StepsEffect(chain)),
           audio = AudioSpec.Remove,
@@ -170,7 +170,7 @@ class BrowserPassStepsMediaTest {
     effects: List<EffectSpec>,
   ): PreviewFrame {
     val composition =
-      EditComposition(tracks = listOf(Track(listOf(Clip(source)))), effects = effects, audio = AudioSpec.Remove)
+      Composition(tracks = listOf(Track(listOf(Clip(source)))), effects = effects, audio = AudioSpec.Remove)
     val preview = previewOf(composition)
     try {
       return checkNotNull(preview.frameAt(outputSlotTime(MIDDLE_SLOT, FRAME_RATE)))
@@ -179,7 +179,7 @@ class BrowserPassStepsMediaTest {
     }
   }
 
-  private suspend fun previewOf(composition: EditComposition): BrowserPreview =
+  private suspend fun previewOf(composition: Composition): BrowserPreview =
     webCodecsExportEngine(
       components =
         ComponentRegistry
@@ -200,7 +200,7 @@ class BrowserPassStepsMediaTest {
         addEffectResolver(StepsResolver)
       }
     val composition =
-      EditComposition(tracks = listOf(Track(listOf(Clip(source())))), effects = effects, audio = AudioSpec.Remove)
+      Composition(tracks = listOf(Track(listOf(Clip(source())))), effects = effects, audio = AudioSpec.Remove)
     val statuses = filmstrip.export(planOf(filmstrip, composition), MediaSink.Uri("")).toList()
     return statuses
       .filterIsInstance<ExportStatus.Failure>()

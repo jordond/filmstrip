@@ -5,7 +5,7 @@ import dev.jordond.filmstrip.codec.AudioCodec
 import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.outputSlotTime
@@ -113,10 +113,10 @@ class BrowserKenBurnsMediaTest {
       }
     }
 
-  private suspend fun exported(composition: EditComposition): List<OutputFrame> =
+  private suspend fun exported(composition: Composition): List<OutputFrame> =
     decodeFrames(outputOf(exportOf(composition, MediaSink.Uri(""))))
 
-  private suspend fun previewOf(composition: EditComposition) =
+  private suspend fun previewOf(composition: Composition) =
     webCodecsExportEngine(
       components = ComponentRegistry.Builder().addEffectResolver(BuiltInEffectResolver()).build(),
       prober = BrowserProber(),
@@ -125,8 +125,8 @@ class BrowserKenBurnsMediaTest {
       .composition
       .toBrowserPreview(composition)
 
-  private suspend fun single(effects: List<EffectSpec>): EditComposition =
-    EditComposition(
+  private suspend fun single(effects: List<EffectSpec>): Composition =
+    Composition(
       tracks = listOf(Track(listOf(Clip(MediaSource.Bytes(rampClip()), effects = effects)))),
       audio = AudioSpec.Remove,
     )

@@ -1,8 +1,8 @@
 package dev.jordond.filmstrip.player.contract
 
 import dev.jordond.filmstrip.edit.Clip
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.CompositionDiff
-import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.diff
@@ -57,22 +57,22 @@ abstract class PlayerEngineContractTest {
   /**
    * A composition this backend can load, long enough to seek around inside.
    */
-  protected abstract val fixture: EditComposition
+  protected abstract val fixture: Composition
 
   /**
    * [fixture] with its clip handed over as bytes rather than named.
    *
    * Every engine plays a buffer, so no subclass gets to skip this.
    */
-  protected abstract val bytesFixture: EditComposition
+  protected abstract val bytesFixture: Composition
 
   /**
    * A composition this backend refuses to load.
    *
    * Defaults to a buffer holding no container at all, which no real backend can read.
    */
-  protected open val unreadableFixture: EditComposition
-    get() = EditComposition(tracks = listOf(Track(listOf(Clip(MediaSource.Bytes(ByteArray(UNREADABLE_BYTES)))))))
+  protected open val unreadableFixture: Composition
+    get() = Composition(tracks = listOf(Track(listOf(Clip(MediaSource.Bytes(ByteArray(UNREADABLE_BYTES)))))))
 
   /**
    * Builds an engine primed to fail on one edit, in whichever way this backend can make its own item fail.
@@ -105,7 +105,7 @@ abstract class PlayerEngineContractTest {
    * One clip with no effect on it that keeps its audio, which is the plan that leaves the copy path on its first
    * effect.
    */
-  protected open val plainFixture: EditComposition get() = fixture
+  protected open val plainFixture: Composition get() = fixture
 
   /**
    * Whether this backend goes back through [PlaybackStatus.Preparing] when [plainFixture] takes its first effect.
@@ -451,9 +451,9 @@ abstract class PlayerEngineContractTest {
   private val earlyTransport: EarlyTransportContract
     get() = EarlyTransportContract(::createEngine, fixture, unreadableFixture)
 
-  private val fixtureRebuilt: EditComposition get() = fixture.cutInTwo(fixtureFrameRate)
+  private val fixtureRebuilt: Composition get() = fixture.cutInTwo(fixtureFrameRate)
 
-  private val fixtureParameters: EditComposition get() = fixture.withEffects(listOf(Brightness(RETUNED_BRIGHTNESS)))
+  private val fixtureParameters: Composition get() = fixture.withEffects(listOf(Brightness(RETUNED_BRIGHTNESS)))
 
   private companion object {
     val BURST_SIZES = listOf(1, 2, 5, 9)

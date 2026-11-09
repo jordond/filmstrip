@@ -7,7 +7,7 @@ import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.capability.EffectParity
 import dev.jordond.filmstrip.codec.AudioCodec
 import dev.jordond.filmstrip.codec.VideoCodec
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.export.Adjustment
 import dev.jordond.filmstrip.export.AdjustmentKind
@@ -342,7 +342,7 @@ class DefaultFilmstripTest {
     statuses.single().shouldBeInstanceOf<ExportStatus.Failure>().error
 
   private companion object {
-    val COMPOSITION: EditComposition = compositionOf { clip(MediaSource.of("/fixtures/clip.mp4")) }
+    val COMPOSITION: Composition = compositionOf { clip(MediaSource.of("/fixtures/clip.mp4")) }
 
     val SPEC = ExportSpec(heightPx = 720)
 
@@ -351,7 +351,7 @@ class DefaultFilmstripTest {
     val SOURCE_FAILURE = FilmstripError.SourceUnreadable("/fixtures/clip.mp4", "The decoder went away.")
 
     fun planOf(
-      composition: EditComposition,
+      composition: Composition,
       droppedEffects: List<Adjustment> = emptyList(),
     ): ExportPlan =
       ExportPlan(
@@ -395,7 +395,7 @@ private class FakeExportEngine(
   }
 
   override suspend fun plan(
-    composition: EditComposition,
+    composition: Composition,
     spec: ExportSpec,
   ): Verdict {
     calls += "plan"
@@ -444,7 +444,7 @@ private class SucceedingExportEngine(
     CapabilitiesResult.Failure(FilmstripError.InvalidComposition("Not asked."))
 
   override suspend fun plan(
-    composition: EditComposition,
+    composition: Composition,
     spec: ExportSpec,
   ): Verdict = Verdict.Incapable(emptyList(), withoutUnsupported = null)
 

@@ -1,7 +1,7 @@
 package dev.jordond.filmstrip.player.contract
 
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.CompositionDiff
-import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.diff
 import dev.jordond.filmstrip.effects.color.Brightness
 import dev.jordond.filmstrip.player.PlaybackStatus
@@ -26,8 +26,8 @@ import kotlin.time.Duration
  */
 internal class EarlyTransportContract(
   private val createEngine: (CoroutineScope) -> EngineUnderTest,
-  private val fixture: EditComposition,
-  private val unreadable: EditComposition,
+  private val fixture: Composition,
+  private val unreadable: Composition,
 ) {
   /**
    * Plays with nothing loaded, then loads, and checks nothing plays until the load gives the playhead somewhere to go.
@@ -198,7 +198,7 @@ internal class EarlyTransportContract(
     }
 
   private suspend fun FailingItem.awaitFailureOf(
-    edit: EditComposition,
+    edit: Composition,
     recorder: ContractRecorder,
   ) {
     val answer = subject.engine.awaitComposition(edit)

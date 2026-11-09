@@ -6,7 +6,7 @@ import dev.jordond.filmstrip.ComponentRegistry
 import dev.jordond.filmstrip.edit.AudioLevel
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.TrackContent
@@ -126,7 +126,7 @@ class AndroidExportMediaTest {
     runTest(timeout = TIMEOUT) {
       val first = probe.fixture(CLIP)
       val second = probe.fixture(CLIP_B)
-      val joined = EditComposition(listOf(Track(listOf(Clip(first), Clip(second)))))
+      val joined = Composition(listOf(Track(listOf(Clip(first), Clip(second)))))
 
       val written = export(probe.plan(joined, ExportSpec(heightPx = 240)))
 
@@ -185,7 +185,7 @@ class AndroidExportMediaTest {
       val bedFile = probe.fixtureFile(CLIP_BED)
       val spec = ExportSpec(heightPx = 240)
       val edit =
-        EditComposition(
+        Composition(
           listOf(
             Track(listOf(Clip(MediaSource.of(primaryFile.path)))),
             Track(
@@ -404,7 +404,7 @@ class AndroidExportMediaTest {
       val spec = ExportSpec(heightPx = 240)
       // The primary track is the looping one here, which the builder has no verb for.
       val edit =
-        EditComposition(
+        Composition(
           listOf(
             Track(
               clips = listOf(Clip(MediaSource.of(bedFile.path), trim = LoopingCases.VIDEO_TRIM)),
@@ -481,7 +481,7 @@ class AndroidExportMediaTest {
 
       SEAMS.forEach { seam ->
         val edit =
-          EditComposition(
+          Composition(
             listOf(
               Track(
                 listOf(
@@ -508,7 +508,7 @@ class AndroidExportMediaTest {
       val first = probe.fixture(CLIP)
       val second = probe.fixture(CLIP_B)
       val edit =
-        EditComposition(
+        Composition(
           listOf(
             Track(
               listOf(
@@ -545,7 +545,7 @@ class AndroidExportMediaTest {
 
       val spec = ExportSpec(heightPx = 240, frameRate = GRID_RATE)
       val edit =
-        EditComposition(
+        Composition(
           listOf(
             Track(clips = listOf(Clip(MediaSource.of(short.path))), looping = true),
             Track(
@@ -603,7 +603,7 @@ class AndroidExportMediaTest {
       val toneFile = probe.fixtureFile(CLIP_LONG)
       val spec = ExportSpec(heightPx = 240, frameRate = OFF_GRID_RATE)
       val edit =
-        EditComposition(
+        Composition(
           listOf(
             Track(
               clips = listOf(Clip(MediaSource.of(bedFile.path), trim = LoopingCases.VIDEO_TRIM)),
@@ -659,7 +659,7 @@ class AndroidExportMediaTest {
    * the frame reads closer to.
    */
   private suspend fun assertLaidOnTheGrid(
-    edit: EditComposition,
+    edit: Composition,
     spec: ExportSpec,
   ) {
     val rate = spec.frameRate.shouldNotBeNull()
@@ -884,7 +884,7 @@ class AndroidExportMediaTest {
    * composition timeline itself rather than being handed a number for a fixed instant.
    */
   private suspend fun lowered(
-    composition: EditComposition,
+    composition: Composition,
     spec: ExportSpec,
   ): ResolvedComposition =
     when (val result = engine.resolve(composition, spec)) {
@@ -1079,7 +1079,7 @@ class AndroidExportMediaTest {
   fun exportsABufferUnderTheNeutralName() =
     runTest(timeout = TIMEOUT) {
       val edit =
-        EditComposition(
+        Composition(
           listOf(
             Track(listOf(Clip(probe.fixture(CLIP)))),
             Track(listOf(Clip(MediaSource.ofBytes(silentAmr()))), content = TrackContent.Audio),
@@ -1124,9 +1124,9 @@ class AndroidExportMediaTest {
       ?.video
       ?.any { it.isHardwareAccelerated == true } == true
 
-  private fun composition(source: MediaSource) = EditComposition(listOf(Track(listOf(Clip(source)))))
+  private fun composition(source: MediaSource) = Composition(listOf(Track(listOf(Clip(source)))))
 
-  private fun composition(clip: Clip) = EditComposition(listOf(Track(listOf(clip))))
+  private fun composition(clip: Clip) = Composition(listOf(Track(listOf(clip))))
 
   private fun MediaSink.asSource(): MediaSource =
     when (this) {

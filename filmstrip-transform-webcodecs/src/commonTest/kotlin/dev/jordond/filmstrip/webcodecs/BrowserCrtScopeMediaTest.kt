@@ -5,7 +5,7 @@ import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.outputSlotTime
 import dev.jordond.filmstrip.effect.EffectSpec

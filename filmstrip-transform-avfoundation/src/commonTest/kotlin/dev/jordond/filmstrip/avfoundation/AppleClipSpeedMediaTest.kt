@@ -10,7 +10,7 @@ import dev.jordond.filmstrip.avfoundation.internal.export.AvDriver
 import dev.jordond.filmstrip.avfoundation.internal.renderClipAudio
 import dev.jordond.filmstrip.avfoundation.internal.time.MEDIA_TIMESCALE
 import dev.jordond.filmstrip.edit.CLIP_SPEED_RANGE
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.edit.audioFramesOf
@@ -291,7 +291,7 @@ class AppleClipSpeedMediaTest {
     }
 
   private suspend fun resolved(
-    composition: EditComposition,
+    composition: Composition,
     rate: Int = RATE,
   ): ResolvedComposition =
     withContext(Dispatchers.Default) {
@@ -354,7 +354,7 @@ class AppleClipSpeedMediaTest {
   private fun shiftedHz(speed: Double): Int = (PRIMARY_HZ * speed).toInt().coerceIn(MIN_SHIFTED_HZ, MAX_SHIFTED_HZ)
 
   private suspend fun exported(
-    composition: EditComposition,
+    composition: Composition,
     output: String,
     rate: Int = RATE,
   ) = withContext(Dispatchers.Default) {

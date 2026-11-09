@@ -3,13 +3,12 @@ package dev.jordond.filmstrip.player
 import android.os.Build
 import android.os.ParcelFileDescriptor
 import android.view.Display
-import androidx.media3.transformer.Composition
 import androidx.test.core.app.ActivityScenario
 import androidx.test.platform.app.InstrumentationRegistry
 import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.color.authoredHdrNits
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.effect.Media3Handle
 import dev.jordond.filmstrip.effects.media3WorkingLight
@@ -54,6 +53,7 @@ import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
+import androidx.media3.transformer.Composition as Media3Composition
 
 /**
  * What the preview does with a ten-bit BT.2020 PQ clip on a panel that can show one.
@@ -84,7 +84,7 @@ class AndroidHdrPreviewMediaTest {
         withClue("the media3 composition the preview plays is not in keep-HDR mode") {
           plan.resolved
             .toMedia3Preview(plan.bounds)
-            .composition.hdrMode shouldBe Composition.HDR_MODE_KEEP_HDR
+            .composition.hdrMode shouldBe Media3Composition.HDR_MODE_KEEP_HDR
         }
       }
     }
@@ -108,7 +108,7 @@ class AndroidHdrPreviewMediaTest {
         plan.info.fidelity shouldNotContain DISPLAY_DECIDES_HDR
         plan.resolved
           .toMedia3Preview(plan.bounds)
-          .composition.hdrMode shouldBe Composition.HDR_MODE_TONE_MAP_HDR_TO_SDR_USING_OPEN_GL
+          .composition.hdrMode shouldBe Media3Composition.HDR_MODE_TONE_MAP_HDR_TO_SDR_USING_OPEN_GL
       }
     }
 
@@ -126,7 +126,7 @@ class AndroidHdrPreviewMediaTest {
         Filmstrip(context) { media3Backend() }.assumeEncodesHdr()
 
         val mark = ImageOverlay(ImageSource.Bytes(pngOf(Size(MARK_PX, MARK_PX), WHITE)), Corner.BottomEnd)
-        val composition = EditComposition(listOf(Track(listOf(Clip(hdrClip())))), listOf(mark))
+        val composition = Composition(listOf(Track(listOf(Clip(hdrClip())))), listOf(mark))
 
         val planned =
           Media3PreviewPlanner(
@@ -294,7 +294,7 @@ class AndroidHdrPreviewMediaTest {
     return MediaSource.of(file.path)
   }
 
-  private fun hdrComposition(): EditComposition = EditComposition(listOf(Track(listOf(Clip(hdrClip())))))
+  private fun hdrComposition(): Composition = Composition(listOf(Track(listOf(Clip(hdrClip())))))
 
   private companion object {
     val TIMEOUT: Duration = 5.minutes

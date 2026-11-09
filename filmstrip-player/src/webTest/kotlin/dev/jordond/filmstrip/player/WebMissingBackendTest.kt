@@ -2,7 +2,7 @@ package dev.jordond.filmstrip.player
 
 import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.player.contract.contractTest
@@ -22,7 +22,7 @@ class WebMissingBackendTest {
   fun `a uri preview with no webcodecs backend reports the artifact to add`() =
     contractTest {
       val source = MediaSource.ofUri("https://example.test/clip.mp4")
-      val composition = EditComposition(tracks = listOf(Track(listOf(Clip(source)))))
+      val composition = Composition(tracks = listOf(Track(listOf(Clip(source)))))
       val player = Filmstrip { playerBackend() }.preview(composition)
 
       try {

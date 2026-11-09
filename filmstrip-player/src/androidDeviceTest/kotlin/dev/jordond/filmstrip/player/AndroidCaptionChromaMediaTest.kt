@@ -4,7 +4,7 @@ import android.media.MediaExtractor
 import android.media.MediaFormat
 import dev.jordond.filmstrip.edit.CLIP_SPEED_RANGE
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.outputLengthOf
@@ -129,8 +129,8 @@ class AndroidCaptionChromaMediaTest {
   ): Double = compareFrames(written, preview.bt709Luma()).psnrDb
 
   // A caption fading in across the opening frames, over the clip alone.
-  private fun openingEdit(clip: Clip): EditComposition =
-    EditComposition(
+  private fun openingEdit(clip: Clip): Composition =
+    Composition(
       tracks = listOf(Track(listOf(clip))),
       effects =
         listOf(
@@ -160,7 +160,7 @@ class AndroidCaptionChromaMediaTest {
     withEngine(engine) { recorder ->
       engine.setQualityPolicy(PreviewQualityPolicy.Full)
       engine
-        .awaitComposition(EditComposition(listOf(Track(listOf(leadOf(moving), clip)))))
+        .awaitComposition(Composition(listOf(Track(listOf(leadOf(moving), clip)))))
         .shouldBeInstanceOf<SetCompositionResult.Success>()
       awaitContract("the bare clip to be presentable") { recorder.lastState.hasComposition }
       val bare = reads.map { (_, position) -> engine.readback.awaitFrame(position).asTestFrame() }
@@ -231,7 +231,7 @@ class AndroidCaptionChromaMediaTest {
   // Runs of the fixture under a pan, long enough for the fast end of the range to hold a caption across several slots.
   private suspend fun movingFile(): File =
     androidExportedFile(
-      EditComposition(
+      Composition(
         listOf(Track(List(SOURCE_RUNS) { Clip(androidFixtureClip(), SOURCE, effects = listOf(FIXTURE_PAN)) })),
       ),
     )
@@ -242,8 +242,8 @@ class AndroidCaptionChromaMediaTest {
     moving: MediaSource,
     clip: Clip,
     length: Duration,
-  ): EditComposition =
-    EditComposition(
+  ): Composition =
+    Composition(
       tracks = listOf(Track(listOf(leadOf(moving), clip), fadeIn = LEAD + length / 4)),
       effects =
         listOf(

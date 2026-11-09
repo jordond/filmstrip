@@ -10,7 +10,7 @@ import dev.jordond.filmstrip.avfoundation.internal.time.toDuration
 import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.edit.AudioLevel
 import dev.jordond.filmstrip.edit.AudioSpec
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.edit.compositionOf
@@ -1382,7 +1382,7 @@ class AppleExportHardwareTest {
    * measures. That one is let through and every other kind is not.
    */
   private suspend fun loopExported(
-    composition: EditComposition,
+    composition: Composition,
     spec: ExportSpec,
     output: String,
   ): MediaInfo =
@@ -1645,7 +1645,7 @@ class AppleExportHardwareTest {
    * the writer was handed rather than a second fold of the same levels.
    */
   private suspend fun resolved(
-    composition: EditComposition,
+    composition: Composition,
     spec: ExportSpec,
   ): ResolvedComposition =
     withContext(Dispatchers.Default) {

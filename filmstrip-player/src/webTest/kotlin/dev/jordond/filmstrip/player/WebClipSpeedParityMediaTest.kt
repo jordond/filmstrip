@@ -1,7 +1,7 @@
 package dev.jordond.filmstrip.player
 
 import dev.jordond.filmstrip.Filmstrip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.player.contract.ClipParityBackend
 import dev.jordond.filmstrip.player.contract.ClipSpeedParityContractTest
@@ -22,7 +22,7 @@ class WebClipSpeedParityMediaTest : ClipSpeedParityContractTest(WebClipParity)
  * The browser's side of the suites that hold a clip's preview to its export.
  */
 internal object WebClipParity : ClipParityBackend {
-  private val written = mutableMapOf<EditComposition, WebExport>()
+  private val written = mutableMapOf<Composition, WebExport>()
 
   override val filmstrip: Filmstrip = CONTRACT_FILMSTRIP
 
@@ -45,19 +45,18 @@ internal object WebClipParity : ClipParityBackend {
 
   override suspend fun movingSource(): MediaSource = fixtureClip
 
-  override suspend fun exportedSource(composition: EditComposition): MediaSource =
+  override suspend fun exportedSource(composition: Composition): MediaSource =
     MediaSource.Uri(exportOf(composition).url)
 
   override suspend fun exportFrame(
-    composition: EditComposition,
+    composition: Composition,
     position: Duration,
   ): TestFrame = webFileFrame(exportOf(composition), position)
 
   /**
    * The file [composition] exports to, written once per composition.
    */
-  suspend fun exportOf(composition: EditComposition): WebExport =
-    written.getOrPut(composition) { webExported(composition) }
+  suspend fun exportOf(composition: Composition): WebExport = written.getOrPut(composition) { webExported(composition) }
 
   private const val CAPTION_MIN_PSNR_DB = 36.5
 }

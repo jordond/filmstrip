@@ -8,7 +8,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.ImageBitmap
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.effectsRevision
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.media.FrameResult
@@ -40,7 +40,7 @@ import kotlin.time.Duration
 @Composable
 public fun rememberFilmstripFrame(
   renderer: FrameRenderer,
-  composition: EditComposition,
+  composition: Composition,
   at: Duration,
   heightPx: Int?,
   exportSpec: ExportSpec = ExportSpec(),

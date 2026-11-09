@@ -1,7 +1,7 @@
 package dev.jordond.filmstrip.webcodecs.internal
 
 import dev.jordond.filmstrip.edit.AudioSpec
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.outputLengthOf
 import dev.jordond.filmstrip.edit.outputSlotOf
@@ -223,7 +223,7 @@ internal class BrowserRender(
  */
 internal fun browserRenderOf(
   plan: ResolvedComposition,
-  composition: EditComposition,
+  composition: Composition,
 ): BrowserRender {
   if (plan.audio == AudioSpec.AudioOnly) return audioOnlyRender(plan)
 

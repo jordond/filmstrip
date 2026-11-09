@@ -1,6 +1,6 @@
 package dev.jordond.filmstrip.player
 
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.player.contract.ClipParityBackend
 import dev.jordond.filmstrip.player.contract.ShortClipBackend
@@ -17,7 +17,7 @@ internal object JvmShortClips : ShortClipBackend, ClipParityBackend by JvmClipPa
   override val readsEveryWindow: Boolean get() = true
 
   // One line per video packet of the file, taken without decoding, so a frame is counted as it was written.
-  override suspend fun writtenFrameCount(composition: EditComposition): Long {
+  override suspend fun writtenFrameCount(composition: Composition): Long {
     val path = jvmExportedFile(composition)
     val process =
       ProcessBuilder(

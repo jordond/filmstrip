@@ -6,7 +6,7 @@ import android.os.Handler
 import android.os.HandlerThread
 import androidx.media3.inspector.frame.FrameExtractor
 import dev.jordond.filmstrip.ComponentRegistry
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.effects.BuiltInEffectResolver
 import dev.jordond.filmstrip.effects.filters.FilterEffectResolver
 import dev.jordond.filmstrip.export.ExportSpec
@@ -48,7 +48,7 @@ internal class RenderedFrames(
    * The bitmap is a copy the caller owns. A frame that is not back within [FRAME_TIMEOUT] fails the read.
    */
   suspend fun frameAt(
-    composition: EditComposition,
+    composition: Composition,
     spec: ExportSpec = ExportSpec(),
     at: Duration = Duration.ZERO,
   ): Bitmap {

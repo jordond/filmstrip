@@ -12,7 +12,7 @@ import androidx.compose.ui.unit.dp
 import dev.jordond.filmstrip.compose.ui.FilmstripTimelineDefaults
 import dev.jordond.filmstrip.compose.ui.geometry.TimelineScale
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.media.MediaSource
@@ -32,8 +32,8 @@ internal val PreviewScale: TimelineScale = TimelineScale(PreviewDuration, pixels
 /**
  * A one clip composition over a path no preview ever opens, so every frame stays a placeholder.
  */
-internal fun previewComposition(): EditComposition =
-  EditComposition(
+internal fun previewComposition(): Composition =
+  Composition(
     tracks = listOf(Track(listOf(Clip(MediaSource.of("preview.mp4"), TimeRange.of(Duration.ZERO, PreviewDuration))))),
   )
 

@@ -24,7 +24,7 @@ import dev.jordond.filmstrip.compose.ui.VideoStage
 import dev.jordond.filmstrip.compose.ui.component.CropOverlay
 import dev.jordond.filmstrip.compose.ui.geometry.TimelineZoom
 import dev.jordond.filmstrip.compose.ui.interaction.TrimConstraint
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.effects.geometry.crop
@@ -90,7 +90,7 @@ internal fun TrimEditor(
 internal fun trimmedForExport(
   source: MediaSource,
   trimRange: TimeRange,
-): EditComposition {
+): Composition {
   // region trim-export
   val composition = compositionOf { clip(source) { trim(trimRange) } }
   // endregion
@@ -100,7 +100,7 @@ internal fun trimmedForExport(
 @Composable
 internal fun OptionedTimeline(
   filmstrip: Filmstrip,
-  composition: EditComposition,
+  composition: Composition,
   duration: Duration,
   position: () -> Duration,
   isPlaying: Boolean,
@@ -148,7 +148,7 @@ internal fun CropStage(
 internal fun croppedForExport(
   source: MediaSource,
   rect: NormalizedRect,
-): EditComposition {
+): Composition {
   // region stage-export
   val composition =
     compositionOf {

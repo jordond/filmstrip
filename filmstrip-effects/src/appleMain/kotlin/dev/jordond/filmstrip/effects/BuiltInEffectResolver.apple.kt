@@ -1,6 +1,6 @@
 package dev.jordond.filmstrip.effects
 
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.effect.Attributes
 import dev.jordond.filmstrip.effect.CoreImageEffect
 import dev.jordond.filmstrip.effect.Degradation
@@ -58,7 +58,7 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
   /**
    * Reads every overlay picture [composition] names by path or URI, so one named twice is one read for this lowering.
    */
-  override suspend fun prepare(composition: EditComposition) {
+  override suspend fun prepare(composition: Composition) {
     pictures.readFor(composition)
   }
 

@@ -9,7 +9,7 @@ import android.media.MediaMuxer
 import androidx.test.platform.app.InstrumentationRegistry
 import dev.jordond.filmstrip.ComponentRegistry
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.effect.EffectSpec
@@ -122,8 +122,8 @@ private const val SAMPLE_BUFFER_BYTES = 1 shl 20
 internal fun androidFixtureComposition(
   effects: List<EffectSpec> = emptyList(),
   fill: Fill = Fill.Black,
-): EditComposition =
-  EditComposition(
+): Composition =
+  Composition(
     tracks = listOf(Track(listOf(Clip(androidFixtureClip(), TimeRange.of(Duration.ZERO, CLIP_LENGTH))))),
     effects = effects,
     fill = fill,
@@ -132,10 +132,10 @@ internal fun androidFixtureComposition(
 /**
  * The fixture composition with its clip handed over as the bytes of the file.
  */
-internal fun androidFixtureBytesComposition(): EditComposition {
+internal fun androidFixtureBytesComposition(): Composition {
   val named = androidFixtureClip().shouldBeInstanceOf<MediaSource.Path>()
   val bytes = File(named.path).readBytes()
-  return EditComposition(
+  return Composition(
     tracks = listOf(Track(listOf(Clip(MediaSource.Bytes(bytes), TimeRange.of(Duration.ZERO, CLIP_LENGTH))))),
   )
 }
@@ -153,7 +153,7 @@ internal fun androidFixtureBytesComposition(): EditComposition {
  * the same edit.
  */
 internal suspend fun androidExportFrame(
-  composition: EditComposition,
+  composition: Composition,
   position: Duration,
 ): TestFrame = eightBitFrameAt(androidExportedFile(composition), position).toTestFrame()
 
@@ -163,17 +163,17 @@ internal suspend fun androidExportFrame(
  * The export is the one [androidExportFrame] reads.
  */
 internal suspend fun androidExportFrameCovering(
-  composition: EditComposition,
+  composition: Composition,
   position: Duration,
 ): TestFrame = eightBitFrameCovering(androidExportedFile(composition), position).toTestFrame()
 
 /**
  * The file [composition] exports to, written once per composition.
  */
-internal suspend fun androidExportedFile(composition: EditComposition): File =
+internal suspend fun androidExportedFile(composition: Composition): File =
   exports.getOrPut(composition) { export(composition) }
 
-internal suspend fun export(composition: EditComposition): File {
+internal suspend fun export(composition: Composition): File {
   val engine = media3ExportEngine(CONTRACT_COMPONENTS)
   val plan =
     when (val verdict = engine.plan(composition, ExportSpec(bitrate = PREVIEW_PARITY_EXPORT_BITRATE))) {
@@ -239,8 +239,8 @@ internal val CLIP_LENGTH: Duration = 1500.milliseconds
  * separates a chain reading the clip it was decoded from from one reading the composition. At zero
  * the two clocks are the same number.
  */
-internal fun androidPannedClipComposition(): EditComposition =
-  EditComposition(
+internal fun androidPannedClipComposition(): Composition =
+  Composition(
     tracks =
       listOf(
         Track(
@@ -338,12 +338,12 @@ private const val RED_SHIFT = 16
 private const val GREEN_SHIFT = 8
 private const val OPAQUE = 0xFF.toByte()
 
-private val exports = mutableMapOf<EditComposition, File>()
+private val exports = mutableMapOf<Composition, File>()
 
 private object AndroidContractFixtures
 
 /**
  * A composition over a path nothing can open, which no planner can resolve.
  */
-internal fun androidFixtureBrokenComposition(): EditComposition =
-  EditComposition(tracks = listOf(Track(listOf(Clip(MediaSource.of("/does/not/exist/filmstrip.mp4"))))))
+internal fun androidFixtureBrokenComposition(): Composition =
+  Composition(tracks = listOf(Track(listOf(Clip(MediaSource.of("/does/not/exist/filmstrip.mp4"))))))

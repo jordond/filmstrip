@@ -6,7 +6,7 @@ import dev.jordond.filmstrip.codec.Bitrate
 import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.export.ExportPath
@@ -274,7 +274,7 @@ class PreviewLoweringTest {
     const val PLATFORM_CODE = 7
 
     val EDIT =
-      EditComposition(
+      Composition(
         tracks = listOf(Track(listOf(Clip(MediaSource.of("a.mp4"), TimeRange.of(Duration.ZERO, 2.seconds))))),
       )
 

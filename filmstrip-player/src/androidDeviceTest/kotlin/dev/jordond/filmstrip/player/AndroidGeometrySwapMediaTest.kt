@@ -1,6 +1,6 @@
 package dev.jordond.filmstrip.player
 
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.effects.color.Brightness
 import dev.jordond.filmstrip.effects.geometry.Crop
 import dev.jordond.filmstrip.effects.geometry.Rotate
@@ -205,8 +205,8 @@ class AndroidGeometrySwapMediaTest {
    * case about the fill is about a fill that is really seen, or really covered.
    */
   private fun followingEdit(
-    first: EditComposition,
-    second: EditComposition,
+    first: Composition,
+    second: Composition,
     rebuilds: Boolean,
     leavesBars: Boolean? = null,
   ) = contractTest(timeout = BUDGET) { scope ->
@@ -255,8 +255,8 @@ class AndroidGeometrySwapMediaTest {
    */
   private suspend fun readbackAfter(
     scope: CoroutineScope,
-    first: EditComposition,
-    second: EditComposition?,
+    first: Composition,
+    second: Composition?,
   ): Drawn {
     val engine =
       Media3PlayerEngine(

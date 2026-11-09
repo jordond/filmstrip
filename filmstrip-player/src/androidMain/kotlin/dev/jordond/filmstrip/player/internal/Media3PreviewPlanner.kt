@@ -4,7 +4,7 @@ import dev.jordond.filmstrip.FilmstripComponents
 import dev.jordond.filmstrip.capability.FidelityNote
 import dev.jordond.filmstrip.capability.OutputProperty
 import dev.jordond.filmstrip.capability.PreviewFidelity
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.media3.internal.bounds.Media3ClipReads
 import dev.jordond.filmstrip.media3.internal.bounds.readClips
@@ -45,7 +45,7 @@ internal open class Media3PreviewPlanner(
   private val engine = media3ExportEngine(components)
 
   override suspend fun plan(
-    composition: EditComposition,
+    composition: Composition,
     policy: PreviewQualityPolicy,
     exportSpec: ExportSpec,
   ): PlanResult<Media3PreviewPlan, PlaybackError> =

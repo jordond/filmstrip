@@ -2,7 +2,7 @@ package dev.jordond.filmstrip.ffmpeg
 
 import dev.jordond.filmstrip.ComponentRegistry
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.outputSlotOf
@@ -62,10 +62,10 @@ class FfmpegPreviewWindowMediaTest {
       val source = MediaSource.of(landscape.absolutePath)
       val edits =
         mapOf(
-          "a clip opening the composition" to EditComposition(listOf(Track(listOf(marked(source))))),
-          "a clip after a leading gap" to EditComposition(listOf(Track(listOf(marked(source)), start = LEAD))),
+          "a clip opening the composition" to Composition(listOf(Track(listOf(marked(source))))),
+          "a clip after a leading gap" to Composition(listOf(Track(listOf(marked(source)), start = LEAD))),
           "the second of two clips" to
-            EditComposition(listOf(Track(listOf(Clip(source, CLIP_TRIM), marked(source))))),
+            Composition(listOf(Track(listOf(Clip(source, CLIP_TRIM), marked(source))))),
         )
 
       val windowed =
@@ -79,7 +79,7 @@ class FfmpegPreviewWindowMediaTest {
 
   // Whether the preview of [edit] is windowed. A windowed one moves every rebased branch onto the index its span counts
   // to the slot the preview opens on. One read from the head moves and seeks nothing.
-  private suspend fun assertBranchAgreesWithIndex(edit: EditComposition): Boolean {
+  private suspend fun assertBranchAgreesWithIndex(edit: Composition): Boolean {
     val (toolchain, invocation) =
       engine.runs
         .lowered(edit, ExportSpec(), null)
@@ -133,7 +133,7 @@ class FfmpegPreviewWindowMediaTest {
     return inputs.indices.filter { inputs[it].rebased }.map { opened[it] }
   }
 
-  private suspend fun resolved(composition: EditComposition): ResolvedComposition =
+  private suspend fun resolved(composition: Composition): ResolvedComposition =
     engine.resolve(composition, ExportSpec()).shouldBeInstanceOf<ResolveResult.Resolved>().composition
 
   private fun marked(source: MediaSource): Clip =

@@ -4,7 +4,7 @@ import dev.jordond.filmstrip.ComponentRegistry
 import dev.jordond.filmstrip.color.EBU_PRIMARIES
 import dev.jordond.filmstrip.color.SMPTE_C_PRIMARIES
 import dev.jordond.filmstrip.color.sdSourceDisplayed
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.effects.BuiltInEffectResolver
 import dev.jordond.filmstrip.effects.color.Invert
@@ -311,7 +311,7 @@ internal class FfmpegSdColorMediaTest : SdColorTestCase() {
   private fun join(
     first: File,
     second: File,
-  ): EditComposition =
+  ): Composition =
     compositionOf {
       clip(MediaSource.of(first.absolutePath)) { trim(Duration.ZERO, CLIP) }
       clip(MediaSource.of(second.absolutePath)) { trim(Duration.ZERO, CLIP) }
@@ -331,7 +331,7 @@ internal class FfmpegSdColorMediaTest : SdColorTestCase() {
   }
 
   private suspend fun assertPreviewDisplayed(
-    composition: EditComposition,
+    composition: Composition,
     source: File,
     primaries: Int,
     label: String,
@@ -370,10 +370,10 @@ internal class FfmpegSdColorMediaTest : SdColorTestCase() {
     }
   }
 
-  private fun plainClip(source: File): EditComposition =
+  private fun plainClip(source: File): Composition =
     compositionOf { clip(MediaSource.of(source.absolutePath)) { trim(Duration.ZERO, CLIP) } }
 
-  private fun inverted(source: File): EditComposition =
+  private fun inverted(source: File): Composition =
     compositionOf {
       clip(MediaSource.of(source.absolutePath)) {
         trim(Duration.ZERO, CLIP)
@@ -382,7 +382,7 @@ internal class FfmpegSdColorMediaTest : SdColorTestCase() {
     }
 
   // The planner folds these to the identity and takes them out, so the plan reads as one with no effect.
-  private fun twoInverts(source: File): EditComposition =
+  private fun twoInverts(source: File): Composition =
     compositionOf {
       clip(MediaSource.of(source.absolutePath)) {
         trim(Duration.ZERO, CLIP)

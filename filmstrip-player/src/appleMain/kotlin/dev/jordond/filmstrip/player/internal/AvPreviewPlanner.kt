@@ -5,7 +5,7 @@ import dev.jordond.filmstrip.avfoundation.avFoundationExportEngine
 import dev.jordond.filmstrip.capability.FidelityNote
 import dev.jordond.filmstrip.capability.OutputProperty
 import dev.jordond.filmstrip.capability.PreviewFidelity
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.player.PlaybackError
 import dev.jordond.filmstrip.player.PreviewQualityPolicy
@@ -24,7 +24,7 @@ internal class AvPreviewPlanner(
   private val engine = avFoundationExportEngine(components)
 
   override suspend fun plan(
-    composition: EditComposition,
+    composition: Composition,
     policy: PreviewQualityPolicy,
     exportSpec: ExportSpec,
   ): PlanResult<PreviewPlan, PlaybackError> =

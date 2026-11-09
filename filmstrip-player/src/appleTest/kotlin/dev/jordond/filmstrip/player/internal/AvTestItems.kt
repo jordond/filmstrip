@@ -2,7 +2,7 @@ package dev.jordond.filmstrip.player.internal
 
 import dev.jordond.filmstrip.avfoundation.internal.composition.AvComposition
 import dev.jordond.filmstrip.avfoundation.internal.composition.toAvComposition
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.player.appleExportLowering
 import dev.jordond.filmstrip.player.appleFixtureComposition
 import dev.jordond.filmstrip.player.contract.awaitContract
@@ -29,7 +29,7 @@ internal class LoadedFixture(
  *
  * The main run loop has to be pumped for the item to get there, which a contract body does.
  */
-internal suspend fun loadedFixture(composition: EditComposition = appleFixtureComposition()): LoadedFixture {
+internal suspend fun loadedFixture(composition: Composition = appleFixtureComposition()): LoadedFixture {
   val resolved = appleExportLowering(composition)
   val av = resolved.toAvComposition()
   val item =

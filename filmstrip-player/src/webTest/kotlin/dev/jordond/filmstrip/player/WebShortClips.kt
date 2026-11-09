@@ -3,7 +3,7 @@
 package dev.jordond.filmstrip.player
 
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.export.ExportSpec
@@ -32,7 +32,7 @@ import kotlin.time.Duration.Companion.milliseconds
  * one are counted from its own sample table.
  */
 internal object WebShortClips : ShortClipBackend, ClipParityBackend by WebClipParity {
-  override suspend fun writtenFrameCount(composition: EditComposition): Long {
+  override suspend fun writtenFrameCount(composition: Composition): Long {
     val response = fetch(WebClipParity.exportOf(composition).url).await<WebResponse>()
     val file = DataView(response.arrayBuffer().await<JsAny>())
     return videoSampleCount(file) ?: fail("the file carries no video sample table")
@@ -40,7 +40,7 @@ internal object WebShortClips : ShortClipBackend, ClipParityBackend by WebClipPa
 
   override suspend fun sourceAt(rate: Int): MediaSource {
     val edit =
-      EditComposition(listOf(Track(listOf(Clip(fixtureClip, TimeRange.of(Duration.ZERO, 1_500.milliseconds))))))
+      Composition(listOf(Track(listOf(Clip(fixtureClip, TimeRange.of(Duration.ZERO, 1_500.milliseconds))))))
     val spec = ExportSpec(frameRate = rate, bitrate = PREVIEW_PARITY_EXPORT_BITRATE)
     val plan =
       when (val verdict = filmstrip.plan(edit, spec)) {

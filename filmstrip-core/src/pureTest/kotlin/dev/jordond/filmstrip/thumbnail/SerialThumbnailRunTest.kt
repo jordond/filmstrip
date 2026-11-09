@@ -2,7 +2,7 @@ package dev.jordond.filmstrip.thumbnail
 
 import dev.jordond.filmstrip.Cancellable
 import dev.jordond.filmstrip.FilmstripError
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.media.MediaSource
 import io.kotest.matchers.shouldBe
@@ -100,7 +100,7 @@ class SerialThumbnailRunTest {
   private companion object {
     const val LONG_RUN = 20_000
 
-    val COMPOSITION: EditComposition = compositionOf { clip(MediaSource.of("/fixtures/strip.mp4")) }
+    val COMPOSITION: Composition = compositionOf { clip(MediaSource.of("/fixtures/strip.mp4")) }
   }
 }
 

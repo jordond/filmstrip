@@ -23,11 +23,10 @@ public annotation class FilmstripDsl
  * @param block Builds the edit.
  * @return The described edit.
  */
-public fun compositionOf(block: CompositionBuilder.() -> Unit): EditComposition =
-  CompositionBuilder().apply(block).build()
+public fun compositionOf(block: CompositionBuilder.() -> Unit): Composition = CompositionBuilder().apply(block).build()
 
 /**
- * Builds an [EditComposition].
+ * Builds a [Composition].
  *
  * [clip] appends to the primary track, which is the only track most edits have, so a single-track
  * composition never names one. [track] adds a layer that plays alongside it.
@@ -109,7 +108,7 @@ public class CompositionBuilder public constructor() {
   /**
    * Freezes what has been described.
    */
-  public fun build(): EditComposition {
+  public fun build(): Composition {
     // An edit written entirely as tracks has no primary clips, and an empty leading track would
     // hand the output frame to nothing.
     val tracks =
@@ -119,7 +118,7 @@ public class CompositionBuilder public constructor() {
         listOf(Track(primary.toList())) + extraTracks
       }
 
-    return EditComposition(tracks = tracks, effects = effects.toList(), audio = audio, fill = fill)
+    return Composition(tracks = tracks, effects = effects.toList(), audio = audio, fill = fill)
   }
 }
 

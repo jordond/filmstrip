@@ -2,7 +2,7 @@ package dev.jordond.filmstrip.ffmpeg
 
 import dev.jordond.filmstrip.ComponentRegistry
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.effects.BuiltInEffectResolver
 import dev.jordond.filmstrip.effects.overlay.ImageOverlay
@@ -76,7 +76,7 @@ class FfmpegPreviewSlideMediaTest {
     }
 
   private suspend fun frames(
-    composition: EditComposition,
+    composition: Composition,
     at: Duration,
     count: Int,
   ): List<ByteArray> {
@@ -94,9 +94,9 @@ class FfmpegPreviewSlideMediaTest {
     }
   }
 
-  private fun overlaid(overlay: ImageOverlay): EditComposition {
+  private fun overlaid(overlay: ImageOverlay): Composition {
     withClue("the fixture ${landscape.absolutePath} was not downloaded") { landscape.isFile.shouldBeTrue() }
-    return EditComposition(
+    return Composition(
       tracks = listOf(Track(listOf(Clip(MediaSource.of(landscape.absolutePath))))),
       effects = listOf(overlay),
     )

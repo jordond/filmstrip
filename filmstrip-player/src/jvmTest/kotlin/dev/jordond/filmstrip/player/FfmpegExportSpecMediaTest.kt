@@ -8,7 +8,7 @@ import dev.jordond.filmstrip.color.signalFromTenBitCodes
 import dev.jordond.filmstrip.color.tenBitCodesFromSignal
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.effectsRevision
 import dev.jordond.filmstrip.export.ExportSpec
@@ -54,7 +54,7 @@ class FfmpegExportSpecMediaTest {
       val codes = tenBitCodesFromSignal(floatArrayOf(signal.toFloat(), signal.toFloat(), signal.toFloat()))
       val clip = writeFlatPq(codes)
       val edit =
-        EditComposition(listOf(Track(listOf(Clip(MediaSource.of(clip.absolutePath))))), audio = AudioSpec.Remove)
+        Composition(listOf(Track(listOf(Clip(MediaSource.of(clip.absolutePath))))), audio = AudioSpec.Remove)
       val planner = FfmpegPreviewPlanner(CONTRACT_COMPONENTS)
       val autoKeeps =
         planner

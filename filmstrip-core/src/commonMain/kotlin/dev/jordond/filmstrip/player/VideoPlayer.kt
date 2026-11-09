@@ -2,7 +2,7 @@ package dev.jordond.filmstrip.player
 
 import dev.jordond.filmstrip.Cancellable
 import dev.jordond.filmstrip.InternalFilmstripApi
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -10,7 +10,7 @@ import kotlinx.coroutines.flow.flowOf
 import kotlin.time.Duration
 
 /**
- * A player over an [EditComposition].
+ * A player over a [Composition].
  *
  * Implemented by filmstrip, never by a consumer. State, events and the playhead come in a coroutine
  * form and a listener form, so a caller without coroutines loses nothing.
@@ -101,7 +101,7 @@ public interface VideoPlayer :
    * @return whether the composition loaded, failed, or was superseded by a later call.
    */
   public suspend fun setComposition(
-    composition: EditComposition,
+    composition: Composition,
     startAt: Duration? = null,
     playWhenReady: Boolean = false,
   ): SetCompositionResult

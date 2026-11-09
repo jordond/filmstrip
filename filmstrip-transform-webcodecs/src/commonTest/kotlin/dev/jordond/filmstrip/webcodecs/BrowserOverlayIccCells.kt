@@ -9,7 +9,7 @@ import dev.jordond.filmstrip.color.pictureLight
 import dev.jordond.filmstrip.color.pictureSrgbCodes
 import dev.jordond.filmstrip.color.sdrSignalFromNits
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.effect.Attributes
@@ -244,7 +244,7 @@ internal fun halfFloat(
 internal suspend fun decodedCodeOf(bytes: ByteArray): Int {
   val spec = ImageOverlay(ImageSource.ofBytes(bytes), Corner.TopStart)
   val resolver = BuiltInEffectResolver()
-  resolver.prepare(EditComposition(listOf(Track(listOf(Clip(MediaSource.ofUri(READ_CLIP), effects = listOf(spec)))))))
+  resolver.prepare(Composition(listOf(Track(listOf(Clip(MediaSource.ofUri(READ_CLIP), effects = listOf(spec)))))))
   val effect =
     when (val resolution = resolver.resolve(spec, READ_CAPABILITIES, READ_ATTRIBUTES)) {
       is EffectResolution.Resolved -> resolution.effect

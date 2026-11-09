@@ -2,7 +2,7 @@ package dev.jordond.filmstrip.player
 
 import android.os.Build
 import dev.jordond.filmstrip.Filmstrip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media3.media3Backend
 import dev.jordond.filmstrip.player.contract.ClipParityBackend
@@ -63,11 +63,11 @@ internal object AndroidClipParity : ClipParityBackend {
       config = PlayerConfig(),
     )
 
-  override suspend fun exportedSource(composition: EditComposition): MediaSource =
+  override suspend fun exportedSource(composition: Composition): MediaSource =
     MediaSource.of(androidExportedFile(composition).path)
 
   override suspend fun exportFrame(
-    composition: EditComposition,
+    composition: Composition,
     position: Duration,
   ): TestFrame = androidExportFrameCovering(composition, position)
 

@@ -2,7 +2,7 @@ package dev.jordond.filmstrip.avfoundation
 
 import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effects.filters.filters
@@ -61,7 +61,7 @@ class AppleLutHardwareTest {
     runTest(timeout = TIMEOUT) {
       val source = flatClip()
 
-      assertLanded(source, EditComposition(listOf(Track(listOf(Clip(source)))), listOf(Lut(table))))
+      assertLanded(source, Composition(listOf(Track(listOf(Clip(source)))), listOf(Lut(table))))
     }
 
   @Test
@@ -69,7 +69,7 @@ class AppleLutHardwareTest {
     runTest(timeout = TIMEOUT) {
       val source = flatClip()
 
-      assertLanded(source, EditComposition(listOf(Track(listOf(Clip(source, effects = listOf(Lut(table))))))))
+      assertLanded(source, Composition(listOf(Track(listOf(Clip(source, effects = listOf(Lut(table))))))))
     }
 
   @Test
@@ -78,7 +78,7 @@ class AppleLutHardwareTest {
       val crop = Crop(WIDE_CANVAS, fit = Fit.Contain)
       val source = flatClip()
       val edit = { effects: List<EffectSpec> ->
-        EditComposition(listOf(Track(listOf(Clip(source)))), effects, fill = Fill.Solid(BAR_FILL))
+        Composition(listOf(Track(listOf(Clip(source)))), effects, fill = Fill.Solid(BAR_FILL))
       }
 
       val plain = export(edit(listOf(crop)), "bar-plain")
@@ -106,7 +106,7 @@ class AppleLutHardwareTest {
       val crop = Crop(WIDE_CANVAS, fit = Fit.Contain)
       val source = flatClip()
       val edit = { effects: List<EffectSpec> ->
-        EditComposition(listOf(Track(listOf(Clip(source, effects = effects)))), fill = Fill.Solid(BAR_FILL))
+        Composition(listOf(Track(listOf(Clip(source, effects = effects)))), fill = Fill.Solid(BAR_FILL))
       }
 
       val plain = export(edit(listOf(crop)), "canvas-plain")
@@ -123,9 +123,9 @@ class AppleLutHardwareTest {
   fun anOverlayAtTheSameScopeStaysClean() =
     runTest(timeout = TIMEOUT) {
       val source = flatClip()
-      val clean = export(EditComposition(listOf(Track(listOf(Clip(source)))), listOf(swatch())), "overlay-plain")
+      val clean = export(Composition(listOf(Track(listOf(Clip(source)))), listOf(swatch())), "overlay-plain")
       val looked =
-        export(EditComposition(listOf(Track(listOf(Clip(source)))), listOf(Lut(table), swatch())), "overlay-lut")
+        export(Composition(listOf(Track(listOf(Clip(source)))), listOf(Lut(table), swatch())), "overlay-lut")
 
       val read = frameOf(looked).average(SWATCH_FX, SWATCH_FY).first.toDouble()
       val wanted = frameOf(clean).average(SWATCH_FX, SWATCH_FY).first.toDouble()
@@ -138,8 +138,8 @@ class AppleLutHardwareTest {
   fun aToneMappedExportReadsLikeTheTable() =
     runTest(timeout = TIMEOUT) {
       val clip = Clip(MediaSource.of(hdrFixture(HdrTransfer.Pq)))
-      val plain = export(EditComposition(listOf(Track(listOf(clip)))), "hdr-plain", TONE_MAP)
-      val looked = export(EditComposition(listOf(Track(listOf(clip))), listOf(Lut(table))), "hdr-lut", TONE_MAP)
+      val plain = export(Composition(listOf(Track(listOf(clip)))), "hdr-plain", TONE_MAP)
+      val looked = export(Composition(listOf(Track(listOf(clip))), listOf(Lut(table))), "hdr-lut", TONE_MAP)
 
       val under = codesOf(plain).average(CENTRE, CENTRE)
       val read = codesOf(looked).average(CENTRE, CENTRE)
@@ -160,7 +160,7 @@ class AppleLutHardwareTest {
   fun anHdrSourceIsToneMappedAndReportedUnderALut() =
     runTest(timeout = TIMEOUT) {
       val edit =
-        EditComposition(listOf(Track(listOf(Clip(MediaSource.of(hdrFixture(HdrTransfer.Pq)))))), listOf(Lut(table)))
+        Composition(listOf(Track(listOf(Clip(MediaSource.of(hdrFixture(HdrTransfer.Pq)))))), listOf(Lut(table)))
 
       val verdict = filmstrip.plan(edit, ExportSpec(heightPx = HDR_HEIGHT)).shouldBeInstanceOf<Verdict.Degraded>()
 
@@ -169,10 +169,10 @@ class AppleLutHardwareTest {
 
   private suspend fun assertLanded(
     source: MediaSource,
-    edit: EditComposition,
+    edit: Composition,
   ) {
     val looked = export(edit, "table-lut")
-    val plain = export(EditComposition(listOf(Track(listOf(Clip(source))))), "table-plain")
+    val plain = export(Composition(listOf(Track(listOf(Clip(source))))), "table-plain")
 
     val under = codesOf(plain).average(CENTRE, CENTRE)
     val read = codesOf(looked).average(CENTRE, CENTRE)
@@ -215,7 +215,7 @@ class AppleLutHardwareTest {
   }
 
   private suspend fun export(
-    edit: EditComposition,
+    edit: Composition,
     name: String,
     spec: ExportSpec = ExportSpec(),
   ): String {

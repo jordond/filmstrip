@@ -6,7 +6,7 @@ import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.edit.AudioLevel
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.TrackContent
@@ -95,7 +95,7 @@ class BrowserExportMediaTest {
       // the source's top half, and nothing but it.
       val bytes = makeClip { _, y -> if (y < HALF) Rgb.Red else Rgb.Blue }
       val composition =
-        EditComposition(
+        Composition(
           tracks =
             listOf(
               Track(
@@ -131,7 +131,7 @@ class BrowserExportMediaTest {
         }
 
       val composition =
-        EditComposition(
+        Composition(
           tracks = listOf(Track(listOf(Clip(MediaSource.Bytes(filler)), Clip(MediaSource.Bytes(wide))))),
           audio = AudioSpec.Remove,
         )
@@ -219,7 +219,7 @@ class BrowserExportMediaTest {
   ) {
     val bytes = makeClip(frames = clipFrames, frameRate = frameRate, color = Rgb.Green)
     val composition =
-      EditComposition(
+      Composition(
         tracks = listOf(Track(listOf(Clip(MediaSource.Bytes(bytes))), start = start)),
         audio = AudioSpec.Remove,
         fill = Fill.Solid(PURPLE_ARGB),
@@ -290,7 +290,7 @@ class BrowserExportMediaTest {
     val green = makeClip(frames = GRID_CLIP_FRAMES, frameRate = GRID_FRAME_RATE, color = Rgb.Green)
     val red = makeClip(frames = GRID_FRAME_RATE, frameRate = GRID_FRAME_RATE, color = Rgb.Red)
     val composition =
-      EditComposition(
+      Composition(
         tracks =
           listOf(
             Track(
@@ -343,7 +343,7 @@ class BrowserExportMediaTest {
           if (index == PAST_END_FRAMES - 1) Rgb.Red else Rgb.Green
         }
       val pass = Clip(MediaSource.Bytes(bytes), trim = TimeRange(Duration.ZERO, PAST_END_TRIM))
-      val composition = EditComposition(tracks = listOf(Track(listOf(pass, pass))), audio = AudioSpec.Remove)
+      val composition = Composition(tracks = listOf(Track(listOf(pass, pass))), audio = AudioSpec.Remove)
       val spec = ExportSpec(frameRate = GRID_FRAME_RATE)
       val engine = browserEngine()
 
@@ -411,7 +411,7 @@ class BrowserExportMediaTest {
       }
     val bed = makeClip(frames = BED_FRAMES, frameRate = GRID_FRAME_RATE)
     val composition =
-      EditComposition(
+      Composition(
         tracks =
           listOf(
             Track(listOf(Clip(MediaSource.Bytes(primary)))),
@@ -521,7 +521,7 @@ class BrowserExportMediaTest {
     runTest {
       val bytes = makeClip(color = Rgb.Grey)
       val composition =
-        EditComposition(
+        Composition(
           tracks = listOf(Track(listOf(Clip(MediaSource.Bytes(bytes), effects = listOf(Brightness(HALF_BRIGHTNESS)))))),
           audio = AudioSpec.Remove,
         )
@@ -543,7 +543,7 @@ class BrowserExportMediaTest {
       val contrast = Contrast(STRETCHED_CONTRAST)
       val bytes = makeClip(color = PIVOT_SPREAD)
       val composition =
-        EditComposition(
+        Composition(
           tracks = listOf(Track(listOf(Clip(MediaSource.Bytes(bytes), effects = listOf(contrast))))),
           audio = AudioSpec.Remove,
         )
@@ -597,7 +597,7 @@ class BrowserExportMediaTest {
       // which source frame the trim actually started from.
       val bytes = makeClip(frames = 60, frameRate = 30) { index, _ -> Rgb(index * RAMP_STEP, 0, 0) }
       val composition =
-        EditComposition(
+        Composition(
           tracks =
             listOf(
               Track(
@@ -749,7 +749,7 @@ class BrowserExportMediaTest {
     runTest {
       val bytes = makeClip()
       val composition =
-        EditComposition(
+        Composition(
           tracks = listOf(Track(listOf(Clip(MediaSource.Bytes(bytes))))),
           audio = AudioSpec.Keep,
         )
@@ -774,7 +774,7 @@ class BrowserExportMediaTest {
     runTest {
       val bytes = makeClipInCodec("vp8")
       val composition =
-        EditComposition(
+        Composition(
           tracks = listOf(Track(listOf(Clip(MediaSource.Bytes(bytes))))),
           audio = AudioSpec.Keep,
         )
@@ -796,7 +796,7 @@ class BrowserExportMediaTest {
     runTest {
       val bytes = makeClipInCodec("av1")
       val composition =
-        EditComposition(
+        Composition(
           tracks = listOf(Track(listOf(Clip(MediaSource.Bytes(bytes))))),
           audio = AudioSpec.Keep,
         )
@@ -820,7 +820,7 @@ class BrowserExportMediaTest {
     runTest {
       val bytes = makeClipWithAudio()
       val composition =
-        EditComposition(
+        Composition(
           tracks = listOf(Track(listOf(Clip(MediaSource.Bytes(bytes))))),
           audio = AudioSpec.Keep,
         )
@@ -842,7 +842,7 @@ class BrowserExportMediaTest {
       if (!browserEncodesAac()) return@runTest
       val bytes = makeClipWithAudio(frames = 60, frameRate = 30)
       val composition =
-        EditComposition(
+        Composition(
           tracks =
             listOf(Track(listOf(Clip(MediaSource.Bytes(bytes), trim = TimeRange(TRIM_START, TRIM_END))))),
           audio = AudioSpec.Keep,
@@ -869,7 +869,7 @@ class BrowserExportMediaTest {
       val video = makeClip(frames = 30, frameRate = 30)
       val bed = makeClipWithAudio(frames = 30, frameRate = 30)
       val composition =
-        EditComposition(
+        Composition(
           tracks =
             listOf(
               Track(listOf(Clip(MediaSource.Bytes(video)))),
@@ -897,7 +897,7 @@ class BrowserExportMediaTest {
       if (!browserEncodesAac()) return@runTest
       val bytes = makeClipWithAudio(frames = 30, frameRate = 30)
       val composition =
-        EditComposition(
+        Composition(
           tracks = listOf(Track(listOf(Clip(MediaSource.Bytes(bytes)).withAudio(AudioLevel.Mute)))),
           audio = AudioSpec.Keep,
         )
@@ -965,7 +965,7 @@ class BrowserExportMediaTest {
       if (!browserEncodesAac()) return@runTest
       val bytes = makeClipWithAudio(frames = 30, frameRate = 30)
       val composition =
-        EditComposition(
+        Composition(
           tracks = listOf(Track(listOf(Clip(MediaSource.Bytes(bytes))))),
           audio = AudioSpec.Keep,
         )
@@ -987,7 +987,7 @@ class BrowserExportMediaTest {
       if (!browserEncodesAac()) return@runTest
       val bytes = makeClipWithAudio(frames = 60, frameRate = 30)
       val composition =
-        EditComposition(
+        Composition(
           tracks =
             listOf(
               Track(listOf(Clip(MediaSource.Bytes(bytes), TimeRange(500.milliseconds, 1500.milliseconds)))),
@@ -1069,7 +1069,7 @@ class BrowserExportMediaTest {
       listOf(0.7, 1.5).forEach { speed ->
         val bytes = makeClip(width = 64, height = 64, frames = 60, frameRate = 30) { index, _ -> speedRamp(index) }
         val composition =
-          EditComposition(
+          Composition(
             tracks = listOf(Track(listOf(Clip(MediaSource.Bytes(bytes), speed = speed)))),
             audio = AudioSpec.Remove,
           )
@@ -1103,8 +1103,8 @@ class BrowserExportMediaTest {
     speed: Double,
     audio: AudioSpec,
     from: Duration = Duration.ZERO,
-  ): EditComposition =
-    EditComposition(
+  ): Composition =
+    Composition(
       tracks =
         listOf(
           Track(listOf(Clip(MediaSource.Bytes(bytes), trim = TimeRange(from, from + trim), speed = speed))),
@@ -1176,8 +1176,8 @@ class BrowserExportMediaTest {
   private fun snappedComposition(
     bytes: ByteArray,
     snapWithin: Duration,
-  ): EditComposition =
-    EditComposition(
+  ): Composition =
+    Composition(
       tracks =
         listOf(
           Track(
@@ -1191,7 +1191,7 @@ class BrowserExportMediaTest {
 
   private suspend fun resolvedClipOf(
     engine: BrowserExportEngine,
-    composition: EditComposition,
+    composition: Composition,
   ): ResolvedClip =
     engine
       .resolve(composition, ExportSpec())
@@ -1203,7 +1203,7 @@ class BrowserExportMediaTest {
 
   private suspend fun planWith(
     engine: BrowserExportEngine,
-    composition: EditComposition,
+    composition: Composition,
     spec: ExportSpec = ExportSpec(),
   ): ExportPlan =
     when (val verdict = engine.plan(composition, spec)) {
@@ -1258,8 +1258,8 @@ class BrowserExportMediaTest {
 
   private fun micros(duration: Duration): Double = duration.toDouble(DurationUnit.MICROSECONDS)
 
-  private fun compositionOf(source: MediaSource): EditComposition =
-    EditComposition(
+  private fun compositionOf(source: MediaSource): Composition =
+    Composition(
       tracks = listOf(Track(listOf(Clip(source)))),
       audio = AudioSpec.Remove,
     )
@@ -1272,10 +1272,10 @@ class BrowserExportMediaTest {
   private suspend fun letterboxComposition(
     fill: Fill,
     effects: List<EffectSpec> = emptyList(),
-  ): EditComposition {
+  ): Composition {
     val filler = makeClip(color = Rgb.Green)
     val wide = makeClip(width = 64, height = 32) { _, y -> if (y < WIDE_RED_ROWS) Rgb.Red else Rgb.Blue }
-    return EditComposition(
+    return Composition(
       tracks = listOf(Track(listOf(Clip(MediaSource.Bytes(filler)), Clip(MediaSource.Bytes(wide))))),
       effects = effects,
       audio = AudioSpec.Remove,
@@ -1286,9 +1286,9 @@ class BrowserExportMediaTest {
   /**
    * One second of video with a tone under it, asked for as audio and nothing else.
    */
-  private suspend fun audioOnlyComposition(): EditComposition {
+  private suspend fun audioOnlyComposition(): Composition {
     val bytes = makeClipWithAudio(frames = 30, frameRate = 30)
-    return EditComposition(
+    return Composition(
       tracks = listOf(Track(listOf(Clip(MediaSource.Bytes(bytes))))),
       audio = AudioSpec.AudioOnly,
     )

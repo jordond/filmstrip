@@ -1,7 +1,7 @@
 package dev.jordond.filmstrip.docs.guides
 
 import dev.jordond.filmstrip.Filmstrip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.export.AdjustmentKind
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.HdrMode
@@ -18,7 +18,7 @@ internal fun hdrSpecs(): List<ExportSpec> {
 
 internal suspend fun toneMapNotice(
   filmstrip: Filmstrip,
-  composition: EditComposition,
+  composition: Composition,
 ): Boolean {
   // region adjustment
   val toneMapped =

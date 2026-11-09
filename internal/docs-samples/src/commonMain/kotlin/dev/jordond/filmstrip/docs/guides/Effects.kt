@@ -1,7 +1,7 @@
 package dev.jordond.filmstrip.docs.guides
 
 import dev.jordond.filmstrip.ExperimentalFilmstripApi
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.effects.color.brightness
 import dev.jordond.filmstrip.effects.color.contrast
@@ -21,7 +21,7 @@ import dev.jordond.filmstrip.geometry.FlipAxis
 import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.media.MediaSource
 
-internal fun effectScopes(): EditComposition {
+internal fun effectScopes(): Composition {
   // region scopes
   val composition =
     compositionOf {
@@ -37,7 +37,7 @@ internal fun effectScopes(): EditComposition {
   return composition
 }
 
-internal fun geometryEffects(): EditComposition {
+internal fun geometryEffects(): Composition {
   // region geometry
   val composition =
     compositionOf {
@@ -54,7 +54,7 @@ internal fun geometryEffects(): EditComposition {
   return composition
 }
 
-internal fun cropRect(): EditComposition {
+internal fun cropRect(): Composition {
   // region crop-rect
   val composition =
     compositionOf {
@@ -66,7 +66,7 @@ internal fun cropRect(): EditComposition {
   return composition
 }
 
-internal fun mixedFit(): EditComposition {
+internal fun mixedFit(): Composition {
   // region fit
   val composition =
     compositionOf {
@@ -80,7 +80,7 @@ internal fun mixedFit(): EditComposition {
   return composition
 }
 
-internal fun colorEffects(): EditComposition {
+internal fun colorEffects(): Composition {
   // region color
   val composition =
     compositionOf {
@@ -97,7 +97,7 @@ internal fun colorEffects(): EditComposition {
 }
 
 @OptIn(ExperimentalFilmstripApi::class)
-internal fun panAndZoom(): EditComposition {
+internal fun panAndZoom(): Composition {
   // region ken-burns
   val composition =
     compositionOf {

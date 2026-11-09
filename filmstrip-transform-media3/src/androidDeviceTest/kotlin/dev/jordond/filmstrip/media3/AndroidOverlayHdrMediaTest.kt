@@ -5,7 +5,7 @@ import dev.jordond.filmstrip.color.authoredHdrNits
 import dev.jordond.filmstrip.color.signalFromNits
 import dev.jordond.filmstrip.color.tenBitCodesFromSignal
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effects.geometry.Crop
@@ -201,7 +201,7 @@ class AndroidOverlayHdrMediaTest {
   }
 
   private fun marked(source: MediaSource) =
-    EditComposition(listOf(Track(listOf(Clip(source)))), listOf(probe.watermark(Corner.BottomEnd)))
+    Composition(listOf(Track(listOf(Clip(source)))), listOf(probe.watermark(Corner.BottomEnd)))
 
   private fun caption(anchor: Anchor) =
     TextOverlay(
@@ -213,7 +213,7 @@ class AndroidOverlayHdrMediaTest {
   private suspend fun export(
     source: MediaSource,
     effects: List<EffectSpec>,
-  ): File = probe.export(EditComposition(listOf(Track(listOf(Clip(source)))), effects), SPEC)
+  ): File = probe.export(Composition(listOf(Track(listOf(Clip(source)))), effects), SPEC)
 }
 
 /**
@@ -340,7 +340,7 @@ class AndroidOverlayHdrLevelTest(
   private fun letterboxed(
     source: MediaSource,
     effects: List<EffectSpec>,
-  ) = EditComposition(
+  ) = Composition(
     listOf(Track(listOf(Clip(source)))),
     listOf(Crop(AspectRatio.Square, fit = Fit.Contain)) + effects,
     fill = Fill.Solid(grade.fill),

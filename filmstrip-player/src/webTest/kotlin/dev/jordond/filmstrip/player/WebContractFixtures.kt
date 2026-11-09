@@ -6,7 +6,7 @@ import dev.jordond.filmstrip.ComponentRegistry
 import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.effect.EffectSpec
@@ -52,8 +52,8 @@ private val FIXTURE_CLIP: ByteArray by lazy { Base64.decode(FIXTURE_BASE64.filte
 internal fun webFixtureComposition(
   effects: List<EffectSpec> = emptyList(),
   audio: AudioSpec = AudioSpec.Remove,
-): EditComposition =
-  EditComposition(
+): Composition =
+  Composition(
     tracks = listOf(Track(listOf(Clip(MediaSource.Bytes(FIXTURE_CLIP), TimeRange.of(Duration.ZERO, CLIP_LENGTH))))),
     effects = effects,
     audio = audio,
@@ -62,7 +62,7 @@ internal fun webFixtureComposition(
 /**
  * The fixture composition with its clip trimmed to [length], which is a structural change from the untrimmed one.
  */
-internal fun webFixtureTrimmed(length: Duration): EditComposition {
+internal fun webFixtureTrimmed(length: Duration): Composition {
   val base = webFixtureComposition()
   return base.withClips(base.clips.map { it.withTrim(TimeRange.of(Duration.ZERO, length)) })
 }
@@ -77,7 +77,7 @@ internal fun webFixtureTrimmed(length: Duration): EditComposition {
  * left between the two sides is the lowering and the encode.
  */
 internal suspend fun webExportFrame(
-  composition: EditComposition,
+  composition: Composition,
   position: Duration,
 ): TestFrame = webFileFrame(webExported(composition), position)
 
@@ -95,7 +95,7 @@ internal class WebExport(
  * @param frameRate The rate to write at, or null to keep the one the planner resolves.
  */
 internal suspend fun webExported(
-  composition: EditComposition,
+  composition: Composition,
   frameRate: Int? = null,
 ): WebExport {
   val plan = exportPlanOf(composition, ExportSpec(frameRate = frameRate, bitrate = PREVIEW_PARITY_EXPORT_BITRATE))
@@ -121,7 +121,7 @@ internal suspend fun webFileFrame(
   position: Duration,
 ): TestFrame {
   val written =
-    EditComposition(tracks = listOf(Track(listOf(Clip(MediaSource.Uri(file.url))))), audio = AudioSpec.Remove)
+    Composition(tracks = listOf(Track(listOf(Clip(MediaSource.Uri(file.url))))), audio = AudioSpec.Remove)
   val engine = webCodecsExportEngine(CONTRACT_COMPONENTS)
   val resolved =
     when (val result = engine.resolve(written, ExportSpec(frameRate = file.frameRate))) {
@@ -139,7 +139,7 @@ internal suspend fun webFileFrame(
 }
 
 private suspend fun exportPlanOf(
-  composition: EditComposition,
+  composition: Composition,
   spec: ExportSpec,
 ): ExportPlan =
   when (val verdict = CONTRACT_FILMSTRIP.plan(composition, spec)) {

@@ -2,7 +2,7 @@ package dev.jordond.filmstrip.sample.tryit
 
 import androidx.compose.ui.graphics.toArgb
 import dev.jordond.filmstrip.Filmstrip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.effects.color.contrast
 import dev.jordond.filmstrip.effects.color.saturation
@@ -74,7 +74,7 @@ internal val titleAnchor: Anchor = Anchor(0.5f, 0.18f)
 internal fun beachEdit(
   source: MediaSource,
   steps: Steps,
-): EditComposition =
+): Composition =
   compositionOf {
     clip(source) { if (steps.trim) trim(TRIM_RANGE) }
     effects {
@@ -112,7 +112,7 @@ internal fun editPosition(
  */
 internal fun writeExport(
   filmstrip: Filmstrip,
-  edit: EditComposition,
+  edit: Composition,
   spec: ExportSpec,
   sink: MediaSink,
 ): Flow<ExportStatus> =

@@ -5,7 +5,7 @@ import androidx.media3.effect.RgbAdjustment
 import dev.jordond.filmstrip.color.brightnessDisplayGain
 import dev.jordond.filmstrip.color.brightnessSceneGain
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.effect.Attributes
@@ -179,7 +179,7 @@ class AndroidBrightnessHdrMediaTest {
   ): File {
     // The effect is carried at every factor, one at 1f included, so the reference frame came out of
     // the same encoder rather than off the copy path.
-    val composition = EditComposition(listOf(Track(listOf(Clip(source)))), listOf(Brightness(factor)))
+    val composition = Composition(listOf(Track(listOf(Clip(source)))), listOf(Brightness(factor)))
     return probe.export(composition, ExportSpec(hdr = HdrMode.KeepHdr))
   }
 

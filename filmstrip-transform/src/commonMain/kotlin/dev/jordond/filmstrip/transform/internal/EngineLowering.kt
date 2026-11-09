@@ -2,7 +2,7 @@ package dev.jordond.filmstrip.transform.internal
 
 import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.InternalFilmstripApi
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.effect.EffectResolver
 import dev.jordond.filmstrip.export.ExportEngine
 import dev.jordond.filmstrip.export.ExportPlan
@@ -41,7 +41,7 @@ public interface ExportResolver : ExportEngine {
    * @return The lowered composition and the verdict it came with, or why it cannot run here.
    */
   public suspend fun resolve(
-    composition: EditComposition,
+    composition: Composition,
     spec: ExportSpec,
     layoutSize: Size? = null,
     grade: ResolvedHdr? = null,
@@ -55,7 +55,7 @@ public interface ExportResolver : ExportEngine {
    * @return The settled grade, or why the export has none.
    */
   public suspend fun exportGrade(
-    composition: EditComposition,
+    composition: Composition,
     spec: ExportSpec,
   ): ExportGrade
 }
@@ -101,7 +101,7 @@ public abstract class LoweringExportEngine : ExportResolver {
   protected abstract val lowering: EngineLowering<*>
 
   final override suspend fun plan(
-    composition: EditComposition,
+    composition: Composition,
     spec: ExportSpec,
   ): Verdict = lowering.plan(composition, spec)
 
@@ -111,14 +111,14 @@ public abstract class LoweringExportEngine : ExportResolver {
   ): Flow<ExportStatus> = lowering.export(plan, to)
 
   final override suspend fun resolve(
-    composition: EditComposition,
+    composition: Composition,
     spec: ExportSpec,
     layoutSize: Size?,
     grade: ResolvedHdr?,
   ): ResolveResult = lowering.resolve(composition, spec, layoutSize, grade)
 
   final override suspend fun exportGrade(
-    composition: EditComposition,
+    composition: Composition,
     spec: ExportSpec,
   ): ExportGrade = lowering.exportGrade(composition, spec)
 }
@@ -172,8 +172,8 @@ public fun refusedLowering(error: FilmstripError): LoweredExport<Nothing> =
 @InternalFilmstripApi
 public class EngineLowering<G : Any>(
   private val resolvers: List<EffectResolver>,
-  private val grade: suspend (EditComposition, ExportSpec) -> ExportGrade,
-  private val lower: suspend (EditComposition, ExportSpec, Size?, ResolvedHdr?) -> LoweredExport<G>,
+  private val grade: suspend (Composition, ExportSpec) -> ExportGrade,
+  private val lower: suspend (Composition, ExportSpec, Size?, ResolvedHdr?) -> LoweredExport<G>,
   private val run: (G, ExportPlan, MediaSink) -> Flow<ExportStatus>,
 ) {
   private val oneAtATime = Mutex()
@@ -182,7 +182,7 @@ public class EngineLowering<G : Any>(
    * Lowers [composition] the way [plan], [resolve] and [export] all do.
    */
   public suspend fun lowered(
-    composition: EditComposition,
+    composition: Composition,
     spec: ExportSpec,
     layoutSize: Size? = null,
     grade: ResolvedHdr? = null,
@@ -196,7 +196,7 @@ public class EngineLowering<G : Any>(
    * What [ExportResolver.exportGrade] answers.
    */
   public suspend fun exportGrade(
-    composition: EditComposition,
+    composition: Composition,
     spec: ExportSpec,
   ): ExportGrade = oneAtATime.withLock { grade(composition, spec) }
 
@@ -204,7 +204,7 @@ public class EngineLowering<G : Any>(
    * What [ExportEngine.plan] answers.
    */
   public suspend fun plan(
-    composition: EditComposition,
+    composition: Composition,
     spec: ExportSpec,
   ): Verdict = lowered(composition, spec).verdict
 
@@ -212,7 +212,7 @@ public class EngineLowering<G : Any>(
    * What [ExportResolver.resolve] answers.
    */
   public suspend fun resolve(
-    composition: EditComposition,
+    composition: Composition,
     spec: ExportSpec,
     layoutSize: Size?,
     grade: ResolvedHdr?,

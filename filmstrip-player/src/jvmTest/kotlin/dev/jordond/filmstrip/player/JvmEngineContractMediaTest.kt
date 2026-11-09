@@ -1,7 +1,7 @@
 package dev.jordond.filmstrip.player
 
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.ffmpeg.internal.preview.PreviewStreamResult
@@ -47,9 +47,9 @@ class JvmEngineContractMediaTest : PlayerEngineContractTest() {
     )
   }
 
-  override val fixture: EditComposition = jvmFixtureComposition()
+  override val fixture: Composition = jvmFixtureComposition()
 
-  override val bytesFixture: EditComposition = jvmFixtureBytesComposition()
+  override val bytesFixture: Composition = jvmFixtureBytesComposition()
 
   override val claimsLiveParameterRedraw: Boolean = false
 
@@ -98,7 +98,7 @@ private class VanishingSourcePlanner(
 
   override suspend fun open(
     plan: PreviewPlan,
-    composition: EditComposition,
+    composition: Composition,
     at: Duration,
   ): PreviewStreamResult {
     if (!vanished) source.delete()
@@ -107,7 +107,7 @@ private class VanishingSourcePlanner(
   }
 }
 
-private fun compositionOf(source: File): EditComposition =
-  EditComposition(
+private fun compositionOf(source: File): Composition =
+  Composition(
     tracks = listOf(Track(listOf(Clip(MediaSource.of(source.absolutePath), TimeRange.of(Duration.ZERO, CLIP_LENGTH))))),
   )

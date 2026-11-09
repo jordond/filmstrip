@@ -1,6 +1,6 @@
 package dev.jordond.filmstrip.player.contract
 
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.player.EngineListener
 import dev.jordond.filmstrip.player.PlaybackEvent
 import dev.jordond.filmstrip.player.PlayerEngine
@@ -369,7 +369,7 @@ internal suspend fun settle() {
  * arrives within [CONTRACT_TIMEOUT].
  */
 internal suspend fun PlayerEngine.awaitComposition(
-  composition: EditComposition,
+  composition: Composition,
   startAt: Duration? = null,
   playWhenReady: Boolean = false,
 ): SetCompositionResult =

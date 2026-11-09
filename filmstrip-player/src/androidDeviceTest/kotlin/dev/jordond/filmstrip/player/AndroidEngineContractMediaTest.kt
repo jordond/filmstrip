@@ -5,7 +5,7 @@ import android.os.Build
 import android.view.Display
 import androidx.media3.transformer.CompositionPlayer
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.outputSlotOf
@@ -72,7 +72,7 @@ class AndroidEngineContractMediaTest : PlayerEngineContractTest() {
     val clip = androidFixtureClip().shouldBeInstanceOf<MediaSource.Path>()
     File(clip.path).copyTo(source, overwrite = true)
     val failing =
-      EditComposition(
+      Composition(
         tracks = listOf(Track(listOf(Clip(MediaSource.of(source.path), TimeRange.of(Duration.ZERO, CLIP_LENGTH))))),
       )
     return FailingItem(
@@ -82,9 +82,9 @@ class AndroidEngineContractMediaTest : PlayerEngineContractTest() {
     )
   }
 
-  override val fixture: EditComposition = androidFixtureComposition()
+  override val fixture: Composition = androidFixtureComposition()
 
-  override val bytesFixture: EditComposition = androidFixtureBytesComposition()
+  override val bytesFixture: Composition = androidFixtureBytesComposition()
 
   override val claimsLiveParameterRedraw: Boolean = true
 
@@ -308,7 +308,7 @@ class AndroidEngineContractMediaTest : PlayerEngineContractTest() {
 
   private fun failingLoad(
     build: (CoroutineScope) -> AndroidEngineUnderTest = ::androidEngine,
-    composition: () -> EditComposition,
+    composition: () -> Composition,
   ) = contractTest { scope ->
     val subject = build(scope)
     withEngine(subject.engine) { recorder ->
@@ -382,7 +382,7 @@ private class VanishingSourcePlanner(
   private var vanished = false
 
   override suspend fun plan(
-    composition: EditComposition,
+    composition: Composition,
     policy: PreviewQualityPolicy,
     exportSpec: ExportSpec,
   ): PlanResult<Media3PreviewPlan, PlaybackError> =

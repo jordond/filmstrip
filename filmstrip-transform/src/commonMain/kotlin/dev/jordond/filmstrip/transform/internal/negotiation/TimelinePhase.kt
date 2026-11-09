@@ -1,6 +1,6 @@
 package dev.jordond.filmstrip.transform.internal.negotiation
 
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.outputSlotsOf
 import dev.jordond.filmstrip.effect.EffectStage
@@ -20,7 +20,7 @@ import kotlin.time.Duration
  * composition's own duration is known.
  */
 internal fun timelineOf(
-  edit: EditComposition,
+  edit: Composition,
   ask: Ask,
   grade: Grade,
   encoding: Encoding,

@@ -4,7 +4,7 @@ import dev.jordond.filmstrip.ComponentRegistry
 import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.TrackContent
@@ -331,7 +331,7 @@ class BrowserPreviewMediaTest {
           color = Rgb.Green,
         )
       val composition =
-        EditComposition(
+        Composition(
           tracks =
             listOf(
               Track(
@@ -392,7 +392,7 @@ class BrowserPreviewMediaTest {
   fun aRelaxedSeekLandsOnTheSlotTheGridPutsItsSyncSampleOn() =
     runTest {
       val trimmed = Clip(MediaSource.Bytes(secondKeyFrameClip()), trim = TimeRange.from(OFF_FRAME_TRIM))
-      val preview = previewOf(EditComposition(tracks = listOf(Track(listOf(trimmed))), audio = AudioSpec.Remove))
+      val preview = previewOf(Composition(tracks = listOf(Track(listOf(trimmed))), audio = AudioSpec.Remove))
 
       try {
         val laid =
@@ -419,7 +419,7 @@ class BrowserPreviewMediaTest {
     runTest {
       val trimmed = Clip(MediaSource.Bytes(secondKeyFrameClip()), trim = TimeRange.from(frameTime(MID_GOP_FRAME)))
       val composition =
-        EditComposition(
+        Composition(
           tracks = listOf(Track(listOf(Clip(MediaSource.Bytes(rampClip())), trimmed))),
           audio = AudioSpec.Remove,
         )
@@ -563,9 +563,9 @@ class BrowserPreviewMediaTest {
       }
     }
 
-  private suspend fun heldTailComposition(): EditComposition {
+  private suspend fun heldTailComposition(): Composition {
     val bed = makeClip(width = WIDTH, height = HEIGHT, frames = BED_FRAMES, frameRate = FRAME_RATE)
-    return EditComposition(
+    return Composition(
       tracks =
         listOf(
           Track(listOf(Clip(MediaSource.Bytes(rampClip())))),
@@ -579,8 +579,8 @@ class BrowserPreviewMediaTest {
     fill: Fill,
     start: Duration = frameTime(LATE_SLOTS),
     clips: List<ByteArray>? = null,
-  ): EditComposition =
-    EditComposition(
+  ): Composition =
+    Composition(
       tracks = listOf(Track((clips ?: listOf(rampClip())).map { Clip(MediaSource.Bytes(it)) }, start = start)),
       audio = AudioSpec.Remove,
       fill = fill,
@@ -593,7 +593,7 @@ class BrowserPreviewMediaTest {
       SPEEDS.forEach { speed ->
         val source = MediaSource.Bytes(rampClip())
         val composition =
-          EditComposition(tracks = listOf(Track(listOf(Clip(source, speed = speed)))), audio = AudioSpec.Remove)
+          Composition(tracks = listOf(Track(listOf(Clip(source, speed = speed)))), audio = AudioSpec.Remove)
         val preview = previewOf(composition)
 
         try {
@@ -650,7 +650,7 @@ class BrowserPreviewMediaTest {
       val source = MediaSource.Bytes(secondKeyFrameClip())
       val speed = 1.2
       val composition =
-        EditComposition(tracks = listOf(Track(listOf(Clip(source, speed = speed)))), audio = AudioSpec.Remove)
+        Composition(tracks = listOf(Track(listOf(Clip(source, speed = speed)))), audio = AudioSpec.Remove)
       val preview = previewOf(composition)
 
       try {
@@ -670,11 +670,11 @@ class BrowserPreviewMediaTest {
       }
     }
 
-  private suspend fun previewOf(composition: EditComposition): BrowserPreview =
+  private suspend fun previewOf(composition: Composition): BrowserPreview =
     resolve(composition).toBrowserPreview(composition)
 
   private suspend fun resolve(
-    composition: EditComposition,
+    composition: Composition,
     frameRate: Int? = null,
   ) = webCodecsExportEngine(
     components = ComponentRegistry.Builder().addEffectResolver(BuiltInEffectResolver()).build(),
@@ -688,8 +688,8 @@ class BrowserPreviewMediaTest {
   private fun compositionOf(
     source: MediaSource,
     vararg effects: EffectSpec,
-  ): EditComposition =
-    EditComposition(
+  ): Composition =
+    Composition(
       tracks = listOf(Track(listOf(Clip(source)))),
       effects = effects.toList(),
       audio = AudioSpec.Remove,

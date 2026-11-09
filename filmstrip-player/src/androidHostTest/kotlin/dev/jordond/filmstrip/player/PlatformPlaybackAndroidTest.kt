@@ -3,7 +3,7 @@ package dev.jordond.filmstrip.player
 import dev.jordond.filmstrip.ComponentRegistry
 import dev.jordond.filmstrip.FilmstripContext
 import dev.jordond.filmstrip.FilmstripError
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.thumbnail.ThumbnailRequest
 import dev.jordond.filmstrip.thumbnail.ThumbnailResult
 import io.kotest.matchers.nulls.shouldNotBeNull
@@ -29,7 +29,7 @@ class PlatformPlaybackAndroidTest {
     val engine = createPlayerEngine(PlayerConfig(), components).shouldNotBeNull()
     var result: SetCompositionResult? = null
 
-    engine.setComposition(SetCompositionRequest(EditComposition(tracks = emptyList()))) { result = it }
+    engine.setComposition(SetCompositionRequest(Composition(tracks = emptyList()))) { result = it }
 
     val error = result.shouldBeInstanceOf<SetCompositionResult.Failure>().error
     error.shouldBeInstanceOf<PlaybackError.Underlying>().message shouldBe FilmstripContext.MISSING_CONTEXT
@@ -38,7 +38,7 @@ class PlatformPlaybackAndroidTest {
 
   @Test
   fun `a thumbnail source built without a context fails every request with the missing install`() {
-    val request = ThumbnailRequest(EditComposition(tracks = emptyList()), Duration.ZERO, 90, 1L, precise = false)
+    val request = ThumbnailRequest(Composition(tracks = emptyList()), Duration.ZERO, 90, 1L, precise = false)
     var result: ThumbnailResult? = null
 
     createThumbnailSource(request, components).shouldNotBeNull().requestThumbnail(request) { result = it }

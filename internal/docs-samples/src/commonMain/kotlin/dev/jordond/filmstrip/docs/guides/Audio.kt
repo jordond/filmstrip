@@ -2,7 +2,7 @@ package dev.jordond.filmstrip.docs.guides
 
 import dev.jordond.filmstrip.edit.AudioLevel
 import dev.jordond.filmstrip.edit.AudioSpec
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.EnvelopeAnchor
 import dev.jordond.filmstrip.edit.EnvelopePoint
 import dev.jordond.filmstrip.edit.TrackContent
@@ -11,7 +11,7 @@ import dev.jordond.filmstrip.media.MediaSource
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
-internal fun levels(): EditComposition {
+internal fun levels(): Composition {
   // region levels
   val composition =
     compositionOf {
@@ -27,7 +27,7 @@ internal fun levels(): EditComposition {
   return composition
 }
 
-internal fun fades(): EditComposition {
+internal fun fades(): Composition {
   // region fades
   val composition =
     compositionOf {
@@ -42,7 +42,7 @@ internal fun fades(): EditComposition {
   return composition
 }
 
-internal fun envelope(): EditComposition {
+internal fun envelope(): Composition {
   // region envelope
   val composition =
     compositionOf {
@@ -63,7 +63,7 @@ internal fun envelope(): EditComposition {
   return composition
 }
 
-internal fun bed(): EditComposition {
+internal fun bed(): Composition {
   // region bed
   val composition =
     compositionOf {

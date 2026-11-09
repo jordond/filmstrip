@@ -4,7 +4,7 @@ import android.media.MediaExtractor
 import android.media.MediaFormat
 import dev.jordond.filmstrip.ComponentRegistry
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.outputSlotOf
@@ -151,7 +151,7 @@ class Media3CopyGridMediaTest {
   ): CopiedWindow {
     val sourceFile = probe.fixtureFile(CLIP_LONG)
     val source = MediaSource.of(sourceFile.path)
-    val composition = EditComposition(listOf(Track(listOf(Clip(source, trim = trim, snapWithin = snapWithin)))))
+    val composition = Composition(listOf(Track(listOf(Clip(source, trim = trim, snapWithin = snapWithin)))))
     val negotiated =
       when (val result = engine.resolve(composition, ExportSpec())) {
         is ResolveResult.Resolved -> result.composition

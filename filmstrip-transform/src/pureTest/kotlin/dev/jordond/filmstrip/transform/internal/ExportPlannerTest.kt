@@ -6,7 +6,7 @@ import dev.jordond.filmstrip.codec.AudioCodec
 import dev.jordond.filmstrip.codec.Bitrate
 import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.edit.AudioLevel
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.TrackContent
@@ -151,7 +151,7 @@ class ExportPlannerTest {
 
   @Test
   fun `a track with a lead-in transcodes`() {
-    val verdict = fixture.plan(EditComposition(listOf(Track(listOf(fixture.clip()), start = 2_000.milliseconds))))
+    val verdict = fixture.plan(Composition(listOf(Track(listOf(fixture.clip()), start = 2_000.milliseconds))))
 
     verdict.shouldBeInstanceOf<Verdict.Capable>().plan.path shouldBe ExportPath.Transcode
   }
@@ -165,14 +165,14 @@ class ExportPlannerTest {
 
   @Test
   fun `a track volume level on an otherwise untouched clip transcodes`() {
-    val verdict = fixture.plan(EditComposition(listOf(Track(listOf(fixture.clip()), audio = AudioLevel.Volume(0.5f)))))
+    val verdict = fixture.plan(Composition(listOf(Track(listOf(fixture.clip()), audio = AudioLevel.Volume(0.5f)))))
 
     verdict.shouldBeInstanceOf<Verdict.Capable>().plan.path shouldBe ExportPath.Transcode
   }
 
   @Test
   fun `a video-only track on an otherwise untouched clip transcodes`() {
-    val verdict = fixture.plan(EditComposition(listOf(Track(listOf(fixture.clip()), content = TrackContent.Video))))
+    val verdict = fixture.plan(Composition(listOf(Track(listOf(fixture.clip()), content = TrackContent.Video))))
 
     verdict.shouldBeInstanceOf<Verdict.Capable>().plan.path shouldBe ExportPath.Transcode
   }

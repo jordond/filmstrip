@@ -1,7 +1,7 @@
 package dev.jordond.filmstrip.docs.guides
 
 import dev.jordond.filmstrip.Filmstrip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.player.PlaybackEvent
 import dev.jordond.filmstrip.player.PlaybackStatus
@@ -16,7 +16,7 @@ import kotlin.time.Duration.Companion.seconds
 
 internal fun openPlayer(
   filmstrip: Filmstrip,
-  composition: EditComposition,
+  composition: Composition,
 ): VideoPlayer {
   // region open
   val player = filmstrip.preview(composition)
@@ -27,7 +27,7 @@ internal fun openPlayer(
 
 internal fun cappedPlayer(
   filmstrip: Filmstrip,
-  composition: EditComposition,
+  composition: Composition,
 ): VideoPlayer {
   // region quality
   val player =
@@ -87,7 +87,7 @@ internal fun transport(player: VideoPlayer) {
 
 internal suspend fun swapComposition(
   player: VideoPlayer,
-  edited: EditComposition,
+  edited: Composition,
 ) {
   // region swap
   when (val result = player.setComposition(edited)) {

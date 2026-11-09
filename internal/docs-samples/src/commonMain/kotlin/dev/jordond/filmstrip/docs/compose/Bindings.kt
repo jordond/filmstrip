@@ -22,14 +22,14 @@ import dev.jordond.filmstrip.compose.rememberFilmstripPlayer
 import dev.jordond.filmstrip.compose.rememberPlayheadState
 import dev.jordond.filmstrip.compose.rememberVideoSurfaceState
 import dev.jordond.filmstrip.compose.videoAspect
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.player.PlaybackEvent
 import kotlin.time.Duration
 
 @Composable
 internal fun PlayerScreen(
   filmstrip: Filmstrip,
-  composition: EditComposition,
+  composition: Composition,
 ) {
   // region player
   val player = rememberFilmstripPlayer(filmstrip, composition)
@@ -45,7 +45,7 @@ internal fun PlayerScreen(
 @Composable
 internal fun PlayheadLabel(
   filmstrip: Filmstrip,
-  composition: EditComposition,
+  composition: Composition,
 ) {
   // region playhead
   val player = rememberFilmstripPlayer(filmstrip, composition)
@@ -58,7 +58,7 @@ internal fun PlayheadLabel(
 @Composable
 internal fun PlayerEvents(
   filmstrip: Filmstrip,
-  composition: EditComposition,
+  composition: Composition,
 ) {
   // region events
   val player = rememberFilmstripPlayer(filmstrip, composition)
@@ -72,7 +72,7 @@ internal fun PlayerEvents(
 @Composable
 internal fun PosterFrame(
   filmstrip: Filmstrip,
-  composition: EditComposition,
+  composition: Composition,
   at: Duration,
 ) {
   // region poster
@@ -87,7 +87,7 @@ internal fun PosterFrame(
 @Composable
 internal fun FrameStrip(
   filmstrip: Filmstrip,
-  composition: EditComposition,
+  composition: Composition,
   positions: List<Duration>,
 ) {
   // region strip

@@ -1,7 +1,7 @@
 package dev.jordond.filmstrip.media3
 
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.effect.EffectSpec
@@ -97,7 +97,7 @@ class AndroidOverlayTimingMediaTest {
     first: MediaSource,
     second: MediaSource,
     onSecond: List<EffectSpec>,
-  ) = EditComposition(listOf(Track(listOf(Clip(first), Clip(second, effects = onSecond)))))
+  ) = Composition(listOf(Track(listOf(Clip(first), Clip(second, effects = onSecond)))))
 
   private companion object {
     val WINDOW = 700.milliseconds

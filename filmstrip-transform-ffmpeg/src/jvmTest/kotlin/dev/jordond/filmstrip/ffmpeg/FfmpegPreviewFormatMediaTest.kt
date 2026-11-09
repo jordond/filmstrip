@@ -2,7 +2,7 @@ package dev.jordond.filmstrip.ffmpeg
 
 import dev.jordond.filmstrip.codec.Bitrate
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.outputLengthOf
 import dev.jordond.filmstrip.edit.outputSlotTime
@@ -192,7 +192,7 @@ class FfmpegPreviewFormatMediaTest {
     }
 
   private suspend fun assertShownAsWritten(
-    edit: EditComposition,
+    edit: Composition,
     slots: List<Int> = SLOTS,
     spec: ExportSpec = ExportSpec(bitrate = HIGH_BITRATE),
     floor: EncoderLoss = SDR_FLOOR,

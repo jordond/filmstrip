@@ -2,7 +2,7 @@ package dev.jordond.filmstrip.transform.internal
 
 import dev.jordond.filmstrip.capability.DeviceCapabilities
 import dev.jordond.filmstrip.codec.VideoCodec
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.Verdict
@@ -60,7 +60,7 @@ class CrossEngineLadderTest {
     device: DeviceCapabilities,
   ): VideoCodec {
     val composition =
-      EditComposition(listOf(Track(listOf(fixture.clip(duration = 4_000.milliseconds, bitrate = null)))))
+      Composition(listOf(Track(listOf(fixture.clip(duration = 4_000.milliseconds, bitrate = null)))))
     val export =
       fixture
         .planner(

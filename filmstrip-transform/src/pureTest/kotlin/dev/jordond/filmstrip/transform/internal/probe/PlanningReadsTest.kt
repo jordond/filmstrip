@@ -3,7 +3,7 @@ package dev.jordond.filmstrip.transform.internal.probe
 import dev.jordond.filmstrip.CapabilitiesResult
 import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.media.MediaProber
@@ -90,7 +90,7 @@ class PlanningReadsTest {
       val reads = reads()
 
       reads.read(composition(untrimmed))
-      reads.read(EditComposition(listOf(Track(listOf(trimmed, trimmed)))))
+      reads.read(Composition(listOf(Track(listOf(trimmed, trimmed)))))
 
       openingReads.shouldBeEmpty()
     }
@@ -105,7 +105,7 @@ class PlanningReadsTest {
       val read =
         reads
           .read(
-            EditComposition(listOf(Track(listOf(trimmed, trimmed)))),
+            Composition(listOf(Track(listOf(trimmed, trimmed)))),
           ).shouldBeInstanceOf<PlanningReadResult.Read>()
 
       probes shouldBe 1

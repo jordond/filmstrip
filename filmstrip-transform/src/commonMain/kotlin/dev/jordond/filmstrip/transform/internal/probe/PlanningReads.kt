@@ -4,7 +4,7 @@ import dev.jordond.filmstrip.CapabilitiesResult
 import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.capability.DeviceCapabilities
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaProber
 import dev.jordond.filmstrip.media.MediaSource
@@ -46,7 +46,7 @@ public class PlanningReads(
    *
    * @return Everything read, or the first failure a probe, the device read or an opening read reported.
    */
-  public suspend fun read(composition: EditComposition): PlanningReadResult {
+  public suspend fun read(composition: Composition): PlanningReadResult {
     val infos = mutableMapOf<MediaSource, MediaInfo>()
     for (clip in composition.tracks.flatMap { it.clips }) {
       if (clip.source in infos) continue

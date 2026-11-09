@@ -1,6 +1,6 @@
 package dev.jordond.filmstrip.compose
 
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.HdrMode
 import io.kotest.matchers.shouldBe
@@ -8,7 +8,7 @@ import kotlin.test.Test
 
 class StripSpecExportTest {
   private fun strip(exportSpec: ExportSpec = ExportSpec()) =
-    StripSpec(EditComposition(emptyList()), 1L, emptyList(), null, 1L, 0, exportSpec)
+    StripSpec(Composition(emptyList()), 1L, emptyList(), null, 1L, 0, exportSpec)
 
   @Test
   fun aNewExportSpecMissesWhatTheStripHolds() {

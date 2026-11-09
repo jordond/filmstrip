@@ -1,7 +1,7 @@
 package dev.jordond.filmstrip.transform.internal.negotiation
 
 import dev.jordond.filmstrip.InternalFilmstripApi
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.export.CopyBlocker
 import dev.jordond.filmstrip.export.ExportPath
@@ -18,7 +18,7 @@ import dev.jordond.filmstrip.transform.internal.resolve.ResolvedHdr
  * because a grade that survives to the encoder decides which codecs are eligible at all.
  */
 internal fun gradeOf(
-  edit: EditComposition,
+  edit: Composition,
   ask: Ask,
   framing: Framing,
   copySupport: CopySupport,
@@ -109,7 +109,7 @@ internal fun gradeOf(
 }
 
 private fun drawnSdrSources(
-  edit: EditComposition,
+  edit: Composition,
   ask: Ask,
 ): List<MediaSource> =
   edit.tracks
@@ -127,7 +127,7 @@ private fun drawnSdrSources(
  * An inert effect is taken out of the edit before it draws, so it needs nothing.
  */
 @InternalFilmstripApi
-public fun EditComposition.effectsThatRequireSdr(): List<String> =
+public fun Composition.effectsThatRequireSdr(): List<String> =
   (effects + tracks.flatMap { track -> track.effects + track.clips.flatMap { it.effects } })
     .filter { it.requiresSdr && !it.isInert }
     .map { it.id }

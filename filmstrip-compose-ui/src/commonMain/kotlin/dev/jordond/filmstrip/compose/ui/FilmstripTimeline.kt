@@ -21,7 +21,7 @@ import dev.jordond.filmstrip.compose.ui.interaction.rememberPlayheadFollow
 import dev.jordond.filmstrip.compose.ui.interaction.scrubTimeline
 import dev.jordond.filmstrip.compose.ui.interaction.wheelZoomTimeline
 import dev.jordond.filmstrip.compose.ui.interaction.zoomTimeline
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.still.FrameRenderer
@@ -102,7 +102,7 @@ import kotlin.time.Duration
 @Composable
 public fun FilmstripTimeline(
   renderer: FrameRenderer,
-  composition: EditComposition,
+  composition: Composition,
   duration: Duration,
   position: () -> Duration,
   isPlaying: Boolean,

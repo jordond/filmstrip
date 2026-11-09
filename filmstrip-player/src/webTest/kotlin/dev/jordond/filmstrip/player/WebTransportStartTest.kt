@@ -1,6 +1,6 @@
 package dev.jordond.filmstrip.player
 
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.outputSlotOf
 import dev.jordond.filmstrip.edit.outputSlotTime
 import dev.jordond.filmstrip.effects.color.Brightness
@@ -182,7 +182,7 @@ class WebTransportStartTest {
     }
 
   private fun heldStart(
-    composition: EditComposition = webFixtureComposition(),
+    composition: Composition = webFixtureComposition(),
     body: suspend (BrowserPlayerEngine, AudioStartGate) -> Unit,
   ) = contractTest { scope ->
     val gate = AudioStartGate()

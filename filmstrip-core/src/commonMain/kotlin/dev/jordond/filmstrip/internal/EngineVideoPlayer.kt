@@ -2,7 +2,7 @@ package dev.jordond.filmstrip.internal
 
 import dev.jordond.filmstrip.Cancellable
 import dev.jordond.filmstrip.capability.EffectParity
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.player.EngineListener
 import dev.jordond.filmstrip.player.PlaybackEvent
@@ -38,7 +38,7 @@ import kotlin.time.Duration
 // engine, apart from a seek, which moves the playhead first.
 internal class EngineVideoPlayer(
   private val engine: PlayerEngine,
-  initial: EditComposition,
+  initial: Composition,
 ) : VideoPlayer,
   PlayerTransport by engine {
   private val _state = MutableStateFlow(PlayerState.Initial)
@@ -113,7 +113,7 @@ internal class EngineVideoPlayer(
     }
 
   override suspend fun setComposition(
-    composition: EditComposition,
+    composition: Composition,
     startAt: Duration?,
     playWhenReady: Boolean,
   ): SetCompositionResult =

@@ -9,7 +9,7 @@ import dev.jordond.filmstrip.color.sdSourceDisplayed
 import dev.jordond.filmstrip.color.ycbcrReading
 import dev.jordond.filmstrip.color.ycbcrToRgb
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.effects.BuiltInEffectResolver
 import dev.jordond.filmstrip.effects.filters.FilterEffectResolver
@@ -80,8 +80,8 @@ class BrowserSdColorMediaTest {
       }
       val vhs = Vhs(intensity = 0.5f)
       mapOf(
-        "clip" to EditComposition(listOf(Track(listOf(Clip(source, effects = listOf(vhs)))))),
-        "composition" to EditComposition(listOf(Track(listOf(Clip(source)))), listOf(vhs)),
+        "clip" to Composition(listOf(Track(listOf(Clip(source, effects = listOf(vhs)))))),
+        "composition" to Composition(listOf(Track(listOf(Clip(source)))), listOf(vhs)),
       ).forEach { (scope, edit) ->
         val drawn = previewFrameOf(source, edit)
         val tick = VhsSignal.tickAt(0.0)
@@ -183,7 +183,7 @@ class BrowserSdColorMediaTest {
 
   private suspend fun previewFrameOf(
     source: MediaSource,
-    edit: EditComposition = single(source),
+    edit: Composition = single(source),
   ): PreviewFrame {
     val preview =
       webCodecsExportEngine(
@@ -215,7 +215,7 @@ class BrowserSdColorMediaTest {
 
   private fun List<Double>.inCodes(): List<Double> = map { it * MAX_CODE }
 
-  private fun single(source: MediaSource): EditComposition = EditComposition(listOf(Track(listOf(Clip(source)))))
+  private fun single(source: MediaSource): Composition = Composition(listOf(Track(listOf(Clip(source)))))
 
   /**
    * The first frame of [source] as the YCbCr it stores, a limited range 8-bit plane each.

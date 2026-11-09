@@ -1,6 +1,6 @@
 package dev.jordond.filmstrip.sample.tryit
 
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.effects.color.Contrast
 import dev.jordond.filmstrip.effects.color.Saturation
@@ -20,7 +20,7 @@ import kotlin.time.Duration.Companion.seconds
 class BeachEditTest {
   private val source = MediaSource.ofUri("blob:beach")
 
-  private val EditComposition.trim: TimeRange?
+  private val Composition.trim: TimeRange?
     get() =
       tracks
         .single()

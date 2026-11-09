@@ -6,7 +6,7 @@ import dev.jordond.filmstrip.avfoundation.internal.composition.compositorClass
 import dev.jordond.filmstrip.avfoundation.internal.composition.toAvComposition
 import dev.jordond.filmstrip.color.SMPTE_C_PRIMARIES
 import dev.jordond.filmstrip.color.sdSourceDisplayed
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.effects.BuiltInEffectResolver
 import dev.jordond.filmstrip.export.ExportSpec
@@ -176,20 +176,20 @@ class AppleSdRouteHardwareTest {
     return path
   }
 
-  private fun alone(path: String): EditComposition =
+  private fun alone(path: String): Composition =
     compositionOf { clip(MediaSource.of(path)) { trim(Duration.ZERO, CLIP) } }
 
   private fun inOrder(
     first: String,
     second: String,
-  ): EditComposition =
+  ): Composition =
     compositionOf {
       clip(MediaSource.of(first)) { trim(Duration.ZERO, CLIP) }
       clip(MediaSource.of(second)) { trim(Duration.ZERO, CLIP) }
     }
 
   private suspend fun resolved(
-    composition: EditComposition,
+    composition: Composition,
     spec: ExportSpec,
   ): ResolveResult.Resolved {
     val components = ComponentRegistry.Builder().addEffectResolver(BuiltInEffectResolver()).build()
@@ -200,7 +200,7 @@ class AppleSdRouteHardwareTest {
   }
 
   private suspend fun graphOf(
-    composition: EditComposition,
+    composition: Composition,
     spec: ExportSpec = SPEC,
   ): AvComposition = withContext(Dispatchers.Default) { resolved(composition, spec).composition.toAvComposition() }
 

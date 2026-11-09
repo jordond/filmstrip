@@ -45,11 +45,11 @@ public abstract interface annotation class dev/jordond/filmstrip/ExperimentalFil
 
 public abstract interface class dev/jordond/filmstrip/Filmstrip : dev/jordond/filmstrip/player/PreviewFactory, dev/jordond/filmstrip/still/FrameRenderer {
 	public abstract fun capabilities (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
-	public abstract fun export (Ldev/jordond/filmstrip/edit/EditComposition;Ldev/jordond/filmstrip/export/ExportSpec;Ldev/jordond/filmstrip/media/MediaSink;)Lkotlinx/coroutines/flow/Flow;
+	public abstract fun export (Ldev/jordond/filmstrip/edit/Composition;Ldev/jordond/filmstrip/export/ExportSpec;Ldev/jordond/filmstrip/media/MediaSink;)Lkotlinx/coroutines/flow/Flow;
 	public abstract fun export (Ldev/jordond/filmstrip/export/ExportPlan;Ldev/jordond/filmstrip/media/MediaSink;)Lkotlinx/coroutines/flow/Flow;
 	public abstract fun getComponents ()Ldev/jordond/filmstrip/ComponentRegistry;
 	public abstract fun parityOf (Ljava/lang/String;)Ldev/jordond/filmstrip/capability/EffectParity;
-	public abstract fun plan (Ldev/jordond/filmstrip/edit/EditComposition;Ldev/jordond/filmstrip/export/ExportSpec;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun plan (Ldev/jordond/filmstrip/edit/Composition;Ldev/jordond/filmstrip/export/ExportSpec;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public abstract fun probe (Ldev/jordond/filmstrip/media/MediaSource;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 }
 
@@ -546,28 +546,7 @@ public final class dev/jordond/filmstrip/edit/ClipSpeedKt {
 	public static final fun getCLIP_SPEED_RANGE ()Lkotlin/ranges/ClosedFloatingPointRange;
 }
 
-public final class dev/jordond/filmstrip/edit/CompositionBuilder {
-	public fun <init> ()V
-	public final fun addClip (Ldev/jordond/filmstrip/edit/Clip;)Ldev/jordond/filmstrip/edit/CompositionBuilder;
-	public final fun addEffects (Ljava/util/List;)Ldev/jordond/filmstrip/edit/CompositionBuilder;
-	public final fun addTrack (Ldev/jordond/filmstrip/edit/Track;)Ldev/jordond/filmstrip/edit/CompositionBuilder;
-	public final fun audio (Ldev/jordond/filmstrip/edit/AudioSpec;)Ldev/jordond/filmstrip/edit/CompositionBuilder;
-	public final fun build ()Ldev/jordond/filmstrip/edit/EditComposition;
-	public final fun clip (Ldev/jordond/filmstrip/media/MediaSource;Lkotlin/jvm/functions/Function1;)Ldev/jordond/filmstrip/edit/CompositionBuilder;
-	public static synthetic fun clip$default (Ldev/jordond/filmstrip/edit/CompositionBuilder;Ldev/jordond/filmstrip/media/MediaSource;Lkotlin/jvm/functions/Function1;ILjava/lang/Object;)Ldev/jordond/filmstrip/edit/CompositionBuilder;
-	public final fun effects (Lkotlin/jvm/functions/Function1;)Ldev/jordond/filmstrip/edit/CompositionBuilder;
-	public final fun fill (Ldev/jordond/filmstrip/geometry/Fill;)Ldev/jordond/filmstrip/edit/CompositionBuilder;
-	public final fun image-8Mi8wO0 (Ldev/jordond/filmstrip/media/ImageSource;JLkotlin/jvm/functions/Function1;)Ldev/jordond/filmstrip/edit/CompositionBuilder;
-	public static synthetic fun image-8Mi8wO0$default (Ldev/jordond/filmstrip/edit/CompositionBuilder;Ldev/jordond/filmstrip/media/ImageSource;JLkotlin/jvm/functions/Function1;ILjava/lang/Object;)Ldev/jordond/filmstrip/edit/CompositionBuilder;
-	public final fun track (Ldev/jordond/filmstrip/edit/TrackContent;Lkotlin/jvm/functions/Function1;)Ldev/jordond/filmstrip/edit/CompositionBuilder;
-	public static synthetic fun track$default (Ldev/jordond/filmstrip/edit/CompositionBuilder;Ldev/jordond/filmstrip/edit/TrackContent;Lkotlin/jvm/functions/Function1;ILjava/lang/Object;)Ldev/jordond/filmstrip/edit/CompositionBuilder;
-}
-
-public final class dev/jordond/filmstrip/edit/CompositionBuilderKt {
-	public static final fun compositionOf (Lkotlin/jvm/functions/Function1;)Ldev/jordond/filmstrip/edit/EditComposition;
-}
-
-public final class dev/jordond/filmstrip/edit/EditComposition {
+public final class dev/jordond/filmstrip/edit/Composition {
 	public fun <init> (Ljava/util/List;Ljava/util/List;Ldev/jordond/filmstrip/edit/AudioSpec;Ldev/jordond/filmstrip/geometry/Fill;)V
 	public synthetic fun <init> (Ljava/util/List;Ljava/util/List;Ldev/jordond/filmstrip/edit/AudioSpec;Ldev/jordond/filmstrip/geometry/Fill;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun equals (Ljava/lang/Object;)Z
@@ -579,11 +558,32 @@ public final class dev/jordond/filmstrip/edit/EditComposition {
 	public final fun getTracks ()Ljava/util/List;
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
-	public final fun withAudio (Ldev/jordond/filmstrip/edit/AudioSpec;)Ldev/jordond/filmstrip/edit/EditComposition;
-	public final fun withClips (Ljava/util/List;)Ldev/jordond/filmstrip/edit/EditComposition;
-	public final fun withEffects (Ljava/util/List;)Ldev/jordond/filmstrip/edit/EditComposition;
-	public final fun withFill (Ldev/jordond/filmstrip/geometry/Fill;)Ldev/jordond/filmstrip/edit/EditComposition;
-	public final fun withTracks (Ljava/util/List;)Ldev/jordond/filmstrip/edit/EditComposition;
+	public final fun withAudio (Ldev/jordond/filmstrip/edit/AudioSpec;)Ldev/jordond/filmstrip/edit/Composition;
+	public final fun withClips (Ljava/util/List;)Ldev/jordond/filmstrip/edit/Composition;
+	public final fun withEffects (Ljava/util/List;)Ldev/jordond/filmstrip/edit/Composition;
+	public final fun withFill (Ldev/jordond/filmstrip/geometry/Fill;)Ldev/jordond/filmstrip/edit/Composition;
+	public final fun withTracks (Ljava/util/List;)Ldev/jordond/filmstrip/edit/Composition;
+}
+
+public final class dev/jordond/filmstrip/edit/CompositionBuilder {
+	public fun <init> ()V
+	public final fun addClip (Ldev/jordond/filmstrip/edit/Clip;)Ldev/jordond/filmstrip/edit/CompositionBuilder;
+	public final fun addEffects (Ljava/util/List;)Ldev/jordond/filmstrip/edit/CompositionBuilder;
+	public final fun addTrack (Ldev/jordond/filmstrip/edit/Track;)Ldev/jordond/filmstrip/edit/CompositionBuilder;
+	public final fun audio (Ldev/jordond/filmstrip/edit/AudioSpec;)Ldev/jordond/filmstrip/edit/CompositionBuilder;
+	public final fun build ()Ldev/jordond/filmstrip/edit/Composition;
+	public final fun clip (Ldev/jordond/filmstrip/media/MediaSource;Lkotlin/jvm/functions/Function1;)Ldev/jordond/filmstrip/edit/CompositionBuilder;
+	public static synthetic fun clip$default (Ldev/jordond/filmstrip/edit/CompositionBuilder;Ldev/jordond/filmstrip/media/MediaSource;Lkotlin/jvm/functions/Function1;ILjava/lang/Object;)Ldev/jordond/filmstrip/edit/CompositionBuilder;
+	public final fun effects (Lkotlin/jvm/functions/Function1;)Ldev/jordond/filmstrip/edit/CompositionBuilder;
+	public final fun fill (Ldev/jordond/filmstrip/geometry/Fill;)Ldev/jordond/filmstrip/edit/CompositionBuilder;
+	public final fun image-8Mi8wO0 (Ldev/jordond/filmstrip/media/ImageSource;JLkotlin/jvm/functions/Function1;)Ldev/jordond/filmstrip/edit/CompositionBuilder;
+	public static synthetic fun image-8Mi8wO0$default (Ldev/jordond/filmstrip/edit/CompositionBuilder;Ldev/jordond/filmstrip/media/ImageSource;JLkotlin/jvm/functions/Function1;ILjava/lang/Object;)Ldev/jordond/filmstrip/edit/CompositionBuilder;
+	public final fun track (Ldev/jordond/filmstrip/edit/TrackContent;Lkotlin/jvm/functions/Function1;)Ldev/jordond/filmstrip/edit/CompositionBuilder;
+	public static synthetic fun track$default (Ldev/jordond/filmstrip/edit/CompositionBuilder;Ldev/jordond/filmstrip/edit/TrackContent;Lkotlin/jvm/functions/Function1;ILjava/lang/Object;)Ldev/jordond/filmstrip/edit/CompositionBuilder;
+}
+
+public final class dev/jordond/filmstrip/edit/CompositionBuilderKt {
+	public static final fun compositionOf (Lkotlin/jvm/functions/Function1;)Ldev/jordond/filmstrip/edit/Composition;
 }
 
 public final class dev/jordond/filmstrip/edit/EffectsBuilder {
@@ -782,12 +782,12 @@ public final class dev/jordond/filmstrip/effect/EffectResolution$Unsupported : d
 }
 
 public abstract interface class dev/jordond/filmstrip/effect/EffectResolver {
-	public fun prepare (Ldev/jordond/filmstrip/edit/EditComposition;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public fun prepare (Ldev/jordond/filmstrip/edit/Composition;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public abstract fun resolve (Ldev/jordond/filmstrip/effect/EffectSpec;Ldev/jordond/filmstrip/effect/RenderCapabilities;Ldev/jordond/filmstrip/effect/Attributes;)Ldev/jordond/filmstrip/effect/EffectResolution;
 }
 
 public final class dev/jordond/filmstrip/effect/EffectResolver$DefaultImpls {
-	public static fun prepare (Ldev/jordond/filmstrip/effect/EffectResolver;Ldev/jordond/filmstrip/edit/EditComposition;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static fun prepare (Ldev/jordond/filmstrip/effect/EffectResolver;Ldev/jordond/filmstrip/edit/Composition;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 }
 
 public final class dev/jordond/filmstrip/effect/EffectScope : java/lang/Enum {
@@ -961,7 +961,7 @@ public final class dev/jordond/filmstrip/export/ExportPath : java/lang/Enum {
 }
 
 public final class dev/jordond/filmstrip/export/ExportPlan {
-	public synthetic fun <init> (Ldev/jordond/filmstrip/export/ExportPath;Ldev/jordond/filmstrip/export/OutputFormat;Ljava/util/List;Ldev/jordond/filmstrip/export/ExportEstimate;Ldev/jordond/filmstrip/capability/EffectParity;JLjava/util/List;Ljava/util/List;Ldev/jordond/filmstrip/edit/EditComposition;Ldev/jordond/filmstrip/export/ExportSpec;Ljava/util/List;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (Ldev/jordond/filmstrip/export/ExportPath;Ldev/jordond/filmstrip/export/OutputFormat;Ljava/util/List;Ldev/jordond/filmstrip/export/ExportEstimate;Ldev/jordond/filmstrip/capability/EffectParity;JLjava/util/List;Ljava/util/List;Ldev/jordond/filmstrip/edit/Composition;Ldev/jordond/filmstrip/export/ExportSpec;Ljava/util/List;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun getCopyBlockedBy ()Ljava/util/List;
 	public final fun getDuration-UwyO8pc ()J
 	public final fun getEffectOrder ()Ljava/util/List;
@@ -1816,12 +1816,12 @@ public final class dev/jordond/filmstrip/player/PlayerTransport$DefaultImpls {
 }
 
 public abstract interface class dev/jordond/filmstrip/player/PreviewFactory {
-	public abstract fun preview (Ldev/jordond/filmstrip/edit/EditComposition;Ldev/jordond/filmstrip/player/PlayerConfig;)Ldev/jordond/filmstrip/player/VideoPlayer;
-	public static synthetic fun preview$default (Ldev/jordond/filmstrip/player/PreviewFactory;Ldev/jordond/filmstrip/edit/EditComposition;Ldev/jordond/filmstrip/player/PlayerConfig;ILjava/lang/Object;)Ldev/jordond/filmstrip/player/VideoPlayer;
+	public abstract fun preview (Ldev/jordond/filmstrip/edit/Composition;Ldev/jordond/filmstrip/player/PlayerConfig;)Ldev/jordond/filmstrip/player/VideoPlayer;
+	public static synthetic fun preview$default (Ldev/jordond/filmstrip/player/PreviewFactory;Ldev/jordond/filmstrip/edit/Composition;Ldev/jordond/filmstrip/player/PlayerConfig;ILjava/lang/Object;)Ldev/jordond/filmstrip/player/VideoPlayer;
 }
 
 public final class dev/jordond/filmstrip/player/PreviewFactory$DefaultImpls {
-	public static synthetic fun preview$default (Ldev/jordond/filmstrip/player/PreviewFactory;Ldev/jordond/filmstrip/edit/EditComposition;Ldev/jordond/filmstrip/player/PlayerConfig;ILjava/lang/Object;)Ldev/jordond/filmstrip/player/VideoPlayer;
+	public static synthetic fun preview$default (Ldev/jordond/filmstrip/player/PreviewFactory;Ldev/jordond/filmstrip/edit/Composition;Ldev/jordond/filmstrip/player/PlayerConfig;ILjava/lang/Object;)Ldev/jordond/filmstrip/player/VideoPlayer;
 }
 
 public abstract interface class dev/jordond/filmstrip/player/PreviewFrameReadback {
@@ -1909,10 +1909,10 @@ public abstract interface class dev/jordond/filmstrip/player/SetCompositionCallb
 }
 
 public final class dev/jordond/filmstrip/player/SetCompositionRequest {
-	public synthetic fun <init> (Ldev/jordond/filmstrip/edit/EditComposition;Lkotlin/time/Duration;ZILkotlin/jvm/internal/DefaultConstructorMarker;)V
-	public synthetic fun <init> (Ldev/jordond/filmstrip/edit/EditComposition;Lkotlin/time/Duration;ZLkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (Ldev/jordond/filmstrip/edit/Composition;Lkotlin/time/Duration;ZILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (Ldev/jordond/filmstrip/edit/Composition;Lkotlin/time/Duration;ZLkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun equals (Ljava/lang/Object;)Z
-	public final fun getComposition ()Ldev/jordond/filmstrip/edit/EditComposition;
+	public final fun getComposition ()Ldev/jordond/filmstrip/edit/Composition;
 	public final fun getPlayWhenReady ()Z
 	public final fun getStartAt-FghU774 ()Lkotlin/time/Duration;
 	public fun hashCode ()I
@@ -1959,24 +1959,24 @@ public abstract interface class dev/jordond/filmstrip/player/VideoPlayer : dev/j
 	public abstract fun getState ()Lkotlinx/coroutines/flow/StateFlow;
 	public abstract fun positionFlow-LRDsOJo (J)Lkotlinx/coroutines/flow/Flow;
 	public abstract fun setComposition (Ldev/jordond/filmstrip/player/SetCompositionRequest;Ldev/jordond/filmstrip/player/SetCompositionCallback;)Ldev/jordond/filmstrip/Cancellable;
-	public abstract fun setComposition-hhJSO8g (Ldev/jordond/filmstrip/edit/EditComposition;Lkotlin/time/Duration;ZLkotlin/coroutines/Continuation;)Ljava/lang/Object;
-	public static synthetic fun setComposition-hhJSO8g$default (Ldev/jordond/filmstrip/player/VideoPlayer;Ldev/jordond/filmstrip/edit/EditComposition;Lkotlin/time/Duration;ZLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public abstract fun setComposition-hhJSO8g (Ldev/jordond/filmstrip/edit/Composition;Lkotlin/time/Duration;ZLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun setComposition-hhJSO8g$default (Ldev/jordond/filmstrip/player/VideoPlayer;Ldev/jordond/filmstrip/edit/Composition;Lkotlin/time/Duration;ZLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 }
 
 public final class dev/jordond/filmstrip/player/VideoPlayer$DefaultImpls {
-	public static synthetic fun setComposition-hhJSO8g$default (Ldev/jordond/filmstrip/player/VideoPlayer;Ldev/jordond/filmstrip/edit/EditComposition;Lkotlin/time/Duration;ZLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public static synthetic fun setComposition-hhJSO8g$default (Ldev/jordond/filmstrip/player/VideoPlayer;Ldev/jordond/filmstrip/edit/Composition;Lkotlin/time/Duration;ZLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 }
 
 public abstract interface class dev/jordond/filmstrip/still/FrameRenderer {
-	public abstract fun frame-WPwdCS8 (Ldev/jordond/filmstrip/edit/EditComposition;JLjava/lang/Integer;Ldev/jordond/filmstrip/export/ExportSpec;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
-	public static synthetic fun frame-WPwdCS8$default (Ldev/jordond/filmstrip/still/FrameRenderer;Ldev/jordond/filmstrip/edit/EditComposition;JLjava/lang/Integer;Ldev/jordond/filmstrip/export/ExportSpec;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
-	public abstract fun frames (Ldev/jordond/filmstrip/edit/EditComposition;Ljava/util/List;Ljava/lang/Integer;Ldev/jordond/filmstrip/export/ExportSpec;)Lkotlinx/coroutines/flow/Flow;
-	public static synthetic fun frames$default (Ldev/jordond/filmstrip/still/FrameRenderer;Ldev/jordond/filmstrip/edit/EditComposition;Ljava/util/List;Ljava/lang/Integer;Ldev/jordond/filmstrip/export/ExportSpec;ILjava/lang/Object;)Lkotlinx/coroutines/flow/Flow;
+	public abstract fun frame-WPwdCS8 (Ldev/jordond/filmstrip/edit/Composition;JLjava/lang/Integer;Ldev/jordond/filmstrip/export/ExportSpec;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun frame-WPwdCS8$default (Ldev/jordond/filmstrip/still/FrameRenderer;Ldev/jordond/filmstrip/edit/Composition;JLjava/lang/Integer;Ldev/jordond/filmstrip/export/ExportSpec;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public abstract fun frames (Ldev/jordond/filmstrip/edit/Composition;Ljava/util/List;Ljava/lang/Integer;Ldev/jordond/filmstrip/export/ExportSpec;)Lkotlinx/coroutines/flow/Flow;
+	public static synthetic fun frames$default (Ldev/jordond/filmstrip/still/FrameRenderer;Ldev/jordond/filmstrip/edit/Composition;Ljava/util/List;Ljava/lang/Integer;Ldev/jordond/filmstrip/export/ExportSpec;ILjava/lang/Object;)Lkotlinx/coroutines/flow/Flow;
 }
 
 public final class dev/jordond/filmstrip/still/FrameRenderer$DefaultImpls {
-	public static synthetic fun frame-WPwdCS8$default (Ldev/jordond/filmstrip/still/FrameRenderer;Ldev/jordond/filmstrip/edit/EditComposition;JLjava/lang/Integer;Ldev/jordond/filmstrip/export/ExportSpec;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
-	public static synthetic fun frames$default (Ldev/jordond/filmstrip/still/FrameRenderer;Ldev/jordond/filmstrip/edit/EditComposition;Ljava/util/List;Ljava/lang/Integer;Ldev/jordond/filmstrip/export/ExportSpec;ILjava/lang/Object;)Lkotlinx/coroutines/flow/Flow;
+	public static synthetic fun frame-WPwdCS8$default (Ldev/jordond/filmstrip/still/FrameRenderer;Ldev/jordond/filmstrip/edit/Composition;JLjava/lang/Integer;Ldev/jordond/filmstrip/export/ExportSpec;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public static synthetic fun frames$default (Ldev/jordond/filmstrip/still/FrameRenderer;Ldev/jordond/filmstrip/edit/Composition;Ljava/util/List;Ljava/lang/Integer;Ldev/jordond/filmstrip/export/ExportSpec;ILjava/lang/Object;)Lkotlinx/coroutines/flow/Flow;
 }
 
 public abstract interface class dev/jordond/filmstrip/still/StillBytes {
@@ -2014,9 +2014,9 @@ public final class dev/jordond/filmstrip/still/StillImageKt {
 	public static synthetic fun encodeStill$default (Ldev/jordond/filmstrip/media/PlatformImage;Ldev/jordond/filmstrip/still/StillSpec;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 	public static final fun frame-1Y68eR8 (Ldev/jordond/filmstrip/still/FrameRenderer;Ldev/jordond/filmstrip/media/MediaSource;JLjava/lang/Integer;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public static synthetic fun frame-1Y68eR8$default (Ldev/jordond/filmstrip/still/FrameRenderer;Ldev/jordond/filmstrip/media/MediaSource;JLjava/lang/Integer;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
-	public static final fun still-WPi__2c (Ldev/jordond/filmstrip/still/FrameRenderer;Ldev/jordond/filmstrip/edit/EditComposition;JLdev/jordond/filmstrip/media/MediaSink;Ldev/jordond/filmstrip/still/StillSpec;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static final fun still-WPi__2c (Ldev/jordond/filmstrip/still/FrameRenderer;Ldev/jordond/filmstrip/edit/Composition;JLdev/jordond/filmstrip/media/MediaSink;Ldev/jordond/filmstrip/still/StillSpec;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public static final fun still-WPi__2c (Ldev/jordond/filmstrip/still/FrameRenderer;Ldev/jordond/filmstrip/media/MediaSource;JLdev/jordond/filmstrip/media/MediaSink;Ldev/jordond/filmstrip/still/StillSpec;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
-	public static synthetic fun still-WPi__2c$default (Ldev/jordond/filmstrip/still/FrameRenderer;Ldev/jordond/filmstrip/edit/EditComposition;JLdev/jordond/filmstrip/media/MediaSink;Ldev/jordond/filmstrip/still/StillSpec;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public static synthetic fun still-WPi__2c$default (Ldev/jordond/filmstrip/still/FrameRenderer;Ldev/jordond/filmstrip/edit/Composition;JLdev/jordond/filmstrip/media/MediaSink;Ldev/jordond/filmstrip/still/StillSpec;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 	public static synthetic fun still-WPi__2c$default (Ldev/jordond/filmstrip/still/FrameRenderer;Ldev/jordond/filmstrip/media/MediaSource;JLdev/jordond/filmstrip/media/MediaSink;Ldev/jordond/filmstrip/still/StillSpec;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 }
 
@@ -2101,10 +2101,10 @@ public abstract interface class dev/jordond/filmstrip/thumbnail/ThumbnailCallbac
 }
 
 public final class dev/jordond/filmstrip/thumbnail/ThumbnailRequest {
-	public synthetic fun <init> (Ldev/jordond/filmstrip/edit/EditComposition;JLjava/lang/Integer;JZLdev/jordond/filmstrip/export/ExportSpec;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
-	public synthetic fun <init> (Ldev/jordond/filmstrip/edit/EditComposition;JLjava/lang/Integer;JZLdev/jordond/filmstrip/export/ExportSpec;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (Ldev/jordond/filmstrip/edit/Composition;JLjava/lang/Integer;JZLdev/jordond/filmstrip/export/ExportSpec;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (Ldev/jordond/filmstrip/edit/Composition;JLjava/lang/Integer;JZLdev/jordond/filmstrip/export/ExportSpec;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun equals (Ljava/lang/Object;)Z
-	public final fun getComposition ()Ldev/jordond/filmstrip/edit/EditComposition;
+	public final fun getComposition ()Ldev/jordond/filmstrip/edit/Composition;
 	public final fun getEffectsRevision ()J
 	public final fun getExportSpec ()Ldev/jordond/filmstrip/export/ExportSpec;
 	public final fun getHeightPx ()Ljava/lang/Integer;

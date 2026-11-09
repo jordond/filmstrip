@@ -4,7 +4,7 @@ import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.capability.EffectParity
 import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.edit.AudioSpec
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.effect.EffectIds
 import dev.jordond.filmstrip.effect.EffectResolver
 import dev.jordond.filmstrip.effect.RenderApi
@@ -73,7 +73,7 @@ internal class BrowserPlanner(
    * The grade an export of [composition] at [ask] resolves to, refused the way [lower] refuses that export.
    */
   internal fun exportGradeOf(
-    composition: EditComposition,
+    composition: Composition,
     ask: Ask,
     opaque: Set<MediaSource>,
   ): ExportGrade {
@@ -90,7 +90,7 @@ internal class BrowserPlanner(
    * negotiating it.
    */
   internal fun copyPacketWindowOf(
-    composition: EditComposition,
+    composition: Composition,
     ask: Ask,
   ): CopyPacketWindow? =
     if (unconditionalRefusal(composition, ask.infos) == null) planner.copyPacketWindowOf(composition, ask) else null
@@ -100,7 +100,7 @@ internal class BrowserPlanner(
    * [ExportPlanner.withFallbackCopyPackets].
    */
   internal suspend fun withFallbackCopyPackets(
-    composition: EditComposition,
+    composition: Composition,
     ask: Ask,
     export: NegotiatedExport,
     read: suspend (CopyPacketWindow) -> CopyPacketRead?,
@@ -113,7 +113,7 @@ internal class BrowserPlanner(
    * nothing downstream reads a source's sync samples again.
    */
   internal fun lower(
-    composition: EditComposition,
+    composition: Composition,
     ask: Ask,
     dropped: Set<String> = emptySet(),
     opaque: Set<MediaSource> = emptySet(),
@@ -141,7 +141,7 @@ internal class BrowserPlanner(
    * first with no video track. The track shapes no backend lays are the negotiator's to refuse.
    */
   private fun unconditionalRefusal(
-    composition: EditComposition,
+    composition: Composition,
     infos: Map<MediaSource, MediaInfo>,
   ): LoweredExport<Nothing>? {
     // This backend draws its output by decoding a video track, and a still carries none, so every
@@ -170,7 +170,7 @@ internal class BrowserPlanner(
    * across untouched, and an audio-only export writes no pixels to bake it into.
    */
   private fun transcodeOnlyRefusal(
-    composition: EditComposition,
+    composition: Composition,
     infos: Map<MediaSource, MediaInfo>,
   ): LoweredExport<Nothing>? {
     val primary = composition.tracks.firstOrNull() ?: return null
@@ -189,7 +189,7 @@ internal class BrowserPlanner(
   }
 
   // The sources the pipeline decodes frames from, which are the clips of the primary track.
-  private fun drawnSources(composition: EditComposition): Set<MediaSource> =
+  private fun drawnSources(composition: Composition): Set<MediaSource> =
     composition.tracks
       .firstOrNull()
       ?.clips

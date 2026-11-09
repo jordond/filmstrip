@@ -4,7 +4,7 @@ import dev.jordond.filmstrip.CapabilitiesResult
 import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.capability.DeviceCapabilities
 import dev.jordond.filmstrip.codec.VideoCodec
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.media.FrameResult
 import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSource
@@ -49,7 +49,7 @@ internal suspend fun deviceCapabilities(filmstrip: Filmstrip): DeviceCapabilitie
 
 internal suspend fun oneFrame(
   filmstrip: Filmstrip,
-  composition: EditComposition,
+  composition: Composition,
 ) {
   // region frame
   when (val result = filmstrip.frame(composition, at = 3.seconds, heightPx = 360)) {
@@ -74,7 +74,7 @@ internal suspend fun oneFrameOfASource(filmstrip: Filmstrip) {
 
 internal suspend fun severalFrames(
   filmstrip: Filmstrip,
-  composition: EditComposition,
+  composition: Composition,
 ) {
   // region frames
   val positions = List(10) { index -> (index * 2).seconds }

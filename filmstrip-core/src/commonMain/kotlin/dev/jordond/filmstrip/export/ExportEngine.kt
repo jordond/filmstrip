@@ -4,7 +4,7 @@ import dev.jordond.filmstrip.CapabilitiesResult
 import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.capability.EffectParity
 import dev.jordond.filmstrip.diagnostics.DiagnosticListener
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.effect.EffectResolver
 import dev.jordond.filmstrip.media.MediaProberFactory
 import dev.jordond.filmstrip.media.MediaSink
@@ -38,7 +38,7 @@ public interface ExportEngine {
    * @return What this device will do with the edit.
    */
   public suspend fun plan(
-    composition: EditComposition,
+    composition: Composition,
     spec: ExportSpec,
   ): Verdict
 

@@ -2,14 +2,14 @@ package dev.jordond.filmstrip.docs.guides
 
 import dev.jordond.filmstrip.edit.AudioLevel
 import dev.jordond.filmstrip.edit.AudioSpec
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.media.MediaSource
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
-internal fun clipSpeed(): EditComposition {
+internal fun clipSpeed(): Composition {
   // region clip-speed
   val composition =
     compositionOf {
@@ -23,7 +23,7 @@ internal fun clipSpeed(): EditComposition {
   return composition
 }
 
-internal fun singleClip(): EditComposition {
+internal fun singleClip(): Composition {
   // region single-clip
   val composition =
     compositionOf {
@@ -33,7 +33,7 @@ internal fun singleClip(): EditComposition {
   return composition
 }
 
-internal fun trimmedClips(): EditComposition {
+internal fun trimmedClips(): Composition {
   // region trimmed-clips
   val composition =
     compositionOf {
@@ -49,7 +49,7 @@ internal fun trimmedClips(): EditComposition {
   return composition
 }
 
-internal fun snappedTrim(): EditComposition {
+internal fun snappedTrim(): Composition {
   // region snap-within
   val composition =
     compositionOf {
@@ -62,7 +62,7 @@ internal fun snappedTrim(): EditComposition {
   return composition
 }
 
-internal fun musicBed(): EditComposition {
+internal fun musicBed(): Composition {
   // region music-bed
   val composition =
     compositionOf {
@@ -80,7 +80,7 @@ internal fun musicBed(): EditComposition {
   return composition
 }
 
-internal fun removeAudio(): EditComposition {
+internal fun removeAudio(): Composition {
   // region remove-audio
   val composition =
     compositionOf {

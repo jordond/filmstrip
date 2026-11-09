@@ -5,7 +5,7 @@ import android.os.HandlerThread
 import androidx.media3.inspector.frame.FrameExtractor
 import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.PlatformImage
@@ -132,7 +132,7 @@ class Media3ThumbnailRunTest {
 
   @Test
   fun `failing a group fails every entry at its offset in the batch`() {
-    val composition = EditComposition(listOf(Track(listOf(Clip(MediaSource.of("/clips/strip.mp4"))))))
+    val composition = Composition(listOf(Track(listOf(Clip(MediaSource.of("/clips/strip.mp4"))))))
     val group = List(3) { ThumbnailRequest(composition, it.seconds, 90, 0L, precise = false) }
 
     run.failAll(group, offset = 4, error = FAILURE)

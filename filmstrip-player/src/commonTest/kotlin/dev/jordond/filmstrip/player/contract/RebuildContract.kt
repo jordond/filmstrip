@@ -1,6 +1,6 @@
 package dev.jordond.filmstrip.player.contract
 
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.outputSlotOf
 import dev.jordond.filmstrip.edit.outputSlotTime
@@ -34,7 +34,7 @@ import kotlin.time.TimeSource
  */
 internal class RebuildContract(
   private val createEngine: (CoroutineScope) -> EngineUnderTest,
-  private val fixture: EditComposition,
+  private val fixture: Composition,
   private val rate: Int,
 ) {
   /**
@@ -179,7 +179,7 @@ internal class RebuildContract(
    * Seeks past the end of a standing loop range while paused, loads [next], and checks the playhead is still on the
    * slot the seek landed on, since a range only wraps while playback runs.
    */
-  fun pausedStaysPastLoopRange(next: EditComposition): TestResult =
+  fun pausedStaysPastLoopRange(next: Composition): TestResult =
     contractTest { scope ->
       val subject = createEngine(scope)
       withEngine(subject.engine) { recorder ->
@@ -211,8 +211,8 @@ internal class RebuildContract(
    * @param prepares Answers whether this backend goes back through [PlaybackStatus.Preparing] for that edit.
    */
   fun plainClipEditHoldsTheTransport(
-    plain: EditComposition,
-    edited: EditComposition,
+    plain: Composition,
+    edited: Composition,
     prepares: suspend () -> Boolean,
   ): TestResult =
     pausedParameterEdit(plain, edited) { recorder, mark, _ ->
@@ -227,7 +227,7 @@ internal class RebuildContract(
    * @param reportsFrame Whether this backend's preview info carries the output frame the edit settled on.
    */
   fun frameMovingEditHoldsTheTransport(
-    moved: EditComposition,
+    moved: Composition,
     reportsFrame: Boolean,
   ): TestResult =
     pausedParameterEdit(fixture, moved) { recorder, _, before ->
@@ -235,8 +235,8 @@ internal class RebuildContract(
     }
 
   private fun pausedParameterEdit(
-    from: EditComposition,
-    to: EditComposition,
+    from: Composition,
+    to: Composition,
     check: suspend (recorder: ContractRecorder, mark: ContractMark, frameBefore: Size) -> Unit,
   ): TestResult =
     contractTest { scope ->

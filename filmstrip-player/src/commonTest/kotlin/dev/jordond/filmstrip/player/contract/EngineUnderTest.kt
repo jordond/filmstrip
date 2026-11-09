@@ -1,6 +1,6 @@
 package dev.jordond.filmstrip.player.contract
 
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.player.PlaybackEvent
 import dev.jordond.filmstrip.player.PlayerEngine
 import kotlin.time.Duration
@@ -77,7 +77,7 @@ interface EngineUnderTest {
  */
 class FailingItem(
   val subject: EngineUnderTest,
-  val composition: EditComposition,
+  val composition: Composition,
   val refusedAtLoad: Boolean = false,
   val restoreSource: () -> Unit = { },
 )

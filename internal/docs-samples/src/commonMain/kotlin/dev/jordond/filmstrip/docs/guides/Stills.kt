@@ -2,7 +2,7 @@ package dev.jordond.filmstrip.docs.guides
 
 import dev.jordond.filmstrip.ExperimentalFilmstripApi
 import dev.jordond.filmstrip.Filmstrip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.media.FrameResult
@@ -18,7 +18,7 @@ import dev.jordond.filmstrip.still.still
 import kotlin.time.Duration.Companion.seconds
 
 @OptIn(ExperimentalFilmstripApi::class)
-internal fun photoOnTimeline(): EditComposition {
+internal fun photoOnTimeline(): Composition {
   // region timeline
   val composition =
     compositionOf {
@@ -38,7 +38,7 @@ internal fun photoSpec(): ExportSpec {
 
 internal suspend fun writeStill(
   filmstrip: Filmstrip,
-  composition: EditComposition,
+  composition: Composition,
 ) {
   // region still
   val result =

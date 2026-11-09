@@ -1,6 +1,6 @@
 package dev.jordond.filmstrip.player
 
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.effects.color.Brightness
 import dev.jordond.filmstrip.player.contract.PixelFixture
 import dev.jordond.filmstrip.player.contract.PlayerPixelContractTest
@@ -52,7 +52,7 @@ class AndroidPixelContractMediaTest : PlayerPixelContractTest() {
     )
 
   override suspend fun exportFrame(
-    composition: EditComposition,
+    composition: Composition,
     position: Duration,
   ): TestFrame = androidExportFrame(composition, position)
 

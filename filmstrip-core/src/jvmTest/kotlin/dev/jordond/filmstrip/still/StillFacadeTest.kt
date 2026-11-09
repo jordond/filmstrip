@@ -4,7 +4,7 @@ import dev.jordond.filmstrip.Cancellable
 import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.geometry.Size
@@ -143,8 +143,8 @@ class StillFacadeTest {
   private companion object {
     const val SCALED_HEIGHT = 60
 
-    val COMPOSITION: EditComposition =
-      EditComposition(
+    val COMPOSITION: Composition =
+      Composition(
         tracks = listOf(Track(listOf(Clip(MediaSource.of("still.mp4"), TimeRange.of(Duration.ZERO, 4.seconds))))),
       )
   }

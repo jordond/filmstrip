@@ -4,7 +4,7 @@ import dev.jordond.filmstrip.CapabilitiesResult
 import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.capability.EffectParity
 import dev.jordond.filmstrip.codec.VideoCodec
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.effect.EffectResolver
 import dev.jordond.filmstrip.export.CopyBlocker
 import dev.jordond.filmstrip.export.ExportSpec
@@ -67,7 +67,7 @@ public class PlannedExportEngine(
   override fun parityOf(specId: String): EffectParity? = parity[specId]
 
   private suspend fun lower(
-    composition: EditComposition,
+    composition: Composition,
     spec: ExportSpec,
     layoutSize: Size?,
     grade: ResolvedHdr?,
@@ -91,7 +91,7 @@ public class PlannedExportEngine(
   }
 
   private suspend fun grade(
-    composition: EditComposition,
+    composition: Composition,
     spec: ExportSpec,
   ): ExportGrade {
     val read =
@@ -106,7 +106,7 @@ public class PlannedExportEngine(
   }
 
   private suspend fun askedWithPackets(
-    composition: EditComposition,
+    composition: Composition,
     ask: Ask,
   ): CopyAsk = ask.withCopyPackets(planner.copyPacketWindowOf(composition, ask), backend::copyPackets)
 }

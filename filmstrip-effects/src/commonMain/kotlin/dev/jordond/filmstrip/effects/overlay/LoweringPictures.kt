@@ -1,6 +1,6 @@
 package dev.jordond.filmstrip.effects.overlay
 
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.media.ImageSource
 import kotlin.concurrent.Volatile
@@ -23,7 +23,7 @@ internal class LoweringPictures<T : Any>(
   /**
    * Reads every picture [composition] names by path or URI, and holds those reads in place of the last ones.
    */
-  fun readFor(composition: EditComposition) {
+  fun readFor(composition: Composition) {
     held =
       overlayEffectsOf(composition)
         .filterIsInstance<ImageOverlay>()
@@ -54,6 +54,6 @@ internal class HeldBytes(
 /**
  * The effects [composition] holds itself, each of its tracks holds and each of its clips holds.
  */
-internal fun overlayEffectsOf(composition: EditComposition): List<EffectSpec> =
+internal fun overlayEffectsOf(composition: Composition): List<EffectSpec> =
   composition.effects +
     composition.tracks.flatMap { track -> track.effects + track.clips.flatMap { it.effects } }

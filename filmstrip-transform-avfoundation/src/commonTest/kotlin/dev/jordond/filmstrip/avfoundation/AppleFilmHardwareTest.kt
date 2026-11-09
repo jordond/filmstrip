@@ -5,7 +5,7 @@ import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.avfoundation.internal.composition.AvComposition
 import dev.jordond.filmstrip.avfoundation.internal.composition.toAvComposition
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effects.BuiltInEffectResolver
@@ -69,7 +69,7 @@ class AppleFilmHardwareTest {
     runTest(timeout = TIMEOUT) {
       val source = flatClip("mid", MID_RESPONSE)
 
-      assertGlowsOnTheSignal(source, EditComposition(listOf(Track(listOf(Clip(source)))), listOf(GLOW_ONLY)))
+      assertGlowsOnTheSignal(source, Composition(listOf(Track(listOf(Clip(source)))), listOf(GLOW_ONLY)))
     }
 
   @Test
@@ -77,7 +77,7 @@ class AppleFilmHardwareTest {
     runTest(timeout = TIMEOUT) {
       val source = flatClip("mid", MID_RESPONSE)
 
-      assertGlowsOnTheSignal(source, EditComposition(listOf(Track(listOf(Clip(source, effects = listOf(GLOW_ONLY)))))))
+      assertGlowsOnTheSignal(source, Composition(listOf(Track(listOf(Clip(source, effects = listOf(GLOW_ONLY)))))))
     }
 
   @Test
@@ -86,7 +86,7 @@ class AppleFilmHardwareTest {
       val crop = Crop(WIDE_CANVAS, fit = Fit.Contain)
       val source = flatClip("bright", BRIGHT)
       val edit = { effects: List<EffectSpec> ->
-        EditComposition(listOf(Track(listOf(Clip(source)))), effects, fill = Fill.Solid(BLACK))
+        Composition(listOf(Track(listOf(Clip(source)))), effects, fill = Fill.Solid(BLACK))
       }
 
       val plain = export(edit(listOf(crop)), "bar-plain")
@@ -106,7 +106,7 @@ class AppleFilmHardwareTest {
       val crop = Crop(WIDE_CANVAS, fit = Fit.Contain)
       val source = flatClip("bright", BRIGHT)
       val edit = { effects: List<EffectSpec> ->
-        EditComposition(listOf(Track(listOf(Clip(source, effects = effects)))), fill = Fill.Solid(BAR_FILL))
+        Composition(listOf(Track(listOf(Clip(source, effects = effects)))), fill = Fill.Solid(BAR_FILL))
       }
 
       val plain = export(edit(listOf(crop)), "canvas-plain")
@@ -126,9 +126,9 @@ class AppleFilmHardwareTest {
       val source = flatClip("dark", DARK)
       val swatch = swatch()
 
-      val plain = redOfSwatch(EditComposition(listOf(Track(listOf(Clip(source)))), listOf(swatch)), "overlay-plain")
+      val plain = redOfSwatch(Composition(listOf(Track(listOf(Clip(source)))), listOf(swatch)), "overlay-plain")
       val filmed =
-        redOfSwatch(EditComposition(listOf(Track(listOf(Clip(source)))), listOf(swatch, GLOW_ONLY)), "overlay-film")
+        redOfSwatch(Composition(listOf(Track(listOf(Clip(source)))), listOf(swatch, GLOW_ONLY)), "overlay-film")
 
       withClue("the swatch read $filmed against $plain") { abs(filmed - plain) shouldBeLessThan WRITTEN_COLOUR_CODES }
     }
@@ -138,7 +138,7 @@ class AppleFilmHardwareTest {
     runTest(timeout = TIMEOUT) {
       val clip = Clip(flatClip("dark", DARK), effects = listOf(swatch()))
 
-      val filmed = redOfSwatch(EditComposition(listOf(Track(listOf(clip))), listOf(GLOW_ONLY)), "burned-film")
+      val filmed = redOfSwatch(Composition(listOf(Track(listOf(clip))), listOf(GLOW_ONLY)), "burned-film")
 
       val under = SWATCH_CODE / MAX_CODE
       val response = FilmSignal.halationResponse(under, under, under)
@@ -153,9 +153,9 @@ class AppleFilmHardwareTest {
   // Film, in the codes it holds, and through luma, which an encoder moves the least.
   private suspend fun assertGlowsOnTheSignal(
     source: MediaSource,
-    edit: EditComposition,
+    edit: Composition,
   ) {
-    val plainEdit = EditComposition(listOf(Track(listOf(Clip(source)))))
+    val plainEdit = Composition(listOf(Track(listOf(Clip(source)))))
     val rendered = withContext(Dispatchers.Default) { renderedFrameOf(graphOf(edit), 0) }.at(CENTRE, CENTRE)
     val renderedPlain = withContext(Dispatchers.Default) { renderedFrameOf(graphOf(plainEdit), 0) }.at(CENTRE, CENTRE)
     assertCodes(rendered, glowOver(renderedPlain), "the rendered glow over $renderedPlain")
@@ -190,7 +190,7 @@ class AppleFilmHardwareTest {
     return Rgb(halated[0], halated[1], halated[2])
   }
 
-  private suspend fun graphOf(edit: EditComposition): AvComposition {
+  private suspend fun graphOf(edit: Composition): AvComposition {
     val resolved = avFoundationExportEngine(components).resolve(edit, ExportSpec())
     return withContext(Dispatchers.Default) {
       resolved.shouldBeInstanceOf<ResolveResult.Resolved>().composition.toAvComposition()
@@ -210,7 +210,7 @@ class AppleFilmHardwareTest {
   }
 
   private suspend fun redOfSwatch(
-    edit: EditComposition,
+    edit: Composition,
     name: String,
   ): Double {
     val path = export(edit, name)
@@ -241,7 +241,7 @@ class AppleFilmHardwareTest {
   }
 
   private suspend fun export(
-    edit: EditComposition,
+    edit: Composition,
     name: String,
   ): String {
     val path = NSTemporaryDirectory() + "filmstrip-film-$name.mp4"

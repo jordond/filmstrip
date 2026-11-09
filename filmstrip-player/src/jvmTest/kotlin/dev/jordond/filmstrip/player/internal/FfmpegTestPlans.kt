@@ -1,7 +1,7 @@
 package dev.jordond.filmstrip.player.internal
 
 import dev.jordond.filmstrip.FilmstripError
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.ffmpeg.internal.preview.PreviewStream
 import dev.jordond.filmstrip.ffmpeg.internal.preview.PreviewStreamResult
@@ -44,7 +44,7 @@ internal class StreamPlanner(
 
   override suspend fun open(
     plan: PreviewPlan,
-    composition: EditComposition,
+    composition: Composition,
     at: Duration,
   ): PreviewStreamResult = open(at).also { opened += at }
 }

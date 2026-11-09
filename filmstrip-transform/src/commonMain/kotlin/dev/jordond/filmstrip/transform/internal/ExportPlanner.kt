@@ -5,7 +5,7 @@ import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.capability.EffectParity
 import dev.jordond.filmstrip.capability.ParityNote
 import dev.jordond.filmstrip.codec.VideoCodec
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.effect.EffectResolver
 import dev.jordond.filmstrip.effect.EffectStage
@@ -103,7 +103,7 @@ public class ExportPlanner(
    * @param dropped Effect ids to leave out of the graph entirely.
    */
   public fun negotiate(
-    composition: EditComposition,
+    composition: Composition,
     ask: Ask,
     dropped: Set<String> = emptySet(),
   ): NegotiatedExport {
@@ -132,13 +132,13 @@ public class ExportPlanner(
    * written is lowered twice.
    */
   public fun negotiateFallback(
-    composition: EditComposition,
+    composition: Composition,
     ask: Ask,
     export: NegotiatedExport,
   ): NegotiatedExport = fallbackOf(composition, ask, export.unsupported)
 
   private fun fallbackOf(
-    composition: EditComposition,
+    composition: Composition,
     ask: Ask,
     unsupported: Map<String, FilmstripError>,
   ): NegotiatedExport {
@@ -156,7 +156,7 @@ public class ExportPlanner(
    * refuse never reaches this answer.
    */
   public fun exportGradeOf(
-    composition: EditComposition,
+    composition: Composition,
     ask: Ask,
   ): ExportGrade =
     when (val graded = graded(composition, ask)) {
@@ -173,12 +173,12 @@ public class ExportPlanner(
    * [negotiate], which has lowered them by then.
    */
   public fun copyPacketWindowOf(
-    composition: EditComposition,
+    composition: Composition,
     ask: Ask,
   ): CopyPacketWindow? = windowOf(composition, ask)
 
   private fun windowOf(
-    composition: EditComposition,
+    composition: Composition,
     ask: Ask,
   ): CopyPacketWindow? {
     val graded = (graded(composition, ask) as? Phase.Next)?.value ?: return null
@@ -195,7 +195,7 @@ public class ExportPlanner(
 
   // The phases up to the grade, which an export goes on from and a preview reads its grade off.
   private fun graded(
-    authored: EditComposition,
+    authored: Composition,
     ask: Ask,
   ): Phase<Graded> {
     val streams = streamsOf(authored, ask.spec, ask.infos)
@@ -215,7 +215,7 @@ public class ExportPlanner(
    * still copy.
    */
   private fun settle(
-    authored: EditComposition,
+    authored: Composition,
     dropped: Set<String>,
     ask: Ask,
   ): Settlement {
@@ -316,7 +316,7 @@ public class ExportPlanner(
     return Settlement.Settled(NegotiatedExport(verdict, resolved))
   }
 
-  private fun plannedEffects(edit: EditComposition): List<PlannedEffect> =
+  private fun plannedEffects(edit: Composition): List<PlannedEffect> =
     (edit.tracks.flatMap { track -> track.clips.flatMap { it.effects } + track.effects } + edit.effects)
       .distinct()
       .inCanonicalOrder()
@@ -354,7 +354,7 @@ public class ExportPlanner(
 
   private class Graded(
     val streams: Streams,
-    val edit: EditComposition,
+    val edit: Composition,
     val inertNotices: List<InertNotice>,
     val framing: Framing,
     val grade: Grade,
@@ -386,7 +386,7 @@ public class ExportPlanner(
   }
 }
 
-private fun EditComposition.withoutEffectIds(ids: Set<String>): EditComposition {
+private fun Composition.withoutEffectIds(ids: Set<String>): Composition {
   if (ids.isEmpty()) return this
   val stripped =
     tracks.map { track ->
@@ -401,5 +401,5 @@ private fun EditComposition.withoutEffectIds(ids: Set<String>): EditComposition 
         fadeOut = track.fadeOut,
       )
     }
-  return EditComposition(stripped, effects.filterNot { it.id in ids }, audio, fill)
+  return Composition(stripped, effects.filterNot { it.id in ids }, audio, fill)
 }

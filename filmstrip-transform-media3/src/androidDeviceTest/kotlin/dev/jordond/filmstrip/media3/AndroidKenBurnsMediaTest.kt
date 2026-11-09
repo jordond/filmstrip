@@ -5,7 +5,7 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.effects.geometry.KenBurns
@@ -154,9 +154,9 @@ class AndroidKenBurnsMediaTest {
     return red.toFloat() / SAMPLES
   }
 
-  private suspend fun export(composition: EditComposition): File = probe.export(composition, ExportSpec())
+  private suspend fun export(composition: Composition): File = probe.export(composition, ExportSpec())
 
-  private fun composition(vararg clips: Clip) = EditComposition(listOf(Track(clips.toList())))
+  private fun composition(vararg clips: Clip) = Composition(listOf(Track(clips.toList())))
 
   private fun stillSource() = MediaSource.Image(ImageSource.of(splitPhotoFile().path), PHOTO)
 

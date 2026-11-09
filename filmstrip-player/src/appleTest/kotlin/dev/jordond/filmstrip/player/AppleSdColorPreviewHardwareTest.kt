@@ -5,7 +5,7 @@ import dev.jordond.filmstrip.avfoundation.internal.time.toCMTime
 import dev.jordond.filmstrip.color.SMPTE_C_PRIMARIES
 import dev.jordond.filmstrip.color.sdSourceDisplayed
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.export.ExportSpec
@@ -254,8 +254,8 @@ class AppleSdColorPreviewHardwareTest {
     }
   }
 
-  private fun editOf(path: String): EditComposition =
-    EditComposition(tracks = listOf(Track(listOf(Clip(MediaSource.of(path), TimeRange.of(Duration.ZERO, CLIP))))))
+  private fun editOf(path: String): Composition =
+    Composition(tracks = listOf(Track(listOf(Clip(MediaSource.of(path), TimeRange.of(Duration.ZERO, CLIP))))))
 
   private fun writeClip(path: String) {
     NSFileManager.defaultManager.removeItemAtPath(path, error = null)

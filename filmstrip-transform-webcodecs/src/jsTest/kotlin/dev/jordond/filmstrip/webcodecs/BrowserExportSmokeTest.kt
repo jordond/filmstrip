@@ -2,7 +2,7 @@ package dev.jordond.filmstrip.webcodecs
 
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.media.MediaSource
 import io.kotest.assertions.withClue
@@ -25,7 +25,7 @@ class BrowserExportSmokeTest {
     runTest {
       val bytes = makeClip()
       val composition =
-        EditComposition(
+        Composition(
           tracks = listOf(Track(listOf(Clip(MediaSource.Bytes(bytes))))),
           audio = AudioSpec.Remove,
         )

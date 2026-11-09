@@ -1,6 +1,6 @@
 package dev.jordond.filmstrip.player
 
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.player.internal.Media3PreviewPlan
 import dev.jordond.filmstrip.player.internal.Media3PreviewPlanner
@@ -14,7 +14,7 @@ import dev.jordond.filmstrip.player.internal.PlanResult
  */
 internal class ThrowingPlanner : Media3PreviewPlanner(CONTRACT_COMPONENTS) {
   override suspend fun plan(
-    composition: EditComposition,
+    composition: Composition,
     policy: PreviewQualityPolicy,
     exportSpec: ExportSpec,
   ): PlanResult<Media3PreviewPlan, PlaybackError> = throw IllegalStateException(REASON)

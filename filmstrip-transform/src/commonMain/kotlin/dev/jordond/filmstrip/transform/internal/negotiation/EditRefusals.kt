@@ -5,7 +5,7 @@ import dev.jordond.filmstrip.codec.AudioCodec
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.CLIP_SPEED_RANGE
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.edit.isValidClipSpeed
@@ -30,7 +30,7 @@ internal class Streams(
  * kept-audio output over a source that carries none, leaves no track to write.
  */
 internal fun streamsOf(
-  edit: EditComposition,
+  edit: Composition,
   spec: ExportSpec,
   infos: Map<MediaSource, MediaInfo>,
 ): Streams {
@@ -46,7 +46,7 @@ internal fun streamsOf(
  * is sized or encoded, or null when there is none.
  */
 internal fun structuralRefusal(
-  edit: EditComposition,
+  edit: Composition,
   spec: ExportSpec,
   infos: Map<MediaSource, MediaInfo>,
   streams: Streams,

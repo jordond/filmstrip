@@ -4,7 +4,7 @@ package dev.jordond.filmstrip.effects.overlay
 
 import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.effect.Attributes
@@ -58,7 +58,7 @@ class WebOverlayFetchTimeoutTest {
         val text = TextOverlay("never loads")
         val clip = Clip(MediaSource.ofUri("blob:clip"), effects = listOf(text))
 
-        preloadOverlays(EditComposition(listOf(Track(listOf(clip)))), OverlayImages(patience = PATIENCE))
+        preloadOverlays(Composition(listOf(Track(listOf(clip)))), OverlayImages(patience = PATIENCE))
 
         fonts.loads shouldBe 1
       } finally {
@@ -82,7 +82,7 @@ class WebOverlayFetchTimeoutTest {
 
   private suspend fun BuiltInEffectResolver.prepareAndResolve(uri: String): EffectResolution? {
     val overlay = ImageOverlay(ImageSource.ofUri(uri), Corner.TopStart)
-    prepare(EditComposition(listOf(Track(listOf(Clip(MediaSource.ofUri("blob:clip"), effects = listOf(overlay)))))))
+    prepare(Composition(listOf(Track(listOf(Clip(MediaSource.ofUri("blob:clip"), effects = listOf(overlay)))))))
     return resolve(overlay, CAPABILITIES, ATTRIBUTES)
   }
 

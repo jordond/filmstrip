@@ -4,7 +4,7 @@ import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.capability.AudioEncoderCapability
 import dev.jordond.filmstrip.codec.AudioCodec
 import dev.jordond.filmstrip.edit.AudioSpec
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.effects.geometry.Rotate
@@ -51,7 +51,7 @@ class AudioFormatTest {
   @Test
   fun `a clip with no audio next to one that has it still resolves an audio codec`() {
     val track = Track(listOf(fixture.clip(), fixture.clip(audioRate = 44_100)))
-    val verdict = fixture.plan(EditComposition(listOf(track)))
+    val verdict = fixture.plan(Composition(listOf(track)))
 
     verdict
       .shouldBeInstanceOf<Verdict.Capable>()
@@ -70,7 +70,7 @@ class AudioFormatTest {
   @Test
   fun `an audio-only output over a track that carries no audio is refused`() {
     val track = Track(listOf(fixture.clip()), content = TrackContent.Video)
-    val verdict = fixture.plan(EditComposition(listOf(track)).withAudio(AudioSpec.AudioOnly))
+    val verdict = fixture.plan(Composition(listOf(track)).withAudio(AudioSpec.AudioOnly))
 
     verdict
       .shouldBeInstanceOf<Verdict.Incapable>()
@@ -145,7 +145,7 @@ class AudioFormatTest {
   fun `an approximation reached on every clip is reported once`() {
     val track = Track(listOf(fixture.clip(), fixture.clip()), effects = listOf(Rotate(90)))
     val verdict =
-      fixture.plan(EditComposition(listOf(track)), resolvers = listOf(FakeResolver(degrade = setOf(Rotate(90).id))))
+      fixture.plan(Composition(listOf(track)), resolvers = listOf(FakeResolver(degrade = setOf(Rotate(90).id))))
 
     val degraded = verdict.shouldBeInstanceOf<Verdict.Degraded>()
     degraded.adjustments.count { it.kind == AdjustmentKind.EffectApproximated } shouldBe 1

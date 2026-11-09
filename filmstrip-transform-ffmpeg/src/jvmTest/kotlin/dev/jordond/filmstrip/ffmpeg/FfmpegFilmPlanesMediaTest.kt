@@ -1,7 +1,7 @@
 package dev.jordond.filmstrip.ffmpeg
 
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.effects.filters.film.Film
 import dev.jordond.filmstrip.effects.geometry.Crop
@@ -128,7 +128,7 @@ class FfmpegFilmPlanesMediaTest {
     runBlocking<Unit> { assertReadsExactTicks("24000/1001", "floor(N*1001/1000)") }
 
   private suspend fun assertFormsAgree(
-    plan: EditComposition,
+    plan: Composition,
     frames: Int,
     at: Duration = Duration.ZERO,
   ) {

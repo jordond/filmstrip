@@ -4,7 +4,7 @@ import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.codec.Bitrate
 import dev.jordond.filmstrip.codec.VideoCodec
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.effects.geometry.scale
 import dev.jordond.filmstrip.export.ExportPlan
@@ -37,7 +37,7 @@ internal fun quality(): ExportSpec {
   return draft
 }
 
-internal fun exactHeight(): EditComposition {
+internal fun exactHeight(): Composition {
   // region exact-height
   val composition =
     compositionOf {
@@ -50,7 +50,7 @@ internal fun exactHeight(): EditComposition {
 
 internal suspend fun planFirst(
   filmstrip: Filmstrip,
-  composition: EditComposition,
+  composition: Composition,
 ): ExportPlan? {
   // region plan
   val plan: ExportPlan? =

@@ -10,7 +10,7 @@ import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.edit.AudioLevel
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.TrackContent
@@ -170,7 +170,7 @@ class BrowserMixSeamMediaTest {
     runTest {
       val bed = MediaSource.Bytes(makeClipWithAudio(frames = BED_FRAMES, sampleRate = SOURCE_RATE))
       val composition =
-        EditComposition(
+        Composition(
           tracks =
             listOf(
               Track(listOf(Clip(silentPrimary(), trim = TimeRange.of(Duration.ZERO, LoopingCases.PRIMARY_RUN)))),
@@ -221,7 +221,7 @@ class BrowserMixSeamMediaTest {
     runTest {
       val bed = MediaSource.Bytes(makeClipWithAudio(frames = BED_FRAMES, sampleRate = SOURCE_RATE))
       val composition =
-        EditComposition(
+        Composition(
           tracks =
             listOf(
               Track(listOf(Clip(silentPrimary(), trim = TimeRange.of(Duration.ZERO, LoopingCases.PRIMARY_RUN)))),
@@ -275,7 +275,7 @@ class BrowserMixSeamMediaTest {
    * Plans [composition] the way an export does and mixes what it laid, so every expectation below
    * is the planner's own rather than a number written out again here.
    */
-  private suspend fun mixOf(composition: EditComposition): LaidMix {
+  private suspend fun mixOf(composition: Composition): LaidMix {
     val lowering =
       BrowserPlanner(listOf(BuiltInEffectResolver())).lower(
         composition = composition,
@@ -345,7 +345,7 @@ class BrowserMixSeamMediaTest {
   private suspend fun silentPrimary(): MediaSource =
     MediaSource.Bytes(makeClip(frames = PRIMARY_FRAMES, frameRate = PRIMARY_RATE))
 
-  private suspend fun probed(composition: EditComposition): Map<MediaSource, MediaInfo> {
+  private suspend fun probed(composition: Composition): Map<MediaSource, MediaInfo> {
     val prober = BrowserProber()
     return composition.tracks
       .flatMap { it.clips }

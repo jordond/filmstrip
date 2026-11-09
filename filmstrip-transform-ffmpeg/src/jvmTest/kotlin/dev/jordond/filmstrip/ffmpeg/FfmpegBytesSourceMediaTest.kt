@@ -2,7 +2,7 @@ package dev.jordond.filmstrip.ffmpeg
 
 import dev.jordond.filmstrip.ComponentRegistry
 import dev.jordond.filmstrip.FilmstripError
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.effects.BuiltInEffectResolver
@@ -182,7 +182,7 @@ class FfmpegBytesSourceMediaTest {
       val written = File(readablePath(bytes).shouldNotBeNull()).toPath()
 
       suspend fun frameAt(
-        composition: EditComposition,
+        composition: Composition,
         at: Duration,
       ): ByteArray {
         val stream =

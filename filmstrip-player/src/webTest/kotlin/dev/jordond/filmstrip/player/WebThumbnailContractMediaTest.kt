@@ -1,7 +1,7 @@
 package dev.jordond.filmstrip.player
 
 import dev.jordond.filmstrip.Cancellable
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.effects.color.Brightness
 import dev.jordond.filmstrip.effects.overlay.ImageOverlay
@@ -195,7 +195,7 @@ class WebThumbnailContractMediaTest {
 
   private suspend fun readback(
     scope: CoroutineScope,
-    composition: EditComposition,
+    composition: Composition,
     position: Duration,
   ): ReadbackFrame {
     val engine =
@@ -215,7 +215,7 @@ class WebThumbnailContractMediaTest {
   }
 
   // The fixture clip waits GAP_LENGTH on its track, so the composition opens on a gap the fill covers.
-  private fun lateComposition(badge: ImageOverlay): EditComposition {
+  private fun lateComposition(badge: ImageOverlay): Composition {
     val fixture = webFixtureComposition(listOf(badge))
     return fixture
       .withTracks(listOf(Track(fixture.clips, start = GAP_LENGTH)))

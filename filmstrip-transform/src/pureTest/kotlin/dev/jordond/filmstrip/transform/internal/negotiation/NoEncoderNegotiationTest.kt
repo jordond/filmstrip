@@ -7,7 +7,7 @@ import dev.jordond.filmstrip.codec.Bitrate
 import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.export.AdjustmentKind
 import dev.jordond.filmstrip.export.AudioFormat
 import dev.jordond.filmstrip.export.ExportPath
@@ -42,7 +42,7 @@ class NoEncoderNegotiationTest {
   private fun planner(): ExportPlanner = fixture.planner(muxerAccepts = { false }, ladder = LADDER)
 
   private fun graded(
-    edit: EditComposition,
+    edit: Composition,
     device: DeviceCapabilities,
     grade: ResolvedHdr = ResolvedHdr.Keep,
     spec: ExportSpec = ExportSpec(),
@@ -53,7 +53,7 @@ class NoEncoderNegotiationTest {
       .shouldNotBeNull()
 
   private fun exported(
-    edit: EditComposition,
+    edit: Composition,
     device: DeviceCapabilities,
     spec: ExportSpec = ExportSpec(),
   ): Verdict = planner().negotiate(edit, Ask(spec, device, fixture.infos(edit))).verdict

@@ -5,7 +5,7 @@ import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.avfoundation.internal.export.AvDriver
 import dev.jordond.filmstrip.avfoundation.internal.toNSURL
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.effects.BuiltInEffectResolver
 import dev.jordond.filmstrip.export.ExportPath
@@ -61,7 +61,7 @@ class AppleBytesSourceMediaTest {
   private suspend fun info(source: MediaSource): MediaInfo =
     probe(source).shouldBeInstanceOf<ProbeResult.Success>().info
 
-  private suspend fun resolved(composition: EditComposition): ResolvedComposition =
+  private suspend fun resolved(composition: Composition): ResolvedComposition =
     withContext(Dispatchers.Default) {
       val components = ComponentRegistry.Builder().addEffectResolver(BuiltInEffectResolver()).build()
       when (val result = avFoundationExportEngine(components).resolve(composition, ExportSpec())) {
@@ -90,7 +90,7 @@ class AppleBytesSourceMediaTest {
       }.also { NSFileManager.defaultManager.removeItemAtPath(output, null) }
     }
 
-  private fun snapped(source: MediaSource): EditComposition =
+  private fun snapped(source: MediaSource): Composition =
     compositionOf {
       clip(source) {
         trim(TRIM_START, TRIM_END)

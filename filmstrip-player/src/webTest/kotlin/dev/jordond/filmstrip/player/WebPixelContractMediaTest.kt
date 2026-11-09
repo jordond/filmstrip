@@ -1,6 +1,6 @@
 package dev.jordond.filmstrip.player
 
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.outputSlotOf
 import dev.jordond.filmstrip.edit.outputSlotTime
@@ -61,7 +61,7 @@ class WebPixelContractMediaTest : PlayerPixelContractTest() {
     )
 
   override suspend fun exportFrame(
-    composition: EditComposition,
+    composition: Composition,
     position: Duration,
   ): TestFrame = webExportFrame(composition, position)
 
@@ -122,7 +122,7 @@ class WebPixelContractMediaTest : PlayerPixelContractTest() {
 
   private suspend fun readbacks(
     scope: CoroutineScope,
-    composition: EditComposition,
+    composition: Composition,
     positions: List<Duration>,
   ): List<ReadbackFrame> {
     val engine = createEngine(scope)

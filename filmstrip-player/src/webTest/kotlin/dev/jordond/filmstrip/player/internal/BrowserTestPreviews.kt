@@ -1,7 +1,7 @@
 package dev.jordond.filmstrip.player.internal
 
 import dev.jordond.filmstrip.capability.DeviceCapabilities
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.player.CONTRACT_COMPONENTS
 import dev.jordond.filmstrip.player.PreviewQualityPolicy
@@ -16,7 +16,7 @@ import kotlin.test.fail
  * the graph and releases it.
  */
 internal suspend fun browserPreviewOf(
-  composition: EditComposition,
+  composition: Composition,
   readDevice: (suspend () -> DeviceCapabilities)? = null,
 ): Pair<BrowserPreviewPlan, BrowserPreview> {
   val plan =

@@ -1,7 +1,7 @@
 package dev.jordond.filmstrip.player
 
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.TrackContent
@@ -163,9 +163,9 @@ class JvmSeekWhilePlayingMediaTest {
  *
  * The audio runs the whole [CLIP_LENGTH] and the video stops a third of the way short of it.
  */
-private fun jvmAudioTailComposition(): EditComposition {
+private fun jvmAudioTailComposition(): Composition {
   val source = MediaSource.of(jvmFixtureClip())
-  return EditComposition(
+  return Composition(
     tracks =
       listOf(
         Track(listOf(Clip(source, TimeRange.of(Duration.ZERO, CLIP_LENGTH * 2 / 3)))),
@@ -177,8 +177,8 @@ private fun jvmAudioTailComposition(): EditComposition {
 /**
  * The video of [file] over [CLIP_LENGTH], on a track that drops its audio so the preview runs the filter graph.
  */
-private fun jvmVideoCompositionOf(file: File): EditComposition =
-  EditComposition(
+private fun jvmVideoCompositionOf(file: File): Composition =
+  Composition(
     tracks =
       listOf(
         Track(
@@ -193,7 +193,7 @@ private fun jvmVideoCompositionOf(file: File): EditComposition =
  *
  * Fails the test when the preview refuses the composition.
  */
-private suspend fun heldTailIn(composition: EditComposition): LongRange =
+private suspend fun heldTailIn(composition: Composition): LongRange =
   when (
     val result =
       FfmpegPreviewPlanner(

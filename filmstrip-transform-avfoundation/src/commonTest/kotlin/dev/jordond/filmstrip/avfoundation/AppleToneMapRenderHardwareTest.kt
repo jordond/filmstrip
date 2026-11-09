@@ -5,7 +5,7 @@ import dev.jordond.filmstrip.avfoundation.internal.composition.AvComposition
 import dev.jordond.filmstrip.avfoundation.internal.composition.AvCompositor
 import dev.jordond.filmstrip.avfoundation.internal.composition.toAvComposition
 import dev.jordond.filmstrip.avfoundation.internal.time.toCMTime
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.effects.BuiltInEffectResolver
@@ -137,16 +137,16 @@ class AppleToneMapRenderHardwareTest {
       }
     }
 
-  private fun clipOf(path: String): EditComposition = compositionOf { clip(MediaSource.of(path)) }
+  private fun clipOf(path: String): Composition = compositionOf { clip(MediaSource.of(path)) }
 
   private fun brightened(
     path: String,
     factor: Float,
-  ): EditComposition = compositionOf { clip(MediaSource.of(path)) { addEffects(listOf(Brightness(factor))) } }
+  ): Composition = compositionOf { clip(MediaSource.of(path)) { addEffects(listOf(Brightness(factor))) } }
 
-  private suspend fun graphOf(composition: EditComposition): AvComposition = resolved(composition).toAvComposition()
+  private suspend fun graphOf(composition: Composition): AvComposition = resolved(composition).toAvComposition()
 
-  private suspend fun resolved(composition: EditComposition): ResolvedComposition =
+  private suspend fun resolved(composition: Composition): ResolvedComposition =
     withContext(Dispatchers.Default) {
       val components = ComponentRegistry.Builder().addEffectResolver(BuiltInEffectResolver()).build()
       when (val result = avFoundationExportEngine(components).resolve(composition, SPEC)) {

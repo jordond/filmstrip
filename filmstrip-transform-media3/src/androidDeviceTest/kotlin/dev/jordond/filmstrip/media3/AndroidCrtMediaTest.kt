@@ -2,7 +2,7 @@ package dev.jordond.filmstrip.media3
 
 import android.graphics.Bitmap
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effects.filters.crt.Crt
@@ -44,14 +44,14 @@ class AndroidCrtMediaTest {
   fun aCompositionCrtDrawsTheFallOffOnTheSignal() =
     runTest(timeout = TIMEOUT) {
       val clip = Clip(flatClip())
-      assertOnTheSignal(EditComposition(listOf(Track(listOf(clip))), listOf(Crt())), clip)
+      assertOnTheSignal(Composition(listOf(Track(listOf(clip))), listOf(Crt())), clip)
     }
 
   @Test
   fun aClipCrtDrawsTheFallOffOnTheSignal() =
     runTest(timeout = TIMEOUT) {
       val clip = Clip(flatClip())
-      assertOnTheSignal(EditComposition(listOf(Track(listOf(Clip(flatClip(), effects = listOf(Crt())))))), clip)
+      assertOnTheSignal(Composition(listOf(Track(listOf(Clip(flatClip(), effects = listOf(Crt())))))), clip)
     }
 
   @Test
@@ -59,14 +59,14 @@ class AndroidCrtMediaTest {
     runTest(timeout = TIMEOUT) {
       val clip = Clip(flatClip())
       val spec = ExportSpec(heightPx = SMALL_HEIGHT)
-      assertOnTheSignal(EditComposition(listOf(Track(listOf(clip))), listOf(Crt())), clip, spec)
+      assertOnTheSignal(Composition(listOf(Track(listOf(clip))), listOf(Crt())), clip, spec)
     }
 
   @Test
   fun thePictureEndsInBlackPastTheCurve() =
     runTest(timeout = TIMEOUT) {
       val clip = Clip(flatClip())
-      val read = probe.written(EditComposition(listOf(Track(listOf(clip))), listOf(Crt())), ExportSpec())
+      val read = probe.written(Composition(listOf(Track(listOf(clip))), listOf(Crt())), ExportSpec())
 
       withClue("a corner sits past the curve at full intensity") {
         CrtSignal.coverageAt(
@@ -99,8 +99,8 @@ class AndroidCrtMediaTest {
     runTest(timeout = TIMEOUT) {
       val source = flatClip()
       val swatch = swatchOverlay()
-      val looked = EditComposition(listOf(Track(listOf(Clip(source)))), listOf(swatch, Crt()))
-      val plain = EditComposition(listOf(Track(listOf(Clip(source)))), listOf(swatch))
+      val looked = Composition(listOf(Track(listOf(Clip(source)))), listOf(swatch, Crt()))
+      val plain = Composition(listOf(Track(listOf(Clip(source)))), listOf(swatch))
 
       val read = redOfSwatch(looked)
       val wanted = redOfSwatch(plain)
@@ -112,8 +112,8 @@ class AndroidCrtMediaTest {
   fun aClipOverlayUnderACompositionCrtIsBurned() =
     runTest(timeout = TIMEOUT) {
       val clip = Clip(flatClip(), effects = listOf(swatchOverlay()))
-      val looked = EditComposition(listOf(Track(listOf(clip))), listOf(Crt()))
-      val plain = EditComposition(listOf(Track(listOf(clip))))
+      val looked = Composition(listOf(Track(listOf(clip))), listOf(Crt()))
+      val plain = Composition(listOf(Track(listOf(clip))))
 
       val read = redOfSwatch(looked)
       val wanted = redOfSwatch(plain)
@@ -123,7 +123,7 @@ class AndroidCrtMediaTest {
 
   // A read off the middle of the frame's width near its edge, where the falloff has moved furthest with no curve yet.
   private suspend fun assertOnTheSignal(
-    edit: EditComposition,
+    edit: Composition,
     clip: Clip,
     spec: ExportSpec = ExportSpec(),
   ) {
@@ -131,7 +131,7 @@ class AndroidCrtMediaTest {
     val plain =
       probe
         .written(
-          EditComposition(listOf(Track(listOf(clip)))),
+          Composition(listOf(Track(listOf(clip)))),
           spec,
         ).rgbAt(READ_FX, READ_FY)
         .second
@@ -154,7 +154,7 @@ class AndroidCrtMediaTest {
     val crop = Crop(WIDE_CANVAS, fit = Fit.Contain)
     val source = flatClip()
     val edit = { effects: List<EffectSpec>, over: Fill ->
-      EditComposition(listOf(Track(listOf(Clip(source, effects = effects)))), fill = over)
+      Composition(listOf(Track(listOf(Clip(source, effects = effects)))), fill = over)
     }
     val spec = ExportSpec()
     val plan = probe.plan(edit(listOf(crop, Crt()), fill), spec)
@@ -179,7 +179,7 @@ class AndroidCrtMediaTest {
     return MediaSource.of(file.path)
   }
 
-  private suspend fun redOfSwatch(edit: EditComposition): Double =
+  private suspend fun redOfSwatch(edit: Composition): Double =
     probe
       .written(edit, ExportSpec())
       .rgbAt(SWATCH_FX, SWATCH_FY)

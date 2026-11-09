@@ -2,7 +2,7 @@ package dev.jordond.filmstrip.player.contract
 
 import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.effects.geometry.KenBurns
@@ -54,13 +54,13 @@ interface ClipParityBackend {
   /**
    * Writes [composition] through a real export and hands back the file as a source.
    */
-  suspend fun exportedSource(composition: EditComposition): MediaSource
+  suspend fun exportedSource(composition: Composition): MediaSource
 
   /**
    * The frame [composition] exports at [position], as tightly packed RGBA_8888.
    */
   suspend fun exportFrame(
-    composition: EditComposition,
+    composition: Composition,
     position: Duration,
   ): TestFrame
 
@@ -100,7 +100,7 @@ interface ClipParityBackend {
    */
   suspend fun movingSource(): MediaSource =
     exportedSource(
-      EditComposition(listOf(Track(listOf(Clip(fixtureClip, MOVING_RUN, effects = listOf(MOVING_PAN)))))),
+      Composition(listOf(Track(listOf(Clip(fixtureClip, MOVING_RUN, effects = listOf(MOVING_PAN)))))),
     )
 }
 
@@ -132,11 +132,11 @@ internal val BASELINE_TRIM: TimeRange = TimeRange.of(200.milliseconds, 1_300.mil
  */
 internal suspend fun ClipParityBackend.assertWrittenLength(
   source: MediaSource,
-  edit: EditComposition,
+  edit: Composition,
   length: Duration,
   speed: Double,
 ) {
-  val unity = EditComposition(listOf(Track(listOf(Clip(source, BASELINE_TRIM)))))
+  val unity = Composition(listOf(Track(listOf(Clip(source, BASELINE_TRIM)))))
   val added = writtenLengthOf(unity) - checkNotNull(unity.duration)
   val written = writtenLengthOf(edit)
   withClue("the file at $speed ran $written against a shared length of $length, and speed 1 adds $added") {
@@ -145,7 +145,7 @@ internal suspend fun ClipParityBackend.assertWrittenLength(
   }
 }
 
-private suspend fun ClipParityBackend.writtenLengthOf(composition: EditComposition): Duration =
+private suspend fun ClipParityBackend.writtenLengthOf(composition: Composition): Duration =
   filmstrip
     .probe(exportedSource(composition))
     .shouldBeInstanceOf<ProbeResult.Success>()

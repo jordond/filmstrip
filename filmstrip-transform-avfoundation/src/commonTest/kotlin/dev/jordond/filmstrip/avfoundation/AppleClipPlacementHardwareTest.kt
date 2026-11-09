@@ -1,8 +1,8 @@
 package dev.jordond.filmstrip.avfoundation
 
 import dev.jordond.filmstrip.Filmstrip
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.CompositionBuilder
-import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.effects.geometry.Crop
 import dev.jordond.filmstrip.effects.geometry.KenBurns
@@ -339,7 +339,7 @@ class AppleClipPlacementHardwareTest {
   ): Pair<String, ExportPlan> = exported(compositionOf(build), temporaryPath(name))
 
   private suspend fun exported(
-    composition: EditComposition,
+    composition: Composition,
     output: String,
     spec: ExportSpec = SPEC,
   ): Pair<String, ExportPlan> =

@@ -4,7 +4,7 @@ import android.graphics.Bitmap
 import android.graphics.Color
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effects.geometry.Crop
@@ -125,7 +125,7 @@ class AndroidOverlayFillMediaTest {
   fun aCompositionOverlayDrawsOverTheFillInAGapBetweenTwoClips() =
     runTest(timeout = TIMEOUT) {
       val source = probe.fixture()
-      val stripped = EditComposition(listOf(Track(listOf(Clip(source)))), audio = AudioSpec.AudioOnly)
+      val stripped = Composition(listOf(Track(listOf(Clip(source)))), audio = AudioSpec.AudioOnly)
       val soundOnly = MediaSource.of(probe.export(stripped).path)
       val mark = probe.watermark(Corner.BottomEnd)
       val plain = probe.frame(probe.export(between(source, soundOnly, emptyList())), BETWEEN)
@@ -168,7 +168,7 @@ class AndroidOverlayFillMediaTest {
       }
 
       val onClip =
-        EditComposition(
+        Composition(
           listOf(Track(listOf(Clip(source, effects = listOf(hanging))))),
           listOf(squareCrop()),
           fill = FILL,
@@ -201,18 +201,18 @@ class AndroidOverlayFillMediaTest {
   private fun letterboxed(
     source: MediaSource,
     effects: List<EffectSpec>,
-  ) = EditComposition(listOf(Track(listOf(Clip(source)))), listOf(squareCrop()) + effects, fill = FILL)
+  ) = Composition(listOf(Track(listOf(Clip(source)))), listOf(squareCrop()) + effects, fill = FILL)
 
   private fun late(
     source: MediaSource,
     effects: List<EffectSpec>,
-  ) = EditComposition(listOf(Track(listOf(Clip(source)), start = LATE)), effects, fill = FILL)
+  ) = Composition(listOf(Track(listOf(Clip(source)), start = LATE)), effects, fill = FILL)
 
   private fun between(
     source: MediaSource,
     soundOnly: MediaSource,
     effects: List<EffectSpec>,
-  ) = EditComposition(listOf(Track(listOf(Clip(source), Clip(soundOnly), Clip(source)))), effects, fill = FILL)
+  ) = Composition(listOf(Track(listOf(Clip(source), Clip(soundOnly), Clip(source)))), effects, fill = FILL)
 
   private fun Bitmap.readsFill(region: Region): Boolean =
     (0 until CELLS).all { row ->

@@ -1,7 +1,7 @@
 package dev.jordond.filmstrip.player
 
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.effects.overlay.TextOverlay
@@ -72,8 +72,8 @@ class AppleTextPlateParityHardwareTest {
     }
 
   // The fixture clip waits GAP_LENGTH on its track, so the video opens on a gap only the fill covers.
-  private fun composition(): EditComposition =
-    EditComposition(
+  private fun composition(): Composition =
+    Composition(
       tracks =
         listOf(
           Track(

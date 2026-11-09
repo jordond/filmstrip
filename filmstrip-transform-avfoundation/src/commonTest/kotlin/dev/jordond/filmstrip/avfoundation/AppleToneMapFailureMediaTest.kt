@@ -3,7 +3,7 @@ package dev.jordond.filmstrip.avfoundation
 import dev.jordond.filmstrip.ComponentRegistry
 import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.avfoundation.internal.export.AvDriver
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.ExportStatus
@@ -59,7 +59,7 @@ class AppleToneMapFailureMediaTest {
     }
 
   private suspend fun failureOf(
-    composition: EditComposition,
+    composition: Composition,
     planned: HdrTransfer,
   ): FilmstripError =
     withContext(Dispatchers.Default) {
@@ -112,7 +112,7 @@ class AppleToneMapFailureMediaTest {
       isExportable = isExportable,
     )
 
-  private fun clipOf(path: String): EditComposition =
+  private fun clipOf(path: String): Composition =
     compositionOf { clip(MediaSource.of(path)) { trim(Duration.ZERO, CLIP) } }
 
   private companion object {

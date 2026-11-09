@@ -4,7 +4,7 @@ import dev.jordond.filmstrip.codec.AudioCodec
 import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.effects.color.Brightness
@@ -30,7 +30,7 @@ class WasmExportCanaryMediaTest {
     runTest {
       val bytes = makeClip(color = Rgb.Grey)
       val composition =
-        EditComposition(
+        Composition(
           tracks = listOf(Track(listOf(Clip(MediaSource.Bytes(bytes), effects = listOf(Brightness(HALF_BRIGHTNESS)))))),
           audio = AudioSpec.Remove,
         )
@@ -50,7 +50,7 @@ class WasmExportCanaryMediaTest {
       if (!browserEncodesAac()) return@runTest
       val bytes = makeClipWithAudio(frames = 60, frameRate = 30)
       val composition =
-        EditComposition(
+        Composition(
           tracks = listOf(Track(listOf(Clip(MediaSource.Bytes(bytes), trim = TimeRange(TRIM_START, TRIM_END))))),
           audio = AudioSpec.Keep,
         )
@@ -71,7 +71,7 @@ class WasmExportCanaryMediaTest {
     runTest {
       val bytes = makeClip()
       val composition =
-        EditComposition(
+        Composition(
           tracks = listOf(Track(listOf(Clip(MediaSource.Bytes(bytes))))),
           audio = AudioSpec.Keep,
         )

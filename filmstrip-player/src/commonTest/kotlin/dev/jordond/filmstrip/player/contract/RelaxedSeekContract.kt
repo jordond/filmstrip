@@ -1,6 +1,6 @@
 package dev.jordond.filmstrip.player.contract
 
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.player.PlaybackEvent
 import dev.jordond.filmstrip.player.SeekAccuracy
 import dev.jordond.filmstrip.player.SetCompositionResult
@@ -30,7 +30,7 @@ import kotlin.time.Duration.Companion.milliseconds
  */
 internal class RelaxedSeekContract(
   private val createEngine: (CoroutineScope) -> EngineUnderTest,
-  private val fixture: EditComposition,
+  private val fixture: Composition,
   private val rate: Int,
 ) {
   /**

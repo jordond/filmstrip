@@ -3,7 +3,7 @@ package dev.jordond.filmstrip.media3
 import android.os.Build
 import dev.jordond.filmstrip.edit.CLIP_SPEED_RANGE
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.TrackContent
@@ -63,7 +63,7 @@ class AndroidClipSpeedMediaTest {
     runTest(timeout = TIMEOUT) {
       val primary = Clip(probe.fixture(SHORT), TimeRange.of(Duration.ZERO, 1.seconds), speed = 1.5)
       val bed = Track(listOf(Clip(probe.fixture(BED))), content = TrackContent.Audio)
-      val edit = EditComposition(listOf(Track(listOf(primary)), bed))
+      val edit = Composition(listOf(Track(listOf(primary)), bed))
 
       val file = exported(edit)
       val times = videoSampleTimes(file)
@@ -89,7 +89,7 @@ class AndroidClipSpeedMediaTest {
           Clip(probe.fixture(fixture), TimeRange.of(Duration.ZERO, 1.seconds), speed = speed)
         }
 
-      val file = exported(EditComposition(listOf(Track(clips))))
+      val file = exported(Composition(listOf(Track(clips))))
       val audio = decodeAudio(file)
 
       var opens = Duration.ZERO
@@ -131,7 +131,7 @@ class AndroidClipSpeedMediaTest {
     val clip = Clip(probe.fixture(fixture), TimeRange.of(Duration.ZERO, sourceLength), speed = speed)
     val length = outputLengthOf(sourceLength, speed)
 
-    val file = exported(EditComposition(listOf(Track(listOf(clip)))))
+    val file = exported(Composition(listOf(Track(listOf(clip)))))
 
     val times = videoSampleTimes(file)
     val ends = videoTrackLength(file)
@@ -179,7 +179,7 @@ class AndroidClipSpeedMediaTest {
     }
   }
 
-  private suspend fun exported(edit: EditComposition): File {
+  private suspend fun exported(edit: Composition): File {
     val statuses =
       withContext(Dispatchers.Default) { probe.filmstrip.export(edit, ExportSpec(), MediaSink.temporary()).toList() }
     val finished = statuses.last()

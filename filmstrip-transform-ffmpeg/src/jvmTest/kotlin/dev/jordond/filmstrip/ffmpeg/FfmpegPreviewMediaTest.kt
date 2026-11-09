@@ -5,7 +5,7 @@ import dev.jordond.filmstrip.codec.Bitrate
 import dev.jordond.filmstrip.diagnostics.DiagnosticEvent
 import dev.jordond.filmstrip.diagnostics.DiagnosticListener
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.TrackContent
@@ -546,7 +546,7 @@ class FfmpegPreviewMediaTest {
     }
 
   private suspend fun open(
-    composition: EditComposition,
+    composition: Composition,
     at: Duration,
   ): FfmpegPreviewStream {
     val result = engine.openPreview(composition, ExportSpec(), at = at)
@@ -554,14 +554,14 @@ class FfmpegPreviewMediaTest {
   }
 
   private suspend fun firstFrame(
-    composition: EditComposition,
+    composition: Composition,
     at: Duration,
   ): ByteArray = frames(composition, at, 1).single()
 
   // An export's overlay runs on every frame, shut or open, so a preview reads against that export rather than against a
   // plan holding no overlay at all.
   private suspend fun assertShownAsExported(
-    composition: EditComposition,
+    composition: Composition,
     at: Duration,
     shown: ByteArray,
   ) {
@@ -575,12 +575,12 @@ class FfmpegPreviewMediaTest {
   // The frame on the slot [at] lands on, read forward from the head, which is the frame a scrub
   // landing on the same slot has to agree with.
   private suspend fun forwardFrame(
-    composition: EditComposition,
+    composition: Composition,
     at: Duration,
   ): ByteArray = frames(composition, Duration.ZERO, outputSlotOf(at, FIXTURE_RATE).toInt() + 1).last()
 
   private suspend fun frames(
-    composition: EditComposition,
+    composition: Composition,
     at: Duration,
     count: Int,
   ): List<ByteArray> {
@@ -600,9 +600,9 @@ class FfmpegPreviewMediaTest {
     }
   }
 
-  private fun overlaid(overlay: ImageOverlay): EditComposition {
+  private fun overlaid(overlay: ImageOverlay): Composition {
     withClue("the fixture ${landscape.absolutePath} was not downloaded") { landscape.isFile.shouldBeTrue() }
-    return EditComposition(
+    return Composition(
       tracks = listOf(Track(listOf(Clip(MediaSource.of(landscape.absolutePath))))),
       effects = listOf(overlay),
     )
@@ -630,12 +630,12 @@ class FfmpegPreviewMediaTest {
   private fun underBed(
     overlay: ImageOverlay? = null,
     onClip: Boolean = false,
-  ): EditComposition {
+  ): Composition {
     withClue("the fixture ${landscape.absolutePath} was not downloaded") { landscape.isFile.shouldBeTrue() }
     val source = MediaSource.of(landscape.absolutePath)
     val primary =
       Clip(source, TimeRange.of(Duration.ZERO, 1.seconds), effects = listOfNotNull(overlay.takeIf { onClip }))
-    return EditComposition(
+    return Composition(
       tracks =
         listOf(
           Track(listOf(primary)),
@@ -645,7 +645,7 @@ class FfmpegPreviewMediaTest {
     )
   }
 
-  private suspend fun resolved(composition: EditComposition): ResolvedComposition =
+  private suspend fun resolved(composition: Composition): ResolvedComposition =
     engine.resolve(composition, ExportSpec()).shouldBeInstanceOf<ResolveResult.Resolved>().composition
 
   // The middle of the held tail and a third of a slot on, so the scrub lands on a slot it is not sitting on.
@@ -654,25 +654,25 @@ class FfmpegPreviewMediaTest {
     return outputSlotTime(tail.first + (tail.last - tail.first) / 2, resolved.output.frameRate) + OFF_SLOT
   }
 
-  private fun graded(): EditComposition {
+  private fun graded(): Composition {
     withClue("the fixture ${landscape.absolutePath} was not downloaded") { landscape.isFile.shouldBeTrue() }
-    return EditComposition(
+    return Composition(
       tracks = listOf(Track(listOf(Clip(MediaSource.of(landscape.absolutePath))))),
       effects = listOf(Brightness(BRIGHTNESS)),
     )
   }
 
   // The fixture's opening up to [end], with nothing else on the edit, which a stream copy covers.
-  private fun copied(end: Duration): EditComposition {
+  private fun copied(end: Duration): Composition {
     withClue("the fixture ${landscape.absolutePath} was not downloaded") { landscape.isFile.shouldBeTrue() }
-    return EditComposition(
+    return Composition(
       tracks = listOf(Track(listOf(Clip(MediaSource.of(landscape.absolutePath), TimeRange.of(Duration.ZERO, end))))),
     )
   }
 
-  private fun twoClips(): EditComposition {
+  private fun twoClips(): Composition {
     withClue("the fixtures were not downloaded") { (landscape.isFile && portrait.isFile).shouldBeTrue() }
-    return EditComposition(
+    return Composition(
       tracks =
         listOf(
           Track(
@@ -687,7 +687,7 @@ class FfmpegPreviewMediaTest {
   }
 
   private suspend fun sizedFrame(
-    composition: EditComposition,
+    composition: Composition,
     at: Duration,
   ): Pair<Size, ByteArray> {
     val stream = open(composition, at)
@@ -699,7 +699,7 @@ class FfmpegPreviewMediaTest {
   }
 
   // The portrait fixture contained in a landscape frame over a [BAR_FILL] fill, with [clipOverlay] on its only clip.
-  private fun letterboxed(clipOverlay: ImageOverlay? = null): EditComposition {
+  private fun letterboxed(clipOverlay: ImageOverlay? = null): Composition {
     withClue("the fixture ${portrait.absolutePath} was not downloaded") { portrait.isFile.shouldBeTrue() }
     return compositionOf {
       clip(MediaSource.of(portrait.absolutePath)) {

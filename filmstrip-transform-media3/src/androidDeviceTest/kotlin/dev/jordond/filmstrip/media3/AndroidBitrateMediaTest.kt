@@ -6,7 +6,7 @@ import dev.jordond.filmstrip.CapabilitiesResult
 import dev.jordond.filmstrip.codec.Bitrate
 import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.effects.geometry.Scale
@@ -84,8 +84,8 @@ class AndroidBitrateMediaTest {
 
   // Six seconds of the long fixture, the same span the ffmpeg and AVFoundation suites measure, so the first key frame
   // weighs the same in every reading.
-  private fun fullHd(): EditComposition =
-    EditComposition(
+  private fun fullHd(): Composition =
+    Composition(
       listOf(
         Track(
           listOf(

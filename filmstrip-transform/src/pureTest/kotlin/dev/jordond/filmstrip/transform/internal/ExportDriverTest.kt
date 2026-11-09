@@ -4,7 +4,7 @@ import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.capability.DeviceCapabilities
 import dev.jordond.filmstrip.capability.EffectParity
 import dev.jordond.filmstrip.codec.VideoCodec
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.effect.Attributes
 import dev.jordond.filmstrip.effect.EffectResolution
@@ -231,7 +231,7 @@ class ExportDriverTest {
 
   private fun engine(
     driver: ExportDriver,
-    composition: EditComposition,
+    composition: Composition,
     vararg extra: EffectResolver,
   ) = PlannedExportEngine(
     backend = driver,
@@ -248,7 +248,7 @@ class ExportDriverTest {
  * A resolver that claims nothing and records every composition it was asked to prepare for.
  */
 private class PreparingResolver : EffectResolver {
-  val prepared = mutableListOf<EditComposition>()
+  val prepared = mutableListOf<Composition>()
 
   override fun resolve(
     spec: EffectSpec,
@@ -256,7 +256,7 @@ private class PreparingResolver : EffectResolver {
     attributes: Attributes,
   ): EffectResolution? = null
 
-  override suspend fun prepare(composition: EditComposition) {
+  override suspend fun prepare(composition: Composition) {
     prepared += composition
   }
 }

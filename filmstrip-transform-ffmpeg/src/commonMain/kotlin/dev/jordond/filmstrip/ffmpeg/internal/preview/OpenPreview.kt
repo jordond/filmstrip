@@ -4,7 +4,7 @@ import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.diagnostics.DiagnosticEvent
 import dev.jordond.filmstrip.diagnostics.DiagnosticEvent.Detail
 import dev.jordond.filmstrip.diagnostics.report
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.ffmpeg.internal.FfmpegExportEngine
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.PREVIEW_SINK
@@ -49,7 +49,7 @@ import kotlin.time.Duration
  */
 @InternalFilmstripApi
 public suspend fun FfmpegExportEngine.openPreview(
-  composition: EditComposition,
+  composition: Composition,
   spec: ExportSpec,
   layoutSize: Size? = null,
   at: Duration = Duration.ZERO,

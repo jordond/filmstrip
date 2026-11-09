@@ -2,7 +2,7 @@ package dev.jordond.filmstrip.avfoundation
 
 import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.FilmstripError
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.effect.Attributes
@@ -103,7 +103,7 @@ class AppleOverlayPictureAtExportHardwareTest {
     runTest(timeout = TIMEOUT) {
       write(PLANNED_SIZE, AuthoredColors.MID_GREEN)
       val second = ImageOverlay(ImageSource.of(picture), Corner.BottomEnd)
-      val composition = EditComposition(emptyList(), listOf(badge, second))
+      val composition = Composition(emptyList(), listOf(badge, second))
       val resolver = BuiltInEffectResolver()
 
       resolver.prepare(composition)
@@ -137,13 +137,13 @@ class AppleOverlayPictureAtExportHardwareTest {
       }
     }
 
-  private fun composition(): EditComposition =
+  private fun composition(): Composition =
     compositionOf {
       clip(MediaSource.of(fixture("apple_export_a.mp4"))) { trim(0.seconds, 1.seconds) }
       effects { add(badge) }
     }
 
-  private suspend fun planned(composition: EditComposition): ExportPlan =
+  private suspend fun planned(composition: Composition): ExportPlan =
     when (val verdict = filmstrip.plan(composition, SPEC)) {
       is Verdict.Capable -> verdict.plan
       is Verdict.Degraded -> verdict.plan

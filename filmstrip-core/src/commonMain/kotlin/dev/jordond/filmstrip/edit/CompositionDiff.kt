@@ -44,8 +44,8 @@ public enum class CompositionDiff {
  */
 @InternalFilmstripApi
 public fun diff(
-  previous: EditComposition?,
-  next: EditComposition,
+  previous: Composition?,
+  next: Composition,
 ): CompositionDiff {
   if (previous == null || previous.timeline() != next.timeline()) return CompositionDiff.Structural
   return if (previous.rendering() == next.rendering()) CompositionDiff.Equal else CompositionDiff.ParametersOnly
@@ -62,7 +62,7 @@ public fun diff(
  * source.
  */
 @InternalFilmstripApi
-public fun EditComposition.effectsRevision(): Long {
+public fun Composition.effectsRevision(): Long {
   var hash = HASH_SEED
   hash = hash.mixed(timeline())
   hash = hash.mixed(effects.inCanonicalOrder())
@@ -76,7 +76,7 @@ public fun EditComposition.effectsRevision(): Long {
   return hash
 }
 
-private fun EditComposition.timeline(): Timeline =
+private fun Composition.timeline(): Timeline =
   Timeline(
     tracks.map { track ->
       TimelineTrack(
@@ -88,7 +88,7 @@ private fun EditComposition.timeline(): Timeline =
     },
   )
 
-private fun EditComposition.rendering(): Rendering =
+private fun Composition.rendering(): Rendering =
   Rendering(
     compositionEffects = effects.inCanonicalOrder(),
     fill = fill,

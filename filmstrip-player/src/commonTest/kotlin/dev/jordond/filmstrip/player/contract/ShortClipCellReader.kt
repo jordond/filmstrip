@@ -1,7 +1,7 @@
 package dev.jordond.filmstrip.player.contract
 
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.outputSlotTime
@@ -34,7 +34,7 @@ interface ShortClipBackend : ClipParityBackend {
   /**
    * How many video samples the file [composition] exports to holds.
    */
-  suspend fun writtenFrameCount(composition: EditComposition): Long
+  suspend fun writtenFrameCount(composition: Composition): Long
 
   /**
    * A source running at [rate], with audio and at least a [MOVING_RUN] of picture at the fixture's rate.
@@ -227,7 +227,7 @@ abstract class ShortClipCellReader(
   }
 
   private suspend fun assertAgreement(
-    edit: EditComposition,
+    edit: Composition,
     shown: Map<Long, TestFrame>,
     rate: Int,
   ) {
@@ -258,7 +258,7 @@ abstract class ShortClipCellReader(
     rate: Int,
   ): Map<Long, TestFrame> {
     val run = TimeRange.of(Duration.ZERO, outputSlotTime(frames.max() + 2, rate))
-    val plain = EditComposition(listOf(Track(listOf(Clip(source, run)))))
+    val plain = Composition(listOf(Track(listOf(Clip(source, run)))))
     val engine = createEngine(scope)
     val references = mutableMapOf<Long, TestFrame>()
     withEngine(engine) { recorder ->

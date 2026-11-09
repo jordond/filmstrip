@@ -2,7 +2,7 @@ package dev.jordond.filmstrip.ffmpeg
 
 import dev.jordond.filmstrip.codec.Mbps
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.outputSlotOf
@@ -302,7 +302,7 @@ class FfmpegVhsMediaTest {
     runBlocking<Unit> {
       val vhs = Vhs(intensity = 0.5f)
       val clips = List(2) { draw.clipOf(RAMP_WIDTH, RAMP_HEIGHT, ::rampAt) }
-      val composition = EditComposition(listOf(Track(clips, effects = listOf(vhs))), fill = Fill.Solid(BLACK))
+      val composition = Composition(listOf(Track(clips, effects = listOf(vhs))), fill = Fill.Solid(BLACK))
       withClue("the graph has to outgrow one argument for this to tell") {
         draw.graphOf(composition).length shouldBeGreaterThan LINUX_ARGUMENT_CHARACTERS
       }
@@ -334,7 +334,7 @@ class FfmpegVhsMediaTest {
     return errors.average()
   }
 
-  private suspend fun assertSameFrameOnExport(composition: EditComposition) {
+  private suspend fun assertSameFrameOnExport(composition: Composition) {
     val at = 1_000.milliseconds
     val windowed = draw.frames(composition, at, 1, ENCODED).single()
     val exported = draw.exportedFrame(composition, outputSlotOf(at, FILTER_RATE).toInt(), ENCODED)
@@ -380,9 +380,9 @@ class FfmpegVhsMediaTest {
     clip: Clip,
     effects: List<EffectSpec> = emptyList(),
     fill: Fill = Fill.Solid(BLACK),
-  ): EditComposition = draw.composition(listOf(clip), effects, fill)
+  ): Composition = draw.composition(listOf(clip), effects, fill)
 
-  private suspend fun squareFrame(composition: EditComposition): ByteArray {
+  private suspend fun squareFrame(composition: Composition): ByteArray {
     val frame = draw.frames(composition, Duration.ZERO, 1).single()
     withClue("the square canvas is as wide as this test reads it") {
       frame.size shouldBe CANVAS * CANVAS * RGBA

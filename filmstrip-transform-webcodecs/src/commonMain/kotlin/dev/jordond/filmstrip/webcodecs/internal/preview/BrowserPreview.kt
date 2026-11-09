@@ -3,7 +3,7 @@
 package dev.jordond.filmstrip.webcodecs.internal.preview
 
 import dev.jordond.filmstrip.InternalFilmstripApi
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.outputSlotOf
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.transform.internal.heldTail
@@ -206,7 +206,7 @@ public class BrowserPreview internal constructor(
    */
   public suspend fun updateParameters(
     next: ResolvedComposition,
-    edit: EditComposition,
+    edit: Composition,
   ): Boolean = exclusively { swap(next, edit) } ?: false
 
   /**
@@ -269,7 +269,7 @@ public class BrowserPreview internal constructor(
 
   private fun swap(
     next: ResolvedComposition,
-    edit: EditComposition,
+    edit: Composition,
   ): Boolean {
     if (!resolved.drawsSameFormatAs(next)) return false
 
@@ -511,7 +511,7 @@ public fun browserCanDecodeAudio(): Boolean = hasAudioDecoder()
  *   it, which the resolved chain no longer carries as measurable specs.
  */
 @InternalFilmstripApi
-public fun ResolvedComposition.toBrowserPreview(edit: EditComposition): BrowserPreview =
+public fun ResolvedComposition.toBrowserPreview(edit: Composition): BrowserPreview =
   BrowserPreview(this, browserRenderOf(this, edit))
 
 /**

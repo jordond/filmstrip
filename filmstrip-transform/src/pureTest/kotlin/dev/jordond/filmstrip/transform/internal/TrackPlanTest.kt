@@ -2,7 +2,7 @@ package dev.jordond.filmstrip.transform.internal
 
 import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.codec.AudioCodec
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.TrackContent
@@ -29,7 +29,7 @@ class TrackPlanTest {
   @Test
   fun `a second video track is refused by name`() {
     val second = Track(listOf(fixture.clip(audioRate = AUDIO_RATE)), content = TrackContent.AudioAndVideo)
-    val verdict = fixture.plan(EditComposition(listOf(Track(listOf(fixture.clip(audioRate = AUDIO_RATE))), second)))
+    val verdict = fixture.plan(Composition(listOf(Track(listOf(fixture.clip(audioRate = AUDIO_RATE))), second)))
 
     val error = verdict.shouldBeInstanceOf<Verdict.Incapable>().reasons.single()
     error.shouldBeInstanceOf<FilmstripError.InvalidComposition>().message shouldBe
@@ -45,7 +45,7 @@ class TrackPlanTest {
         content = TrackContent.Audio,
         looping = true,
       )
-    val verdict = fixture.plan(EditComposition(listOf(Track(listOf(fixture.clip(audioRate = AUDIO_RATE))), bed)))
+    val verdict = fixture.plan(Composition(listOf(Track(listOf(fixture.clip(audioRate = AUDIO_RATE))), bed)))
 
     val plan = verdict.shouldBeInstanceOf<Verdict.Capable>().plan
     plan.output.audioCodec shouldBe AudioCodec.Aac
@@ -55,7 +55,7 @@ class TrackPlanTest {
   fun `a composition where every track loops is refused by name`() {
     val verdict =
       fixture.plan(
-        EditComposition(listOf(Track(listOf(fixture.clip(audioRate = AUDIO_RATE)), looping = true))),
+        Composition(listOf(Track(listOf(fixture.clip(audioRate = AUDIO_RATE)), looping = true))),
       )
 
     val error = verdict.shouldBeInstanceOf<Verdict.Incapable>().reasons.single()
@@ -224,7 +224,7 @@ class TrackPlanTest {
       Track(listOf(fixture.clip(audioRate = AUDIO_RATE, duration = 4_000.milliseconds)), content = TrackContent.Audio)
     val primary = Track(listOf(fixture.clip(audioRate = AUDIO_RATE)), start = 4_000.milliseconds, looping = true)
 
-    fixture.plan(EditComposition(listOf(primary, bed))).shouldBeInstanceOf<Verdict.Incapable>()
+    fixture.plan(Composition(listOf(primary, bed))).shouldBeInstanceOf<Verdict.Incapable>()
   }
 
   /**
@@ -236,7 +236,7 @@ class TrackPlanTest {
     fadeOut: Duration = Duration.ZERO,
     clipFadeIn: Duration = Duration.ZERO,
     clipFadeOut: Duration = Duration.ZERO,
-  ): EditComposition {
+  ): Composition {
     val bedClip =
       fixture.clip(
         audioRate = AUDIO_RATE,
@@ -245,7 +245,7 @@ class TrackPlanTest {
         fadeIn = clipFadeIn,
         fadeOut = clipFadeOut,
       )
-    return EditComposition(
+    return Composition(
       listOf(
         Track(listOf(fixture.clip(audioRate = AUDIO_RATE, duration = PRIMARY_LENGTH))),
         Track(
@@ -264,10 +264,10 @@ class TrackPlanTest {
    * A bed looping a [LOOP_PASS] long clip under a primary track long enough to ask for [passes] of
    * them, which is the shape that reaches the pass ceiling.
    */
-  private fun loopingFor(passes: Int): EditComposition {
+  private fun loopingFor(passes: Int): Composition {
     val bedClip =
       fixture.clip(duration = 3_000.milliseconds, trim = TimeRange.of(Duration.ZERO, LOOP_PASS), audioRate = 44_100)
-    return EditComposition(
+    return Composition(
       listOf(
         Track(listOf(fixture.clip(audioRate = AUDIO_RATE, duration = LOOP_PASS * passes))),
         Track(clips = listOf(bedClip), content = TrackContent.Audio, looping = true),
@@ -288,7 +288,7 @@ class TrackPlanTest {
   @Test
   fun `a primary track that starts before the composition is refused by name`() {
     val composition =
-      EditComposition(listOf(Track(listOf(fixture.clip(audioRate = AUDIO_RATE)), start = (-500).milliseconds)))
+      Composition(listOf(Track(listOf(fixture.clip(audioRate = AUDIO_RATE)), start = (-500).milliseconds)))
 
     val error =
       fixture
@@ -306,7 +306,7 @@ class TrackPlanTest {
   @Test
   fun `an audio track that starts before the composition is refused by name`() {
     val composition =
-      EditComposition(
+      Composition(
         listOf(
           Track(listOf(fixture.clip(audioRate = AUDIO_RATE))),
           Track(listOf(fixture.clip(audioRate = 48_000)), content = TrackContent.Audio, start = (-500).milliseconds),

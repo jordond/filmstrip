@@ -1,8 +1,8 @@
 package dev.jordond.filmstrip.player.internal
 
 import dev.jordond.filmstrip.Cancellable
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.CompositionDiff
-import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.player.PlaybackError
@@ -36,7 +36,7 @@ internal class PlanRecordingEngine(
 
   override val isGraphStanding: Boolean get() = graphStanding
 
-  fun loadedOf(): EditComposition? = loaded
+  fun loadedOf(): Composition? = loaded
 
   fun planOf(): PreviewPlan? = plan
 

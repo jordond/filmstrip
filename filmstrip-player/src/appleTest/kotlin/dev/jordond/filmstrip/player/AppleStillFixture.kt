@@ -1,7 +1,7 @@
 package dev.jordond.filmstrip.player
 
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.effects.geometry.KenBurns
@@ -47,8 +47,8 @@ import kotlin.time.Duration.Companion.milliseconds
  * A still takes its slot on the timeline from a generated segment rather than from a track of its
  * own, so a strip frame inside that slot is the one worth pinning to the export.
  */
-internal fun applePhotoComposition(): EditComposition =
-  EditComposition(
+internal fun applePhotoComposition(): Composition =
+  Composition(
     tracks =
       listOf(
         Track(
@@ -66,8 +66,8 @@ internal fun applePhotoComposition(): EditComposition =
  * The photo is red on one side of [PHOTO_BOUNDARY] and blue on the other, so two readings inside
  * the span are two different pictures rather than the same flat sheet twice.
  */
-internal fun applePannedPhotoComposition(): EditComposition =
-  EditComposition(
+internal fun applePannedPhotoComposition(): Composition =
+  Composition(
     tracks =
       listOf(
         Track(

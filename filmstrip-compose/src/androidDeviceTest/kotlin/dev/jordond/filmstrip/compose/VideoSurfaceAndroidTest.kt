@@ -27,7 +27,7 @@ import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.geometry.Size
@@ -226,7 +226,7 @@ class VideoSurfaceAndroidTest {
       layout(placeable.width, height) { placeable.place(0, 0) }
     }
 
-  private fun fixtureComposition(): EditComposition {
+  private fun fixtureComposition(): Composition {
     val file = File(context.cacheDir, FIXTURE)
     if (!file.exists()) {
       val loader = javaClass.classLoader ?: fail("the test APK has no class loader")
@@ -234,7 +234,7 @@ class VideoSurfaceAndroidTest {
       stream.use { input -> file.writeAtomically { input.copyTo(it) } }
     }
     val clip = Clip(MediaSource.of(file.path), TimeRange.of(Duration.ZERO, FIXTURE_LENGTH))
-    return EditComposition(listOf(Track(listOf(clip))))
+    return Composition(listOf(Track(listOf(clip))))
   }
 
   /**

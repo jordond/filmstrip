@@ -6,7 +6,7 @@ import android.graphics.Color
 import android.graphics.Paint
 import dev.jordond.filmstrip.Cancellable
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ImageSource
@@ -91,8 +91,8 @@ class AndroidStillOrientationMediaTest {
     colorAt(FAR, FAR) shouldBeCloseTo BOTTOM_END
   }
 
-  private fun quarteredComposition(): EditComposition =
-    EditComposition(
+  private fun quarteredComposition(): Composition =
+    Composition(
       tracks = listOf(Track(listOf(Clip(MediaSource.Image(ImageSource.of(quarteredPhotoFile().path), PHOTO_LENGTH))))),
     )
 

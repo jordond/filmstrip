@@ -1,7 +1,7 @@
 package dev.jordond.filmstrip.transform.internal
 
 import dev.jordond.filmstrip.FilmstripError
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.effect.Attributes
 import dev.jordond.filmstrip.effect.EffectResolution
 import dev.jordond.filmstrip.effect.EffectResolver
@@ -23,7 +23,7 @@ import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 
 private val NO_GRADE: suspend (
-  EditComposition,
+  Composition,
   ExportSpec,
 ) -> ExportGrade = { _, _ -> ExportGrade.Settled(ResolvedHdr.Keep) }
 
@@ -31,7 +31,7 @@ private val NO_GRADE: suspend (
  * Lowerings of one engine run one at a time, so a resolver's prepared reads belong to the lowering drawing them.
  */
 class EngineLoweringTest {
-  private val composition = EditComposition(emptyList())
+  private val composition = Composition(emptyList())
   private val spec = ExportSpec()
 
   @Test
@@ -185,7 +185,7 @@ class EngineLoweringTest {
       attributes: Attributes,
     ): EffectResolution? = null
 
-    override suspend fun prepare(composition: EditComposition) {
+    override suspend fun prepare(composition: Composition) {
       onPrepare()
     }
   }

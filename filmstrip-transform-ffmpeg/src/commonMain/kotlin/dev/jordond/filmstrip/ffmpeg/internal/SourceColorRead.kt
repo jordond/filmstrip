@@ -1,7 +1,7 @@
 package dev.jordond.filmstrip.ffmpeg.internal
 
 import dev.jordond.filmstrip.FilmstripError
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.SdColor
 import dev.jordond.filmstrip.ffmpeg.internal.process.ProbeAnswer
@@ -39,7 +39,7 @@ internal sealed interface SourceColorRead {
  */
 internal suspend fun FfmpegRuntime.sourceColorsOf(
   toolchain: Toolchain,
-  composition: EditComposition,
+  composition: Composition,
   pathOf: suspend (MediaSource) -> String?,
 ): SourceColorRead {
   val reads = mutableMapOf<MediaSource, FfmpegRuntime.ColorRead>()

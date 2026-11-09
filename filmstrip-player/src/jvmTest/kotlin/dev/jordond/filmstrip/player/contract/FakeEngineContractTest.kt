@@ -1,7 +1,7 @@
 package dev.jordond.filmstrip.player.contract
 
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.media.MediaSource
@@ -28,17 +28,17 @@ class FakeEngineContractTest : PlayerEngineContractTest() {
     return FailingItem(subject, fixture.cutInTwo(fixtureFrameRate), refusedAtLoad = true)
   }
 
-  override val fixture: EditComposition =
-    EditComposition(
+  override val fixture: Composition =
+    Composition(
       tracks = listOf(Track(listOf(Clip(MediaSource.of("contract.mp4"), TimeRange.of(Duration.ZERO, 8.seconds))))),
     )
 
-  override val bytesFixture: EditComposition =
-    EditComposition(
+  override val bytesFixture: Composition =
+    Composition(
       tracks = listOf(Track(listOf(Clip(MediaSource.Bytes(ByteArray(1)), TimeRange.of(Duration.ZERO, 8.seconds))))),
     )
 
-  override val unreadableFixture: EditComposition = FAKE_UNREADABLE
+  override val unreadableFixture: Composition = FAKE_UNREADABLE
 
   override val claimsLiveParameterRedraw: Boolean = true
 

@@ -2,7 +2,7 @@ package dev.jordond.filmstrip.media3
 
 import dev.jordond.filmstrip.ComponentRegistry
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.effects.BuiltInEffectResolver
 import dev.jordond.filmstrip.export.CopyBlocker
@@ -65,7 +65,7 @@ class Media3CopyBlockerMediaTest {
         }
       }
     val engine = media3ExportEngine(components, prober)
-    val composition = EditComposition(listOf(Track(listOf(Clip(probe.fixture(CLIP))))))
+    val composition = Composition(listOf(Track(listOf(Clip(probe.fixture(CLIP))))))
     return when (val verdict = engine.plan(composition, ExportSpec())) {
       is Verdict.Capable -> verdict.plan
       is Verdict.Degraded -> verdict.plan

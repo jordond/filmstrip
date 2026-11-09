@@ -7,7 +7,7 @@ import dev.jordond.filmstrip.avfoundation.internal.composition.toAvComposition
 import dev.jordond.filmstrip.avfoundation.internal.interop.sampleTimesAround
 import dev.jordond.filmstrip.avfoundation.internal.time.toCMTime
 import dev.jordond.filmstrip.avfoundation.internal.time.toDuration
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.edit.outputLengthOf
@@ -179,7 +179,7 @@ class AppleShownFrameMediaTest {
   private fun filmTime(frame: Int): Duration = 1.seconds * frame / FILM_RATE
 
   private suspend fun graphOf(
-    composition: EditComposition,
+    composition: Composition,
     spec: ExportSpec,
   ): AvComposition =
     withContext(Dispatchers.Default) {
@@ -235,7 +235,7 @@ class AppleShownFrameMediaTest {
     path: String,
     trim: TimeRange,
     speed: Double,
-  ): EditComposition =
+  ): Composition =
     compositionOf {
       clip(MediaSource.of(path)) {
         trim(trim)
@@ -268,7 +268,7 @@ class AppleShownFrameMediaTest {
   private fun ntscTime(frame: Int): Duration = 1.seconds * (NTSC_FRAME * frame).toDouble() / NTSC_TIMESCALE
 
   private suspend fun exported(
-    composition: EditComposition,
+    composition: Composition,
     output: String,
   ) = withContext(Dispatchers.Default) {
     val statuses = filmstrip.export(composition, ExportSpec(frameRate = RATE), MediaSink.of(output)).toList()

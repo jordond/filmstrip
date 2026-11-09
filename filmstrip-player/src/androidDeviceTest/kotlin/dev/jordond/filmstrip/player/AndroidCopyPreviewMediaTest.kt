@@ -1,7 +1,7 @@
 package dev.jordond.filmstrip.player
 
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.outputSlotTime
@@ -54,8 +54,8 @@ class AndroidCopyPreviewMediaTest {
       }
     }
 
-  private fun offGridCopy(): EditComposition =
-    EditComposition(listOf(Track(listOf(Clip(androidFixtureClip(), TimeRange.of(Duration.ZERO, OFF_GRID_END))))))
+  private fun offGridCopy(): Composition =
+    Composition(listOf(Track(listOf(Clip(androidFixtureClip(), TimeRange.of(Duration.ZERO, OFF_GRID_END))))))
 
   private companion object {
     // A third of a slot past the thirtieth at the fixture's rate, so the grid ends on the whole second before it.

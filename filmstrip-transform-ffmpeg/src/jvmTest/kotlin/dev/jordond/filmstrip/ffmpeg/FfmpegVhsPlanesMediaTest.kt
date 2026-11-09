@@ -1,7 +1,7 @@
 package dev.jordond.filmstrip.ffmpeg
 
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.effects.filters.vhs.Vhs
 import dev.jordond.filmstrip.ffmpeg.support.FilterFrames
@@ -133,7 +133,7 @@ class FfmpegVhsPlanesMediaTest {
     runBlocking<Unit> { assertReadsExactTicks("60", "floor(N*5994/6000+0.5)") }
 
   private suspend fun assertFormsAgree(
-    plan: EditComposition,
+    plan: Composition,
     frames: Int,
     at: Duration = Duration.ZERO,
   ) {

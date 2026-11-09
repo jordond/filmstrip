@@ -1,6 +1,6 @@
 package dev.jordond.filmstrip.ffmpeg
 
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.effects.color.brightness
 import dev.jordond.filmstrip.effects.geometry.Crop
@@ -332,7 +332,7 @@ class FfmpegClipPlacementMediaTest {
     }
 
   private suspend fun exported(
-    composition: EditComposition,
+    composition: Composition,
     spec: ExportSpec = ExportSpec(),
   ): Pair<String, ExportPlan> {
     val output = File.createTempFile("filmstrip-placement", ".mp4").also { it.deleteOnExit() }

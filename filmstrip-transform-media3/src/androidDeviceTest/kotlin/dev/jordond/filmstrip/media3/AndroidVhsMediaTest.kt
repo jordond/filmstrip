@@ -7,7 +7,7 @@ import android.os.Build
 import dev.jordond.filmstrip.color.SMPTE_C_PRIMARIES
 import dev.jordond.filmstrip.color.sdSourceDisplayed
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effects.filters.filters
@@ -95,8 +95,8 @@ class AndroidVhsMediaTest {
     runTest(timeout = TIMEOUT) {
       val vhs = Vhs()
       val swatch = swatchOverlay()
-      val taped = EditComposition(listOf(Track(listOf(Clip(probe.fixture())))), listOf(swatch, vhs))
-      val plain = EditComposition(listOf(Track(listOf(Clip(probe.fixture())))), listOf(swatch))
+      val taped = Composition(listOf(Track(listOf(Clip(probe.fixture())))), listOf(swatch, vhs))
+      val plain = Composition(listOf(Track(listOf(Clip(probe.fixture())))), listOf(swatch))
 
       abs(greyOfSwatch(taped) - greyOfSwatch(plain)) shouldBeLessThan halfLift(vhs)
     }
@@ -107,8 +107,8 @@ class AndroidVhsMediaTest {
       val vhs = Vhs()
       val swatch = swatchOverlay()
       val clip = Clip(probe.fixture(), effects = listOf(swatch))
-      val taped = EditComposition(listOf(Track(listOf(clip))), listOf(vhs))
-      val plain = EditComposition(listOf(Track(listOf(clip))))
+      val taped = Composition(listOf(Track(listOf(clip))), listOf(vhs))
+      val plain = Composition(listOf(Track(listOf(clip))))
 
       abs(greyOfSwatch(taped) - greyOfSwatch(plain)) shouldBeGreaterThan halfLift(vhs)
     }
@@ -117,7 +117,7 @@ class AndroidVhsMediaTest {
   fun aToneMappedHdrSourceExportsUnderAVhs() =
     runTest(timeout = TIMEOUT) {
       assumeTrue("this device has no ten-bit HEVC decoder, which is every emulator", decodesTenBitHevc())
-      val edit = EditComposition(listOf(Track(listOf(Clip(probe.fixture(HDR_CLIP))))), listOf(Vhs()))
+      val edit = Composition(listOf(Track(listOf(Clip(probe.fixture(HDR_CLIP))))), listOf(Vhs()))
 
       val finished = probe.finish(probe.plan(edit))
 
@@ -139,8 +139,8 @@ class AndroidVhsMediaTest {
       val vhs = Vhs(intensity = 0.5f)
       val clip = Clip(MediaSource.of(source.path))
       mapOf(
-        "clip" to EditComposition(listOf(Track(listOf(Clip(MediaSource.of(source.path), effects = listOf(vhs)))))),
-        "composition" to EditComposition(listOf(Track(listOf(clip))), listOf(vhs)),
+        "clip" to Composition(listOf(Track(listOf(Clip(MediaSource.of(source.path), effects = listOf(vhs)))))),
+        "composition" to Composition(listOf(Track(listOf(clip))), listOf(vhs)),
       ).forEach { (scope, edit) ->
         val plan = probe.plan(edit, ExportSpec())
         val finished = probe.finish(plan)
@@ -181,7 +181,7 @@ class AndroidVhsMediaTest {
   private fun barsEdit(
     clip: Clip,
     effects: List<EffectSpec>,
-  ) = EditComposition(listOf(Track(listOf(clip))), effects, fill = Fill.Solid(BLACK))
+  ) = Composition(listOf(Track(listOf(clip))), effects, fill = Fill.Solid(BLACK))
 
   // Reads the canvas [fill] leaves under a clip Vhs against the same crop over [plainFill] with no Vhs.
   private suspend fun assertCanvasRead(
@@ -191,7 +191,7 @@ class AndroidVhsMediaTest {
     val vhs = Vhs(intensity = 0.5f)
     val crop = Crop(WIDE_CANVAS, fit = Fit.Contain)
     val edit = { effects: List<EffectSpec>, over: Fill ->
-      EditComposition(listOf(Track(listOf(Clip(probe.fixture(), effects = effects)))), fill = over)
+      Composition(listOf(Track(listOf(Clip(probe.fixture(), effects = effects)))), fill = over)
     }
     // The frame's own height, since the head band is a few rows on a shorter one and the probe's default is shorter.
     val spec = ExportSpec()
@@ -234,10 +234,9 @@ class AndroidVhsMediaTest {
     }
   }
 
-  private suspend fun greyOfBar(edit: EditComposition): Double = probe.written(edit).rgbAt(0.5f, BAR_MIDDLE).mean()
+  private suspend fun greyOfBar(edit: Composition): Double = probe.written(edit).rgbAt(0.5f, BAR_MIDDLE).mean()
 
-  private suspend fun greyOfSwatch(edit: EditComposition): Double =
-    probe.written(edit).rgbAt(SWATCH_FX, SWATCH_FY).mean()
+  private suspend fun greyOfSwatch(edit: Composition): Double = probe.written(edit).rgbAt(SWATCH_FX, SWATCH_FY).mean()
 
   // A read tells lifted from clean when it lands closer to its own side of this.
   private fun halfLift(vhs: Vhs): Double = VhsParams.of(vhs).lift * MAX_CODE / 2

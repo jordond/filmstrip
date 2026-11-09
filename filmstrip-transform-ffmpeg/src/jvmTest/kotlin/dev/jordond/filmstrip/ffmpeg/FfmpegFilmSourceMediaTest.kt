@@ -2,7 +2,7 @@ package dev.jordond.filmstrip.ffmpeg
 
 import dev.jordond.filmstrip.color.SMPTE_C_PRIMARIES
 import dev.jordond.filmstrip.color.sdSourceDisplayed
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effects.filters.film.Film
 import dev.jordond.filmstrip.ffmpeg.support.FILM_READ_SLOT
@@ -73,7 +73,7 @@ class FfmpegFilmSourceMediaTest {
 
   private suspend fun assertSdReadsSignal(
     film: Film,
-    composition: EditComposition,
+    composition: Composition,
   ) {
     val plainClip = draw.clipOf(WIDTH, HEIGHT, ::edgeAt, onSmpteC = true)
     val plain = draw.planesAt(draw.composition(listOf(plainClip)), 0)

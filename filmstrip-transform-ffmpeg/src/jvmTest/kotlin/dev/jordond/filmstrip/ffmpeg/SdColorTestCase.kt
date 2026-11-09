@@ -3,7 +3,7 @@ package dev.jordond.filmstrip.ffmpeg
 import dev.jordond.filmstrip.ComponentRegistry
 import dev.jordond.filmstrip.color.EBU_PRIMARIES
 import dev.jordond.filmstrip.color.SMPTE_C_PRIMARIES
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.effects.BuiltInEffectResolver
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.ffmpeg.internal.FfmpegExportEngine
@@ -45,7 +45,7 @@ internal abstract class SdColorTestCase {
   }
 
   protected suspend fun previewFrame(
-    composition: EditComposition,
+    composition: Composition,
     spec: ExportSpec = ExportSpec(),
   ): ByteArray {
     val stream =

@@ -10,7 +10,7 @@ import dev.jordond.filmstrip.color.nearestReadable
 import dev.jordond.filmstrip.color.rgbMatrix
 import dev.jordond.filmstrip.color.ycbcrReading
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.effect.Attributes
@@ -335,7 +335,7 @@ class WebOverlayMatrixTest {
   private suspend fun resolve(bytes: ByteArray): EffectResolution? {
     val image = ImageOverlay(ImageSource.ofBytes(bytes), Corner.TopStart)
     val resolver = BuiltInEffectResolver()
-    resolver.prepare(EditComposition(listOf(Track(listOf(Clip(MediaSource.ofUri(CLIP), effects = listOf(image)))))))
+    resolver.prepare(Composition(listOf(Track(listOf(Clip(MediaSource.ofUri(CLIP), effects = listOf(image)))))))
     return resolver.resolve(image, CAPABILITIES, ATTRIBUTES)
   }
 

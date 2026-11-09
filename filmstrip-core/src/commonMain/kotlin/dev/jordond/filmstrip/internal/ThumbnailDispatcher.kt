@@ -3,7 +3,7 @@ package dev.jordond.filmstrip.internal
 import dev.jordond.filmstrip.Cancellable
 import dev.jordond.filmstrip.ComponentRegistry
 import dev.jordond.filmstrip.FilmstripError
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.effectsRevision
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.media.ColorSpace
@@ -25,7 +25,7 @@ internal class ThumbnailDispatcher(
   suspend fun frame(request: ThumbnailRequest): FrameResult = request(request).toFrameResult()
 
   fun frames(
-    composition: EditComposition,
+    composition: Composition,
     at: List<Duration>,
     heightPx: Int?,
     exportSpec: ExportSpec,

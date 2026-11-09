@@ -10,7 +10,7 @@ import dev.jordond.filmstrip.codec.AudioCodec
 import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.TrackContent
@@ -89,7 +89,7 @@ class BrowserPlannerTest {
   private val planner = BrowserPlanner(listOf(BuiltInEffectResolver()))
 
   private fun lower(
-    composition: EditComposition,
+    composition: Composition,
     spec: ExportSpec = videoSpec(),
     infos: Map<MediaSource, MediaInfo> = composition.clips.map { it.source to info() }.toMap(),
     device: DeviceCapabilities = device(VideoCodec.H264, VideoCodec.Vp9),
@@ -97,35 +97,35 @@ class BrowserPlannerTest {
     openings: Map<MediaSource, Duration> = emptyMap(),
   ): LoweredExport<BrowserRender> = planner.lower(composition, Ask(spec, device, infos, openings), opaque = opaque)
 
-  private fun infosOf(composition: EditComposition): Map<MediaSource, MediaInfo> =
+  private fun infosOf(composition: Composition): Map<MediaSource, MediaInfo> =
     composition.clips.map { it.source to info() }.toMap()
 
   @Test
   fun emptyCompositionIsIncapable() {
-    val verdict = lower(EditComposition(tracks = emptyList())).verdict
+    val verdict = lower(Composition(tracks = emptyList())).verdict
     verdict.shouldBeInstanceOf<Verdict.Incapable>()
   }
 
   @Test
   fun audioIsAllowedWhetherKeptOrRemoved() {
     val spec = ExportSpec(videoCodec = VideoCodec.H264)
-    val withAudio = EditComposition(tracks = listOf(Track(listOf(Clip(source("a"))))), audio = AudioSpec.Keep)
+    val withAudio = Composition(tracks = listOf(Track(listOf(Clip(source("a"))))), audio = AudioSpec.Keep)
     lower(withAudio, spec).verdict.shouldBeInstanceOf<Verdict.Capable>()
 
-    val withoutAudio = EditComposition(tracks = listOf(Track(listOf(Clip(source("a"))))), audio = AudioSpec.Remove)
+    val withoutAudio = Composition(tracks = listOf(Track(listOf(Clip(source("a"))))), audio = AudioSpec.Remove)
     lower(withoutAudio, spec).verdict.shouldBeInstanceOf<Verdict.Capable>()
   }
 
   @Test
   fun audioNonePassesEvenWithAudioSpec() {
-    val composition = EditComposition(tracks = listOf(Track(listOf(Clip(source("a"))))), audio = AudioSpec.Keep)
+    val composition = Composition(tracks = listOf(Track(listOf(Clip(source("a"))))), audio = AudioSpec.Keep)
     val spec = ExportSpec(audioCodec = AudioCodec.None)
     lower(composition, spec).verdict.shouldBeInstanceOf<Verdict.Capable>()
   }
 
   @Test
   fun pathSourceIsUnreadable() {
-    val composition = EditComposition(tracks = listOf(Track(listOf(Clip(MediaSource.Path("/tmp/clip.mp4"))))))
+    val composition = Composition(tracks = listOf(Track(listOf(Clip(MediaSource.Path("/tmp/clip.mp4"))))))
     val verdict = lower(composition, infos = emptyMap()).verdict
     verdict.shouldBeInstanceOf<Verdict.Incapable>()
     verdict.reasons.any { it is FilmstripError.SourceUnreadable } shouldBe true
@@ -157,7 +157,7 @@ class BrowserPlannerTest {
   fun stillOnASecondaryTrackIsRefusedAtPlanTime() {
     val still = MediaSource.Image(ImageSource.of("/photos/one.png"), 3_000.milliseconds)
     val composition =
-      EditComposition(
+      Composition(
         tracks =
           listOf(
             Track(listOf(Clip(source("a")))),
@@ -433,7 +433,7 @@ class BrowserPlannerTest {
   @Test
   fun aReachableOpeningCopiesFromTheSyncSampleRatherThanTheCut() {
     val clip = Clip(source("a"), trim = TimeRange(TRIM_START, TRIM_END), snapWithin = REACHES)
-    val composition = EditComposition(tracks = listOf(Track(listOf(clip))), audio = AudioSpec.Keep)
+    val composition = Composition(tracks = listOf(Track(listOf(clip))), audio = AudioSpec.Keep)
 
     val lowering = lower(composition, ExportSpec(), openings = mapOf(clip.source to OPENING))
 
@@ -452,7 +452,7 @@ class BrowserPlannerTest {
   @Test
   fun anOpeningOutOfReachBlocksTheCopyAndLeavesTheCutAlone() {
     val clip = Clip(source("a"), trim = TimeRange(TRIM_START, TRIM_END), snapWithin = FALLS_SHORT)
-    val composition = EditComposition(tracks = listOf(Track(listOf(clip))), audio = AudioSpec.Keep)
+    val composition = Composition(tracks = listOf(Track(listOf(clip))), audio = AudioSpec.Keep)
 
     val lowering = lower(composition, ExportSpec(), openings = mapOf(clip.source to OPENING))
 
@@ -471,7 +471,7 @@ class BrowserPlannerTest {
   @Test
   fun aTrimLeftAtTheDefaultToleranceBlocksTheCopy() {
     val clip = Clip(source("a"), trim = TimeRange(TRIM_START, TRIM_END))
-    val composition = EditComposition(tracks = listOf(Track(listOf(clip))), audio = AudioSpec.Keep)
+    val composition = Composition(tracks = listOf(Track(listOf(clip))), audio = AudioSpec.Keep)
 
     val lowering = lower(composition, ExportSpec(), openings = mapOf(clip.source to OPENING))
 
@@ -499,7 +499,7 @@ class BrowserPlannerTest {
         effects = listOf(Brightness(0.5f)),
         snapWithin = REACHES,
       )
-    val composition = EditComposition(tracks = listOf(Track(listOf(clip))), audio = AudioSpec.Keep)
+    val composition = Composition(tracks = listOf(Track(listOf(clip))), audio = AudioSpec.Keep)
 
     val lowering = lower(composition, ExportSpec(), openings = mapOf(clip.source to OPENING))
 
@@ -560,7 +560,7 @@ class BrowserPlannerTest {
   @Test
   fun aSourceWhoseGradeCannotBeReadIsRefusedByNameWhenToneMapped() {
     val clip = Clip(source("a"))
-    val composition = EditComposition(tracks = listOf(Track(listOf(clip))), audio = AudioSpec.Keep)
+    val composition = Composition(tracks = listOf(Track(listOf(clip))), audio = AudioSpec.Keep)
     val infos = mapOf(clip.source to info(hdr = HdrTransfer.Hlg, codec = "mpeg2video"))
 
     listOf(HdrMode.Auto, HdrMode.ToneMapToSdr).forEach { mode ->
@@ -578,7 +578,7 @@ class BrowserPlannerTest {
   @Test
   fun anUntouchedHdrClipCopiesRatherThanBeingRefused() {
     val clip = Clip(source("a"))
-    val composition = EditComposition(tracks = listOf(Track(listOf(clip))), audio = AudioSpec.Keep)
+    val composition = Composition(tracks = listOf(Track(listOf(clip))), audio = AudioSpec.Keep)
     val infos = mapOf(clip.source to info(hdr = HdrTransfer.Hlg, codec = "hvc1"))
 
     val lowering = lower(composition, ExportSpec(), infos)
@@ -600,7 +600,7 @@ class BrowserPlannerTest {
   fun aSourceWhoseGradeCannotBeReadIsRefusedByName() {
     val clip = Clip(source("a"))
     val spec = ExportSpec(hdr = HdrMode.KeepHdr)
-    val composition = EditComposition(tracks = listOf(Track(listOf(clip))), audio = AudioSpec.Keep)
+    val composition = Composition(tracks = listOf(Track(listOf(clip))), audio = AudioSpec.Keep)
     val infos = mapOf(clip.source to info(hdr = HdrTransfer.Hlg, codec = "mpeg2video"))
 
     val verdict =
@@ -624,7 +624,7 @@ class BrowserPlannerTest {
   fun aDeviceWithNoHdrEncoderIsStillRefusedInItsOwnWords() {
     val clip = Clip(source("a"))
     val spec = ExportSpec(hdr = HdrMode.KeepHdr)
-    val composition = EditComposition(tracks = listOf(Track(listOf(clip))), audio = AudioSpec.Keep)
+    val composition = Composition(tracks = listOf(Track(listOf(clip))), audio = AudioSpec.Keep)
     val infos = mapOf(clip.source to info(hdr = HdrTransfer.Hlg, codec = "mpeg2video"))
 
     val verdict = lower(composition, spec, infos).verdict
@@ -643,7 +643,7 @@ class BrowserPlannerTest {
     val clip = Clip(source("a"))
     val spec = ExportSpec(hdr = HdrMode.KeepHdr)
     val device = device(VideoCodec.H264, VideoCodec.Vp9, VideoCodec.Hevc, supportsHdrEncoding = true)
-    val composition = EditComposition(tracks = listOf(Track(listOf(clip))), audio = AudioSpec.Keep)
+    val composition = Composition(tracks = listOf(Track(listOf(clip))), audio = AudioSpec.Keep)
     val infos = mapOf(clip.source to info(hdr = HdrTransfer.Hlg, codec = "mpeg2video"))
 
     val lowering = lower(composition, spec, infos, device)
@@ -661,7 +661,7 @@ class BrowserPlannerTest {
   @Test
   fun aCappedPreviewOfACopiedGradeLowersOnTheTenBitStringWithNoEncoderForIt() {
     val clip = Clip(source("a"))
-    val composition = EditComposition(tracks = listOf(Track(listOf(clip))), audio = AudioSpec.Keep)
+    val composition = Composition(tracks = listOf(Track(listOf(clip))), audio = AudioSpec.Keep)
     val infos = mapOf(clip.source to info(hdr = HdrTransfer.Pq))
 
     for (device in listOf(device(), device(VideoCodec.H264))) {
@@ -680,7 +680,7 @@ class BrowserPlannerTest {
   @Test
   fun untouchedCompositionClaimsACopy() {
     val composition =
-      EditComposition(tracks = listOf(Track(listOf(Clip(source("a"))))), audio = AudioSpec.Keep)
+      Composition(tracks = listOf(Track(listOf(Clip(source("a"))))), audio = AudioSpec.Keep)
     val verdict = lower(composition, ExportSpec()).verdict
     verdict
       .shouldBeInstanceOf<Verdict.Capable>()
@@ -692,7 +692,7 @@ class BrowserPlannerTest {
   @Test
   fun anUntouchedVp8ClipCopiesBecauseMediabunnyCarriesIt() {
     val clip = Clip(source("a"))
-    val composition = EditComposition(tracks = listOf(Track(listOf(clip))), audio = AudioSpec.Keep)
+    val composition = Composition(tracks = listOf(Track(listOf(clip))), audio = AudioSpec.Keep)
     val infos =
       mapOf(clip.source to info(codec = "vp8", audio = AudioTrackInfo(trackCodecOf("vorbis"), 48_000, 2, null)))
 
@@ -710,7 +710,7 @@ class BrowserPlannerTest {
   fun anUntouchedVp8OrAv1SourcePlansWithoutThrowing() {
     for ((codecName, expected) in listOf("vp8" to VideoCodec.Vp8, "av01" to VideoCodec.Av1)) {
       val clip = Clip(source("a"))
-      val composition = EditComposition(tracks = listOf(Track(listOf(clip))), audio = AudioSpec.Keep)
+      val composition = Composition(tracks = listOf(Track(listOf(clip))), audio = AudioSpec.Keep)
       val lowering = lower(composition, ExportSpec(), infos = mapOf(clip.source to info(codec = codecName)))
 
       val plan = lowering.verdict.shouldBeInstanceOf<Verdict.Capable>().plan
@@ -741,7 +741,7 @@ class BrowserPlannerTest {
   @Test
   fun audioOnlyPlansNothingToDraw() {
     val clip = Clip(source("a"))
-    val composition = EditComposition(tracks = listOf(Track(listOf(clip))), audio = AudioSpec.AudioOnly)
+    val composition = Composition(tracks = listOf(Track(listOf(clip))), audio = AudioSpec.AudioOnly)
     val spec = ExportSpec(videoCodec = VideoCodec.H264, audioCodec = AudioCodec.Aac)
     val lowering =
       planner.lower(
@@ -799,7 +799,7 @@ class BrowserPlannerTest {
   ): LoweredExport<BrowserRender> {
     val clip = Clip(source("a"))
     return planner.lower(
-      composition = EditComposition(tracks = listOf(Track(listOf(clip))), audio = AudioSpec.Keep),
+      composition = Composition(tracks = listOf(Track(listOf(clip))), audio = AudioSpec.Keep),
       ask =
         Ask(
           spec = spec,
@@ -836,7 +836,7 @@ class BrowserPlannerTest {
     val lowering =
       planner.lower(
         composition =
-          EditComposition(
+          Composition(
             tracks =
               listOf(
                 Track(listOf(bed), looping = true),
@@ -904,7 +904,7 @@ class BrowserPlannerTest {
     val first = Clip(source("a"))
     val second = Clip(source("b"), trim = TimeRange(TRIM_START, TRIM_END))
     val composition =
-      EditComposition(tracks = listOf(Track(listOf(first, second), start = LATE_START)), audio = AudioSpec.Remove)
+      Composition(tracks = listOf(Track(listOf(first, second), start = LATE_START)), audio = AudioSpec.Remove)
 
     val render = lower(composition).graph.shouldNotBeNull()
 
@@ -947,7 +947,7 @@ class BrowserPlannerTest {
     frameRate: Int,
   ): Long {
     val composition =
-      EditComposition(tracks = listOf(Track(listOf(Clip(source("a"))), start = start)), audio = AudioSpec.Remove)
+      Composition(tracks = listOf(Track(listOf(Clip(source("a"))), start = start)), audio = AudioSpec.Remove)
     val spec = ExportSpec(videoCodec = VideoCodec.H264, audioCodec = AudioCodec.None, frameRate = frameRate)
 
     val render = lower(composition, spec).graph.shouldNotBeNull()
@@ -986,7 +986,7 @@ class BrowserPlannerTest {
   @Test
   fun aStartHalfASlotInOpensTheFirstClipOnTheSlotAfterTheGap() {
     val composition =
-      EditComposition(
+      Composition(
         tracks = listOf(Track(listOf(Clip(source("a"))), start = HALF_SLOT_START)),
         audio = AudioSpec.Remove,
       )
@@ -1091,7 +1091,7 @@ class BrowserPlannerTest {
   private fun lowerUnderABed(primary: List<Clip>): LoweredExport<BrowserRender> {
     val bed = Clip(source("bed"))
     val composition =
-      EditComposition(
+      Composition(
         tracks = listOf(Track(primary), Track(listOf(bed), content = TrackContent.Audio)),
         audio = AudioSpec.Remove,
       )
@@ -1105,7 +1105,7 @@ class BrowserPlannerTest {
   @Test
   fun secondVideoTrackIsRefused() {
     val composition =
-      EditComposition(
+      Composition(
         tracks = listOf(Track(listOf(Clip(source("a")))), Track(listOf(Clip(source("b"))))),
         audio = AudioSpec.Remove,
       )
@@ -1144,8 +1144,8 @@ class BrowserPlannerTest {
   private fun compositionOf(
     clips: List<Clip>,
     effects: List<EffectSpec> = emptyList(),
-  ): EditComposition =
-    EditComposition(
+  ): Composition =
+    Composition(
       tracks = listOf(Track(clips = clips)),
       effects = effects,
       audio = AudioSpec.Remove,

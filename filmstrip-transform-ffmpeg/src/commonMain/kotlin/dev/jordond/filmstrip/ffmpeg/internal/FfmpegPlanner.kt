@@ -1,7 +1,7 @@
 package dev.jordond.filmstrip.ffmpeg.internal
 
 import dev.jordond.filmstrip.FilmstripError
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.effect.EffectResolver
 import dev.jordond.filmstrip.effect.EffectStage
 import dev.jordond.filmstrip.effect.FilterFragment
@@ -95,7 +95,7 @@ internal class FfmpegPlanner(
    * A source this backend cannot read is refused the way [lower] refuses it.
    */
   fun exportGradeOf(
-    composition: EditComposition,
+    composition: Composition,
     ask: Ask,
   ): ExportGrade {
     try {
@@ -111,7 +111,7 @@ internal class FfmpegPlanner(
    * null when it does not copy, the copy runs to its source's end, or a source is one [lower] refuses.
    */
   fun copyPacketWindowOf(
-    composition: EditComposition,
+    composition: Composition,
     ask: Ask,
   ): CopyPacketWindow? =
     try {
@@ -126,7 +126,7 @@ internal class FfmpegPlanner(
    * [ExportPlanner.withFallbackCopyPackets].
    */
   suspend fun withFallbackCopyPackets(
-    composition: EditComposition,
+    composition: Composition,
     ask: Ask,
     export: NegotiatedExport,
     read: suspend (CopyPacketWindow) -> CopyPacketRead?,
@@ -142,7 +142,7 @@ internal class FfmpegPlanner(
    * planner settles on [ResolvedComposition.copyPrefix].
    */
   fun lower(
-    composition: EditComposition,
+    composition: Composition,
     ask: Ask,
     dropped: Set<String> = emptySet(),
     sdColors: Map<MediaSource, SdColor> = emptyMap(),
@@ -156,7 +156,7 @@ internal class FfmpegPlanner(
     }
 
   private fun lowerReadable(
-    composition: EditComposition,
+    composition: Composition,
     ask: Ask,
     dropped: Set<String>,
     sdColors: Map<MediaSource, SdColor>,
@@ -222,7 +222,7 @@ internal class FfmpegPlanner(
   private fun stillUnsupported(): LoweredExport<Nothing> =
     refusedLowering(FilmstripError.SourceNotExportable(stillUnsupportedMessage("ffmpeg")))
 
-  private fun sourceRefusal(composition: EditComposition): LoweredExport<Nothing>? {
+  private fun sourceRefusal(composition: Composition): LoweredExport<Nothing>? {
     composition.tracks.flatMap { it.clips }.forEach { clip ->
       // A still is refused by kind, not by asking readablePath and guessing why it came back
       // null: it names a real file, and the actual reason is that this backend has no stills

@@ -1,7 +1,7 @@
 package dev.jordond.filmstrip.ffmpeg
 
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effects.filters.crt.Crt
@@ -184,7 +184,7 @@ class FfmpegCrtMediaTest {
       val crt = Crt(1f)
       val wide = draw.clipOf(WIDTH, HEIGHT, { GREY.copyOf() })
       val square = draw.clipOf(SQUARE, SQUARE, { GREY.copyOf() })
-      val composition = EditComposition(listOf(Track(listOf(wide, square), effects = listOf(crt))))
+      val composition = Composition(listOf(Track(listOf(wide, square), effects = listOf(crt))))
 
       val first = draw.planesAt(composition, READ_SLOT)
       val second = draw.planesAt(composition, 2 * RATE + READ_SLOT)
@@ -199,7 +199,7 @@ class FfmpegCrtMediaTest {
   fun `clips of one size read one set of frames`() =
     runBlocking<Unit> {
       val clips = List(3) { draw.clipOf(WIDTH, HEIGHT, { GREY.copyOf() }) }
-      val composition = EditComposition(listOf(Track(clips, effects = listOf(Crt(1f)))))
+      val composition = Composition(listOf(Track(clips, effects = listOf(Crt(1f)))))
 
       movies(composition) shouldBe FRAMES_OF_ONE_SIZE
       val frame = draw.planesAt(composition, 4 * RATE + READ_SLOT)
@@ -346,11 +346,9 @@ class FfmpegCrtMediaTest {
     }
   }
 
-  private suspend fun movies(composition: EditComposition): Int =
-    Regex("movie=").findAll(draw.graphOf(composition)).count()
+  private suspend fun movies(composition: Composition): Int = Regex("movie=").findAll(draw.graphOf(composition)).count()
 
-  private suspend fun rgbaOf(composition: EditComposition): ByteArray =
-    draw.frames(composition, Duration.ZERO, 1).single()
+  private suspend fun rgbaOf(composition: Composition): ByteArray = draw.frames(composition, Duration.ZERO, 1).single()
 
   private fun assertLands(miss: CrtMiss) {
     withClue("luma ${miss.luma}, chroma ${miss.chroma}, change ${miss.change}") {

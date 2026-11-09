@@ -1,6 +1,6 @@
 package dev.jordond.filmstrip.ffmpeg
 
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.effects.filters.film.Film
 import dev.jordond.filmstrip.effects.filters.film.FilmParams
 import dev.jordond.filmstrip.effects.filters.film.FilmSignal
@@ -213,7 +213,7 @@ class FfmpegFilmMediaTest {
   }
 
   private suspend fun frameOf(
-    composition: EditComposition,
+    composition: Composition,
     spec: ExportSpec = ExportSpec(),
   ): ByteArray = draw.frames(composition, Duration.ZERO, FILM_READ_SLOT + 1, spec).last()
 

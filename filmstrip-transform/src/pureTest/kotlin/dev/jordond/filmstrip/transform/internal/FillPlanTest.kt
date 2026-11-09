@@ -1,6 +1,6 @@
 package dev.jordond.filmstrip.transform.internal
 
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.effects.geometry.Crop
@@ -70,7 +70,7 @@ class FillPlanTest {
 
   @Test
   fun `showsFill is true when a track starts after the composition does`() {
-    val resolved = fixture.resolve(EditComposition(listOf(Track(listOf(fixture.clip()), start = 2_000.milliseconds))))
+    val resolved = fixture.resolve(Composition(listOf(Track(listOf(fixture.clip()), start = 2_000.milliseconds))))
 
     resolved.showsFill shouldBe true
   }
@@ -95,11 +95,11 @@ class FillPlanTest {
 
     val lateStart = 2_000.milliseconds
     val lateTrack =
-      EditComposition(listOf(Track(listOf(fixture.clip(effects = listOf(Scale(480, Fit.Crop)))), start = lateStart)))
+      Composition(listOf(Track(listOf(fixture.clip(effects = listOf(Scale(480, Fit.Crop)))), start = lateStart)))
     fixture.resolve(lateTrack.withFill(Fill.Blurred())).paintsFillAfterEffects shouldBe true
 
     val lateContainedTrack =
-      EditComposition(listOf(Track(listOf(fixture.clip(effects = listOf(Scale(480, Fit.Contain)))), start = lateStart)))
+      Composition(listOf(Track(listOf(fixture.clip(effects = listOf(Scale(480, Fit.Contain)))), start = lateStart)))
     fixture.resolve(lateContainedTrack.withFill(Fill.Blurred())).paintsFillAfterEffects shouldBe true
   }
 
@@ -107,7 +107,7 @@ class FillPlanTest {
   @Test
   fun `a clip on an audio track leaves no bars for the fill`() {
     val bed = Track(listOf(fixture.clip(size = NARROW)), content = TrackContent.Audio)
-    val resolved = fixture.resolve(EditComposition(listOf(Track(listOf(fixture.clip())), bed)))
+    val resolved = fixture.resolve(Composition(listOf(Track(listOf(fixture.clip())), bed)))
 
     resolved.showsFill shouldBe false
     resolved.paintsFillAfterEffects shouldBe false
@@ -120,7 +120,7 @@ class FillPlanTest {
   }
 
   // A sixteen by nine clip followed by a four by three one, each fitted to the frame by its own scale.
-  private fun coveredComposition(fit: Fit): EditComposition =
+  private fun coveredComposition(fit: Fit): Composition =
     composition(fixture.clip(), fixture.clip(size = NARROW, effects = listOf(Scale(480, fit))))
 
   @Test

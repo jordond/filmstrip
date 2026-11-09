@@ -1,7 +1,7 @@
 package dev.jordond.filmstrip.transform.internal.negotiation
 
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.outputLengthOf
@@ -189,7 +189,7 @@ internal class LaidWindows(
  * @param onNothing Called for the first clip that trims to nothing, and has to leave the caller.
  */
 internal inline fun laidWindows(
-  edit: EditComposition,
+  edit: Composition,
   ask: Ask,
   openAt: Duration? = null,
   onNothing: (Clip) -> Nothing,

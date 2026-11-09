@@ -2,7 +2,6 @@ package dev.jordond.filmstrip.media3
 
 import android.media.MediaFormat
 import android.os.Build
-import androidx.media3.transformer.Composition
 import androidx.media3.transformer.ExportException
 import androidx.media3.transformer.ExportResult
 import androidx.media3.transformer.Transformer
@@ -11,7 +10,7 @@ import dev.jordond.filmstrip.color.EBU_PRIMARIES
 import dev.jordond.filmstrip.color.SMPTE_C_PRIMARIES
 import dev.jordond.filmstrip.color.sdSourceDisplayed
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.effects.BuiltInEffectResolver
 import dev.jordond.filmstrip.export.AdjustmentKind
@@ -35,6 +34,7 @@ import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlin.math.abs
 import kotlin.test.Test
+import androidx.media3.transformer.Composition as Media3Composition
 
 /**
  * An SD clip through an export, held to the colour the clip displays as.
@@ -74,7 +74,7 @@ class AndroidSdColorMediaTest {
     runTest(timeout = TIMEOUT) {
       val source = clip("sd-preview.mp4", MediaFormat.COLOR_STANDARD_BT601_NTSC)
       val stored = Written(firstEightBitFrame(source), SMPTE_C_PRIMARIES, fullRange = false)
-      val edit = EditComposition(listOf(Track(listOf(Clip(MediaSource.of(source.path))))))
+      val edit = Composition(listOf(Track(listOf(Clip(MediaSource.of(source.path))))))
       val engine =
         media3ExportEngine(ComponentRegistry.Builder().addEffectResolver(BuiltInEffectResolver()).build())
       val resolved =
@@ -98,7 +98,7 @@ class AndroidSdColorMediaTest {
 
   // The preview's own composition run to a file, which is where its effects can be read back on any device.
   private suspend fun drawn(
-    composition: Composition,
+    composition: Media3Composition,
     output: File,
   ) = withContext(Dispatchers.Main) {
     suspendCancellableCoroutine { waiter ->
@@ -108,12 +108,12 @@ class AndroidSdColorMediaTest {
           .addListener(
             object : Transformer.Listener {
               override fun onCompleted(
-                composition: Composition,
+                composition: Media3Composition,
                 exportResult: ExportResult,
               ) = waiter.resume(Unit)
 
               override fun onError(
-                composition: Composition,
+                composition: Media3Composition,
                 exportResult: ExportResult,
                 exportException: ExportException,
               ) = waiter.resumeWithException(exportException)
@@ -144,7 +144,7 @@ class AndroidSdColorMediaTest {
     source: File,
     shown: (Float) -> DoubleArray,
   ) {
-    val composition = EditComposition(listOf(Track(listOf(Clip(MediaSource.of(source.path))))))
+    val composition = Composition(listOf(Track(listOf(Clip(MediaSource.of(source.path))))))
     val finished = probe.finish(probe.plan(composition, ExportSpec(heightPx = SMALLER_HEIGHT)))
     val written = probe.writtenBy(finished)
     val retagged = finished.adjustments.any { it.kind == AdjustmentKind.ColorSpaceChanged }

@@ -6,14 +6,13 @@ import android.os.Handler
 import android.os.HandlerThread
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
-import androidx.media3.transformer.Composition
 import androidx.media3.transformer.EditedMediaItem
 import androidx.media3.transformer.EditedMediaItemSequence
 import androidx.media3.transformer.ExportException
 import androidx.media3.transformer.ExportResult
 import androidx.media3.transformer.Transformer
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.outputSlotOf
@@ -41,6 +40,7 @@ import kotlin.test.Test
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
+import androidx.media3.transformer.Composition as Media3Composition
 
 /**
  * Photos on the timeline, exported by media3 onto a real file and read back frame by frame.
@@ -194,7 +194,7 @@ class AndroidImageExportMediaTest {
           .build()
       val sequence = EditedMediaItemSequence.Builder(setOf(C.TRACK_TYPE_VIDEO)).addItem(item).build()
 
-      val written = transformed(Composition.Builder(sequence).build())
+      val written = transformed(Media3Composition.Builder(sequence).build())
 
       val probed = probe.infoOf(MediaSource.of(written.path))
       probed.duration shouldBeCloseTo PHOTO
@@ -203,7 +203,7 @@ class AndroidImageExportMediaTest {
   /**
    * Runs [composition] straight on media3, without a plan in front of it, and returns what it wrote.
    */
-  private suspend fun transformed(composition: Composition): File {
+  private suspend fun transformed(composition: Media3Composition): File {
     val output = File(probe.context.cacheDir, "still-duration-contract.mp4").apply { delete() }
     val thread = HandlerThread("still-duration-contract").apply { start() }
     val finished = CompletableDeferred<Unit>()
@@ -217,14 +217,14 @@ class AndroidImageExportMediaTest {
             .addListener(
               object : Transformer.Listener {
                 override fun onCompleted(
-                  composition: Composition,
+                  composition: Media3Composition,
                   result: ExportResult,
                 ) {
                   finished.complete(Unit)
                 }
 
                 override fun onError(
-                  composition: Composition,
+                  composition: Media3Composition,
                   result: ExportResult,
                   exception: ExportException,
                 ) {
@@ -254,7 +254,7 @@ class AndroidImageExportMediaTest {
     return Written(file, probed)
   }
 
-  private fun composition(vararg clips: Clip) = EditComposition(listOf(Track(clips.toList())))
+  private fun composition(vararg clips: Clip) = Composition(listOf(Track(clips.toList())))
 
   private fun stillSource(duration: Duration) = MediaSource.Image(ImageSource.of(photoFile().path), duration)
 

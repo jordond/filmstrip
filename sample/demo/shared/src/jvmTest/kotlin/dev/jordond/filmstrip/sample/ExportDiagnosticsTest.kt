@@ -6,7 +6,7 @@ import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.capability.EffectParity
 import dev.jordond.filmstrip.codec.AudioCodec
 import dev.jordond.filmstrip.codec.VideoCodec
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.export.Adjustment
 import dev.jordond.filmstrip.export.AdjustmentKind
 import dev.jordond.filmstrip.export.ExportEngine
@@ -80,7 +80,7 @@ class ExportDiagnosticsTest {
       parity = EffectParity.Exact,
       duration = 4.seconds,
       copyBlockedBy = emptyList(),
-      composition = EditComposition(tracks = emptyList()),
+      composition = Composition(tracks = emptyList()),
       spec = ExportSpec(),
     )
 
@@ -90,7 +90,7 @@ class ExportDiagnosticsTest {
     override suspend fun capabilities(): CapabilitiesResult = fail("The test asks for no capabilities.")
 
     override suspend fun plan(
-      composition: EditComposition,
+      composition: Composition,
       spec: ExportSpec,
     ): Verdict = fail("The test hands over its own plan.")
 

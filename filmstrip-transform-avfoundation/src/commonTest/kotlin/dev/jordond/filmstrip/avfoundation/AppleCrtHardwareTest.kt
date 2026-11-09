@@ -2,7 +2,7 @@ package dev.jordond.filmstrip.avfoundation
 
 import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effects.filters.crt.Crt
@@ -57,7 +57,7 @@ class AppleCrtHardwareTest {
     runTest(timeout = TIMEOUT) {
       val source = flatClip()
 
-      assertOnTheSignal(source, EditComposition(listOf(Track(listOf(Clip(source)))), listOf(Crt())))
+      assertOnTheSignal(source, Composition(listOf(Track(listOf(Clip(source)))), listOf(Crt())))
     }
 
   @Test
@@ -65,7 +65,7 @@ class AppleCrtHardwareTest {
     runTest(timeout = TIMEOUT) {
       val source = flatClip()
 
-      assertOnTheSignal(source, EditComposition(listOf(Track(listOf(Clip(source, effects = listOf(Crt())))))))
+      assertOnTheSignal(source, Composition(listOf(Track(listOf(Clip(source, effects = listOf(Crt())))))))
     }
 
   @Test
@@ -74,7 +74,7 @@ class AppleCrtHardwareTest {
       val crop = Crop(WIDE_CANVAS, fit = Fit.Contain)
       val source = flatClip()
       val edit = { effects: List<EffectSpec> ->
-        EditComposition(listOf(Track(listOf(Clip(source)))), effects, fill = Fill.Solid(BAR_FILL))
+        Composition(listOf(Track(listOf(Clip(source)))), effects, fill = Fill.Solid(BAR_FILL))
       }
 
       val plain = export(edit(listOf(crop)), "bar-plain")
@@ -93,7 +93,7 @@ class AppleCrtHardwareTest {
       val crop = Crop(WIDE_CANVAS, fit = Fit.Contain)
       val source = flatClip()
       val edit = { effects: List<EffectSpec> ->
-        EditComposition(listOf(Track(listOf(Clip(source, effects = effects)))), fill = Fill.Solid(BAR_FILL))
+        Composition(listOf(Track(listOf(Clip(source, effects = effects)))), fill = Fill.Solid(BAR_FILL))
       }
 
       val plain = export(edit(listOf(crop)), "canvas-plain")
@@ -112,9 +112,9 @@ class AppleCrtHardwareTest {
       val source = flatClip()
       val swatch = swatch()
 
-      val plain = redOfSwatch(EditComposition(listOf(Track(listOf(Clip(source)))), listOf(swatch)), "overlay-plain")
+      val plain = redOfSwatch(Composition(listOf(Track(listOf(Clip(source)))), listOf(swatch)), "overlay-plain")
       val looked =
-        redOfSwatch(EditComposition(listOf(Track(listOf(Clip(source)))), listOf(swatch, Crt())), "overlay-crt")
+        redOfSwatch(Composition(listOf(Track(listOf(Clip(source)))), listOf(swatch, Crt())), "overlay-crt")
 
       withClue("the swatch read $looked against $plain") { abs(looked - plain) shouldBeLessThan WRITTEN_COLOUR_CODES }
     }
@@ -124,8 +124,8 @@ class AppleCrtHardwareTest {
     runTest(timeout = TIMEOUT) {
       val clip = Clip(flatClip(), effects = listOf(swatch()))
 
-      val plain = redOfSwatch(EditComposition(listOf(Track(listOf(clip)))), "burned-plain")
-      val looked = redOfSwatch(EditComposition(listOf(Track(listOf(clip))), listOf(Crt())), "burned-crt")
+      val plain = redOfSwatch(Composition(listOf(Track(listOf(clip)))), "burned-plain")
+      val looked = redOfSwatch(Composition(listOf(Track(listOf(clip))), listOf(Crt())), "burned-crt")
 
       withClue(
         "the swatch read $looked against $plain",
@@ -135,10 +135,10 @@ class AppleCrtHardwareTest {
   // A read of the pattern's mean near the top of the frame's middle, where the falloff has moved with no curve yet.
   private suspend fun assertOnTheSignal(
     source: MediaSource,
-    edit: EditComposition,
+    edit: Composition,
   ) {
     val looked = export(edit, "signal-crt")
-    val plain = export(EditComposition(listOf(Track(listOf(Clip(source))))), "signal-plain")
+    val plain = export(Composition(listOf(Track(listOf(Clip(source))))), "signal-plain")
     val params = CrtParams.of(Crt())
     val read = codesOf(looked).average(CENTRE, READ_FY).second.toDouble()
     val under = codesOf(plain).average(CENTRE, READ_FY).second.toDouble()
@@ -155,7 +155,7 @@ class AppleCrtHardwareTest {
   }
 
   private suspend fun redOfSwatch(
-    edit: EditComposition,
+    edit: Composition,
     name: String,
   ): Double {
     val path = export(edit, name)
@@ -183,7 +183,7 @@ class AppleCrtHardwareTest {
   }
 
   private suspend fun export(
-    edit: EditComposition,
+    edit: Composition,
     name: String,
   ): String {
     val path = NSTemporaryDirectory() + "filmstrip-crt-$name.mp4"

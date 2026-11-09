@@ -2,7 +2,7 @@ package dev.jordond.filmstrip.still
 
 import dev.drewhamilton.poko.Poko
 import dev.jordond.filmstrip.FilmstripError
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.geometry.outputHeightRefusal
@@ -82,7 +82,7 @@ public suspend fun PlatformImage.encodeStill(spec: StillSpec = StillSpec()): Sti
  * @return Where the still ended up, or why it did not get there.
  */
 public suspend fun FrameRenderer.still(
-  composition: EditComposition,
+  composition: Composition,
   at: Duration,
   to: MediaSink,
   spec: StillSpec = StillSpec(),

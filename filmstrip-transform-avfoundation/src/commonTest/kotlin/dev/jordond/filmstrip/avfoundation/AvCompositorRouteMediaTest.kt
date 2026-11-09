@@ -9,7 +9,7 @@ import dev.jordond.filmstrip.avfoundation.internal.interop.PIXEL_FORMAT_KEY
 import dev.jordond.filmstrip.avfoundation.internal.time.toDuration
 import dev.jordond.filmstrip.avfoundation.internal.writer.AvDestination
 import dev.jordond.filmstrip.avfoundation.internal.writer.WriterRun
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.edit.compositionOf
@@ -226,7 +226,7 @@ class AvCompositorRouteMediaTest {
    * Exports [composition] through the real writer on the custom route, and answers the path of the file it wrote.
    */
   private suspend fun written(
-    composition: EditComposition,
+    composition: Composition,
     name: String,
     holdsTail: Boolean = false,
   ): String {

@@ -3,7 +3,7 @@ package dev.jordond.filmstrip.avfoundation
 import dev.jordond.filmstrip.ComponentRegistry
 import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.avfoundation.internal.time.toDuration
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.edit.outputSlotOf
@@ -143,7 +143,7 @@ class AppleCopyGridMediaTest {
     val slotsCovered: List<Int>,
   )
 
-  private suspend fun resolved(composition: EditComposition) =
+  private suspend fun resolved(composition: Composition) =
     withContext(Dispatchers.Default) {
       val engine =
         avFoundationExportEngine(ComponentRegistry.Builder().addEffectResolver(BuiltInEffectResolver()).build())

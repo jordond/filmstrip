@@ -1,6 +1,6 @@
 package dev.jordond.filmstrip.docs.guides
 
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.effects.overlay.OverlayAnimation
 import dev.jordond.filmstrip.effects.overlay.OverlayFrame
@@ -19,7 +19,7 @@ import dev.jordond.filmstrip.style.TextStyle
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
-internal fun imageWatermark(): EditComposition {
+internal fun imageWatermark(): Composition {
   // region image
   val composition =
     compositionOf {
@@ -37,7 +37,7 @@ internal fun imageWatermark(): EditComposition {
   return composition
 }
 
-internal fun caption(): EditComposition {
+internal fun caption(): Composition {
   // region text
   val composition =
     compositionOf {
@@ -60,7 +60,7 @@ internal fun caption(): EditComposition {
   return composition
 }
 
-internal fun fadedOverlay(): EditComposition {
+internal fun fadedOverlay(): Composition {
   // region fade
   val composition =
     compositionOf {
@@ -77,7 +77,7 @@ internal fun fadedOverlay(): EditComposition {
   return composition
 }
 
-internal fun slidingOverlay(): EditComposition {
+internal fun slidingOverlay(): Composition {
   // region slide
   val appear = fade(inDuration = 300.milliseconds)
   val arrive = appear + slideIn(OverlayOffset(x = -0.2f, y = 0f), 300.milliseconds)

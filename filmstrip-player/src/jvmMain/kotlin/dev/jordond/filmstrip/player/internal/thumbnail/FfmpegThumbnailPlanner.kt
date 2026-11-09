@@ -2,7 +2,7 @@ package dev.jordond.filmstrip.player.internal.thumbnail
 
 import dev.jordond.filmstrip.FilmstripComponents
 import dev.jordond.filmstrip.FilmstripError
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.ffmpeg.internal.preview.PreviewStreamResult
 import dev.jordond.filmstrip.ffmpeg.internal.preview.openPreview
 import dev.jordond.filmstrip.ffmpeg.registeredFfmpegEngine
@@ -50,7 +50,7 @@ internal open class FfmpegThumbnailPlanner(
    */
   open suspend fun open(
     plan: HeightLowering,
-    composition: EditComposition,
+    composition: Composition,
     at: Duration,
   ): PreviewStreamResult =
     engine?.openPreview(composition, plan.spec, plan.layoutSize, at, plan.resolved.hdr)

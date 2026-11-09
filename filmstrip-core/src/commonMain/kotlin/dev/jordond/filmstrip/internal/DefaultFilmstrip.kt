@@ -5,7 +5,7 @@ import dev.jordond.filmstrip.ComponentRegistry
 import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.capability.EffectParity
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.effectsRevision
 import dev.jordond.filmstrip.export.ExportEngine
 import dev.jordond.filmstrip.export.ExportPlan
@@ -52,7 +52,7 @@ internal class DefaultFilmstrip(
     exportEngine?.capabilities() ?: CapabilitiesResult.Failure(missingTransform("capabilities"))
 
   override suspend fun plan(
-    composition: EditComposition,
+    composition: Composition,
     spec: ExportSpec,
   ): Verdict {
     val engine =
@@ -75,7 +75,7 @@ internal class DefaultFilmstrip(
     }
 
   override fun export(
-    composition: EditComposition,
+    composition: Composition,
     spec: ExportSpec,
     to: MediaSink,
   ): Flow<ExportStatus> {
@@ -98,7 +98,7 @@ internal class DefaultFilmstrip(
   }
 
   override suspend fun frame(
-    composition: EditComposition,
+    composition: Composition,
     at: Duration,
     heightPx: Int?,
     exportSpec: ExportSpec,
@@ -117,7 +117,7 @@ internal class DefaultFilmstrip(
   }
 
   override fun frames(
-    composition: EditComposition,
+    composition: Composition,
     at: List<Duration>,
     heightPx: Int?,
     exportSpec: ExportSpec,
@@ -127,7 +127,7 @@ internal class DefaultFilmstrip(
   }
 
   override fun preview(
-    composition: EditComposition,
+    composition: Composition,
     config: PlayerConfig,
   ): VideoPlayer {
     val engine =

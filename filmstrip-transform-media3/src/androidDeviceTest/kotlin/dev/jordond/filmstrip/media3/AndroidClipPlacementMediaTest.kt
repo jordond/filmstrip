@@ -1,7 +1,7 @@
 package dev.jordond.filmstrip.media3
 
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effects.geometry.Crop
@@ -109,7 +109,7 @@ class AndroidClipPlacementMediaTest {
   private fun composition(
     clipEffects: List<EffectSpec>,
     effects: List<EffectSpec> = emptyList(),
-  ) = EditComposition(
+  ) = Composition(
     tracks = listOf(Track(listOf(Clip(probe.fixture(), effects = clipEffects)))),
     effects = effects,
     fill = Fill.Solid(SLATE_ARGB),

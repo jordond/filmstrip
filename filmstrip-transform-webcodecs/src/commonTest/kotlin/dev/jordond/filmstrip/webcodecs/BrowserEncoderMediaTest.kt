@@ -4,7 +4,7 @@ import dev.jordond.filmstrip.codec.AudioCodec
 import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.media.MediaSource
@@ -134,8 +134,8 @@ class BrowserEncoderMediaTest {
   private suspend fun videoComposition(
     audio: AudioSpec = AudioSpec.Remove,
     bytes: ByteArray? = null,
-  ): EditComposition =
-    EditComposition(
+  ): Composition =
+    Composition(
       tracks = listOf(Track(listOf(Clip(MediaSource.Bytes(bytes ?: makeClip(frames = FRAMES)))))),
       audio = audio,
     )

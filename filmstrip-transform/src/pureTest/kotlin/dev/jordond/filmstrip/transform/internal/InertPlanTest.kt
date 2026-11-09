@@ -2,7 +2,7 @@ package dev.jordond.filmstrip.transform.internal
 
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.TrackContent
@@ -103,7 +103,7 @@ class InertPlanTest {
   @Test
   fun `a clip brightness a track brightness undoes is left out with it`() {
     val edit =
-      EditComposition(listOf(Track(listOf(fixture.clip(effects = listOf(Brightness(2f)))), effects = listOf(HALF))))
+      Composition(listOf(Track(listOf(fixture.clip(effects = listOf(Brightness(2f)))), effects = listOf(HALF))))
 
     reasonsOf(edit) shouldContainExactly
       listOf(EffectIds.BRIGHTNESS to InertReason.NoChangeToFrame, EffectIds.BRIGHTNESS to InertReason.NoChangeToFrame)
@@ -113,7 +113,7 @@ class InertPlanTest {
   @Test
   fun `a clip brightness a track brightness only partly undoes is kept`() {
     val edit =
-      EditComposition(
+      Composition(
         listOf(Track(listOf(fixture.clip(effects = listOf(Brightness(2f)))), effects = listOf(Brightness(0.75f)))),
       )
 
@@ -126,7 +126,7 @@ class InertPlanTest {
   @Test
   fun `a track brightness that undoes only one clip is kept along with that clip's`() {
     val edit =
-      EditComposition(
+      Composition(
         listOf(Track(listOf(fixture.clip(effects = listOf(Brightness(2f))), fixture.clip()), effects = listOf(HALF))),
       )
 
@@ -211,14 +211,14 @@ class InertPlanTest {
   @Test
   fun `a track overlay drawn over the second clip only is kept`() {
     val window = overlay(window = TimeRange.of(7.seconds, 8.seconds))
-    val edit = EditComposition(listOf(Track(listOf(fixture.clip(), fixture.clip()), effects = listOf(window))))
+    val edit = Composition(listOf(Track(listOf(fixture.clip(), fixture.clip()), effects = listOf(window))))
 
     reasonsOf(edit).shouldBeEmpty()
   }
 
   @Test
   fun `a fill no clip leaves bars for is left out`() {
-    val edit = EditComposition(listOf(Track(listOf(fixture.clip(), fixture.clip(size = Size(1280, 720))))), fill = BLUR)
+    val edit = Composition(listOf(Track(listOf(fixture.clip(), fixture.clip(size = Size(1280, 720))))), fill = BLUR)
 
     reasonsOf(edit) shouldContainExactly listOf("fill" to InertReason.NoChangeToFrame)
     fixture.resolve(edit).fill shouldBe Fill.Black
@@ -227,7 +227,7 @@ class InertPlanTest {
   @Test
   fun `a fill behind a four by three clip is kept`() {
     val edit =
-      EditComposition(listOf(Track(listOf(fixture.clip(), fixture.clip(size = Size(1440, 1080))))), fill = BLUR)
+      Composition(listOf(Track(listOf(fixture.clip(), fixture.clip(size = Size(1440, 1080))))), fill = BLUR)
 
     reasonsOf(edit).shouldBeEmpty()
     fixture.resolve(edit).fill shouldBe BLUR
@@ -236,7 +236,7 @@ class InertPlanTest {
   @Test
   fun `a fill behind a clip whose own scale crops is left out`() {
     val cropped = fixture.clip(size = Size(1440, 1080), effects = listOf(Scale(1080, Fit.Crop)))
-    val edit = EditComposition(listOf(Track(listOf(fixture.clip(), cropped))), fill = BLUR)
+    val edit = Composition(listOf(Track(listOf(fixture.clip(), cropped))), fill = BLUR)
 
     reasonsOf(edit) shouldContainExactly listOf("fill" to InertReason.NoChangeToFrame)
     fixture.resolve(edit).fill shouldBe Fill.Black
@@ -245,7 +245,7 @@ class InertPlanTest {
   @Test
   fun `a fill inside the canvas of a letterboxing crop is kept`() {
     val boxed = fixture.clip(effects = listOf(Crop(AspectRatio(1, 1), Fit.Contain)))
-    val edit = EditComposition(listOf(Track(listOf(boxed))), fill = BLUR)
+    val edit = Composition(listOf(Track(listOf(boxed))), fill = BLUR)
 
     reasonsOf(edit).shouldBeEmpty()
     fixture.resolve(edit).fill shouldBe BLUR
@@ -254,7 +254,7 @@ class InertPlanTest {
   @Test
   fun `a fill behind a two pixel bar is kept at every height the edit is lowered at`() {
     val edit =
-      EditComposition(listOf(Track(listOf(fixture.clip(), fixture.clip(size = Size(1918, 1080))))), fill = BLUR)
+      Composition(listOf(Track(listOf(fixture.clip(), fixture.clip(size = Size(1918, 1080))))), fill = BLUR)
 
     noticesAtEveryHeight(edit).forEach { it.shouldBeEmpty() }
   }
@@ -262,7 +262,7 @@ class InertPlanTest {
   @Test
   fun `a fill behind a bar under a pixel of the natural frame is left out at every height`() {
     val edit =
-      EditComposition(listOf(Track(listOf(fixture.clip(), fixture.clip(size = Size(19200, 10805))))), fill = BLUR)
+      Composition(listOf(Track(listOf(fixture.clip(), fixture.clip(size = Size(19200, 10805))))), fill = BLUR)
 
     noticesAtEveryHeight(edit).forEach { it shouldContainExactly listOf("fill" to InertReason.NoChangeToFrame) }
   }
@@ -270,7 +270,7 @@ class InertPlanTest {
   @Test
   fun `a fill behind a late track is kept`() {
     val edit =
-      EditComposition(
+      Composition(
         listOf(
           Track(listOf(fixture.clip()), start = 1.seconds),
           Track(listOf(fixture.audioOnlyClip()), TrackContent.Audio),
@@ -284,7 +284,7 @@ class InertPlanTest {
   @Test
   fun `a fade with the audio removed has no stream to apply to`() {
     val clip = fixture.clip(audioRate = 48_000, fadeIn = 1.seconds)
-    val edit = EditComposition(listOf(Track(listOf(clip))), audio = AudioSpec.Remove)
+    val edit = Composition(listOf(Track(listOf(clip))), audio = AudioSpec.Remove)
 
     reasonsOf(edit) shouldContainExactly listOf("fadeIn" to InertReason.NoStreamToApplyTo)
   }
@@ -361,16 +361,16 @@ class InertPlanTest {
     reasonsOf(single(fixture.clip().withSpeed(0.7))).shouldBeEmpty()
   }
 
-  private fun single(clip: Clip): EditComposition = EditComposition(listOf(Track(listOf(clip))))
+  private fun single(clip: Clip): Composition = Composition(listOf(Track(listOf(clip))))
 
-  private fun planOf(edit: EditComposition): ExportPlan = fixture.plan(edit).shouldBeInstanceOf<Verdict.Capable>().plan
+  private fun planOf(edit: Composition): ExportPlan = fixture.plan(edit).shouldBeInstanceOf<Verdict.Capable>().plan
 
-  private fun reasonsOf(edit: EditComposition): List<Pair<String, InertReason>> =
+  private fun reasonsOf(edit: Composition): List<Pair<String, InertReason>> =
     planOf(edit).inertNotices.map(InertNotice::subjectAndReason)
 
   // The notices at the natural frame, at an export asked for a smaller and a larger frame, and at a preview capped
   // under the natural frame, which lays text out against it.
-  private fun noticesAtEveryHeight(edit: EditComposition): List<List<Pair<String, InertReason>>> =
+  private fun noticesAtEveryHeight(edit: Composition): List<List<Pair<String, InertReason>>> =
     listOf(
       fixture.plan(edit),
       fixture.plan(edit, ExportSpec(heightPx = 270)),
@@ -383,7 +383,7 @@ class InertPlanTest {
         .map(InertNotice::subjectAndReason)
     }
 
-  private fun clipEffectsOf(edit: EditComposition) =
+  private fun clipEffectsOf(edit: Composition) =
     fixture
       .resolve(edit)
       .tracks

@@ -1,7 +1,7 @@
 package dev.jordond.filmstrip.ffmpeg
 
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effects.color.Brightness
@@ -77,7 +77,7 @@ class FfmpegCrtHoistMediaTest {
   fun `a track that opens on a gap stays on each clip`() =
     runBlocking<Unit> {
       val track = Track(listOf(clip(::rising, Crt()), clip(::falling, Crt())), start = 1.seconds)
-      draw.graphOf(EditComposition(listOf(track))) shouldNotContain HOISTED
+      draw.graphOf(Composition(listOf(track))) shouldNotContain HOISTED
     }
 
   @Test

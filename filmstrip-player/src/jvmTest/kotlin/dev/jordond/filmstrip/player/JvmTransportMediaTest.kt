@@ -1,7 +1,7 @@
 package dev.jordond.filmstrip.player
 
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.TrackContent
@@ -377,8 +377,8 @@ class JvmTransportMediaTest {
  * A track that drops a stream is not a copy of the source, so the preview runs the filter graph and opens its pump with
  * an input seek to the slot it is asked for.
  */
-internal fun jvmVideoComposition(length: Duration): EditComposition =
-  EditComposition(
+internal fun jvmVideoComposition(length: Duration): Composition =
+  Composition(
     tracks =
       listOf(
         Track(

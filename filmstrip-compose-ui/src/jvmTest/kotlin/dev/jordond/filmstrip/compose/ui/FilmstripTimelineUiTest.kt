@@ -14,7 +14,7 @@ import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.compose.ui.geometry.TimelineZoom
 import dev.jordond.filmstrip.compose.ui.interaction.PlayheadFollow
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.media.MediaSource
@@ -118,7 +118,7 @@ class FilmstripTimelineUiTest {
     val DURATION = 60.seconds
 
     val COMPOSITION =
-      EditComposition(
+      Composition(
         tracks = listOf(Track(listOf(Clip(MediaSource.of("timeline.mp4"), TimeRange.of(Duration.ZERO, DURATION))))),
       )
   }

@@ -2,7 +2,7 @@ package dev.jordond.filmstrip.media3
 
 import android.graphics.Bitmap
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effects.color.Brightness
@@ -213,7 +213,7 @@ class AndroidEffectMediaTest {
       } else {
         emptyList()
       }
-    return probe.export(EditComposition(listOf(Track(listOf(Clip(source, effects = marker)))), effects))
+    return probe.export(Composition(listOf(Track(listOf(Clip(source, effects = marker)))), effects))
   }
 
   // What the shared matrix predicts for the pixel the plain export wrote, against what the graded

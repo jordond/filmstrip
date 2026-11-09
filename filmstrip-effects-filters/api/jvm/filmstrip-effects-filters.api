@@ -1,6 +1,6 @@
 public final class dev/jordond/filmstrip/effects/filters/FilterEffectResolver : dev/jordond/filmstrip/effect/EffectResolver {
 	public fun <init> ()V
-	public fun prepare (Ldev/jordond/filmstrip/edit/EditComposition;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public fun prepare (Ldev/jordond/filmstrip/edit/Composition;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public fun resolve (Ldev/jordond/filmstrip/effect/EffectSpec;Ldev/jordond/filmstrip/effect/RenderCapabilities;Ldev/jordond/filmstrip/effect/Attributes;)Ldev/jordond/filmstrip/effect/EffectResolution;
 }
 

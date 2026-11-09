@@ -69,7 +69,7 @@ private val MEDIA3_RUNTIMES = setOf("androidx.media3:media3-transformer", "andro
  *
  * `runtime-annotation` carries `@Immutable` and `@Stable` and nothing else: no runtime, no composer, and no
  * transitive dependency of its own. `core` takes it so its value types declare their own stability, which is the only
- * way a consumer's call site can compare an `EditComposition` or a `TimeRange` by value rather than by identity. It
+ * way a consumer's call site can compare a `Composition` or a `TimeRange` by value rather than by identity. It
  * reaches every module from there, so the allowance is repo-wide rather than named layer by layer.
  */
 private val COMPOSE_ANNOTATIONS = setOf("androidx.compose.runtime:runtime-annotation")

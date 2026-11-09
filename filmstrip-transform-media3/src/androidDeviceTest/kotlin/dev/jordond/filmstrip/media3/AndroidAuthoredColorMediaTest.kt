@@ -3,7 +3,7 @@ package dev.jordond.filmstrip.media3
 import android.graphics.Bitmap
 import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effects.geometry.Crop
@@ -126,7 +126,7 @@ class AndroidAuthoredColorMediaTest {
   // file records, so a BT.601 retag records matrix 5, and an export reporting none has to record BT.709 at limited
   // range.
   private suspend fun written(
-    composition: EditComposition,
+    composition: Composition,
     spec: ExportSpec = Media3ExportProbe.SPEC,
   ): Written {
     val finished = probe.finish(probe.plan(composition, spec))
@@ -172,7 +172,7 @@ class AndroidAuthoredColorMediaTest {
   private fun letterboxed(
     source: MediaSource,
     fill: Fill,
-  ) = EditComposition(
+  ) = Composition(
     listOf(Track(listOf(Clip(source)))),
     listOf<EffectSpec>(Crop(AspectRatio.Square, fit = Fit.Contain)),
     fill = fill,
@@ -181,7 +181,7 @@ class AndroidAuthoredColorMediaTest {
   private fun plain(
     source: MediaSource,
     overlay: EffectSpec,
-  ) = EditComposition(listOf(Track(listOf(Clip(source)))), listOf(overlay))
+  ) = Composition(listOf(Track(listOf(Clip(source)))), listOf(overlay))
 
   private fun swatchFile(argb: Int): File {
     val file = File(probe.context.cacheDir, "swatch-${Integer.toHexString(argb)}.png")

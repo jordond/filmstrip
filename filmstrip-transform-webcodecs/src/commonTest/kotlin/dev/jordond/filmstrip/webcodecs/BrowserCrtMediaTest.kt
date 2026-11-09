@@ -5,7 +5,7 @@ import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.outputSlotTime
 import dev.jordond.filmstrip.effect.EffectSpec
@@ -155,7 +155,7 @@ class BrowserCrtMediaTest : BrowserCrtFixture() {
   private suspend fun assertLandsOnTheSignal(
     width: Int,
     height: Int,
-    composition: (MediaSource, Crt) -> EditComposition,
+    composition: (MediaSource, Crt) -> Composition,
   ) {
     val crt = Crt(MID)
     val clip = gradientClip(width, height)

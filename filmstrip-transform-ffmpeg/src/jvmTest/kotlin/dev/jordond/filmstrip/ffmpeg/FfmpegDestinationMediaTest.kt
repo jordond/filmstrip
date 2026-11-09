@@ -2,7 +2,7 @@ package dev.jordond.filmstrip.ffmpeg
 
 import dev.jordond.filmstrip.ComponentRegistry
 import dev.jordond.filmstrip.FilmstripError
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.effect.EffectIds
 import dev.jordond.filmstrip.effects.BuiltInEffectResolver
@@ -162,11 +162,11 @@ class FfmpegDestinationMediaTest {
       failure.platformCode shouldBe FilmstripError.Underlying.NO_PLATFORM_CODE
     }
 
-  private fun clipOf(file: File): EditComposition = compositionOf { clip(MediaSource.of(file.absolutePath)) }
+  private fun clipOf(file: File): Composition = compositionOf { clip(MediaSource.of(file.absolutePath)) }
 
   private suspend fun planned(
     engine: FfmpegExportEngine,
-    composition: EditComposition,
+    composition: Composition,
   ): ExportPlan =
     when (val verdict = engine.plan(composition, ExportSpec())) {
       is Verdict.Capable -> verdict.plan

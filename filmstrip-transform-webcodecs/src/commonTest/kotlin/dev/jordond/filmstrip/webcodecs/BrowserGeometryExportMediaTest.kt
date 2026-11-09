@@ -5,7 +5,7 @@ import dev.jordond.filmstrip.codec.AudioCodec
 import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.outputSlotTime
 import dev.jordond.filmstrip.effect.EffectSpec
@@ -92,7 +92,7 @@ class BrowserGeometryExportMediaTest {
     runTest {
       val bytes = quadrantClip()
       val composition =
-        EditComposition(
+        Composition(
           tracks = listOf(Track(listOf(Clip(MediaSource.Bytes(bytes)), Clip(MediaSource.Bytes(bytes))))),
           effects = listOf(Rotate(QUARTER_TURN)),
           audio = AudioSpec.Remove,
@@ -119,7 +119,7 @@ class BrowserGeometryExportMediaTest {
       for (fit in Fit.entries) {
         val scale = Scale(SCALED_HEIGHT, fit)
         val composition =
-          EditComposition(
+          Composition(
             tracks = listOf(Track(listOf(Clip(MediaSource.Bytes(opener)), Clip(MediaSource.Bytes(wide))))),
             effects = listOf(scale),
             audio = AudioSpec.Remove,
@@ -142,7 +142,7 @@ class BrowserGeometryExportMediaTest {
     runTest {
       val opener = makeClip(width = OPENER_SIZE.width, height = OPENER_SIZE.height, frames = OPENER_FRAMES)
       val composition =
-        EditComposition(
+        Composition(
           tracks =
             listOf(
               Track(
@@ -182,7 +182,7 @@ class BrowserGeometryExportMediaTest {
       val opener = makeClip(width = OPENER_SIZE.width, height = OPENER_SIZE.height, frames = OPENER_FRAMES)
       val turn = Rotate(QUARTER_TURN)
       val composition =
-        EditComposition(
+        Composition(
           tracks =
             listOf(
               Track(
@@ -231,7 +231,7 @@ class BrowserGeometryExportMediaTest {
       val badge = ImageOverlay(BADGE_IMAGE, Corner.TopStart)
       val turn = Rotate(QUARTER_TURN)
       val composition =
-        EditComposition(
+        Composition(
           tracks = listOf(Track(listOf(Clip(MediaSource.Bytes(clip), effects = listOf(badge))))),
           effects = listOf(turn),
           audio = AudioSpec.Remove,
@@ -267,10 +267,10 @@ class BrowserGeometryExportMediaTest {
       }
     }
 
-  private suspend fun exported(composition: EditComposition): List<OutputFrame> =
+  private suspend fun exported(composition: Composition): List<OutputFrame> =
     decodeFrames(outputOf(exportOf(composition, MediaSink.Uri(""))))
 
-  private suspend fun previewOf(composition: EditComposition) =
+  private suspend fun previewOf(composition: Composition) =
     webCodecsExportEngine(
       components = ComponentRegistry.Builder().addEffectResolver(BuiltInEffectResolver()).build(),
       prober = BrowserProber(),
@@ -282,8 +282,8 @@ class BrowserGeometryExportMediaTest {
   private fun single(
     bytes: ByteArray,
     clipEffects: List<EffectSpec>,
-  ): EditComposition =
-    EditComposition(
+  ): Composition =
+    Composition(
       tracks = listOf(Track(listOf(Clip(MediaSource.Bytes(bytes), effects = clipEffects)))),
       audio = AudioSpec.Remove,
     )

@@ -3,8 +3,8 @@ package dev.jordond.filmstrip.player.contract
 import dev.jordond.filmstrip.Cancellable
 import dev.jordond.filmstrip.capability.EffectParity
 import dev.jordond.filmstrip.edit.Clip
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.CompositionDiff
-import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.diff
@@ -59,13 +59,13 @@ internal class ContractFakeEngine(
   /**
    * What the fake's pretend graph measured once the clips were laid down.
    *
-   * Walked off the tracks rather than read back off [EditComposition.duration], so the cross check
+   * Walked off the tracks rather than read back off [Composition.duration], so the cross check
    * in the suite compares two answers instead of one answer with itself.
    */
   var platformDuration: Duration? = null
     private set
 
-  private var loaded: EditComposition? = null
+  private var loaded: Composition? = null
   private var playhead: Duration = Duration.ZERO
   private var loopRange: TimeRange? = null
   private var transport: Job? = null
@@ -253,7 +253,7 @@ internal class ContractFakeEngine(
    * graph that inserted the spans would report. A clip with no trim contributes the length the fake
    * would have probed for it.
    */
-  private fun layDown(composition: EditComposition): Duration {
+  private fun layDown(composition: Composition): Duration {
     if (composition.tracks.isEmpty()) return Duration.ZERO
     return composition.tracks
       .filterNot { it.looping }
@@ -263,7 +263,7 @@ internal class ContractFakeEngine(
   }
 
   private fun frameOf(
-    composition: EditComposition,
+    composition: Composition,
     position: Duration,
   ): ReadbackFrame {
     val channel = if (composition.effects.isEmpty()) LIT_CHANNEL else DARK_CHANNEL
@@ -309,8 +309,8 @@ internal const val FAKE_FRAME_RATE: Int = 30
  *
  * The fake reads no bytes, so nothing about a source can stop it the way it stops a real backend.
  */
-internal val FAKE_UNREADABLE: EditComposition =
-  EditComposition(tracks = listOf(Track(listOf(Clip(MediaSource.of("unreadable.mp4"))))))
+internal val FAKE_UNREADABLE: Composition =
+  Composition(tracks = listOf(Track(listOf(Clip(MediaSource.of("unreadable.mp4"))))))
 
 /**
  * The fake wired up as a contract subject.

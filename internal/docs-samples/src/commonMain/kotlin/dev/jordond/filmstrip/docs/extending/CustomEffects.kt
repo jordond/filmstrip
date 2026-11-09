@@ -2,7 +2,7 @@ package dev.jordond.filmstrip.docs.extending
 
 import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.allBackends
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.EffectsBuilder
 import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.effect.Attributes
@@ -25,7 +25,7 @@ internal data class SoftFocus(
 internal fun EffectsBuilder.softFocus(radius: Float): EffectsBuilder = add(SoftFocus(radius))
 // endregion
 
-internal fun softFocusEdit(): EditComposition {
+internal fun softFocusEdit(): Composition {
   // region use
   val composition =
     compositionOf {

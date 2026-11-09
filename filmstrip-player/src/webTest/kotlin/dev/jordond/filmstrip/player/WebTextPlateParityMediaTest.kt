@@ -1,6 +1,6 @@
 package dev.jordond.filmstrip.player
 
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.effects.overlay.TextOverlay
 import dev.jordond.filmstrip.geometry.Anchor
 import dev.jordond.filmstrip.player.contract.asTestFrame
@@ -57,7 +57,7 @@ class WebTextPlateParityMediaTest {
 
   private suspend fun readback(
     scope: CoroutineScope,
-    composition: EditComposition,
+    composition: Composition,
   ): TestFrame {
     val engine = BrowserPlayerEngine(scope, BrowserPreviewPlanner(CONTRACT_COMPONENTS), PlayerConfig())
     var frame: TestFrame? = null

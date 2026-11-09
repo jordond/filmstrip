@@ -2,7 +2,7 @@ package dev.jordond.filmstrip.player
 
 import dev.jordond.filmstrip.Cancellable
 import dev.jordond.filmstrip.Filmstrip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.outputSlotOf
 import dev.jordond.filmstrip.edit.outputSlotTime
 import dev.jordond.filmstrip.effects.color.Brightness
@@ -226,7 +226,7 @@ class AndroidThumbnailContractMediaTest {
    */
   private suspend fun assertRelaxedTilesMatch(
     scope: CoroutineScope,
-    composition: EditComposition,
+    composition: Composition,
     tiles: List<ThumbnailResult.Success>,
     subject: String,
   ) {

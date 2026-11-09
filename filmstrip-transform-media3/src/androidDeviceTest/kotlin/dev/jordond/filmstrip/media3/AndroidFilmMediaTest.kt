@@ -5,7 +5,7 @@ import android.graphics.Color
 import android.media.MediaCodecList
 import android.media.MediaFormat
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effects.filters.film.Film
@@ -58,7 +58,7 @@ class AndroidFilmMediaTest {
   fun aCompositionFilmGlowsThePictureOnTheSignal() =
     runTest(timeout = TIMEOUT) {
       val source = flatFile("film-mid.mp4", MID_RESPONSE)
-      val edit = EditComposition(listOf(Track(listOf(Clip(source.asMedia())))), listOf(GLOW_ONLY))
+      val edit = Composition(listOf(Track(listOf(Clip(source.asMedia())))), listOf(GLOW_ONLY))
 
       assertGlowsOnTheSignal(edit, source)
     }
@@ -67,7 +67,7 @@ class AndroidFilmMediaTest {
   fun aClipFilmGlowsThePictureOnTheSignal() =
     runTest(timeout = TIMEOUT) {
       val source = flatFile("film-mid.mp4", MID_RESPONSE)
-      val edit = EditComposition(listOf(Track(listOf(Clip(source.asMedia(), effects = listOf(GLOW_ONLY))))))
+      val edit = Composition(listOf(Track(listOf(Clip(source.asMedia(), effects = listOf(GLOW_ONLY))))))
 
       assertGlowsOnTheSignal(edit, source)
     }
@@ -76,7 +76,7 @@ class AndroidFilmMediaTest {
   fun aSmallerExportReadsTheSameGlow() =
     runTest(timeout = TIMEOUT) {
       val source = flatFile("film-mid.mp4", MID_RESPONSE)
-      val edit = EditComposition(listOf(Track(listOf(Clip(source.asMedia())))), listOf(GLOW_ONLY))
+      val edit = Composition(listOf(Track(listOf(Clip(source.asMedia())))), listOf(GLOW_ONLY))
 
       val small = assertGlowsOnTheSignal(edit, source, ExportSpec(heightPx = SMALL_HEIGHT))
       val full = probe.written(edit, ExportSpec()).rgbAt(0.5f, 0.5f).first
@@ -92,7 +92,7 @@ class AndroidFilmMediaTest {
       val crop = Crop(WIDE_CANVAS, fit = Fit.Contain)
       val source = flatClip("film-bright.mp4", BRIGHT)
       val edit = { effects: List<EffectSpec> ->
-        EditComposition(listOf(Track(listOf(Clip(source)))), effects, fill = Fill.Solid(BLACK))
+        Composition(listOf(Track(listOf(Clip(source)))), effects, fill = Fill.Solid(BLACK))
       }
 
       val spec = ExportSpec()
@@ -140,8 +140,8 @@ class AndroidFilmMediaTest {
     runTest(timeout = TIMEOUT) {
       val source = flatClip("film-dark.mp4", DARK)
       val swatch = swatchOverlay()
-      val filmed = EditComposition(listOf(Track(listOf(Clip(source)))), listOf(swatch, GLOW_ONLY))
-      val plain = EditComposition(listOf(Track(listOf(Clip(source)))), listOf(swatch))
+      val filmed = Composition(listOf(Track(listOf(Clip(source)))), listOf(swatch, GLOW_ONLY))
+      val plain = Composition(listOf(Track(listOf(Clip(source)))), listOf(swatch))
 
       val read = redOfSwatch(filmed)
       val wanted = redOfSwatch(plain)
@@ -153,8 +153,8 @@ class AndroidFilmMediaTest {
   fun aClipOverlayUnderACompositionFilmIsBurned() =
     runTest(timeout = TIMEOUT) {
       val clip = Clip(flatClip("film-dark.mp4", DARK), effects = listOf(swatchOverlay()))
-      val filmed = EditComposition(listOf(Track(listOf(clip))), listOf(GLOW_ONLY))
-      val plain = EditComposition(listOf(Track(listOf(clip))))
+      val filmed = Composition(listOf(Track(listOf(clip))), listOf(GLOW_ONLY))
+      val plain = Composition(listOf(Track(listOf(clip))))
 
       val read = redOfSwatch(filmed)
       val under = redOfSwatch(plain) / MAX_CODE
@@ -171,7 +171,7 @@ class AndroidFilmMediaTest {
   fun aToneMappedHdrSourceExportsUnderAFilm() =
     runTest(timeout = TIMEOUT) {
       assumeTrue("this device has no ten-bit HEVC decoder, which is every emulator", decodesTenBitHevc())
-      val edit = EditComposition(listOf(Track(listOf(Clip(probe.fixture(HDR_CLIP))))), listOf(Film()))
+      val edit = Composition(listOf(Track(listOf(Clip(probe.fixture(HDR_CLIP))))), listOf(Film()))
 
       val finished = probe.finish(probe.plan(edit))
 
@@ -179,7 +179,7 @@ class AndroidFilmMediaTest {
     }
 
   private suspend fun assertGlowsOnTheSignal(
-    edit: EditComposition,
+    edit: Composition,
     source: File,
     spec: ExportSpec = ExportSpec(),
   ): Int {
@@ -212,7 +212,7 @@ class AndroidFilmMediaTest {
     val crop = Crop(WIDE_CANVAS, fit = Fit.Contain)
     val source = flatClip("film-bright.mp4", BRIGHT)
     val edit = { effects: List<EffectSpec>, over: Fill ->
-      EditComposition(listOf(Track(listOf(Clip(source, effects = effects)))), fill = over)
+      Composition(listOf(Track(listOf(Clip(source, effects = effects)))), fill = over)
     }
     val spec = ExportSpec()
     val plan = probe.plan(edit(listOf(crop, Film(grain = 1f, halation = 1f)), fill), spec)
@@ -249,7 +249,7 @@ class AndroidFilmMediaTest {
 
   private fun File.asMedia(): MediaSource = MediaSource.of(path)
 
-  private suspend fun redOfSwatch(edit: EditComposition): Double =
+  private suspend fun redOfSwatch(edit: Composition): Double =
     probe
       .written(edit, ExportSpec())
       .rgbAt(SWATCH_FX, SWATCH_FY)

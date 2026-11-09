@@ -1,7 +1,7 @@
 package dev.jordond.filmstrip.transform.internal
 
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.edit.outputLengthOf
@@ -61,7 +61,7 @@ class HeldTailTest {
         listOf(fixture.clip(duration = 1_010.milliseconds), fixture.clip(duration = 770.milliseconds)),
         start = 300.milliseconds,
       )
-    val laid = negotiate(EditComposition(listOf(primary, bed(5_006.milliseconds))))
+    val laid = negotiate(Composition(listOf(primary, bed(5_006.milliseconds))))
     val laidPrimary = laid.primary
     val lead = 0L until outputSlotOf(laidPrimary.start, GRID_RATE)
     val owners = listOf(lead) + laidPrimary.clips.map { outputSlotsOf(it.span, GRID_RATE) } + listOf(laid.heldTail)
@@ -77,7 +77,7 @@ class HeldTailTest {
   @Test
   fun `a late audio track's end sets the tail`() {
     val late = Track(listOf(fixture.audioOnlyClip(1.seconds)), content = TrackContent.Audio, start = 4_500.milliseconds)
-    val laid = negotiate(EditComposition(listOf(Track(listOf(fixture.clip(duration = 1.seconds))), late)))
+    val laid = negotiate(Composition(listOf(Track(listOf(fixture.clip(duration = 1.seconds))), late)))
 
     laid.heldTail.first shouldBe outputSlotOf(1.seconds, GRID_RATE)
     laid.heldTail.last + 1 shouldBe outputSlotOf(5_500.milliseconds, GRID_RATE)
@@ -87,7 +87,7 @@ class HeldTailTest {
   @Test
   fun `a looping audio track leaves no tail`() {
     val looping = Track(listOf(fixture.audioOnlyClip(3.seconds)), content = TrackContent.Audio, looping = true)
-    val laid = negotiate(EditComposition(listOf(Track(listOf(fixture.clip(duration = 1.seconds))), looping)))
+    val laid = negotiate(Composition(listOf(Track(listOf(fixture.clip(duration = 1.seconds))), looping)))
 
     withClue("a looping bed left ${laid.heldTail}") { laid.heldTail.isEmpty().shouldBeTrue() }
     laid.videoSlots shouldBe outputSlotOf(1.seconds, GRID_RATE)
@@ -99,7 +99,7 @@ class HeldTailTest {
   fun `a looping primary leaves no tail`() {
     val primary = Track(listOf(fixture.clip(duration = 3.seconds, trim = LoopingCases.VIDEO_TRIM)), looping = true)
     val underlay = bed(LoopingCases.UNDERLAY_RUN)
-    val laid = negotiate(EditComposition(listOf(primary, underlay)))
+    val laid = negotiate(Composition(listOf(primary, underlay)))
 
     withClue("a looping primary left ${laid.heldTail}") { laid.heldTail.isEmpty().shouldBeTrue() }
     laid.videoSlots shouldBe outputSlotOf(LoopingCases.UNDERLAY_RUN, GRID_RATE)
@@ -108,7 +108,7 @@ class HeldTailTest {
 
   @Test
   fun `a copy plan leaves no tail`() {
-    val laid = negotiate(EditComposition(listOf(Track(listOf(fixture.clip())))), ExportSpec())
+    val laid = negotiate(Composition(listOf(Track(listOf(fixture.clip())))), ExportSpec())
     val frameRate = laid.output.frameRate
 
     laid.path shouldBe ExportPath.Copy
@@ -129,7 +129,7 @@ class HeldTailTest {
   @Test
   fun `a late primary keeps its lead apart from its tail`() {
     val primary = Track(listOf(fixture.clip(duration = 1.seconds)), start = 500.milliseconds)
-    val laid = negotiate(EditComposition(listOf(primary, bed(5.seconds))))
+    val laid = negotiate(Composition(listOf(primary, bed(5.seconds))))
     val covered = slotsCoveredBy(laid.primary)
 
     laid.heldTail.first shouldBe outputSlotOf(1_500.milliseconds, GRID_RATE)
@@ -143,7 +143,7 @@ class HeldTailTest {
         listOf(fixture.clip(duration = 1_010.milliseconds), fixture.clip(duration = 770.milliseconds)),
         start = 300.milliseconds,
       )
-    val laid = negotiate(EditComposition(listOf(primary, bed(1.seconds))))
+    val laid = negotiate(Composition(listOf(primary, bed(1.seconds))))
 
     withClue("a shorter bed left ${laid.heldTail}") { laid.heldTail.isEmpty().shouldBeTrue() }
     laid.videoSlots shouldBe outputSlotOf(laid.primary.start, GRID_RATE) + slotsCoveredBy(laid.primary)
@@ -170,7 +170,7 @@ class HeldTailTest {
   }
 
   private fun negotiate(
-    composition: EditComposition,
+    composition: Composition,
     spec: ExportSpec = ExportSpec(frameRate = GRID_RATE),
   ) = fixture
     .planner(resolvers = emptyList())
@@ -187,7 +187,7 @@ class HeldTailTest {
   private fun underBed(
     primary: Clip,
     bed: Duration,
-  ) = EditComposition(listOf(Track(listOf(primary)), bed(bed)))
+  ) = Composition(listOf(Track(listOf(primary)), bed(bed)))
 
   private fun bed(duration: Duration) = Track(listOf(fixture.audioOnlyClip(duration)), content = TrackContent.Audio)
 

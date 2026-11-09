@@ -4,7 +4,7 @@ import dev.jordond.filmstrip.codec.AudioCodec
 import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.outputSlotOf
 import dev.jordond.filmstrip.edit.outputSlotTime
@@ -190,8 +190,8 @@ class BrowserPipelineMediaTest {
     bytes: ByteArray,
     start: Duration = Duration.ZERO,
     audio: AudioSpec = AudioSpec.Remove,
-  ): EditComposition =
-    EditComposition(tracks = listOf(Track(listOf(Clip(MediaSource.Bytes(bytes))), start = start)), audio = audio)
+  ): Composition =
+    Composition(tracks = listOf(Track(listOf(Clip(MediaSource.Bytes(bytes))), start = start)), audio = audio)
 
   private class Stopped : Exception("stopped")
 

@@ -1,7 +1,7 @@
 package dev.jordond.filmstrip.media3
 
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.effects.geometry.Crop
 import dev.jordond.filmstrip.export.ExportSpec
@@ -62,7 +62,7 @@ class AndroidGeometryMediaTest {
   private fun composition(
     source: MediaSource,
     fit: Fit,
-  ) = EditComposition(
+  ) = Composition(
     tracks = listOf(Track(listOf(Clip(source)))),
     effects = listOf(Crop(AspectRatio.Square, fit = fit)),
     fill = Fill.Solid(MAGENTA_ARGB),

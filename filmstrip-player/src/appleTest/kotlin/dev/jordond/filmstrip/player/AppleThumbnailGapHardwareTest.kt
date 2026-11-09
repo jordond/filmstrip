@@ -4,7 +4,7 @@ import dev.jordond.filmstrip.Cancellable
 import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.avfoundation.avFoundationBackend
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.effect.EffectSpec
@@ -253,12 +253,12 @@ class AppleThumbnailGapHardwareTest {
     createThumbnailSource(request, CONTRACT_COMPONENTS) ?: fail("no thumbnail source claimed the fixture")
 
   private fun request(
-    composition: EditComposition,
+    composition: Composition,
     revision: Long,
   ) = ThumbnailRequest(composition, IN_GAP, FIXTURE_FRAME.height, revision, precise = true)
 
   private suspend fun exported(
-    composition: EditComposition,
+    composition: Composition,
     output: String,
   ) {
     NSFileManager.defaultManager.removeItemAtPath(output, error = null)
@@ -271,7 +271,7 @@ class AppleThumbnailGapHardwareTest {
   }
 
   private suspend fun thumbnailAt(
-    composition: EditComposition,
+    composition: Composition,
     position: Duration,
   ): TestFrame {
     val request = ThumbnailRequest(composition, position, FIXTURE_FRAME.height, REVISION + 3, precise = true)
@@ -286,7 +286,7 @@ class AppleThumbnailGapHardwareTest {
 
   private suspend fun frameReadsOf(
     scope: CoroutineScope,
-    composition: EditComposition,
+    composition: Composition,
     positions: List<Duration>,
   ): Map<Duration, TestFrame> {
     val engine = AvPlayerEngine(scope, AvPreviewPlanner(CONTRACT_COMPONENTS), PlayerConfig(), muted = true)
@@ -304,8 +304,8 @@ class AppleThumbnailGapHardwareTest {
   }
 
   // The fixture clip waits GAP_LENGTH on its track, so the video opens on a gap the fill covers.
-  private fun lateComposition(effects: List<EffectSpec> = emptyList()): EditComposition =
-    EditComposition(
+  private fun lateComposition(effects: List<EffectSpec> = emptyList()): Composition =
+    Composition(
       tracks =
         listOf(
           Track(
@@ -318,8 +318,8 @@ class AppleThumbnailGapHardwareTest {
     )
 
   // The late fixture clip, then a portrait still of the badge's own image that leaves the fill in the bars.
-  private fun stillComposition(mark: ImageOverlay): EditComposition =
-    EditComposition(
+  private fun stillComposition(mark: ImageOverlay): Composition =
+    Composition(
       tracks =
         listOf(
           Track(

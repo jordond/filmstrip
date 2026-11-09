@@ -4,7 +4,7 @@ import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.capability.EffectParity
 import dev.jordond.filmstrip.capability.FidelityNote
 import dev.jordond.filmstrip.capability.ParityNote
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.export.ExportPlan
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.InertNotice
@@ -25,12 +25,12 @@ import dev.jordond.filmstrip.transform.internal.resolve.ResolvedHdr
  * Takes the edit, the spec to lower against, the frame text lays out against, where null lays text out against the
  * frame the spec settles on, and the grade to take as settled. Every backend hands over its engine's own `resolve`.
  */
-internal typealias CompositionResolve = suspend (EditComposition, ExportSpec, Size?, ResolvedHdr?) -> ResolveResult
+internal typealias CompositionResolve = suspend (Composition, ExportSpec, Size?, ResolvedHdr?) -> ResolveResult
 
 /**
  * Reads the grade an export of an edit at a spec resolves to. Every backend hands over its engine's own `exportGrade`.
  */
-internal typealias CompositionGrade = suspend (EditComposition, ExportSpec) -> ExportGrade
+internal typealias CompositionGrade = suspend (Composition, ExportSpec) -> ExportGrade
 
 /**
  * The height a frame [naturalHeight] pixels tall renders at when [heightPx] is asked for, or null when it renders at
@@ -94,7 +94,7 @@ internal class HeightLowering(
  * @return The lowering, or the first refusal [grade] or [resolve] answered with.
  */
 internal suspend fun lowerAtHeight(
-  composition: EditComposition,
+  composition: Composition,
   heightPx: Int?,
   exportSpec: ExportSpec,
   grade: CompositionGrade,
@@ -159,7 +159,7 @@ internal class PreviewPlan(
  * @return The plan, or why the edit cannot be previewed.
  */
 internal suspend fun planPreview(
-  composition: EditComposition,
+  composition: Composition,
   policy: PreviewQualityPolicy,
   exportSpec: ExportSpec,
   fidelity: List<FidelityNote>,

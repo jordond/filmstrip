@@ -1,6 +1,6 @@
 package dev.jordond.filmstrip.thumbnail
 
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.HdrMode
 import io.kotest.matchers.shouldBe
@@ -38,7 +38,7 @@ class ThumbnailRequestTest {
   }
 
   private fun request(heightPx: Int?): ThumbnailRequest =
-    ThumbnailRequest(EditComposition(tracks = emptyList()), Duration.ZERO, heightPx, 0L, precise = false)
+    ThumbnailRequest(Composition(tracks = emptyList()), Duration.ZERO, heightPx, 0L, precise = false)
 }
 
-private val COMPOSITION_FOR_SPEC = EditComposition(emptyList())
+private val COMPOSITION_FOR_SPEC = Composition(emptyList())

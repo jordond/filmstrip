@@ -1,6 +1,6 @@
 package dev.jordond.filmstrip.player
 
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.effects.color.Brightness
 import dev.jordond.filmstrip.effects.overlay.TextOverlay
 import dev.jordond.filmstrip.player.contract.PixelFixture
@@ -53,7 +53,7 @@ class ApplePixelContractHardwareTest : PlayerPixelContractTest() {
     )
 
   override suspend fun exportFrame(
-    composition: EditComposition,
+    composition: Composition,
     position: Duration,
   ): TestFrame = appleFixtureExportFrame(composition, position)
 

@@ -6,7 +6,7 @@ import dev.jordond.filmstrip.avfoundation.internal.composition.toAvComposition
 import dev.jordond.filmstrip.avfoundation.internal.time.toCMTime
 import dev.jordond.filmstrip.avfoundation.internal.time.toDuration
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.effect.EffectSpec
@@ -82,8 +82,8 @@ internal fun appleFixture(name: String): String {
 /**
  * One trimmed clip of the fixture, with [effects] over the whole composition.
  */
-internal fun appleFixtureComposition(effects: List<EffectSpec> = emptyList()): EditComposition =
-  EditComposition(
+internal fun appleFixtureComposition(effects: List<EffectSpec> = emptyList()): Composition =
+  Composition(
     tracks = listOf(Track(listOf(Clip(MediaSource.of(appleFixtureClip()), TimeRange.of(Duration.ZERO, CLIP_LENGTH))))),
     effects = effects,
   )
@@ -92,13 +92,13 @@ internal fun appleFixtureComposition(effects: List<EffectSpec> = emptyList()): E
  * The fixture composition with its clip handed over as the bytes of the file.
  */
 @OptIn(ExperimentalForeignApi::class, BetaInteropApi::class)
-internal fun appleFixtureBytesComposition(): EditComposition {
+internal fun appleFixtureBytesComposition(): Composition {
   val path = appleFixtureClip()
   val data = NSData.create(contentsOfFile = path) ?: fail("Nothing to read at $path.")
   val source = data.bytes ?: fail("$path is empty.")
   val bytes = ByteArray(data.length.toInt())
   bytes.usePinned { pinned -> memcpy(pinned.addressOf(0), source, data.length) }
-  return EditComposition(
+  return Composition(
     tracks = listOf(Track(listOf(Clip(MediaSource.Bytes(bytes), TimeRange.of(Duration.ZERO, CLIP_LENGTH))))),
   )
 }
@@ -114,7 +114,7 @@ internal fun appleFixtureBytesComposition(): EditComposition {
  */
 @OptIn(ExperimentalForeignApi::class)
 internal suspend fun appleExportFrame(
-  composition: EditComposition,
+  composition: Composition,
   position: Duration,
 ): TestFrame {
   val resolved = appleExportLowering(composition)
@@ -126,7 +126,7 @@ internal suspend fun appleExportFrame(
  * [composition] as the AVFoundation export engine resolves it, failing the test when the engine
  * refuses it.
  */
-internal suspend fun appleExportLowering(composition: EditComposition): ResolvedComposition {
+internal suspend fun appleExportLowering(composition: Composition): ResolvedComposition {
   val engine =
     avFoundationExportEngine(CONTRACT_COMPONENTS)
   markStep("the export to resolve the fixture")

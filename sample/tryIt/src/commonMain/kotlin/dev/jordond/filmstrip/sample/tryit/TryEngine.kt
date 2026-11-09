@@ -1,7 +1,7 @@
 package dev.jordond.filmstrip.sample.tryit
 
 import dev.jordond.filmstrip.CapabilitiesResult
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.ExportStatus
@@ -79,7 +79,7 @@ internal data class TryState(
  */
 internal class TryEngine(
   private val scope: CoroutineScope,
-  private val exporter: (EditComposition, ExportSpec) -> Flow<ExportStatus>,
+  private val exporter: (Composition, ExportSpec) -> Flow<ExportStatus>,
   private val loadClip: suspend (SamplePreset) -> MediaSource = ::loadPreset,
   private val save: (MediaSink) -> Unit = ::saveExport,
   private val release: (MediaSink) -> Unit = ::releaseExport,

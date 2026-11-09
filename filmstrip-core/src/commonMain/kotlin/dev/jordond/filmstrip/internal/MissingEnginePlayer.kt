@@ -2,7 +2,7 @@ package dev.jordond.filmstrip.internal
 
 import dev.jordond.filmstrip.Cancellable
 import dev.jordond.filmstrip.capability.EffectParity
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.geometry.Size
@@ -66,7 +66,7 @@ internal class MissingEnginePlayer(
   override fun positionFlow(tick: Duration): Flow<Duration> = flowOf(Duration.ZERO)
 
   override suspend fun setComposition(
-    composition: EditComposition,
+    composition: Composition,
     startAt: Duration?,
     playWhenReady: Boolean,
   ): SetCompositionResult = SetCompositionResult.Failure(error)

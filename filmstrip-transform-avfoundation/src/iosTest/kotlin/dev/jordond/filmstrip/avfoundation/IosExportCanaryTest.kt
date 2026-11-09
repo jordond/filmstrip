@@ -4,7 +4,7 @@ import dev.jordond.filmstrip.ComponentRegistry
 import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.avfoundation.internal.composition.AvCompositorInstruction
 import dev.jordond.filmstrip.avfoundation.internal.composition.toAvComposition
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.effects.BuiltInEffectResolver
 import dev.jordond.filmstrip.effects.color.brightness
@@ -60,7 +60,7 @@ class IosExportCanaryTest {
       NSFileManager.defaultManager.removeItemAtPath(output, error = null)
     }
 
-  private suspend fun drawsThroughCompositor(composition: EditComposition): Boolean =
+  private suspend fun drawsThroughCompositor(composition: Composition): Boolean =
     withContext(Dispatchers.Default) {
       val components = ComponentRegistry.Builder().addEffectResolver(BuiltInEffectResolver()).build()
       when (val result = avFoundationExportEngine(components).resolve(composition, SPEC)) {

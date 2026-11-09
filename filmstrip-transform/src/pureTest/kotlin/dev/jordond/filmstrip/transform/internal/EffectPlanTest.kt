@@ -2,7 +2,7 @@ package dev.jordond.filmstrip.transform.internal
 
 import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.TrackContent
@@ -128,7 +128,7 @@ class EffectPlanTest {
     val track = Track(listOf(fixture.clip(), fixture.clip()), effects = listOf(Rotate(90)))
     val verdict =
       fixture.plan(
-        EditComposition(listOf(track)),
+        Composition(listOf(track)),
         resolvers = listOf(FakeResolver(degrade = setOf(Rotate(90).id), causes = THREE_CAUSES)),
       )
 
@@ -174,7 +174,7 @@ class EffectPlanTest {
     val recorder = RecordingResolver()
     val crop = Crop(aspect = AspectRatio.Square, fit = Fit.Crop)
     val composition =
-      EditComposition(
+      Composition(
         tracks = listOf(Track(listOf(fixture.clip(effects = listOf(Rotate(90)))))),
         effects = listOf(crop),
       )
@@ -253,7 +253,7 @@ class EffectPlanTest {
   fun `composition geometry resolves against the source frame when there is no clip geometry`() {
     val recorder = RecordingResolver()
     val crop = Crop(aspect = AspectRatio.Classic, fit = Fit.Crop)
-    val composition = EditComposition(listOf(Track(listOf(fixture.clip()))), effects = listOf(crop))
+    val composition = Composition(listOf(Track(listOf(fixture.clip()))), effects = listOf(crop))
 
     val resolved = fixture.resolve(composition, resolvers = listOf(recorder))
 
@@ -266,7 +266,7 @@ class EffectPlanTest {
     val recorder = RecordingResolver()
     val crop = Crop(aspect = AspectRatio.Square, fit = Fit.Crop)
     val composition =
-      EditComposition(
+      Composition(
         tracks = listOf(Track(listOf(fixture.clip(effects = listOf(Rotate(90)))))),
         effects = listOf(crop),
       )
@@ -283,7 +283,7 @@ class EffectPlanTest {
   @Test
   fun `composition geometry runs after clip geometry rather than by merged rank`() {
     val composition =
-      EditComposition(
+      Composition(
         tracks = listOf(Track(listOf(fixture.clip(effects = listOf(Scale(heightPx = 540)))))),
         effects = listOf(Rotate(90)),
       )
@@ -300,7 +300,7 @@ class EffectPlanTest {
   @Test
   fun `a composition-level crop rect still sets the output frame`() {
     val rect = NormalizedRect(left = 0f, top = 0f, right = 0.5f, bottom = 1f)
-    val composition = EditComposition(listOf(Track(listOf(fixture.clip()))), effects = listOf(CropRect(rect)))
+    val composition = Composition(listOf(Track(listOf(fixture.clip()))), effects = listOf(CropRect(rect)))
 
     val verdict = fixture.plan(composition)
 
@@ -334,7 +334,7 @@ class EffectPlanTest {
   @Test
   fun `a clip-only effect declared on a track is refused by name`() {
     val verdict =
-      fixture.plan(EditComposition(listOf(Track(listOf(fixture.clip()), effects = listOf(PUSH_IN)))))
+      fixture.plan(Composition(listOf(Track(listOf(fixture.clip()), effects = listOf(PUSH_IN)))))
 
     val refused = verdict.shouldBeInstanceOf<Verdict.Incapable>().reasons.single()
     refused.shouldBeInstanceOf<FilmstripError.UnsupportedEffect>().specId shouldBe EffectIds.KEN_BURNS
@@ -342,7 +342,7 @@ class EffectPlanTest {
 
   @Test
   fun `a clip-only effect declared on the composition is refused by name`() {
-    val verdict = fixture.plan(EditComposition(listOf(Track(listOf(fixture.clip()))), effects = listOf(PUSH_IN)))
+    val verdict = fixture.plan(Composition(listOf(Track(listOf(fixture.clip()))), effects = listOf(PUSH_IN)))
 
     val refused = verdict.shouldBeInstanceOf<Verdict.Incapable>().reasons.single()
     refused.shouldBeInstanceOf<FilmstripError.UnsupportedEffect>().specId shouldBe EffectIds.KEN_BURNS
@@ -352,7 +352,7 @@ class EffectPlanTest {
   fun `a clip-only effect on a looping track is refused by name`() {
     val verdict =
       fixture.plan(
-        EditComposition(
+        Composition(
           listOf(
             Track(listOf(fixture.clip(effects = listOf(PUSH_IN))), looping = true),
             Track(listOf(fixture.audioOnlyClip()), content = TrackContent.Audio),
@@ -374,7 +374,7 @@ class EffectPlanTest {
     val second = fixture.imageClip(duration = 3_000.milliseconds)
     val third = fixture.clip(duration = 4_000.milliseconds, trim = TimeRange.of(Duration.ZERO, 4_000.milliseconds))
     val composition =
-      EditComposition(
+      Composition(
         listOf(
           Track(
             listOf(
@@ -409,7 +409,7 @@ class EffectPlanTest {
   fun `a composition-level effect is resolved against the whole composition`() {
     val recording = RecordingResolver()
     val composition =
-      EditComposition(
+      Composition(
         listOf(
           Track(
             listOf(fixture.clip(duration = 2_000.milliseconds, trim = TimeRange.of(Duration.ZERO, 2_000.milliseconds))),

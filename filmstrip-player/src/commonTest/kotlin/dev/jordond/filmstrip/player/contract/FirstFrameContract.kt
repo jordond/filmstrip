@@ -2,8 +2,8 @@ package dev.jordond.filmstrip.player.contract
 
 import dev.jordond.filmstrip.Cancellable
 import dev.jordond.filmstrip.Filmstrip
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.CompositionDiff
-import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.diff
 import dev.jordond.filmstrip.edit.outputSlotTime
 import dev.jordond.filmstrip.effects.color.Brightness
@@ -44,7 +44,7 @@ import kotlin.time.Duration.Companion.milliseconds
  */
 internal suspend fun EngineUnderTest.surfaceReadStaysCurrentWhilePaused(
   scope: CoroutineScope,
-  fixture: EditComposition,
+  fixture: Composition,
   frameRate: Int,
   claimsLiveParameterRedraw: Boolean,
 ) = withEngine(engine) { recorder ->
@@ -71,7 +71,7 @@ internal suspend fun EngineUnderTest.surfaceReadStaysCurrentWhilePaused(
     recorder.lastState.playWhenReady shouldBe false
 
     val darkened =
-      EditComposition(fixture.tracks, fixture.effects + Brightness(DARKENED), fixture.audio, fixture.fill)
+      Composition(fixture.tracks, fixture.effects + Brightness(DARKENED), fixture.audio, fixture.fill)
     diff(fixture, darkened) shouldBe CompositionDiff.ParametersOnly
     val lit = frame.meanChannel()
     lit shouldBeGreaterThan MIN_LIT_MEAN

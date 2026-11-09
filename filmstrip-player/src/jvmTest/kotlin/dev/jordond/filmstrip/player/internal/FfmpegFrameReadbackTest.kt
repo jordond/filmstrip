@@ -1,7 +1,7 @@
 package dev.jordond.filmstrip.player.internal
 
 import dev.jordond.filmstrip.FilmstripError
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.outputSlotOf
 import dev.jordond.filmstrip.edit.outputSlotTime
 import dev.jordond.filmstrip.ffmpeg.internal.preview.PreviewStreamResult
@@ -201,7 +201,7 @@ class FfmpegFrameReadbackTest {
   private fun TestScope.readback(
     planner: StreamPlanner,
     plan: PreviewPlan? = this@FfmpegFrameReadbackTest.plan,
-    composition: EditComposition? = edit,
+    composition: Composition? = edit,
     presented: PreviewFrame? = null,
     snap: (Duration) -> Duration = { it },
   ): FfmpegFrameReadback = FfmpegFrameReadback(this, planner, { plan }, { composition }, { presented }, snap)

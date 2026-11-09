@@ -2,7 +2,7 @@ package dev.jordond.filmstrip.player.contract
 
 import dev.jordond.filmstrip.edit.CLIP_SPEED_RANGE
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.TrackContent
@@ -108,7 +108,7 @@ abstract class ShortClipSlotContractTest(
       val run = runOf(ONE_SLOT_AT_32.at(Duration.ZERO))
       val primary = run.single()
       val bed = Track(listOf(Clip(fixtureClip, TimeRange.of(Duration.ZERO, 1.seconds))), content = TrackContent.Audio)
-      val edit = EditComposition(listOf(Track(listOf(primary.clipOf(source))), bed))
+      val edit = Composition(listOf(Track(listOf(primary.clipOf(source))), bed))
       val duration = checkNotNull(edit.duration)
       val tail = outputSlotsOf(TimeRange.of(checkNotNull(primary.span.endExclusive), duration), frameRate)
       val slots = outputSlotsOf(primary.span, frameRate)

@@ -1,7 +1,7 @@
 package dev.jordond.filmstrip.player.contract
 
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.CompositionDiff
-import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.diff
 import dev.jordond.filmstrip.player.PlaybackStatus
 import dev.jordond.filmstrip.player.PlayerEngine
@@ -30,7 +30,7 @@ import kotlin.time.Duration
  * class alone rather than stubbing half of this one out.
  *
  * The comparison that matters is the first one. A preview and an export lowered from the same
- * [EditComposition] can diverge quietly for a long time, and nothing else in the suite notices.
+ * [Composition] can diverge quietly for a long time, and nothing else in the suite notices.
  *
  * Camel case test names, for the reason [PlayerEngineContractTest] gives.
  */
@@ -57,7 +57,7 @@ abstract class PlayerPixelContractTest {
    * composition's output size, as tightly packed RGBA_8888.
    */
   protected abstract suspend fun exportFrame(
-    composition: EditComposition,
+    composition: Composition,
     position: Duration,
   ): TestFrame
 
@@ -159,8 +159,8 @@ abstract class PlayerPixelContractTest {
  *   frame of flat black matches everything, including a broken preview.
  */
 class PixelFixture(
-  val composition: EditComposition,
-  val parameterChanged: EditComposition,
+  val composition: Composition,
+  val parameterChanged: Composition,
   val positions: List<Duration>,
 )
 

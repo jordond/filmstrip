@@ -7,7 +7,7 @@ import dev.jordond.filmstrip.avfoundation.internal.composition.toAvComposition
 import dev.jordond.filmstrip.color.EBU_PRIMARIES
 import dev.jordond.filmstrip.color.SMPTE_C_PRIMARIES
 import dev.jordond.filmstrip.color.sdSourceDisplayed
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.effects.BuiltInEffectResolver
 import dev.jordond.filmstrip.effects.color.Invert
@@ -208,7 +208,7 @@ class AppleToneMapSdrClipHardwareTest {
     EVERY_BAR.forEach { x -> assertCodes(beside.at(x, QUARTER), alone.at(x, QUARTER), "$source at $x", floor) }
   }
 
-  private suspend fun graphOf(composition: EditComposition): AvComposition =
+  private suspend fun graphOf(composition: Composition): AvComposition =
     withContext(Dispatchers.Default) {
       val components = ComponentRegistry.Builder().addEffectResolver(BuiltInEffectResolver()).build()
       when (val result = avFoundationExportEngine(components).resolve(composition, SPEC)) {
@@ -224,17 +224,17 @@ class AppleToneMapSdrClipHardwareTest {
       Triple("smpte-c", AVVideoColorPrimaries_SMPTE_C.orEmpty(), AVVideoYCbCrMatrix_ITU_R_601_4.orEmpty()),
     )
 
-  private fun sdrOnly(path: String): EditComposition =
+  private fun sdrOnly(path: String): Composition =
     compositionOf {
       clip(MediaSource.of(fixture(HD_SDR_FIXTURE))) { trim(Duration.ZERO, CLIP) }
       clip(MediaSource.of(path)) { trim(Duration.ZERO, CLIP) }
     }
 
-  private fun sdrAlone(path: String): EditComposition =
+  private fun sdrAlone(path: String): Composition =
     compositionOf { clip(MediaSource.of(path)) { trim(Duration.ZERO, CLIP) } }
 
   // An effect forces the encode, since a clip already inside the height limit would copy across with the tags it has.
-  private fun reencoded(path: String): EditComposition =
+  private fun reencoded(path: String): Composition =
     compositionOf {
       clip(MediaSource.of(path)) {
         trim(Duration.ZERO, CLIP)
@@ -243,7 +243,7 @@ class AppleToneMapSdrClipHardwareTest {
     }
 
   private suspend fun exported(
-    composition: EditComposition,
+    composition: Composition,
     name: String,
   ): String {
     val output = temporaryPath(name)

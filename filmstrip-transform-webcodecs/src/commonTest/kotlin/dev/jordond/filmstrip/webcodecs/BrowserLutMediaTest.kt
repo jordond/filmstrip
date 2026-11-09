@@ -6,7 +6,7 @@ import dev.jordond.filmstrip.ComponentRegistry
 import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.outputSlotTime
 import dev.jordond.filmstrip.effect.EffectResolution
@@ -358,7 +358,7 @@ class BrowserLutMediaTest {
     clip: Clip,
     effects: List<EffectSpec> = emptyList(),
     fill: Fill = Fill.Solid(BLACK_ARGB),
-  ) = EditComposition(
+  ) = Composition(
     tracks = listOf(Track(listOf(clip))),
     effects = effects,
     fill = fill,
@@ -366,7 +366,7 @@ class BrowserLutMediaTest {
   )
 
   private suspend fun frameOf(
-    composition: EditComposition,
+    composition: Composition,
     resolver: EffectResolver = FilterEffectResolver(),
     spec: ExportSpec = ExportSpec(videoCodec = VideoCodec.H264),
   ): PreviewFrame {
@@ -379,13 +379,13 @@ class BrowserLutMediaTest {
   }
 
   private suspend fun previewOf(
-    composition: EditComposition,
+    composition: Composition,
     resolver: EffectResolver = FilterEffectResolver(),
     spec: ExportSpec = ExportSpec(videoCodec = VideoCodec.H264),
   ) = resolvedOf(composition, resolver, spec).toBrowserPreview(composition)
 
   private suspend fun resolvedOf(
-    composition: EditComposition,
+    composition: Composition,
     resolver: EffectResolver = FilterEffectResolver(),
     spec: ExportSpec = ExportSpec(videoCodec = VideoCodec.H264),
   ) = webCodecsExportEngine(

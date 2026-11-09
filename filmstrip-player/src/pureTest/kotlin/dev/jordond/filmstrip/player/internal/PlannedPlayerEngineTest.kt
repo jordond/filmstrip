@@ -1,7 +1,7 @@
 package dev.jordond.filmstrip.player.internal
 
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.CompositionDiff
-import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.player.PlaybackError
@@ -133,7 +133,7 @@ class PlannedPlayerEngineTest {
     scope.runCurrent()
 
     planner.answer = { PlanResult.Ready(PLAN) }
-    load(EditComposition(tracks = EDIT.tracks, fill = Fill.Blurred()))
+    load(Composition(tracks = EDIT.tracks, fill = Fill.Blurred()))
 
     engine.changes shouldBe listOf(CompositionDiff.Structural, CompositionDiff.Structural)
   }
@@ -454,7 +454,7 @@ class PlannedPlayerEngineTest {
     engine.planOf() shouldBe KEEP_PLAN
   }
 
-  private fun load(composition: EditComposition): List<SetCompositionResult> {
+  private fun load(composition: Composition): List<SetCompositionResult> {
     val results = mutableListOf<SetCompositionResult>()
     engine.setComposition(SetCompositionRequest(composition)) { results += it }
     scope.runCurrent()

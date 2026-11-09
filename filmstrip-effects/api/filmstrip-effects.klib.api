@@ -410,7 +410,7 @@ final class dev.jordond.filmstrip.effects/BuiltInEffectResolver : dev.jordond.fi
     constructor <init>() // dev.jordond.filmstrip.effects/BuiltInEffectResolver.<init>|<init>(){}[0]
 
     final fun resolve(dev.jordond.filmstrip.effect/EffectSpec, dev.jordond.filmstrip.effect/RenderCapabilities, dev.jordond.filmstrip.effect/Attributes): dev.jordond.filmstrip.effect/EffectResolution? // dev.jordond.filmstrip.effects/BuiltInEffectResolver.resolve|resolve(dev.jordond.filmstrip.effect.EffectSpec;dev.jordond.filmstrip.effect.RenderCapabilities;dev.jordond.filmstrip.effect.Attributes){}[0]
-    final suspend fun prepare(dev.jordond.filmstrip.edit/EditComposition) // dev.jordond.filmstrip.effects/BuiltInEffectResolver.prepare|prepare(dev.jordond.filmstrip.edit.EditComposition){}[0]
+    final suspend fun prepare(dev.jordond.filmstrip.edit/Composition) // dev.jordond.filmstrip.effects/BuiltInEffectResolver.prepare|prepare(dev.jordond.filmstrip.edit.Composition){}[0]
 }
 
 final fun (dev.jordond.filmstrip.edit/EffectsBuilder).dev.jordond.filmstrip.effects.color/brightness(kotlin/Float): dev.jordond.filmstrip.edit/EffectsBuilder // dev.jordond.filmstrip.effects.color/brightness|brightness@dev.jordond.filmstrip.edit.EffectsBuilder(kotlin.Float){}[0]

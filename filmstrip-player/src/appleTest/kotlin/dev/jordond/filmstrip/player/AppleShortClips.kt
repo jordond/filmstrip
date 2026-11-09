@@ -1,7 +1,7 @@
 package dev.jordond.filmstrip.player
 
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.media.MediaSource
@@ -35,7 +35,7 @@ internal object AppleShortClips : ShortClipBackend, ClipParityBackend by AppleCl
   }
 
   @OptIn(ExperimentalForeignApi::class)
-  override suspend fun writtenFrameCount(composition: EditComposition): Long {
+  override suspend fun writtenFrameCount(composition: Composition): Long {
     val path = AppleClipParity.writtenPath(composition)
     val asset = AVURLAsset(uRL = NSURL.fileURLWithPath(path), options = null)
     val track =
@@ -62,7 +62,7 @@ internal object AppleShortClips : ShortClipBackend, ClipParityBackend by AppleCl
 
   override suspend fun sourceAt(rate: Int): MediaSource {
     val moving = Clip(fixtureClip, MOVING_RUN, effects = listOf(MOVING_PAN))
-    val path = AppleClipParity.export(EditComposition(listOf(Track(listOf(moving)))), ExportSpec(frameRate = rate))
+    val path = AppleClipParity.export(Composition(listOf(Track(listOf(moving)))), ExportSpec(frameRate = rate))
     return MediaSource.of(path)
   }
 }

@@ -2,7 +2,7 @@ package dev.jordond.filmstrip.player.internal.thumbnail
 
 import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.outputSlotOf
@@ -143,7 +143,7 @@ class FfmpegThumbnailSourceMediaTest {
         object : FfmpegThumbnailPlanner(CONTRACT_COMPONENTS) {
           override suspend fun open(
             plan: HeightLowering,
-            composition: EditComposition,
+            composition: Composition,
             at: Duration,
           ): PreviewStreamResult = PreviewStreamResult.Opened(stream)
         }
@@ -199,12 +199,12 @@ class FfmpegThumbnailSourceMediaTest {
   }
 
   private fun request(
-    composition: EditComposition = jvmFixtureComposition(),
+    composition: Composition = jvmFixtureComposition(),
     height: Int? = HALF_HEIGHT,
   ): ThumbnailRequest = ThumbnailRequest(composition, MID_GOP_POSITION, height, REVISION, precise = true)
 
-  private fun unreadable(): EditComposition =
-    EditComposition(
+  private fun unreadable(): Composition =
+    Composition(
       tracks =
         listOf(
           Track(listOf(Clip(MediaSource.of(jvmFixtureClip() + ".absent"), TimeRange.of(Duration.ZERO, CLIP_LENGTH)))),

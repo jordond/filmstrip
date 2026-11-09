@@ -10,7 +10,7 @@ import dev.jordond.filmstrip.avfoundation.internal.interop.pastCap
 import dev.jordond.filmstrip.avfoundation.internal.interop.syncSampleAtOrBefore
 import dev.jordond.filmstrip.avfoundation.internal.time.MEDIA_TICK
 import dev.jordond.filmstrip.avfoundation.internal.time.toDuration
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.effects.BuiltInEffectResolver
 import dev.jordond.filmstrip.effects.color.brightness
@@ -304,7 +304,7 @@ class AppleFastTrimMediaTest {
    * The trimmed edit every copy claim reads, which lets the cut move far enough back to reach the
    * fixture's sync samples.
    */
-  private fun snapping(source: String): EditComposition =
+  private fun snapping(source: String): Composition =
     compositionOf {
       clip(MediaSource.of(source)) {
         trim(TRIM_START, TRIM_END)
@@ -318,7 +318,7 @@ class AppleFastTrimMediaTest {
    * The graph an export of [composition] runs, negotiated through the engine the export itself goes
    * through.
    */
-  private suspend fun resolved(composition: EditComposition): ResolvedComposition =
+  private suspend fun resolved(composition: Composition): ResolvedComposition =
     withContext(Dispatchers.Default) {
       when (val result = engine().resolve(composition, ExportSpec())) {
         is ResolveResult.Refused -> error(result.error.message)
@@ -326,7 +326,7 @@ class AppleFastTrimMediaTest {
       }
     }
 
-  private suspend fun plan(composition: EditComposition): ExportPlan =
+  private suspend fun plan(composition: Composition): ExportPlan =
     withContext(Dispatchers.Default) {
       when (val verdict = filmstrip.plan(composition, ExportSpec())) {
         is Verdict.Capable -> verdict.plan

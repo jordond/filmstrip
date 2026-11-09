@@ -4,7 +4,7 @@ import dev.jordond.filmstrip.ComponentRegistry
 import dev.jordond.filmstrip.color.authoredHdrNits
 import dev.jordond.filmstrip.color.signalFromNits
 import dev.jordond.filmstrip.color.tenBitCodesFromSignal
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.effects.BuiltInEffectResolver
@@ -144,7 +144,7 @@ class FfmpegTextOverlayMediaTest {
 
   // The plate's texel the preview frame at [at] carries, read off the RGBA frame the stream hands over.
   private suspend fun previewTexel(
-    composition: EditComposition,
+    composition: Composition,
     at: Duration,
   ): List<Double> {
     val components = ComponentRegistry.Builder().addEffectResolver(BuiltInEffectResolver()).build()
@@ -170,7 +170,7 @@ class FfmpegTextOverlayMediaTest {
   private fun composition(
     text: TextOverlay,
     source: File = fixture.landscape,
-  ): EditComposition =
+  ): Composition =
     compositionOf {
       track { clip(MediaSource.of(source.absolutePath)) { trim(TimeRange.of(Duration.ZERO, LENGTH)) } }
       effects {
@@ -181,7 +181,7 @@ class FfmpegTextOverlayMediaTest {
     }
 
   private suspend fun exported(
-    composition: EditComposition,
+    composition: Composition,
     spec: ExportSpec = SDR_SPEC,
   ): Pair<File, ExportPlan> {
     val output = File.createTempFile("filmstrip-text", ".mp4").also { it.delete() }

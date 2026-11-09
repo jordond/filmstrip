@@ -18,7 +18,7 @@ import androidx.compose.ui.unit.dp
 import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.compose.rememberFilmstripFrame
 import dev.jordond.filmstrip.compose.ui.FilmstripTimelineDefaults
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.still.FrameRenderer
 import kotlin.time.Duration
@@ -53,7 +53,7 @@ import kotlin.time.Duration
 @Composable
 public fun FilmstripImage(
   renderer: FrameRenderer,
-  composition: EditComposition,
+  composition: Composition,
   at: Duration,
   modifier: Modifier = Modifier,
   contentScale: ContentScale = ContentScale.Fit,

@@ -1,6 +1,6 @@
 package dev.jordond.filmstrip.ffmpeg
 
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.edit.compositionOf
@@ -238,7 +238,7 @@ class FfmpegHeldTailMediaTest {
   private suspend fun assertEachClipEndsOnItsLastFrame(
     what: String,
     reaching: String,
-    composed: (MediaSource, MediaSource) -> EditComposition,
+    composed: (MediaSource, MediaSource) -> Composition,
   ) {
     val blues = listOf(FIRST_BLUE, SECOND_BLUE)
     val pictures = blues.map { indexedClip(GRID_RATE, TAIL_PICTURE, blue = it) }
@@ -372,7 +372,7 @@ class FfmpegHeldTailMediaTest {
     bedLength: Duration = TAIL_BED,
     overlay: ImageOverlay? = null,
     onClip: Boolean = false,
-  ): EditComposition =
+  ): Composition =
     compositionOf {
       clip(picture) { if (onClip) overlay?.let { mark -> effects { add(mark) } } }
       track(TrackContent.Audio) {
@@ -384,7 +384,7 @@ class FfmpegHeldTailMediaTest {
 
   private suspend fun exportedAs(
     name: String,
-    composition: EditComposition,
+    composition: Composition,
     spec: ExportSpec,
   ): ExportedOverlay {
     val output = File.createTempFile(name, ".mp4").also { it.delete() }

@@ -1,10 +1,10 @@
 package dev.jordond.filmstrip.player
 
 import androidx.compose.runtime.Stable
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 
 /**
- * Opens a [VideoPlayer] over an [EditComposition].
+ * Opens a [VideoPlayer] over a [Composition].
  *
  * The part of [dev.jordond.filmstrip.Filmstrip] that plays an edit. A preview surface takes one of
  * these, and a [dev.jordond.filmstrip.Filmstrip] is one.
@@ -23,7 +23,7 @@ public interface PreviewFactory {
    * @return A player, which the caller owns and must close.
    */
   public fun preview(
-    composition: EditComposition,
+    composition: Composition,
     config: PlayerConfig = PlayerConfig(),
   ): VideoPlayer
 }

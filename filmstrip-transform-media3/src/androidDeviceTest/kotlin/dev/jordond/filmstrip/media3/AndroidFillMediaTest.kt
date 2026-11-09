@@ -3,7 +3,7 @@ package dev.jordond.filmstrip.media3
 import android.graphics.Bitmap
 import android.graphics.Color
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effects.color.Brightness
@@ -195,7 +195,7 @@ class AndroidFillMediaTest {
     fill: Fill,
     hdr: HdrMode = HdrMode.Auto,
   ): File {
-    val composition = EditComposition(listOf(Track(listOf(Clip(source)))), effects, fill = fill)
+    val composition = Composition(listOf(Track(listOf(Clip(source)))), effects, fill = fill)
     return probe.export(composition, ExportSpec(hdr = hdr))
   }
 
@@ -204,7 +204,7 @@ class AndroidFillMediaTest {
     source: MediaSource,
     effects: List<EffectSpec>,
   ): Written {
-    val composition = EditComposition(listOf(Track(listOf(Clip(source)))), effects, fill = Fill.Solid(MAGENTA_ARGB))
+    val composition = Composition(listOf(Track(listOf(Clip(source)))), effects, fill = Fill.Solid(MAGENTA_ARGB))
     return probe.written(composition, ExportSpec())
   }
 

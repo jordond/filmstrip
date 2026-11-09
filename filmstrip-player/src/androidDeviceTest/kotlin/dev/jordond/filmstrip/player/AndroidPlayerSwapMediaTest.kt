@@ -6,7 +6,7 @@ import androidx.media3.transformer.CompositionPlayer
 import dev.jordond.filmstrip.color.SMPTE_C_PRIMARIES
 import dev.jordond.filmstrip.color.sdSourceDisplayed
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.export.ExportSpec
@@ -123,7 +123,7 @@ class AndroidPlayerSwapMediaTest {
     contractTest { scope ->
       val subject = AndroidEngineUnderTest(scope, StubbedGradePlanner())
       val clip = Clip(androidSdTaggedClip(), TimeRange.of(Duration.ZERO, CLIP_LENGTH))
-      val edit = EditComposition(listOf(Track(listOf(clip))))
+      val edit = Composition(listOf(Track(listOf(clip))))
       withEngine(subject.engine) { recorder ->
         subject.engine.awaitComposition(edit).shouldBeInstanceOf<SetCompositionResult.Success>()
         awaitContract("the engine to become seekable") { recorder.lastState.hasComposition }
@@ -176,10 +176,10 @@ class AndroidPlayerSwapMediaTest {
    * Plans every edit as usual, and gives the plan of [layered] its primary track a second time as another track.
    */
   private class SecondVideoSequencePlanner(
-    private val layered: EditComposition,
+    private val layered: Composition,
   ) : Media3PreviewPlanner(CONTRACT_COMPONENTS) {
     override suspend fun plan(
-      composition: EditComposition,
+      composition: Composition,
       policy: PreviewQualityPolicy,
       exportSpec: ExportSpec,
     ): PlanResult<Media3PreviewPlan, PlaybackError> {
@@ -212,7 +212,7 @@ class AndroidPlayerSwapMediaTest {
    */
   private class StubbedGradePlanner : Media3PreviewPlanner(CONTRACT_COMPONENTS) {
     override suspend fun plan(
-      composition: EditComposition,
+      composition: Composition,
       policy: PreviewQualityPolicy,
       exportSpec: ExportSpec,
     ): PlanResult<Media3PreviewPlan, PlaybackError> {

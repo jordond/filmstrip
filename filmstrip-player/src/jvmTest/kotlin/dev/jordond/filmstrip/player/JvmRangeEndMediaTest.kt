@@ -1,6 +1,6 @@
 package dev.jordond.filmstrip.player
 
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.outputSlotOf
 import dev.jordond.filmstrip.edit.outputSlotsOf
@@ -278,7 +278,7 @@ private class StoppingPlanner(
 
   override suspend fun open(
     plan: PreviewPlan,
-    composition: EditComposition,
+    composition: Composition,
     at: Duration,
   ): PreviewStreamResult {
     opened.incrementAndGet()

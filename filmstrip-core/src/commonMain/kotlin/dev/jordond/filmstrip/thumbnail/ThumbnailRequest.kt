@@ -2,7 +2,7 @@ package dev.jordond.filmstrip.thumbnail
 
 import dev.drewhamilton.poko.Poko
 import dev.jordond.filmstrip.FilmstripError
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.media.PlatformImage
 import kotlin.time.Duration
@@ -52,7 +52,7 @@ public fun interface ThumbnailCallback {
  */
 @Poko
 public class ThumbnailRequest(
-  public val composition: EditComposition,
+  public val composition: Composition,
   public val position: Duration,
   public val heightPx: Int?,
   public val effectsRevision: Long,

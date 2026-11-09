@@ -4,7 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.withFrameNanos
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.player.PlayerConfig
 import dev.jordond.filmstrip.player.PreviewFactory
 import dev.jordond.filmstrip.player.VideoPlayer
@@ -30,7 +30,7 @@ import dev.jordond.filmstrip.player.VideoPlayer
 @Composable
 public fun rememberFilmstripPlayer(
   previews: PreviewFactory,
-  composition: EditComposition,
+  composition: Composition,
   config: PlayerConfig = PlayerConfig(),
 ): VideoPlayer {
   val player =

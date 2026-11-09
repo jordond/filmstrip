@@ -2,7 +2,7 @@ package dev.jordond.filmstrip.media3
 
 import android.graphics.Bitmap
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effects.color.Brightness
@@ -121,7 +121,7 @@ class AndroidColorGradeHdrMediaTest {
     source: MediaSource,
     effects: List<EffectSpec>,
   ): File {
-    val composition = EditComposition(listOf(Track(listOf(Clip(source)))), effects)
+    val composition = Composition(listOf(Track(listOf(Clip(source)))), effects)
     return probe.export(composition, ExportSpec(hdr = HdrMode.KeepHdr))
   }
 

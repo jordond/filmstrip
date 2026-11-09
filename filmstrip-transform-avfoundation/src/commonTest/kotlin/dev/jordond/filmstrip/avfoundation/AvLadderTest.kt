@@ -7,7 +7,7 @@ import dev.jordond.filmstrip.capability.VideoEncoderCapability
 import dev.jordond.filmstrip.codec.AudioCodec
 import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.effect.EffectResolver
 import dev.jordond.filmstrip.effect.RenderApi
@@ -109,7 +109,7 @@ class AvLadderTest {
     )
 
   private fun compositionOf(source: MediaSource) =
-    EditComposition(listOf(Track(listOf(Clip(source, trim = null, effects = emptyList())))))
+    Composition(listOf(Track(listOf(Clip(source, trim = null, effects = emptyList())))))
 
   private fun infos(
     source: MediaSource,

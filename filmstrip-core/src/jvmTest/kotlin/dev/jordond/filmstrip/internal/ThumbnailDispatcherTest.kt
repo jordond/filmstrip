@@ -3,7 +3,7 @@ package dev.jordond.filmstrip.internal
 import dev.jordond.filmstrip.Cancellable
 import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.internal.HeightAwareThumbnailSource.Companion.NATURAL_HEIGHT
@@ -179,8 +179,8 @@ class ThumbnailDispatcherTest {
 
     val POSITIONS: List<Duration> = List(3) { (it * 500).milliseconds }
 
-    val COMPOSITION: EditComposition =
-      EditComposition(
+    val COMPOSITION: Composition =
+      Composition(
         tracks = listOf(Track(listOf(Clip(MediaSource.of("strip.mp4"), TimeRange.of(Duration.ZERO, 4.seconds))))),
       )
   }

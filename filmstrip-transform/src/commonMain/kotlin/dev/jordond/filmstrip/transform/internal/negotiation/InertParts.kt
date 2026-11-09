@@ -3,7 +3,7 @@ package dev.jordond.filmstrip.transform.internal.negotiation
 import dev.jordond.filmstrip.edit.AudioLevel
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.TrackContent
@@ -35,7 +35,7 @@ import kotlin.time.Duration
  * An edit with every part that renders nothing taken out, and a notice for each part taken.
  */
 internal class InertElision(
-  val edit: EditComposition,
+  val edit: Composition,
   val notices: List<InertNotice>,
 )
 
@@ -55,7 +55,7 @@ internal class InertElision(
  * the refusal reads what the caller wrote.
  */
 internal fun withoutInert(
-  edit: EditComposition,
+  edit: Composition,
   ask: Ask,
   framing: Framing,
   streams: Streams,
@@ -139,7 +139,7 @@ internal fun withoutInert(
     }
 
   if (notices.isEmpty()) return InertElision(edit, emptyList())
-  return InertElision(EditComposition(tracks, effects, edit.audio, fill), notices)
+  return InertElision(Composition(tracks, effects, edit.audio, fill), notices)
 }
 
 // One run of a declared effect: the chain it sits in, the frame that chain opens on, or null when the clip carries
@@ -268,7 +268,7 @@ private fun clipOutFrame(
 ): Size? = clipEntryFrame(clip, ask)?.let { frameThrough(it, listOf(clip.effects + track.effects)) }
 
 private fun clipIsSilent(
-  edit: EditComposition,
+  edit: Composition,
   streams: Streams,
   track: Track,
   clip: Clip,

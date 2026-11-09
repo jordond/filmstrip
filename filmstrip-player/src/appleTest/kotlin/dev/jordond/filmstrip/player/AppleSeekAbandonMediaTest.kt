@@ -1,7 +1,7 @@
 package dev.jordond.filmstrip.player
 
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.media.MediaSource
@@ -96,14 +96,12 @@ class AppleSeekAbandonMediaTest {
       }
     }
 
-  private fun unreadableComposition(): EditComposition =
-    clipOf(MediaSource.of(appleFixtureClip() + ".absent"), CLIP_LENGTH)
+  private fun unreadableComposition(): Composition = clipOf(MediaSource.of(appleFixtureClip() + ".absent"), CLIP_LENGTH)
 
-  private fun shorterComposition(): EditComposition = clipOf(MediaSource.of(appleFixtureClip()), CLIP_LENGTH / 2)
+  private fun shorterComposition(): Composition = clipOf(MediaSource.of(appleFixtureClip()), CLIP_LENGTH / 2)
 
   private fun clipOf(
     source: MediaSource,
     length: Duration,
-  ): EditComposition =
-    EditComposition(tracks = listOf(Track(listOf(Clip(source, TimeRange.of(Duration.ZERO, length))))))
+  ): Composition = Composition(tracks = listOf(Track(listOf(Clip(source, TimeRange.of(Duration.ZERO, length))))))
 }

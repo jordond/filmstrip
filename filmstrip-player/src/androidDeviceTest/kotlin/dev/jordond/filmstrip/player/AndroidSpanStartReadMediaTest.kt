@@ -1,7 +1,7 @@
 package dev.jordond.filmstrip.player
 
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.outputLengthOf
@@ -37,7 +37,7 @@ class AndroidSpanStartReadMediaTest {
       val moving = AndroidClipParity.movingSource()
       for (speed in listOf(1.0, SPED_UP)) {
         val second = Clip(moving, TimeRange.of(Duration.ZERO, 1.seconds), speed = speed)
-        val edit = EditComposition(listOf(Track(listOf(Clip(moving, TimeRange.of(Duration.ZERO, OPENING)), second))))
+        val edit = Composition(listOf(Track(listOf(Clip(moving, TimeRange.of(Duration.ZERO, OPENING)), second))))
         val slot = outputSlotOf(OPENING + outputLengthOf(OPENING, speed), FIXTURE_FRAME_RATE)
         val at = outputSlotTime(slot, FIXTURE_FRAME_RATE)
 
@@ -57,7 +57,7 @@ class AndroidSpanStartReadMediaTest {
 
   private suspend fun previewFrame(
     engine: PlayerEngine,
-    edit: EditComposition,
+    edit: Composition,
     at: Duration,
   ): ReadbackFrame {
     var frame: ReadbackFrame? = null

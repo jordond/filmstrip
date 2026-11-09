@@ -1,7 +1,7 @@
 package dev.jordond.filmstrip.player
 
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.TrackContent
@@ -116,9 +116,9 @@ class AppleHeldTailSeekMediaTest {
       }
     }
 
-  private fun heldTailComposition(): EditComposition {
+  private fun heldTailComposition(): Composition {
     val source = MediaSource.of(appleFixtureClip())
-    return EditComposition(
+    return Composition(
       tracks =
         listOf(
           Track(listOf(Clip(source, TimeRange.of(Duration.ZERO, PRIMARY_LENGTH)))),

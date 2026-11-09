@@ -1,7 +1,7 @@
 package dev.jordond.filmstrip.avfoundation
 
 import dev.jordond.filmstrip.Filmstrip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.export.ExportSpec
@@ -186,7 +186,7 @@ class AppleImageExportHardwareTest {
     }
 
   private suspend fun plan(
-    composition: EditComposition,
+    composition: Composition,
     spec: ExportSpec = ExportSpec(),
   ) = when (val verdict = withContext(Dispatchers.Default) { filmstrip.plan(composition, spec) }) {
     is Verdict.Capable -> verdict.plan
@@ -195,7 +195,7 @@ class AppleImageExportHardwareTest {
   }
 
   private suspend fun exported(
-    composition: EditComposition,
+    composition: Composition,
     spec: ExportSpec,
     output: String,
   ): ExportStatus.Success =
@@ -209,7 +209,7 @@ class AppleImageExportHardwareTest {
       }
     }
 
-  private fun composition(vararg sources: MediaSource): EditComposition =
+  private fun composition(vararg sources: MediaSource): Composition =
     compositionOf {
       sources.forEach { source ->
         when (source) {

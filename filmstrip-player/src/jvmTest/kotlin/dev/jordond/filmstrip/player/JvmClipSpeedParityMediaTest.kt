@@ -2,7 +2,7 @@ package dev.jordond.filmstrip.player
 
 import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.outputSlotTime
@@ -43,7 +43,7 @@ class JvmClipSpeedParityMediaTest : ClipSpeedParityContractTest(JvmClipParity) {
       val trim = TimeRange.of(Duration.ZERO, 1.seconds)
       val next = outputSlotTime(1, frameRate)
       listOf(1.0, 4.0).forEach { speed ->
-        val edit = EditComposition(listOf(Track(listOf(Clip(source, trim, speed = speed)))))
+        val edit = Composition(listOf(Track(listOf(Clip(source, trim, speed = speed)))))
         val engine = createEngine(scope)
         withEngine(engine) { recorder ->
           engine.setQualityPolicy(PreviewQualityPolicy.Full)
@@ -92,11 +92,11 @@ internal object JvmClipParity : ClipParityBackend {
    */
   fun movingSourceAt(rate: Int): MediaSource = moving.getOrPut(rate) { drawMovingSource(rate) }
 
-  override suspend fun exportedSource(composition: EditComposition): MediaSource =
+  override suspend fun exportedSource(composition: Composition): MediaSource =
     MediaSource.of(jvmExportedFile(composition))
 
   override suspend fun exportFrame(
-    composition: EditComposition,
+    composition: Composition,
     position: Duration,
   ): TestFrame = jvmExportFrame(composition, position)
 

@@ -2,7 +2,7 @@ package dev.jordond.filmstrip.webcodecs
 
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.effects.geometry.Crop
 import dev.jordond.filmstrip.effects.geometry.KenBurns
@@ -29,7 +29,7 @@ class BrowserFillEdgeMediaTest {
     runTest {
       listOf(Size(384, 218), Size(384, 220)).forEach { second ->
         val composition =
-          EditComposition(
+          Composition(
             tracks =
               listOf(
                 Track(
@@ -54,7 +54,7 @@ class BrowserFillEdgeMediaTest {
       val wide = Crop(AspectRatio(16, 9), Fit.Contain)
       val pan = KenBurns(NormalizedRect.Full, NormalizedRect(0f, 0f, 0.5f, 0.5f))
       val composition =
-        EditComposition(
+        Composition(
           tracks = listOf(Track(listOf(Clip(square, effects = listOf(wide, pan))))),
           audio = AudioSpec.Remove,
           fill = Fill.Blurred(),

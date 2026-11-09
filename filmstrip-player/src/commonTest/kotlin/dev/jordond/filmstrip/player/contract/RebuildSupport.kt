@@ -1,6 +1,6 @@
 package dev.jordond.filmstrip.player.contract
 
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.outputSlotOf
 import dev.jordond.filmstrip.edit.outputSlotTime
@@ -18,7 +18,7 @@ import kotlin.time.Duration
  * The timeline changes, so a backend rebuilds its graph for it, and the duration stays what it was, so a playhead held
  * across the rebuild has the same slots to land on.
  */
-internal fun EditComposition.cutInTwo(frameRate: Int): EditComposition {
+internal fun Composition.cutInTwo(frameRate: Int): Composition {
   val clip = clips.firstOrNull() ?: fail("The fixture has no clip to cut.")
   val trim = clip.trim ?: fail("The fixture's first clip has no trim to cut.")
   val end = trim.endExclusive ?: fail("The fixture's first clip has no end to cut at.")
@@ -30,7 +30,7 @@ internal fun EditComposition.cutInTwo(frameRate: Int): EditComposition {
 /**
  * This composition with its first clip trimmed to [length] and every later clip on its track dropped.
  */
-internal fun EditComposition.shortenedTo(length: Duration): EditComposition {
+internal fun Composition.shortenedTo(length: Duration): Composition {
   val clip = clips.firstOrNull() ?: fail("The fixture has no clip to shorten.")
   val start = clip.trim?.start ?: Duration.ZERO
   return withClips(listOf(clip.withTrim(TimeRange.of(start, start + length))))
@@ -74,7 +74,7 @@ internal suspend fun PlayerEngine.seekAndWait(
  */
 internal suspend fun PlayerEngine.loadSeekable(
   recorder: ContractRecorder,
-  composition: EditComposition,
+  composition: Composition,
 ): Duration {
   awaitComposition(composition).shouldBeInstanceOf<SetCompositionResult.Success>()
   awaitContract("the engine to become seekable") { recorder.lastState.hasComposition }

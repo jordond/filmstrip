@@ -1,7 +1,7 @@
 package dev.jordond.filmstrip.player
 
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.export.ExportSpec
@@ -63,8 +63,8 @@ class AndroidPreviewPlanTest {
   private fun Media3Span.laid(): Triple<Long, Long, List<Pair<Duration, Duration>>> =
     Triple(item.clippingConfiguration.startPositionUs, item.clippingConfiguration.endPositionUs, shown)
 
-  private fun openingInsideAFrame(): EditComposition =
-    EditComposition(
+  private fun openingInsideAFrame(): Composition =
+    Composition(
       tracks =
         listOf(
           Track(

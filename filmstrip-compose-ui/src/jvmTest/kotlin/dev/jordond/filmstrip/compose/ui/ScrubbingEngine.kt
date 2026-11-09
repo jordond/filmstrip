@@ -3,7 +3,7 @@ package dev.jordond.filmstrip.compose.ui
 import dev.jordond.filmstrip.Cancellable
 import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.export.ExportSpec
@@ -115,8 +115,8 @@ internal val CLIP_LENGTH: Duration = 30.seconds
 /**
  * A one clip composition over a path nothing here ever opens.
  */
-internal fun testComposition(): EditComposition =
-  EditComposition(
+internal fun testComposition(): Composition =
+  Composition(
     tracks = listOf(Track(listOf(Clip(MediaSource.of("scrub.mp4"), TimeRange.of(Duration.ZERO, CLIP_LENGTH))))),
   )
 

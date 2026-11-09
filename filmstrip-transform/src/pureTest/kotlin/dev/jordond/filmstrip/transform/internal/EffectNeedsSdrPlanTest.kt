@@ -1,6 +1,6 @@
 package dev.jordond.filmstrip.transform.internal
 
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effects.filters.vhs.Vhs
@@ -57,9 +57,9 @@ class EffectNeedsSdrPlanTest {
   @Test
   fun `an effect that needs sdr at track and composition scope counts the same`() {
     val atTrack =
-      EditComposition(listOf(Track(listOf(fixture.clip(hdr = HdrTransfer.Pq)), effects = listOf(needsSdr))))
+      Composition(listOf(Track(listOf(fixture.clip(hdr = HdrTransfer.Pq)), effects = listOf(needsSdr))))
     val atComposition =
-      EditComposition(listOf(Track(listOf(fixture.clip(hdr = HdrTransfer.Pq)))), effects = listOf(needsSdr))
+      Composition(listOf(Track(listOf(fixture.clip(hdr = HdrTransfer.Pq)))), effects = listOf(needsSdr))
 
     fixture.resolve(atTrack, device = encodesHdr).hdr shouldBe ResolvedHdr.ToneMap
     fixture.resolve(atComposition, device = encodesHdr).hdr shouldBe ResolvedHdr.ToneMap

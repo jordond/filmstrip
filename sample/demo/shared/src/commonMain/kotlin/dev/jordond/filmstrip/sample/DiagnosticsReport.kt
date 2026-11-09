@@ -4,7 +4,7 @@ import dev.jordond.filmstrip.CapabilitiesResult
 import dev.jordond.filmstrip.ExperimentalFilmstripApi
 import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.FilmstripVersion
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.export.Adjustment
 import dev.jordond.filmstrip.export.ExportPlan
@@ -256,7 +256,7 @@ private fun TimeRange?.summary(): String {
 
 private fun FilmstripError.line(): String = "${this::class.simpleName ?: "Error"}: $message"
 
-private fun EditComposition.effectIds(): List<String> =
+private fun Composition.effectIds(): List<String> =
   (effects + tracks.flatMap { track -> track.effects + track.clips.flatMap { it.effects } }).map { it.id }
 
 /**
@@ -279,7 +279,7 @@ private fun ExportSpec.asJson(): JsonObject =
  * track, what is applied to them and where the cut is. Sources are named by [redactedName], so no
  * path reaches the report.
  */
-private fun EditComposition.asJson(trim: TimeRange?): JsonObject =
+private fun Composition.asJson(trim: TimeRange?): JsonObject =
   buildJsonObject {
     putJsonArray("tracks") {
       tracks.forEach { track ->

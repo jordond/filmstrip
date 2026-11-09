@@ -2,7 +2,7 @@ package dev.jordond.filmstrip.player
 
 import dev.jordond.filmstrip.Cancellable
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.outputSlotOf
@@ -171,7 +171,7 @@ class JvmThumbnailGapMediaTest {
     createThumbnailSource(request, CONTRACT_COMPONENTS) ?: fail("no thumbnail source claimed the fixture")
 
   private fun request(
-    composition: EditComposition,
+    composition: Composition,
     position: Duration,
     revision: Long,
   ) = ThumbnailRequest(composition, position, FIXTURE_FRAME.height, revision, precise = true)
@@ -180,8 +180,8 @@ class JvmThumbnailGapMediaTest {
   private fun lateComposition(
     effects: List<EffectSpec> = emptyList(),
     fill: Int = FILL_ARGB,
-  ): EditComposition =
-    EditComposition(
+  ): Composition =
+    Composition(
       tracks =
         listOf(
           Track(
@@ -199,7 +199,7 @@ class JvmThumbnailGapMediaTest {
   // The badge's middle reads its own color, the point mirrored across the frame reads the fill, and so does the centre.
   private suspend fun TestFrame.assertBadgeOverFill(
     mark: ImageOverlay,
-    composition: EditComposition,
+    composition: Composition,
   ) {
     val rect = mark.placedOn(size, BADGE).rectOn(size)
     val midX = (rect.left + rect.right) / 2f

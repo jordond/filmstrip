@@ -1,7 +1,7 @@
 package dev.jordond.filmstrip.effects.overlay
 
 import dev.jordond.filmstrip.color.pictureSrgbCodes
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.effect.Attributes
@@ -416,7 +416,7 @@ class StoredPictureTest {
     file.writeBytes(first)
     val image = ImageSource.of(file.path)
     val composition =
-      EditComposition(
+      Composition(
         tracks = listOf(Track(emptyList())),
         effects = listOf(ImageOverlay(image, Corner.TopStart), ImageOverlay(image, Corner.BottomEnd)),
       )

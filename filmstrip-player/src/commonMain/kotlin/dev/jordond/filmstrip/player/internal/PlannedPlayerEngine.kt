@@ -1,8 +1,8 @@
 package dev.jordond.filmstrip.player.internal
 
 import dev.jordond.filmstrip.Cancellable
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.CompositionDiff
-import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.diff
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.player.PlaybackError
@@ -47,7 +47,7 @@ internal abstract class PlannedPlayerEngine<P : PlannedPreview>(
   /**
    * The edit the plan in place was lowered from, or null when nothing is loaded.
    */
-  protected var loaded: EditComposition? = null
+  protected var loaded: Composition? = null
 
   /**
    * The plan in place, which [apply] records once its graph is built, or null before one is.
@@ -71,7 +71,7 @@ internal abstract class PlannedPlayerEngine<P : PlannedPreview>(
   private var standingRefused: Boolean = false
 
   // The last edit asked for, which a refused load never made [loaded] and new inputs may still be able to show.
-  private var requested: EditComposition? = null
+  private var requested: Composition? = null
 
   /**
    * The load outstanding now, which [launchLoad] records and [setComposition] settles once its plan is in place.

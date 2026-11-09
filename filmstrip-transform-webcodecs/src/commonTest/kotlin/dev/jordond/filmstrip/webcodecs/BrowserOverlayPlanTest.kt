@@ -8,7 +8,7 @@ import dev.jordond.filmstrip.codec.AudioCodec
 import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.effect.Attributes
@@ -69,7 +69,7 @@ class BrowserOverlayPlanTest {
       val onClip = ImageOverlay(IMAGE, Corner.TopStart)
       val onComposition = ImageOverlay(IMAGE, Corner.BottomEnd)
       val composition =
-        EditComposition(
+        Composition(
           tracks = listOf(Track(listOf(Clip(FILLER), Clip(SOURCE, effects = listOf(onClip))))),
           effects = listOf(onComposition),
           audio = AudioSpec.Remove,
@@ -241,7 +241,7 @@ class BrowserOverlayPlanTest {
     }
 
   private suspend fun lower(
-    composition: EditComposition,
+    composition: Composition,
     infos: Map<MediaSource, MediaInfo> = infosOf(composition),
     spec: ExportSpec = SPEC,
     device: DeviceCapabilities = DEVICE,
@@ -257,14 +257,14 @@ class BrowserOverlayPlanTest {
   private fun compositionOf(
     clipEffects: List<EffectSpec> = emptyList(),
     effects: List<EffectSpec> = emptyList(),
-  ): EditComposition =
-    EditComposition(
+  ): Composition =
+    Composition(
       tracks = listOf(Track(listOf(Clip(SOURCE, effects = clipEffects)))),
       effects = effects,
       audio = AudioSpec.Remove,
     )
 
-  private fun infosOf(composition: EditComposition): Map<MediaSource, MediaInfo> =
+  private fun infosOf(composition: Composition): Map<MediaSource, MediaInfo> =
     composition.clips.associate { it.source to infoOf(OUTPUT_FRAME) }
 
   private fun infoOf(

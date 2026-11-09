@@ -1,6 +1,6 @@
 package dev.jordond.filmstrip
 
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.effect.Attributes
 import dev.jordond.filmstrip.effect.EffectResolution
@@ -57,7 +57,7 @@ class ComponentsReachFactoriesTest {
       seen.shouldNotBeNull().effectResolvers shouldContain resolver
     }
 
-  private fun oneClip(): EditComposition = compositionOf { clip(MediaSource.of("/fixtures/clip.mp4")) }
+  private fun oneClip(): Composition = compositionOf { clip(MediaSource.of("/fixtures/clip.mp4")) }
 
   // Declines every spec. A class rather than a lambda, because the test recognises the instance it
   // registered and non-capturing lambdas of the same body share one.

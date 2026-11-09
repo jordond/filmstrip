@@ -7,7 +7,7 @@ import dev.jordond.filmstrip.capability.FidelityNote
 import dev.jordond.filmstrip.capability.OutputProperty
 import dev.jordond.filmstrip.capability.PreviewFidelity
 import dev.jordond.filmstrip.edit.AudioSpec
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.player.PlaybackError
 import dev.jordond.filmstrip.player.PreviewInfo
@@ -29,7 +29,7 @@ import dev.jordond.filmstrip.webcodecs.webCodecsExportEngine
  *   the plan came back with.
  */
 internal class BrowserPreviewPlan(
-  val edit: EditComposition,
+  val edit: Composition,
   override val resolved: ResolvedComposition,
   override val info: PreviewInfo,
 ) : PlannedPreview
@@ -52,7 +52,7 @@ internal open class BrowserPreviewPlanner(
   private val engine = webCodecsExportEngine(components, readDevice = readDevice)
 
   override suspend fun plan(
-    composition: EditComposition,
+    composition: Composition,
     policy: PreviewQualityPolicy,
     exportSpec: ExportSpec,
   ): PlanResult<BrowserPreviewPlan, PlaybackError> {

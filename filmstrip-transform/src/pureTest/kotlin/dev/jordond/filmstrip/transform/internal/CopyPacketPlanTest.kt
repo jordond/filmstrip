@@ -1,7 +1,7 @@
 package dev.jordond.filmstrip.transform.internal
 
 import dev.jordond.filmstrip.FilmstripError
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.effect.EffectResolver
 import dev.jordond.filmstrip.effects.color.Sepia
@@ -208,7 +208,7 @@ class CopyPacketPlanTest {
   }
 
   private fun ask(
-    composition: EditComposition,
+    composition: Composition,
     spec: ExportSpec = ExportSpec(),
     opening: Duration = 1_000.milliseconds,
     packets: List<CopyPacket>? = null,

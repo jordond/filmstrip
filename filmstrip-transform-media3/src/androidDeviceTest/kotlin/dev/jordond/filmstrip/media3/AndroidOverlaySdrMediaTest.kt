@@ -2,7 +2,7 @@ package dev.jordond.filmstrip.media3
 
 import android.graphics.Color
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effects.geometry.Crop
@@ -80,7 +80,7 @@ class AndroidOverlaySdrMediaTest {
   private fun letterboxed(
     source: MediaSource,
     effects: List<EffectSpec>,
-  ) = EditComposition(
+  ) = Composition(
     listOf(Track(listOf(Clip(source)))),
     listOf(Crop(AspectRatio.Square, fit = Fit.Contain)) + effects,
     fill = Fill.Solid(FILL_ARGB),

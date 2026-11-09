@@ -7,7 +7,7 @@ import dev.jordond.filmstrip.color.HDR_REFERENCE_WHITE_NITS
 import dev.jordond.filmstrip.color.sdrSignalFromNits
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.outputSlotOf
 import dev.jordond.filmstrip.edit.outputSlotTime
@@ -212,7 +212,7 @@ class BrowserOverlayHdrMediaTest {
    */
   private suspend fun gapFrameOf(
     transfer: HdrTransfer,
-    composition: EditComposition,
+    composition: Composition,
   ): TenBitFrame {
     val frames = decodeTenBitFrames(exported(composition, transfer), transfer)
     val gapUs = GAP_TIME.inWholeMicroseconds.toDouble()
@@ -229,7 +229,7 @@ class BrowserOverlayHdrMediaTest {
    */
   private suspend fun rectsOf(
     transfer: HdrTransfer,
-    composition: EditComposition,
+    composition: Composition,
   ): List<NormalizedRect> {
     val resolved = engine().resolve(composition, SPEC).shouldBeInstanceOf<ResolveResult.Resolved>().composition
     val render = browserRenderOf(resolved, composition)
@@ -245,10 +245,10 @@ class BrowserOverlayHdrMediaTest {
     transfer: HdrTransfer,
     background: Int,
     overlays: List<EffectSpec>,
-  ): EditComposition {
+  ): Composition {
     val clip =
       makeHdrClip(transfer, width = WIDTH, height = HEIGHT, frames = CLIP_FRAMES, frameRate = FRAME_RATE) { PICTURE }
-    return EditComposition(
+    return Composition(
       tracks = listOf(Track(listOf(Clip(MediaSource.Bytes(clip))), start = LATE_START)),
       effects = overlays,
       audio = AudioSpec.Remove,
@@ -257,7 +257,7 @@ class BrowserOverlayHdrMediaTest {
   }
 
   private suspend fun exported(
-    composition: EditComposition,
+    composition: Composition,
     transfer: HdrTransfer,
   ): MediaSource {
     val engine = engine()

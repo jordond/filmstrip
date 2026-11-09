@@ -6,7 +6,7 @@ import dev.jordond.filmstrip.avfoundation.internal.composition.sdrHead
 import dev.jordond.filmstrip.avfoundation.internal.export.AvDriver
 import dev.jordond.filmstrip.color.SMPTE_C_PRIMARIES
 import dev.jordond.filmstrip.color.sdSourceDisplayed
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.effects.color.createCodeSpace
 import dev.jordond.filmstrip.export.ExportSpec
@@ -105,7 +105,7 @@ class SdrSourceColorHardwareTest {
       avFoundationExportEngine(components, prober, AvDriver(prober))
     }
 
-  private fun beside(sdr: String): EditComposition =
+  private fun beside(sdr: String): Composition =
     compositionOf {
       clip(MediaSource.of(hdrFixture(HdrTransfer.Hlg))) { trim(Duration.ZERO, CLIP) }
       clip(MediaSource.of(sdr)) { trim(Duration.ZERO, CLIP) }

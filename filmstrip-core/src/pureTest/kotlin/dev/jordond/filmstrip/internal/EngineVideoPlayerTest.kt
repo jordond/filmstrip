@@ -1,7 +1,7 @@
 package dev.jordond.filmstrip.internal
 
 import dev.jordond.filmstrip.capability.EffectParity
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.export.ExportSpec
@@ -289,8 +289,8 @@ class EngineVideoPlayerTest {
   }
 
   private companion object {
-    val FIRST: EditComposition = compositionOf { clip(MediaSource.of("/fixtures/first.mp4")) }
+    val FIRST: Composition = compositionOf { clip(MediaSource.of("/fixtures/first.mp4")) }
 
-    val SECOND: EditComposition = compositionOf { clip(MediaSource.of("/fixtures/second.mp4")) }
+    val SECOND: Composition = compositionOf { clip(MediaSource.of("/fixtures/second.mp4")) }
   }
 }

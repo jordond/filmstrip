@@ -3,7 +3,7 @@ package dev.jordond.filmstrip.webcodecs
 import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.outputSlotTime
 import dev.jordond.filmstrip.effect.EffectResolution
@@ -73,7 +73,7 @@ class BrowserTimedPassMediaTest {
   private suspend fun exported(effects: List<EffectSpec>): List<OutputFrame> {
     val bytes = makePixelClip(frames = FRAMES, frameRate = FRAME_RATE) { _, x, _ -> BANDS[x * BANDS.size / WIDTH] }
     val composition =
-      EditComposition(
+      Composition(
         tracks = listOf(Track(listOf(Clip(MediaSource.Bytes(bytes), effects = effects)))),
         audio = AudioSpec.Remove,
       )

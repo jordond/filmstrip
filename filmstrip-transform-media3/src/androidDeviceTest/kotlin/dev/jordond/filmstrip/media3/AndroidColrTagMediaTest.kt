@@ -4,7 +4,7 @@ import android.media.MediaExtractor
 import android.media.MediaFormat
 import android.os.Build.VERSION.SDK_INT
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.MediaSource
@@ -35,7 +35,7 @@ class AndroidColrTagMediaTest {
   fun bt709PrimariesBesideTheBt601MatrixReadAsNoNamedStandard() =
     runTest(timeout = TIMEOUT) {
       assumeTrue("color standard $BT709_PRIMARIES_BT601_MATRIX was not measured on API $SDK_INT", SDK_INT in MEASURED)
-      val exported = probe.export(EditComposition(listOf(Track(listOf(Clip(probe.fixture()))))))
+      val exported = probe.export(Composition(listOf(Track(listOf(Clip(probe.fixture()))))))
       val patched = File(exported.parentFile, "colr-bt709-bt601.mp4")
       exported.copyTo(patched, overwrite = true)
 

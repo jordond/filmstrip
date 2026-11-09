@@ -4,7 +4,7 @@ import dev.jordond.filmstrip.ComponentRegistry
 import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.TrackContent
@@ -263,7 +263,7 @@ class BrowserOverlayExportMediaTest {
         makeClip(width = WIDTH, height = HEIGHT, frames = FRAME_RATE, frameRate = FRAME_RATE, color = Rgb.Blue)
       val bed = makeClip(width = WIDTH, height = HEIGHT, frames = BED_FRAMES, frameRate = FRAME_RATE)
       val composition =
-        EditComposition(
+        Composition(
           tracks =
             listOf(
               Track(listOf(Clip(MediaSource.Bytes(primary)))),
@@ -335,9 +335,9 @@ class BrowserOverlayExportMediaTest {
     frames: Int = SHORT_FRAMES,
     start: Duration = Duration.ZERO,
     fill: Fill = Fill.Black,
-  ): EditComposition {
+  ): Composition {
     val clip = makeClip(width = WIDTH, height = HEIGHT, frames = frames, frameRate = FRAME_RATE, color = Rgb.Blue)
-    return EditComposition(
+    return Composition(
       tracks = listOf(Track(listOf(Clip(MediaSource.Bytes(clip), effects = clipEffects)), start = start)),
       effects = effects,
       audio = AudioSpec.Remove,
@@ -353,7 +353,7 @@ class BrowserOverlayExportMediaTest {
     clipEffects: List<EffectSpec> = emptyList(),
     effects: List<EffectSpec> = emptyList(),
     fill: Fill = Fill.Solid(AuthoredColors.MID_GREY),
-  ): EditComposition {
+  ): Composition {
     val landscape =
       makeClip(width = WIDTH, height = HEIGHT, frames = SHORT_FRAMES, frameRate = FRAME_RATE, color = Rgb.Green)
     val portrait =
@@ -364,7 +364,7 @@ class BrowserOverlayExportMediaTest {
         frameRate = FRAME_RATE,
         color = Rgb.Blue,
       )
-    return EditComposition(
+    return Composition(
       tracks =
         listOf(
           Track(listOf(Clip(MediaSource.Bytes(landscape)), Clip(MediaSource.Bytes(portrait), effects = clipEffects))),
@@ -375,7 +375,7 @@ class BrowserOverlayExportMediaTest {
     )
   }
 
-  private suspend fun exported(composition: EditComposition): List<OutputFrame> {
+  private suspend fun exported(composition: Composition): List<OutputFrame> {
     val engine = engine()
     val plan =
       when (val verdict = engine.plan(composition, SPEC)) {

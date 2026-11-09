@@ -6,7 +6,7 @@ import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.outputSlotTime
 import dev.jordond.filmstrip.effect.EffectSpec
@@ -284,7 +284,7 @@ class BrowserVhsMediaTest {
     runTest {
       val wide = MediaSource.Bytes(makeClip(WIDE_CROP_WIDTH, WIDE_CROP_HEIGHT, FRAMES, FRAME_RATE) { _, _ -> GREY })
       val fitted =
-        EditComposition(
+        Composition(
           tracks =
             listOf(
               Track(
@@ -315,7 +315,7 @@ class BrowserVhsMediaTest {
     }
 
   private suspend fun drawn(
-    composition: EditComposition,
+    composition: Composition,
     spec: ExportSpec = SPEC,
   ): PreviewFrame {
     val preview = previewOf(composition, spec)
@@ -327,12 +327,12 @@ class BrowserVhsMediaTest {
   }
 
   private suspend fun previewOf(
-    composition: EditComposition,
+    composition: Composition,
     spec: ExportSpec,
   ): BrowserPreview = resolvedOf(composition, spec).toBrowserPreview(composition)
 
   private suspend fun resolvedOf(
-    composition: EditComposition,
+    composition: Composition,
     spec: ExportSpec,
   ) = webCodecsExportEngine(
     components =
@@ -350,7 +350,7 @@ class BrowserVhsMediaTest {
     clip: Clip,
     effects: List<EffectSpec> = emptyList(),
     fill: Fill = Fill.Solid(BLACK_ARGB),
-  ) = EditComposition(
+  ) = Composition(
     tracks = listOf(Track(listOf(clip))),
     effects = effects,
     fill = fill,

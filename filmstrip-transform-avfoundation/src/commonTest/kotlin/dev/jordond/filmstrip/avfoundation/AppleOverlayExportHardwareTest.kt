@@ -2,7 +2,7 @@ package dev.jordond.filmstrip.avfoundation
 
 import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.FilmstripError
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.effect.EffectIds
@@ -462,7 +462,7 @@ class AppleOverlayExportHardwareTest {
   }
 
   private suspend fun exported(
-    composition: EditComposition,
+    composition: Composition,
     spec: ExportSpec,
     output: String,
   ): ExportStatus.Success =

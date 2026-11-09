@@ -4,7 +4,7 @@ import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.codec.AudioCodec
 import dev.jordond.filmstrip.codec.Bitrate
 import dev.jordond.filmstrip.codec.VideoCodec
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.export.ExportPlan
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.ExportStatus
@@ -37,7 +37,7 @@ internal fun webCodecsFilmstrip(): Filmstrip = Filmstrip { webCodecsBackend() }
  */
 internal suspend fun planOf(
   filmstrip: Filmstrip,
-  composition: EditComposition,
+  composition: Composition,
   spec: ExportSpec = ExportSpec(videoCodec = VideoCodec.H264, audioCodec = AudioCodec.None),
 ): ExportPlan =
   when (val verdict = filmstrip.plan(composition, spec)) {
@@ -51,7 +51,7 @@ internal suspend fun planOf(
  * success. A failure status fails the test with its message.
  */
 internal suspend fun exportOf(
-  composition: EditComposition,
+  composition: Composition,
   to: MediaSink = MediaSink.Temporary,
   spec: ExportSpec = ExportSpec(videoCodec = VideoCodec.H264, audioCodec = AudioCodec.None),
 ): ExportStatus.Success {

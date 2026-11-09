@@ -16,7 +16,7 @@ import dev.jordond.filmstrip.color.EBU_PRIMARIES
 import dev.jordond.filmstrip.color.SMPTE_C_PRIMARIES
 import dev.jordond.filmstrip.color.sdPrimariesToBt709
 import dev.jordond.filmstrip.color.sdSourceDisplayed
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.effects.BuiltInEffectResolver
@@ -237,7 +237,7 @@ class SdColorHeadHardwareTest {
     }
 
   private suspend fun resolved(
-    composition: EditComposition,
+    composition: Composition,
     spec: ExportSpec,
   ): ResolvedComposition {
     val components = ComponentRegistry.Builder().addEffectResolver(BuiltInEffectResolver()).build()
@@ -250,7 +250,7 @@ class SdColorHeadHardwareTest {
   private fun inOrder(
     first: String,
     second: String,
-  ): EditComposition =
+  ): Composition =
     compositionOf {
       clip(MediaSource.of(first)) { trim(Duration.ZERO, CLIP) }
       clip(MediaSource.of(second)) { trim(Duration.ZERO, CLIP) }
@@ -293,7 +293,7 @@ class SdColorHeadHardwareTest {
     return path
   }
 
-  private suspend fun graphOf(composition: EditComposition): AvComposition =
+  private suspend fun graphOf(composition: Composition): AvComposition =
     withContext(Dispatchers.Default) {
       val components = ComponentRegistry.Builder().addEffectResolver(BuiltInEffectResolver()).build()
       when (val result = avFoundationExportEngine(components).resolve(composition, SPEC)) {
@@ -302,10 +302,10 @@ class SdColorHeadHardwareTest {
       }
     }
 
-  private fun alone(path: String): EditComposition =
+  private fun alone(path: String): Composition =
     compositionOf { clip(MediaSource.of(path)) { trim(Duration.ZERO, CLIP) } }
 
-  private fun inverted(path: String): EditComposition =
+  private fun inverted(path: String): Composition =
     compositionOf {
       clip(MediaSource.of(path)) {
         trim(Duration.ZERO, CLIP)
@@ -313,7 +313,7 @@ class SdColorHeadHardwareTest {
       }
     }
 
-  private fun invertedTwice(path: String): EditComposition =
+  private fun invertedTwice(path: String): Composition =
     compositionOf {
       clip(MediaSource.of(path)) {
         trim(Duration.ZERO, CLIP)

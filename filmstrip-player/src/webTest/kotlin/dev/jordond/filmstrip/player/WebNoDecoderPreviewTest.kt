@@ -4,7 +4,7 @@ import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.media.MediaSource
@@ -37,7 +37,7 @@ off it.
  */
 class WebNoDecoderPreviewTest {
   private val planner = BrowserPreviewPlanner(CONTRACT_COMPONENTS)
-  private val unreadable = EditComposition(tracks = listOf(Track(listOf(Clip(MediaSource.Uri("blob:nothing"))))))
+  private val unreadable = Composition(tracks = listOf(Track(listOf(Clip(MediaSource.Uri("blob:nothing"))))))
 
   // Nothing can read this source, so anything but the named refusal means a probe ran first.
   @Test

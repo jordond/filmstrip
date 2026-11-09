@@ -4,7 +4,7 @@ import dev.jordond.filmstrip.CapabilitiesResult
 import dev.jordond.filmstrip.ComponentRegistry
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.effect.Attributes
@@ -52,7 +52,7 @@ class FfmpegResolveMediaTest {
 
   private val composition
     get() =
-      EditComposition(
+      Composition(
         tracks = listOf(Track(listOf(Clip(MediaSource.of(landscape.absolutePath))))),
         effects = listOf(Brightness(BRIGHTNESS)),
         audio = AudioSpec.Remove,
@@ -155,7 +155,7 @@ class FfmpegResolveMediaTest {
       val engine =
         FfmpegExportEngine(ComponentRegistry.Builder().addEffectResolver(BuiltInEffectResolver()).build(), runtime)
       val trimmed =
-        EditComposition(
+        Composition(
           listOf(
             Track(
               listOf(

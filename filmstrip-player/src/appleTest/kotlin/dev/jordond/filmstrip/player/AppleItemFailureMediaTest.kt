@@ -1,7 +1,7 @@
 package dev.jordond.filmstrip.player
 
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.effects.color.Brightness
@@ -351,8 +351,8 @@ class AppleItemFailureMediaTest {
       }
     }
 
-  private fun shorterComposition(): EditComposition =
-    EditComposition(
+  private fun shorterComposition(): Composition =
+    Composition(
       tracks =
         listOf(Track(listOf(Clip(MediaSource.of(appleFixtureClip()), TimeRange.of(Duration.ZERO, CLIP_LENGTH / 2))))),
     )

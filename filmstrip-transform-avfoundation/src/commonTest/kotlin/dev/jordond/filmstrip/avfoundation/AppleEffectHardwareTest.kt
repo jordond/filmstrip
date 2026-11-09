@@ -1,7 +1,7 @@
 package dev.jordond.filmstrip.avfoundation
 
 import dev.jordond.filmstrip.Filmstrip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.EffectsBuilder
 import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.effect.EffectSpec
@@ -283,7 +283,7 @@ class AppleEffectHardwareTest {
   }
 
   private suspend fun export(
-    composition: EditComposition,
+    composition: Composition,
     output: String,
   ) {
     withContext(Dispatchers.Default) {

@@ -3,7 +3,7 @@ package dev.jordond.filmstrip.player
 import dev.jordond.filmstrip.ComponentRegistry
 import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.effect.EffectSpec
@@ -47,8 +47,8 @@ internal fun jvmFixtureClip(): String {
 /**
  * One trimmed clip of the fixture, with [effects] over the whole composition.
  */
-internal fun jvmFixtureComposition(effects: List<EffectSpec> = emptyList()): EditComposition =
-  EditComposition(
+internal fun jvmFixtureComposition(effects: List<EffectSpec> = emptyList()): Composition =
+  Composition(
     tracks = listOf(Track(listOf(Clip(MediaSource.of(jvmFixtureClip()), TimeRange.of(Duration.ZERO, CLIP_LENGTH))))),
     effects = effects,
   )
@@ -56,8 +56,8 @@ internal fun jvmFixtureComposition(effects: List<EffectSpec> = emptyList()): Edi
 /**
  * The fixture composition with its clip handed over as the bytes of the file.
  */
-internal fun jvmFixtureBytesComposition(): EditComposition =
-  EditComposition(
+internal fun jvmFixtureBytesComposition(): Composition =
+  Composition(
     tracks =
       listOf(
         Track(
@@ -70,10 +70,10 @@ internal fun jvmFixtureBytesComposition(): EditComposition =
  * The fixture cut into two clips of [length] between them, which a preview cannot window with an input seek and reads
  * forward from its head instead.
  */
-internal fun jvmTwoClipComposition(length: Duration = CLIP_LENGTH): EditComposition {
+internal fun jvmTwoClipComposition(length: Duration = CLIP_LENGTH): Composition {
   val source = MediaSource.of(jvmFixtureClip())
   val half = length / 2
-  return EditComposition(
+  return Composition(
     tracks =
       listOf(
         Track(listOf(Clip(source, TimeRange.of(Duration.ZERO, half)), Clip(source, TimeRange.of(half, length)))),
@@ -84,8 +84,8 @@ internal fun jvmTwoClipComposition(length: Duration = CLIP_LENGTH): EditComposit
 /**
  * One clip of the fixture trimmed to [length], for a composition whose end falls between two frames.
  */
-internal fun jvmTrimmedComposition(length: Duration): EditComposition =
-  EditComposition(
+internal fun jvmTrimmedComposition(length: Duration): Composition =
+  Composition(
     tracks = listOf(Track(listOf(Clip(MediaSource.of(jvmFixtureClip()), TimeRange.of(Duration.ZERO, length))))),
   )
 
@@ -100,17 +100,17 @@ internal fun jvmTrimmedComposition(length: Duration): EditComposition =
  * The file is kept per composition, since the suite asks for several frames of each.
  */
 internal suspend fun jvmExportFrame(
-  composition: EditComposition,
+  composition: Composition,
   position: Duration,
 ): TestFrame = decodeFrame(jvmExportedFile(composition), position, FIXTURE_FRAME)
 
 /**
  * The file [composition] exports to, written once per composition.
  */
-internal suspend fun jvmExportedFile(composition: EditComposition): String =
+internal suspend fun jvmExportedFile(composition: Composition): String =
   exports.getOrPut(composition) { exportOf(composition) }
 
-private suspend fun exportOf(composition: EditComposition): String {
+private suspend fun exportOf(composition: Composition): String {
   val engine = ffmpegExportEngine(CONTRACT_COMPONENTS)
   val plan =
     when (val verdict = engine.plan(composition, ExportSpec(bitrate = PREVIEW_PARITY_EXPORT_BITRATE))) {
@@ -167,7 +167,7 @@ private fun decodeFrame(
   return TestFrame(pixels, size)
 }
 
-private val exports = mutableMapOf<EditComposition, String>()
+private val exports = mutableMapOf<Composition, String>()
 
 private const val FIXTURES = "filmstrip.fixtures"
 private const val CLIP_NAME = "apple_export_a.mp4"

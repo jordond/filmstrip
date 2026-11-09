@@ -11,7 +11,7 @@ import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.allBackends
 import dev.jordond.filmstrip.compose.VideoSurface
 import dev.jordond.filmstrip.compose.rememberFilmstripPlayer
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.effects.color.contrast
 import dev.jordond.filmstrip.effects.color.saturation
@@ -26,7 +26,7 @@ import dev.jordond.filmstrip.media.MediaSource
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
-internal fun landingComposition(): EditComposition {
+internal fun landingComposition(): Composition {
   // region composition
   val composition =
     compositionOf {
@@ -49,7 +49,7 @@ internal fun landingComposition(): EditComposition {
   return composition
 }
 
-internal suspend fun landingExport(composition: EditComposition) {
+internal suspend fun landingExport(composition: Composition) {
   // region export
   val filmstrip = Filmstrip { allBackends() }
 
@@ -70,7 +70,7 @@ internal suspend fun landingExport(composition: EditComposition) {
 @Composable
 fun Preview(
   filmstrip: Filmstrip,
-  composition: EditComposition,
+  composition: Composition,
 ) {
   val player = rememberFilmstripPlayer(filmstrip, composition)
 

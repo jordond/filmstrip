@@ -5,7 +5,7 @@ import androidx.media3.transformer.CompositionPlayer
 import androidx.test.core.app.ActivityScenario
 import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.geometry.Size
@@ -127,7 +127,7 @@ class AndroidPreviewSurfaceMediaTest {
             // A shorter trim, which changes the duration and so rebuilds rather than updating
             // parameters in place.
             val trimmed =
-              EditComposition(listOf(Track(listOf(Clip(androidFixtureClip(), TimeRange.of(Duration.ZERO, SHORTER))))))
+              Composition(listOf(Track(listOf(Clip(androidFixtureClip(), TimeRange.of(Duration.ZERO, SHORTER))))))
             val reloaded =
               withTimeoutOrNull(BUDGET) { player.setComposition(trimmed, playWhenReady = true) }
                 ?: fail("The rebuild never settled within $BUDGET.")

@@ -2,7 +2,7 @@ package dev.jordond.filmstrip.sample.tryit
 
 import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.InternalFilmstripApi
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.media.MediaSource
@@ -50,7 +50,7 @@ internal class FakePlayer(
   }
 
   override suspend fun setComposition(
-    composition: EditComposition,
+    composition: Composition,
     startAt: Duration?,
     playWhenReady: Boolean,
   ): SetCompositionResult {
@@ -85,7 +85,7 @@ internal class FakePlayer(
 }
 
 internal data class LoadedEdit(
-  val composition: EditComposition,
+  val composition: Composition,
   val startAt: Duration?,
 )
 

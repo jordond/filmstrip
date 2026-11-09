@@ -3,7 +3,7 @@
 package dev.jordond.filmstrip.effects.overlay
 
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.effect.Attributes
@@ -135,7 +135,7 @@ class WebOverlayClapTest {
   private suspend fun resolvedOverlay(bytes: ByteArray): WebGlOverlay {
     val image = ImageOverlay(ImageSource.ofBytes(bytes), Corner.TopEnd)
     val resolver = BuiltInEffectResolver()
-    resolver.prepare(EditComposition(listOf(Track(listOf(Clip(MediaSource.ofUri(CLIP), effects = listOf(image)))))))
+    resolver.prepare(Composition(listOf(Track(listOf(Clip(MediaSource.ofUri(CLIP), effects = listOf(image)))))))
     val resolution = resolver.resolve(image, CAPABILITIES, ATTRIBUTES).shouldBeInstanceOf<EffectResolution.Resolved>()
     return resolution.effect.overlay.shouldNotBeNull()
   }

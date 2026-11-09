@@ -6,7 +6,7 @@ import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.edit.AudioLevel
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.export.CopyBlocker
@@ -57,7 +57,7 @@ internal class CopySupport(
  */
 internal fun copyBlockers(
   support: CopySupport,
-  edit: EditComposition,
+  edit: Composition,
   spec: ExportSpec,
   heightPx: Int?,
   sourceSize: Size,
@@ -128,7 +128,7 @@ internal fun exportPath(
  */
 @InternalFilmstripApi
 public suspend fun copyOpenings(
-  composition: EditComposition,
+  composition: Composition,
   probe: suspend (MediaSource, Duration) -> Duration?,
 ): Map<MediaSource, Duration> {
   val clip =

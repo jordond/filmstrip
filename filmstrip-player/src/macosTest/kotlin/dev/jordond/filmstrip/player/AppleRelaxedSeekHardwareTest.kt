@@ -2,7 +2,7 @@ package dev.jordond.filmstrip.player
 
 import dev.jordond.filmstrip.avfoundation.internal.time.toDuration
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.outputSlotOf
@@ -111,8 +111,8 @@ class AppleRelaxedSeekHardwareTest {
       }
     }
 
-  private fun longEdit(): EditComposition =
-    EditComposition(
+  private fun longEdit(): Composition =
+    Composition(
       tracks =
         listOf(Track(listOf(Clip(MediaSource.of(appleFixture(LONG)), TimeRange.of(Duration.ZERO, LONG_LENGTH))))),
     )

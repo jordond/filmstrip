@@ -4,7 +4,7 @@ import dev.jordond.filmstrip.edit.AudioLevel
 import dev.jordond.filmstrip.edit.CLIP_SPEED_RANGE
 import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.ClipBuilder
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.EnvelopePoint
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
@@ -265,7 +265,7 @@ class CompositionModelTest {
     val expected = outputLengthOf(3.seconds, 0.7) + outputLengthOf(3.seconds, 1.5)
 
     Track(listOf(slow, fast)).duration shouldBe expected
-    EditComposition(listOf(Track(listOf(slow, fast)))).duration shouldBe expected
+    Composition(listOf(Track(listOf(slow, fast)))).duration shouldBe expected
   }
 
   @Test

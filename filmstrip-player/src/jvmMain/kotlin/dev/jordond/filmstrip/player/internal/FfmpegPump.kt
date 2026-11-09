@@ -1,6 +1,6 @@
 package dev.jordond.filmstrip.player.internal
 
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.outputSlotOf
 import dev.jordond.filmstrip.edit.outputSlotTime
 import dev.jordond.filmstrip.ffmpeg.internal.preview.PreviewStream
@@ -46,7 +46,7 @@ internal class FfmpegPump(
   private val scope: CoroutineScope,
   private val planner: FfmpegPreviewPlanner,
   private val plan: () -> PreviewPlan?,
-  private val composition: () -> EditComposition?,
+  private val composition: () -> Composition?,
   private val wanted: StateFlow<Boolean>,
   private val ends: FfmpegRangeEnd,
   private val show: (PreviewFrame) -> Unit,

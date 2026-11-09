@@ -1,7 +1,7 @@
 package dev.jordond.filmstrip.transform.internal.negotiation
 
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.effect.EffectStage
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.geometry.effectiveHeight
@@ -19,7 +19,7 @@ import kotlin.math.roundToInt
  * clip, and a track that carries no video at all still falls back to it.
  */
 internal fun framingOf(
-  edit: EditComposition,
+  edit: Composition,
   ask: Ask,
 ): Phase<Framing> {
   val primary = edit.tracks.first()

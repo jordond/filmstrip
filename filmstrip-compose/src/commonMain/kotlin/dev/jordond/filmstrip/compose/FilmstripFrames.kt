@@ -11,7 +11,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.graphics.ImageBitmap
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.effectsRevision
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.media.FrameResult
@@ -275,7 +275,7 @@ public object FilmstripFramesDefaults {
 @Composable
 public fun rememberFilmstripFrames(
   renderer: FrameRenderer,
-  composition: EditComposition,
+  composition: Composition,
   positions: List<Duration>,
   heightPx: Int?,
   maxBytes: Long = FilmstripFramesDefaults.MaxBytes,
@@ -300,7 +300,7 @@ public fun rememberFilmstripFrames(
  * Everything one strip renders against.
  */
 internal class StripSpec(
-  val composition: EditComposition,
+  val composition: Composition,
   val revision: Long,
   val positions: List<Duration>,
   val heightPx: Int?,

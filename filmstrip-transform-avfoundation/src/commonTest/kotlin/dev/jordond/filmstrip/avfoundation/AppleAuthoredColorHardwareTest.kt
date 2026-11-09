@@ -1,7 +1,7 @@
 package dev.jordond.filmstrip.avfoundation
 
 import dev.jordond.filmstrip.Filmstrip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.effects.geometry.crop
 import dev.jordond.filmstrip.effects.overlay.ImageOverlay
@@ -125,7 +125,7 @@ class AppleAuthoredColorHardwareTest {
   }
 
   private suspend fun exported(
-    composition: EditComposition,
+    composition: Composition,
     output: String,
   ): ExportStatus.Success =
     withContext(Dispatchers.Default) {

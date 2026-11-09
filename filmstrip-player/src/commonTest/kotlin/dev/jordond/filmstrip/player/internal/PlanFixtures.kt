@@ -6,7 +6,7 @@ import dev.jordond.filmstrip.codec.Bitrate
 import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.export.ExportPath
@@ -58,12 +58,12 @@ internal object PlanFixtures {
     )
 
   val EDIT =
-    EditComposition(
+    Composition(
       tracks = listOf(Track(listOf(Clip(MediaSource.of("planned.mp4"), TimeRange.of(Duration.ZERO, 2.seconds))))),
     )
-  val PARAMETERS_EDIT = EditComposition(tracks = EDIT.tracks, fill = Fill.Blurred())
+  val PARAMETERS_EDIT = Composition(tracks = EDIT.tracks, fill = Fill.Blurred())
   val OTHER_EDIT =
-    EditComposition(
+    Composition(
       tracks = listOf(Track(listOf(Clip(MediaSource.of("other.mp4"), TimeRange.of(Duration.ZERO, 2.seconds))))),
     )
   val PLAN =
@@ -86,13 +86,13 @@ internal object PlanFixtures {
 
 // Records every edit, policy and spec it is asked to plan, and answers each with [answer].
 internal class RecordingPlanner : PreviewPlanner<PreviewPlan> {
-  val asked: MutableList<Pair<EditComposition, PreviewQualityPolicy>> = mutableListOf()
+  val asked: MutableList<Pair<Composition, PreviewQualityPolicy>> = mutableListOf()
   val specs: MutableList<ExportSpec> = mutableListOf()
   var gate: Job? = null
   var answer: () -> PlanResult<PreviewPlan, PlaybackError> = { PlanResult.Ready(PlanFixtures.PLAN) }
 
   override suspend fun plan(
-    composition: EditComposition,
+    composition: Composition,
     policy: PreviewQualityPolicy,
     exportSpec: ExportSpec,
   ): PlanResult<PreviewPlan, PlaybackError> {

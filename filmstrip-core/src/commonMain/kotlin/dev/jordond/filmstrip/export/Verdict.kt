@@ -8,7 +8,7 @@ import dev.jordond.filmstrip.capability.ParityNote
 import dev.jordond.filmstrip.codec.AudioCodec
 import dev.jordond.filmstrip.codec.Bitrate
 import dev.jordond.filmstrip.codec.VideoCodec
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effect.EffectStage
 import dev.jordond.filmstrip.geometry.Size
@@ -212,7 +212,7 @@ public enum class CopyBlocker {
   FrameResized,
 
   /**
-   * [EditComposition.audio] leaves a stream the source carries out of the file, the way
+   * [Composition.audio] leaves a stream the source carries out of the file, the way
    * [dev.jordond.filmstrip.edit.AudioSpec.Remove] and [dev.jordond.filmstrip.edit.AudioSpec.AudioOnly] do.
    */
   AudioSpecChanged,
@@ -378,7 +378,7 @@ public class ExportPlan
     public val duration: Duration,
     public val copyBlockedBy: List<CopyBlocker>,
     public val inertNotices: List<InertNotice> = emptyList(),
-    @property:InternalFilmstripApi public val composition: EditComposition,
+    @property:InternalFilmstripApi public val composition: Composition,
     @property:InternalFilmstripApi public val spec: ExportSpec,
     internal val droppedEffects: List<Adjustment> = emptyList(),
   ) {

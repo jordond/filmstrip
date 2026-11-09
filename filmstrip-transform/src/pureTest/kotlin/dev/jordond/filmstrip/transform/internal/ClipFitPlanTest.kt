@@ -1,6 +1,6 @@
 package dev.jordond.filmstrip.transform.internal
 
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.effects.geometry.Crop
 import dev.jordond.filmstrip.effects.geometry.KenBurns
@@ -32,7 +32,7 @@ class ClipFitPlanTest {
   @Test
   fun `a track's scale reaches a clip with none of its own`() {
     val track = Track(listOf(fixture.clip(), fixture.clip(size = NARROW)), effects = listOf(Scale(1080, Fit.Stretch)))
-    val resolved = fixture.resolve(EditComposition(listOf(track)))
+    val resolved = fixture.resolve(Composition(listOf(track)))
 
     resolved.tracks
       .single()
@@ -43,7 +43,7 @@ class ClipFitPlanTest {
   @Test
   fun `a composition scale reaches every clip and outranks a clip's own`() {
     val clips = listOf(fixture.clip(effects = listOf(Scale(720, Fit.Contain))), fixture.clip(size = NARROW))
-    val resolved = fixture.resolve(EditComposition(listOf(Track(clips)), effects = listOf(Scale(1080, Fit.Crop))))
+    val resolved = fixture.resolve(Composition(listOf(Track(clips)), effects = listOf(Scale(1080, Fit.Crop))))
 
     resolved.tracks
       .single()

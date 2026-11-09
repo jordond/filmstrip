@@ -1,7 +1,7 @@
 package dev.jordond.filmstrip.player
 
 import dev.jordond.filmstrip.FilmstripError
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.outputSlotOf
 import dev.jordond.filmstrip.edit.outputSlotTime
@@ -316,7 +316,7 @@ private class GatedPlanner : FfmpegPreviewPlanner(CONTRACT_COMPONENTS) {
 
   override suspend fun open(
     plan: PreviewPlan,
-    composition: EditComposition,
+    composition: Composition,
     at: Duration,
   ): PreviewStreamResult {
     opens = opens + at

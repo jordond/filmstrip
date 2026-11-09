@@ -3,7 +3,7 @@ package dev.jordond.filmstrip.media3
 import android.graphics.Bitmap
 import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effects.filters.filters
@@ -50,7 +50,7 @@ class AndroidLutMediaTest {
   fun aCompositionLutReadsLikeTheTable() =
     runTest(timeout = TIMEOUT) {
       val clip = Clip(flatClip())
-      assertOnTheTable(EditComposition(listOf(Track(listOf(clip))), listOf(Lut(CURVED))), clip, CURVED)
+      assertOnTheTable(Composition(listOf(Track(listOf(clip))), listOf(Lut(CURVED))), clip, CURVED)
     }
 
   @Test
@@ -58,14 +58,14 @@ class AndroidLutMediaTest {
     runTest(timeout = TIMEOUT) {
       val source = flatClip()
       val looked = Clip(source, effects = listOf(Lut(CURVED)))
-      assertOnTheTable(EditComposition(listOf(Track(listOf(looked)))), Clip(source), CURVED)
+      assertOnTheTable(Composition(listOf(Track(listOf(looked)))), Clip(source), CURVED)
     }
 
   @Test
   fun aMidIntensityReadsLikeTheBlendedTable() =
     runTest(timeout = TIMEOUT) {
       val clip = Clip(flatClip())
-      val edit = EditComposition(listOf(Track(listOf(clip))), listOf(Lut(CURVED, MID_INTENSITY)))
+      val edit = Composition(listOf(Track(listOf(clip))), listOf(Lut(CURVED, MID_INTENSITY)))
       assertOnTheTable(edit, clip, CURVED.blended(MID_INTENSITY))
     }
 
@@ -73,7 +73,7 @@ class AndroidLutMediaTest {
   fun aSmallerExportReadsTheSameTable() =
     runTest(timeout = TIMEOUT) {
       val clip = Clip(flatClip())
-      val edit = EditComposition(listOf(Track(listOf(clip))), listOf(Lut(CURVED)))
+      val edit = Composition(listOf(Track(listOf(clip))), listOf(Lut(CURVED)))
       assertOnTheTable(edit, clip, CURVED, ExportSpec(heightPx = SMALL_HEIGHT))
     }
 
@@ -95,8 +95,8 @@ class AndroidLutMediaTest {
     runTest(timeout = TIMEOUT) {
       val source = flatClip()
       val swatch = swatchOverlay()
-      val looked = EditComposition(listOf(Track(listOf(Clip(source)))), listOf(swatch, Lut(CURVED)))
-      val plain = EditComposition(listOf(Track(listOf(Clip(source)))), listOf(swatch))
+      val looked = Composition(listOf(Track(listOf(Clip(source)))), listOf(swatch, Lut(CURVED)))
+      val plain = Composition(listOf(Track(listOf(Clip(source)))), listOf(swatch))
 
       val read = redOfSwatch(looked)
       val wanted = redOfSwatch(plain)
@@ -108,8 +108,8 @@ class AndroidLutMediaTest {
   fun aClipOverlayUnderACompositionLutIsBurned() =
     runTest(timeout = TIMEOUT) {
       val clip = Clip(flatClip(), effects = listOf(swatchOverlay()))
-      val looked = EditComposition(listOf(Track(listOf(clip))), listOf(Lut(CURVED)))
-      val plain = EditComposition(listOf(Track(listOf(clip))))
+      val looked = Composition(listOf(Track(listOf(clip))), listOf(Lut(CURVED)))
+      val plain = Composition(listOf(Track(listOf(clip))))
 
       val read = redOfSwatch(looked)
       val wanted = redOfSwatch(plain)
@@ -124,7 +124,7 @@ class AndroidLutMediaTest {
       val source = probe.fixture(HDR_CLIP)
       assumeDecodesTenBitHevc()
       val spec = ExportSpec(heightPx = HDR_HEIGHT, hdr = HdrMode.ToneMapToSdr)
-      val looked = EditComposition(listOf(Track(listOf(Clip(source, effects = listOf(Lut(CURVED)))))))
+      val looked = Composition(listOf(Track(listOf(Clip(source, effects = listOf(Lut(CURVED)))))))
 
       val finished = probe.finish(probe.plan(looked, spec))
 
@@ -137,17 +137,17 @@ class AndroidLutMediaTest {
           .hdrTransfer
           .shouldBeNull()
       }
-      val plain = probe.written(EditComposition(listOf(Track(listOf(Clip(source))))), spec).rgbAt(READ_FX, READ_FY)
+      val plain = probe.written(Composition(listOf(Track(listOf(Clip(source))))), spec).rgbAt(READ_FX, READ_FY)
       assertReads(probe.writtenBy(finished).rgbAt(READ_FX, READ_FY), plain, CURVED)
     }
 
   private suspend fun assertOnTheTable(
-    edit: EditComposition,
+    edit: Composition,
     clip: Clip,
     table: CubeLut,
     spec: ExportSpec = ExportSpec(),
   ) {
-    val plain = probe.written(EditComposition(listOf(Track(listOf(clip)))), spec).rgbAt(READ_FX, READ_FY)
+    val plain = probe.written(Composition(listOf(Track(listOf(clip)))), spec).rgbAt(READ_FX, READ_FY)
     val want = table.at(plain.first / FULL, plain.second / FULL, plain.third / FULL)
     withClue("the table has to clear what an encoder moves for this to tell, ${want.toList()} over $plain") {
       abs(want[0] * FULL - plain.first).toDouble() shouldBeGreaterThan TABLE_CODES
@@ -175,7 +175,7 @@ class AndroidLutMediaTest {
     val crop = Crop(WIDE_CANVAS, fit = Fit.Contain)
     val source = flatClip()
     val edit = { effects: List<EffectSpec>, over: Fill ->
-      EditComposition(listOf(Track(listOf(Clip(source, effects = effects)))), fill = over)
+      Composition(listOf(Track(listOf(Clip(source, effects = effects)))), fill = over)
     }
     val spec = ExportSpec()
     val plan = probe.plan(edit(listOf(crop, Lut(CURVED)), fill), spec)
@@ -199,7 +199,7 @@ class AndroidLutMediaTest {
     return MediaSource.of(file.path)
   }
 
-  private suspend fun redOfSwatch(edit: EditComposition): Double =
+  private suspend fun redOfSwatch(edit: Composition): Double =
     probe
       .written(edit, ExportSpec())
       .rgbAt(SWATCH_FX, SWATCH_FY)

@@ -2,7 +2,7 @@ package dev.jordond.filmstrip.ffmpeg.support
 
 import dev.jordond.filmstrip.CapabilitiesResult
 import dev.jordond.filmstrip.Filmstrip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.effects.BuiltInEffectResolver
 import dev.jordond.filmstrip.effects.color.brightness
@@ -78,7 +78,7 @@ internal class FfmpegExportFixture {
    * accepts, which the planner reports as an adjustment and which none of these tests measure.
    */
   internal suspend fun plannedRun(
-    composition: EditComposition,
+    composition: Composition,
     spec: ExportSpec,
   ): ExportPlan =
     when (val verdict = filmstrip.plan(composition, spec)) {
@@ -117,7 +117,7 @@ internal class FfmpegExportFixture {
    * export ran rather than against a number written here.
    */
   internal suspend fun plannedTracks(
-    composition: EditComposition,
+    composition: Composition,
     spec: ExportSpec,
     sources: List<MediaSource>,
   ): List<ResolvedTrack> =
@@ -131,7 +131,7 @@ internal class FfmpegExportFixture {
    * wrote rather than off a number worked out here.
    */
   internal suspend fun plannedLowering(
-    composition: EditComposition,
+    composition: Composition,
     spec: ExportSpec,
     sources: List<MediaSource>,
   ): LoweredExport<Invocation> {

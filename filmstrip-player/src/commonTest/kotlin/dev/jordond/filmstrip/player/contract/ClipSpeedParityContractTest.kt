@@ -2,7 +2,7 @@ package dev.jordond.filmstrip.player.contract
 
 import dev.jordond.filmstrip.edit.CLIP_SPEED_RANGE
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.outputLengthOf
@@ -74,8 +74,8 @@ abstract class ClipSpeedParityContractTest(
     val length = outputLengthOf(checkNotNull(BASELINE_TRIM.duration), speed)
     val edit = editOf(source, BASELINE_TRIM, speed)
     edit.duration shouldBe length
-    val bare = EditComposition(listOf(Track(listOf(Clip(source, BASELINE_TRIM, speed = speed)))))
-    val plain = EditComposition(listOf(Track(listOf(Clip(source, BASELINE_TRIM)))))
+    val bare = Composition(listOf(Track(listOf(Clip(source, BASELINE_TRIM, speed = speed)))))
+    val plain = Composition(listOf(Track(listOf(Clip(source, BASELINE_TRIM)))))
 
     // Before the caption opens, inside its fade, and on its plateau. Only an inside reading can tell output time from
     // source time, and the ramp is where a fade read on the wrong clock shows.
@@ -168,7 +168,7 @@ abstract class ClipSpeedParityContractTest(
   }
 
   private suspend fun assertMatchesExport(
-    edit: EditComposition,
+    edit: Composition,
     trim: TimeRange,
     shown: ReadbackFrame,
     speed: Double,
@@ -210,7 +210,7 @@ abstract class ClipSpeedParityContractTest(
     source: MediaSource,
     trim: TimeRange,
     speed: Double,
-  ): EditComposition {
+  ): Composition {
     val length = outputLengthOf(checkNotNull(trim.duration), speed)
     val caption =
       TextOverlay(
@@ -219,7 +219,7 @@ abstract class ClipSpeedParityContractTest(
         visibleDuring = TimeRange.of(length / 4, length * 3 / 4),
         animation = fade(inDuration = length / 8),
       )
-    return EditComposition(
+    return Composition(
       tracks = listOf(Track(listOf(Clip(source, trim, speed = speed)), fadeIn = length / 4)),
       effects = listOf(caption),
     )

@@ -8,7 +8,7 @@ import dev.jordond.filmstrip.color.signalFromNits
 import dev.jordond.filmstrip.color.tenBitCodesFromSignal
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.outputSlotTime
@@ -124,7 +124,7 @@ class BrowserClipCanvasMediaTest {
   fun aCompositionTurnTurnsTheCanvasBarsWithTheContent() =
     runTest {
       val composition =
-        EditComposition(
+        Composition(
           tracks = listOf(Track(listOf(Clip(MediaSource.Bytes(quadrantClip()), effects = listOf(CROP))))),
           effects = listOf(Rotate(QUARTER_TURN)),
           audio = AudioSpec.Remove,
@@ -168,7 +168,7 @@ class BrowserClipCanvasMediaTest {
   fun aCanvasTurnedAndCroppedAgainKeepsTheContentsAspect() =
     runTest {
       val composition =
-        EditComposition(
+        Composition(
           tracks = listOf(Track(listOf(Clip(MediaSource.Bytes(quadrantClip()), effects = listOf(SQUARE))))),
           effects = listOf(Rotate(QUARTER_TURN), TALL),
           audio = AudioSpec.Remove,
@@ -203,7 +203,7 @@ class BrowserClipCanvasMediaTest {
         withClue("$transfer") {
           val bytes = makeHdrClip(transfer, SOURCE.width, SOURCE.height, frames = FRAMES) { CONTENT_NITS }
           val composition =
-            EditComposition(
+            Composition(
               tracks = listOf(Track(listOf(Clip(MediaSource.Bytes(bytes), effects = listOf(CROP, PAN))))),
               audio = AudioSpec.Remove,
               fill = Fill.Solid(SLATE_ARGB),
@@ -265,10 +265,10 @@ class BrowserClipCanvasMediaTest {
     reads shouldContain false
   }
 
-  private suspend fun exported(composition: EditComposition): List<OutputFrame> =
+  private suspend fun exported(composition: Composition): List<OutputFrame> =
     decodeFrames(outputOf(exportOf(composition, MediaSink.Uri(""))))
 
-  private suspend fun previewOf(composition: EditComposition) =
+  private suspend fun previewOf(composition: Composition) =
     webCodecsExportEngine(
       components = ComponentRegistry.Builder().addEffectResolver(BuiltInEffectResolver()).build(),
       prober = BrowserProber(),
@@ -280,8 +280,8 @@ class BrowserClipCanvasMediaTest {
   private suspend fun single(
     effects: List<EffectSpec>,
     fill: Fill,
-  ): EditComposition =
-    EditComposition(
+  ): Composition =
+    Composition(
       tracks = listOf(Track(listOf(Clip(MediaSource.Bytes(quadrantClip()), effects = effects)))),
       audio = AudioSpec.Remove,
       fill = fill,

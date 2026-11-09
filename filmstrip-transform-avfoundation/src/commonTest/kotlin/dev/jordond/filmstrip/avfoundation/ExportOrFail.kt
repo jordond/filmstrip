@@ -1,7 +1,7 @@
 package dev.jordond.filmstrip.avfoundation
 
 import dev.jordond.filmstrip.Filmstrip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.ExportStatus
 import dev.jordond.filmstrip.export.Verdict
@@ -18,7 +18,7 @@ import kotlinx.coroutines.withContext
  * that success.
  */
 internal suspend fun Filmstrip.exportOrFail(
-  composition: EditComposition,
+  composition: Composition,
   spec: ExportSpec,
   output: String,
 ): ExportStatus.Success =

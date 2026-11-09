@@ -8,7 +8,7 @@ import dev.jordond.filmstrip.codec.AudioCodec
 import dev.jordond.filmstrip.codec.Bitrate
 import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.effect.Attributes
@@ -77,7 +77,7 @@ internal class PlannerFixture {
   )
 
   // Every fabricated clip carries its own source, so the map is keyed the way the planner reads it.
-  fun infos(composition: EditComposition): Map<MediaSource, MediaInfo> =
+  fun infos(composition: Composition): Map<MediaSource, MediaInfo> =
     composition.tracks
       .flatMap { it.clips }
       .associate { it.source to registry.getValue(it.source) }
@@ -86,7 +86,7 @@ internal class PlannerFixture {
    * Negotiates [composition] against [spec] and [device] on a fresh planner and hands back the verdict.
    */
   fun plan(
-    composition: EditComposition,
+    composition: Composition,
     spec: ExportSpec = ExportSpec(),
     device: DeviceCapabilities = this.device(),
     resolvers: List<EffectResolver> = listOf(FakeResolver()),
@@ -103,7 +103,7 @@ internal class PlannerFixture {
    * Negotiates [composition] the way [plan] does and hands back the negotiated composition, failing when there is none.
    */
   fun resolve(
-    composition: EditComposition,
+    composition: Composition,
     spec: ExportSpec = ExportSpec(),
     device: DeviceCapabilities = this.device(),
     resolvers: List<EffectResolver> = listOf(FakeResolver()),
@@ -209,7 +209,7 @@ internal class PlannerFixture {
 /**
  * An edit of one video track holding [clips] in order.
  */
-internal fun composition(vararg clips: Clip) = EditComposition(listOf(Track(clips.toList())))
+internal fun composition(vararg clips: Clip) = Composition(listOf(Track(clips.toList())))
 
 /**
  * The first clip on the first track of [resolved].

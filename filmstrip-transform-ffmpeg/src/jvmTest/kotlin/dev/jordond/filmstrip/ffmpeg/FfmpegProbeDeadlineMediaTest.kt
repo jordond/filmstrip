@@ -4,7 +4,7 @@ import dev.jordond.filmstrip.CapabilitiesResult
 import dev.jordond.filmstrip.ComponentRegistry
 import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.export.ExportSpec
@@ -119,7 +119,7 @@ class FfmpegProbeDeadlineMediaTest {
     return FfmpegExportEngine(components, runtime)
   }
 
-  private fun composition(clip: Clip): EditComposition = EditComposition(listOf(Track(listOf(clip))))
+  private fun composition(clip: Clip): Composition = Composition(listOf(Track(listOf(clip))))
 
   private companion object {
     const val WRITTEN = "deadline-written"

@@ -8,7 +8,7 @@ import android.view.SurfaceView
 import androidx.test.core.app.ActivityScenario
 import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.outputLengthOf
@@ -176,7 +176,7 @@ class AndroidCaptionReadMediaTest {
 
   private suspend fun withLoadedEngine(
     scope: CoroutineScope,
-    edit: EditComposition,
+    edit: Composition,
     body: suspend (Media3PlayerEngine, ContractRecorder) -> Unit,
   ) {
     val engine = Media3PlayerEngine(scope, contractContext(), Media3PreviewPlanner(CONTRACT_COMPONENTS), PlayerConfig())
@@ -189,13 +189,13 @@ class AndroidCaptionReadMediaTest {
     }
   }
 
-  private fun middleSlotOf(edit: EditComposition): Duration {
+  private fun middleSlotOf(edit: Composition): Duration {
     val slot = outputSlotOf(checkNotNull(edit.duration) / 2, FIXTURE_FRAME_RATE)
     return outputSlotTime(slot, FIXTURE_FRAME_RATE)
   }
 
-  private fun captionedEdit(speed: Double): EditComposition =
-    EditComposition(
+  private fun captionedEdit(speed: Double): Composition =
+    Composition(
       tracks = listOf(Track(listOf(Clip(androidFixtureClip(), TRIM, speed = speed)))),
       effects = listOf(TextOverlay(text = "Speed", anchor = Anchor.Center)),
     )

@@ -2,7 +2,7 @@ package dev.jordond.filmstrip.media3
 
 import dev.jordond.filmstrip.CapabilitiesResult
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.export.AdjustmentKind
 import dev.jordond.filmstrip.export.ExportSpec
@@ -119,7 +119,7 @@ class AndroidHdrMediaTest {
     val toneMapped: Boolean,
   )
 
-  private fun composition(source: MediaSource) = EditComposition(listOf(Track(listOf(Clip(source)))))
+  private fun composition(source: MediaSource) = Composition(listOf(Track(listOf(Clip(source)))))
 
   // Below the fixture's own 720, since a height at or above it keeps the frame and would let a kept grade copy across.
   private fun spec(hdr: HdrMode) = ExportSpec(heightPx = 360, hdr = hdr)

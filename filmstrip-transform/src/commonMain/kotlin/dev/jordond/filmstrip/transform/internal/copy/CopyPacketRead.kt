@@ -2,7 +2,7 @@ package dev.jordond.filmstrip.transform.internal.copy
 
 import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.InternalFilmstripApi
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.export.Verdict
 import dev.jordond.filmstrip.media.describe
 import dev.jordond.filmstrip.transform.internal.ExportPlanner
@@ -99,7 +99,7 @@ public suspend fun Ask.withCopyPackets(
  */
 @InternalFilmstripApi
 public suspend fun ExportPlanner.withFallbackCopyPackets(
-  composition: EditComposition,
+  composition: Composition,
   ask: Ask,
   export: NegotiatedExport,
   read: suspend (CopyPacketWindow) -> CopyPacketRead?,

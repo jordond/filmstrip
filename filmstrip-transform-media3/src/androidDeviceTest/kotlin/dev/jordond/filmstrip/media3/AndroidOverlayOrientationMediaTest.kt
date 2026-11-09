@@ -3,7 +3,7 @@ package dev.jordond.filmstrip.media3
 import android.graphics.Color
 import dev.jordond.filmstrip.color.pictureSrgbCodes
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.effects.overlay.ImageOverlay
 import dev.jordond.filmstrip.effects.overlay.placedOn
@@ -34,7 +34,7 @@ class AndroidOverlayOrientationMediaTest {
   fun aPictureTaggedSixIsDrawnTurnedOnAnSdrExport() =
     runTest(timeout = TIMEOUT) {
       val badge = ImageOverlay(ImageSource.Bytes(TAGGED), Corner.TopStart, MARGIN, SCALE)
-      val composition = EditComposition(listOf(Track(listOf(Clip(probe.fixture())))), listOf(badge))
+      val composition = Composition(listOf(Track(listOf(Clip(probe.fixture())))), listOf(badge))
       val frame = probe.frame(probe.export(composition))
       val size = frame.frameSize()
       val shown = TURN.orientedSize(OrientedPictures.SIZE)

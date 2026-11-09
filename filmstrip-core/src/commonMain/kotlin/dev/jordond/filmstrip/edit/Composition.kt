@@ -23,7 +23,7 @@ import kotlin.time.Duration
  */
 @Immutable
 @Poko
-public class EditComposition(
+public class Composition(
   public val tracks: List<Track>,
   public val effects: List<EffectSpec> = emptyList(),
   public val audio: AudioSpec = AudioSpec.Keep,
@@ -53,34 +53,34 @@ public class EditComposition(
   /**
    * A copy whose primary track holds different clips.
    */
-  public fun withClips(clips: List<Clip>): EditComposition {
+  public fun withClips(clips: List<Clip>): Composition {
     val primary = tracks.firstOrNull()?.withClips(clips) ?: Track(clips)
-    return EditComposition(listOf(primary) + tracks.drop(1), effects, audio, fill)
+    return Composition(listOf(primary) + tracks.drop(1), effects, audio, fill)
   }
 
   /**
    * A copy with different tracks.
    */
-  public fun withTracks(tracks: List<Track>): EditComposition =
-    EditComposition(tracks = tracks, effects = effects, audio = audio, fill = fill)
+  public fun withTracks(tracks: List<Track>): Composition =
+    Composition(tracks = tracks, effects = effects, audio = audio, fill = fill)
 
   /**
    * A copy with different composition-level effects.
    */
-  public fun withEffects(effects: List<EffectSpec>): EditComposition =
-    EditComposition(tracks = tracks, effects = effects, audio = audio, fill = fill)
+  public fun withEffects(effects: List<EffectSpec>): Composition =
+    Composition(tracks = tracks, effects = effects, audio = audio, fill = fill)
 
   /**
    * A copy with a different audio treatment.
    */
-  public fun withAudio(audio: AudioSpec): EditComposition =
-    EditComposition(tracks = tracks, effects = effects, audio = audio, fill = fill)
+  public fun withAudio(audio: AudioSpec): Composition =
+    Composition(tracks = tracks, effects = effects, audio = audio, fill = fill)
 
   /**
    * A copy with a different fill.
    */
-  public fun withFill(fill: Fill): EditComposition =
-    EditComposition(tracks = tracks, effects = effects, audio = audio, fill = fill)
+  public fun withFill(fill: Fill): Composition =
+    Composition(tracks = tracks, effects = effects, audio = audio, fill = fill)
 }
 
 /**
@@ -99,7 +99,7 @@ public class EditComposition(
  * @property effects Effects applied to every clip on this track, after each clip's own.
  * @property audio What to do with this track's audio before it is mixed.
  * @property start Where in the composition this track begins. The track is silent before it, and the primary track
- * shows the composition's [EditComposition.fill] there. A negative start is refused with
+ * shows the composition's [Composition.fill] there. A negative start is refused with
  * [dev.jordond.filmstrip.FilmstripError.InvalidComposition] when the composition is planned.
  * @property looping Whether the track repeats until the longest non-looping track ends. The run of
  * clips is laid down again from the top as many times as it takes, and the last pass is cut where

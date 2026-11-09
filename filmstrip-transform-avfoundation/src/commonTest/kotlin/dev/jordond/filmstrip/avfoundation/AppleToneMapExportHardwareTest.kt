@@ -5,7 +5,7 @@ import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.avfoundation.internal.composition.AvComposition
 import dev.jordond.filmstrip.avfoundation.internal.composition.toAvComposition
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.effect.Attributes
@@ -260,7 +260,7 @@ class AppleToneMapExportHardwareTest {
       error.message shouldBe REASON
     }
 
-  private suspend fun graphOf(composition: EditComposition): AvComposition =
+  private suspend fun graphOf(composition: Composition): AvComposition =
     withContext(Dispatchers.Default) {
       val components = ComponentRegistry.Builder().addEffectResolver(BuiltInEffectResolver()).build()
       when (val result = avFoundationExportEngine(components).resolve(composition, SPEC)) {
@@ -269,10 +269,10 @@ class AppleToneMapExportHardwareTest {
       }
     }
 
-  private fun clipOf(path: String): EditComposition = compositionOf { clip(MediaSource.of(path)) }
+  private fun clipOf(path: String): Composition = compositionOf { clip(MediaSource.of(path)) }
 
   private suspend fun exported(
-    composition: EditComposition,
+    composition: Composition,
     name: String,
     through: Filmstrip = filmstrip,
   ): String {

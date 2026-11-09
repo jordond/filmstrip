@@ -2,7 +2,7 @@ package dev.jordond.filmstrip.player
 
 import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.avfoundation.avFoundationBackend
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.ExportStatus
 import dev.jordond.filmstrip.media.MediaSink
@@ -35,7 +35,7 @@ class AppleClipSpeedParityHardwareTest : ClipSpeedParityContractTest(AppleClipPa
  * AVFoundation's side of the suites that hold a clip's preview to its export.
  */
 internal object AppleClipParity : ClipParityBackend {
-  private val written = mutableMapOf<EditComposition, String>()
+  private val written = mutableMapOf<Composition, String>()
 
   override val filmstrip: Filmstrip = Filmstrip { avFoundationBackend() }
 
@@ -51,17 +51,16 @@ internal object AppleClipParity : ClipParityBackend {
       muted = true,
     )
 
-  override suspend fun exportedSource(composition: EditComposition): MediaSource =
-    MediaSource.of(writtenPath(composition))
+  override suspend fun exportedSource(composition: Composition): MediaSource = MediaSource.of(writtenPath(composition))
 
   /**
    * The path [composition] exports to at the rate its sources resolve, written once per composition.
    */
-  suspend fun writtenPath(composition: EditComposition): String =
+  suspend fun writtenPath(composition: Composition): String =
     written.getOrPut(composition) { export(composition, ExportSpec()) }
 
   override suspend fun exportFrame(
-    composition: EditComposition,
+    composition: Composition,
     position: Duration,
   ): TestFrame = appleFixtureExportFrame(composition, position)
 
@@ -69,7 +68,7 @@ internal object AppleClipParity : ClipParityBackend {
    * Writes [composition] through a real export at [spec] and hands back its path.
    */
   suspend fun export(
-    composition: EditComposition,
+    composition: Composition,
     spec: ExportSpec,
   ): String =
     withContext(Dispatchers.Default) {

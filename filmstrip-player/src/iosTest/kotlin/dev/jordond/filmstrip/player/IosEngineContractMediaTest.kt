@@ -1,6 +1,6 @@
 package dev.jordond.filmstrip.player
 
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.player.contract.EngineUnderTest
 import dev.jordond.filmstrip.player.contract.FailingItem
 import dev.jordond.filmstrip.player.contract.Interruption
@@ -64,9 +64,9 @@ class IosEngineContractMediaTest : PlayerEngineContractTest() {
   override fun createFailingItem(scope: CoroutineScope): FailingItem =
     FailingItem(appleEngineFailingItsFirstItem(scope), fixture.cutInTwo(fixtureFrameRate))
 
-  override val fixture: EditComposition = appleFixtureComposition()
+  override val fixture: Composition = appleFixtureComposition()
 
-  override val bytesFixture: EditComposition = appleFixtureBytesComposition()
+  override val bytesFixture: Composition = appleFixtureBytesComposition()
 
   override val claimsLiveParameterRedraw: Boolean = true
 

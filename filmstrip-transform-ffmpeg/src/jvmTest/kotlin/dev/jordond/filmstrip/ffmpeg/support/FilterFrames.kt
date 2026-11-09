@@ -4,7 +4,7 @@ import dev.jordond.filmstrip.ComponentRegistry
 import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.diagnostics.DiagnosticListener
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.effect.EffectResolver
 import dev.jordond.filmstrip.effect.EffectSpec
@@ -83,13 +83,13 @@ internal class FilterFrames(
     clips: List<Clip>,
     effects: List<EffectSpec> = emptyList(),
     fill: Fill = Fill.Solid(OPAQUE_BLACK),
-  ) = EditComposition(listOf(Track(clips)), effects, fill = fill)
+  ) = Composition(listOf(Track(clips)), effects, fill = fill)
 
   /**
    * The first [count] frames the preview draws from [at].
    */
   suspend fun frames(
-    composition: EditComposition,
+    composition: Composition,
     at: Duration,
     count: Int,
     spec: ExportSpec = ExportSpec(),
@@ -112,7 +112,7 @@ internal class FilterFrames(
    * Opens the preview of [composition] at [at] for a test that drives or closes it itself.
    */
   suspend fun opened(
-    composition: EditComposition,
+    composition: Composition,
     at: Duration = Duration.ZERO,
   ): FfmpegPreviewStream =
     engine
@@ -124,7 +124,7 @@ internal class FilterFrames(
   /**
    * What [composition] lowers to, before a form is chosen to run.
    */
-  suspend fun invocationOf(composition: EditComposition): Invocation =
+  suspend fun invocationOf(composition: Composition): Invocation =
     engine.runs
       .lowered(composition, ExportSpec(), null)
       .graph
@@ -135,7 +135,7 @@ internal class FilterFrames(
    * Runs an export of [composition] to [output] through this engine, and hands back every status it reported.
    */
   suspend fun exportStatuses(
-    composition: EditComposition,
+    composition: Composition,
     output: File,
   ): List<ExportStatus> {
     val plan = engine.plan(composition, ExportSpec()).shouldBeInstanceOf<Verdict.Capable>().plan
@@ -146,7 +146,7 @@ internal class FilterFrames(
    * The filter graph [frames] runs for [composition].
    */
   suspend fun graphOf(
-    composition: EditComposition,
+    composition: Composition,
     spec: ExportSpec = ExportSpec(),
   ): String {
     val (_, invocation) =
@@ -162,7 +162,7 @@ internal class FilterFrames(
    * A graph that already writes those codes hands them over as they are.
    */
   suspend fun planesAt(
-    composition: EditComposition,
+    composition: Composition,
     slot: Int,
     spec: ExportSpec = ExportSpec(),
   ): Yuv420Frame {
@@ -199,7 +199,7 @@ internal class FilterFrames(
    * Exports [composition] at [spec] and reads the frame in output slot [slot] back out of the file.
    */
   suspend fun exportedFrame(
-    composition: EditComposition,
+    composition: Composition,
     slot: Int,
     spec: ExportSpec,
   ): ByteArray = exportedFrames(composition, listOf(slot), spec).single()
@@ -209,7 +209,7 @@ internal class FilterFrames(
    * given.
    */
   suspend fun exportedFrames(
-    composition: EditComposition,
+    composition: Composition,
     slots: List<Int>,
     spec: ExportSpec,
   ): List<ByteArray> {
@@ -354,7 +354,7 @@ internal class FilterFrames(
   }
 
   private suspend fun planOf(
-    composition: EditComposition,
+    composition: Composition,
     spec: ExportSpec,
   ): ExportPlan =
     when (val verdict = filmstrip.plan(composition, spec)) {

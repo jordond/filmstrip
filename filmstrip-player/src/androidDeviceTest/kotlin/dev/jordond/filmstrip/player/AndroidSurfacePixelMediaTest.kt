@@ -7,7 +7,7 @@ import android.view.PixelCopy
 import android.view.SurfaceView
 import androidx.test.core.app.ActivityScenario
 import dev.jordond.filmstrip.Filmstrip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.outputSlotOf
 import dev.jordond.filmstrip.edit.outputSlotTime
 import dev.jordond.filmstrip.effects.color.Brightness
@@ -145,7 +145,7 @@ class AndroidSurfacePixelMediaTest {
    * @return the copy, and the position the seek reported it landed on.
    */
   private suspend fun surfaceAfterSeek(
-    composition: EditComposition,
+    composition: Composition,
     at: Duration,
   ): Pair<TestFrame, Duration> =
     coroutineScope {
@@ -187,8 +187,8 @@ class AndroidSurfacePixelMediaTest {
    * [second].
    */
   private fun surfaceComparison(
-    first: EditComposition,
-    second: EditComposition,
+    first: Composition,
+    second: Composition,
     resize: Boolean = false,
   ) = runTest(timeout = TIMEOUT) {
     realTime {
@@ -213,8 +213,8 @@ class AndroidSurfacePixelMediaTest {
    * the surface is showing.
    */
   private suspend fun surfaceOf(
-    first: EditComposition,
-    second: EditComposition?,
+    first: Composition,
+    second: Composition?,
     startShape: Size? = null,
     endShape: Size? = null,
   ): TestFrame =

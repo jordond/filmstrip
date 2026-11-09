@@ -6,7 +6,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import dev.jordond.filmstrip.edit.AudioLevel
 import dev.jordond.filmstrip.edit.AudioSpec
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.EffectsBuilder
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.compositionOf
@@ -80,7 +80,7 @@ public enum class AudioMode {
 }
 
 /**
- * Every knob the editor exposes, held as compose state and lowered onto an [EditComposition] on
+ * Every knob the editor exposes, held as compose state and lowered onto a [Composition] on
  * demand.
  *
  * One field per parameter of the built-in effect catalogue, so nothing in `filmstrip-effects` is
@@ -320,7 +320,7 @@ public class EditState {
     sourceDuration: Duration?,
     trimmed: Boolean = true,
     cropped: Boolean = true,
-  ): EditComposition =
+  ): Composition =
     compositionOf {
       clip(source) {
         if (trimmed) trimRange(sourceDuration)?.let { trim(it) }

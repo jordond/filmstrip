@@ -1,7 +1,7 @@
 package dev.jordond.filmstrip.effects.overlay
 
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.effect.Attributes
@@ -442,8 +442,8 @@ class WebOverlayTest {
     }
   }
 
-  private fun compositionOf(effect: EffectSpec): EditComposition =
-    EditComposition(listOf(Track(listOf(Clip(MediaSource.ofUri("blob:clip"), effects = listOf(effect))))))
+  private fun compositionOf(effect: EffectSpec): Composition =
+    Composition(listOf(Track(listOf(Clip(MediaSource.ofUri("blob:clip"), effects = listOf(effect))))))
 
   private companion object {
     val FRAME = Size(1280, 720)

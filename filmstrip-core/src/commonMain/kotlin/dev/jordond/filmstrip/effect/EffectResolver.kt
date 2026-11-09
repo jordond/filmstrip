@@ -2,7 +2,7 @@ package dev.jordond.filmstrip.effect
 
 import dev.drewhamilton.poko.Poko
 import dev.jordond.filmstrip.FilmstripError
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 
 /**
  * Realizes an [EffectSpec] as something the current platform can render.
@@ -45,7 +45,7 @@ public fun interface EffectResolver {
    * [resolve] needs it. An engine runs one negotiation at a time, so what this reads stays the negotiation's own, and
    * this must not start another negotiation on the engine calling it. The default does nothing.
    */
-  public suspend fun prepare(composition: EditComposition) {}
+  public suspend fun prepare(composition: Composition) {}
 }
 
 /**

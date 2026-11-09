@@ -11,7 +11,7 @@ import dev.jordond.filmstrip.color.signalFromNits
 import dev.jordond.filmstrip.color.tenBitCodesFromSignal
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effects.color.Contrast
@@ -137,7 +137,7 @@ class BrowserHdrMediaTest {
       HdrTransfer.entries.forEach { transfer ->
         val bytes = makeHdrClip(transfer) { BRIGHT }
         val composition =
-          EditComposition(
+          Composition(
             tracks = listOf(Track(listOf(Clip(MediaSource.Bytes(bytes))), start = LATE_START)),
             audio = AudioSpec.Remove,
             fill = Fill.Solid(PURPLE_ARGB),
@@ -230,7 +230,7 @@ class BrowserHdrMediaTest {
 
     val bytes = makeHdrClip(transfer) { COLORED }
     val composition =
-      EditComposition(
+      Composition(
         tracks = listOf(Track(listOf(Clip(MediaSource.Bytes(bytes), effects = listOf(spec))))),
         audio = AudioSpec.Remove,
       )
@@ -271,7 +271,7 @@ class BrowserHdrMediaTest {
     val filler = makeHdrClip(HdrTransfer.Hlg) { BRIGHT }
     val tall = makeHdrClip(HdrTransfer.Hlg, width = HALF, frames = SHORT, row = row)
     val composition =
-      EditComposition(
+      Composition(
         tracks = listOf(Track(listOf(Clip(MediaSource.Bytes(filler)), Clip(MediaSource.Bytes(tall))))),
         audio = AudioSpec.Remove,
         fill = Fill.Blurred(radius = WIDE_BLUR),
@@ -329,8 +329,8 @@ class BrowserHdrMediaTest {
     assertNear(expected[2], read[2], CHROMA_TOLERANCE, "$what Cr")
   }
 
-  private fun cropped(bytes: ByteArray): EditComposition =
-    EditComposition(
+  private fun cropped(bytes: ByteArray): Composition =
+    Composition(
       tracks =
         listOf(
           Track(
@@ -352,10 +352,10 @@ class BrowserHdrMediaTest {
   private suspend fun letterboxed(
     transfer: HdrTransfer,
     fill: Fill,
-  ): EditComposition {
+  ): Composition {
     val filler = makeHdrClip(transfer) { BRIGHT }
     val wide = makeHdrClip(transfer, height = HALF, frames = SHORT) { COLORED }
-    return EditComposition(
+    return Composition(
       tracks = listOf(Track(listOf(Clip(MediaSource.Bytes(filler)), Clip(MediaSource.Bytes(wide))))),
       audio = AudioSpec.Remove,
       fill = fill,
@@ -389,7 +389,7 @@ class BrowserHdrMediaTest {
   private fun filmstrip(): Filmstrip = Filmstrip { webCodecsBackend() }
 
   private suspend fun exportOf(
-    composition: EditComposition,
+    composition: Composition,
     transfer: HdrTransfer,
   ): ExportStatus.Success {
     val filmstrip = filmstrip()
@@ -404,7 +404,7 @@ class BrowserHdrMediaTest {
 
   private suspend fun planOf(
     filmstrip: Filmstrip,
-    composition: EditComposition,
+    composition: Composition,
     spec: ExportSpec,
   ): ExportPlan =
     when (val verdict = filmstrip.plan(composition, spec)) {

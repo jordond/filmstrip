@@ -6,7 +6,7 @@ import dev.jordond.filmstrip.color.pictureLight
 import dev.jordond.filmstrip.color.pictureSrgbCodes
 import dev.jordond.filmstrip.color.signalFromNits
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.effect.Attributes
@@ -169,7 +169,7 @@ class FfmpegOverlayOrientationMediaTest {
           val overlays = batch.zip(CORNERS) { it, corner -> cornerOverlay(pictureOf(format, it), corner) }
           val output = File.createTempFile("filmstrip-orientation", ".mp4").also { it.delete() }
           val composition =
-            EditComposition(
+            Composition(
               tracks = listOf(Track(listOf(Clip(MediaSource.of(fixture.landscape.absolutePath))))),
               effects = overlays,
             )
@@ -197,7 +197,7 @@ class FfmpegOverlayOrientationMediaTest {
       for (batch in PictureOrientation.entries.chunked(CORNERS.size)) {
         val overlays = batch.zip(CORNERS) { it, corner -> cornerOverlay(pictureOf(Format.Png, it), corner) }
         val composition =
-          EditComposition(
+          Composition(
             tracks = listOf(Track(listOf(Clip(MediaSource.of(fixture.landscape.absolutePath))))),
             effects = overlays,
           )

@@ -3,7 +3,7 @@ package dev.jordond.filmstrip.webcodecs
 import dev.jordond.filmstrip.ComponentRegistry
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.effect.Attributes
 import dev.jordond.filmstrip.effect.EffectResolution
@@ -38,7 +38,7 @@ import kotlin.time.Duration.Companion.milliseconds
 class BrowserResolveTest {
   private val source = MediaSource.Bytes("clip".encodeToByteArray())
   private val composition =
-    EditComposition(
+    Composition(
       tracks = listOf(Track(listOf(Clip(source)))),
       effects = listOf(Brightness(BRIGHTNESS)),
       audio = AudioSpec.Remove,

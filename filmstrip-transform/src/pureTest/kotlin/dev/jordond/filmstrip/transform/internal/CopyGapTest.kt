@@ -2,7 +2,7 @@ package dev.jordond.filmstrip.transform.internal
 
 import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.edit.AudioSpec
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.export.CopyBlocker
@@ -28,7 +28,7 @@ class CopyGapTest {
 
   @Test
   fun `a lone clip on a track at zero copies`() {
-    val edit = EditComposition(listOf(Track(listOf(fixture.clip(audioRate = AUDIO_RATE)))))
+    val edit = Composition(listOf(Track(listOf(fixture.clip(audioRate = AUDIO_RATE)))))
     val plan = plan(edit).shouldBeInstanceOf<Verdict.Capable>().plan
 
     plan.path shouldBe ExportPath.Copy
@@ -37,7 +37,7 @@ class CopyGapTest {
 
   @Test
   fun `a track that starts late re-encodes rather than copying across its lead`() {
-    val edit = EditComposition(listOf(Track(listOf(fixture.clip(audioRate = AUDIO_RATE)), start = 1.seconds)))
+    val edit = Composition(listOf(Track(listOf(fixture.clip(audioRate = AUDIO_RATE)), start = 1.seconds)))
 
     transcodes(edit) shouldContain CopyBlocker.TrackStartsLate
   }
@@ -45,7 +45,7 @@ class CopyGapTest {
   @Test
   fun `a clip with no picture beside one with re-encodes rather than copying across it`() {
     val edit =
-      EditComposition(listOf(Track(listOf(fixture.clip(audioRate = AUDIO_RATE), fixture.audioOnlyClip(2.seconds)))))
+      Composition(listOf(Track(listOf(fixture.clip(audioRate = AUDIO_RATE), fixture.audioOnlyClip(2.seconds)))))
 
     transcodes(edit) shouldContain CopyBlocker.MultipleClips
   }
@@ -53,14 +53,14 @@ class CopyGapTest {
   @Test
   fun `a second track outlasting the first re-encodes rather than copying past the picture`() {
     val bed = Track(listOf(fixture.audioOnlyClip(10.seconds)), content = TrackContent.Audio)
-    val edit = EditComposition(listOf(Track(listOf(fixture.clip(audioRate = AUDIO_RATE))), bed))
+    val edit = Composition(listOf(Track(listOf(fixture.clip(audioRate = AUDIO_RATE))), bed))
 
     transcodes(edit) shouldContain CopyBlocker.MultipleTracks
   }
 
   @Test
   fun `an edit that drops its picture re-encodes rather than copying the sound alone`() {
-    val edit = EditComposition(listOf(Track(listOf(fixture.clip(audioRate = AUDIO_RATE)))), audio = AudioSpec.AudioOnly)
+    val edit = Composition(listOf(Track(listOf(fixture.clip(audioRate = AUDIO_RATE)))), audio = AudioSpec.AudioOnly)
 
     transcodes(edit) shouldContain CopyBlocker.AudioSpecChanged
   }
@@ -68,7 +68,7 @@ class CopyGapTest {
   @Test
   fun `a composition volume below one re-encodes as a gain change alone`() {
     val edit =
-      EditComposition(listOf(Track(listOf(fixture.clip(audioRate = AUDIO_RATE)))), audio = AudioSpec.Volume(0.5f))
+      Composition(listOf(Track(listOf(fixture.clip(audioRate = AUDIO_RATE)))), audio = AudioSpec.Volume(0.5f))
 
     transcodes(edit) shouldBe listOf(CopyBlocker.CompositionGainChanged)
   }
@@ -76,7 +76,7 @@ class CopyGapTest {
   @Test
   fun `a composition volume of one copies the way a track volume of one does`() {
     val edit =
-      EditComposition(listOf(Track(listOf(fixture.clip(audioRate = AUDIO_RATE)))), audio = AudioSpec.Volume(1f))
+      Composition(listOf(Track(listOf(fixture.clip(audioRate = AUDIO_RATE)))), audio = AudioSpec.Volume(1f))
     val plan = plan(edit).shouldBeInstanceOf<Verdict.Capable>().plan
 
     plan.path shouldBe ExportPath.Copy
@@ -85,7 +85,7 @@ class CopyGapTest {
 
   @Test
   fun `a composition that removes its sound re-encodes as a stream change alone`() {
-    val edit = EditComposition(listOf(Track(listOf(fixture.clip(audioRate = AUDIO_RATE)))), audio = AudioSpec.Remove)
+    val edit = Composition(listOf(Track(listOf(fixture.clip(audioRate = AUDIO_RATE)))), audio = AudioSpec.Remove)
 
     transcodes(edit) shouldBe listOf(CopyBlocker.AudioSpecChanged)
   }
@@ -93,18 +93,18 @@ class CopyGapTest {
   @Test
   fun `a lone track carrying only sound is refused rather than copied`() {
     val edit =
-      EditComposition(listOf(Track(listOf(fixture.clip(audioRate = AUDIO_RATE)), content = TrackContent.Audio)))
+      Composition(listOf(Track(listOf(fixture.clip(audioRate = AUDIO_RATE)), content = TrackContent.Audio)))
 
     plan(edit).shouldBeInstanceOf<Verdict.Incapable>()
   }
 
-  private fun transcodes(edit: EditComposition): List<CopyBlocker> {
+  private fun transcodes(edit: Composition): List<CopyBlocker> {
     val plan = plan(edit).shouldBeInstanceOf<Verdict.Capable>().plan
     plan.path shouldBe ExportPath.Transcode
     return plan.copyBlockedBy
   }
 
-  private fun plan(edit: EditComposition): Verdict =
+  private fun plan(edit: Composition): Verdict =
     fixture
       .planner(resolvers = emptyList())
       .negotiate(

@@ -4,7 +4,7 @@ import dev.jordond.filmstrip.ComponentRegistry
 import dev.jordond.filmstrip.color.pictureLight
 import dev.jordond.filmstrip.color.pictureSrgbCodes
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.effect.Attributes
@@ -109,7 +109,7 @@ class FfmpegOverlayColorMediaTest {
       val png = picture.pngOf(OVERLAY_SIZE)
       val overlay = ImageOverlay(ImageSource.ofBytes(png), Corner.TopStart)
       val composition =
-        EditComposition(
+        Composition(
           tracks = listOf(Track(listOf(Clip(MediaSource.of(fixture.landscape.absolutePath))))),
           effects = listOf(overlay),
         )

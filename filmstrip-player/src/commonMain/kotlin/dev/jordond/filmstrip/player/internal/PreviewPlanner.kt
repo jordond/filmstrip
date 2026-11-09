@@ -3,7 +3,7 @@ package dev.jordond.filmstrip.player.internal
 import dev.jordond.filmstrip.capability.FidelityNote
 import dev.jordond.filmstrip.capability.OutputProperty
 import dev.jordond.filmstrip.capability.PreviewFidelity
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.player.PlaybackError
 import dev.jordond.filmstrip.player.PreviewInfo
@@ -43,7 +43,7 @@ internal interface PreviewPlanner<out P : PlannedPreview> {
    * @return The plan, or why the edit cannot be previewed here.
    */
   suspend fun plan(
-    composition: EditComposition,
+    composition: Composition,
     policy: PreviewQualityPolicy,
     exportSpec: ExportSpec,
   ): PlanResult<P, PlaybackError>

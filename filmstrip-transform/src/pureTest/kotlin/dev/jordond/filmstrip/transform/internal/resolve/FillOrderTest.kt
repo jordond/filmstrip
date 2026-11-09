@@ -1,7 +1,7 @@
 package dev.jordond.filmstrip.transform.internal.resolve
 
 import dev.jordond.filmstrip.codec.VideoCodec
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.effect.EffectIds
 import dev.jordond.filmstrip.effect.EffectSpec
@@ -114,7 +114,7 @@ class FillOrderTest {
     clipEffects: List<EffectSpec> = emptyList(),
   ): ResolvedComposition {
     val composition =
-      EditComposition(listOf(Track(listOf(fixture.clip(effects = clipEffects)))), effects = effects)
+      Composition(listOf(Track(listOf(fixture.clip(effects = clipEffects)))), effects = effects)
     val device = fixture.device(video = listOf(fixture.encoder(VideoCodec.H264)))
     return fixture
       .planner(ladder = listOf(VideoCodec.H264))

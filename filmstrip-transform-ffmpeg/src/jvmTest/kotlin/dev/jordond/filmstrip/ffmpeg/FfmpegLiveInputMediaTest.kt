@@ -4,7 +4,7 @@ import dev.jordond.filmstrip.diagnostics.DiagnosticEvent
 import dev.jordond.filmstrip.diagnostics.DiagnosticEvent.Detail
 import dev.jordond.filmstrip.diagnostics.DiagnosticListener
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.effect.EffectResolution
 import dev.jordond.filmstrip.effect.EffectResolver
 import dev.jordond.filmstrip.effect.EffectSpec
@@ -238,10 +238,10 @@ class FfmpegLiveInputMediaTest {
 
   private fun clip(): Clip = live.clipOf(WIDTH, HEIGHT, ::grey, listOf(TickLook))
 
-  private fun plan(vararg clips: Clip): EditComposition = live.composition(clips.toList())
+  private fun plan(vararg clips: Clip): Composition = live.composition(clips.toList())
 
   private suspend fun assertFormsAgree(
-    plan: EditComposition,
+    plan: Composition,
     at: Duration,
     opensOn: Int,
   ) {

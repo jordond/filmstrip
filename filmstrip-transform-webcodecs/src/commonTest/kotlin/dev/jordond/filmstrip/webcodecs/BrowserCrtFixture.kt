@@ -5,7 +5,7 @@ import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.outputSlotTime
 import dev.jordond.filmstrip.effect.EffectSpec
@@ -67,7 +67,7 @@ abstract class BrowserCrtFixture {
   ): Boolean = CrtSignal.coverageAt((column + 0.5) / width, (row + 0.5) / height, width, height, k) > 0.0
 
   internal suspend fun drawn(
-    composition: EditComposition,
+    composition: Composition,
     spec: ExportSpec = SPEC,
   ): PreviewFrame {
     val preview = previewOf(composition, spec)
@@ -79,7 +79,7 @@ abstract class BrowserCrtFixture {
   }
 
   internal suspend fun previewOf(
-    composition: EditComposition,
+    composition: Composition,
     spec: ExportSpec,
   ): BrowserPreview =
     webCodecsExportEngine(
@@ -99,7 +99,7 @@ abstract class BrowserCrtFixture {
     clip: Clip,
     effects: List<EffectSpec> = emptyList(),
     fill: Fill = Fill.Solid(BLACK_ARGB),
-  ) = EditComposition(
+  ) = Composition(
     tracks = listOf(Track(listOf(clip))),
     effects = effects,
     fill = fill,

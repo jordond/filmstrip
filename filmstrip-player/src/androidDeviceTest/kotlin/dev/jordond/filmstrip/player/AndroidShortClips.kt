@@ -4,7 +4,7 @@ import android.media.MediaCodec
 import android.media.MediaExtractor
 import android.media.MediaFormat
 import android.media.MediaMuxer
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.player.contract.ClipParityBackend
 import dev.jordond.filmstrip.player.contract.ShortClipBackend
@@ -35,7 +35,7 @@ internal object AndroidShortClips : ShortClipBackend, ClipParityBackend by Andro
   // frame it shows once, as AndroidClipSpeedMediaTest reads it.
   override val writesEverySlowedSlot: Boolean get() = false
 
-  override suspend fun writtenFrameCount(composition: EditComposition): Long {
+  override suspend fun writtenFrameCount(composition: Composition): Long {
     val extractor = MediaExtractor().apply { setDataSource(androidExportedFile(composition).path) }
     try {
       extractor.selectTrack(extractor.trackOf("video/") ?: fail("the file holds no video"))

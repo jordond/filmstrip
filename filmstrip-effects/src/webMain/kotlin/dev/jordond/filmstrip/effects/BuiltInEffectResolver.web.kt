@@ -2,7 +2,7 @@
 
 package dev.jordond.filmstrip.effects
 
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.effect.Attributes
 import dev.jordond.filmstrip.effect.EffectResolution
 import dev.jordond.filmstrip.effect.EffectResolver
@@ -82,7 +82,7 @@ public actual class BuiltInEffectResolver internal constructor(
    * lowering, and a URI is read again every time. An image left out of it resolves unsupported, and so does one whose
    * fetch never finished, which gives up after a minute rather than hold up later lowerings.
    */
-  override suspend fun prepare(composition: EditComposition) {
+  override suspend fun prepare(composition: Composition) {
     preloadOverlays(composition, images)
   }
 

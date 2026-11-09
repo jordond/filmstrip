@@ -1,6 +1,6 @@
 package dev.jordond.filmstrip.ffmpeg.support
 
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.PREVIEW_PIXEL_FORMAT
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.previewArguments
@@ -19,7 +19,7 @@ import kotlin.time.Duration
  * The first [count] frames the graph [frames] runs writes, as RGBA, each frame's command handed through [rewrite].
  */
 internal suspend fun FilterFrames.rawFrames(
-  composition: EditComposition,
+  composition: Composition,
   count: Int,
   rewrite: (List<String>) -> List<String> = { it },
 ): ByteArray {
@@ -56,7 +56,7 @@ internal suspend fun FilterFrames.rawFrames(
  * names, the drawn graph or the one on live planes, with the look's tick clock swapped for [clock] when it is given.
  */
 internal suspend fun FilterFrames.formPlanes(
-  composition: EditComposition,
+  composition: Composition,
   count: Int,
   live: Boolean,
   at: Duration = Duration.ZERO,
@@ -110,7 +110,7 @@ internal suspend fun FilterFrames.formPlanes(
  * time gives. Those bytes come back for comparing against what the look draws from its own clock.
  */
 internal suspend fun FilterFrames.planesAtExactTicks(
-  composition: EditComposition,
+  composition: Composition,
   count: Int,
   tick: String,
 ): ByteArray = formPlanes(composition, count, live = false, clock = tick)
@@ -121,7 +121,7 @@ private val LOOK_TICK_CLOCK = Regex("""floor\(\(floor\(T\*[^)]*\)[^)]*\)[^)]*\)"
 /**
  * The command [frames] runs for [composition].
  */
-internal suspend fun FilterFrames.commandOf(composition: EditComposition): List<String> {
+internal suspend fun FilterFrames.commandOf(composition: Composition): List<String> {
   val (toolchain, invocation) =
     engine.runs
       .lowered(composition, ExportSpec(), null)

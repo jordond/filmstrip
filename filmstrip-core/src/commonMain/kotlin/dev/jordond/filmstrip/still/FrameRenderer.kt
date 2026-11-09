@@ -1,14 +1,14 @@
 package dev.jordond.filmstrip.still
 
 import androidx.compose.runtime.Stable
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.media.FrameResult
 import kotlinx.coroutines.flow.Flow
 import kotlin.time.Duration
 
 /**
- * Renders frames of an [EditComposition] with its effects applied.
+ * Renders frames of a [Composition] with its effects applied.
  *
  * The part of [dev.jordond.filmstrip.Filmstrip] that draws pictures. A poster frame or a timeline
  * strip takes one of these, and a [dev.jordond.filmstrip.Filmstrip] is one.
@@ -29,7 +29,7 @@ public interface FrameRenderer {
    * @return The frame, which the caller owns and must close, or why it could not be produced.
    */
   public suspend fun frame(
-    composition: EditComposition,
+    composition: Composition,
     at: Duration,
     heightPx: Int? = null,
     exportSpec: ExportSpec = ExportSpec(),
@@ -52,7 +52,7 @@ public interface FrameRenderer {
    * @return A flow of frames, one per entry in [at]. The caller owns each and must close it.
    */
   public fun frames(
-    composition: EditComposition,
+    composition: Composition,
     at: List<Duration>,
     heightPx: Int? = null,
     exportSpec: ExportSpec = ExportSpec(),

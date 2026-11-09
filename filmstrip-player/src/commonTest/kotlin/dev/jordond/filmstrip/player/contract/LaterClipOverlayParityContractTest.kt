@@ -1,7 +1,7 @@
 package dev.jordond.filmstrip.player.contract
 
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.outputSlotOf
@@ -84,7 +84,7 @@ abstract class LaterClipOverlayParityContractTest(
 
   private suspend fun PlayerEngine.framesOf(
     recorder: ContractRecorder,
-    composition: EditComposition,
+    composition: Composition,
     name: String,
     positions: List<Duration>,
   ): List<ReadbackFrame> {
@@ -96,7 +96,7 @@ abstract class LaterClipOverlayParityContractTest(
   // A backend that reads within [previewReadSlack] of a source frame's own time may show the frame either side of it,
   // so the export is read half a frame either way as well and the closest of them is held to the preview.
   private suspend fun assertMatchesExport(
-    edit: EditComposition,
+    edit: Composition,
     shown: ReadbackFrame,
   ) {
     val frame = comparedPart(shown.asTestFrame())
@@ -117,8 +117,8 @@ abstract class LaterClipOverlayParityContractTest(
   }
 
   // The fixture's opening and the run after it as two clips, with [overlay] on the second alone.
-  private fun editWith(overlay: TextOverlay?): EditComposition =
-    EditComposition(
+  private fun editWith(overlay: TextOverlay?): Composition =
+    Composition(
       listOf(
         Track(
           listOf(

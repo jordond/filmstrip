@@ -1,7 +1,7 @@
 package dev.jordond.filmstrip.player.contract
 
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.outputLengthOf
@@ -18,7 +18,7 @@ import kotlin.time.Duration.Companion.seconds
  * the cell holds one, and how many frames the file holds when that is not every slot of the edit.
  */
 internal class Cell(
-  val edit: EditComposition,
+  val edit: Composition,
   val reads: List<Read>,
   val writtenAtSpeed: Double? = null,
   val writtenFrames: Long? = null,
@@ -98,7 +98,7 @@ internal fun runOf(vararg cuts: Cut): List<PlacedClip> {
 internal fun editOf(
   source: MediaSource,
   run: List<PlacedClip>,
-) = EditComposition(listOf(Track(run.map { it.clipOf(source) })))
+) = Composition(listOf(Track(run.map { it.clipOf(source) })))
 
 /**
  * Whether [time] sits within [NEAREST_FRAME_TIE] of half way between the two frames either side of it, at [frameRate].

@@ -5,7 +5,7 @@ import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.outputSlotTime
 import dev.jordond.filmstrip.effect.EffectResolution
@@ -122,7 +122,7 @@ class BrowserShaderPassMediaTest {
   fun aGapSlotRunsTheCompositionPassOverTheFill() =
     runTest {
       val composition =
-        EditComposition(
+        Composition(
           tracks = listOf(Track(listOf(Clip(source())), start = GAP)),
           effects = listOf(ShaderEffect(INVERT)),
           audio = AudioSpec.Remove,
@@ -142,9 +142,9 @@ class BrowserShaderPassMediaTest {
     runTest {
       val source = source()
       val square = Crop(AspectRatio.Square, Fit.Contain)
-      val plain = EditComposition(listOf(Track(listOf(Clip(source)))), listOf(square), AudioSpec.Remove, Fill.Blur)
+      val plain = Composition(listOf(Track(listOf(Clip(source)))), listOf(square), AudioSpec.Remove, Fill.Blur)
       val inverted =
-        EditComposition(
+        Composition(
           listOf(Track(listOf(Clip(source)))),
           listOf(square, ShaderEffect(INVERT)),
           AudioSpec.Remove,
@@ -165,7 +165,7 @@ class BrowserShaderPassMediaTest {
       val source = source()
       val square = Crop(AspectRatio.Square, Fit.Contain)
       val clip = Clip(source, effects = listOf(ShaderEffect(INVERT)))
-      val inverted = EditComposition(listOf(Track(listOf(clip))), listOf(square), AudioSpec.Remove, Fill.Blur)
+      val inverted = Composition(listOf(Track(listOf(clip))), listOf(square), AudioSpec.Remove, Fill.Blur)
 
       val bar = frameOf(inverted).at(MIDDLE, BAR_ROW)
       val expected = plain(source).map { FULL - it }
@@ -262,7 +262,7 @@ class BrowserShaderPassMediaTest {
     effects: List<EffectSpec> = emptyList(),
   ): PreviewFrame = frameOf(editOf(clips, effects))
 
-  private suspend fun frameOf(composition: EditComposition): PreviewFrame {
+  private suspend fun frameOf(composition: Composition): PreviewFrame {
     val preview = previewOf(composition)
     try {
       return preview.frameAt(outputSlotTime(MIDDLE_SLOT, FRAME_RATE)).shouldNotBeNull()
@@ -271,7 +271,7 @@ class BrowserShaderPassMediaTest {
     }
   }
 
-  private suspend fun previewOf(composition: EditComposition): BrowserPreview =
+  private suspend fun previewOf(composition: Composition): BrowserPreview =
     resolved(composition).toBrowserPreview(composition)
 
   private suspend fun lowered(
@@ -282,7 +282,7 @@ class BrowserShaderPassMediaTest {
     browserRenderOf(resolved(composition), composition)
   }
 
-  private suspend fun resolved(composition: EditComposition): ResolvedComposition =
+  private suspend fun resolved(composition: Composition): ResolvedComposition =
     webCodecsExportEngine(
       components =
         ComponentRegistry
@@ -298,7 +298,7 @@ class BrowserShaderPassMediaTest {
   private fun editOf(
     clips: List<Clip>,
     effects: List<EffectSpec>,
-  ) = EditComposition(tracks = listOf(Track(clips)), effects = effects, audio = AudioSpec.Remove)
+  ) = Composition(tracks = listOf(Track(clips)), effects = effects, audio = AudioSpec.Remove)
 
   private fun overlay(): ImageOverlay =
     ImageOverlay(ImageSource.ofBytes(OverlayPixels.pngOf(Size(4, 4), OVERLAY_ARGB)), Corner.TopStart)

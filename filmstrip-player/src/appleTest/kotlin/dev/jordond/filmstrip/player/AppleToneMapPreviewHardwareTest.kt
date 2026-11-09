@@ -3,7 +3,7 @@ package dev.jordond.filmstrip.player
 import dev.jordond.filmstrip.avfoundation.internal.composition.toAvComposition
 import dev.jordond.filmstrip.avfoundation.internal.time.toCMTime
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.export.ExportSpec
@@ -190,7 +190,7 @@ class AppleToneMapPreviewHardwareTest {
   fun `a thumbnail of a lone hdr clip under a tone map spec reads the curve`() =
     contractTest(timeout = TIMEOUT) {
       val edit =
-        EditComposition(listOf(Track(listOf(Clip(MediaSource.of(hdrClip()), TimeRange.of(Duration.ZERO, CLIP))))))
+        Composition(listOf(Track(listOf(Clip(MediaSource.of(hdrClip()), TimeRange.of(Duration.ZERO, CLIP))))))
       val request =
         ThumbnailRequest(
           edit,
@@ -214,7 +214,7 @@ class AppleToneMapPreviewHardwareTest {
   fun `a spec that asks for the tone map brings a live preview onto the curve`() =
     contractTest(timeout = TIMEOUT) { scope ->
       val edit =
-        EditComposition(listOf(Track(listOf(Clip(MediaSource.of(hdrClip()), TimeRange.of(Duration.ZERO, CLIP))))))
+        Composition(listOf(Track(listOf(Clip(MediaSource.of(hdrClip()), TimeRange.of(Duration.ZERO, CLIP))))))
       val planner = AvPreviewPlanner(CONTRACT_COMPONENTS)
       // Only macOS keeps a lone HDR clip, and a simulator already tone maps it, so only one has a compositor to swap
       // in.
@@ -257,7 +257,7 @@ class AppleToneMapPreviewHardwareTest {
 
   private suspend fun assertOnTheCurve(
     frame: TestFrame,
-    edit: EditComposition,
+    edit: Composition,
     position: Duration,
     label: String,
   ) {
@@ -287,8 +287,8 @@ class AppleToneMapPreviewHardwareTest {
     }
   }
 
-  private fun toneMappedEdit(): EditComposition =
-    EditComposition(
+  private fun toneMappedEdit(): Composition =
+    Composition(
       tracks =
         listOf(
           Track(
