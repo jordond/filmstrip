@@ -61,6 +61,9 @@ A question or chore for the owner parks only the work that needs the answer. Nam
 - The integration branch is ready for `main`.
 
 ## Rules
+- Every agent, analysts and reviewers included, is spawned with `run_in_background: true`. A spawn with only a `name`
+  becomes a teammate whose result arrives as an idle message, and those have been lost. Before any status reply or
+  wait, `ListAgents`: an idle agent whose result never arrived has its last message read from its transcript.
 - Model and effort come from the agent files. Never pass `model:` unless the owner names one.
 - Read source only to write the exact lines you are routing to a builder or scribe. Lookups go to `scout`, explanations to `analyst`.
 - Never run the lane inline, `/ci` runs it in the background.
