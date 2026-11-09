@@ -1,6 +1,6 @@
 package dev.jordond.filmstrip.docs.landing
 
-import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.effects.color.contrast
 import dev.jordond.filmstrip.effects.color.saturation
@@ -12,7 +12,7 @@ import kotlin.time.Duration.Companion.seconds
 
 // The site shows a line tagged `// step: name` only while that step is on, and drops the tag. `// step: none` shows a
 // line only while every step is off. A tag on a line of its own tags the line below it.
-internal fun tryItComposition(): EditComposition {
+internal fun tryItComposition(): Composition {
   // region try-it
   val composition =
     compositionOf {
