@@ -28,7 +28,8 @@ Read those sections, then only the files each unit lists. One commit per unit, e
 Base: <sha>. First run `git log -1 --format=%H`. If it is not <sha>, `git reset --hard <sha>` before anything else.
 Branch: fix/<slug>.
 Runs on: <Mac | cerebro via `scratchpad/remote/gradle.sh <this worktree> <slug> <task>`, the script lives in
-the main checkout at /Users/jordon/dev/filmstrip>.
+the main checkout at /Users/jordon/dev/filmstrip>. When cerebro's Gradle lock is held, run on hoogflix
+instead with `FILMSTRIP_REMOTE=user@10.0.0.15`, never queue behind it.
 Gradle: one test task per call, foreground, never piped to head. ffmpeg jvmTest and any Apple suite never in one
 call or at once. Iterate on the touched classes with `--tests`. Run the touched classes on each target in your scope
 once at the final head, never a whole suite, the batch lane does that. `spotlessApply` once before each commit, never
