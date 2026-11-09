@@ -1,3 +1,5 @@
+export { DEMO_HOST, SITE_URL } from './hosts.ts'
+
 /** The filmstrip repository on GitHub. */
 export const REPO_URL = 'https://github.com/jordond/filmstrip'
 

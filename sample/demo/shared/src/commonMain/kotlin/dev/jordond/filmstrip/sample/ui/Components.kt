@@ -395,9 +395,3 @@ private fun Swatch(
     }
   }
 }
-
-/**
- * The smallest height of a control, the chip size where there is a pointer and the touch size on a phone.
- */
-@Composable
-internal fun controlHeight(): Dp = if (isCompactWidth()) Tokens.sizeTouch else Tokens.sizeChip

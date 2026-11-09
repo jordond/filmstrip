@@ -3,7 +3,7 @@
 // before the click. The screen layers stay on top of the iframe and let every pointer event through. The control panel
 // stands beside the tube, or under it on a narrow set. On narrow widths LOAD also grows the screen and slims the bezel
 // and panel, so the sample has room to be used. A browser with no WebCodecs keeps the bars and gets a note in place of
-// LOAD.
+// LOAD. With `fill` the set fills its parent's height, and the tube takes whatever room the panel leaves.
 import { DEMO_SIZE, DEMO_SRC } from '../lib/demo'
 import NoWebCodecs from './NoWebCodecs.astro'
 import TvPanel from './landing/TvPanel.astro'
@@ -13,9 +13,11 @@ interface Props {
   src?: string
   /** The download size shown under LOAD. */
   size?: string
+  /** Fill the parent's height instead of keeping the tube at 16:10. */
+  fill?: boolean
 }
 
-const { src = DEMO_SRC, size = DEMO_SIZE } = Astro.props
+const { src = DEMO_SRC, size = DEMO_SIZE, fill = false } = Astro.props
 
 const top = ['grey', 'yellow', 'cyan', 'green', 'magenta', 'red', 'blue'].map((bar) => `var(--bar-${bar})`)
 const middle = ['blue', 'black', 'magenta', 'black', 'cyan', 'black', 'grey'].map((bar) => `var(--bar-${bar})`)
@@ -27,7 +29,7 @@ const bottom = [
 ]
 ---
 
-<div class="tv not-content" data-demo data-src={src}>
+<div class:list={['tv', 'not-content', { fill }]} data-demo data-src={src}>
   <div class="face">
     <div id="demo-screen" class="screen scan flicker">
       <div class="roll"></div>
@@ -52,7 +54,7 @@ const bottom = [
                 <path d="M2 2 L16 10 L2 18 Z" fill="currentColor"></path>
               </svg>LOAD
             </button>
-            <span class="rgb-sm note">{size.toUpperCase()} DOWNLOAD · STARTS WHEN YOU PRESS LOAD</span>
+            <span class="rgb-sm note">{size.toUpperCase()} DOWNLOAD</span>
           </div>
           <NoWebCodecs />
           <div class="loading" data-demo-panel="loading" tabindex="-1" hidden>
@@ -88,14 +90,14 @@ const bottom = [
           tv.dataset.demoLoaded = ''
           panel('idle').hidden = true
           panel('loading').hidden = false
-          panel('loading').focus()
+          panel('loading').focus({ preventScroll: true })
           led.dataset.state = 'loading'
           const iframe = demoIframe(tv.dataset.src ?? DEMO_SRC, () => {
             iframe.classList.add('ready')
             tv.dataset.demoReady = ''
             led.dataset.state = 'ready'
             // Before the loading panel goes, so focus never falls back to body.
-            iframe.focus()
+            iframe.focus({ preventScroll: true })
             for (const idle of tv.querySelectorAll('[data-demo-idle]')) idle.remove()
           })
           screen.append(iframe)
@@ -340,6 +342,36 @@ const bottom = [
     .tv[data-demo-loaded] :global(.panel) {
       --big-knob-size: 22px;
       --knob-size: 18px;
+    }
+  }
+
+  .tv.fill {
+    box-sizing: border-box;
+    max-width: none;
+    height: 100%;
+    display: flex;
+  }
+
+  .tv.fill .face {
+    flex: 1;
+    min-height: 0;
+    align-items: stretch;
+  }
+
+  .tv.fill .screen {
+    aspect-ratio: auto;
+    min-height: 0;
+  }
+
+  @container tv-set (max-width: 470px) {
+    .tv.fill .screen {
+      flex: 1;
+    }
+  }
+
+  @media (max-width: 48rem) {
+    .tv.fill[data-demo-loaded] .screen {
+      min-height: 0;
     }
   }
 

@@ -9,3 +9,6 @@
 
 /demo/try/*.wasm
   Cache-Control: public, max-age=31536000, immutable
+
+/demo/playground/*.wasm
+  Cache-Control: public, max-age=31536000, immutable

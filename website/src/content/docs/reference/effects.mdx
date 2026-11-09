@@ -6,34 +6,33 @@ description: Every built-in effect on every backend, and where the backends diff
 The built-in effects live in `filmstrip-effects`. [Effects](/guides/effects/) and [Overlays](/guides/overlays/) show how
 to use them.
 
-| Effect          | Android | Apple | Browser       | JVM     |
-| --------------- | ------- | ----- | ------------- | ------- |
-| `rotate`        | Yes     | Yes   | Quarter turns | Yes     |
-| `flip`          | Yes     | Yes   | Yes           | Yes     |
-| `crop`          | Yes     | Yes   | Yes           | Yes     |
-| `scale`         | Yes     | Yes   | Yes           | Yes     |
-| `kenBurns`      | Yes     | Yes   | Yes           | Refused |
-| `brightness`    | Yes     | Yes   | Yes           | Yes     |
-| `contrast`      | Yes     | Yes   | Yes           | Yes     |
-| `saturation`    | Yes     | Yes   | Yes           | Yes     |
-| `hueRotate`     | Yes     | Yes   | Yes           | Yes     |
-| `sepia`         | Yes     | Yes   | Yes           | Yes     |
-| `invert`        | Yes     | Yes   | Yes           | Yes     |
-| `rgbAdjustment` | Yes     | Yes   | Yes           | Yes     |
-| `colorMatrix`   | Yes     | Yes   | Yes           | Yes     |
-| `imageOverlay`  | Yes     | Yes   | No file paths | Yes     |
-| `textOverlay`   | Yes     | Yes   | Yes           | Yes     |
+| Effect          | Android | Apple | Browser       | JVM |
+| --------------- | ------- | ----- | ------------- | --- |
+| `rotate`        | ✓       | ✓     | Quarter turns | ✓   |
+| `flip`          | ✓       | ✓     | ✓             | ✓   |
+| `crop`          | ✓       | ✓     | ✓             | ✓   |
+| `scale`         | ✓       | ✓     | ✓             | ✓   |
+| `kenBurns`      | ✓       | ✓     | ✓             | ✗   |
+| `brightness`    | ✓       | ✓     | ✓             | ✓   |
+| `contrast`      | ✓       | ✓     | ✓             | ✓   |
+| `saturation`    | ✓       | ✓     | ✓             | ✓   |
+| `hueRotate`     | ✓       | ✓     | ✓             | ✓   |
+| `sepia`         | ✓       | ✓     | ✓             | ✓   |
+| `invert`        | ✓       | ✓     | ✓             | ✓   |
+| `rgbAdjustment` | ✓       | ✓     | ✓             | ✓   |
+| `colorMatrix`   | ✓       | ✓     | ✓             | ✓   |
+| `imageOverlay`  | ✓       | ✓     | No file paths | ✓   |
+| `textOverlay`   | ✓       | ✓     | ✓             | ✓   |
 
-A refused effect makes the plan `Incapable`, naming the effect, and `withoutUnsupported` carries a plan with it left
-out. See [Export](/guides/export/#plan).
+An unsupported effect makes the plan `Incapable` and names the effect. `withoutUnsupported` gives you the same plan
+without it. See [Export](/guides/export/#plan).
 
 ## Inert effects
 
-An effect that renders nothing is left out of the export and listed on the plan's `inertNotices`, on every backend. It
-isn't an `Adjustment`, and it doesn't stop a stream copy.
+An effect that changes nothing is left out of the export and listed on the plan's `inertNotices`. It isn't reported
+as an `Adjustment`, and it doesn't stop a stream copy.
 
-- A color effect that changes nothing, like a brightness of one or a whole turn of hue. A run of them that multiplies
-  out to no change counts as one.
+- A color effect that changes nothing, like a brightness of one or a whole turn of hue, or several that cancel out.
 - A whole turn of `rotate`, or a `crop` to the aspect the frame already has.
 - An overlay at zero opacity, with empty text, or with a window outside its scope.
 
@@ -41,43 +40,35 @@ isn't an `Adjustment`, and it doesn't stop a stream copy.
 
 ### rotate
 
-Android, Apple and ffmpeg turn a frame by any angle. The browser only takes multiples of 90 and refuses any other angle.
+Android, Apple and ffmpeg turn a frame by any angle. The browser only turns by multiples of 90 and refuses any other
+angle.
 
 ### kenBurns
 
-ffmpeg refuses it. The other three follow the region per frame.
+ffmpeg refuses it.
 
 ### Color effects
 
-Every backend runs the same matrix, on its own machinery.
-
-| Backend | Runs on                                                                               |
-| ------- | ------------------------------------------------------------------------------------- |
-| Android | media3's matrix effects, with a pass of its own on an HDR grade                       |
-| Apple   | Core Image                                                                            |
-| Browser | A WebGL2 pass                                                                         |
-| JVM     | `lutrgb` when channels stay apart, `lut3d` when they mix, float tables on an HDR grade |
-
-`lut3d` keeps the code value below the interpolated one, not the nearest. So on an SDR export, a matrix that mixes
-channels can land one code value under the other backends. That's the filter's limit.
+Every backend applies the same color math. On an SDR export, ffmpeg can land one code value below the others when an
+effect mixes channels, like `sepia` or `hueRotate`.
 
 ### imageOverlay
 
 - A browser page can't read a file path, so it refuses `ImageSource.Path`.
 - Which picture formats draw depends on the backend. See [Codecs](/reference/codecs/#overlay-pictures).
-- media3 and the browser upload a picture as one texture, and refuse one longer on a side than the texture limit.
+- Android and the browser refuse a picture longer on a side than the GPU's maximum texture size.
 
 ### textOverlay
 
-- Each backend shapes glyphs with its own fonts, and breaks lines with its own rules. A preview and its export always
-  break on the same words, but two backends can differ.
-- The ffmpeg backend draws with the fonts the JVM finds, and refuses a character those fonts can't draw.
+- Each backend draws with its own fonts and line breaking. A preview and its export always break on the same words,
+  but two backends can differ.
+- ffmpeg draws with the fonts installed on the machine, and refuses a character none of them can draw.
 
 ### Overlay animation
 
-media3 holds an overlay's position inside the frame, so one animated off the frame stops at the edge there.
+On Android an overlay animated off the frame stops at the edge instead of leaving it.
 
 ### Overlays on an HDR grade
 
-media3 blends an overlay in scene light on an HLG grade, and the plan reports it as an approximated effect. Every other
-case blends in linear display light. See [Limits](/reference/limits/#hdr-text-and-pictures).
+On an HDR grade overlays keep the brightness of their colors on every backend. Android on an HLG grade is close but
+not exact, and the plan reports it as approximated. See [Limits](/reference/limits/#hdr-text-and-pictures).

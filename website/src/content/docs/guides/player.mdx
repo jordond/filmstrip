@@ -6,8 +6,8 @@ description: Preview an edit, drive its transport and read what it can do on thi
 import { Aside } from '@astrojs/starlight/components'
 import Snippet from '../../../components/Snippet.astro'
 
-`preview` opens a `VideoPlayer` over the same composition value an export takes. Each engine lowers it through the same
-backend its exports use, so the compositing isn't a second implementation.
+`preview` opens a `VideoPlayer` over the same composition an export takes, and draws it with the same backend, so the
+preview shows what the export writes.
 
 <Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Player.kt" region="open" />
 
@@ -36,8 +36,7 @@ before you issue commands.
 <Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Player.kt" region="events" />
 
 `positionFlow` follows the playhead, snapped to the tick you ask for. `currentPosition` reads it once. Both report a
-seek's target as soon as it's issued, so a scrubber thumb doesn't snap back to where it was. A `SeekAccuracy.Nearest`
-seek moves once more when it lands, to the frame it landed on.
+seek's target as soon as it's issued, so a scrubber thumb doesn't snap back to where it was.
 
 <Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Player.kt" region="playhead" />
 
@@ -48,45 +47,42 @@ without coroutines.
 
 <Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Player.kt" region="transport" />
 
-- `seekTo` always yields one `SeekCompleted`, carrying the frame it landed on. `SeekAccuracy.Nearest` lands on a nearby frame,
-  before or after the one asked for, which suits a moving finger. Its `SeekCompleted` names the frame it shows. Until the
-  newest seek completes, the playhead reads the frame it asked for. A `Nearest` seek then moves the playhead once, to the
-  frame it landed on, which can be before the one asked for on the browser and Apple.
+- `seekTo` always yields one `SeekCompleted`, naming the frame it landed on. `SeekAccuracy.Nearest` lands on a nearby
+  frame, before or after the one asked for, which suits a moving finger. The playhead reads the frame asked for until the
+  seek completes, then moves once to the frame it landed on.
 - `beginScrub` and `endScrub` wrap a drag. Between them the engine relaxes seek accuracy, and `endScrub` settles on the
   exact frame.
 - `setLoopRange` wraps playback at the end of the range and reports `RangeLooped`. A range the composition ends inside wraps
   there and reports no `Ended`. A range that starts at or past the end has nothing to loop, so playback runs to the end. A
-  wrap only happens during playback, so a paused seek past the range stays where it lands. A wrap is a seek too, so from
-  the wrap on the playhead reads the range's first frame and never reports the range's end again after a lap.
-- `setPlaybackRange` confines playback without changing the composition, which is how a trim drag previews without a
-  rebuild.
+  wrap only happens during playback, so a paused seek past the range stays where it lands. After a wrap the playhead
+  reads the range's first frame.
+- `setPlaybackRange` confines playback without changing the composition, so a trim drag previews without a rebuild.
 - `setVolume` sets monitor volume, which only the player hears. To change the export's level, see [Audio](/guides/audio/).
-- On Apple, `play` on an item AVFoundation failed starts nothing and the status stays `PlaybackStatus.Error`, so a load is
-  what tries again. An item that stops before its end reports `PlaybackEvent.Failed` once per play or seek, with the
-  platform's error in it, and the status reads that error until the next play, seek or load.
-- A failure stops the player and leaves `playWhenReady` as it was, on every backend. Any load after it tries again, the same
-  composition or an edit of one parameter included, and plays if a play is still wanted.
+- A failure stops the player and keeps `playWhenReady`. The next load tries again, even with the same composition, and
+  plays if a play is still wanted.
+- On Apple, `play` after a failure starts nothing and the status stays `PlaybackStatus.Error` until you load again.
+  Playback that stops before the end reports `PlaybackEvent.Failed` once per play or seek, with the platform's error.
 
 ## Features
 
-`features` says what this backend can do on this device. Ask it before you draw a control, since a control for a missing
-feature looks frozen.
+`features` says what this backend can do on this device. Check it before you show a control, so you don't show one
+that does nothing.
 
 | Feature               | Android              | Apple | Browser                            | JVM |
 | --------------------- | -------------------- | ----- | ---------------------------------- | --- |
-| `FrameReadback`       | Yes                  | Yes   | Needs WebGL2                       | Yes |
-| `FrameStepping`       | Yes                  | Yes   | Needs WebGL2                       | Yes |
-| `LiveParameterRedraw` | Yes                  | Yes   | Needs WebGL2                       | No  |
-| `AudioMonitoring`     | When media3 can      | No    | Needs Web Audio and `AudioDecoder` | No  |
-| `HdrPreview`          | When the display can | No    | No                                 | No  |
-| `PlaybackSpeed`       | No                   | No    | No                                 | No  |
+| `FrameReadback`       | ✓                    | ✓     | Needs WebGL2                       | ✓   |
+| `FrameStepping`       | ✓                    | ✓     | Needs WebGL2                       | ✓   |
+| `LiveParameterRedraw` | ✓                    | ✓     | Needs WebGL2                       | ✗   |
+| `AudioMonitoring`     | Depends on device    | ✗     | Needs Web Audio and `AudioDecoder` | ✗   |
+| `HdrPreview`          | When the display can | ✗     | ✗                                  | ✗   |
+| `PlaybackSpeed`       | ✗                    | ✗     | ✗                                  | ✗   |
 
 `readback` hands you a rendered preview frame, after effects and before encoding.
 
 ## Changing the composition
 
 `setComposition` loads a new value. It's cheap to call often. An equal composition does nothing, a change to effect
-parameters updates the live pipeline and redraws, and only a structural change rebuilds, like adding a clip or a trim that
+parameters redraws in place, and only a structural change rebuilds, like adding a clip or a trim that
 changes the duration. Debounce structural edits, so a drag-reorder issues one rebuild and not thirty.
 
 <Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Player.kt" region="swap" />
@@ -100,13 +96,12 @@ paused one stays paused. Where the playhead lands depends on that transport:
 - A playing playhead at or past a loop range's wrap lands on the start of the range.
 
 `previewInfo` says what's being delivered, including its `outputSize`, its `parity` with the export and its `inertNotices`,
-which match what the export's plan carries.
+the same ones the export's plan lists.
 
 <Aside type="note" title="Limits">
-- media3's player takes no seek tolerance, so a `Nearest` seek costs what an exact one does on Android.
+- On Android a `Nearest` seek is no faster than an exact one.
 - The ffmpeg preview waits for a scrub to settle instead of landing on a nearby frame.
-- On ffmpeg a changed effect parameter is a new filter graph and a new process, which is why it reports no
-  `LiveParameterRedraw`.
-- A preview never opens an encoder, so it can't show encoder artifacts. A late frame is dropped, so smoothness is
-  approximate.
+- On ffmpeg a changed effect parameter restarts the preview, so it reports no `LiveParameterRedraw`.
+- A preview doesn't encode, so it won't show compression artifacts. Late frames are dropped, so playback can be less
+  smooth than the export.
 </Aside>

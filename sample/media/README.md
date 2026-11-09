@@ -19,12 +19,13 @@ crop, audio that stops before the video does, a frame size past what a phone wil
 hero and left flat for a grade to bring back. The landing page's Try it sample plays it. It belongs
 to nobody. `./generate.sh beach-sunset` rebuilds just that clip.
 
-Two clips are real footage, because synthetic frames say nothing about how an encoder handles
+Three clips are real footage, because synthetic frames say nothing about how an encoder handles
 grain, motion and shadow:
 
 | Clip                      | Source                                                     | Licence       |
 |---------------------------|------------------------------------------------------------|---------------|
 | `tears-of-steel-720p.mp4` | Tears of Steel, (CC) Blender Foundation, mango.blender.org | CC BY 3.0     |
+| `tears-of-steel-bridge-720p.mp4` | Tears of Steel, (CC) Blender Foundation, mango.blender.org | CC BY 3.0     |
 | `nasa-orion-earth.mp4`    | Artemis I, Orion's first imagery of Earth, NASA            | Public domain |
 
 Both are excerpts, re-encoded. CC BY asks for attribution, so the clip list carries it on the row
@@ -37,7 +38,7 @@ and this table records where it came from.
 ./upload.sh     # publishes build/ to the bucket, needs wrangler logged in
 ```
 
-`generate.sh` pulls the two real clips over the network and cuts them locally, so a rebuild needs
+`generate.sh` pulls the real clips over the network and cuts them locally, so a rebuild needs
 those sources to still be up.
 
 After changing the corpus, update `SamplePreset.kt` with the new names, byte sizes and durations.

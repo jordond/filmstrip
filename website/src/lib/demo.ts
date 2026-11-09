@@ -7,8 +7,13 @@ export const DEMO_SIZE = 'about 16 MB'
 /** Where the Try it app's index.html is served from. */
 export const TRY_SRC = '/demo/try/'
 
-/** The Try it download, the app plus the beach clip, shown before the reader chooses to load it. */
-export const TRY_SIZE = 'about 13 MB'
+/** Where the docs playground's index.html is served from. A page picks its sample with `?sample=`. */
+export const PLAYGROUND_SRC = '/demo/playground/'
+
+/** The address of the playground running [sample]. */
+export function playgroundUrl(sample: string): string {
+  return `${PLAYGROUND_SRC}?sample=${encodeURIComponent(sample)}`
+}
 
 /** The address of the sample at [src], told it is running inside the site's television. */
 export function demoUrl(src: string): string {

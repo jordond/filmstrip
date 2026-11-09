@@ -5,37 +5,38 @@ description: Which backend runs on which target, what it needs at runtime and wh
 
 import { MIN_IOS, MIN_MACOS, versions } from '../../../lib/versions'
 
-Each target has one backend. `allBackends()` registers the right one from the `filmstrip` bundle, or call its own
-function if you depend on the backend directly.
+Each target has one backend. With the `filmstrip` bundle, `allBackends()` registers the right one. If you depend on a
+backend directly, call its own function.
 
-| Backend      | Targets             | Artifact                           | Register with           |
-| ------------ | ------------------- | ---------------------------------- | ----------------------- |
-| Media3       | Android             | `filmstrip-transform-media3`       | `media3Backend()`       |
-| AVFoundation | iOS and macOS       | `filmstrip-transform-avfoundation` | `avFoundationBackend()` |
-| WebCodecs    | `js` and `wasmJs`   | `filmstrip-transform-webcodecs`    | `webCodecsBackend()`    |
-| ffmpeg       | `jvm`               | `filmstrip-transform-ffmpeg`       | `ffmpegBackend()`       |
+| Backend      | Targets           | Artifact                           | Register with           |
+| ------------ | ----------------- | ---------------------------------- | ----------------------- |
+| Media3       | Android           | `filmstrip-transform-media3`       | `media3Backend()`       |
+| AVFoundation | iOS and macOS     | `filmstrip-transform-avfoundation` | `avFoundationBackend()` |
+| WebCodecs    | `js` and `wasmJs` | `filmstrip-transform-webcodecs`    | `webCodecsBackend()`    |
+| ffmpeg       | `jvm`             | `filmstrip-transform-ffmpeg`       | `ffmpegBackend()`       |
 
 ## What each one needs
 
 ### Media3
 
-Android API {versions.minSdk} or later. The application context comes from App Startup. Which codecs and sizes are
-available is read from the device's encoders.
+Android API {versions.minSdk} or later. There's nothing to set up, filmstrip picks up the application context through
+App Startup. Which codecs and sizes you get depends on the device's encoders.
 
 ### AVFoundation
 
-iOS {MIN_IOS} or macOS {MIN_MACOS} or later. Nothing else to install. Which video codecs are available is read from
-VideoToolbox.
+iOS {MIN_IOS} or macOS {MIN_MACOS} or later. Nothing else to install. Which video codecs you get depends on the
+device.
 
 ### WebCodecs
 
-A browser with WebCodecs and WebGL2. A page with no `VideoEncoder` offers no video codecs at all. Keeping an HDR grade
-also needs a float framebuffer and a VP9 Profile 2 encoder.
+A browser with WebCodecs and WebGL2. Without a `VideoEncoder` the browser can preview but not export video. Keeping an
+HDR grade also needs a float framebuffer and a VP9 Profile 2 encoder. See
+[Limits](/reference/limits/#browsers-without-webcodecs).
 
 ### ffmpeg
 
-`ffmpeg` and `ffprobe` {versions.ffmpeg} or later on the machine. filmstrip ships neither, and finds them as
-[Requirements](/start/requirements/#ffmpeg) describes. What else it can do depends on the build:
+`ffmpeg` and `ffprobe` {versions.ffmpeg} or later, installed on the machine. filmstrip doesn't ship them, see
+[Requirements](/start/requirements/#ffmpeg) for how it finds them. Some features depend on how ffmpeg was built:
 
 | To do this                   | The build needs                                       |
 | ---------------------------- | ----------------------------------------------------- |
@@ -54,24 +55,24 @@ also needs a float framebuffer and a VP9 Profile 2 encoder.
 
 | Feature               | Android              | Apple | Browser                            | JVM |
 | --------------------- | -------------------- | ----- | ---------------------------------- | --- |
-| `FrameReadback`       | Yes                  | Yes   | Needs WebGL2                       | Yes |
-| `FrameStepping`       | Yes                  | Yes   | Needs WebGL2                       | Yes |
-| `LiveParameterRedraw` | Yes                  | Yes   | Needs WebGL2                       | No  |
-| `AudioMonitoring`     | When media3 can      | No    | Needs Web Audio and `AudioDecoder` | No  |
-| `HdrPreview`          | When the display can | No    | No                                 | No  |
-| `PlaybackSpeed`       | No                   | No    | No                                 | No  |
+| `FrameReadback`       | ✓                    | ✓     | Needs WebGL2                       | ✓   |
+| `FrameStepping`       | ✓                    | ✓     | Needs WebGL2                       | ✓   |
+| `LiveParameterRedraw` | ✓                    | ✓     | Needs WebGL2                       | ✗   |
+| `AudioMonitoring`     | Depends on device    | ✗     | Needs Web Audio and `AudioDecoder` | ✗   |
+| `HdrPreview`          | When the display can | ✗     | ✗                                  | ✗   |
+| `PlaybackSpeed`       | ✗                    | ✗     | ✗                                  | ✗   |
 
 See [Player](/guides/player/#features) for what each one means.
 
 ## Preview parity
 
-`previewInfo` reports how closely a preview matches its export, and `parityNotes` holds the detail per effect. Every
-built-in effect a backend runs is `EffectParity.Exact`, apart from these.
+`previewInfo` reports how closely a preview matches its export, and `parityNotes` has the detail per effect. Every
+built-in effect matches exactly, apart from these.
 
 | Effect        | Android       | Apple         | Browser | JVM           |
 | ------------- | ------------- | ------------- | ------- | ------------- |
 | `TextOverlay` | `Approximate` | `Approximate` | `Exact` | `Approximate` |
 | `Scale`       | `Exact`       | `Exact`       | `Exact` | `Approximate` |
 
-`TextOverlay` differs in glyph antialiasing. Its line breaks, metrics and measured size stay exact. `Scale` differs on
-ffmpeg because `swscale` resamples with a bicubic kernel, so detail on a downscale isn't the same as the preview.
+`TextOverlay` can differ in how glyph edges are smoothed, but line breaks and size always match. `Scale` on ffmpeg
+resamples differently from its preview, so fine detail on a downscale can look slightly different.

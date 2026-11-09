@@ -1,317 +1,199 @@
 ---
 title: Limits
-description: What filmstrip can't do on each backend, and whose limit it is.
+description: What filmstrip can't do on each backend, and what happens when you hit it.
 ---
 
-Each limit is named once here, with a link to the page that explains the feature around it.
+When a backend can't do something, filmstrip refuses it by name or reports it on the plan, so nothing fails silently.
+This page collects those limits in one place.
 
 ## Stream copy
 
-An export that can copy its streams does, with no re-encode. `ExportPlan.copyBlockedBy` lists every reason one didn't,
-so you can see what to drop to get it back. See [Export](/guides/export/).
+An export copies its streams without re-encoding whenever it can. `ExportPlan.copyBlockedBy` lists every reason it
+couldn't, so you can see what to drop to get the copy back. See [Export](/guides/export/).
 
-| Source of the block | `CopyBlocker`                                                                                             |
-| ------------------- | --------------------------------------------------------------------------------------------------------- |
-| The spec            | `FrameRateSet`, `VideoCodecNamed`, `AudioCodecNamed`, `HeightSet`, `BitrateSet`                           |
-| The edit's shape    | `MultipleTracks`, `MultipleClips`, `TrackStartsLate`, `TrackDropsAStream`, `FrameResized`                 |
-| Effects             | `CompositionHasEffects`, `TrackHasEffects`, `ClipHasEffects`                                              |
-| Audio               | `AudioSpecChanged`, `CompositionGainChanged`, `TrackGainChanged`, `ClipGainChanged`                       |
-| Timing              | `ClipSpeedChanged`                                                                                        |
-| The source          | `TrimNotOnSyncSample`, `SourceUntimed`, `MuxerRefusesSource`, `SourceCodecUnnameable`, `GradeMustToneMap` |
-| The backend         | `BackendCannotCopy`, `NonSquarePixels`                                                                    |
+| What blocked it  | `CopyBlocker`                                                                                             |
+| ---------------- | --------------------------------------------------------------------------------------------------------- |
+| The spec         | `FrameRateSet`, `VideoCodecNamed`, `AudioCodecNamed`, `HeightSet`, `BitrateSet`                           |
+| The edit's shape | `MultipleTracks`, `MultipleClips`, `TrackStartsLate`, `TrackDropsAStream`, `FrameResized`                 |
+| Effects          | `CompositionHasEffects`, `TrackHasEffects`, `ClipHasEffects`                                              |
+| Audio            | `AudioSpecChanged`, `CompositionGainChanged`, `TrackGainChanged`, `ClipGainChanged`                       |
+| Timing           | `ClipSpeedChanged`                                                                                        |
+| The source       | `TrimNotOnSyncSample`, `SourceUntimed`, `MuxerRefusesSource`, `SourceCodecUnnameable`, `GradeMustToneMap` |
+| The backend      | `BackendCannotCopy`, `NonSquarePixels`                                                                    |
 
-Every built-in backend can copy, so none of them reports `BackendCannotCopy`. A source with non-square pixels always
-transcodes on Android, and `copyBlockedBy` names `NonSquarePixels`. `quality` blocks as `BitrateSet`, and
-`MatchSource` doesn't block at all.
-
-`Upload`, `Share` and `Archive` each name a codec, so those [presets](/guides/export/#presets) never copy. `Original`
-keeps the copy open.
-
-A copy writes the frames on every slot of the plan's `duration`, the count its preview shows, and stops in decode
-order on the packet that holds the last of them. When that frame is a B-frame, the references it decodes from are
-presented after the end, and the copy writes them too. That's the reorder residue, and it is never more than the
-source's reorder depth. A 30 fps H.264 source with two B-frames copied from 0 to 1.010 s writes the grid's 30 frames and
-nothing past them. Copied from 0 to 1.040 s it writes the grid's 31 and a residue of 2. Every backend writes those same
-frames, Android on API 30 and 36 alike. The audio runs to the trim's end either way, on every backend.
-The residue is presented past the grid, so playing the file shows it after the grid's last frame. A preview of the copy
-ends on the grid at the plan's duration, holding its last frame there, and never shows the residue.
-
-On ffmpeg, Apple and the browser the packet list a copy counts by is read when the export is planned, at up to 1000 fps
-over the window and one second past it. A source listing more packets than that, or one whose packets can't be listed,
-is refused at `plan()` with `SourceUnreadable`, naming why. So is a listing where no packet is presented on the copy's
-grid, since that copy would write no video.
-
-A copy counts its frames by the packets' presentation times, so a source that lists packets without them can't stop a
-copy that ends before the source does. An AVI holding B-frames reads that way. Such a clip transcodes and
-`copyBlockedBy` names `SourceUntimed`. Running the clip to the source's end keeps the copy, since that copy counts
-nothing.
-
-On Apple a copy's preview shows the frames its export writes, and holds the last of them where the audio runs past it.
+- Setting `quality` blocks as `BitrateSet`. `MatchSource` doesn't block.
+- The `Upload`, `Share` and `Archive` [presets](/guides/export/#presets) name a codec, so they never copy. `Original`
+  can.
+- On Android a source with non-square pixels always transcodes, as `NonSquarePixels`.
+- A source whose packets have no timestamps, like an AVI with B-frames, can't be copied when trimmed before its end. It
+  transcodes as `SourceUntimed`.
+- A copy that ends on a B-frame also writes the few frames that B-frame depends on. A player shows them after the end,
+  the preview doesn't.
+- On ffmpeg, Apple and the browser, a source with more than 1000 packets a second, or one whose packets can't be read,
+  is refused at `plan()` as `SourceUnreadable`.
 
 ## Probe deadline
 
-On ffmpeg every short call to `ffmpeg` or `ffprobe` has a deadline of 30 s, plus 10 ms for each second of source it
-reads, so the packet read for a two hour copy gets 102 s. That covers the toolchain lookup, reading a source and its color, the sync sample a trimmed copy opens on, the
-packets a copy counts by, the encoder test encodes and decoding an overlay picture. A preview's opening reads are the
-same calls, so they share it.
-
-A call still running at its deadline is stopped and the plan refused as `TimedOut`, which names the read in `operation`
-and the deadline it had in `deadline`. Reading the written file back at the end of an export fails it the same way. An
-encoder test encode that runs out of time fails `capabilities()` as `TimedOut` naming the encoder and the size, and so
-does a plan that needed them. None of these is kept, so the next call reads or measures again. The toolchain lookup is
-the exception, and is `ToolchainMissing` naming the option ffmpeg didn't answer. An export and a preview's frames run
-as long as their media does and have no deadline.
+On ffmpeg every call to `ffmpeg` or `ffprobe` made while planning, probing or reading a frame has a deadline of 30 s,
+plus 10 ms for each second of source. One that runs over fails as `TimedOut`, naming the operation and the deadline.
+Nothing is cached, so the next call tries again. If the ffmpeg lookup itself times out, it fails as
+`ToolchainMissing` instead. Exports and preview playback have no deadline.
 
 ## Encoder color
 
 Some Android encoders write a different color matrix than they were asked for. filmstrip tags the file with what the
-encoder writes, so its colors decode as authored, and reports a `ColorSpaceChanged` adjustment. Android names primaries
-and matrix together, so a file tagged BT.601 records BT.470 BG primaries too, and a color-managed player can show greens
-a shade apart from the preview.
+encoder actually wrote, so its colors still decode correctly, and reports a `ColorSpaceChanged` adjustment. A
+color-managed player can still show greens a shade apart from the preview.
 
-That adjustment only arrives on `ExportStatus.Success`. A plan can't see it, so a plan can say `Capable` and a `strict`
-spec can't refuse it. See [Export](/guides/export/#run).
+The adjustment only shows up on `ExportStatus.Success`, so a plan can't predict it and a `strict` spec can't refuse it.
+See [Export](/guides/export/#run).
 
 ## Placement
 
-A clip's placement is the same fraction of the frame on every backend, but not every backend can draw a fraction of a
-pixel. See [Fit](/guides/effects/#fit).
+A clip sits at the same fraction of the frame on every backend, but not every backend can draw a fraction of a pixel.
+See [Fit](/guides/effects/#fit).
 
-- media3 draws a frame's edge on a pixel edge, and `scale`, `crop` and `pad` in ffmpeg take whole pixels. Both round the
-  placement the same way, so they land on the same pixels.
-- On a 4:2:0 chain, ffmpeg's `pad` and `overlay` land an odd offset on the even pixel below it, one pixel up and left
-  of the other backends. On an 8-bit export that covers a picture overlay, a cropped effect region and an animated
-  overlay's position on every frame. A canvas built by a `crop` with `Fit.Contain` or `Fit.Stretch` moves to 4:4:4
-  where it has an odd figure, so it lands exact.
-- Apple and the browser place a clip at its exact fraction.
-
-## Animated overlay cost
-
-ffmpeg draws an animated overlay's opacity with `geq`, which reads every texel of the picture on every frame the
-opacity moves. Over a 1080p picture that measured 27 ms a frame on ffmpeg 9.0.2 on a 16 core Mac. Where the opacity
-holds, `geq` is switched off and a `colorchannelmixer` holds the alpha, and those frames measured 1.8 ms. A size that
-moves runs the fade on the picture at its own size, so a large picture that grows and fades pays for its full
-resolution on every frame of the ramp.
+- Apple and the browser place a clip exactly.
+- Android and ffmpeg round to whole pixels, the same way, so they land on the same pixels.
+- On an 8-bit ffmpeg export, an overlay or a cropped region at an odd pixel offset lands one pixel up and left of the
+  other backends.
 
 ## Preview against the file
 
-An ffmpeg preview ends its graph on the format the export writes and converts from there for the screen, so it shows the
-frame the encoder is handed, and encoder loss is all that's left between the two. That holds on a caption, a picture, a
-grade and an HDR grade, at every speed. A graph that doesn't already end on that format pays for one more conversion.
-At 1080p on ffmpeg 9.0.2 a caption read 478 frames per second against 543 without it, and a composition grade 469
-against 516.
+A preview doesn't encode, so it never shows compression artifacts. Late frames are dropped, so it can be less smooth
+than the file.
 
-An overlay runs on every frame of its plan, so a frame outside its window goes through the same conversions as one
-inside it, in the file and in the preview.
-
-A media3 preview and its file part in chroma around a caption, because the encoder reduces chroma to 4:2:0 and a preview
-keeps every pixel's. On an API 36 emulator the software `c2.android.avc.encoder` takes each 2x2 block's chroma from its
-top left pixel, which puts a Cb about 1 code from the preview's top left where a box average sits about 5 away. Past a
-file's first 7 frames luma reads 45 to 51 dB against the file on API 30 and API 36, at 1/32, 0.7, 1.5 and 32, and the
-bitrate doesn't move the chroma. Each block's chroma there stays within 5 codes of the preview's range over that block
-and the pixels around it, against a measured worst of 4, where a wrong frame reads 11 or more.
-
-The encoder's first 7 frames of any file, 0 to 6, sit further off at every speed, speed 1 included. They read up to 13
-codes of chroma and 45 to 49 dB of luma on API 30 and API 36, and no encoder setting or bitrate media3 offers moves them.
-filmstrip holds them within 16 codes, which a wrong colour breaks but a wrong frame doesn't, so those frames are told
-apart by luma. A clip at 1/32 runs 32 times its source, so it writes mostly those frames only when it holds under about
-8.3 ms of a 30 fps source. Hardware encoders aren't measured.
+- An ffmpeg preview shows the exact frame handed to the encoder, so compression is the only difference.
+- On Android the encoder halves color resolution, which shows as slightly different color around the edges of a
+  caption. The first few frames of every file are a little further off.
+- Fading a large picture overlay on ffmpeg is slow while the opacity moves, about 27 ms a frame for a 1080p picture.
+  Frames where it holds are fast.
 
 ## Relaxed seek
 
-A `SeekAccuracy.Nearest` seek lands within each backend's own tolerance, and `PlaybackEvent.SeekCompleted` reports the
-slot of the frame it shows. Until then the playhead reads the frame asked for, and it moves once, as the seek completes,
-to the frame shown. On Apple and the browser that can be before the frame asked for.
+A `SeekAccuracy.Nearest` seek lands on a nearby frame, and its `SeekCompleted` says which one.
 
-- Apple lands on the nearest sync sample within ±250 ms of the target, either side, from `NEAREST_SEEK_TOLERANCE`.
-- The browser lands on the sync sample at or before the target, read by `readSyncSample` in `BrowserSeeks`.
-- ffmpeg lands exactly. It waits `SCRUB_DEBOUNCE` for the finger to settle instead of landing early.
-- Android lands exactly. media3 takes no seek tolerance, so `clampedAccuracy` turns a relaxed seek into an exact one.
+| Backend | Where a `Nearest` seek lands                          |
+| ------- | ----------------------------------------------------- |
+| Apple   | The nearest keyframe within 250 ms, either side       |
+| Browser | The keyframe at or before the target                  |
+| Android | The exact frame, so it's no faster than an exact seek |
+| ffmpeg  | The exact frame, once a scrub settles                 |
 
 ## HDR text and pictures
 
-On an HDR grade, an opaque overlay texel lands at the light a fill of that color lands at, and soft edges, fades and
-opacity blend in linear display light. That holds on every backend, ffmpeg included. The one exception is media3 on an
-HLG grade, which holds the frame as scene light and blends there, and the plan reports it as an approximated effect. See
-[Overlays](/guides/overlays/) and [HDR](/guides/hdr/).
+On an HDR grade an overlay keeps the brightness its colors have elsewhere in the frame, and fades and soft edges blend
+naturally, on every backend. The exception is Android on an HLG grade, which is close but not exact, and the plan
+reports it as approximated. See [Overlays](/guides/overlays/) and [HDR](/guides/hdr/).
 
 ## Audio
 
-ffmpeg splits a looping clip into one branch per pass, and up to one pass of decoded media sits in memory for each
-branch still waiting. A long clip looped many times costs that much memory. See
-[Extra tracks](/guides/audio/#extra-tracks).
+On ffmpeg a long clip looped many times can use a lot of memory, up to one decoded pass for each loop still waiting to
+play. See [Extra tracks](/guides/audio/#extra-tracks).
 
 ## Clip speed
 
-Every backend plays 1/32 to 32 with the pitch kept and decodes its sources in full, so the cost scales with the speed.
-Each file runs the shared output length, give or take its last frame and its audio tail. What's left is each backend's
-own. See [Speed](/guides/edits/#speed).
+Every backend plays clips from 1/32 to 32 times speed with the pitch kept. Sources are decoded in full, so a fast clip
+costs more. See [Speed](/guides/edits/#speed).
 
-A clip shorter than an output frame behaves the same on every backend. A primary track whose video covers no output
-frame is refused with `InvalidComposition`. A clip that covers none inside a longer run lays no picture, its neighbours
-keep their frames, and its audio still plays. Each frame a clip covers shows the source frame nearest its source time,
-and a trim holding no source frame shows the nearest one outside it. The file holds a sample on every one of those
-frames, except where media3 shows one source frame on several, as its sparse slow motion below does.
+Each output frame shows the source frame nearest to its time. A clip too short to cover one output frame shows no
+picture but still plays its audio. If it's the whole primary track, it's refused as `InvalidComposition`.
 
-| Backend      | Limit                                                                                     |
-| ------------ | ----------------------------------------------------------------------------------------- |
-| AVFoundation | An export renders sped audio to temporary disk, 16-bit PCM for the output length.         |
-| media3       | The AAC encoder runs at most 32 ms past the output length.                                |
-| media3       | Slow motion is sparse. Nothing duplicates a frame, so a clip's frames sit apart by speed. |
-| ffmpeg       | A preview has no audio, at any speed.                                                     |
-| ffmpeg       | Picks frames off the probed rate's grid from zero, timed to 1/1000 of an output frame.    |
-
-Sparse slow motion means a clip at 1/32 from a 30 fps source holds each frame for about a second. The file plays and its
-video ends on the output length, though its audio was measured running up to 457 ms past it at 1/32. The other backends
-write every output slot. A media3 preview reads whole milliseconds, so a read within 1 ms of a frame's own time can land
-on either side of it. The AAC tail is what the encoder adds at the end of the stream, and a clip at speed 1 has it too.
-
-ffmpeg picks the frame a slot shows from the source's probed frame rate, as if every frame sat on that rate's grid from
-zero, and reads each frame's time to a thousandth of an output frame, 33 µs at 30 fps. A variable rate source, or one
-whose frames don't sit on that grid, can show the frame either side of a slot whose source time lands near half way
-between two of them. So can any source within that thousandth of half way.
-
-AVFoundation lays frames on a composition track in ticks of 1/3600 of a second, about 0.28 ms. Two source frames inside
-one tick can't both be shown, since AVFoundation shows the later one there. An output frame whose nearest source frame
-is the earlier of the two shows the later instead, which sits less than a tick from it. Each clip reads the times of at
-most 10,000,000 source frames, more than an eight hour clip at 120 fps holds. A clip past that, a source whose frame
-times AVFoundation won't give, or a frame it won't lay is refused by name. An export fails with `InvalidComposition`
-and a preview with `UnsupportedFormat`, both with the same reason, and nothing of the clip is left on the track.
-
-A media3 clip whose source frames come faster than the output's, from its speed or its source rate, leaves out the
-ones between the frames it shows through media3's frame rate cap. The cap keeps a frame only at or past its next tick,
-a whole number of microseconds per output frame past the first frame it kept. An output frame isn't a whole number of
-microseconds, so a long clip's frames run ahead of those ticks, a third of a microsecond per frame at 30 fps. About 55
-minutes into one clip at 30 fps, or 7 at 60, the cap keeps a frame it should leave out, and from there the file's
-frames no longer sit on their slots. That holds for a 60 fps source at speed 1 into 30 as much as for a sped up clip.
-A clip whose source rate times its speed is at or below the output rate leaves nothing out and isn't affected.
+- **Android** doesn't duplicate frames in slow motion, so at 1/32 each frame holds for about a second, and the audio can
+  run up to half a second past the video. Its AAC encoder also adds up to 32 ms of audio at the end of any file.
+- **Android** drops frames to fit a fast clip to the output rate. Past about 55 minutes of a clip at 30 fps, or 7 at 60,
+  the frames it keeps drift off their slots.
+- **Apple** writes sped up audio to a temporary file during an export. A clip with more than 10 million frames is
+  refused by name.
+- **ffmpeg** previews have no audio. A variable frame rate source can show the next or previous frame where a slot
+  lands halfway between two.
 
 ## Filters
 
-[Filters](/guides/filters/) draw one shared signal on every backend, and these are where a backend lands apart from it or
-refuses.
+Each [filter](/guides/filters/) looks the same on every backend, within a few code values. Where a backend can't run
+one, it's refused by name.
 
-- An Apple device that can't compile a Core Image Metal kernel, which takes an Apple6 GPU on iOS or on macOS 12, refuses
-  `vhs` by name.
-- The browser draws a shader pass on a clip's whole frame, so a clip whose own frame is longer on a side than the page's
-  `MAX_TEXTURE_SIZE` is refused by name. A fit that crops makes that frame bigger than the output.
-- ffmpeg blurs with `gblur`, a recursive approximation of a Gaussian that lands narrower than the sigma it's given. A hard
-  edge reads up to about a fifth of its step off, the frame's own edge against the black past it included. Anywhere else
-  it's within a few codes.
-- Below about 0.005 pixels `gblur`'s own filter darkens the frame, so a blur smaller than 0.01 pixels runs at 0.01, which
-  changes no pixel.
-- An Apple device that can't compile a Core Image Metal kernel refuses `crt` by name too.
-- ffmpeg carries a frame in 4:2:0, which can't hold the stripes of colour in `crt`'s phosphor mask. Luma keeps them, within
-  3 codes of the other backends, and chroma holds their mean over each sample, within 3 codes. An encoded 4:2:0 file
-  is the same on every backend.
-- ffmpeg builds `crt`'s map once, as eight frames read from scratch files, and draws from them in sixteen-bit red, green
-  and blue. With an x264 encode that ran at about 10 fps at 1080p and 2.6 fps at 4K on an x86 server, where `film` ran at
-  about 2 fps at both. It peaks near 1.5 GB at 1080p and 5.4 GB at 4K, and a `crt` on a clip or a track adds about 550 MB
-  per 1080p clip, since ffmpeg holds each clip's working frames until the export ends. Clips of one size share the eight
-  frames.
-- An Apple device that can't compile a Core Image Metal kernel refuses `lut` by name too.
-- `lut` on media3 and the browser reads its table from a texture 2 times `ceil(sqrt(N))` tiles wide, so a grid of 65 points
-  takes 1170x520 and a grid of 129 takes 3096x1419. A GL context whose `MAX_TEXTURE_SIZE` is smaller fails by name, and media3
-  and the browser need OpenGL ES 3.
-- ffmpeg reads `film` grain, and `vhs` grain and dropouts, from planes filmstrip draws in Kotlin and hands over a
-  loopback TCP socket, at the same samples a `geq` would write. Measured on ffmpeg 8.0.1 on a 12 thread x86 server with
-  x264 medium, `film` runs about 17.5 fps at 1080p and 7.9 fps at 4K against 2.05 and 1.96 on `geq`, and `vhs` about 9.1
-  and 2.8 against 6.75 and 2.3. Peak ffmpeg memory for `film` was about 1 GB at 1080p and 3.4 GB at 4K, and for `vhs`
-  about 1 GB and 3.3 GB.
-- A plan falls back to the `geq` graph by name in the diagnostics, as the same samples and slower, when the JVM cannot
-  bind a loopback listener, when the ffmpeg build has no `tcp` protocol, when a graph would open more than 16 live
-  inputs, and for `vhs` when a source is not tagged BT.709. ffmpeg offers no way to copy one pad's matrix onto another,
-  and a VHS map carries chroma that a conversion would move.
-- A plan where every clip runs one equal `crt` at the output's size, decoded as plain 4:2:0 and joined with no gap, runs
-  the look once after the join. That took 12 clips at 1080p from 5.5 GB to about 1.9 GB. `film` and `vhs` stay on each
-  clip, since they read a frame's own timestamp and the join moves it.
-- Changing a `crt` in a preview restarts ffmpeg like any graph change, measured at 0.6 to 1.7 s to the first frame on the
-  same server.
-- `lut` on ffmpeg passes through RGB and 4:2:0 on its way back to the encoder. Measured on ffmpeg 8.0.1 x86_64, luma lands
-  within 1.72 codes of `CubeLut.at`, chroma within 1.17, and a channel read back as RGB within 2.59.
-- ffmpeg draws `lut` through `lut3d` on `gbrap`. With an x264 veryfast encode and a 65 point table that ran at about 70 fps
-  at 1080p and 21 fps at 4K on a 12 thread x86 server, against 300 and 85 fps with no table.
-- A build missing a filter a look runs on refuses it by name, like any other effect.
+- **Apple** runs `vhs`, `crt` and `lut` on Core Image Metal kernels, which need an Apple6 GPU on iOS, or macOS 12 on a
+  Mac.
+- **Browser** refuses a clip larger on a side than the page's `MAX_TEXTURE_SIZE`. A fit that crops makes the clip's
+  frame larger than the output.
+- **Android and browser** need OpenGL ES 3 for `lut`, and a texture big enough for the table, 1170×520 for a 65 point
+  table and 3096×1419 for 129.
+- **ffmpeg** blurs with an approximation, so a hard edge can land up to a fifth of a step off. Everywhere else it's
+  within a few code values.
+- **ffmpeg** works in 4:2:0, which averages out the colored stripes in `crt`'s mask. Any 4:2:0 file does the same, so
+  the export matches the other backends.
+- **ffmpeg** refuses a look its build is missing a filter for.
+
+Filters are heavy on ffmpeg. Measured on a 12 thread x86 server with x264:
+
+| Look   | 1080p    | 4K      | Peak memory, 1080p and 4K |
+| ------ | -------- | ------- | ------------------------- |
+| `film` | 17.5 fps | 7.9 fps | 1 GB and 3.4 GB           |
+| `vhs`  | 9.1 fps  | 2.8 fps | 1 GB and 3.3 GB           |
+| `crt`  | 10 fps   | 2.6 fps | 1.5 GB and 5.4 GB         |
+| `lut`  | 70 fps   | 21 fps  |                           |
+
+- `crt` on each clip adds about 550 MB per 1080p clip. When every clip has the same `crt` at the output size and
+  they join with no gap, it runs once over the whole export instead.
+- `film` and `vhs` fall back to a slower path with the same result when the JVM can't open a local socket, the ffmpeg
+  build has no `tcp` protocol, or the graph would need more than 16 live inputs. `vhs` also falls back for a source not
+  tagged BT.709. The diagnostics name the fallback.
+- Changing a `crt` in a preview restarts ffmpeg, which takes 0.6 to 1.7 s to the first frame.
 
 ## Preview on iOS 27
 
-On the iOS 27.0 simulator runtime, a preview shown through an `AVPlayerLayer` in a window fails before play, a seek or a
-first frame, and its status can read `Ready` for a moment first. An item with a video composition fails this way, and
-every preview with video has one. A plain item with no video composition reached ready. In the demo app a 720p H.264
-clip, the same clip trimmed and a 1080p H.265 clip all failed. So did a composition from Apple's
-`videoCompositionWithPropertiesOfAsset` with no filmstrip code in it, tried once in the demo app.
+On the iOS 27.0 simulator, a preview fails before it plays. Its status is `PlaybackStatus.Error` with a
+`PlaybackError.Underlying` whose `platformCode` is -11800 and whose message ends `(NSOSStatusErrorDomain -12784)`.
+Apple's own video compositions fail the same way with no filmstrip code involved.
 
-On the iOS 27.2 simulator runtime the 720p H.264 clip played in the demo app. The trim and the H.265 clip reached ready
-there and weren't played through. On the iOS 26.5 simulator runtime a test read a video composition item in a window
-reaching ready, without playing it or reading a picture.
-
-- The player's status is `PlaybackStatus.Error` with a `PlaybackError.Underlying`. Its `platformCode` is -11800 and its
-  message ends with `(NSOSStatusErrorDomain -12784)`. One `PlaybackEvent.Failed` reports it for each failed item.
-- `play()` on that item starts nothing and the status stays `Error`. Setting a new composition is what tries again.
-- An `AVPlayerItemVideoOutput` on an item with a video composition fails the same way on that runtime, with no layer.
-- Export isn't stopped there. In the demo app the 720p H.264 clip whose preview had just failed exported and
-  re-probed at its full length, and filmstrip's tone map export tests and one other Apple export test pass on fixtures
-  on that runtime. Other clips and edits weren't exported.
-
-A physical iPhone on iOS 27 is unmeasured, so whether a device does this too isn't known yet.
+- `play()` does nothing after the failure. Setting a new composition tries again.
+- Exports still work.
+- The iOS 27.2 simulator plays. Physical devices on iOS 27 haven't been tested.
 
 ## Sinks
 
-`MediaSink.Uri` is `file://` only on Apple and ffmpeg, and anything else is refused as `SinkUnwritable`. ffmpeg also
-takes a bare path there. Android writes to any other scheme through its content resolver. The browser ignores the URI
-and hands back an object URL. See [Sinks](/guides/sources-and-sinks/#sinks).
+`MediaSink.Uri` takes only `file://` on Apple and ffmpeg, and ffmpeg also takes a bare path. Anything else is refused as
+`SinkUnwritable`. Android writes to any URI its content resolver can open. The browser ignores the URI and hands back an
+object URL. See [Sinks](/guides/sources-and-sinks/#sinks).
 
 ## In-memory sources
 
-On Android, Apple and ffmpeg a `MediaSource.Bytes` is written to a file before it is read, and the file stays until a
-later process first uses a buffer. Disk use grows with the distinct buffers a process reads, with no bound. The browser
-keeps the buffer in memory. See [Sources](/guides/sources-and-sinks/#sources).
+On Android, Apple and ffmpeg a `MediaSource.Bytes` is written to a temporary file before it's read. Those files are
+cleared by the next process that reads a buffer, so disk use grows with the number of different buffers one process
+reads. The browser keeps the buffer in memory. See [Sources](/guides/sources-and-sinks/#sources).
 
-ffmpeg writes under a directory named for the user in the shared temporary directory. If another user already holds
-that name, the process writes to a private directory of its own instead, removed when the JVM shuts down.
-
-AVFoundation goes by a file's name, so filmstrip names a buffer's file from its leading bytes, the same names a path
-would carry. A buffer of a container AVFoundation doesn't open reads as `SourceUnreadable`, the same as a path does:
+Some containers can't be read from bytes on Apple, and are refused as `SourceUnreadable`, the same as a path would be.
 
 | Container        | macOS | iOS Simulator |
 | ---------------- | ----- | ------------- |
-| Matroska, WebM   | No    | No            |
-| Transport stream | Yes   | No            |
+| Matroska, WebM   | ✗     | ✗             |
+| Transport stream | ✓     | ✗             |
 
-Android's platform extractor refuses a QuickTime file with no `ftyp` box, so such a buffer reads as `SourceUnreadable`,
-the same as a path to that file does. Apple and ffmpeg read it.
+Android can't read a QuickTime file with no `ftyp` box, from bytes or a path. Apple and ffmpeg can.
 
 ## Browsers without WebCodecs
 
-WebCodecs is the only way filmstrip decodes or encodes in a browser, and there's no fallback. Firefox for Android has
-neither half, per caniuse as checked on 2026-11-06.
+In a browser, filmstrip decodes and encodes only through WebCodecs, with no fallback. Firefox for Android has none of it
+as of November 2026.
 
-- With no `VideoDecoder`, a preview of anything with video fails before it reads a source. Its status is
-  `PlaybackStatus.Error` with a `PlaybackError.UnsupportedFormat` saying "This browser has no WebCodecs video decoder, so
-  it can't preview video." An `AudioSpec.AudioOnly` composition draws nothing, so it needs an `AudioDecoder` instead.
-- With no `AudioDecoder`, a preview of anything with video plays silently and doesn't report
-  `PlayerFeature.AudioMonitoring`. An `AudioSpec.AudioOnly` composition has nothing to play, so it fails before it reads
-  a source, with a `PlaybackError.UnsupportedFormat` saying "This browser has no WebCodecs audio decoder, so it can't
-  preview audio."
-- With no `VideoEncoder`, a preview runs as normal and carries its audio. `Filmstrip.capabilities()` lists no video
-  encoder, and a plan refuses with `FilmstripError.NoEncoder`, so check `video` on the capabilities to know an export
-  can't run.
-- With a `VideoEncoder` and no `AudioEncoder`, an export writes no audio and its preview matches it, so both are silent.
+| Missing        | What happens                                                                                                |
+| -------------- | ----------------------------------------------------------------------------------------------------------- |
+| `VideoDecoder` | A preview with video fails with `PlaybackError.UnsupportedFormat`. Thumbnails fail too.                     |
+| `AudioDecoder` | A preview plays silently and doesn't report `AudioMonitoring`. An audio-only preview fails.                 |
+| `VideoEncoder` | Previews work. `capabilities()` lists no video encoder, and a plan refuses with `FilmstripError.NoEncoder`. |
+| `AudioEncoder` | Exports have no audio, and their previews are silent to match.                                              |
 
-Thumbnails need a `VideoDecoder` too. With none, each request fails with a `FilmstripError.InvalidComposition` carrying
-the same words as the preview.
-
-The demo on this site reads the same two globals. With no `VideoDecoder` it keeps the colour bars and says so where LOAD
-would be, and nothing downloads. See [Player](/guides/player/).
+The demo on this site checks the same things, and says so in place of the LOAD button. See [Player](/guides/player/).
 
 ## Named in the guides
 
 The rest are next to the feature they limit.
 
-- [Player](/guides/player/): seeking, scrubbing and redraw cost per backend.
-- [Overlays](/guides/overlays/): file paths in the browser, texture sizes, off-frame animation, the ffmpeg even pixel
-  snap and line breaking.
+- [Player](/guides/player/): seeking, scrubbing and redraw per backend.
+- [Overlays](/guides/overlays/): file paths in the browser, texture sizes, off-frame animation, the ffmpeg
+  even pixel snap and line breaking.
 - [Effects](/guides/effects/): `kenBurns`, `rotate`, `Fill.Blur` and color effects on a kept grade.
-- [Audio](/guides/audio/): the media3 tail and the browser preview's fades.
+- [Audio](/guides/audio/): the Android AAC tail and the browser preview's fades.
 - [HDR](/guides/hdr/): what each backend can tone map and read.
 - [Stills](/guides/stills/): which backends put a still on the timeline.

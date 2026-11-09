@@ -76,6 +76,7 @@ include(
   ":sample:demo:desktopApp",
   ":sample:demo:webApp",
   ":sample:tryIt",
+  ":sample:playground",
 )
 
 include(

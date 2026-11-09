@@ -2,8 +2,6 @@ package dev.jordond.filmstrip.sample.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -25,14 +23,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.composed
 import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextOverflow
@@ -43,8 +38,6 @@ import kotlinx.coroutines.delay
 
 private val ScanlineThickness = 1.dp
 private val ScanlinePitch = 3.dp
-private val FocusRingWidth = 3.dp
-private val FocusRingOffset = 3.dp
 private val LedGlow = 8.dp
 private val FitFloor = 10.sp
 private val FitStep = 1.sp
@@ -261,32 +254,6 @@ public fun Modifier.insetVignette(reach: Dp): Modifier =
     drawRect(up)
     drawRect(right)
     drawRect(left)
-  }
-
-/**
- * Draws the 3dp cyan focus ring 3dp outside the element while [interaction] reports focus.
- *
- * [inset] moves the ring in or out from there, for a part that already draws past its bounds.
- */
-public fun Modifier.focusRing(
-  interaction: MutableInteractionSource,
-  inset: Dp = 0.dp,
-): Modifier =
-  composed {
-    val focused by interaction.collectIsFocusedAsState()
-    drawWithContent {
-      drawContent()
-      if (focused) {
-        val width = FocusRingWidth.toPx()
-        val reach = (FocusRingOffset - inset).toPx() + width / 2
-        drawRect(
-          color = Tokens.cyan,
-          topLeft = Offset(-reach, -reach),
-          size = Size(size.width + reach * 2, size.height + reach * 2),
-          style = Stroke(width),
-        )
-      }
-    }
   }
 
 /**

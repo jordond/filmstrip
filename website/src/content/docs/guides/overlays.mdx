@@ -1,14 +1,20 @@
 ---
 title: Overlays
 description: Draw images and text over the video and animate them.
+playground:
+  sample: overlays
+  label: A caption and a logo, placed and animated
 ---
 
 import { Aside } from '@astrojs/starlight/components'
+import PagePlayground from '../../../components/docs/PagePlayground.astro'
 import Snippet from '../../../components/Snippet.astro'
 
 Overlays are effects, so they go in an `effects { }` block. They run after geometry has settled, which is what makes
 their measurements fractions of the final frame. An overlay on a clip is measured against the clip's frame, and one on
 the composition against the output frame.
+
+<PagePlayground />
 
 ## Image
 

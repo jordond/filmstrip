@@ -2,12 +2,19 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "filmstrip-docs",
   "compatibility_date": "2026-11-01",
+  "main": "./worker/index.ts",
   "assets": {
     "directory": "./dist",
+    "binding": "ASSETS",
+    // Only the root needs the worker, to send the demo host to the full screen demo.
+    "run_worker_first": ["/"],
     "not_found_handling": "404-page",
   },
   "workers_dev": false,
   "preview_urls": true,
   "observability": { "enabled": true },
-  "routes": [{ "pattern": "filmstrip.jordond.dev", "custom_domain": true }],
+  "routes": [
+    { "pattern": "filmstrip.jordond.dev", "custom_domain": true },
+    { "pattern": "demo.filmstrip.jordond.dev", "custom_domain": true },
+  ],
 }

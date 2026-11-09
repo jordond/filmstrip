@@ -1,0 +1,15 @@
+---
+// The page's playground sample inline in the content, for screens too narrow for the right column that holds it
+// otherwise. Reads the sample from the page's `playground` frontmatter.
+import Playground from '../Playground.astro'
+
+const playground = Astro.locals.starlightRoute.entry.data.playground
+---
+
+{
+  playground && (
+    <div class="lg:sl-hidden">
+      <Playground sample={playground.sample} label={playground.label} />
+    </div>
+  )
+}

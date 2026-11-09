@@ -1,0 +1,50 @@
+---
+// Starlight's right column. A page with `playground` in its frontmatter gets that sample pinned there in place of the
+// table of contents, and the column widens to fit it. Below Starlight's wide breakpoint the column is gone, so the
+// page's PagePlayground shows the sample inline instead.
+import Default from '@astrojs/starlight/components/PageSidebar.astro'
+import MobileTableOfContents from '@astrojs/starlight/components/MobileTableOfContents.astro'
+import Playground from '../Playground.astro'
+
+const { toc, entry } = Astro.locals.starlightRoute
+const playground = entry.data.playground
+---
+
+{
+  playground && toc ? (
+    <>
+      <div class="lg:sl-hidden">
+        <MobileTableOfContents />
+      </div>
+      <div class="playground-rail sl-hidden lg:sl-block">
+        <Playground sample={playground.sample} label={playground.label} fill />
+      </div>
+    </>
+  ) : (
+    <Default />
+  )
+}
+
+<style>
+  /* Starlight's right column is fixed to the viewport, so its own width can't size what is in it. */
+  .playground-rail {
+    width: var(--playground-width);
+    height: 100%;
+    padding: 1rem;
+    box-sizing: border-box;
+  }
+
+  @media (min-width: 72rem) {
+    :global(.right-sidebar-container:has(.playground-rail)) {
+      width: var(--playground-width);
+    }
+
+    :global(.right-sidebar-container:has(.playground-rail) + .main-pane) {
+      width: calc(100% - var(--playground-width));
+    }
+  }
+
+  :global(:root) {
+    --playground-width: clamp(26rem, 34vw, 36rem);
+  }
+</style>

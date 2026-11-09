@@ -305,6 +305,20 @@ mobile-starlight-toc .display-current {
   background-color: var(--panel);
 }
 
+.sl-markdown-content :is(.mark-yes, .mark-no) {
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.sl-markdown-content .mark-yes {
+  color: var(--cyan);
+}
+
+.sl-markdown-content .mark-no {
+  color: var(--muted);
+}
+
 /* Tabs, the landing page's export and preview strip */
 
 starlight-tabs [role='tablist'] {

@@ -1,0 +1,104 @@
+---
+// The sample app on its own, in the site's television filling the window. demo.filmstrip.jordond.dev serves this page
+// at its root.
+import '../../styles/fonts.css'
+import '../../styles/tokens.css'
+import '../../styles/crt.css'
+import tokensCss from '../../styles/tokens.css?raw'
+import DemoFrame from '../../components/DemoFrame.astro'
+import { DEMO_HOST, DOCS_ENTRY, isPreviewBuild, SITE_URL } from '../../lib/site'
+import { tokenValue } from '../../lib/tokens'
+
+const title = 'filmstrip demo'
+const description = 'The filmstrip sample app, editing and exporting video live in the browser with Kotlin/Wasm.'
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={DEMO_HOST} />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={DEMO_HOST} />
+    <meta name="theme-color" content={tokenValue(tokensCss, 'ground')} />
+    {isPreviewBuild && <meta name="robots" content="noindex, nofollow" />}
+  </head>
+  <body>
+    <div class="page">
+      <header class="osd strip">
+        <span class="deck" aria-hidden="true">
+          <svg width="14" height="16" viewBox="0 0 18 20"><path d="M2 2 L16 10 L2 18 Z" fill="currentColor"></path></svg>
+          PLAY
+        </span>
+        <a href={new URL(DOCS_ENTRY, SITE_URL).href}>FILMSTRIP DOCS</a>
+      </header>
+      <main class="set">
+        <h1 class="sr-only">{title}</h1>
+        <DemoFrame fill />
+      </main>
+    </div>
+  </body>
+</html>
+
+<style>
+  :global(html),
+  :global(body) {
+    height: 100%;
+    margin: 0;
+    background: var(--ground);
+    overflow: hidden;
+  }
+
+  .page {
+    height: 100svh;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 10px clamp(10px, 2vw, 24px) clamp(10px, 2vw, 24px);
+    box-sizing: border-box;
+  }
+
+  .strip {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 22px;
+    letter-spacing: 0.06em;
+  }
+
+  .deck {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--amber);
+  }
+
+  .strip a {
+    color: var(--amber);
+    text-decoration: none;
+  }
+
+  .strip a:hover,
+  .strip a:focus-visible {
+    color: var(--amber-hover);
+  }
+
+  .set {
+    flex: 1;
+    min-height: 0;
+  }
+
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+</style>
