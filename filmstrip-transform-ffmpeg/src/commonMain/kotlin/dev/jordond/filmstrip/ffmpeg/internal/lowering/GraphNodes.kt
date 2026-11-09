@@ -31,14 +31,29 @@ internal fun tailNodes(
 /**
  * An `overlay` drawing on a frame written in [pixelFormat], on the chroma [grid] of the chain it draws on.
  *
- * The filter runs in the format [overlayFormat] picks. Every overlay this backend writes is built here or passed
- * through [onFrame], so the option cannot be set one way in one place and another way in the next.
+ * The filter runs in the format [overlayFormat] picks and blends with [OVERLAY_ALPHA]. Every overlay this backend
+ * writes is built here or passed through [onFrame], so neither option can be set one way in one place and another way
+ * in the next.
  */
 internal fun overlayNode(
   pixelFormat: String,
   grid: ChromaGrid,
   vararg arguments: Pair<String, String>,
-): FilterNode = FilterNode("overlay", *arguments, "format" to overlayFormat(pixelFormat, grid))
+): FilterNode =
+  FilterNode("overlay", *arguments, "format" to overlayFormat(pixelFormat, grid), "alpha" to OVERLAY_ALPHA)
+
+/**
+ * The alpha every `overlay` blends with, which is straight.
+ *
+ * ffmpeg 9.0 made `auto` the default, which follows the alpha a frame is tagged with, and its OpenEXR decoder tags
+ * premultiplied. Its premultiplied blend in `yuv420` drops an opaque texel's luma by the 16 code offset, which is
+ * ffmpeg's limit and 8.0 has it too. A straight blend has ffmpeg divide a premultiplied picture out before it draws.
+ *
+ * 8.0 has no frame alpha tag and blends straight by default, so the option changes nothing there. Its OpenEXR decoder
+ * hands premultiplied codes on untagged, so an OpenEXR holding them draws as stored on 8.0, with dark translucent
+ * edges. That is ffmpeg 8.0's limit.
+ */
+internal const val OVERLAY_ALPHA: String = "straight"
 
 /**
  * The format an `overlay` runs in on a frame written in [pixelFormat], on the chroma [grid] of the chain it draws on.
@@ -62,8 +77,8 @@ internal fun overlayFormat(
  * This fragment merge as it runs on a frame written in [pixelFormat], on the chroma [grid] of the chain it draws on.
  *
  * An `overlay` takes the format [overlayFormat] picks. One running in `yuv420` places its picture on the 4:2:0 grid,
- * so its `x` and `y` are moved down onto that grid here rather than by ffmpeg without saying so. Any other merge is
- * handed back as it is.
+ * so its `x` and `y` are moved down onto that grid here rather than by ffmpeg without saying so. Every `overlay` blends
+ * with [OVERLAY_ALPHA]. Any other merge is handed back as it is.
  */
 internal fun FilterNode.onFrame(
   pixelFormat: String,
@@ -73,7 +88,7 @@ internal fun FilterNode.onFrame(
   val format = overlayFormat(pixelFormat, grid)
   val placedOn = if (format == "yuv420") ChromaGrid.Subsampled else ChromaGrid.Full
   val placed =
-    arguments.filter { it.key != "format" }.map { argument ->
+    arguments.filter { it.key != "format" && it.key != "alpha" }.map { argument ->
       if (argument.key == "x" ||
         argument.key == "y"
       ) {
@@ -82,7 +97,7 @@ internal fun FilterNode.onFrame(
         argument
       }
     }
-  return FilterNode(name, placed + FilterArgument("format", format))
+  return FilterNode(name, placed + FilterArgument("format", format) + FilterArgument("alpha", OVERLAY_ALPHA))
 }
 
 private val EIGHT_BIT_420 = setOf("yuv420p", "yuva420p")

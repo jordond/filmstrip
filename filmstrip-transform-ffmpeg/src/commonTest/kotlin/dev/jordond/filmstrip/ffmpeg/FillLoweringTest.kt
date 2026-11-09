@@ -36,7 +36,7 @@ class FillLoweringTest {
     val graph = flattened(Fill.Solid(MID_GREEN), hdrTransfer = null, pixelFormat = "yuv420p")
 
     graph.fillUnderRead("color=c=0x308020:s=1280x720:r=25") shouldContain
-      "overlay=shortest=1:format=yuv420,format=pix_fmts=yuv420p"
+      "overlay=shortest=1:format=yuv420:alpha=straight,format=pix_fmts=yuv420p"
   }
 
   @Test
@@ -44,7 +44,7 @@ class FillLoweringTest {
     val graph = flattened(Fill.Blurred(), hdrTransfer = null, pixelFormat = "yuv420p")
 
     graph.fillUnderRead("color=c=0x000000:s=1280x720:r=25") shouldContain
-      "overlay=shortest=1:format=yuv420,format=pix_fmts=yuv420p"
+      "overlay=shortest=1:format=yuv420:alpha=straight,format=pix_fmts=yuv420p"
   }
 
   // The codes come from the shared HDR light, so this reads them off it rather than off a number.
@@ -59,7 +59,8 @@ class FillLoweringTest {
           "lutyuv=y=$luma:u=$cb:v=$cr," +
           "setparams=color_primaries=bt2020:color_trc=${transfer.ffmpegTag}:colorspace=bt2020nc," +
           "loop=loop=-1:size=1"
-      graph.fillUnderRead(fill) shouldContain "overlay=shortest=1:format=auto,format=pix_fmts=yuv420p10le"
+      val flatten = "overlay=shortest=1:format=auto:alpha=straight,format=pix_fmts=yuv420p10le"
+      graph.fillUnderRead(fill) shouldContain flatten
     }
   }
 

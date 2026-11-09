@@ -20,7 +20,7 @@ class FragmentCropTest {
     graph shouldBe
       "[0:v]split=2[rbase][rcrop];" +
       "[rcrop]crop=w=320:h=180:x=2*floor(((in_w-out_w)/2)/2):y=2*floor(((in_h-out_h)/2)/2):exact=1,hue=s=0[rfx];" +
-      "[rbase][rfx]overlay=x=2*floor(((W-w)/2)/2):y=2*floor(((H-h)/2)/2):format=yuv420[r]"
+      "[rbase][rfx]overlay=x=2*floor(((W-w)/2)/2):y=2*floor(((H-h)/2)/2):format=yuv420:alpha=straight[r]"
   }
 
   // overlay places on the 4:2:0 chroma grid, so a whole position moves down to the even pixel at or
@@ -83,8 +83,8 @@ class FragmentCropTest {
       "[0:v]split=2[rbase][rcrop];" +
       "[rcrop]crop=w=320:h=180:x=0:y=0:exact=1,scale=w=64:h=64[rpre];" +
       "[1:v]null[raux0];" +
-      "[rpre][raux0]overlay=format=yuv420,format=pix_fmts=yuva420p[rfx];" +
-      "[rbase][rfx]overlay=x=0:y=0:format=yuv420[r]"
+      "[rpre][raux0]overlay=format=yuv420:alpha=straight,format=pix_fmts=yuva420p[rfx];" +
+      "[rbase][rfx]overlay=x=0:y=0:format=yuv420:alpha=straight[r]"
   }
 
   // A base in 4:4:4, the way an odd canvas leaves its chain, has a chroma sample on every pixel, so overlay lands an

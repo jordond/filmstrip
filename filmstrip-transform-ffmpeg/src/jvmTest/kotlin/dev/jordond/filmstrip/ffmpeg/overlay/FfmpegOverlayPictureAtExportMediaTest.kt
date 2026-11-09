@@ -15,6 +15,8 @@ import dev.jordond.filmstrip.export.Verdict
 import dev.jordond.filmstrip.ffmpeg.FfmpegConfig
 import dev.jordond.filmstrip.ffmpeg.internal.FfmpegExportEngine
 import dev.jordond.filmstrip.ffmpeg.internal.FfmpegRuntime
+import dev.jordond.filmstrip.ffmpeg.internal.process.MINIMUM_LIBAVFORMAT_MAJOR
+import dev.jordond.filmstrip.ffmpeg.internal.process.parseVersion
 import dev.jordond.filmstrip.ffmpeg.support.ExportConstants.TIMEOUT
 import dev.jordond.filmstrip.ffmpeg.support.FfmpegExportFixture
 import dev.jordond.filmstrip.ffmpeg.support.OverlayConstants.OVERLAY_COLOR
@@ -23,6 +25,7 @@ import dev.jordond.filmstrip.ffmpeg.support.assertReads
 import dev.jordond.filmstrip.ffmpeg.support.centreOf
 import dev.jordond.filmstrip.ffmpeg.support.channelsOf
 import dev.jordond.filmstrip.ffmpeg.support.hostFfmpeg
+import dev.jordond.filmstrip.ffmpeg.support.isNear
 import dev.jordond.filmstrip.ffmpeg.support.pngOf
 import dev.jordond.filmstrip.ffmpeg.support.writtenFrames
 import dev.jordond.filmstrip.geometry.Corner
@@ -37,6 +40,8 @@ import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
+import java.io.ByteArrayOutputStream
+import java.io.DataOutputStream
 import java.io.File
 import kotlin.io.path.createTempDirectory
 import kotlin.test.AfterTest
@@ -158,37 +163,45 @@ class FfmpegOverlayPictureAtExportMediaTest {
       }
     }
 
-  // Each of these sits on the content probe list, so its bytes reach the graph under the scratch file's PNG name. An
-  // XBM holds one bit a texel, so its picture is white, which it stores.
+  // Each of these sits on the content probe list, so its bytes reach the graph under the scratch file's PNG name.
   @Test
-  fun `every format only ever measured on the content probe list draws through the real path`() =
-    runTest(timeout = TIMEOUT) {
-      if (!fixture.available()) return@runTest
-      val formats =
-        listOf(
-          "jp2" to OVERLAY_COLOR,
-          "exr" to OVERLAY_COLOR,
-          "hdr" to OVERLAY_COLOR,
-          "dpx" to OVERLAY_COLOR,
-          "sgi" to OVERLAY_COLOR,
-          "ras" to OVERLAY_COLOR,
-          "xbm" to WHITE,
-        )
-      for ((extension, color) in formats) {
-        val png = File(root, "source.png").apply { writeBytes(pngOf(color, OVERLAY_SIZE)) }
-        val file = checkNotNull(encodedAs(png, extension)) { "this ffmpeg writes no $extension" }
-        val badge = ImageOverlay(ImageSource.ofBytes(file.readBytes()), Corner.TopStart)
-        val engine = engineWith {}
-        val plan = plannedOn(engine, badge)
+  fun `a JPEG 2000 on the content probe list draws through the real path`() = drawsThroughTheRealPath("jp2")
 
-        val output = exported(engine, plan)
-        val size = plan.output.size
-        val probe = centreOf(badge.placedOn(size, OVERLAY_SIZE).rectOn(size), size)
-        withClue(extension) {
-          assertReads(writtenFrames(output.path, probe = probe), channelsOf(color), extension, LOSSY_TOLERANCE)
-        }
-      }
-    }
+  @Test
+  fun `an OpenEXR on the content probe list draws through the real path`() = drawsThroughTheRealPath("exr")
+
+  @Test
+  fun `a Radiance HDR on the content probe list draws through the real path`() = drawsThroughTheRealPath("hdr")
+
+  @Test
+  fun `a DPX on the content probe list draws through the real path`() = drawsThroughTheRealPath("dpx")
+
+  @Test
+  fun `an SGI on the content probe list draws through the real path`() = drawsThroughTheRealPath("sgi")
+
+  @Test
+  fun `a Sun raster on the content probe list draws through the real path`() = drawsThroughTheRealPath("ras")
+
+  // An XBM holds one bit a texel, so its picture is white, which it stores.
+  @Test
+  fun `an XBM on the content probe list draws through the real path`() = drawsThroughTheRealPath("xbm", WHITE)
+
+  private fun drawsThroughTheRealPath(
+    extension: String,
+    color: Int = OVERLAY_COLOR,
+  ) = runTest(timeout = TIMEOUT) {
+    if (!fixture.available()) return@runTest
+    val png = File(root, "source.png").apply { writeBytes(pngOf(color, OVERLAY_SIZE)) }
+    val file = checkNotNull(encodedAs(png, extension)) { "this ffmpeg writes no $extension" }
+    val badge = ImageOverlay(ImageSource.ofBytes(file.readBytes()), Corner.TopStart)
+    val engine = engineWith {}
+    val plan = plannedOn(engine, badge)
+
+    val output = exported(engine, plan)
+    val size = plan.output.size
+    val probe = centreOf(badge.placedOn(size, OVERLAY_SIZE).rectOn(size), size)
+    assertReads(writtenFrames(output.path, probe = probe), channelsOf(color), extension, LOSSY_TOLERANCE)
+  }
 
   // Each sample sits nearly halfway between two eight-bit codes, where an eight-bit read of it lands on another code
   // than ffmpeg's own sixteen-bit conversion does.
@@ -206,8 +219,127 @@ class FfmpegOverlayPictureAtExportMediaTest {
       }
     }
 
-  private suspend fun firstFrameOf(picture: File): Triple<Int, Int, Int> {
-    val badge = ImageOverlay(ImageSource.of(picture.path), Corner.TopStart)
+  // ffmpeg 9.x's OpenEXR encoder takes premultiplied alpha, so the alpha mode negotiation premultiplies the PNG's codes
+  // as they are written and the decoder tags them premultiplied. They read back straight once the overlay negotiates
+  // straight alpha. Both draws run the same path, so they land within rounding of each other, and the round trip
+  // through premultiplied codes moves a channel near zero by up to 4 on 9.0.2.
+  @Test
+  fun `a half transparent OpenEXR draws where the PNG it was written from does`() =
+    runTest(timeout = TIMEOUT) {
+      if (!fixture.available()) return@runTest
+      val png = File(root, "half.png").apply { writeBytes(pngOf(HALF_TRANSPARENT, OVERLAY_SIZE)) }
+      val exr = checkNotNull(encodedAs(png, "exr")) { "this ffmpeg writes no exr" }
+
+      val drawn = firstFrameOf(ImageSource.ofBytes(exr.readBytes()))
+      val expected = firstFrameOf(ImageSource.of(png.path))
+      withClue("exr read $drawn, the PNG reads $expected") { drawn.isNear(expected, SAME_PATH_TOLERANCE) shouldBe true }
+    }
+
+  // ffmpeg 8.0's OpenEXR decoder tags no alpha, so premultiplied codes reach a straight blend as they are stored and
+  // draw where a PNG holding those codes does. 9.x tags them and the straight blend divides them out.
+  @Test
+  fun `an OpenEXR holding premultiplied codes draws as stored on ffmpeg 8 and divided out past it`() =
+    runTest(timeout = TIMEOUT) {
+      if (!fixture.available()) return@runTest
+      val stored = premultiplied(HALF_TRANSPARENT)
+      val exr = premultipliedExrOf(HALF_TRANSPARENT, OVERLAY_SIZE)
+
+      val drawn = firstFrameOf(ImageSource.ofBytes(exr))
+      val expectedColor = if (hostTagsExrAlpha) HALF_TRANSPARENT else stored
+      val png = File(root, "expected.png").apply { writeBytes(pngOf(expectedColor, OVERLAY_SIZE)) }
+      val expected = firstFrameOf(png)
+      withClue("ffmpeg ${hostVersion.printed} read $drawn, expected $expected") {
+        drawn.isNear(expected, SAME_PATH_TOLERANCE) shouldBe true
+      }
+    }
+
+  // Whether the host's OpenEXR decoder tags its frames premultiplied, which it does from ffmpeg 9.0.
+  private val hostTagsExrAlpha: Boolean
+    get() =
+      hostVersion.major?.let { it >= ALPHA_TAG_MAJOR }
+        ?: ((hostVersion.libavformatMajor ?: 0) > MINIMUM_LIBAVFORMAT_MAJOR)
+
+  private val hostVersion by lazy {
+    val process = ProcessBuilder(hostFfmpeg, "-version").redirectErrorStream(true).start()
+    parseVersion(process.inputStream.bufferedReader().readText()).also { process.waitFor() }
+  }
+
+  // [argb] with its colour multiplied through by its alpha, rounded to the nearest code.
+  private fun premultiplied(argb: Int): Int {
+    val alpha = argb ushr 24
+    val (red, green, blue) = channelsOf(argb).toList().map { (it * alpha + CODE_MAX / 2) / CODE_MAX }
+    return (alpha shl 24) or (red shl 16) or (green shl 8) or blue
+  }
+
+  // An uncompressed scanline OpenEXR of [size] filled flat with [argb], its colour stored premultiplied as 32-bit
+  // floats on the same 0 to 1 scale ffmpeg reads a code onto.
+  private fun premultipliedExrOf(
+    argb: Int,
+    size: Size,
+  ): ByteArray {
+    val alpha = (argb ushr 24) / CODE_MAX.toFloat()
+    val (red, green, blue) = channelsOf(argb).toList().map { it / CODE_MAX.toFloat() * alpha }
+    val lineBytes = size.width * EXR_CHANNELS.size * Float.SIZE_BYTES
+    val header = ByteArrayOutputStream()
+    val out = DataOutputStream(header)
+
+    fun int(value: Int) = out.writeInt(Integer.reverseBytes(value))
+
+    fun float(value: Float) = int(value.toRawBits())
+
+    fun attribute(
+      name: String,
+      type: String,
+      size: Int,
+    ) {
+      out.writeBytes("$name\u0000$type\u0000")
+      int(size)
+    }
+    int(EXR_MAGIC)
+    int(EXR_VERSION)
+    attribute("channels", "chlist", EXR_CHANNELS.size * (2 + EXR_CHANNEL_BYTES) + 1)
+    for (channel in EXR_CHANNELS) {
+      out.writeBytes("$channel\u0000")
+      int(EXR_FLOAT)
+      int(0)
+      int(1)
+      int(1)
+    }
+    out.writeByte(0)
+    attribute("compression", "compression", 1)
+    out.writeByte(0)
+    for (window in listOf("dataWindow", "displayWindow")) {
+      attribute(window, "box2i", EXR_BOX_BYTES)
+      listOf(0, 0, size.width - 1, size.height - 1).forEach(::int)
+    }
+    attribute("lineOrder", "lineOrder", 1)
+    out.writeByte(0)
+    attribute("pixelAspectRatio", "float", Float.SIZE_BYTES)
+    float(1f)
+    attribute("screenWindowCenter", "v2f", 2 * Float.SIZE_BYTES)
+    float(0f)
+    float(0f)
+    attribute("screenWindowWidth", "float", Float.SIZE_BYTES)
+    float(1f)
+    out.writeByte(0)
+    val tableEnd = header.size() + size.height * Long.SIZE_BYTES
+    repeat(size.height) { line ->
+      out.writeLong(java.lang.Long.reverseBytes((tableEnd + line * (2 * Int.SIZE_BYTES + lineBytes)).toLong()))
+    }
+    // Channels are stored in name order, A, B, G then R.
+    val texel = listOf(alpha, blue, green, red)
+    repeat(size.height) { line ->
+      int(line)
+      int(lineBytes)
+      texel.forEach { value -> repeat(size.width) { float(value) } }
+    }
+    return header.toByteArray()
+  }
+
+  private suspend fun firstFrameOf(picture: File): Triple<Int, Int, Int> = firstFrameOf(ImageSource.of(picture.path))
+
+  private suspend fun firstFrameOf(source: ImageSource): Triple<Int, Int, Int> {
+    val badge = ImageOverlay(source, Corner.TopStart)
     val engine = engineWith {}
     val plan = plannedOn(engine, badge)
     val output = exported(engine, plan)
@@ -334,6 +466,16 @@ class FfmpegOverlayPictureAtExportMediaTest {
     val SWAPPED_SIZE = Size(128, 32)
     const val LOSSY_TOLERANCE = 8
     const val WHITE = 0xFFFFFFFF.toInt()
+    const val HALF_TRANSPARENT = 0x80E67814.toInt()
+    const val SAME_PATH_TOLERANCE = 4
+    const val CODE_MAX = 255
+    const val ALPHA_TAG_MAJOR = 9
+    val EXR_CHANNELS = listOf("A", "B", "G", "R")
+    const val EXR_MAGIC = 20000630
+    const val EXR_VERSION = 2
+    const val EXR_FLOAT = 2
+    const val EXR_CHANNEL_BYTES = 16
+    const val EXR_BOX_BYTES = 16
     const val SIXTEEN_BIT_STEP = 257
     const val SIXTEEN_BIT_MAX = 65535
     const val TGA_HEADER = 18
