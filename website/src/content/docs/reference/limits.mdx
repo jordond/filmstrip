@@ -67,6 +67,10 @@ reports `hasAlpha` only for alpha its backend can decode, and a source whose alp
   reads as opaque there. A PNG or WebP still keeps its alpha.
 - ffmpeg decodes VP9 alpha with its native decoder, which drops it, so a WebM tagged `alpha_mode` reads as opaque.
   ProRes 4444 and other formats whose pixel format has an alpha plane keep it.
+- A GIF reads as opaque everywhere except Apple.
+- On Apple, a ProRes 4444 clip reaches the compositor without its alpha, so it reads as opaque for now.
+- The browser composites a frame that carries alpha, but whether WebCodecs hands back alpha for a video is not measured
+  yet. Images are not a browser source.
 - The ffmpeg and Android blends are rounded to the nearest code on the stored channels, so a half transparent pixel can
   differ from another backend by a few codes.
 
