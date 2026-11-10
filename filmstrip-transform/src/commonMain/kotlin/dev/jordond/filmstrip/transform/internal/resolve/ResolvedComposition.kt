@@ -160,8 +160,9 @@ public class ResolvedTrack(
  * @property canvasEffectIndices The index in [effects] of the crop that makes each of [ClipPlacement.canvases], in the
  * same order. A backend builds each canvas right after its crop, before the effects after it run.
  * @property speed How fast this clip plays [start] to [end] through [span]. A backend reads [sourceDuration] for what
- * it
- * decodes and [outputDuration] for what it lays.
+ * it decodes and [outputDuration] for what it lays.
+ * @property audioTrack The one audio track of the source this clip plays, or null when the source has none. A backend
+ * reads this and leaves every other audio track of the source out. Left unset, it is the source's default track.
  */
 @InternalFilmstripApi
 public class ResolvedClip(
@@ -177,6 +178,7 @@ public class ResolvedClip(
   public val placement: ClipPlacement = ClipPlacement.Filling,
   public val canvasEffectIndices: List<Int> = emptyList(),
   public val speed: Double = 1.0,
+  public val audioTrack: ResolvedAudioTrack? = resolvedAudioTrackOf(info.audio, info),
 ) {
   init {
     require(canvasEffectIndices.size == placement.canvases.size) {

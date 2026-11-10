@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip.docs.guides
 
+import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.edit.AudioLevel
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.Composition
@@ -8,6 +9,7 @@ import dev.jordond.filmstrip.edit.EnvelopePoint
 import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.media.MediaSource
+import dev.jordond.filmstrip.media.ProbeResult
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
@@ -77,6 +79,21 @@ internal fun bed(): Composition {
         audio(AudioLevel.Volume(0.3f))
         looping()
         fadeOut(2.seconds)
+      }
+    }
+  // endregion
+  return composition
+}
+
+internal suspend fun chooseTrack(filmstrip: Filmstrip): Composition? {
+  // region track
+  val source = MediaSource.of("/path/to/film.mp4")
+  val info = (filmstrip.probe(source) as? ProbeResult.Success)?.info ?: return null
+  val french = info.audioTracks.firstOrNull { it.language == "fra" } ?: return null
+  val composition =
+    compositionOf {
+      clip(source) {
+        audioTrack(french.id)
       }
     }
   // endregion

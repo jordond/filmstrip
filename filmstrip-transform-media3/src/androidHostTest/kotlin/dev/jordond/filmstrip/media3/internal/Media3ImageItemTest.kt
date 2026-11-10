@@ -322,7 +322,7 @@ class Media3ImageItemTest {
               hdrTransfer = hdrTransfer,
               bitrate = null,
             ),
-          audio = null,
+          audioTracks = emptyList(),
           isExportable = true,
         ),
       start = Duration.ZERO,

@@ -26,6 +26,7 @@ import dev.jordond.filmstrip.geometry.AspectRatio
 import dev.jordond.filmstrip.geometry.Corner
 import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.media.AudioTrackId
 import dev.jordond.filmstrip.media.AudioTrackInfo
 import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.ImageSource
@@ -157,7 +158,10 @@ class CanvasChromaGridTest {
           hdrTransfer = null,
           bitrate = null,
         ),
-      audio = AudioTrackInfo(trackCodecOf("mp4a"), 48_000, 2, null),
+      audioTracks =
+        listOf(
+          AudioTrackInfo(AudioTrackId(1), trackCodecOf("mp4a"), 48_000, 2, null, language = null, isDefault = true),
+        ),
       isExportable = true,
     )
 

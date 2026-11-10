@@ -35,7 +35,7 @@ internal class DecodedSamples(
 internal suspend fun decodeAudioSamples(source: MediaSource): DecodedSamples {
   val reader = SourceReader.of(source) ?: error("the decoder could not open $source")
   try {
-    val track = reader.audioTrack() ?: error("$source has no audio track")
+    val track = reader.firstAudioTrack() ?: error("$source has no audio track")
     val sampleRate =
       track
         .getSampleRate()
@@ -72,7 +72,7 @@ internal suspend fun decodeAudioSamples(source: MediaSource): DecodedSamples {
 internal suspend fun decodeAudio(source: MediaSource): DecodedAudio? {
   val reader = SourceReader.of(source) ?: error("the decoder could not open $source")
   try {
-    val track = reader.audioTrack() ?: return null
+    val track = reader.firstAudioTrack() ?: return null
     val sink = AudioSampleSink(track)
     val iterator = sink.samples(0.0, Double.POSITIVE_INFINITY)
     var count = 0

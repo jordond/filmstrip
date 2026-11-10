@@ -21,6 +21,7 @@ import dev.jordond.filmstrip.ffmpeg.internal.lowering.render
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.volumeExpressions
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.media.AudioTrackId
 import dev.jordond.filmstrip.media.AudioTrackInfo
 import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSource
@@ -267,7 +268,22 @@ class AudioLoweringTest {
         MediaInfo(
           duration = 10.seconds,
           video = null,
-          audio = if (hasAudio) AudioTrackInfo(trackCodecOf("mp4a"), 48_000, 2, null) else null,
+          audioTracks =
+            listOfNotNull(
+              if (hasAudio) {
+                AudioTrackInfo(
+                  AudioTrackId(1),
+                  trackCodecOf("mp4a"),
+                  48_000,
+                  2,
+                  null,
+                  language = null,
+                  isDefault = true,
+                )
+              } else {
+                null
+              },
+            ),
           isExportable = true,
         ),
       start = from,

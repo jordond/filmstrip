@@ -12,7 +12,9 @@ import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import platform.AVFoundation.AVAssetTrack
 import platform.AVFoundation.AVSampleCursor
+import platform.AVFoundation.asset
 import platform.AVFoundation.canProvideSampleCursors
+import platform.AVFoundation.duration
 import platform.AVFoundation.makeSampleCursorWithPresentationTimeStamp
 import platform.AVFoundation.presentationTimeStamp
 import platform.AVFoundation.timeRange
@@ -104,7 +106,7 @@ internal suspend fun AVAssetTrack.sampleTimesAround(
   to: Duration,
   cap: Int = SAMPLE_TIMES_CAP,
 ): SampleTimes? {
-  val trackEnd = CMTimeRangeGetEnd(timeRange)
+  val trackEnd = mediaEnd()
   val end = trackEnd.toDuration()
   val endTick =
     CMTimeConvertScale(trackEnd, MEDIA_TIMESCALE, kCMTimeRoundingMethod_RoundTowardNegativeInfinity)
@@ -207,6 +209,18 @@ private fun AVSampleCursor.composedNanos(
   shifted: Boolean,
 ): Long =
   (if (shifted) CMTimeAdd(presentationTimeStamp, shift) else presentationTimeStamp).toDuration().inWholeNanoseconds
+
+/**
+ * Where this track's media ends, from its own time range.
+ *
+ * A transport stream gives its tracks no time range, so the end is the asset's duration there.
+ */
+@OptIn(ExperimentalForeignApi::class)
+internal fun AVAssetTrack.mediaEnd(): CValue<CMTime> {
+  val own = CMTimeRangeGetEnd(timeRange)
+  val valid = own.useContents { (flags and kCMTimeFlags_Valid) != 0u }
+  return if (valid) own else asset?.duration ?: own
+}
 
 // The first tick at or after this time, and zero for a time before the track opens.
 @OptIn(ExperimentalForeignApi::class)

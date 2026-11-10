@@ -134,6 +134,6 @@ private val INFO =
         hdrTransfer = null,
         bitrate = Bitrate.mbps(12),
       ),
-    audio = null,
+    audioTracks = emptyList(),
     isExportable = true,
   )

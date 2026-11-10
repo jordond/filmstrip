@@ -5,6 +5,8 @@ package dev.jordond.filmstrip.webcodecs
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effects.color.colorMatrixOf
 import dev.jordond.filmstrip.effects.color.transform
+import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.media.AudioTrackId
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.webcodecs.internal.PacketStream
 import dev.jordond.filmstrip.webcodecs.internal.SourceReader
@@ -241,6 +243,50 @@ internal suspend fun makeClipWithAudio(
   sampleRate: Int = 48_000,
   keyFrameSeconds: Double = DEFAULT_KEY_FRAME_SECONDS,
   toneHzAt: (seconds: Double) -> Double = { TONE_HZ },
+): ByteArray =
+  makeClipWithAudioTracks(
+    width = width,
+    height = height,
+    frames = frames,
+    frameRate = frameRate,
+    color = color,
+    sampleRate = sampleRate,
+    keyFrameSeconds = keyFrameSeconds,
+    tracks = listOf(ToneTrack(toneHzAt)),
+  )
+
+/**
+ * The id mediabunny gives the audio track [makeClipWithAudio] writes, which comes after the clip's video track.
+ *
+ * A test that hand-builds a clip over one of those sources names this as its audio track, so the backend finds it.
+ */
+internal val CLIP_AUDIO_TRACK: AudioTrackId = AudioTrackId(2)
+
+/**
+ * One Opus audio track [makeClipWithAudioTracks] writes.
+ *
+ * @property toneHzAt The tone's pitch at a time into the clip.
+ * @property language The ISO 639-2 code written into the track, or null to leave it undetermined.
+ * @property isDefault Whether the track header flags it enabled. Null leaves the muxer's own choice.
+ */
+internal class ToneTrack(
+  val toneHzAt: (seconds: Double) -> Double,
+  val language: String? = null,
+  val isDefault: Boolean? = null,
+)
+
+/**
+ * The same clip [makeClip] builds, with one Opus audio track per entry of [tracks], in that order after the video.
+ */
+internal suspend fun makeClipWithAudioTracks(
+  tracks: List<ToneTrack>,
+  width: Int = 64,
+  height: Int = 64,
+  frames: Int = 12,
+  frameRate: Int = 30,
+  color: Rgb = Rgb.Grey,
+  sampleRate: Int = 48_000,
+  keyFrameSeconds: Double = DEFAULT_KEY_FRAME_SECONDS,
 ): ByteArray {
   val target = BufferTarget()
   val output =
@@ -260,14 +306,21 @@ internal suspend fun makeClipWithAudio(
         .build(),
     )
   output.addVideoTrack(videoSource, JsOptions().put("frameRate", frameRate).build())
-  val audioSource =
-    AudioSampleSource(
-      JsOptions()
-        .put("codec", "opus")
-        .put("quality", Quality(JsOptions().put("bitrate", FIXTURE_AUDIO_BITRATE).build()))
-        .build(),
-    )
-  output.addAudioTrack(audioSource, JsOptions().build())
+  val audioSources =
+    tracks.map { track ->
+      val source =
+        AudioSampleSource(
+          JsOptions()
+            .put("codec", "opus")
+            .put("quality", Quality(JsOptions().put("bitrate", FIXTURE_AUDIO_BITRATE).build()))
+            .build(),
+        )
+      val metadata = JsOptions()
+      track.language?.let { metadata.put("languageCode", it) }
+      track.isDefault?.let { metadata.put("disposition", JsOptions().put("default", it).build()) }
+      output.addAudioTrack(source, metadata.build())
+      source
+    }
   output.start().await()
 
   val pixels = ByteArray(width * height * RGBA_CHANNELS)
@@ -299,8 +352,26 @@ internal suspend fun makeClipWithAudio(
     }
   }
 
-  val audioSeconds = frames.toDouble() / frameRate
-  val audioFrames = (audioSeconds * sampleRate).toInt()
+  val audioFrames = (frames.toDouble() / frameRate * sampleRate).toInt()
+  tracks.zip(audioSources).forEach { (track, source) ->
+    val audioSample = toneSample(audioFrames, sampleRate, track.toneHzAt)
+    try {
+      source.add(audioSample).await()
+    } finally {
+      audioSample.close()
+    }
+  }
+
+  output.finalize().await()
+  return (target.buffer ?: error("the fixture muxer produced no buffer")).toByteArray()
+}
+
+// One mono s16 sample of audioFrames frames of a sine following toneHzAt.
+private fun toneSample(
+  audioFrames: Int,
+  sampleRate: Int,
+  toneHzAt: (seconds: Double) -> Double,
+): AudioSample {
   val pcm = ByteArray(audioFrames * BYTES_PER_SAMPLE)
   var phase = 0.0
   for (frame in 0 until audioFrames) {
@@ -310,24 +381,15 @@ internal suspend fun makeClipWithAudio(
     pcm[offset] = (value and BYTE_MASK).toByte()
     pcm[offset + 1] = ((value shr BYTE_BITS) and BYTE_MASK).toByte()
   }
-  val audioSample =
-    AudioSample(
-      JsOptions()
-        .put("data", pcm.toUint8Array())
-        .put("format", "s16")
-        .put("numberOfChannels", 1)
-        .put("sampleRate", sampleRate)
-        .put("timestamp", 0.0)
-        .build(),
-    )
-  try {
-    audioSource.add(audioSample).await()
-  } finally {
-    audioSample.close()
-  }
-
-  output.finalize().await()
-  return (target.buffer ?: error("the fixture muxer produced no buffer")).toByteArray()
+  return AudioSample(
+    JsOptions()
+      .put("data", pcm.toUint8Array())
+      .put("format", "s16")
+      .put("numberOfChannels", 1)
+      .put("sampleRate", sampleRate)
+      .put("timestamp", 0.0)
+      .build(),
+  )
 }
 
 /**

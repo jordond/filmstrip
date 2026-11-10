@@ -202,7 +202,7 @@ class ClipPlacementLoweringTest {
               hdrTransfer = null,
               bitrate = null,
             ),
-          audio = null,
+          audioTracks = emptyList(),
           isExportable = true,
         ),
       start = Duration.ZERO,

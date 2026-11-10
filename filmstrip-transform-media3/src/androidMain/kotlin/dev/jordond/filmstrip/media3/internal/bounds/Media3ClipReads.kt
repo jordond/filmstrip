@@ -22,7 +22,7 @@ import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
 public class Media3ClipReads internal constructor(
   private val windows: Map<ClipWindow, FrameBounds>,
   private val sdPrimaries: Map<MediaSource, Int> = emptyMap(),
-  private val audioPrerolls: Map<ClipWindow, AudioPreroll> = emptyMap(),
+  private val audioPrerolls: Map<AudioWindow, AudioPreroll> = emptyMap(),
 ) {
   /**
    * The bounds read for [clip]'s window, or null when none were.
@@ -32,7 +32,7 @@ public class Media3ClipReads internal constructor(
   /**
    * Where [clip]'s audio decode opens on its source, or null when it was not read.
    */
-  internal fun audioPrerollOf(clip: ResolvedClip): AudioPreroll? = audioPrerolls[clip.window]
+  internal fun audioPrerollOf(clip: ResolvedClip): AudioPreroll? = clip.audioWindow?.let(audioPrerolls::get)
 
   /**
    * The SD color primaries code point an SDR [clip]'s source names, or null when it names none.
@@ -97,8 +97,8 @@ internal suspend fun ResolvedComposition.readClips(ownsAudioSpeed: Boolean): Med
       emptyList()
     } else {
       clips
-        .filter { (content, clip) -> content != TrackContent.Video && clip.info.audio != null }
-        .map { (_, clip) -> clip.window }
+        .filter { (content, _) -> content != TrackContent.Video }
+        .mapNotNull { (_, clip) -> clip.audioWindow }
         .distinct()
     }
 
@@ -113,9 +113,13 @@ internal suspend fun ResolvedComposition.readClips(ownsAudioSpeed: Boolean): Med
       .mapNotNull { source -> sdPrimariesNamedBy(source)?.let { source to it } }
       .toMap(),
     audioWindows
-      .mapNotNull { window -> audioPrerollStartOf(window.source, window.start)?.let { window to it } }
-      .toMap(),
+      .mapNotNull { window ->
+        audioPrerollStartOf(window.source, window.start, window.audioOrdinal)?.let { window to it }
+      }.toMap(),
   )
 }
 
 private val ResolvedClip.window: ClipWindow get() = ClipWindow(source, start, end)
+
+// Null for a clip whose source has no audio track to open.
+private val ResolvedClip.audioWindow: AudioWindow? get() = audioTrack?.let { AudioWindow(source, start, it.ordinal) }

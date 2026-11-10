@@ -9,6 +9,8 @@ import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.VideoTrackInfo
+import dev.jordond.filmstrip.media.audioLanguageOf
+import dev.jordond.filmstrip.media.audioTrackIdOf
 import dev.jordond.filmstrip.media.displaySizeOf
 import dev.jordond.filmstrip.media.trackCodecOf
 import kotlin.math.roundToInt
@@ -90,19 +92,19 @@ internal fun parseMediaInfo(output: String): MediaInfo? {
   val format = sections.firstOrNull { it.name == "FORMAT" }
 
   val video = streams.firstOrNull { it["codec_type"] == "video" }
-  val audio = streams.firstOrNull { it["codec_type"] == "audio" }
-  if (video == null && audio == null) return null
+  val audio = streams.filter { it["codec_type"] == "audio" }
+  if (video == null && audio.isEmpty()) return null
 
   val durationSeconds =
     format?.get("duration")?.toDoubleOrNull()
       ?: video?.get("duration")?.toDoubleOrNull()
-      ?: audio?.get("duration")?.toDoubleOrNull()
+      ?: audio.firstOrNull()?.get("duration")?.toDoubleOrNull()
       ?: 0.0
 
   return MediaInfo(
     duration = durationSeconds.seconds,
     video = video?.toVideoTrack(),
-    audio = audio?.toAudioTrack(),
+    audioTracks = audio.mapIndexed { ordinal, stream -> stream.toAudioTrack(ordinal, format.isMovie()) },
     // ffmpeg reads what it can open. It has no notion of a rights-protected asset it can decode
     // but must not write, so there is nothing here to report as false.
     isExportable = true,
@@ -160,13 +162,24 @@ private fun ProbeSection.toVideoTrack(): VideoTrackInfo {
   )
 }
 
-private fun ProbeSection.toAudioTrack(): AudioTrackInfo =
+// ffprobe prints a stream's id in hex. Its default disposition is the enabled flag of an MP4's track header and the
+// default flag of a Matroska track.
+private fun ProbeSection.toAudioTrack(
+  ordinal: Int,
+  isMovie: Boolean,
+): AudioTrackInfo =
   AudioTrackInfo(
+    id = audioTrackIdOf(isMovie, this["id"]?.removePrefix(HEX)?.toLongOrNull(radix = 16), ordinal),
     codec = trackCodecOf(codecName()),
     sampleRate = this["sample_rate"]?.toIntOrNull() ?: 0,
     channelCount = this["channels"]?.toIntOrNull() ?: 0,
     bitrate = this["bit_rate"]?.toLongOrNull()?.takeIf { it > 0 }?.let(::Bitrate),
+    language = audioLanguageOf(this["TAG:language"]),
+    isDefault = this["DISPOSITION:default"] == "1",
   )
+
+// ffprobe names the MP4 and QuickTime demuxer `mov,mp4,m4a,3gp,3g2,mj2`.
+private fun ProbeSection?.isMovie(): Boolean = this?.get("format_name")?.split(',')?.contains("mov") == true
 
 // A display matrix reports the rotation to undo, so -90 in the side data is a 90 degree clockwise
 // source. The legacy `rotate` tag reports the same thing with the opposite sign.
@@ -188,6 +201,7 @@ private fun ratio(value: String?): Float? {
 }
 
 private const val FULL_TURN = 360
+private const val HEX = "0x"
 private const val EIGHT_BIT = 8
 
 // How ffprobe spells a container that carries no four-character code.

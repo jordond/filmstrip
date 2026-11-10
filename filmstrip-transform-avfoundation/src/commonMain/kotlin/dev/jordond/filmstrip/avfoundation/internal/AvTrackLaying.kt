@@ -8,6 +8,7 @@ import dev.jordond.filmstrip.avfoundation.internal.chain.videoTrack
 import dev.jordond.filmstrip.avfoundation.internal.composition.SdSourceColor
 import dev.jordond.filmstrip.avfoundation.internal.composition.sdSourceColor
 import dev.jordond.filmstrip.avfoundation.internal.failure.AvLoweringFailure
+import dev.jordond.filmstrip.avfoundation.internal.interop.mediaEnd
 import dev.jordond.filmstrip.avfoundation.internal.still.stillSeed
 import dev.jordond.filmstrip.avfoundation.internal.time.MEDIA_TIMESCALE
 import dev.jordond.filmstrip.avfoundation.internal.time.ticksBetween
@@ -48,9 +49,9 @@ import platform.CoreMedia.CMTimeRangeFromTimeToTime
 import platform.CoreMedia.CMTimeRangeGetEnd
 import platform.CoreMedia.CMTimeRangeMake
 import platform.CoreMedia.CMTimeSubtract
-import platform.CoreMedia.kCMTimeRoundingMethod_RoundTowardZero
 import platform.Foundation.NSURL
 import kotlin.time.Duration
+import platform.CoreMedia.kCMTimeRoundingMethod_RoundTowardZero as RoundTowardZero
 
 /**
  * One clip, once it has a slot on the composition timeline.
@@ -257,7 +258,11 @@ private suspend fun AVMutableCompositionTrack.insertClip(
   val length = if (grid == null) clip.outputDuration.toCMTime() else ticksBetween(at, placement.end)
   val still = clip.source is MediaSource.Image
   val source =
-    if (still) null else assets.of(clip.source).tracksWithMediaType(mediaType).firstOrNull() as? AVAssetTrack
+    when {
+      still -> null
+      mediaType == AVMediaTypeAudio -> assets.of(clip.source).audioTrackOf(clip)
+      else -> assets.of(clip.source).tracksWithMediaType(mediaType).firstOrNull() as? AVAssetTrack
+    }
   val stretched = if (mediaType == AVMediaTypeAudio) assets.stretchedAudioOf(clip) else null
   val inserted =
     when {
@@ -395,11 +400,7 @@ private fun ticksToSourceEnd(
   source: AVAssetTrack,
   from: Duration,
 ): CValue<CMTime> =
-  CMTimeConvertScale(
-    CMTimeSubtract(CMTimeRangeGetEnd(source.timeRange), from.toCMTime()),
-    MEDIA_TIMESCALE,
-    kCMTimeRoundingMethod_RoundTowardZero,
-  )
+  CMTimeConvertScale(CMTimeSubtract(source.mediaEnd(), from.toCMTime()), MEDIA_TIMESCALE, RoundTowardZero)
 
 /**
  * Gives a still the slot from [at] until [end] on this track, as real segments cut from the seed

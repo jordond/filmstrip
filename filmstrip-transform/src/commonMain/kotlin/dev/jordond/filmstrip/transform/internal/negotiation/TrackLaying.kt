@@ -11,6 +11,7 @@ import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSource
+import dev.jordond.filmstrip.media.clipAudioTrackOf
 import dev.jordond.filmstrip.transform.internal.LaidPass
 import dev.jordond.filmstrip.transform.internal.MAX_LAID_PASSES
 import dev.jordond.filmstrip.transform.internal.geometry.placementOf
@@ -23,6 +24,7 @@ import dev.jordond.filmstrip.transform.internal.resolve.ResolvedTrack
 import dev.jordond.filmstrip.transform.internal.resolve.curveOver
 import dev.jordond.filmstrip.transform.internal.resolve.fadeEnvelope
 import dev.jordond.filmstrip.transform.internal.resolve.isValidOver
+import dev.jordond.filmstrip.transform.internal.resolve.resolvedAudioTrackOf
 import kotlin.time.Duration
 
 /**
@@ -118,6 +120,7 @@ internal class TrackLayer(
           placement = placement,
           canvasEffectIndices = placement.canvases.map { canvasEffectIndexOf(it.chainIndex, effects, resolved) },
           speed = window.speed,
+          audioTrack = resolvedAudioTrackOf(clipAudioTrackOf(clip, info), info),
         )
       }
 

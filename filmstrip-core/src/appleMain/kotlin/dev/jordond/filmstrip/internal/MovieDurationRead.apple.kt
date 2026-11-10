@@ -1,6 +1,9 @@
 package dev.jordond.filmstrip.internal
 
+import dev.jordond.filmstrip.media.TrackHeader
 import dev.jordond.filmstrip.media.movieDurationOf
+import dev.jordond.filmstrip.media.trackHeadersOf
+import dev.jordond.filmstrip.picture.ByteRangeRead
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.addressOf
 import kotlinx.cinterop.alloc
@@ -22,14 +25,28 @@ import kotlin.time.Duration
  *
  * Null when [url] is not a file URL, the file cannot be opened, or [movieDurationOf] finds no length in it.
  */
+internal suspend fun movieDurationAt(url: NSURL): Duration? =
+  readMovieAt(url) { size, read -> movieDurationOf(size, read) }
+
+/**
+ * The track headers of the file at [url], read through [trackHeadersOf].
+ *
+ * Null when [url] is not a file URL, the file cannot be opened, or [trackHeadersOf] finds no movie in it.
+ */
+internal suspend fun trackHeadersAt(url: NSURL): List<TrackHeader>? =
+  readMovieAt(url) { size, read -> trackHeadersOf(size, read) }
+
 @OptIn(ExperimentalForeignApi::class)
-internal suspend fun movieDurationAt(url: NSURL): Duration? {
+private suspend inline fun <T> readMovieAt(
+  url: NSURL,
+  walk: (size: Long, read: ByteRangeRead) -> T?,
+): T? {
   val path = url.takeIf { it.isFileURL() }?.path ?: return null
   val descriptor = open(path, O_RDONLY)
   if (descriptor < 0) return null
   try {
     val size = memScoped { alloc<stat>().takeIf { fstat(descriptor, it.ptr) == 0 }?.st_size } ?: return null
-    return movieDurationOf(size) { start, count -> readAt(descriptor, start, count) }
+    return walk(size) { start, count -> readAt(descriptor, start, count) }
   } finally {
     close(descriptor)
   }

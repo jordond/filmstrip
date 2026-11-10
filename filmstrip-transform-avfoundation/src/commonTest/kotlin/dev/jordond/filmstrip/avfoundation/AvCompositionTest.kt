@@ -22,6 +22,8 @@ import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.media.AudioTrackId
+import dev.jordond.filmstrip.media.AudioTrackInfo
 import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.EXIF_ORIENTATION_NORMAL
 import dev.jordond.filmstrip.media.ImageSource
@@ -861,6 +863,8 @@ class AvCompositionTest {
       sourceIndex = sourceIndex,
       placement = placement,
       canvasEffectIndices = canvasEffectIndices,
+      speed = speed,
+      audioTrack = audioTrack,
     )
 
   /**
@@ -1028,7 +1032,10 @@ class AvCompositionTest {
               hdrTransfer = null,
               bitrate = null,
             ),
-          audio = null,
+          audioTracks =
+            listOf(
+              AudioTrackInfo(AudioTrackId(1), trackCodecOf("mp4a"), 48_000, 2, null, language = null, isDefault = true),
+            ),
           isExportable = true,
         ),
       start = start,

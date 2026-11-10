@@ -91,7 +91,7 @@ class Media3CopyBlockerMediaTest {
           hdrTransfer = video.hdrTransfer,
           bitrate = video.bitrate,
         ),
-      audio = audio,
+      audioTracks = listOfNotNull(audio),
       isExportable = isExportable,
     )
   }

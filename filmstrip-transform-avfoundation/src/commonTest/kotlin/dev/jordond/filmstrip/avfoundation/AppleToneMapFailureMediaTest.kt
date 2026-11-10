@@ -108,7 +108,7 @@ class AppleToneMapFailureMediaTest {
             bitrate,
           )
         },
-      audio = audio,
+      audioTracks = listOfNotNull(audio),
       isExportable = isExportable,
     )
 

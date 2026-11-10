@@ -208,7 +208,7 @@ internal class AudioLowering(
   }
 }
 
-private val ResolvedClip.hasAudio: Boolean get() = info.audio != null
+private val ResolvedClip.hasAudio: Boolean get() = audioTrack != null
 
 /**
  * The atempo stages that multiply out to [speed], each inside what one atempo filter takes.

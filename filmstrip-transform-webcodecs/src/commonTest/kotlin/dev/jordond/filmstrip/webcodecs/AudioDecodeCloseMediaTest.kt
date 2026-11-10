@@ -44,7 +44,7 @@ class AudioDecodeCloseMediaTest {
   fun aDecodeWhoseSinkFailsClosesTheSink() =
     runTest {
       val reader = opened()
-      val track = reader.audioTrack().shouldNotBeNull()
+      val track = reader.firstAudioTrack().shouldNotBeNull()
       val real = AudioBufferSink(track).buffers(0.0, SPAN_SECONDS)
       var closes = 0
       val failing =
@@ -68,7 +68,7 @@ class AudioDecodeCloseMediaTest {
    */
   private suspend fun TestScope.closesAfterCancelling(answered: Int): Int {
     val reader = opened()
-    val track = reader.audioTrack().shouldNotBeNull()
+    val track = reader.firstAudioTrack().shouldNotBeNull()
     val real = AudioBufferSink(track).buffers(0.0, SPAN_SECONDS)
     val waiting = CompletableDeferred<Unit>()
     var pulls = 0

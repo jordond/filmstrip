@@ -48,6 +48,7 @@ import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.geometry.FlipAxis
 import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.media.AudioTrackId
 import dev.jordond.filmstrip.media.AudioTrackInfo
 import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.HdrTransfer
@@ -695,7 +696,22 @@ class BrowserPlannerTest {
     val clip = Clip(source("a"))
     val composition = Composition(tracks = listOf(Track(listOf(clip))), audio = AudioSpec.Keep)
     val infos =
-      mapOf(clip.source to info(codec = "vp8", audio = AudioTrackInfo(trackCodecOf("vorbis"), 48_000, 2, null)))
+      mapOf(
+        clip.source to
+          info(
+            codec = "vp8",
+            audio =
+              AudioTrackInfo(
+                AudioTrackId(1),
+                trackCodecOf("vorbis"),
+                48_000,
+                2,
+                null,
+                language = null,
+                isDefault = true,
+              ),
+          ),
+      )
 
     val verdict = lower(composition, ExportSpec(), infos).verdict
 
@@ -750,7 +766,21 @@ class BrowserPlannerTest {
         Ask(
           spec,
           device(VideoCodec.H264, audio = listOf(AudioEncoderCapability(AudioCodec.Aac, listOf(48_000), 2))),
-          mapOf(clip.source to info(audio = AudioTrackInfo(trackCodecOf("mp4a"), 48_000, 2, null))),
+          mapOf(
+            clip.source to
+              info(
+                audio =
+                  AudioTrackInfo(
+                    AudioTrackId(1),
+                    trackCodecOf("mp4a"),
+                    48_000,
+                    2,
+                    null,
+                    language = null,
+                    isDefault = true,
+                  ),
+              ),
+          ),
         ),
       )
 
@@ -810,7 +840,16 @@ class BrowserPlannerTest {
               clip.source to
                 info(
                   duration = duration,
-                  audio = AudioTrackInfo(trackCodecOf("mp4a"), sampleRate, channelCount, null),
+                  audio =
+                    AudioTrackInfo(
+                      AudioTrackId(1),
+                      trackCodecOf("mp4a"),
+                      sampleRate,
+                      channelCount,
+                      null,
+                      language = null,
+                      isDefault = true,
+                    ),
                 ),
             ),
         ),
@@ -833,7 +872,7 @@ class BrowserPlannerTest {
   fun aLoopingPrimaryDrawsEveryPassThePlannerLaid() {
     val bed = Clip(source("bed"), trim = LoopingCases.VIDEO_TRIM)
     val under = Clip(source("under"), trim = TimeRange(Duration.ZERO, LoopingCases.UNDERLAY_RUN))
-    val tone = AudioTrackInfo(trackCodecOf("mp4a"), 48_000, 2, null)
+    val tone = AudioTrackInfo(AudioTrackId(1), trackCodecOf("mp4a"), 48_000, 2, null, language = null, isDefault = true)
     val lowering =
       planner.lower(
         composition =
@@ -1218,7 +1257,21 @@ class BrowserPlannerTest {
       Ask(
         spec,
         device(VideoCodec.H264, VideoCodec.Vp9, audio = encoders),
-        mapOf(clip.source to info(audio = AudioTrackInfo(trackCodecOf("mp4a"), sampleRate, 2, null))),
+        mapOf(
+          clip.source to
+            info(
+              audio =
+                AudioTrackInfo(
+                  AudioTrackId(1),
+                  trackCodecOf("mp4a"),
+                  sampleRate,
+                  2,
+                  null,
+                  language = null,
+                  isDefault = true,
+                ),
+            ),
+        ),
       ),
     )
   }
@@ -1280,7 +1333,7 @@ class BrowserPlannerTest {
           hdrTransfer = hdr,
           bitrate = null,
         ),
-      audio = audio,
+      audioTracks = listOfNotNull(audio),
       isExportable = true,
     )
 

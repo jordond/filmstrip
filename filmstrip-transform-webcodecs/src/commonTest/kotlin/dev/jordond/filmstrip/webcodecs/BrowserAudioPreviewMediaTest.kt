@@ -282,7 +282,10 @@ class BrowserAudioPreviewMediaTest {
         MediaInfo(
           duration = end,
           video = null,
-          audio = AudioTrackInfo(trackCodecOf("opus"), RATE, 1, null),
+          audioTracks =
+            listOf(
+              AudioTrackInfo(CLIP_AUDIO_TRACK, trackCodecOf("opus"), RATE, 1, null, language = null, isDefault = true),
+            ),
           isExportable = true,
         ),
       start = Duration.ZERO,

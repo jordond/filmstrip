@@ -30,9 +30,15 @@ internal external val ALL_FORMATS: JsArray<JsAny>
 internal external class Input(
   options: JsAny,
 ) : JsAny {
-  fun getPrimaryVideoTrack(): Promise<InputVideoTrack?>
+  /**
+   * Every video track, in the order the container lists them.
+   */
+  fun getVideoTracks(): Promise<JsArray<InputVideoTrack>>
 
-  fun getPrimaryAudioTrack(): Promise<InputAudioTrack?>
+  /**
+   * Every audio track, in the order the container lists them.
+   */
+  fun getAudioTracks(): Promise<JsArray<InputAudioTrack>>
 
   /**
    * The file's duration, the largest end timestamp among all its tracks. Wider than any one
@@ -40,7 +46,21 @@ internal external class Input(
    */
   fun computeDuration(): Promise<JsNumber>
 
+  /**
+   * The container format mediabunny sniffed the file as.
+   */
+  fun getFormat(): Promise<InputFormat>
+
   fun dispose()
+}
+
+/**
+ * A container format mediabunny reads.
+ *
+ * @property mimeType The format's base MIME type, such as `video/mp4` or `video/x-matroska`.
+ */
+internal external interface InputFormat : JsAny {
+  val mimeType: String
 }
 
 /**
@@ -84,23 +104,6 @@ internal external interface InputVideoTrack : JsAny {
 
   /**
    * The config a `VideoDecoder` needs to decode this track's packets, or null when the codec is
-   * unknown.
-   */
-  fun getDecoderConfig(): Promise<JsAny?>
-}
-
-/**
- * The audio track of an [Input].
- */
-internal external interface InputAudioTrack : JsAny {
-  fun getSampleRate(): Promise<JsNumber>
-
-  fun getNumberOfChannels(): Promise<JsNumber>
-
-  fun getCodec(): Promise<JsString?>
-
-  /**
-   * The config an `AudioDecoder` needs to decode this track's packets, or null when the codec is
    * unknown.
    */
   fun getDecoderConfig(): Promise<JsAny?>

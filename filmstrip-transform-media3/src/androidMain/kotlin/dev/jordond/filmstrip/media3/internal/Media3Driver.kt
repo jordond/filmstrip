@@ -69,7 +69,7 @@ internal class Media3Driver(
       val extractor = MediaExtractor()
       try {
         if (!extractor.open(source)) return@withContext null
-        val track = extractor.videoTrackIndex(source) ?: return@withContext null
+        val track = extractor.videoTrackIndex() ?: return@withContext null
         extractor.selectTrack(track)
         extractor.seekTo(cut.inWholeMicroseconds, MediaExtractor.SEEK_TO_PREVIOUS_SYNC)
 

@@ -5,6 +5,7 @@ import dev.jordond.filmstrip.effect.WebGlOverlay
 import dev.jordond.filmstrip.effect.WebGlPass
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.MediaSource
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedAudioTrack
 import dev.jordond.filmstrip.transform.internal.sourceTimeOfSlot
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.microseconds
@@ -53,6 +54,7 @@ import kotlin.time.DurationUnit
  * fill.
  * @property speed How fast the slots walk through the trim, which [sourceUsOf] and [outputUsOf] read.
  * @property spanStart Where the clip's span opens on the composition timeline, which its trim start plays at.
+ * @property audioTrack The source's audio track a copy of this clip writes, or null when the source has none.
  */
 internal class RenderedClip(
   val source: MediaSource,
@@ -77,6 +79,7 @@ internal class RenderedClip(
   val passesUnderFill: List<WebGlPass> = emptyList(),
   val speed: Double = 1.0,
   val spanStart: Duration,
+  val audioTrack: ResolvedAudioTrack?,
 ) {
   /**
    * Where the trim opens in the source, in microseconds.

@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip.internal
 
+import android.content.res.AssetFileDescriptor
 import android.media.MediaCodecInfo
 import android.media.MediaExtractor
 import android.media.MediaFormat
@@ -9,8 +10,8 @@ import android.os.ParcelFileDescriptor
 import dev.jordond.filmstrip.FilmstripContext
 import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.codec.Bitrate
+import dev.jordond.filmstrip.color.CodestreamSignal
 import dev.jordond.filmstrip.geometry.Size
-import dev.jordond.filmstrip.media.AudioTrackInfo
 import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.MediaBytesFileFailure
@@ -22,6 +23,7 @@ import dev.jordond.filmstrip.media.describe
 import dev.jordond.filmstrip.media.displaySizeOf
 import dev.jordond.filmstrip.media.movieDurationOf
 import dev.jordond.filmstrip.media.trackCodecOf
+import dev.jordond.filmstrip.media.trackHeadersOf
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -30,7 +32,6 @@ import java.io.FileInputStream
 import java.io.IOException
 import java.nio.ByteBuffer
 import java.nio.channels.FileChannel
-import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 
 internal actual class PlatformProber actual constructor() {
@@ -106,7 +107,7 @@ internal actual class PlatformProber actual constructor() {
       val retriever = MediaMetadataRetriever()
       try {
         retriever.open()
-        ProbeResult.Success(retriever.readInfo(tracks(), movieDuration()))
+        ProbeResult.Success(retriever.readInfo(tracks(), movieHeaders()))
       } catch (error: IllegalArgumentException) {
         ProbeResult.Failure(unreadable(error.message))
       } catch (cancelled: CancellationException) {
@@ -149,34 +150,47 @@ internal actual class PlatformProber actual constructor() {
   }
 
   /**
-   * How long the source plays for by its MP4 or QuickTime movie header, or null when it has none [movieDurationOf]
-   * can read or it cannot be opened for random access.
+   * How long the source plays for by its MP4 or QuickTime movie header and what its track headers say, each null when
+   * the file has none [movieDurationOf] and [trackHeadersOf] can read or it cannot be opened for random access.
+   *
+   * A URI is opened the way the retriever and the extractor open it, as an asset file descriptor, which can name a
+   * range of a larger file such as a resource packed into an APK. The walk reads that range alone.
    */
-  private suspend fun MediaSource.movieDuration(): Duration? =
+  private suspend fun MediaSource.movieHeaders(): MovieHeaders =
     try {
-      val channel =
-        when (this) {
-          is MediaSource.Path -> {
-            FileInputStream(path).channel
-          }
-          is MediaSource.Uri -> {
-            val android = FilmstripContext.get() ?: return null
-            val descriptor = android.contentResolver.openFileDescriptor(Uri.parse(uri), "r") ?: return null
-            ParcelFileDescriptor.AutoCloseInputStream(descriptor).channel
-          }
-          is MediaSource.Bytes, is MediaSource.Image -> {
-            return null
+      when (this) {
+        is MediaSource.Path -> {
+          FileInputStream(path).channel.use { it.movieHeaders(start = 0, length = it.size()) }
+        }
+        is MediaSource.Uri -> {
+          val android = FilmstripContext.get() ?: return MovieHeaders.None
+          val asset = android.contentResolver.openAssetFileDescriptor(Uri.parse(uri), "r") ?: return MovieHeaders.None
+          ParcelFileDescriptor.AutoCloseInputStream(asset.parcelFileDescriptor).channel.use {
+            val length = asset.declaredLength.takeIf { it != AssetFileDescriptor.UNKNOWN_LENGTH }
+            it.movieHeaders(asset.startOffset, length ?: (it.size() - asset.startOffset))
           }
         }
-      channel.use { movieDurationOf(it.size()) { start, count -> it.readAt(start, count) } }
+        is MediaSource.Bytes, is MediaSource.Image -> {
+          MovieHeaders.None
+        }
+      }
     } catch (unreadable: IOException) {
-      null
+      MovieHeaders.None
     } catch (cancelled: CancellationException) {
       throw cancelled
     } catch (unopened: RuntimeException) {
       // A content:// URI the resolver cannot open throws SecurityException or IllegalArgumentException.
-      null
+      MovieHeaders.None
     }
+
+  private suspend fun FileChannel.movieHeaders(
+    start: Long,
+    length: Long,
+  ): MovieHeaders =
+    MovieHeaders(
+      duration = movieDurationOf(length) { at, count -> readAt(start + at, count) },
+      tracks = trackHeadersOf(length) { at, count -> readAt(start + at, count) },
+    )
 
   private fun FileChannel.readAt(
     start: Long,
@@ -191,13 +205,13 @@ internal actual class PlatformProber actual constructor() {
 
   private fun MediaExtractor.readTracks(): SourceTracks {
     var video: MediaFormat? = null
-    var audio: MediaFormat? = null
+    val audio = mutableListOf<MediaFormat>()
 
     for (index in 0 until trackCount) {
       val format = getTrackFormat(index)
       when (format.string(MediaFormat.KEY_MIME)?.substringBefore('/')) {
         "video" -> if (video == null) video = format
-        "audio" -> if (audio == null) audio = format
+        "audio" -> audio += format
       }
     }
 
@@ -206,10 +220,9 @@ internal actual class PlatformProber actual constructor() {
 
   private fun MediaMetadataRetriever.readInfo(
     tracks: SourceTracks?,
-    movieDuration: Duration?,
+    headers: MovieHeaders,
   ): MediaInfo {
     val video = tracks?.video
-    val audio = tracks?.audio
     val hasVideo = extractMetadata(MediaMetadataRetriever.METADATA_KEY_HAS_VIDEO) == "yes"
     val hasAudio = extractMetadata(MediaMetadataRetriever.METADATA_KEY_HAS_AUDIO) == "yes"
     val rotation = int(MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION) ?: 0
@@ -219,11 +232,14 @@ internal actual class PlatformProber actual constructor() {
         height = int(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT) ?: 0,
       )
     val pixelAspect = video?.pixelAspectRatio() ?: SQUARE
+    // Below API 28 the extractor reads no color off an MP4, and the retriever's color keys are API 30, so the sample
+    // entry's own description is what answers there.
+    val signal = headers.tracks?.firstNotNullOfOrNull { it.signal }
 
     return MediaInfo(
       // On API 30 the retriever reports an MP4 track's length ahead of its edit list, so an AAC track that opens on an
       // encoder delay runs long by that delay. The movie header carries the edited length whatever the API level.
-      duration = movieDuration ?: (long(MediaMetadataRetriever.METADATA_KEY_DURATION) ?: 0L).milliseconds,
+      duration = headers.duration ?: (long(MediaMetadataRetriever.METADATA_KEY_DURATION) ?: 0L).milliseconds,
       video =
         if (!hasVideo) {
           null
@@ -236,30 +252,33 @@ internal actual class PlatformProber actual constructor() {
             frameRate = video?.int(MediaFormat.KEY_FRAME_RATE)?.toFloat(),
             codec = trackCodecOf(video?.string(MediaFormat.KEY_MIME).orEmpty()),
             bitDepth = video?.bitDepth(),
-            colorSpace = video?.colorSpace() ?: retrieverColorSpace(),
-            hdrTransfer = video?.hdrTransfer() ?: retrieverHdrTransfer(),
+            colorSpace = video?.colorSpace() ?: signal?.colorSpace() ?: retrieverColorSpace(),
+            hdrTransfer = video?.hdrTransfer() ?: signal?.hdrTransfer() ?: retrieverHdrTransfer(),
             bitrate =
               video?.int(MediaFormat.KEY_BIT_RATE)?.toLong()?.let(::Bitrate)
                 ?: long(MediaMetadataRetriever.METADATA_KEY_BITRATE)?.let(::Bitrate),
           )
         },
-      audio =
-        if (!hasAudio) {
-          null
-        } else {
-          AudioTrackInfo(
-            codec = trackCodecOf(audio?.string(MediaFormat.KEY_MIME).orEmpty()),
-            // METADATA_KEY_SAMPLERATE is API 31, so the track format is the only route that
-            // answers across the whole supported range and does not read zero below it.
-            sampleRate = audio?.int(MediaFormat.KEY_SAMPLE_RATE) ?: 0,
-            channelCount = audio?.int(MediaFormat.KEY_CHANNEL_COUNT) ?: 0,
-            bitrate = audio?.int(MediaFormat.KEY_BIT_RATE)?.toLong()?.let(::Bitrate),
-          )
-        },
+      audioTracks = if (hasAudio) audioTracksOf(tracks?.audio.orEmpty(), headers) else emptyList(),
       // Protection surfaces at the decoder, so every source reads as exportable up front.
       isExportable = true,
     )
   }
+
+  private fun CodestreamSignal.colorSpace(): ColorSpace? =
+    when (primaries) {
+      PRIMARIES_BT709 -> ColorSpace.Bt709
+      PRIMARIES_BT601_PAL, PRIMARIES_BT601_NTSC -> ColorSpace.Bt601
+      PRIMARIES_BT2020 -> ColorSpace.Bt2020
+      else -> null
+    }
+
+  private fun CodestreamSignal.hdrTransfer(): HdrTransfer? =
+    when (transfer) {
+      TRANSFER_PQ -> HdrTransfer.Pq
+      TRANSFER_HLG -> HdrTransfer.Hlg
+      else -> null
+    }
 
   private fun MediaMetadataRetriever.retrieverHdrTransfer(): HdrTransfer? =
     when (int(MediaMetadataRetriever.METADATA_KEY_COLOR_TRANSFER)) {
@@ -273,11 +292,11 @@ internal actual class PlatformProber actual constructor() {
    *
    * @property video The first video track, or null when the source has none the extractor could
    *   read.
-   * @property audio The first audio track, on the same terms.
+   * @property audio Every audio track, in the container's order.
    */
   private class SourceTracks(
     val video: MediaFormat?,
-    val audio: MediaFormat?,
+    val audio: List<MediaFormat>,
   )
 
   /**
@@ -365,6 +384,14 @@ internal actual class PlatformProber actual constructor() {
     const val COLOR_STANDARD_BT601_PAL = 2
     const val COLOR_STANDARD_BT601_NTSC = 4
     const val COLOR_STANDARD_BT2020 = 6
+
+    // ITU-T H.273 code points, as a `colr` box and an HEVC parameter set number them.
+    const val PRIMARIES_BT709 = 1
+    const val PRIMARIES_BT601_PAL = 5
+    const val PRIMARIES_BT601_NTSC = 6
+    const val PRIMARIES_BT2020 = 9
+    const val TRANSFER_PQ = 16
+    const val TRANSFER_HLG = 18
 
     // KEY_PIXEL_ASPECT_RATIO_*, whose constants are above minSdk but whose keys every extractor
     // has always written.

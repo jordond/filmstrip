@@ -95,6 +95,31 @@ On Android a file records the priming its AAC encoder writes, so its audio start
 encoders write 2048 frames, measured on emulators from API 24 to 36. A device that picks a vendor's own AAC encoder gets
 the delay media3 assumes for it, which no emulator can measure, so its audio can start off by the difference.
 
+Only an MP4 or QuickTime file gives its tracks ids every backend reads alike. A Matroska or WebM file, an MPEG
+transport stream or a raw AAC stream names each audio track by its place among them, counted from one, so the first is
+`AudioTrackId(1)`. See [Choosing a track](/guides/audio/#choosing-a-track).
+
+A track's `language` is for showing to a person, not for choosing by. For an MPEG transport stream it differs by
+backend, and Apple and the browser report none.
+
+Which audio track is the default comes from these, on each backend:
+
+| Backend | MP4, QuickTime            | Matroska, WebM           | Any other container              |
+| ------- | ------------------------- | ------------------------ | -------------------------------- |
+| ffmpeg  | The enabled bit in `tkhd` | The track's default flag | ffprobe's default disposition    |
+| Apple   | The enabled bit in `tkhd` | Can't open the file      | None flagged                     |
+| Android | The enabled bit in `tkhd` | The track's default flag | media3's default selection flag  |
+| Browser | The enabled bit in `tkhd` | The track's default flag | None flagged                     |
+
+AVFoundation opens no Matroska or WebM file, from a path or from bytes, so Apple refuses one as `SourceUnreadable`.
+On iOS AVFoundation opens no MPEG transport stream either, and Apple refuses one the same way. macOS opens it.
+
+On Android the tracks come from media3's own extractors, once the media3 backend is registered. Without it, core's
+prober flags no default track outside an MP4 or QuickTime file, so a clip that names no track plays the first one.
+
+media3 leaves out a track whose codec it can't read, so outside an MP4 or QuickTime file the audio tracks after it are
+numbered one lower than ffmpeg numbers them. media3 couldn't play that track anyway.
+
 ## Clip speed
 
 Every backend plays clips from 1/32 to 32 times speed with the pitch kept. Sources are decoded in full, so a fast clip
@@ -227,6 +252,6 @@ The rest are next to the feature they limit.
 - [Overlays](/guides/overlays/): file paths in the browser, texture sizes, off-frame animation, the ffmpeg
   even pixel snap and line breaking.
 - [Effects](/guides/effects/): `kenBurns`, `rotate`, `Fill.Blur` and color effects on a kept grade.
-- [Audio](/guides/audio/): the Android AAC tail and the browser preview's fades.
+- [Audio](/guides/audio/): the Android AAC tail, the browser preview's fades and which backends play a chosen track.
 - [HDR](/guides/hdr/): what each backend can tone map and read.
 - [Stills](/guides/stills/): which backends put a still on the timeline.

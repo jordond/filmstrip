@@ -1,6 +1,7 @@
 package dev.jordond.filmstrip.transform.internal.copy
 
 import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.media.AudioTrackId
 import dev.jordond.filmstrip.media.AudioTrackInfo
 import dev.jordond.filmstrip.media.CodecKind
 import dev.jordond.filmstrip.media.ColorSpace
@@ -55,7 +56,7 @@ class Mp4CopyTest {
   fun `a source with no video track never copies`() {
     Mp4Copy
       .accepts(
-        MediaInfo(1.seconds, video = null, audio = track(CodecKind.Aac), isExportable = true),
+        MediaInfo(1.seconds, video = null, audioTracks = listOfNotNull(track(CodecKind.Aac)), isExportable = true),
       ).shouldBeFalse()
   }
 
@@ -87,9 +88,10 @@ class Mp4CopyTest {
         hdrTransfer = null,
         bitrate = null,
       ),
-    audio = audio?.let { track(it) },
+    audioTracks = listOfNotNull(audio?.let { track(it) }),
     isExportable = true,
   )
 
-  private fun track(kind: CodecKind) = AudioTrackInfo(TrackCodec(kind.name, kind), 48_000, 2, null)
+  private fun track(kind: CodecKind) =
+    AudioTrackInfo(AudioTrackId(1), TrackCodec(kind.name, kind), 48_000, 2, null, language = null, isDefault = true)
 }

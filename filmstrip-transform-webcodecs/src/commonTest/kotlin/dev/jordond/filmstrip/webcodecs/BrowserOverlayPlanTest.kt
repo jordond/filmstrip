@@ -286,7 +286,7 @@ class BrowserOverlayPlanTest {
           hdrTransfer = transfer,
           bitrate = null,
         ),
-      audio = null,
+      audioTracks = emptyList(),
       isExportable = true,
     )
 

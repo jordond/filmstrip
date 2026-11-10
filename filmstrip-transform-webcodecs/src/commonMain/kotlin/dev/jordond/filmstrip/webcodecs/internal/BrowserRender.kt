@@ -283,6 +283,7 @@ private fun renderedClip(
     passesUnderFill = compositionChain.shaderPasses(),
     speed = resolved.speed,
     spanStart = resolved.span.start,
+    audioTrack = resolved.audioTrack,
   )
 }
 

@@ -87,16 +87,11 @@ internal fun withoutInert(
             clip.effects.withoutInert(listOf(reaches[clipIndex]), identity.clips[clipIndex], where, notices)
           val (fadeIn, fadeOut) =
             fadesWithout(clip.fadeIn, clip.fadeOut, clipIsSilent(edit, streams, track, clip, ask), where, notices)
-          Clip(
-            clip.source,
-            clip.trim,
-            effects,
-            clip.audio,
-            clip.snapWithin,
-            fadeIn,
-            fadeOut,
-            speedWithout(clip, where, notices),
-          )
+          clip
+            .withEffects(effects)
+            .withFadeIn(fadeIn)
+            .withFadeOut(fadeOut)
+            .withSpeed(speedWithout(clip, where, notices))
         }
       val where = "track $trackIndex"
       val (fadeIn, fadeOut) =
@@ -107,16 +102,11 @@ internal fun withoutInert(
           where,
           notices,
         )
-      Track(
-        clips = clips,
-        content = track.content,
-        effects = track.effects.withoutInert(reaches, identity.track, where, notices),
-        audio = track.audio,
-        start = track.start,
-        looping = track.looping,
-        fadeIn = fadeIn,
-        fadeOut = fadeOut,
-      )
+      track
+        .withClips(clips)
+        .withEffects(track.effects.withoutInert(reaches, identity.track, where, notices))
+        .withFadeIn(fadeIn)
+        .withFadeOut(fadeOut)
     }
 
   val whole = TimeRange.of(Duration.ZERO, duration)
@@ -139,7 +129,7 @@ internal fun withoutInert(
     }
 
   if (notices.isEmpty()) return InertElision(edit, emptyList())
-  return InertElision(Composition(tracks, effects, edit.audio, fill), notices)
+  return InertElision(edit.withTracks(tracks).withEffects(effects).withFill(fill), notices)
 }
 
 // One run of a declared effect: the chain it sits in, the frame that chain opens on, or null when the clip carries

@@ -208,4 +208,5 @@ internal fun requireOnPath(
   }
 }
 
-private val MEDIA_TYPES: Map<String, String> = mapOf("mp4" to "video/mp4")
+private val MEDIA_TYPES: Map<String, String> =
+  mapOf("mp4" to "video/mp4", "mkv" to "video/x-matroska", "ts" to "video/mp2t")

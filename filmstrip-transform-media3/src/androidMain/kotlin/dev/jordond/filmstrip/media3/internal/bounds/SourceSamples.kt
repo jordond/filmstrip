@@ -39,7 +39,7 @@ internal suspend fun frameBoundsOf(
     val extractor = MediaExtractor()
     try {
       if (!extractor.open(source)) return@withContext null
-      val track = extractor.videoTrackIndex(source) ?: return@withContext null
+      val track = extractor.videoTrackIndex() ?: return@withContext null
       val trackEnd = extractor.getTrackFormat(track).durationUs()
       extractor.selectTrack(track)
 
@@ -76,8 +76,8 @@ internal suspend fun frameBoundsOf(
 
 /**
  * Where a clip of [source]'s audio trimmed to [start] opens its decode, which is the access unit before the one holding
- * [start], and the encoder delay its audio track names. Null when its container cannot be read or its audio track holds
- * no sample at or before [start].
+ * [start], and the encoder delay its audio track names. Null when its container cannot be read or the audio track at
+ * [audioOrdinal] holds no sample at or before [start].
  *
  * The AAC decoder fades in the first unit it is fed, so a clip opened on the unit holding its start would fade in over
  * its first frames. The unit before it decodes into that fade and is dropped with the rest of the lead. A start inside
@@ -91,12 +91,13 @@ internal suspend fun frameBoundsOf(
 internal suspend fun audioPrerollStartOf(
   source: MediaSource,
   start: Duration,
+  audioOrdinal: Int,
 ): AudioPreroll? =
   withContext(Dispatchers.IO) {
     val extractor = MediaExtractorCompat()
     try {
       if (!extractor.open(source)) return@withContext null
-      val track = extractor.audioTrackIndex(source) ?: return@withContext null
+      val track = extractor.audioTrackIndex(audioOrdinal) ?: return@withContext null
       val delay = extractor.getTrackFormat(track).encoderDelay()
       extractor.selectTrack(track)
       val target = (start + delay).inWholeMicroseconds
@@ -151,7 +152,7 @@ internal suspend fun sdPrimariesNamedBy(source: MediaSource): Int? =
     val extractor = MediaExtractor()
     try {
       if (!extractor.open(source)) return@withContext null
-      val track = extractor.videoTrackIndex(source) ?: return@withContext null
+      val track = extractor.videoTrackIndex() ?: return@withContext null
       val format = extractor.getTrackFormat(track)
       if (!format.containsKey(MediaFormat.KEY_COLOR_STANDARD)) return@withContext null
       when (format.getInteger(MediaFormat.KEY_COLOR_STANDARD)) {
@@ -230,7 +231,7 @@ internal fun MediaExtractor.open(source: MediaSource): Boolean {
  * A path and the cached copy of bytes open as file uris. The extractor parses a bare path as a uri, which would read a
  * `#`, a `?` or a `%` in a file name as part of the uri and open another file.
  */
-private fun MediaExtractorCompat.open(source: MediaSource): Boolean {
+internal fun MediaExtractorCompat.open(source: MediaSource): Boolean {
   when (source) {
     is MediaSource.Path -> {
       setDataSource(Uri.fromFile(File(source.path)), 0L)
@@ -262,15 +263,15 @@ private fun MediaFormat.encoderDelay(): Duration {
 private const val MICROS_PER_SECOND = 1_000_000L
 
 /**
- * The index of the audio track an export of [source] decodes, among this extractor's tracks, or null when it opened no
- * container carrying one.
+ * The index among this extractor's tracks of the audio track at [ordinal] among its audio tracks, which is the one
+ * [ChosenTracks.audioOrdinal] has an export decode, or null when it opened no container carrying that many.
  */
-private fun MediaExtractorCompat.audioTrackIndex(source: MediaSource): Int? =
-  exportedTrackOf(source, (0 until trackCount).map { getTrackFormat(it) }, C.TRACK_TYPE_AUDIO)
+private fun MediaExtractorCompat.audioTrackIndex(ordinal: Int): Int? =
+  trackIndexOf((0 until trackCount).map { getTrackFormat(it) }, C.TRACK_TYPE_AUDIO, ordinal)
 
 /**
- * The index of the video track an export of [source] decodes, among this extractor's tracks, or null when it opened no
- * container carrying one.
+ * The index of the first video track among this extractor's tracks, which is the one [ChosenTracks] has an export
+ * decode, or null when it opened no container carrying one.
  */
-internal fun MediaExtractor.videoTrackIndex(source: MediaSource): Int? =
-  exportedTrackOf(source, (0 until trackCount).map { getTrackFormat(it) }, C.TRACK_TYPE_VIDEO)
+internal fun MediaExtractor.videoTrackIndex(): Int? =
+  trackIndexOf((0 until trackCount).map { getTrackFormat(it) }, C.TRACK_TYPE_VIDEO, 0)

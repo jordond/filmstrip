@@ -1848,10 +1848,12 @@ final class dev.jordond.filmstrip.diagnostics/DiagnosticEvent { // dev.jordond.f
 }
 
 final class dev.jordond.filmstrip.edit/Clip { // dev.jordond.filmstrip.edit/Clip|null[0]
-    constructor <init>(dev.jordond.filmstrip.media/MediaSource, dev.jordond.filmstrip.edit/TimeRange? = ..., kotlin.collections/List<dev.jordond.filmstrip.effect/EffectSpec> = ..., dev.jordond.filmstrip.edit/AudioLevel = ..., kotlin.time/Duration = ..., kotlin.time/Duration = ..., kotlin.time/Duration = ..., kotlin/Double = ...) // dev.jordond.filmstrip.edit/Clip.<init>|<init>(dev.jordond.filmstrip.media.MediaSource;dev.jordond.filmstrip.edit.TimeRange?;kotlin.collections.List<dev.jordond.filmstrip.effect.EffectSpec>;dev.jordond.filmstrip.edit.AudioLevel;kotlin.time.Duration;kotlin.time.Duration;kotlin.time.Duration;kotlin.Double){}[0]
+    constructor <init>(dev.jordond.filmstrip.media/MediaSource, dev.jordond.filmstrip.edit/TimeRange? = ..., kotlin.collections/List<dev.jordond.filmstrip.effect/EffectSpec> = ..., dev.jordond.filmstrip.edit/AudioLevel = ..., kotlin.time/Duration = ..., kotlin.time/Duration = ..., kotlin.time/Duration = ..., kotlin/Double = ..., dev.jordond.filmstrip.media/AudioTrackId? = ...) // dev.jordond.filmstrip.edit/Clip.<init>|<init>(dev.jordond.filmstrip.media.MediaSource;dev.jordond.filmstrip.edit.TimeRange?;kotlin.collections.List<dev.jordond.filmstrip.effect.EffectSpec>;dev.jordond.filmstrip.edit.AudioLevel;kotlin.time.Duration;kotlin.time.Duration;kotlin.time.Duration;kotlin.Double;dev.jordond.filmstrip.media.AudioTrackId?){}[0]
 
     final val audio // dev.jordond.filmstrip.edit/Clip.audio|{}audio[0]
         final fun <get-audio>(): dev.jordond.filmstrip.edit/AudioLevel // dev.jordond.filmstrip.edit/Clip.audio.<get-audio>|<get-audio>(){}[0]
+    final val audioTrack // dev.jordond.filmstrip.edit/Clip.audioTrack|{}audioTrack[0]
+        final fun <get-audioTrack>(): dev.jordond.filmstrip.media/AudioTrackId? // dev.jordond.filmstrip.edit/Clip.audioTrack.<get-audioTrack>|<get-audioTrack>(){}[0]
     final val duration // dev.jordond.filmstrip.edit/Clip.duration|{}duration[0]
         final fun <get-duration>(): kotlin.time/Duration? // dev.jordond.filmstrip.edit/Clip.duration.<get-duration>|<get-duration>(){}[0]
     final val effects // dev.jordond.filmstrip.edit/Clip.effects|{}effects[0]
@@ -1873,6 +1875,7 @@ final class dev.jordond.filmstrip.edit/Clip { // dev.jordond.filmstrip.edit/Clip
     final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.edit/Clip.hashCode|hashCode(){}[0]
     final fun toString(): kotlin/String // dev.jordond.filmstrip.edit/Clip.toString|toString(){}[0]
     final fun withAudio(dev.jordond.filmstrip.edit/AudioLevel): dev.jordond.filmstrip.edit/Clip // dev.jordond.filmstrip.edit/Clip.withAudio|withAudio(dev.jordond.filmstrip.edit.AudioLevel){}[0]
+    final fun withAudioTrack(dev.jordond.filmstrip.media/AudioTrackId?): dev.jordond.filmstrip.edit/Clip // dev.jordond.filmstrip.edit/Clip.withAudioTrack|withAudioTrack(dev.jordond.filmstrip.media.AudioTrackId?){}[0]
     final fun withEffects(kotlin.collections/List<dev.jordond.filmstrip.effect/EffectSpec>): dev.jordond.filmstrip.edit/Clip // dev.jordond.filmstrip.edit/Clip.withEffects|withEffects(kotlin.collections.List<dev.jordond.filmstrip.effect.EffectSpec>){}[0]
     final fun withFadeIn(kotlin.time/Duration): dev.jordond.filmstrip.edit/Clip // dev.jordond.filmstrip.edit/Clip.withFadeIn|withFadeIn(kotlin.time.Duration){}[0]
     final fun withFadeOut(kotlin.time/Duration): dev.jordond.filmstrip.edit/Clip // dev.jordond.filmstrip.edit/Clip.withFadeOut|withFadeOut(kotlin.time.Duration){}[0]
@@ -1886,6 +1889,7 @@ final class dev.jordond.filmstrip.edit/ClipBuilder { // dev.jordond.filmstrip.ed
 
     final fun addEffects(kotlin.collections/List<dev.jordond.filmstrip.effect/EffectSpec>): dev.jordond.filmstrip.edit/ClipBuilder // dev.jordond.filmstrip.edit/ClipBuilder.addEffects|addEffects(kotlin.collections.List<dev.jordond.filmstrip.effect.EffectSpec>){}[0]
     final fun audio(dev.jordond.filmstrip.edit/AudioLevel): dev.jordond.filmstrip.edit/ClipBuilder // dev.jordond.filmstrip.edit/ClipBuilder.audio|audio(dev.jordond.filmstrip.edit.AudioLevel){}[0]
+    final fun audioTrack(dev.jordond.filmstrip.media/AudioTrackId): dev.jordond.filmstrip.edit/ClipBuilder // dev.jordond.filmstrip.edit/ClipBuilder.audioTrack|audioTrack(dev.jordond.filmstrip.media.AudioTrackId){}[0]
     final fun build(): dev.jordond.filmstrip.edit/Clip // dev.jordond.filmstrip.edit/ClipBuilder.build|build(){}[0]
     final fun effects(kotlin/Function1<dev.jordond.filmstrip.edit/EffectsBuilder, kotlin/Unit>): dev.jordond.filmstrip.edit/ClipBuilder // dev.jordond.filmstrip.edit/ClipBuilder.effects|effects(kotlin.Function1<dev.jordond.filmstrip.edit.EffectsBuilder,kotlin.Unit>){}[0]
     final fun fadeIn(kotlin.time/Duration): dev.jordond.filmstrip.edit/ClipBuilder // dev.jordond.filmstrip.edit/ClipBuilder.fadeIn|fadeIn(kotlin.time.Duration){}[0]
@@ -2371,7 +2375,7 @@ final class dev.jordond.filmstrip.geometry/Size { // dev.jordond.filmstrip.geome
 }
 
 final class dev.jordond.filmstrip.media/AudioTrackInfo { // dev.jordond.filmstrip.media/AudioTrackInfo|null[0]
-    constructor <init>(dev.jordond.filmstrip.media/TrackCodec, kotlin/Int, kotlin/Int, dev.jordond.filmstrip.codec/Bitrate?) // dev.jordond.filmstrip.media/AudioTrackInfo.<init>|<init>(dev.jordond.filmstrip.media.TrackCodec;kotlin.Int;kotlin.Int;dev.jordond.filmstrip.codec.Bitrate?){}[0]
+    constructor <init>(dev.jordond.filmstrip.media/AudioTrackId, dev.jordond.filmstrip.media/TrackCodec, kotlin/Int, kotlin/Int, dev.jordond.filmstrip.codec/Bitrate?, kotlin/String?, kotlin/Boolean) // dev.jordond.filmstrip.media/AudioTrackInfo.<init>|<init>(dev.jordond.filmstrip.media.AudioTrackId;dev.jordond.filmstrip.media.TrackCodec;kotlin.Int;kotlin.Int;dev.jordond.filmstrip.codec.Bitrate?;kotlin.String?;kotlin.Boolean){}[0]
 
     final val bitrate // dev.jordond.filmstrip.media/AudioTrackInfo.bitrate|{}bitrate[0]
         final fun <get-bitrate>(): dev.jordond.filmstrip.codec/Bitrate? // dev.jordond.filmstrip.media/AudioTrackInfo.bitrate.<get-bitrate>|<get-bitrate>(){}[0]
@@ -2379,6 +2383,12 @@ final class dev.jordond.filmstrip.media/AudioTrackInfo { // dev.jordond.filmstri
         final fun <get-channelCount>(): kotlin/Int // dev.jordond.filmstrip.media/AudioTrackInfo.channelCount.<get-channelCount>|<get-channelCount>(){}[0]
     final val codec // dev.jordond.filmstrip.media/AudioTrackInfo.codec|{}codec[0]
         final fun <get-codec>(): dev.jordond.filmstrip.media/TrackCodec // dev.jordond.filmstrip.media/AudioTrackInfo.codec.<get-codec>|<get-codec>(){}[0]
+    final val id // dev.jordond.filmstrip.media/AudioTrackInfo.id|{}id[0]
+        final fun <get-id>(): dev.jordond.filmstrip.media/AudioTrackId // dev.jordond.filmstrip.media/AudioTrackInfo.id.<get-id>|<get-id>(){}[0]
+    final val isDefault // dev.jordond.filmstrip.media/AudioTrackInfo.isDefault|{}isDefault[0]
+        final fun <get-isDefault>(): kotlin/Boolean // dev.jordond.filmstrip.media/AudioTrackInfo.isDefault.<get-isDefault>|<get-isDefault>(){}[0]
+    final val language // dev.jordond.filmstrip.media/AudioTrackInfo.language|{}language[0]
+        final fun <get-language>(): kotlin/String? // dev.jordond.filmstrip.media/AudioTrackInfo.language.<get-language>|<get-language>(){}[0]
     final val sampleRate // dev.jordond.filmstrip.media/AudioTrackInfo.sampleRate|{}sampleRate[0]
         final fun <get-sampleRate>(): kotlin/Int // dev.jordond.filmstrip.media/AudioTrackInfo.sampleRate.<get-sampleRate>|<get-sampleRate>(){}[0]
 
@@ -2388,10 +2398,12 @@ final class dev.jordond.filmstrip.media/AudioTrackInfo { // dev.jordond.filmstri
 }
 
 final class dev.jordond.filmstrip.media/MediaInfo { // dev.jordond.filmstrip.media/MediaInfo|null[0]
-    constructor <init>(kotlin.time/Duration, dev.jordond.filmstrip.media/VideoTrackInfo?, dev.jordond.filmstrip.media/AudioTrackInfo?, kotlin/Boolean) // dev.jordond.filmstrip.media/MediaInfo.<init>|<init>(kotlin.time.Duration;dev.jordond.filmstrip.media.VideoTrackInfo?;dev.jordond.filmstrip.media.AudioTrackInfo?;kotlin.Boolean){}[0]
+    constructor <init>(kotlin.time/Duration, dev.jordond.filmstrip.media/VideoTrackInfo?, kotlin.collections/List<dev.jordond.filmstrip.media/AudioTrackInfo>, kotlin/Boolean) // dev.jordond.filmstrip.media/MediaInfo.<init>|<init>(kotlin.time.Duration;dev.jordond.filmstrip.media.VideoTrackInfo?;kotlin.collections.List<dev.jordond.filmstrip.media.AudioTrackInfo>;kotlin.Boolean){}[0]
 
     final val audio // dev.jordond.filmstrip.media/MediaInfo.audio|{}audio[0]
         final fun <get-audio>(): dev.jordond.filmstrip.media/AudioTrackInfo? // dev.jordond.filmstrip.media/MediaInfo.audio.<get-audio>|<get-audio>(){}[0]
+    final val audioTracks // dev.jordond.filmstrip.media/MediaInfo.audioTracks|{}audioTracks[0]
+        final fun <get-audioTracks>(): kotlin.collections/List<dev.jordond.filmstrip.media/AudioTrackInfo> // dev.jordond.filmstrip.media/MediaInfo.audioTracks.<get-audioTracks>|<get-audioTracks>(){}[0]
     final val duration // dev.jordond.filmstrip.media/MediaInfo.duration|{}duration[0]
         final fun <get-duration>(): kotlin.time/Duration // dev.jordond.filmstrip.media/MediaInfo.duration.<get-duration>|<get-duration>(){}[0]
     final val isExportable // dev.jordond.filmstrip.media/MediaInfo.isExportable|{}isExportable[0]
@@ -2659,6 +2671,17 @@ final class dev.jordond.filmstrip/FilmstripBuilder { // dev.jordond.filmstrip/Fi
     final fun addThumbnailSourceFactory(dev.jordond.filmstrip.thumbnail/ThumbnailSourceFactory): dev.jordond.filmstrip/FilmstripBuilder // dev.jordond.filmstrip/FilmstripBuilder.addThumbnailSourceFactory|addThumbnailSourceFactory(dev.jordond.filmstrip.thumbnail.ThumbnailSourceFactory){}[0]
     final fun build(): dev.jordond.filmstrip/Filmstrip // dev.jordond.filmstrip/FilmstripBuilder.build|build(){}[0]
     final fun components(kotlin/Function1<dev.jordond.filmstrip/ComponentRegistry.Builder, kotlin/Unit>): dev.jordond.filmstrip/FilmstripBuilder // dev.jordond.filmstrip/FilmstripBuilder.components|components(kotlin.Function1<dev.jordond.filmstrip.ComponentRegistry.Builder,kotlin.Unit>){}[0]
+}
+
+final value class dev.jordond.filmstrip.media/AudioTrackId { // dev.jordond.filmstrip.media/AudioTrackId|null[0]
+    constructor <init>(kotlin/Long) // dev.jordond.filmstrip.media/AudioTrackId.<init>|<init>(kotlin.Long){}[0]
+
+    final val value // dev.jordond.filmstrip.media/AudioTrackId.value|{}value[0]
+        final fun <get-value>(): kotlin/Long // dev.jordond.filmstrip.media/AudioTrackId.value.<get-value>|<get-value>(){}[0]
+
+    final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.media/AudioTrackId.equals|equals(kotlin.Any?){}[0]
+    final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.media/AudioTrackId.hashCode|hashCode(){}[0]
+    final fun toString(): kotlin/String // dev.jordond.filmstrip.media/AudioTrackId.toString|toString(){}[0]
 }
 
 final object dev.jordond.filmstrip.effect/EffectIds { // dev.jordond.filmstrip.effect/EffectIds|null[0]

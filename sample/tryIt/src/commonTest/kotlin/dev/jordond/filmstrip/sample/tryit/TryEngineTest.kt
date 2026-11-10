@@ -27,7 +27,7 @@ import kotlin.time.Duration.Companion.seconds
 class TryEngineTest {
   private val source = MediaSource.ofUri("blob:beach")
   private val written = MediaSink.ofUri("blob:written")
-  private val finished = ExportStatus.Success(written, MediaInfo(5.seconds, null, null, true), emptyList())
+  private val finished = ExportStatus.Success(written, MediaInfo(5.seconds, null, emptyList(), true), emptyList())
 
   private val saved = mutableListOf<MediaSink>()
   private val released = mutableListOf<MediaSink>()

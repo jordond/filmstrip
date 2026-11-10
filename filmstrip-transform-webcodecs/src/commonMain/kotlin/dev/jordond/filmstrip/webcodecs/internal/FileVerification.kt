@@ -123,7 +123,7 @@ private suspend fun EncodedFile.readBackAudio(): VerifiedFile? {
  * The audio track of the file being read back, or null when it carries none.
  */
 private suspend fun SourceReader.verifiedAudio(): VerifiedAudio? {
-  val track = audioTrack() ?: return null
+  val track = firstAudioTrack() ?: return null
   val codec = track.getCodec().await()?.toString() ?: return null
   val sampleRate = track.getSampleRate().await().toDouble()
   val channels = track.getNumberOfChannels().await().toDouble()

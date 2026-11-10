@@ -13,6 +13,7 @@ import dev.jordond.filmstrip.effects.geometry.KenBurns
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.geometry.outputHeightRefusal
+import dev.jordond.filmstrip.media.AudioTrackId
 import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.describe
@@ -212,6 +213,27 @@ class EditRefusalsTest {
       val edit = composition(fixture.clip().withSpeed(speed))
 
       structuralRefusal(edit, ExportSpec(), fixture.infos(edit), Streams(true, false)).shouldBeNull()
+    }
+  }
+
+  @Test
+  fun `a clip naming an audio track its source lacks is refused by name`() {
+    val clip = fixture.multiAudioClip()
+    val edit = composition(clip.withAudioTrack(AudioTrackId(9)))
+
+    val message = message(edit)
+
+    message shouldContain "asks for audio track 9"
+    message shouldContain "2, 3, 4"
+  }
+
+  @Test
+  fun `a clip naming any audio track its source carries is not refused`() {
+    val clip = fixture.multiAudioClip()
+    val edit = composition(clip)
+
+    fixture.infos(edit).getValue(clip.source).audioTracks.forEach { track ->
+      refusal(composition(clip.withAudioTrack(track.id))).shouldBeNull()
     }
   }
 

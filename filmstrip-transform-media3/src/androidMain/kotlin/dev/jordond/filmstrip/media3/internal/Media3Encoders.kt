@@ -3,6 +3,7 @@ package dev.jordond.filmstrip.media3.internal
 import android.media.MediaCodecInfo
 import android.media.MediaCodecList
 import android.media.MediaFormat
+import androidx.media3.transformer.EncoderUtil
 import dev.jordond.filmstrip.capability.AudioEncoderCapability
 import dev.jordond.filmstrip.capability.DeviceCapabilities
 import dev.jordond.filmstrip.capability.VideoEncoderCapability
@@ -67,7 +68,7 @@ private fun Array<MediaCodecInfo>.videoCapabilities(
 // MediaCodecList order is the device's, not a preference, and a phone lists a software encoder
 // for a codec it also has silicon for. The hardware one is the faster of the two here, unlike on
   // a desktop ffmpeg build, so it leads.
-  encodersFor(mime).sortedByDescending { it.isHardwareAccelerated }.mapNotNull { info ->
+  encodersFor(mime).sortedByDescending { it.isHardwareFor(mime) }.mapNotNull { info ->
     val video = info.getCapabilitiesForType(mime).videoCapabilities ?: return@mapNotNull null
 
     VideoEncoderCapability(
@@ -78,11 +79,14 @@ private fun Array<MediaCodecInfo>.videoCapabilities(
       maxSize = Size(video.supportedWidths.upper, video.supportedHeights.upper),
       maxFrameRate = video.supportedFrameRates.upper,
       maxBitrate = Bitrate(video.bitrateRange.upper.toLong()),
-      isHardwareAccelerated = info.isHardwareAccelerated,
+      isHardwareAccelerated = info.isHardwareFor(mime),
       // Encoders require aligned dimensions. Odd ones fail or produce garbage.
       sizeAlignment = maxOf(video.widthAlignment, video.heightAlignment),
     )
   }
+
+// MediaCodecInfo.isHardwareAccelerated is API 29. media3 reads it there and judges older devices by the codec name.
+private fun MediaCodecInfo.isHardwareFor(mime: String): Boolean = EncoderUtil.isHardwareAccelerated(this, mime)
 
 private fun Array<MediaCodecInfo>.audioCapability(
   codec: AudioCodec,

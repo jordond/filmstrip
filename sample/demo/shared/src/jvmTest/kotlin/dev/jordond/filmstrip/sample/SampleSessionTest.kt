@@ -50,7 +50,7 @@ class SampleSessionTest {
     SampleAppState(
       filmstrip =
         Filmstrip {
-          addMediaProberFactory { MediaProber { ProbeResult.Success(MediaInfo(5.seconds, null, null, true)) } }
+          addMediaProberFactory { MediaProber { ProbeResult.Success(MediaInfo(5.seconds, null, emptyList(), true)) } }
         },
       scope = CoroutineScope(Dispatchers.Unconfined),
     )
@@ -109,7 +109,7 @@ class SampleSessionTest {
         filmstrip =
           Filmstrip {
             addMediaProberFactory {
-              MediaProber { ProbeResult.Success(MediaInfo(5.seconds, SOURCE_TRACK, null, true)) }
+              MediaProber { ProbeResult.Success(MediaInfo(5.seconds, SOURCE_TRACK, emptyList(), true)) }
             }
             addPlayerEngineFactory { _, _ -> engine }
           },
@@ -142,7 +142,7 @@ class SampleSessionTest {
     state.probe.shouldBeNull()
     state.probing shouldBe true
 
-    gates.getValue(SECOND).complete(ProbeResult.Success(MediaInfo(7.seconds, null, null, true)))
+    gates.getValue(SECOND).complete(ProbeResult.Success(MediaInfo(7.seconds, null, emptyList(), true)))
     state.info?.duration shouldBe 7.seconds
     state.probing shouldBe false
   }
@@ -170,14 +170,14 @@ class SampleSessionTest {
       SampleAppState(
         filmstrip =
           Filmstrip {
-            addMediaProberFactory { MediaProber { ProbeResult.Success(MediaInfo(5.seconds, null, null, true)) } }
+            addMediaProberFactory { MediaProber { ProbeResult.Success(MediaInfo(5.seconds, null, emptyList(), true)) } }
           },
         scope = CoroutineScope(Dispatchers.Unconfined),
         release = { released += it },
       )
     val output = MediaSink.ofUri("blob:one")
 
-    fun finished() = ExportStatus.Success(output, MediaInfo(5.seconds, null, null, true), emptyList())
+    fun finished() = ExportStatus.Success(output, MediaInfo(5.seconds, null, emptyList(), true), emptyList())
     state.onPicked(FIRST, "first.mp4")
 
     state.exported = finished()
@@ -266,7 +266,7 @@ class SampleSessionTest {
     SampleAppState(
       filmstrip =
         Filmstrip {
-          addMediaProberFactory { MediaProber { ProbeResult.Success(MediaInfo(5.seconds, null, null, true)) } }
+          addMediaProberFactory { MediaProber { ProbeResult.Success(MediaInfo(5.seconds, null, emptyList(), true)) } }
         },
       scope = CoroutineScope(Dispatchers.Unconfined),
       // Ignores its own cancellation the way a platform read past the point of no return does.

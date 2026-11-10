@@ -17,7 +17,8 @@ import kotlin.time.Duration
  * gives, which counts only what each track's edit list presents, on every platform. For any other container it is
  * the length the platform reports.
  * @property video The video track, or null when the source has none.
- * @property audio The audio track, or null when the source has none.
+ * @property audioTracks Every audio track the source carries, in the order its container lists them. Empty when it has
+ * none.
  * @property isExportable False for DRM-protected assets and anything else the platform refuses to
  *   export. Such a source can neither be exported nor previewed, so check it first.
  */
@@ -25,9 +26,16 @@ import kotlin.time.Duration
 public class MediaInfo(
   public val duration: Duration,
   public val video: VideoTrackInfo?,
-  public val audio: AudioTrackInfo?,
+  public val audioTracks: List<AudioTrackInfo>,
   public val isExportable: Boolean,
-)
+) {
+  /**
+   * The audio track a clip plays when it names none, or null when the source has no audio.
+   *
+   * That is the first of [audioTracks] its container flags as the default, or the first of them when none is flagged.
+   */
+  public val audio: AudioTrackInfo? get() = defaultAudioTrackOf(audioTracks)
+}
 
 /**
  * The video track of a source.
@@ -61,19 +69,30 @@ public class VideoTrackInfo(
 )
 
 /**
- * The audio track of a source.
+ * One audio track of a source.
  *
+ * @property id The name a clip plays this track by, through [dev.jordond.filmstrip.edit.Clip.audioTrack]. See
+ * [AudioTrackId] for how a track is named.
  * @property codec What the track is encoded with.
  * @property sampleRate Samples per second, in hertz.
  * @property channelCount How many channels the track carries.
  * @property bitrate The track's bitrate, or null when the container does not report one.
+ * @property language The track's language as an ISO 639-2 code such as `eng`, or null when the container leaves it
+ * unset or marks it undetermined.
+ * @property isDefault Whether the container flags this track as the one to play. For an MP4 or QuickTime file that is
+ * the enabled flag in the track header, and for a Matroska or WebM file the track's default flag. Any other container
+ * carries no flag of its own, so what ffmpeg and media3 report there is their demuxer's pick, and Apple and the
+ * browser flag none.
  */
 @Poko
 public class AudioTrackInfo(
+  public val id: AudioTrackId,
   public val codec: TrackCodec,
   public val sampleRate: Int,
   public val channelCount: Int,
   public val bitrate: Bitrate?,
+  public val language: String?,
+  public val isDefault: Boolean,
 )
 
 /**

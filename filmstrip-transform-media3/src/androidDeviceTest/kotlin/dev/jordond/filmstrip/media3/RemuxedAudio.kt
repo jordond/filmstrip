@@ -6,30 +6,17 @@ import android.media.MediaFormat
 import android.media.MediaMuxer
 import java.io.File
 import java.nio.ByteBuffer
-import java.util.Locale
 import kotlin.math.roundToLong
 
 /**
  * One copy of a source's audio track in a remuxed file.
  *
- * @property language The ISO 639-2 code the copy is tagged with.
  * @property sampleRate The AAC-LC sample rate the copy is relabelled to, which puts its access units on another grid,
  * or null to keep the source's.
  */
 internal class AudioCopy(
-  val language: String,
   val sampleRate: Int? = null,
 )
-
-/**
- * The ISO 639-2 code of the device's own language, which media3's track selector prefers.
- */
-internal val deviceLanguage: String get() = Locale.getDefault().isO3Language
-
-/**
- * A language other than the device's own, for a track media3's selector passes over.
- */
-internal val otherLanguage: String get() = if (deviceLanguage == "fra") "deu" else "fra"
 
 /**
  * Writes [source]'s video track to [target] followed by one audio track per entry in [copies], each a copy of the
@@ -103,14 +90,13 @@ private fun copySamples(
 }
 
 /**
- * [format] tagged with [copy]'s language, and relabelled to its sample rate by an AAC-LC config naming that rate.
+ * [format] relabelled to [copy]'s sample rate by an AAC-LC config naming that rate.
  */
 private fun relabelled(
   format: MediaFormat,
   copy: AudioCopy,
 ): MediaFormat =
   MediaFormat(format).apply {
-    setString(MediaFormat.KEY_LANGUAGE, copy.language)
     val rate = copy.sampleRate ?: return@apply
     val channels = getInteger(MediaFormat.KEY_CHANNEL_COUNT)
     val index = AAC_RATES.indexOf(rate)

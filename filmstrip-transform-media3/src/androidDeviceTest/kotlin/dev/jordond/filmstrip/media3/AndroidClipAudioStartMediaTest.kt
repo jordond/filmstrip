@@ -8,6 +8,7 @@ import dev.jordond.filmstrip.edit.audioFramesOf
 import dev.jordond.filmstrip.edit.outputLengthOf
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.ExportStatus
+import dev.jordond.filmstrip.media.AudioTrackId
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
 import io.kotest.assertions.withClue
@@ -75,19 +76,20 @@ class AndroidClipAudioStartMediaTest {
       }
     }
 
-  // media3 exports the audio track its selector picks, the one in the device's language here, which is not the first.
-  // The decoy is the same audio relabelled to another rate, so units read off it sit on another grid.
+  // The clip names the second audio track. The decoy before it is the same audio relabelled to another rate, so units
+  // read off it sit on another grid.
   @Test
-  fun aClipFromASourceWithTwoAudioTracksOpensOnTheTrackMedia3Exports() =
+  fun aClipFromASourceWithTwoAudioTracksOpensOnTheTrackItNames() =
     runTest(timeout = TIMEOUT) {
       val click = probe.fixtureFile(CLICK)
       val single = File(click.parentFile, "click_one_audio.mp4")
       val twin = File(click.parentFile, "click_two_audio.mp4")
       try {
-        remuxed(click, single, listOf(AudioCopy(deviceLanguage)))
-        remuxed(click, twin, listOf(AudioCopy(otherLanguage, DECOY_RATE), AudioCopy(deviceLanguage)))
+        remuxed(click, single, listOf(AudioCopy()))
+        remuxed(click, twin, listOf(AudioCopy(DECOY_RATE), AudioCopy()))
         val expected = readingsOf(1.0, MediaSource.of(single.path))
-        val read = readingsOf(1.0, MediaSource.of(twin.path))
+        val second = probe.infoOf(MediaSource.of(twin.path)).audioTracks[1].id
+        val read = readingsOf(1.0, MediaSource.of(twin.path), second)
         val off =
           read.zip(expected).filter { (twoTracks, oneTrack) ->
             abs(twoTracks.frames - oneTrack.frames) >
@@ -123,9 +125,10 @@ class AndroidClipAudioStartMediaTest {
   private suspend fun readingsOf(
     speed: Double,
     source: MediaSource,
+    audioTrack: AudioTrackId? = null,
   ): List<Reading> =
     TRIM_STARTS.map { start ->
-      val clip = Clip(source, TimeRange.of(start, start + TRIM_LENGTH), speed = speed)
+      val clip = Clip(source, TimeRange.of(start, start + TRIM_LENGTH), speed = speed, audioTrack = audioTrack)
       val file = exported(compositionHearing(clip, probe.fixture(CLICK)))
       val audio = decodeAudio(file)
       file.delete()

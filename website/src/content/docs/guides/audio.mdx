@@ -53,6 +53,32 @@ trimmed length, and a track's against its whole run.
 A point outside its scope, a negative gain, or points that fall out of time order once the end-anchored ones are placed
 are refused with `InvalidComposition`.
 
+## Choosing a track
+
+A source can carry more than one audio track, like a film with a track per language. `MediaInfo.audioTracks` lists
+them in container order, each with its `id`, `language` and `isDefault` flag. A clip plays one of them.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Audio.kt" region="track" />
+
+- Leave `audioTrack` unset and the clip plays the track the container flags as the default, or the first one when none
+  is flagged. That's the track `MediaInfo.audio` reports. An MP4 or QuickTime file flags it with the enabled bit in its
+  track header, and a Matroska or WebM file with the track's default flag. See [Audio](/reference/limits/#audio) for
+  what each backend reads.
+- Every other audio track of the source is left out, on a stream copy too. A copy writes one audio track.
+- An id the source doesn't carry is refused with `InvalidComposition`, naming the clip and the ids it does carry.
+- For an MP4 or QuickTime file the id is the track id in the track header. Any other container, such as Matroska,
+  WebM or an MPEG transport stream, names each audio track by its place among them, counted from one. Either way it
+  reads the same on every backend, whether the file is opened from a path, a URI or bytes.
+
+| Backend | Export | Preview |
+| ------- | ------ | ------- |
+| ffmpeg  | ✓      | ✗       |
+| Apple   | ✓      | ✓       |
+| Android | ✓      | ✓       |
+| Browser | ✓      | ✓       |
+
+The ffmpeg preview plays no audio at all.
+
 ## Extra tracks
 
 A track added with `TrackContent.Audio` plays alongside the primary track and is mixed in. The default content for `track`

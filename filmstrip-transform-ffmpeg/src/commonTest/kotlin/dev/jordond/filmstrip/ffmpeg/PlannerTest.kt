@@ -76,6 +76,7 @@ import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.geometry.FlipAxis
 import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.media.AudioTrackId
 import dev.jordond.filmstrip.media.AudioTrackInfo
 import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.HdrTransfer
@@ -140,7 +141,15 @@ class PlannerTest {
       landscape to info(Size(1920, 1080), 4_000.milliseconds),
       portrait to info(Size(1080, 1920), 3_000.milliseconds),
       graded to info(Size(1920, 1080), 4_000.milliseconds, hdr = HdrTransfer.Pq),
-      music to MediaInfo(10_000.milliseconds, null, AudioTrackInfo(trackCodecOf("mp4a"), 44_100, 2, null), true),
+      music to
+        MediaInfo(
+          10_000.milliseconds,
+          null,
+          listOf(
+            AudioTrackInfo(AudioTrackId(1), trackCodecOf("mp4a"), 44_100, 2, null, language = null, isDefault = true),
+          ),
+          true,
+        ),
     )
 
   // What the engine hands the planner once ffprobe has named the sync sample ahead of the cut.
@@ -1206,7 +1215,10 @@ class PlannerTest {
         hdrTransfer = hdr,
         bitrate = null,
       ),
-    audio = AudioTrackInfo(trackCodecOf("mp4a"), 48_000, 2, null),
+    audioTracks =
+      listOf(
+        AudioTrackInfo(AudioTrackId(1), trackCodecOf("mp4a"), 48_000, 2, null, language = null, isDefault = true),
+      ),
     isExportable = true,
   )
 }

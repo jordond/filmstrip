@@ -2,6 +2,7 @@ package dev.jordond.filmstrip.media
 
 import kotlinx.io.IOException
 import kotlinx.io.files.Path
+import kotlinx.io.files.SystemFileSystem
 import java.nio.file.FileAlreadyExistsException
 import java.nio.file.Files
 import java.nio.file.LinkOption
@@ -68,6 +69,13 @@ internal fun entryKindOf(attributes: BasicFileAttributes): MediaBytesEntryKind =
 
 internal actual fun removeEntry(path: Path) {
   Files.deleteIfExists(nioPath(path))
+}
+
+internal actual fun moveOnto(
+  source: Path,
+  target: Path,
+) {
+  SystemFileSystem.atomicMove(source, target)
 }
 
 /**

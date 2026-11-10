@@ -167,7 +167,7 @@ public class BrowserAudioPreview internal constructor(
       val end = minOf(closes, to)
       if (end <= start) return@forEach
 
-      val audioTrack = sources.open(clip.source)?.audioTrack() ?: return@forEach
+      val audioTrack = sources.open(clip.source)?.audioTrack(clip.audioTrack) ?: return@forEach
       val slice =
         if (clip.speed == 1.0) {
           val into = clip.start + (start - placed.offset)

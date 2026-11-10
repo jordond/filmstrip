@@ -6,6 +6,8 @@ import android.system.Os
 import android.system.OsConstants
 import kotlinx.io.files.Path
 import kotlinx.io.files.SystemFileSystem
+import java.io.File
+import java.io.IOException
 import java.security.MessageDigest
 import java.util.concurrent.locks.ReentrantLock
 
@@ -40,6 +42,16 @@ internal actual fun entryAt(path: Path): MediaBytesEntry? {
 
 internal actual fun removeEntry(path: Path) {
   Os.remove(path.toString())
+}
+
+// kotlinx-io moves through java.nio.file, which is API 26, and refuses below it. File.renameTo is rename(2) on every
+// level, which is atomic and replaces the target.
+internal actual fun moveOnto(
+  source: Path,
+  target: Path,
+) {
+  val moved = File(source.toString()).renameTo(File(target.toString()))
+  if (!moved) throw IOException("Could not move $source onto $target.")
 }
 
 // The cache directory is the app's own, and no other user can reach it.

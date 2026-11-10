@@ -42,6 +42,33 @@ class ProberChainTest {
       asked shouldBe listOf("shared")
     }
 
+  @Test
+  fun `a prober a registered decorator already asked is not asked again`() =
+    runTest {
+      val asked = mutableListOf<String>()
+      val last = refusing("last", asked)
+      val decorator =
+        object : MediaProberDecorator {
+          override val decorated = last
+
+          override suspend fun probe(source: MediaSource): ProbeResult {
+            asked += "decorator"
+            return decorated.probe(source)
+          }
+        }
+      val components = ComponentRegistry.Builder().addMediaProberFactory(MediaProberFactory { decorator }).build()
+
+      val result = chainedProber(components, last = last).probe(source)
+
+      asked shouldBe listOf("decorator", "last")
+      result.shouldBeInstanceOf<ProbeResult.Failure>().error.message shouldBe "last"
+    }
+
+  @Test
+  fun `every platform prober is the same one to the chain`() {
+    platformProber() shouldBe platformProber()
+  }
+
   private fun refusing(
     name: String,
     asked: MutableList<String>,

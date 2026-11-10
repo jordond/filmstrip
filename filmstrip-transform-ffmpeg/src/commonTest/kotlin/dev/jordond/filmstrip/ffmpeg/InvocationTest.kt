@@ -191,14 +191,19 @@ class InvocationTest {
     assertFailsWith<IllegalStateException> { argumentsFor(VideoCodec.H264, "libx264", bitrate = null) }
   }
 
-  // The maps are optional because ffmpeg refuses one that matches no stream, and a source with no
-  // audio track is still one this backend copies.
+  // The video map is optional because ffmpeg refuses one that matches no stream. The audio map names the one stream the
+  // clip plays, so a source's other audio tracks stay out of the file.
   @Test
-  fun `a copy maps both streams as optional by index and copies them rather than naming an encoder`() {
-    val arguments = copyArguments()
+  fun `a copy maps the video and the chosen audio stream and copies them rather than naming an encoder`() {
+    val arguments = copyArguments(audioTrack = 1)
 
-    arguments.allAfter("-map") shouldBe listOf("0:v?", "0:a?")
+    arguments.allAfter("-map") shouldBe listOf("0:v?", "0:a:1")
     arguments.after("-c") shouldBe "copy"
+  }
+
+  @Test
+  fun `a copy of a source with no audio maps only the video`() {
+    copyArguments(audioTrack = null).allAfter("-map") shouldBe listOf("0:v?")
   }
 
   @Test
@@ -279,6 +284,7 @@ class InvocationTest {
   private fun copyArguments(
     startSeconds: Double? = null,
     durationSeconds: Double? = null,
+    audioTrack: Int? = 0,
   ): List<String> =
     Invocation(
       inputs =
@@ -304,6 +310,7 @@ class InvocationTest {
       videoEncoder = null,
       duration = 2.seconds,
       copy = true,
+      copyAudioTrack = audioTrack,
     ).arguments(TOOLCHAIN, FfmpegConfig(), listOf("/fixtures/a.mp4"), emptyList(), "/out.mp4")
 
   private fun audioArgumentsFor(codec: AudioCodec): List<String> =

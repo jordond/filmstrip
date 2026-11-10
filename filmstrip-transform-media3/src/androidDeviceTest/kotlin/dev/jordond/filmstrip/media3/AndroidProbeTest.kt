@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip.media3
 
+import dev.jordond.filmstrip.internal.platformProber
 import dev.jordond.filmstrip.media.CodecKind
 import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.FormatHint
@@ -7,13 +8,18 @@ import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.NEUTRAL_CONTAINER_EXTENSION
+import dev.jordond.filmstrip.media.ProbeResult
 import dev.jordond.filmstrip.media.containerExtensionOf
 import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.CLIP
 import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.HDR_CLIP
 import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.TIMEOUT
+import dev.jordond.filmstrip.test.ThreeAudio
+import dev.jordond.filmstrip.test.ThreeAudioMatroska
+import dev.jordond.filmstrip.test.ThreeAudioTs
 import io.kotest.assertions.withClue
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 
@@ -127,6 +133,37 @@ class AndroidProbeTest {
       val audio = probe.infoOf(MediaSource.ofBytes(bytes)).audio
 
       withClue("no audio track") { audio.shouldNotBeNull() }.sampleRate shouldBe AMR_SAMPLE_RATE
+    }
+
+  @Test
+  fun listsEveryAudioTrackWithItsIdLanguageAndDefaultFlag() =
+    runTest(timeout = TIMEOUT) {
+      ThreeAudio.assertProbed(infoOf(ThreeAudio.FILE_NAME))
+    }
+
+  @Test
+  fun readsAMatroskaFilesTracksByTheirPlaceAndItsOwnDefaultFlag() =
+    runTest(timeout = TIMEOUT) {
+      ThreeAudioMatroska.assertProbed(infoOf(ThreeAudioMatroska.fileName))
+    }
+
+  @Test
+  fun readsATransportStreamsTracksByTheirPlace() =
+    runTest(timeout = TIMEOUT) {
+      ThreeAudioTs.assertProbed(infoOf(ThreeAudioTs.fileName))
+    }
+
+  // The platform prober and media3 each open the packed range, and the track headers have to come from that range too.
+  @Test
+  fun readsTheTrackHeadersOfAnMp4PackedInsideALargerFile() =
+    runTest(timeout = TIMEOUT) {
+      probe.fixtureFile(ThreeAudio.FILE_NAME)
+      val packed = MediaSource.ofUri(PackedFixtureProvider.uriOf(ThreeAudio.FILE_NAME))
+
+      withClue("core's platform prober") {
+        ThreeAudio.assertProbed(platformProber().probe(packed).shouldBeInstanceOf<ProbeResult.Success>().info)
+      }
+      withClue("the media3 prober") { ThreeAudio.assertProbed(probe.infoOf(packed)) }
     }
 
   private fun bytesOf(name: String): ByteArray = probe.fixtureFile(name).readBytes()

@@ -11,7 +11,10 @@ import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.ProbeResult
 import dev.jordond.filmstrip.media.TrackCodec
+import dev.jordond.filmstrip.media.TrackHeader
 import dev.jordond.filmstrip.media.VideoTrackInfo
+import dev.jordond.filmstrip.media.audioLanguageOf
+import dev.jordond.filmstrip.media.audioTrackIdOf
 import dev.jordond.filmstrip.media.containerExtensionOf
 import dev.jordond.filmstrip.media.describe
 import dev.jordond.filmstrip.media.displaySizeOf
@@ -35,6 +38,7 @@ import platform.AVFoundation.AVMediaTypeVideo
 import platform.AVFoundation.AVURLAsset
 import platform.AVFoundation.estimatedDataRate
 import platform.AVFoundation.exportable
+import platform.AVFoundation.languageCode
 import platform.AVFoundation.minFrameDuration
 import platform.AVFoundation.naturalSize
 import platform.AVFoundation.nominalFrameRate
@@ -58,6 +62,8 @@ import platform.CoreMedia.CMFormatDescriptionGetMediaSubType
 import platform.CoreMedia.CMFormatDescriptionRef
 import platform.CoreMedia.CMTimeGetSeconds
 import platform.CoreMedia.kCMFormatDescriptionExtension_BitsPerComponent
+import platform.CoreMedia.kCMFormatDescriptionExtension_VerbatimISOSampleEntry
+import platform.CoreMedia.kCMFormatDescriptionExtension_VerbatimSampleDescription
 import platform.CoreVideo.kCVImageBufferColorPrimariesKey
 import platform.CoreVideo.kCVImageBufferColorPrimaries_ITU_R_2020
 import platform.CoreVideo.kCVImageBufferColorPrimaries_ITU_R_709_2
@@ -116,9 +122,9 @@ internal actual class PlatformProber internal constructor(
 
       val asset = AVURLAsset(uRL = url, options = null)
       val videoTrack = asset.tracksWithMediaType(AVMediaTypeVideo).firstOrNull() as? AVAssetTrack
-      val audioTrack = asset.tracksWithMediaType(AVMediaTypeAudio).firstOrNull() as? AVAssetTrack
+      val audioTracks = asset.tracksWithMediaType(AVMediaTypeAudio).filterIsInstance<AVAssetTrack>()
 
-      if (videoTrack == null && audioTrack == null) {
+      if (videoTrack == null && audioTracks.isEmpty()) {
         return@withContext ProbeResult.Failure(
           FilmstripError.SourceUnreadable(
             source.describe(),
@@ -137,23 +143,47 @@ internal actual class PlatformProber internal constructor(
           // audio-only file runs short of the length the movie header carries, the figure every backend reports.
           duration = withContext(Dispatchers.IO) { movieDurationAt(url) } ?: CMTimeGetSeconds(asset.duration).seconds,
           video = videoTrack?.toInfo(),
-          audio =
-            audioTrack?.let {
-              AudioTrackInfo(
-                codec = it.readFormat().codec,
-                sampleRate = it.streamDescription { description -> description.mSampleRate.roundToInt() } ?: 0,
-                channelCount = it.streamDescription { description -> description.mChannelsPerFrame.toInt() } ?: 0,
-                bitrate =
-                  it.estimatedDataRate
-                    .takeIf { rate -> rate > 0f }
-                    ?.let { rate -> Bitrate(rate.toLong()) },
-              )
-            },
+          audioTracks = audioTracks.toInfo(withContext(Dispatchers.IO) { trackHeadersAt(url) }),
           // AVAsset runs a DRM check while it loads, so protection is known before any encode.
           isExportable = asset.exportable,
         ),
       )
     }
+
+  // AVFoundation has no default flag of its own, so an MP4's comes from the enabled flag in its track header.
+  private fun List<AVAssetTrack>.toInfo(headers: List<TrackHeader>?): List<AudioTrackInfo> {
+    val isMovie = any { it.isMovieTrack() }
+    return mapIndexed { ordinal, track ->
+      val id = audioTrackIdOf(isMovie, track.trackID.toLong(), ordinal)
+      AudioTrackInfo(
+        id = id,
+        codec = track.readFormat().codec,
+        sampleRate = track.streamDescription { description -> description.mSampleRate.roundToInt() } ?: 0,
+        channelCount = track.streamDescription { description -> description.mChannelsPerFrame.toInt() } ?: 0,
+        bitrate =
+          track.estimatedDataRate
+            .takeIf { rate -> rate > 0f }
+            ?.let { rate -> Bitrate(rate.toLong()) },
+        language = audioLanguageOf(track.languageCode),
+        isDefault = headers?.firstOrNull { it.id == id.value }?.isEnabled ?: false,
+      )
+    }
+  }
+
+  /**
+   * Whether this track came out of an MP4 or QuickTime file.
+   *
+   * CoreMedia keeps the sample entry such a file describes a track with in the track's format description, and keeps
+   * none for a track of any other container. That reads alike for a file and for a URL only AVFoundation can open.
+   */
+  private fun AVAssetTrack.isMovieTrack(): Boolean {
+    val format = copyFormatDescription() ?: return false
+    return try {
+      MOVIE_SAMPLE_ENTRIES.any { key -> CMFormatDescriptionGetExtension(format, key) != null }
+    } finally {
+      CFRelease(format)
+    }
+  }
 
   private fun AVAssetTrack.toInfo(): VideoTrackInfo {
     val rotation = rotationDegrees()
@@ -358,6 +388,11 @@ internal actual class PlatformProber internal constructor(
       )
 
     const val SQUARE = 1f
+    val MOVIE_SAMPLE_ENTRIES =
+      listOf(
+        kCMFormatDescriptionExtension_VerbatimISOSampleEntry,
+        kCMFormatDescriptionExtension_VerbatimSampleDescription,
+      )
     val FOUR_CC_SHIFTS = intArrayOf(24, 16, 8, 0)
     const val BYTE_MASK = 0xFFu
 

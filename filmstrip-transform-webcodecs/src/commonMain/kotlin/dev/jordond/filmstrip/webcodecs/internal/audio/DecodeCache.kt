@@ -2,6 +2,7 @@
 
 package dev.jordond.filmstrip.webcodecs.internal.audio
 
+import dev.jordond.filmstrip.media.AudioTrackId
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.webcodecs.internal.interop.AudioBuffer
 import kotlin.js.ExperimentalWasmJsInterop
@@ -39,11 +40,12 @@ internal class DecodeCache {
   fun clear(): Unit = buffers.clear()
 
   /**
-   * One stretch of one source, in the source's own seconds, as a decode was asked for it, and the
+   * One stretch of one audio track of one source, in the source's own seconds, as a decode was asked for it, and the
    * speed it plays at, since that changes the samples it comes to.
    */
   internal data class Slice(
     val source: MediaSource,
+    val track: AudioTrackId?,
     val fromSeconds: Double,
     val toSeconds: Double,
     val speed: Double = 1.0,

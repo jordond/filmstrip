@@ -1,13 +1,5 @@
 package dev.jordond.filmstrip.player
 
-import android.os.Handler
-import android.os.HandlerThread
-import androidx.media3.common.C
-import androidx.media3.common.PlaybackException
-import androidx.media3.common.Player
-import androidx.media3.exoplayer.audio.DefaultAudioSink
-import androidx.media3.exoplayer.audio.TeeAudioProcessor
-import androidx.media3.transformer.CompositionPlayer
 import dev.jordond.filmstrip.edit.CLIP_SPEED_RANGE
 import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.Composition
@@ -20,16 +12,10 @@ import dev.jordond.filmstrip.player.internal.Media3PreviewPlanner
 import dev.jordond.filmstrip.player.internal.PlanResult
 import io.kotest.assertions.withClue
 import io.kotest.matchers.booleans.shouldBeTrue
-import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
-import java.io.ByteArrayOutputStream
-import java.nio.ByteBuffer
-import java.nio.ByteOrder
-import java.util.concurrent.CountDownLatch
-import java.util.concurrent.TimeUnit
 import kotlin.math.abs
 import kotlin.test.Test
 import kotlin.test.fail
@@ -82,7 +68,7 @@ class AndroidPreviewAudioStartMediaTest {
         Media3PreviewPlanner(CONTRACT_COMPONENTS).plan(edit, PreviewQualityPolicy.Full, ExportSpec())
       }.shouldBeInstanceOf<PlanResult.Ready<Media3PreviewPlan>>().plan
     val composition = plan.resolved.toMedia3Preview(plan.bounds).composition
-    val heard = withContext(Dispatchers.IO) { played(composition) }
+    val heard = withContext(Dispatchers.IO) { playedThrough(composition) }
     val first = heard.samples.indexOfFirst { abs(it) > LOUD }
     if (first < 0) fail("the preview at $speed trimmed from $start played no sound")
     return Opening(at = 1.seconds * first / heard.sampleRate, accessUnit = 1.seconds * AAC_FRAMES / heard.sampleRate)
@@ -94,106 +80,8 @@ class AndroidPreviewAudioStartMediaTest {
     val accessUnit: Duration,
   )
 
-  // Plays [composition] through from its start on a fresh player and returns the first channel of what its sink got.
-  private fun played(composition: androidx.media3.transformer.Composition): Heard {
-    val sink = PcmSink()
-    val thread = HandlerThread("preview-audio").apply { start() }
-    val handler = Handler(thread.looper)
-    val ended = CountDownLatch(1)
-    var error: PlaybackException? = null
-    var player: CompositionPlayer? = null
-    handler.post {
-      val audioSink =
-        DefaultAudioSink
-          .Builder(
-            contractContext(),
-          ).setAudioProcessors(arrayOf(TeeAudioProcessor(sink)))
-          .build()
-      player =
-        CompositionPlayer.Builder(contractContext()).setLooper(thread.looper).setAudioSink(audioSink).build().apply {
-          addListener(
-            object : Player.Listener {
-              override fun onPlaybackStateChanged(playbackState: Int) {
-                if (playbackState == Player.STATE_ENDED) ended.countDown()
-              }
-
-              override fun onPlayerError(failure: PlaybackException) {
-                error = failure
-                ended.countDown()
-              }
-            },
-          )
-          setComposition(composition)
-          prepare()
-          play()
-        }
-    }
-    val finished = ended.await(PLAY_LIMIT.inWholeSeconds, TimeUnit.SECONDS)
-    val released = CountDownLatch(1)
-    handler.post {
-      player?.release()
-      released.countDown()
-    }
-    released.await(PLAY_LIMIT.inWholeSeconds, TimeUnit.SECONDS)
-    thread.quitSafely()
-    withClue("the preview failed with $error") { error shouldBe null }
-    withClue("the preview never ended") { finished.shouldBeTrue() }
-    return sink.heard()
-  }
-
-  /**
-   * Keeps every byte of PCM the player's audio sink is handed, along with the format it was last configured at.
-   */
-  private class PcmSink : TeeAudioProcessor.AudioBufferSink {
-    private val bytes = ByteArrayOutputStream()
-    private var sampleRate = 0
-    private var channels = 0
-    private var encoding = C.ENCODING_INVALID
-
-    override fun flush(
-      sampleRateHz: Int,
-      channelCount: Int,
-      encoding: Int,
-    ) {
-      sampleRate = sampleRateHz
-      channels = channelCount
-      this.encoding = encoding
-    }
-
-    override fun handleBuffer(buffer: ByteBuffer) {
-      val chunk = ByteArray(buffer.remaining())
-      buffer.duplicate().get(chunk)
-      bytes.write(chunk)
-    }
-
-    fun heard(): Heard {
-      val read = ByteBuffer.wrap(bytes.toByteArray()).order(ByteOrder.nativeOrder())
-      val samples =
-        when (encoding) {
-          C.ENCODING_PCM_16BIT -> {
-            val shorts = read.asShortBuffer()
-            FloatArray(shorts.remaining() / channels) { shorts.get(it * channels) / PCM_16_SCALE }
-          }
-          C.ENCODING_PCM_FLOAT -> {
-            val floats = read.asFloatBuffer()
-            FloatArray(floats.remaining() / channels) { floats.get(it * channels) }
-          }
-          else -> {
-            fail("the sink was handed PCM encoding $encoding")
-          }
-        }
-      return Heard(samples, sampleRate)
-    }
-  }
-
-  private class Heard(
-    val samples: FloatArray,
-    val sampleRate: Int,
-  )
-
   private companion object {
     val TIMEOUT = 3.minutes
-    val PLAY_LIMIT = 30.seconds
     val TRIM = 125.milliseconds
     val OUTPUT_FRAME = FIXTURE_FRAME_STEP
 
@@ -201,6 +89,5 @@ class AndroidPreviewAudioStartMediaTest {
     val TRIM_STARTS = listOf(200.milliseconds, 210.milliseconds, 1_000.milliseconds)
     const val AAC_FRAMES = 1_024
     const val LOUD = 0.05f
-    const val PCM_16_SCALE = 32_768f
   }
 }
