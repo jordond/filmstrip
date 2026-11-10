@@ -150,7 +150,7 @@ Filters are heavy on ffmpeg. Measured on a 12 thread x86 server with x264:
 
 | Look                              | 1080p    | 4K       | Peak memory, 1080p and 4K |
 | --------------------------------- | -------- | -------- | ------------------------- |
-| `film`                            | 19.3 fps | 9.2 fps  | 1 GB and 3.4 GB           |
+| `film`                            | 18.4 fps | 9.2 fps  | 1 GB and 3.4 GB           |
 | `vhs`                             | 9.1 fps  | 2.8 fps  | 1 GB and 3.3 GB           |
 | `crt`                             | 9.0 fps  | 2.4 fps  | 1.5 GB and 5.4 GB         |
 | `lut`                             | 70 fps   | 21 fps   |                           |
@@ -160,7 +160,7 @@ Filters are heavy on ffmpeg. Measured on a 12 thread x86 server with x264:
 | `pixel`                           | 54 fps   | 23.1 fps |                           |
 | `pixel` with a palette and dither | 31.6 fps | 19.1 fps |                           |
 | `vignette`                        | 18.8 fps | 4.8 fps  |                           |
-| `gaussianBlur` at 0.02            | 35.3 fps | 9.5 fps  |                           |
+| `gaussianBlur` at 0.02            | 40.3 fps | 9.5 fps  |                           |
 
 - `Film.Super8`'s weave is a per-pixel expression on ffmpeg, since no built-in filter reproduces its sub-pixel read
   exactly. `glitch` is one too, for its per-row shift.
