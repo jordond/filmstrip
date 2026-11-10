@@ -78,7 +78,7 @@ public object RgbRoundTrip {
    * A plane a fragment has read between pixels can sit between two codes, so it goes through this rather than
    * [keptOfWidened], and keeps the share it was read at.
    */
-  public fun scaledOfWidened(sample: String): String = "$sample*$FULL_SCALE_PER_CODE/$WIDENED_PER_CODE"
+  public fun scaledOfWidened(sample: String): String = "$sample*$WIDENED_TO_FULL_SCALE"
 
   /**
    * Converts a sixteen bit `gbrap16le` frame to `gbrap`, every plane landing on its nearest eight bit code.
@@ -120,6 +120,9 @@ private const val TO_CODE_START = "round(val/257)*256"
 private const val WIDENED_PER_CODE = 256
 private const val WIDENED_CODE_START = "round(val/$WIDENED_PER_CODE)*$WIDENED_PER_CODE"
 private const val FULL_SCALE_PER_CODE = 257
+
+// 257 over 256 is exact in a double, so one multiply lands where multiplying by 257 and dividing by 256 does.
+private val WIDENED_TO_FULL_SCALE = FULL_SCALE_PER_CODE.toDouble() / WIDENED_PER_CODE
 
 // A frame on another matrix or range is carried over with exact rounding, which keeps a grey code where it was.
 private const val OPENING_FLAGS = "accurate_rnd+full_chroma_int"

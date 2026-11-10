@@ -68,19 +68,14 @@ internal fun crtTube(
     FilterBranch(
       listOf("straight", "multiplier"),
       listOf(
-        FilterNode(
-          "blend",
-          "all_expr" to "min(${RgbRoundTrip.scaledOfWidened("A")}*B*${params.gain}/$FULL_CODE,$FULL_CODE)",
+        onColour(
+          "min(${RgbRoundTrip.scaledOfWidened("A")}*B*${params.gain}/$FULL_CODE,$FULL_CODE)",
           "c3_expr" to RgbRoundTrip.keptOfWidened("A"),
         ),
       ),
       listOf("lit"),
     ),
-    FilterBranch(
-      listOf("lit", "coverage"),
-      listOf(FilterNode("blend", "all_expr" to "A*B/$FULL_CODE", ALPHA_THROUGH)),
-      listOf(TUBE_WRITE),
-    ),
+    FilterBranch(listOf("lit", "coverage"), listOf(onColour("A*B/$FULL_CODE")), listOf(TUBE_WRITE)),
   )
 
 /**
@@ -137,7 +132,13 @@ private const val GRAY_FORMAT = "gray16le"
 
 private val REMAP = FilterNode("remap")
 private val MERGE = FilterNode("maskedmerge")
-private val ALPHA_THROUGH = "c3_expr" to "A"
+
+// A blend of [expression] on the colour planes. Alpha takes the top frame's samples as they are unless [alpha] gives
+// it an expression of its own.
+private fun onColour(
+  expression: String,
+  vararg alpha: Pair<String, String>,
+): FilterNode = FilterNode("blend", "c0_expr" to expression, "c1_expr" to expression, "c2_expr" to expression, *alpha)
 
 // Every plane takes the one gray plane, so a merge moves alpha with the colour and no swscale step can move a share.
 private val ON_EVERY_PLANE =
