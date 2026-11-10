@@ -17,8 +17,8 @@ import dev.jordond.filmstrip.transform.internal.geometry.blurPlan
  * [blurPlan] through [SpatialBlurGraph], so the edge it holds is the crop's. The blur runs on sixteen bit 4:4:4 planes
  * of the frame's own matrix, where every plane blurs at one sigma. A frame with [hasAlpha] is blurred weighted by its
  * alpha, so its colour is premultiplied before the blur and divided by the blurred alpha after, and the cover that
- * comes out is opaque. A frame on a kept [transfer] grade is blurred on its scaled SDR signal instead, so it is the
- * blur the SDR signal would take. A non-zero [Fill.Blurred.dim] darkens the result afterward, as a gain on the color
+ * comes out is opaque. A frame on a kept [transfer] grade is blurred the same way on its scaled SDR signal instead, so
+ * it is the blur the SDR signal would take. A non-zero [Fill.Blurred.dim] darkens the result afterward, as a gain on the color
  * channels rather than an offset, so it never shifts hue.
  */
 internal fun coverBlurNodes(
@@ -36,9 +36,10 @@ internal fun coverBlurNodes(
     add(FilterNode("crop", "w" to width, "h" to height))
     val plan = fill.blurPlan(outputSize)
     if (transfer != null) {
-      val kept = SpatialBlurGraph.onKeptGrade(plan, outputSize, transfer, fill.backgroundGain)
+      val kept = SpatialBlurGraph.onKeptGrade(plan, outputSize, transfer, fill.backgroundGain, hasAlpha)
       addAll(kept.chain)
       sidecars += kept.sidecars
+      if (hasAlpha) add(FilterNode("format", "pix_fmts" to OPAQUE_KEPT_FORMAT))
       add(FilterNode("format", "pix_fmts" to pixelFormat))
       return@buildList
     }
@@ -130,6 +131,9 @@ internal fun overlayNodes(
 
 private const val COVER_FORMAT = "yuva444p16le"
 private const val OPAQUE_COVER_FORMAT = "yuv444p16le"
+
+// What a kept grade cover is held in once its alpha is dropped.
+private const val OPAQUE_KEPT_FORMAT = "yuv420p10le"
 
 // The luma and both chroma planes of COVER_FORMAT, with its alpha left out.
 private const val COLOR_PLANES = 7

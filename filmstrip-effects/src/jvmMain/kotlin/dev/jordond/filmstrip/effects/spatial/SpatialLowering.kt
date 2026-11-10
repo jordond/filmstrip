@@ -166,21 +166,27 @@ public object SpatialBlurGraph {
    * by [gain], and hands it back as `yuva420p10le`.
    *
    * The blur and the gain run on float planes holding [SpatialSignal]'s scaled SDR signal, so they are the blur and the
-   * gain of the SDR signal, and the alpha plane comes through as it came.
+   * gain of the SDR signal, and the alpha plane comes through as it came. With [weightedByAlpha] the signal is
+   * premultiplied before the blur and divided by the blurred alpha after it, so a pixel weighs by its alpha, and the
+   * alpha plane is blurred with it.
    */
   public fun onKeptGrade(
     plan: BlurPlan,
     size: Size,
     transfer: HdrTransfer,
     gain: Float,
+    weightedByAlpha: Boolean = false,
   ): FilterFragment {
     val signal = SpatialSignal(transfer)
     val chain =
       buildList {
         addAll(signal.opening)
+        if (weightedByAlpha) add(rangeOf("full"))
         add(format(FLOAT_RGBA))
+        if (weightedByAlpha) add(FilterNode("premultiply", "inplace" to "1"))
         addAll(boxedDown(plan, plan, size, FLOAT_RGBA))
-        addAll(blurredUp(plan, plan, size, FLOAT_RGBA, COLOR_PLANES))
+        addAll(blurredUp(plan, plan, size, FLOAT_RGBA, if (weightedByAlpha) ALL_PLANES else COLOR_PLANES))
+        if (weightedByAlpha) addAll(listOf(FilterNode("unpremultiply", "inplace" to "1"), rangeOf("limited")))
         if (gain != 1f) {
           val weight = gain.toString()
           add(FilterNode("colorchannelmixer", "rr" to weight, "gg" to weight, "bb" to weight))

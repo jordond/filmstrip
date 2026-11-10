@@ -5,6 +5,7 @@ import dev.jordond.filmstrip.ffmpeg.internal.lowering.coverBlurNodes
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.render
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.transform.internal.geometry.backgroundGain
 import dev.jordond.filmstrip.transform.internal.geometry.blurPlan
 import io.kotest.matchers.shouldBe
@@ -38,6 +39,24 @@ class BlurredLetterboxTest {
       SpatialBlurGraph.boxedDown(plan, plan, OUTPUT, COVER_FORMAT).render() + "," +
       SpatialBlurGraph.blurredUp(plan, plan, OUTPUT, COVER_FORMAT, ALL_PLANES).render() +
       ",unpremultiply=inplace=1,format=pix_fmts=yuv444p16le,format=pix_fmts=$PIXEL_FORMAT"
+  }
+
+  @Test
+  fun `a kept grade background with alpha is blurred weighted by it and handed on opaque`() {
+    val fill = Fill.Blurred(radius = 0.05f, dim = 0f)
+    val plan = fill.blurPlan(OUTPUT)
+    val kept = SpatialBlurGraph.onKeptGrade(plan, OUTPUT, HdrTransfer.Pq, fill.backgroundGain, weightedByAlpha = true)
+    val nodes = coverBlurNodes(OUTPUT, fill, PIXEL_FORMAT, HdrTransfer.Pq, hasAlpha = true).render()
+
+    nodes shouldContain kept.chain.render()
+    kept.chain.render() shouldContain "premultiply=inplace=1"
+    kept.chain.render() shouldContain "unpremultiply=inplace=1"
+    nodes shouldContain ",format=pix_fmts=yuv420p10le,format=pix_fmts=$PIXEL_FORMAT"
+  }
+
+  @Test
+  fun `a kept grade background without alpha is not premultiplied`() {
+    coverBlurNodes(OUTPUT, Fill.Blurred(), PIXEL_FORMAT, HdrTransfer.Pq).render() shouldNotContain "premultiply"
   }
 
   @Test
