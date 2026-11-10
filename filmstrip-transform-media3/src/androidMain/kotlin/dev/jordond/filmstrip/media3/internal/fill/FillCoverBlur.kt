@@ -410,7 +410,8 @@ private fun compositeFragmentShader(signalGlsl: String): String =
     vec3 cover = fromSignal(straight * uGain);
     if (vUv.x >= uSharpMin.x && vUv.x < uSharpMax.x && vUv.y >= uSharpMin.y && vUv.y < uSharpMax.y) {
       vec4 sharp = texture(uSharpSampler, (vUv - uSharpMin) / (uSharpMax - uSharpMin));
-      fragColor = vec4(sharp.rgb + cover * (1.0 - sharp.a), 1.0);
+      vec3 own = sharp.a > 0.0 ? sharp.rgb : vec3(0.0);
+      fragColor = vec4(own + cover * (1.0 - sharp.a), 1.0);
     } else {
       fragColor = vec4(cover, 1.0);
     }
