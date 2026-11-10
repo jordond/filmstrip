@@ -359,8 +359,10 @@ private val STEP_VERTEX_SHADER =
   }
   """.trimIndent()
 
-// Boxes the cover down to the plan's size with SpatialBlur.BOX_DOWN_GLSL, each texel read as the signal. The cover is
-// opaque, so a texel is averaged as it is.
+// Boxes the cover down to the plan's size with SpatialBlur.BOX_DOWN_GLSL, each texel read as the signal. A frame's
+// texels hold their colour multiplied by alpha, so a texel is carried to the signal as the colour it stands for and
+// multiplied back, which leaves an opaque texel as it is. The box then averages premultiplied values, so a clear
+// texel adds no colour to the cover.
 private fun boxDownFragmentShader(signalGlsl: String): String =
   """
   #version 300 es
@@ -374,7 +376,8 @@ private fun boxDownFragmentShader(signalGlsl: String): String =
 
   vec4 premultipliedAt(ivec2 texel, ivec2 size) {
     vec4 read = texelFetch($FRAME, clamp(texel, ivec2(0), size - 1), 0);
-    return vec4(toSignal(read.rgb), read.a);
+    vec3 straight = read.a > 0.0 ? read.rgb / read.a : vec3(0.0);
+    return vec4(toSignal(straight) * read.a, read.a);
   }
 
 ${SpatialBlur.BOX_DOWN_GLSL.prependIndent("  ")}
@@ -385,7 +388,9 @@ ${SpatialBlur.BOX_DOWN_GLSL.prependIndent("  ")}
   """.trimIndent()
 
 // Reads the blur back up to the output with linear filtering and dims its signal, under the sharp frame inside its
-// rect. The sharp frame's alpha mixes it over that cover, and the result is opaque.
+// rect. The blurred frame holds colour multiplied by alpha, so it is divided back out before the dim. The sharp frame
+// holds colour multiplied by alpha too, so it lands over that cover as its colour plus the cover's share of what it
+// leaves clear, and the result is opaque.
 private fun compositeFragmentShader(signalGlsl: String): String =
   """
   #version 300 es
@@ -401,10 +406,11 @@ private fun compositeFragmentShader(signalGlsl: String): String =
 
   void main() {
     vec4 background = textureLod($FRAME, vUv, 0.0);
-    vec3 cover = fromSignal(background.rgb * uGain);
+    vec3 straight = background.a > 0.0 ? background.rgb / background.a : vec3(0.0);
+    vec3 cover = fromSignal(straight * uGain);
     if (vUv.x >= uSharpMin.x && vUv.x < uSharpMax.x && vUv.y >= uSharpMin.y && vUv.y < uSharpMax.y) {
       vec4 sharp = texture(uSharpSampler, (vUv - uSharpMin) / (uSharpMax - uSharpMin));
-      fragColor = vec4(mix(cover, sharp.rgb, sharp.a), 1.0);
+      fragColor = vec4(sharp.rgb + cover * (1.0 - sharp.a), 1.0);
     } else {
       fragColor = vec4(cover, 1.0);
     }
