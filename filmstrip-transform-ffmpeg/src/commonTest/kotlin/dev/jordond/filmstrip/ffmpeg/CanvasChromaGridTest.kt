@@ -190,7 +190,7 @@ class CanvasChromaGridTest {
         ffmpeg = "ffmpeg",
         ffprobe = "ffprobe",
         version = FfmpegVersion("ffmpeg version 9.0.1", 9, 0),
-        filters = CATALOGUE_FILTERS + VHS_FILTERS + FILM_FILTERS + CRT_FILTERS,
+        filters = CATALOGUE_FILTERS + VHS_FILTERS + VHS_EDGE_FILTERS + FILM_FILTERS + CRT_FILTERS,
         encoders = setOf("libx264", "aac"),
       )
   }
