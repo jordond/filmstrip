@@ -51,7 +51,7 @@ class AppleSourceAlphaHardwareTest {
       withClue("the fill has to differ from the source or this cannot tell a blend from no blend") {
         distance(clear, opaque) shouldBeGreaterThan MIN_COVER_GAP
       }
-      assertBlend(half, opaque, clear)
+      assertBlend(half, opaque, clear, FILL_CODE_TOLERANCE)
     }
 
   @Test
@@ -81,7 +81,7 @@ class AppleSourceAlphaHardwareTest {
           abs(cover[0] - source.first) shouldBeGreaterThan MIN_COVER_GAP
         }
         withClue("at $at, left $left, right $right") {
-          assertBlend(half.average(at, MID_ROW), source, Triple(cover[0], cover[1], cover[2]))
+          assertBlend(half.average(at, MID_ROW), source, Triple(cover[0], cover[1], cover[2]), BLURRED_TOLERANCE)
         }
       }
     }
@@ -97,7 +97,7 @@ class AppleSourceAlphaHardwareTest {
       val alpha = DoubleArray(size.width * size.height) { if (it % size.width < size.width / 2) 1.0 else 0.0 }
       val source = opaque.average(LEFT_AT, MID_ROW)
 
-      for (at in listOf(CLEAR_AT, NEAR_EDGE_AT)) {
+      for (at in listOf(CLEAR_AT, NEAR_EDGE_AT, OPAQUE_EDGE_AT)) {
         val cover =
           listOf(source.first, source.second, source.third).map { level ->
             val plane = DoubleArray(alpha.size) { if (alpha[it] > 0.0) level.toDouble() else 0.0 }
@@ -106,7 +106,7 @@ class AppleSourceAlphaHardwareTest {
             ].roundToInt()
           }
         val read = drawn.average(at, MID_ROW)
-        assertWithin(read, Triple(cover[0], cover[1], cover[2]), "at $at")
+        assertWithin(read, Triple(cover[0], cover[1], cover[2]), "at $at", FILL_CODE_TOLERANCE)
       }
     }
 
@@ -114,6 +114,7 @@ class AppleSourceAlphaHardwareTest {
     read: Triple<Int, Int, Int>,
     source: Triple<Int, Int, Int>,
     fill: Triple<Int, Int, Int>,
+    tolerance: Int,
   ) {
     val expected =
       Triple(
@@ -121,13 +122,14 @@ class AppleSourceAlphaHardwareTest {
         blendOverFill(source.second, HALF_ALPHA, fill.second),
         blendOverFill(source.third, HALF_ALPHA, fill.third),
       )
-    assertWithin(read, expected, "source $source, fill $fill")
+    assertWithin(read, expected, "source $source, fill $fill", tolerance)
   }
 
   private fun assertWithin(
     read: Triple<Int, Int, Int>,
     expected: Triple<Int, Int, Int>,
     context: String,
+    tolerance: Int,
   ) {
     val off =
       maxOf(
@@ -135,7 +137,7 @@ class AppleSourceAlphaHardwareTest {
         abs(read.second - expected.second),
         abs(read.third - expected.third),
       )
-    withClue("$context, read $read, expected $expected, off by $off") { off shouldBeLessThanOrEqual TOLERANCE }
+    withClue("$context, read $read, expected $expected, off by $off") { off shouldBeLessThanOrEqual tolerance }
   }
 
   private suspend fun exported(
@@ -166,16 +168,16 @@ class AppleSourceAlphaHardwareTest {
     const val LEFT_AT = 0.25f
     const val CLEAR_AT = 0.75f
     const val NEAR_EDGE_AT = 0.6f
+    const val OPAQUE_EDGE_AT = 0.4f
     const val CLEAR_RADIUS = 0.25f
     const val RIGHT_AT = 0.75f
     const val MID_ROW = 0.5f
     const val MIN_COVER_GAP = 12
     const val MAX_CODE = 255.0
 
-    // The most a blended pixel reads off the shared blend, measured at 7 over a blurred cover and 3 over a solid fill.
-    // The two ends it is read against come from the same encoder at no blend, which keeps a blend of the two ends from
-    // equalling the encoder's own blend by the encoder's rounding. The chain's blend alone is held to 1 code in
-    // ChainFrameHardwareTest.
-    const val TOLERANCE = 7
+    // The blurred cover reads up to 7 codes off at the right half, where the opaque export reads the picture 8 codes
+    // apart from the codes the half transparent export blends. The left half and the clear half read within the fill
+    // tolerance, so the offset is in the right half's reference read and not in the blend or the blur.
+    const val BLURRED_TOLERANCE = 7
   }
 }
