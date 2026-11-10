@@ -181,6 +181,6 @@ class AndroidSourceAlphaMediaTest {
     const val MIN_COVER_GAP = 12
 
     // What an encoder moves a read by.
-    const val TOLERANCE = 8
+    const val TOLERANCE = 4
   }
 }
