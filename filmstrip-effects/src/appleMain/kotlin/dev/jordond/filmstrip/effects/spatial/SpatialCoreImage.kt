@@ -79,8 +79,8 @@ internal fun GaussianBlur.toStep(limit: String? = spatialKernelLimit()): EffectR
  * This image over [extent] blurred by [plan], and read back up to [extent] linearly.
  *
  * The image is held at the edge of [extent], boxed down to the plan's size with [BOX_DOWN_MSL] and blurred there by
- * [blurredWithin]. Core Image holds color premultiplied by alpha, so a pixel is weighed by its alpha, and an image
- * with clear pixels is divided by the blurred alpha after.
+ * [blurredWithin]. Core Image holds color premultiplied by alpha, so a pixel is weighed by its alpha. The result stays
+ * premultiplied, and a caller that wants straight color back divides it by the blurred alpha.
  *
  * @throws IllegalStateException when this device cannot run the box down kernel, which [SPATIAL_KERNEL_LIMIT] names.
  */

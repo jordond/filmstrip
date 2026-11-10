@@ -64,7 +64,8 @@ leaves the bars clear until the fill lands, and only an effect that moves pixels
 into one.
 
 Whatever a clip leaves uncovered shows the composition's `fill`, which defaults to black. `Fill.Solid` takes a color and
-`Fill.Blur` draws a blurred copy of the clip behind it.
+`Fill.Blur` draws a blurred copy of the clip behind it. A clip with transparent pixels shows the fill through them too,
+so a blurred fill is drawn behind it even when it covers the whole frame.
 
 <Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Effects.kt" region="fit" />
 

@@ -67,7 +67,7 @@ reports `hasAlpha` only for alpha its backend can decode, and a source whose alp
   reads as opaque there. A PNG or WebP still keeps its alpha.
 - ffmpeg decodes VP9 alpha with its native decoder, which drops it, so a WebM tagged `alpha_mode` reads as opaque.
   ProRes 4444 and other formats whose pixel format has an alpha plane keep it.
-- A GIF reads as opaque everywhere except Apple.
+- A GIF, AVIF, HEIC or JPEG XL still reads as opaque everywhere except Apple.
 - On Apple, a ProRes 4444 clip draws through the compositor, which asks for BGRA frames so the alpha arrives. A blurred
   fill is blurred in Core Image's linear light, so near a hard edge a see through pixel can sit further from the other
   backends than the usual few codes. A graded HDR export blends in Core Image's own space, not on stored codes.
@@ -157,7 +157,8 @@ one, it's refused by name.
   row's shift, and goes through RGB and back to do it. That round trip lands within 3 codes of the signal, and 4:2:0
   averages the colour fringe across two rows where a slice ends.
 - **ffmpeg** reads a `vhs` beside a clear canvas bar tap by tap where its blur lands across the bar's edge, which runs
-  about 0.9 fps at 1080p on the same server where a frame with no bar runs 5.2 fps.
+  about 0.9 fps at 1080p on the same server where a frame with no bar runs 5.2 fps. A source with its own alpha can be
+  clear anywhere, so it is read tap by tap over the whole frame, which is slower still.
 - **Every backend** draws `vhs` tracking snow from the same signal. Apple and Android land within 1e-4, the browser
   within one code, and ffmpeg within 1.74 codes of luma and 1.14 of chroma, since it mixes into 8-bit planes.
 - **Every backend** draws `camcorder` from the same raster. Apple and Android land within 1e-4 and the browser within
