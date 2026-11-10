@@ -2434,7 +2434,7 @@ final class dev.jordond.filmstrip.media/TrackCodec { // dev.jordond.filmstrip.me
 }
 
 final class dev.jordond.filmstrip.media/VideoTrackInfo { // dev.jordond.filmstrip.media/VideoTrackInfo|null[0]
-    constructor <init>(dev.jordond.filmstrip.geometry/Size, dev.jordond.filmstrip.geometry/Size, kotlin/Int, kotlin/Float, kotlin/Float?, dev.jordond.filmstrip.media/TrackCodec, kotlin/Int?, dev.jordond.filmstrip.media/ColorSpace, dev.jordond.filmstrip.media/HdrTransfer?, dev.jordond.filmstrip.codec/Bitrate?) // dev.jordond.filmstrip.media/VideoTrackInfo.<init>|<init>(dev.jordond.filmstrip.geometry.Size;dev.jordond.filmstrip.geometry.Size;kotlin.Int;kotlin.Float;kotlin.Float?;dev.jordond.filmstrip.media.TrackCodec;kotlin.Int?;dev.jordond.filmstrip.media.ColorSpace;dev.jordond.filmstrip.media.HdrTransfer?;dev.jordond.filmstrip.codec.Bitrate?){}[0]
+    constructor <init>(dev.jordond.filmstrip.geometry/Size, dev.jordond.filmstrip.geometry/Size, kotlin/Int, kotlin/Float, kotlin/Float?, dev.jordond.filmstrip.media/TrackCodec, kotlin/Int?, dev.jordond.filmstrip.media/ColorSpace, dev.jordond.filmstrip.media/HdrTransfer?, dev.jordond.filmstrip.codec/Bitrate?, kotlin/Boolean = ...) // dev.jordond.filmstrip.media/VideoTrackInfo.<init>|<init>(dev.jordond.filmstrip.geometry.Size;dev.jordond.filmstrip.geometry.Size;kotlin.Int;kotlin.Float;kotlin.Float?;dev.jordond.filmstrip.media.TrackCodec;kotlin.Int?;dev.jordond.filmstrip.media.ColorSpace;dev.jordond.filmstrip.media.HdrTransfer?;dev.jordond.filmstrip.codec.Bitrate?;kotlin.Boolean){}[0]
 
     final val bitDepth // dev.jordond.filmstrip.media/VideoTrackInfo.bitDepth|{}bitDepth[0]
         final fun <get-bitDepth>(): kotlin/Int? // dev.jordond.filmstrip.media/VideoTrackInfo.bitDepth.<get-bitDepth>|<get-bitDepth>(){}[0]
@@ -2450,6 +2450,8 @@ final class dev.jordond.filmstrip.media/VideoTrackInfo { // dev.jordond.filmstri
         final fun <get-displaySize>(): dev.jordond.filmstrip.geometry/Size // dev.jordond.filmstrip.media/VideoTrackInfo.displaySize.<get-displaySize>|<get-displaySize>(){}[0]
     final val frameRate // dev.jordond.filmstrip.media/VideoTrackInfo.frameRate|{}frameRate[0]
         final fun <get-frameRate>(): kotlin/Float? // dev.jordond.filmstrip.media/VideoTrackInfo.frameRate.<get-frameRate>|<get-frameRate>(){}[0]
+    final val hasAlpha // dev.jordond.filmstrip.media/VideoTrackInfo.hasAlpha|{}hasAlpha[0]
+        final fun <get-hasAlpha>(): kotlin/Boolean // dev.jordond.filmstrip.media/VideoTrackInfo.hasAlpha.<get-hasAlpha>|<get-hasAlpha>(){}[0]
     final val hdrTransfer // dev.jordond.filmstrip.media/VideoTrackInfo.hdrTransfer|{}hdrTransfer[0]
         final fun <get-hdrTransfer>(): dev.jordond.filmstrip.media/HdrTransfer? // dev.jordond.filmstrip.media/VideoTrackInfo.hdrTransfer.<get-hdrTransfer>|<get-hdrTransfer>(){}[0]
     final val pixelAspectRatio // dev.jordond.filmstrip.media/VideoTrackInfo.pixelAspectRatio|{}pixelAspectRatio[0]

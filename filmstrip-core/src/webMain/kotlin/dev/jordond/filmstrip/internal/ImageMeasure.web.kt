@@ -11,8 +11,10 @@ import dev.jordond.filmstrip.media.createImageBitmap
 import dev.jordond.filmstrip.media.fetch
 import dev.jordond.filmstrip.media.imageRotationOf
 import dev.jordond.filmstrip.media.toByteArray
+import dev.jordond.filmstrip.picture.ALPHA_HEADER_BYTES
 import dev.jordond.filmstrip.picture.ByteRangeRead
 import dev.jordond.filmstrip.picture.exifOrientationOf
+import dev.jordond.filmstrip.picture.imageHasAlphaOf
 import dev.jordond.filmstrip.picture.imageMediaTypeOf
 import dev.jordond.filmstrip.picture.pictureExtentOf
 import kotlinx.coroutines.await
@@ -44,20 +46,24 @@ internal actual suspend fun measureImage(image: ImageSource): ImageMeasurement {
     }
 
   val orientation: Int
+  val header: ByteArray
   val stored: Size?
   if (image is ImageSource.Bytes) {
     orientation = exifOrientationOf(image.bytes)
     stored = pictureExtentOf(image.bytes)
+    header = image.bytes.copyOf(minOf(image.bytes.size, ALPHA_HEADER_BYTES))
   } else {
     val read: ByteRangeRead = { start, count -> blob.readRange(start, count) }
     orientation = exifOrientationOf(blob.size.toLong(), read)
     stored = pictureExtentOf(blob.size.toLong(), read)
+    header = blob.readRange(0, ALPHA_HEADER_BYTES)
   }
 
   return ImageMeasurement.Measured(
     size = stored ?: codedSizeOf(shown, imageRotationOf(orientation)),
     exifOrientation = orientation,
     format = blob.type.substringAfterLast('/'),
+    hasAlpha = imageHasAlphaOf(header),
   )
 }
 

@@ -6,6 +6,7 @@ package dev.jordond.filmstrip.webcodecs.internal.interop
 import kotlin.js.ExperimentalWasmJsInterop
 import kotlin.js.JsAny
 import kotlin.js.JsArray
+import kotlin.js.JsBoolean
 import kotlin.js.JsNumber
 import kotlin.js.JsString
 import kotlin.js.Promise
@@ -79,6 +80,11 @@ internal external interface InputVideoTrack : JsAny {
   fun getCodecParameterString(): Promise<JsString?>
 
   fun getColorSpace(): Promise<VideoColorSpaceInit>
+
+  /**
+   * Whether the track's packets can decode to pictures with transparent pixels.
+   */
+  fun canBeTransparent(): Promise<JsBoolean>
 
   fun computePacketStats(targetPacketCount: Int): Promise<PacketStats>
 

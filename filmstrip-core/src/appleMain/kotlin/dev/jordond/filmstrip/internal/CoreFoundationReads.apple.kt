@@ -7,6 +7,8 @@ import kotlinx.cinterop.memScoped
 import kotlinx.cinterop.ptr
 import kotlinx.cinterop.reinterpret
 import kotlinx.cinterop.value
+import platform.CoreFoundation.CFBooleanGetTypeID
+import platform.CoreFoundation.CFBooleanGetValue
 import platform.CoreFoundation.CFDictionaryGetValue
 import platform.CoreFoundation.CFDictionaryRef
 import platform.CoreFoundation.CFGetTypeID
@@ -30,4 +32,15 @@ internal fun CFDictionaryRef.intValue(key: CFStringRef?): Int? {
     val number = alloc<IntVar>()
     if (CFNumberGetValue(value.reinterpret(), kCFNumberIntType, number.ptr)) number.value else null
   }
+}
+
+/**
+ * Reads [key] off this dictionary as a [Boolean], or false when it holds no boolean.
+ */
+@OptIn(ExperimentalForeignApi::class)
+internal fun CFDictionaryRef.boolValue(key: CFStringRef?): Boolean {
+  val value = CFDictionaryGetValue(this, key) ?: return false
+  if (CFGetTypeID(value) != CFBooleanGetTypeID()) return false
+
+  return CFBooleanGetValue(value.reinterpret())
 }

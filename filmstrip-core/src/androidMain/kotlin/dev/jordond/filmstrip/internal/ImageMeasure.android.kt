@@ -7,6 +7,8 @@ import dev.jordond.filmstrip.FilmstripContext
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.EXIF_ORIENTATION_NORMAL
 import dev.jordond.filmstrip.media.ImageSource
+import dev.jordond.filmstrip.picture.ALPHA_HEADER_BYTES
+import dev.jordond.filmstrip.picture.imageHasAlphaOf
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayInputStream
@@ -27,12 +29,14 @@ internal actual suspend fun measureImage(image: ImageSource): ImageMeasurement =
         is Opened.Refused -> return@withContext ImageMeasurement.Unreadable(opened.reason)
         is Opened.Stream -> opened.stream.use { it.readBounds() } ?: return@withContext ImageMeasurement.Unreadable()
       }
+    val hasAlpha = (image.open() as? Opened.Stream)?.stream?.use { it.readHeader() }?.let(::imageHasAlphaOf) ?: false
     val orientation = (image.open() as? Opened.Stream)?.stream?.use { it.readOrientation() } ?: EXIF_ORIENTATION_NORMAL
 
     ImageMeasurement.Measured(
       size = bounds.size,
       exifOrientation = orientation,
       format = bounds.mimeType.substringAfterLast('/'),
+      hasAlpha = hasAlpha,
     )
   }
 
@@ -45,6 +49,18 @@ private fun InputStream.readBounds(): ImageBounds? {
     size = Size(options.outWidth, options.outHeight),
     mimeType = options.outMimeType.orEmpty(),
   )
+}
+
+private fun InputStream.readHeader(): ByteArray {
+  val buffer = ByteArray(ALPHA_HEADER_BYTES)
+  var filled = 0
+  while (filled < buffer.size) {
+    val read = read(buffer, filled, buffer.size - filled)
+    if (read <= 0) break
+    filled += read
+  }
+
+  return buffer.copyOf(filled)
 }
 
 private fun InputStream.readOrientation(): Int =

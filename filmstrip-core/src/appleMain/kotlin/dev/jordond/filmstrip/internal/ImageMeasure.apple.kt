@@ -24,6 +24,7 @@ import platform.ImageIO.CGImageSourceCreateWithData
 import platform.ImageIO.CGImageSourceCreateWithURL
 import platform.ImageIO.CGImageSourceGetType
 import platform.ImageIO.CGImageSourceRef
+import platform.ImageIO.kCGImagePropertyHasAlpha
 import platform.ImageIO.kCGImagePropertyOrientation
 import platform.ImageIO.kCGImagePropertyPixelHeight
 import platform.ImageIO.kCGImagePropertyPixelWidth
@@ -53,6 +54,7 @@ internal actual suspend fun measureImage(image: ImageSource): ImageMeasurement =
           size = Size(width, height),
           exifOrientation = properties.intValue(kCGImagePropertyOrientation) ?: EXIF_ORIENTATION_NORMAL,
           format = source.formatName(),
+          hasAlpha = properties.boolValue(kCGImagePropertyHasAlpha),
         )
       } finally {
         CFRelease(properties)

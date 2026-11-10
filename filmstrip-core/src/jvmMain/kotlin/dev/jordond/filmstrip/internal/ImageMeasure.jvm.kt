@@ -3,7 +3,9 @@ package dev.jordond.filmstrip.internal
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.filePathOf
+import dev.jordond.filmstrip.picture.ALPHA_HEADER_BYTES
 import dev.jordond.filmstrip.picture.exifOrientationOf
+import dev.jordond.filmstrip.picture.imageHasAlphaOf
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayInputStream
@@ -27,6 +29,7 @@ internal actual suspend fun measureImage(image: ImageSource): ImageMeasurement =
           is ImageSource.Bytes -> exifOrientationOf(image.bytes)
           else -> exifOrientationOf(stream.length()) { start, count -> stream.readAt(start, count) }
         }
+      val hasAlpha = imageHasAlphaOf(stream.readAt(0, ALPHA_HEADER_BYTES))
       stream.seek(0)
 
       val reader =
@@ -38,6 +41,7 @@ internal actual suspend fun measureImage(image: ImageSource): ImageMeasurement =
           size = Size(reader.getWidth(FIRST_IMAGE), reader.getHeight(FIRST_IMAGE)),
           exifOrientation = orientation,
           format = reader.formatName.lowercase(),
+          hasAlpha = hasAlpha,
         )
       } finally {
         reader.dispose()

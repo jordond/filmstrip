@@ -27,11 +27,13 @@ internal sealed interface ImageMeasurement {
    * @property exifOrientation The EXIF orientation tag, or [EXIF_ORIENTATION_NORMAL] when the header
    *   carries none or the read already resolved it.
    * @property format The platform's own spelling of the format, or empty when it named none.
+   * @property hasAlpha Whether the still carries transparent pixels.
    */
   class Measured(
     val size: Size,
     val exifOrientation: Int,
     val format: String,
+    val hasAlpha: Boolean,
   ) : ImageMeasurement
 
   /**
@@ -68,6 +70,7 @@ internal suspend fun probeImage(source: MediaSource.Image): ProbeResult {
       exifOrientation = measured.exifOrientation,
       format = measured.format,
       duration = source.duration,
+      hasAlpha = measured.hasAlpha,
     ),
   )
 }

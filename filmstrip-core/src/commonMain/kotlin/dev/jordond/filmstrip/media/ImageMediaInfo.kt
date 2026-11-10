@@ -27,6 +27,7 @@ public const val EXIF_ORIENTATION_NORMAL: Int = 1
  * @param format The platform's own spelling of the still format, such as `jpeg`, or empty when it
  *   named none.
  * @param duration How long the still is held.
+ * @param hasAlpha Whether the still carries transparent pixels.
  */
 @InternalFilmstripApi
 public fun imageMediaInfoOf(
@@ -34,6 +35,7 @@ public fun imageMediaInfoOf(
   exifOrientation: Int,
   format: String,
   duration: Duration,
+  hasAlpha: Boolean = false,
 ): MediaInfo {
   val rotation = imageRotationOf(exifOrientation)
 
@@ -58,6 +60,7 @@ public fun imageMediaInfoOf(
         colorSpace = ColorSpace.Bt709,
         hdrTransfer = null,
         bitrate = null,
+        hasAlpha = hasAlpha,
       ),
     audio = null,
     // Nothing about a still is protected. A format the decoder will not read fails at the decode.

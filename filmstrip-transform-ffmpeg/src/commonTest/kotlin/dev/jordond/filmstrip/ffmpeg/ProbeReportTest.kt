@@ -52,7 +52,32 @@ class ProbeReportTest {
     parseMediaInfo("[FORMAT]\nduration=1.0\n[/FORMAT]") shouldBe null
   }
 
+  @Test
+  fun `a pixel format with an alpha plane reads as alpha and one without does not`() {
+    listOf("yuva444p12le", "yuva420p", "rgba", "gbrap10le", "ya8").forEach {
+      parseMediaInfo(probeWith(it))!!.video!!.hasAlpha shouldBe true
+    }
+    listOf("yuv420p", "yuv444p12le", "rgb24", "gray").forEach {
+      parseMediaInfo(probeWith(it))!!.video!!.hasAlpha shouldBe false
+    }
+  }
+
   private companion object {
+    fun probeWith(pixelFormat: String) =
+      """
+      [STREAM]
+      index=0
+      codec_name=prores
+      codec_type=video
+      width=64
+      height=64
+      pix_fmt=$pixelFormat
+      [/STREAM]
+      [FORMAT]
+      duration=1.000000
+      [/FORMAT]
+      """.trimIndent()
+
     val PROBE =
       """
       [STREAM]

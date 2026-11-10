@@ -45,6 +45,8 @@ public class MediaInfo(
  * @property colorSpace The track's color space, or [ColorSpace.Unknown] for untagged media.
  * @property hdrTransfer The HDR transfer function, or null for SDR.
  * @property bitrate The track's bitrate, or null when the container does not report one.
+ * @property hasAlpha Whether the track's pictures can carry transparent pixels. A target reports true only for alpha
+ *   it can decode, so a codec whose alpha the target drops reads false.
  */
 @Poko
 public class VideoTrackInfo(
@@ -58,6 +60,7 @@ public class VideoTrackInfo(
   public val colorSpace: ColorSpace,
   public val hdrTransfer: HdrTransfer?,
   public val bitrate: Bitrate?,
+  public val hasAlpha: Boolean = false,
 )
 
 /**

@@ -10,6 +10,9 @@ import dev.jordond.filmstrip.media.probe.rotatedImageProbeBytes
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.test.runTest
+import java.awt.image.BufferedImage
+import java.io.ByteArrayOutputStream
+import javax.imageio.ImageIO
 import kotlin.io.path.createTempDirectory
 import kotlin.test.Test
 
@@ -54,6 +57,23 @@ class ImageMeasureJvmTest {
       inMemory.exifOrientation shouldBe MIRRORED_IMAGE_PROBE_ORIENTATION
       byUrl.exifOrientation shouldBe MIRRORED_IMAGE_PROBE_ORIENTATION
       byUrl.size shouldBe inMemory.size
+    }
+
+  @Test
+  fun `a png with a half transparent region reports alpha and an opaque bitmap does not`() =
+    runTest {
+      val image = BufferedImage(8, 8, BufferedImage.TYPE_INT_ARGB)
+      image.setRGB(0, 0, 0x80FF0000.toInt())
+      val bytes = ByteArrayOutputStream().also { ImageIO.write(image, "png", it) }.toByteArray()
+      val file = temporaryDirectory.resolve("half.png").apply { writeBytes(bytes) }
+
+      val inMemory = measureImage(ImageSource.ofBytes(bytes)).shouldBeInstanceOf<ImageMeasurement.Measured>()
+      val onDisk = measureImage(ImageSource.of(file.path)).shouldBeInstanceOf<ImageMeasurement.Measured>()
+      val opaque = measureImage(ImageSource.ofBytes(imageProbeBytes())).shouldBeInstanceOf<ImageMeasurement.Measured>()
+
+      inMemory.hasAlpha shouldBe true
+      onDisk.hasAlpha shouldBe true
+      opaque.hasAlpha shouldBe false
     }
 
   @Test
