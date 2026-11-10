@@ -20,8 +20,9 @@ import dev.jordond.filmstrip.geometry.Size
  * because its expressions are written in those codes. Halation runs in `gbrap`, since it adds to red, green and blue,
  * with the matrix named both ways. A branch takes the frame's alpha into its light, boxes it to
  * [FilmSignal.halationBlurPlan]'s size, draws the response with `geq`, and blurs it and widens it back through
- * [SpatialBlurGraph] to be added through `lut2`. Grain is a map of [FilmSignal.grainAt], weighted and added to luma
- * alone by another `lut2`, which leaves chroma and alpha as they came.
+ * [SpatialBlurGraph] to be added through `mix`, which keeps 16 bit codes and the frame's alpha exactly where a `lut2`
+ * would round them. Grain is a map of [FilmSignal.grainAt], weighted and added to luma alone by a `lut2`, which leaves
+ * chroma and alpha as they came.
  *
  * The map comes two ways with the same samples: as [FilterFragment.branches] a `geq` draws it, and as
  * [FilterFragment.live] [GrainPlanes] does and hands it over as a live input.
@@ -94,11 +95,14 @@ private fun MutableList<FilterBranch>.addLight(
     SpatialBlurGraph.boxedDown(plan, plan, frame, RGB_FORMAT) +
       FilmExpressions.response() +
       SpatialBlurGraph.blurredUp(plan, plan, frame, WIDE_FORMAT, RGB_PLANES)
-  val add = "clip(x+${params.halationGain}*y,0,$WIDE_FULL_SCALE)"
   val flicker =
     if (flickers) listOf(FilmExpressions.light(params, weaves = false, flickers = true, wide = true)) else emptyList()
   val toCodes =
-    listOf(FilterNode("lut2", "c0" to add, "c1" to add, "c2" to add), FilterNode("format", "pix_fmts" to WIDE_FORMAT)) +
+    listOf(
+      FilterNode("mix", "weights" to "1 ${params.halationGain}", "scale" to "1", "planes" to "7", "duration" to "first"),
+      FilterNode("lutrgb", "r" to CLIPPED_WIDE, "g" to CLIPPED_WIDE, "b" to CLIPPED_WIDE),
+      FilterNode("format", "pix_fmts" to WIDE_FORMAT),
+    ) +
       flicker +
       FilterNode("format", "pix_fmts" to WIDE_FORMAT) +
       RgbRoundTrip.toCodeStarts() +
@@ -376,6 +380,7 @@ private const val FULL_SCALE = 255
 // A sixteen bit frame widened from gbrap holds a code at 256 to the code, so full scale sits at 255 of them.
 private const val WIDE_FORMAT = "gbrap16le"
 private const val WIDE_FULL_SCALE = 65280
+private const val CLIPPED_WIDE = "min(val,$WIDE_FULL_SCALE)"
 private const val LUMA_BLACK = 16
 private const val LUMA_CODES = 219
 

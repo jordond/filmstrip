@@ -115,7 +115,8 @@ class FilmGateExpressionMediaTest {
       listOf(
         listOf("frame"),
         listOf("rgb"),
-        listOf("near", "far"),
+        listOf("narrow", "far"),
+        listOf("near"),
         listOf("weighedlight", "weighedcover"),
         listOf("weighedalpha"),
         listOf("weighed"),
@@ -152,7 +153,7 @@ class FilmGateExpressionMediaTest {
         .first { it.writes == listOf("glowed") }
         .nodes
         .map { it.name }
-    lit.indexOf("geq") shouldBe lit.indexOf("lut2") + 1
+    lit.take(4) shouldBe listOf("mix", "lutrgb", "format", "geq")
   }
 
   @Test

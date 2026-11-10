@@ -57,6 +57,8 @@ internal val FILM_FILTERS: Set<String> =
     "fillborders",
     "pad",
     "transpose",
+    "mix",
+    "lutrgb",
     "lut2",
     "setpts",
   )
