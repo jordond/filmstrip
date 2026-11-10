@@ -264,7 +264,9 @@ private const val FULL = 255.0
 private const val RGB = 3
 private const val WIDTH = 320
 private const val HEIGHT = 240
-private const val SMALL_HEIGHT = 120
+// A fifth of the height puts every smaller pixel on one source texel. A half lands between four, where the frame with
+// and without the glitch can round a tie a code apart, and the picture would no longer be what the pass reads.
+private const val SMALL_HEIGHT = 48
 private const val ROW_STEP = 7
 private const val COLUMN_STEP = 3
 private const val HALF_PIXEL = 0.5
