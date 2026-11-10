@@ -16,12 +16,13 @@ import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.export.OutputFormat
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.media.AudioTrackId
 import dev.jordond.filmstrip.media.AudioTrackInfo
 import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.trackCodecOf
 import dev.jordond.filmstrip.media3.internal.bounds.AudioPreroll
-import dev.jordond.filmstrip.media3.internal.bounds.ClipWindow
+import dev.jordond.filmstrip.media3.internal.bounds.AudioWindow
 import dev.jordond.filmstrip.media3.internal.bounds.Media3ClipReads
 import dev.jordond.filmstrip.media3.internal.bounds.readClips
 import dev.jordond.filmstrip.media3.internal.preview.toMedia3Preview
@@ -188,7 +189,13 @@ class Media3AudioSpeedTest {
     Media3ClipReads(
       emptyMap(),
       emptyMap(),
-      mapOf(ClipWindow(clip.source, clip.start, clip.end) to AudioPreroll(unit, ENCODER_DELAY)),
+      mapOf(
+        AudioWindow(
+          clip.source,
+          clip.start,
+          checkNotNull(clip.audioTrack).ordinal,
+        ) to AudioPreroll(unit, ENCODER_DELAY),
+      ),
     )
 
   private fun composition(
@@ -231,7 +238,18 @@ class Media3AudioSpeedTest {
         MediaInfo(
           duration = SOURCE_LENGTH,
           video = null,
-          audio = AudioTrackInfo(codec = trackCodecOf("mp4a"), sampleRate = 48_000, channelCount = 2, bitrate = null),
+          audioTracks =
+            listOf(
+              AudioTrackInfo(
+                id = AudioTrackId(1),
+                codec = trackCodecOf("mp4a"),
+                sampleRate = 48_000,
+                channelCount = 2,
+                bitrate = null,
+                language = null,
+                isDefault = true,
+              ),
+            ),
           isExportable = true,
         ),
       start = start,

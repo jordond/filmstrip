@@ -135,6 +135,6 @@ private val INFO =
         bitrate = Bitrate.mbps(12),
         hasAlpha = false,
       ),
-    audio = null,
+    audioTracks = emptyList(),
     isExportable = true,
   )

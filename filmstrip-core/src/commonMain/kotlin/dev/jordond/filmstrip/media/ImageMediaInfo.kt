@@ -62,7 +62,7 @@ public fun imageMediaInfoOf(
         bitrate = null,
         hasAlpha = hasAlpha,
       ),
-    audio = null,
+    audioTracks = emptyList(),
     // Nothing about a still is protected. A format the decoder will not read fails at the decode.
     isExportable = true,
   )

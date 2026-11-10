@@ -110,6 +110,8 @@ internal sealed interface InputSource {
  * @property copyVideoPackets How many video packets a copy writes in decode order, from
  *   [dev.jordond.filmstrip.transform.internal.copy.copyPrefixOf]. Null for a copy that runs to the source's end, and
  *   for anything that is not a copy.
+ * @property copyAudioTrack Which of the source's audio streams a copy writes, counted among its audio streams from
+ *   zero, or null when it writes none.
  * @property heldTail The output slots the graph holds the primary's last frame over, because an audio
  * track runs past it. Empty when nothing does, and for an output with no video.
  * @property sidecars The files [filterGraph] reads, which the caller writes down and hands back as
@@ -134,6 +136,7 @@ internal class Invocation(
   val seekKeepsEarlierFrames: Boolean = seekSpeed != 1.0,
   val videoSlots: Long? = null,
   val copyVideoPackets: Int? = null,
+  val copyAudioTrack: Int? = null,
   val heldTail: LongRange = LongRange.EMPTY,
   val sidecars: List<Sidecar> = emptyList(),
   val liveForm: Invocation? = null,
@@ -216,14 +219,16 @@ internal fun Invocation.arguments(
       add(resolvedInputs[index])
     }
 
-    // A copy remuxes the source's video and audio streams untouched, so there is no graph to run
-    // and no encoder to name. The maps are optional because ffmpeg refuses a map that matches
-    // nothing, and a source with no audio track is a copy this backend allows.
+    // A copy remuxes the source's video and its one chosen audio stream untouched, so there is no graph to run and no
+    // encoder to name. The video map is optional because ffmpeg refuses a map that matches nothing, and a source with
+    // no audio track maps none.
     if (copy) {
       add("-map")
       add("0:v?")
-      add("-map")
-      add("0:a?")
+      copyAudioTrack?.let {
+        add("-map")
+        add("0:a:$it")
+      }
       add("-c")
       add("copy")
       // Drops the video packets past the count rather than stopping there, since -frames:v ends the whole file and

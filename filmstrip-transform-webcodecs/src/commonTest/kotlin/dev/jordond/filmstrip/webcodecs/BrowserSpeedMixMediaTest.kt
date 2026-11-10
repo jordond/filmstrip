@@ -227,7 +227,8 @@ class BrowserSpeedMixMediaTest {
     MediaInfo(
       duration = duration,
       video = null,
-      audio = AudioTrackInfo(trackCodecOf("opus"), OUTPUT_RATE, 1, null),
+      audioTracks =
+        listOf(AudioTrackInfo(CLIP_AUDIO_TRACK, trackCodecOf("opus"), OUTPUT_RATE, 1, null, null, isDefault = true)),
       isExportable = true,
     )
 

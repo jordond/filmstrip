@@ -109,15 +109,17 @@ abstract class GenerateTestMediaTask
             "testsrc=size=${spec.width}x${spec.height}:rate=${spec.frameRate}:duration=${spec.durationSeconds}",
           ),
         )
-        addAll(
-          listOf(
-            "-f",
-            "lavfi",
-            "-i",
-            spec.clickSeconds?.let { clickSource(spec, it) }
-              ?: "sine=frequency=${spec.toneHz}:sample_rate=${spec.sampleRate}:duration=${spec.durationSeconds}",
-          ),
-        )
+        spec.audioTracks.forEach { track ->
+          addAll(
+            listOf(
+              "-f",
+              "lavfi",
+              "-i",
+              spec.clickSeconds?.let { clickSource(spec, it) }
+                ?: "sine=frequency=${track.toneHz}:sample_rate=${spec.sampleRate}:duration=${spec.durationSeconds}",
+            ),
+          )
+        }
         // Seeded noise, so the clips carry camera-like entropy instead of testsrc's ~0.5 Mbps.
         // Without it the decoder feeding the effect pipeline does almost no work and the realtime
         // benchmark would understate the total per-frame cost. The seed keeps it reproducible.
@@ -159,13 +161,30 @@ abstract class GenerateTestMediaTask
             spec.sampleRate.toString(),
             "-ac",
             spec.channelCount.toString(),
-            "-movflags",
-            "+faststart",
             "-shortest",
           ),
         )
+        if (spec.container == FixtureContainer.Mp4) addAll(listOf("-movflags", "+faststart"))
+        addAll(audioTrackArgs(spec))
         addAll(DETERMINISTIC_ARGS)
         add(target)
+      }
+
+    /**
+     * Maps every audio input of a fixture with more than one audio track to its own stream, with its language and
+     * whether it is the default.
+     *
+     * A single track is left to ffmpeg's own stream selection, so a clip that always had one encodes as it always did.
+     */
+    internal fun audioTrackArgs(spec: FixtureSpec): List<String> =
+      buildList {
+        if (spec.audioTracks.size == 1 && spec.audioTracks.single().language == null) return@buildList
+        addAll(listOf("-map", "0:v"))
+        spec.audioTracks.indices.forEach { addAll(listOf("-map", "${it + 1}:a")) }
+        spec.audioTracks.forEachIndexed { index, track ->
+          track.language?.let { addAll(listOf("-metadata:s:a:$index", "language=$it")) }
+          addAll(listOf("-disposition:a:$index", if (track.isDefault) "default" else "0"))
+        }
       }
 
     /**
@@ -282,7 +301,7 @@ abstract class GenerateTestMediaTask
             "-count_frames",
             "-show_entries",
             "stream=codec_type,width,height,avg_frame_rate,nb_read_frames,bit_rate,sample_rate,channels," +
-              "pix_fmt,color_transfer,color_primaries",
+              "pix_fmt,color_transfer,color_primaries:stream_tags=language:stream_disposition=default",
             "-show_entries",
             "stream_side_data=rotation",
             "-show_entries",
@@ -312,7 +331,8 @@ abstract class GenerateTestMediaTask
       val duration = single("duration").toDouble()
       val bytes = single("size").toLong()
       val frames = single("nb_read_frames").toInt()
-      val videoBitrate = single("bit_rate").toLong()
+      // Matroska keeps no bitrate per stream, so a clip written in it records none.
+      val videoBitrate = fields["bit_rate"]?.firstOrNull()?.toLongOrNull() ?: 0L
 
       val drift =
         buildList {
@@ -324,6 +344,20 @@ abstract class GenerateTestMediaTask
             0.25
           ) {
             add("duration $duration != ${spec.durationSeconds}")
+          }
+          // A transport stream lists its streams under its program as well, ahead of the streams themselves, and only
+          // the streams carry a disposition, so the count is read off the last of them.
+          val streams = fields["DISPOSITION:default"].orEmpty().size
+          val audioCount = fields["codec_type"].orEmpty().takeLast(streams).count { it == "audio" }
+          if (audioCount != spec.audioTracks.size) add("audio tracks $audioCount != ${spec.audioTracks.size}")
+          if (spec.audioTracks.size > 1) {
+            // The video stream comes first and writes its own default and language, so the audio ones follow it.
+            val languages = fields["TAG:language"].orEmpty().takeLast(spec.audioTracks.size)
+            val defaults = fields["DISPOSITION:default"].orEmpty().takeLast(spec.audioTracks.size)
+            val askedLanguages = spec.audioTracks.map { it.language ?: "und" }
+            val askedDefaults = spec.audioTracks.map { if (it.isDefault) "1" else "0" }
+            if (languages != askedLanguages) add("languages $languages != $askedLanguages")
+            if (defaults != askedDefaults) add("defaults $defaults != $askedDefaults")
           }
           if (spec.rotationDegrees != 0) {
             val rotation = fields["rotation"]?.firstOrNull()?.toIntOrNull()

@@ -68,6 +68,15 @@ internal expect fun entryAt(path: Path): MediaBytesEntry?
 internal expect fun removeEntry(path: Path)
 
 /**
+ * Renames [source] onto [target] in one step, replacing whatever file is at [target], so a reader opening [target]
+ * finds either the old file or the whole new one.
+ */
+internal expect fun moveOnto(
+  source: Path,
+  target: Path,
+)
+
+/**
  * Creates [directory] and any of its parents that are missing, on every target.
  *
  * Android and Apple hand the cache a root only this app can reach, so this just creates it. A desktop JVM has a shared

@@ -3,6 +3,7 @@ package dev.jordond.filmstrip.edit
 import dev.jordond.filmstrip.ExperimentalFilmstripApi
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.geometry.Fill
+import dev.jordond.filmstrip.media.AudioTrackId
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaSource
 import kotlin.time.Duration
@@ -237,6 +238,7 @@ public class ClipBuilder public constructor(
   private var fadeOut: Duration = Duration.ZERO
   private var snapWithin: Duration = Duration.ZERO
   private var speed: Double = 1.0
+  private var audioTrack: AudioTrackId? = null
 
   /**
    * Keeps only `[start, endExclusive)` of the source.
@@ -304,6 +306,14 @@ public class ClipBuilder public constructor(
   public fun speed(value: Double): ClipBuilder = apply { speed = value }
 
   /**
+   * Plays the source's audio track [id] and leaves its other audio tracks out.
+   *
+   * Read the id off [dev.jordond.filmstrip.media.MediaInfo.audioTracks]. Left unset, the clip plays the track the
+   * container flags as the default. An id the source does not carry is refused when the composition is planned.
+   */
+  public fun audioTrack(id: AudioTrackId): ClipBuilder = apply { audioTrack = id }
+
+  /**
    * Freezes what has been described.
    */
   public fun build(): Clip =
@@ -316,6 +326,7 @@ public class ClipBuilder public constructor(
       fadeIn = fadeIn,
       fadeOut = fadeOut,
       speed = speed,
+      audioTrack = audioTrack,
     )
 }
 

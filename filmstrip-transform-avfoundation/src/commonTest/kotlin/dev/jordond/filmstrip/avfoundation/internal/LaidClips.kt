@@ -9,6 +9,7 @@ import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.export.OutputFormat
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.media.AudioTrackId
 import dev.jordond.filmstrip.media.AudioTrackInfo
 import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.HdrTransfer
@@ -57,7 +58,10 @@ internal fun laidClip(
             bitrate = null,
             hasAlpha = false,
           ),
-        audio = AudioTrackInfo(trackCodecOf("mp4a"), 48_000, 2, null),
+        audioTracks =
+          listOf(
+            AudioTrackInfo(AudioTrackId(1), trackCodecOf("mp4a"), 48_000, 2, null, language = null, isDefault = true),
+          ),
         isExportable = true,
       ),
     start = from,

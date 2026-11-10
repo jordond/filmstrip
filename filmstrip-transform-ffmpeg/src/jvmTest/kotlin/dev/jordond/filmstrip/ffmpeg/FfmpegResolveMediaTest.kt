@@ -248,7 +248,7 @@ class FfmpegResolveMediaTest {
             bitrate = null,
             hasAlpha = false,
           ),
-        audio = null,
+        audioTracks = emptyList(),
         isExportable = true,
       )
   }

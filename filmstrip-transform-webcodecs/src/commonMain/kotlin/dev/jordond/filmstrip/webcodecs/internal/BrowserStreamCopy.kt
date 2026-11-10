@@ -46,7 +46,7 @@ internal class BrowserStreamCopy(
     val clip = render.clips.first()
     val reader = sources.open(clip.source) ?: throw BrowserExportFailure(unreadableMessage(clip.source))
     val videoTrack = reader.videoTrack() ?: throw BrowserExportFailure(unreadableMessage(clip.source))
-    val audioTrack = reader.audioTrack()
+    val audioTrack = reader.audioTrack(clip.audioTrack)
 
     val target = BufferTarget()
     val output =

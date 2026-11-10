@@ -124,7 +124,7 @@ class BrowserResolveTest {
           bitrate = null,
           hasAlpha = false,
         ),
-      audio = null,
+      audioTracks = emptyList(),
       isExportable = true,
     )
 

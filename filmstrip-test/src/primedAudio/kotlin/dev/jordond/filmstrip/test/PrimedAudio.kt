@@ -128,30 +128,48 @@ public object MovieBoxes {
   }
 
   /**
-   * A `mdhd` of [version] counting [duration] ticks of [timescale].
+   * A `mdhd` of [version] counting [duration] ticks of [timescale], in the ISO 639-2 [language] or the raw packed
+   * [languageCode] when that is set.
    */
   public fun mediaHeader(
     timescale: Long,
     duration: Long,
     version: Int = 0,
-  ): ByteArray = fullBox("mdhd", version, times(timescale, duration, version) + u16(UNDETERMINED) + u16(0))
+    language: String = "und",
+    languageCode: Int? = null,
+  ): ByteArray {
+    val packed = languageCode ?: language.fold(0) { code, letter -> (code shl 5) or (letter.code - 0x60) }
+    return fullBox("mdhd", version, times(timescale, duration, version) + u16(packed) + u16(0))
+  }
 
   /**
-   * A `tkhd` of [version] for a track enabled in its movie, counting [duration] ticks of the movie's timescale.
+   * A `tkhd` of [version] for track [id] in its movie, counting [duration] ticks of the movie's timescale.
+   *
+   * The track is flagged enabled unless [enabled] is false, which is how a muxer marks a track of one kind a player
+   * should not pick.
    */
   public fun trackHeader(
     duration: Long,
     version: Int = 0,
+    id: Long = 1,
+    enabled: Boolean = true,
   ): ByteArray {
     val times =
       if (version == 1) {
-        u64(0) + u64(0) + u32(1) + u32(0) + u64(duration)
+        u64(0) + u64(0) + u32(id) + u32(0) + u64(duration)
       } else {
-        u32(0) + u32(0) + u32(1) + u32(0) + u32(duration)
+        u32(0) + u32(0) + u32(id) + u32(0) + u32(duration)
       }
     val rest = ByteArray(8) + u16(0) + u16(0) + u16(0x0100) + u16(0) + MATRIX + u32(0) + u32(0)
-    return fullBox("tkhd", version, times + rest, flags = TRACK_ENABLED_IN_MOVIE)
+    val flags = if (enabled) TRACK_ENABLED_IN_MOVIE else TRACK_IN_MOVIE
+    return fullBox("tkhd", version, times + rest, flags = flags)
   }
+
+  /**
+   * A `hdlr` naming a track's media as [handler], such as `soun` for audio or `vide` for video.
+   */
+  public fun handler(handler: String): ByteArray =
+    fullBox("hdlr", 0, u32(0) + ascii(handler) + ByteArray(12) + byteArrayOf(0))
 
   /**
    * A `trak` holding nothing but a `tkhd` of [version] counting [duration] ticks of the movie's timescale.
@@ -215,5 +233,4 @@ private val MATRIX =
 
 private const val TRACK_ENABLED_IN_MOVIE = 3
 
-// The packed ISO 639 code for an undetermined language.
-private const val UNDETERMINED = 0x55C4
+private const val TRACK_IN_MOVIE = 2

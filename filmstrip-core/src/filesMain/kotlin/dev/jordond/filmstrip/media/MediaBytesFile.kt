@@ -90,7 +90,7 @@ public object MediaBytesFile {
     val partial = Path("$file.${Random.nextLong().toULong().toString(HEX)}$PARTIAL_SUFFIX")
     try {
       SystemFileSystem.sink(partial).buffered().use { it.write(bytes) }
-      SystemFileSystem.atomicMove(partial, file)
+      moveOnto(partial, file)
     } finally {
       SystemFileSystem.delete(partial, mustExist = false)
     }

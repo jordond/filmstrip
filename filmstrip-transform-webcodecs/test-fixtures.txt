@@ -1,0 +1,7 @@
+# filmstrip test fixtures, served from https://filmstrip-media.jordond.dev/test-fixtures
+# Written by the module's publish task. Commit it with the clips it names.
+# ffmpeg 9.0.2 libx264 core 165 r3222 b35605a libx265 4.3+1-e9b8812:[Mac OS X][clang 21.0.0][64 bit] 10bit arch aarch64
+# name sha256 bytes
+three_audio.mp4 7681d11a6f78cebed1ac114b82089a21fae71fe646e2db52162713d92cc71a0d 237405
+three_audio_matroska.mkv b76ac5e0c1a7eac45b8f432c9c360326114de1b4f6aa3b4299728fac6887bf42 235153
+three_audio_ts.ts 7c00523ee41c4d9f5ce236b00651bd427777ecc5f467a3cabf6de0786f323156 254928

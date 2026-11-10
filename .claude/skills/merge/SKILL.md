@@ -1,48 +1,42 @@
 ---
 name: merge
-description: "Land a fix or second-builder branch onto its plan branch by cherry-pick, or squash a plan branch onto main on the owner's go. Hand-resolved conflicts, companion checklist, board update. Use when a builder reports done."
-argument-hint: "<branch> | --main <plan branch>"
+description: "Squash a plan branch onto main on the owner's go, or rebase a stacked plan branch onto its new base. Companion checklist, hand-resolved conflicts, board update."
+argument-hint: "--main <plan branch> | --rebase <plan branch> <new base>"
 ---
 
 Merges have lost work before. Keep the order.
 
 ## 1. Identify
-`git worktree list` and `git branch -vv`. The plan's builder commits on `fix/<slug>`, which is the plan branch. Only a
-second builder's branch (`fix/<slug>-<machine>`) or a fix builder's branch lands onto it. Check it out in
-`.claude/worktrees/<slug>` (`git worktree add .claude/worktrees/<slug> fix/<slug>`) when it is not already. Use the
-builder's report from the notification, never a re-read transcript.
+`git worktree list` and `git branch -vv`. Plan work lives on `fix/<slug>` in `.claude/worktrees/<slug>`.
 
-## 2. Branch → plan branch, by cherry-pick
-Worktree bases here have been stale, so a merge drags in the wrong history. In the plan worktree:
-```sh
-git log --oneline <base sha>..<branch>    # its own commits, nothing older
-git cherry-pick <first>^..<last>
-```
-Conflicts, by hand:
-- An append-only surface (a new `when` arm, a new test case, a doc table row, a `// <slug>` marked block): keep both sides in order, drop the markers.
-- Anything else: read both hunks and write the merged content with `Edit`. Never `git checkout --ours|--theirs <file>`, it drops the cleanly merged hunks too.
-- `grep -rn '^<<<<<<<\|^=======\|^>>>>>>>' <files>` comes back empty, `git add`, `git cherry-pick --continue`.
+## 2. Companion checklist
+Read `checklist.md` here and run the rows the diff hits. Fix hits in the plan worktree as their own commit.
+
+## 3. Rebase a stacked branch
+When the branch below it changed: `git rebase --onto <new base> <old base> fix/<slug>` in its worktree. Conflicts, by
+hand:
+- An append-only surface (a new `when` arm, a new test case, a doc table row): keep both sides in order.
+- Anything else: read both hunks and write the merged content with `Edit`. Never `git checkout --ours|--theirs <file>`,
+  it drops the cleanly merged hunks too.
+- `grep -rn '^<<<<<<<\|^=======\|^>>>>>>>' <files>` comes back empty, `git add`, `git rebase --continue`.
 
 A conflict you cannot settle from the two sides and the plan → stop, name the file and both sides.
 
-## 3. Companion checklist
-Read `checklist.md` here and run the rows the diff hits. A fix goes to a fresh `builder` or `scribe` with the lines pasted, landed as its own commit on the plan branch.
-
-## 4. Verify once per plan
-`/orchestrate` runs the lane once, after the review, against the plan worktree. Red → one fresh builder with the failing lines, one re-run. Never a retry loop.
-
-## 5. Integration branch → `main`, only on the owner's go
-The owner decides when an plan branch lands. With the go:
+## 4. Plan branch → `main`, only on the owner's go
+Per memory `guard-the-squash`, with `set -e` and a merge-base check:
 ```sh
 git switch main && git merge --squash fix/<slug> && git commit
 ```
-A semantic commit message, brief, in the owner's voice, no attribution lines. Never push without the owner saying so, and never open a PR or issue.
+A semantic commit message, brief, in the owner's voice, no attribution lines. Never push without the owner saying so,
+and never open a PR or issue.
 
-## 6. Board
-`scratchpad/upnext.md`: the unit's line → `landed on fix/<slug> <date>, <sha>`, report follow-ups into the branch section's loose ends, fresh counts into its verified line. A follow-up that would undo or redo what the unit just landed means the unit was a stop-gap: the proper fix goes into the chain before the branch goes to `main`, not onto the board. After a squash onto `main`, retitle the section `squash merged to main as <sha> on <date>` and update the header sha.
+## 5. Board
+After a squash onto `main`, retitle the plan's section in `scratchpad/upnext.md` `squash merged to main as <sha> on
+<date>` and update the header sha.
 
-## 7. Clean up
-Only after the report is folded into the board: `git worktree remove <path>` (add `--force` only when nothing uncommitted is left in it) and `git branch -D <unit branch>`.
+## 6. Clean up
+Only after the commit and the board: `git worktree remove .claude/worktrees/<slug>` and `git branch -D fix/<slug>`, by
+that exact name.
 
 ## Reply, at most 8 lines
-Commits landed and where, conflicts and how each was resolved, checklist findings, CI state, board updated, next.
+What landed and where, conflicts and how each was resolved, checklist findings, board updated, next.

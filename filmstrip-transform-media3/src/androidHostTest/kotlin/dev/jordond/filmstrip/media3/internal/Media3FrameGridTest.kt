@@ -26,6 +26,7 @@ import dev.jordond.filmstrip.export.OutputFormat
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.media.AudioTrackId
 import dev.jordond.filmstrip.media.AudioTrackInfo
 import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.MediaInfo
@@ -722,7 +723,18 @@ class Media3FrameGridTest {
               bitrate = null,
               hasAlpha = false,
             ),
-          audio = AudioTrackInfo(codec = trackCodecOf("mp4a"), sampleRate = 48_000, channelCount = 2, bitrate = null),
+          audioTracks =
+            listOf(
+              AudioTrackInfo(
+                id = AudioTrackId(1),
+                codec = trackCodecOf("mp4a"),
+                sampleRate = 48_000,
+                channelCount = 2,
+                bitrate = null,
+                language = null,
+                isDefault = true,
+              ),
+            ),
           isExportable = true,
         ),
       start = start,
@@ -749,7 +761,18 @@ class Media3FrameGridTest {
         MediaInfo(
           duration = length,
           video = null,
-          audio = AudioTrackInfo(codec = trackCodecOf("mp4a"), sampleRate = 48_000, channelCount = 2, bitrate = null),
+          audioTracks =
+            listOf(
+              AudioTrackInfo(
+                id = AudioTrackId(1),
+                codec = trackCodecOf("mp4a"),
+                sampleRate = 48_000,
+                channelCount = 2,
+                bitrate = null,
+                language = null,
+                isDefault = true,
+              ),
+            ),
           isExportable = true,
         ),
       start = Duration.ZERO,

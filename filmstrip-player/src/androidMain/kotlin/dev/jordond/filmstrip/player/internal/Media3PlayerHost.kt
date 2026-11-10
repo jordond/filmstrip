@@ -5,6 +5,7 @@ import android.hardware.display.DisplayManager
 import android.os.Build
 import android.os.Handler
 import android.os.HandlerThread
+import android.os.Looper
 import android.view.Display
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
@@ -12,6 +13,7 @@ import androidx.media3.common.util.ExperimentalApi
 import androidx.media3.effect.MultipleInputVideoGraph
 import androidx.media3.transformer.Composition
 import androidx.media3.transformer.CompositionPlayer
+import dev.jordond.filmstrip.media3.internal.preview.ChosenTrackMediaSourceFactory
 import kotlinx.coroutines.CoroutineScope
 import java.util.concurrent.CountDownLatch
 import kotlin.concurrent.Volatile
@@ -138,14 +140,7 @@ internal class Media3PlayerHost(
   }
 
   private fun buildPlayer(multipleInputs: Boolean): CompositionPlayer =
-    CompositionPlayer
-      .Builder(context)
-      .setLooper(thread.looper)
-      // Audio focus handled by media3, which is what makes a focus loss reach the listener.
-      .setAudioAttributes(MONITOR_AUDIO, true)
-      // What buys a redrawn frame under a paused finger. It costs power and memory while the
-      // preview is up, which is the whole of what a preview is for.
-      .experimentalSetEnableReplayableCache(true)
+    previewPlayerBuilder(context, thread.looper)
       .apply { if (multipleInputs) setVideoGraphFactory(MultipleInputVideoGraph.Factory()) }
       .build()
 
@@ -160,16 +155,35 @@ internal class Media3PlayerHost(
       seeks = seeks,
       loops = loops,
     )
-
-  private companion object {
-    val MONITOR_AUDIO: AudioAttributes =
-      AudioAttributes
-        .Builder()
-        .setContentType(C.AUDIO_CONTENT_TYPE_MOVIE)
-        .setUsage(C.USAGE_MEDIA)
-        .build()
-  }
 }
+
+/**
+ * A builder for the `CompositionPlayer` a preview runs on [looper], set up the way every preview player is before its
+ * video graph is chosen.
+ *
+ * Each item's source is built by [ChosenTrackMediaSourceFactory], so a clip plays only the audio track its plan chose.
+ */
+@ExperimentalApi
+internal fun previewPlayerBuilder(
+  context: Context,
+  looper: Looper,
+): CompositionPlayer.Builder =
+  CompositionPlayer
+    .Builder(context)
+    .setLooper(looper)
+    .setMediaSourceFactory(ChosenTrackMediaSourceFactory(context))
+    // Audio focus handled by media3, which is what makes a focus loss reach the listener.
+    .setAudioAttributes(MONITOR_AUDIO, true)
+    // What buys a redrawn frame under a paused finger. It costs power and memory while the
+    // preview is up, which is the whole of what a preview is for.
+    .experimentalSetEnableReplayableCache(true)
+
+private val MONITOR_AUDIO: AudioAttributes =
+  AudioAttributes
+    .Builder()
+    .setContentType(C.AUDIO_CONTENT_TYPE_MOVIE)
+    .setUsage(C.USAGE_MEDIA)
+    .build()
 
 /**
  * Whether the display a preview draws onto advertises an HDR format.

@@ -13,6 +13,7 @@ import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.OutputFormat
 import dev.jordond.filmstrip.ffmpeg.internal.probe.drift
 import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.media.AudioTrackId
 import dev.jordond.filmstrip.media.AudioTrackInfo
 import dev.jordond.filmstrip.media.CodecKind
 import dev.jordond.filmstrip.media.ColorSpace
@@ -147,7 +148,7 @@ class OutputDriftTest {
   private fun written(
     video: VideoTrackInfo? = video(),
     audio: AudioTrackInfo? = audio(),
-  ): MediaInfo = MediaInfo(DURATION, video, audio, isExportable = true)
+  ): MediaInfo = MediaInfo(DURATION, video, listOfNotNull(audio), isExportable = true)
 
   private fun video(
     displaySize: Size = SIZE,
@@ -172,7 +173,8 @@ class OutputDriftTest {
     sampleRate: Int = 48_000,
     channelCount: Int = 2,
     codec: TrackCodec = TrackCodec("mp4a", CodecKind.Aac),
-  ): AudioTrackInfo = AudioTrackInfo(codec, sampleRate, channelCount, bitrate = null)
+  ): AudioTrackInfo =
+    AudioTrackInfo(AudioTrackId(1), codec, sampleRate, channelCount, bitrate = null, language = null, isDefault = true)
 
   private companion object {
     val SIZE = Size(1920, 1080)

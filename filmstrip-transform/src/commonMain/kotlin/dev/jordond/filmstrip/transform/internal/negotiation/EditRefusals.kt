@@ -12,6 +12,7 @@ import dev.jordond.filmstrip.edit.isValidClipSpeed
 import dev.jordond.filmstrip.effect.EffectScope
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.geometry.outputHeightRefusal
+import dev.jordond.filmstrip.media.AudioTrackId
 import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.describe
@@ -72,6 +73,9 @@ internal fun structuralRefusal(
     if (!info.isExportable) {
       return FilmstripError.SourceNotExportable("${clip.source.describe()} is protected and cannot be exported.")
     }
+    clip.audioTrack?.let { id ->
+      if (info.audioTracks.none { it.id == id }) return invalid(unknownAudioTrack(clip, id, info))
+    }
   }
 
   // A clip-only effect reads where a frame sits inside the run it is drawn over. A track effect and
@@ -115,6 +119,15 @@ private fun Track.contributes(
 private fun clipSpeedOutOfRange(clip: Clip): String =
   "Clip ${clip.source.describe()} asks for a speed of ${clip.speed}, and a clip's speed has to be from " +
     "${CLIP_SPEED_RANGE.start} to ${CLIP_SPEED_RANGE.endInclusive}."
+
+private fun unknownAudioTrack(
+  clip: Clip,
+  id: AudioTrackId,
+  info: MediaInfo,
+): String {
+  val carried = info.audioTracks.joinToString { it.id.value.toString() }.ifEmpty { "none" }
+  return "Clip ${clip.source.describe()} asks for audio track ${id.value}, and the source's audio tracks are $carried."
+}
 
 private fun frameRateNotPositive(rate: Int): String =
   "The export asks for $rate fps, and a frame rate has to be positive. Leave it unset to keep the source's rate."

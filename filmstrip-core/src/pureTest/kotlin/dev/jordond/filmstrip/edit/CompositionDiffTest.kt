@@ -4,6 +4,7 @@ import dev.jordond.filmstrip.effect.EffectIds
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effect.EffectStage
 import dev.jordond.filmstrip.geometry.Fill
+import dev.jordond.filmstrip.media.AudioTrackId
 import dev.jordond.filmstrip.media.MediaSource
 import io.kotest.matchers.shouldBe
 import kotlin.test.Test
@@ -73,6 +74,15 @@ class CompositionDiffTest {
 
     diff(composition(clip(trim = trim)), composition(clip(trim = trim).withSpeed(1.5))) shouldBe
       CompositionDiff.Structural
+  }
+
+  @Test
+  fun `changing only a clip's audio track is structural`() {
+    val previous = composition(clip().withAudioTrack(AudioTrackId(2)))
+    val next = composition(clip().withAudioTrack(AudioTrackId(3)))
+
+    diff(previous, next) shouldBe CompositionDiff.Structural
+    diff(composition(clip()), next) shouldBe CompositionDiff.Structural
   }
 
   @Test
@@ -174,6 +184,14 @@ class CompositionDiffTest {
   fun `a clip's own audio level never reaches the revision`() {
     val previous = composition(clip(audio = AudioLevel.Mute))
     val next = composition(clip(audio = AudioLevel.Volume(0.4f)))
+
+    previous.effectsRevision() shouldBe next.effectsRevision()
+  }
+
+  @Test
+  fun `a clip's audio track never reaches the revision`() {
+    val previous = composition(clip().withAudioTrack(AudioTrackId(2)))
+    val next = composition(clip().withAudioTrack(AudioTrackId(3)))
 
     previous.effectsRevision() shouldBe next.effectsRevision()
   }

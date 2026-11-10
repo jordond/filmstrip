@@ -47,6 +47,15 @@ class ProbeReportTest {
     parseMediaInfo(ROTATED_ANAMORPHIC)!!.video!!.displaySize shouldBe Size(1080, 1920)
   }
 
+  // A transport stream's PID is an id no other prober reads, so only the MP4 one names its track.
+  @Test
+  fun `names a track by its mp4 id and any other container's by its place`() {
+    fun idsOf(format: String): List<Long> = parseMediaInfo(threeAudio(format))!!.audioTracks.map { it.id.value }
+
+    idsOf("mov,mp4,m4a,3gp,3g2,mj2") shouldBe listOf(2L, 3L, 4L)
+    idsOf("mpegts") shouldBe listOf(1L, 2L, 3L)
+  }
+
   @Test
   fun `reports nothing for a file with no tracks`() {
     parseMediaInfo("[FORMAT]\nduration=1.0\n[/FORMAT]") shouldBe null
@@ -106,6 +115,12 @@ class ProbeReportTest {
       size=9000000
       [/FORMAT]
       """.trimIndent()
+
+    fun threeAudio(format: String): String =
+      (2..4).joinToString("\n") { id ->
+        "[STREAM]\nindex=${id - 1}\ncodec_name=aac\ncodec_type=audio\nid=0x$id\n" +
+          "sample_rate=48000\nchannels=2\n[/STREAM]"
+      } + "\n[FORMAT]\nformat_name=$format\nduration=2.000000\n[/FORMAT]"
 
     val ANAMORPHIC =
       """

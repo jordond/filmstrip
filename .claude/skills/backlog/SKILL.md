@@ -1,6 +1,6 @@
 ---
 name: backlog
-description: "Add one item to the scratchpad/upnext.md board. Use for 'add a todo', 'add to backlog', 'note that', 'remind me', follow-ups from an agent report."
+description: "Add one item to the scratchpad/upnext.md board. Use for 'add a todo', 'add to backlog', 'note that', 'remind me', follow-ups from a review."
 argument-hint: "[what to remember]"
 ---
 

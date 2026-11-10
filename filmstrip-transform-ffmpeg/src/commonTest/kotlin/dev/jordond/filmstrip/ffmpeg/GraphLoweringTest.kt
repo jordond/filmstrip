@@ -42,6 +42,7 @@ import dev.jordond.filmstrip.ffmpeg.internal.process.Toolchain
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.media.AudioTrackId
 import dev.jordond.filmstrip.media.AudioTrackInfo
 import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.HdrTransfer
@@ -655,7 +656,7 @@ class GraphLoweringTest {
       // Anchored on the pad, since "split=n" is a substring of "asplit=n" and either assertion
       // alone would then be carried by the other node.
       invocation.filterGraph shouldContain "[$input:v]split=$passes"
-      invocation.filterGraph shouldContain "[$input:a]asplit=$passes"
+      invocation.filterGraph shouldContain "[$input:a:0]asplit=$passes"
     }
   }
 
@@ -772,7 +773,7 @@ class GraphLoweringTest {
     val graph = gridInvocationFor(laid).filterGraph
 
     graph shouldContain "[0:v]split=$pictured["
-    graph shouldContain "[0:a]asplit=${passes.size}["
+    graph shouldContain "[0:a:0]asplit=${passes.size}["
     graph shouldContain "concat=n=$pictured:v=1:a=0"
   }
 
@@ -910,7 +911,10 @@ class GraphLoweringTest {
               bitrate = null,
               hasAlpha = false,
             ),
-          audio = AudioTrackInfo(trackCodecOf("mp4a"), 48_000, 2, null),
+          audioTracks =
+            listOf(
+              AudioTrackInfo(AudioTrackId(1), trackCodecOf("mp4a"), 48_000, 2, null, language = null, isDefault = true),
+            ),
           isExportable = true,
         ),
       start = start,
@@ -1325,7 +1329,7 @@ class GraphLoweringTest {
             bitrate = null,
             hasAlpha = false,
           ),
-        audio = null,
+        audioTracks = emptyList(),
         isExportable = true,
       )
     val clips =
@@ -1401,7 +1405,7 @@ class GraphLoweringTest {
               bitrate = null,
               hasAlpha = false,
             ),
-          audio = null,
+          audioTracks = emptyList(),
           isExportable = true,
         ),
       start = start,

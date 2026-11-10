@@ -12,6 +12,7 @@ import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.edit.outputLengthOf
 import dev.jordond.filmstrip.geometry.Fill
+import dev.jordond.filmstrip.media.AudioTrackId
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaSource
 import io.kotest.matchers.nulls.shouldBeNull
@@ -286,6 +287,12 @@ class CompositionModelTest {
   fun `the clip builder carries a speed`() {
     ClipBuilder(source("a")).speed(0.7).build().speed shouldBe 0.7
     ClipBuilder(source("a")).build().speed shouldBe 1.0
+  }
+
+  @Test
+  fun `the clip builder carries an audio track`() {
+    ClipBuilder(source("a")).audioTrack(AudioTrackId(3)).build().audioTrack shouldBe AudioTrackId(3)
+    ClipBuilder(source("a")).build().audioTrack.shouldBeNull()
   }
 
   private fun source(name: String): MediaSource = MediaSource.of("/fixtures/$name.mp4")

@@ -4,6 +4,7 @@ import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effect.inCanonicalOrder
 import dev.jordond.filmstrip.geometry.Fill
+import dev.jordond.filmstrip.media.AudioTrackId
 import dev.jordond.filmstrip.media.MediaSource
 import kotlin.time.Duration
 
@@ -35,8 +36,8 @@ public enum class CompositionDiff {
  * Classifies what changed between [previous] and [next].
  *
  * A null [previous] is always [CompositionDiff.Structural], since there is nothing yet to reuse.
- * Otherwise the timeline is checked first: every track's clips, their sources, their trims and
- * their timing. Any difference there is structural no matter what else changed. With the timeline
+ * Otherwise the timeline is checked first: every track's clips, their sources, their trims, the audio track each
+ * plays and their timing. Any difference there is structural no matter what else changed. With the timeline
  * unchanged, a difference in an effect, the fill or the audio mix is
  * [CompositionDiff.ParametersOnly]. Effects are compared in their canonical pipeline order, so
  * declaring the same effects in a different order that resolves to the same pipeline reports no
@@ -47,7 +48,9 @@ public fun diff(
   previous: Composition?,
   next: Composition,
 ): CompositionDiff {
-  if (previous == null || previous.timeline() != next.timeline()) return CompositionDiff.Structural
+  if (previous == null || previous.timeline() != next.timeline() || previous.audioTracks() != next.audioTracks()) {
+    return CompositionDiff.Structural
+  }
   return if (previous.rendering() == next.rendering()) CompositionDiff.Equal else CompositionDiff.ParametersOnly
 }
 
@@ -87,6 +90,12 @@ private fun Composition.timeline(): Timeline =
       )
     },
   )
+
+// Kept apart from the timeline so a frame's revision, which hashes the timeline, ignores which audio track plays.
+private fun Composition.audioTracks(): List<List<AudioTrackId?>> =
+  tracks.map { track ->
+    track.clips.map { it.audioTrack }
+  }
 
 private fun Composition.rendering(): Rendering =
   Rendering(

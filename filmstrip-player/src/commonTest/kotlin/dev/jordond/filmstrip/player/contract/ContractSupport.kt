@@ -35,6 +35,7 @@ import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
+import kotlin.time.TimeMark
 import kotlin.time.TimeSource
 
 /**
@@ -181,6 +182,8 @@ internal fun contractTest(
   val warmUpBudget = if (warmUp == null) Duration.ZERO else WARM_UP_BUDGET
   return runTest(timeout = timeout + warmUpBudget) {
     currentStep = null
+    stepTrail = emptyList()
+    bodyStarted = TimeSource.Monotonic.markNow()
     val dispatcher = Dispatchers.Default.limitedParallelism(1)
     val engineScope = CoroutineScope(dispatcher + Job())
     try {
@@ -228,7 +231,7 @@ private suspend fun <T> Deferred<T>.pumpUntilDone(
           step in overrun -> ""
           else -> " The last wait it started was for $step."
         }
-      fail(overrun + detail)
+      fail(overrun + detail + trail())
     }
     pump()
   }
@@ -295,6 +298,24 @@ private var warmUpTaken: Boolean = false
 private var currentStep: String? = null
 
 /**
+ * Every wait the running contract body has started, with how far into the test each one began.
+ *
+ * A failure prints it, so a slow test shows which part of it the time went to, including the unnamed work between two
+ * waits.
+ */
+@Volatile
+private var stepTrail: List<Pair<Duration, String>> = emptyList()
+
+@Volatile
+private var bodyStarted: TimeMark? = null
+
+private fun trail(): String {
+  val started = bodyStarted ?: return ""
+  val steps = stepTrail.joinToString("") { (at, step) -> "\n  at $at: $step" }
+  return "\nFailed ${started.elapsedNow()} into the test. Waits started:$steps"
+}
+
+/**
  * Registers a recorder on [engine], runs [body], and disposes the engine afterwards.
  */
 internal suspend fun withEngine(
@@ -322,7 +343,7 @@ internal suspend fun awaitContract(
   markStep(description)
   val deadline = TimeSource.Monotonic.markNow() + timeout
   while (!condition()) {
-    if (deadline.hasPassedNow()) fail("Timed out after $timeout waiting for $description.")
+    if (deadline.hasPassedNow()) fail("Timed out after $timeout waiting for $description.${trail()}")
     delay(POLL_INTERVAL)
   }
 }
@@ -340,14 +361,16 @@ internal suspend fun <T : Any> awaitStep(
   block: suspend () -> T,
 ): T {
   markStep(description)
-  return withTimeoutOrNull(timeout) { block() } ?: fail("Timed out after $timeout waiting for $description.")
+  return withTimeoutOrNull(timeout) { block() }
+    ?: fail("Timed out after $timeout waiting for $description.${trail()}")
 }
 
 /**
  * Records [description] as the step the contract body is on, without putting a bound on it.
  *
  * This is for a wait that blocks its thread, which no coroutine timeout can interrupt. A pumped body
- * that runs out of budget names the step recorded here.
+ * that runs out of budget names the step recorded here, and any contract failure lists it with how far into the test
+ * it started.
  *
  * Work whose test has already ended is cancelled, and stops here without recording anything, so it cannot rename the
  * step a later test is on.
@@ -355,6 +378,7 @@ internal suspend fun <T : Any> awaitStep(
 internal suspend fun markStep(description: String) {
   currentCoroutineContext().ensureActive()
   currentStep = description
+  bodyStarted?.let { stepTrail = stepTrail + (it.elapsedNow() to description) }
 }
 
 /**

@@ -15,6 +15,7 @@ import dev.jordond.filmstrip.export.OutputFormat
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.geometry.frameWithin
 import dev.jordond.filmstrip.media.audioCodecOf
+import dev.jordond.filmstrip.media.clipAudioTrackOf
 import dev.jordond.filmstrip.media.videoCodecOf
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedHdr
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedTrack
@@ -173,8 +174,8 @@ private fun noneCarried(container: String): String =
 /**
  * The format the export writes.
  *
- * A copy writes the source's own codecs and audio format untouched, since nothing re-encodes to
- * change them. AudioSpec.AudioOnly writes a file with no video track, and OutputFormat has no way
+ * A copy writes the source's own codecs and the audio format of the track its clip plays untouched, since nothing
+ * re-encodes to change them. AudioSpec.AudioOnly writes a file with no video track, and OutputFormat has no way
  * to say that. The video half of the format is reported as resolved and then not written, which is
  * what the ffmpeg backend does with the same edit.
  */
@@ -187,7 +188,7 @@ internal fun outputFormatOf(
   tracks: List<ResolvedTrack>,
 ): OutputFormat {
   if (grade.path == ExportPath.Copy) {
-    val sourceAudio = ask.infos.getValue(framing.firstClip.source).audio
+    val sourceAudio = clipAudioTrackOf(framing.firstClip, ask.infos.getValue(framing.firstClip.source))
     return OutputFormat(
       size = encoding.outputSize,
       videoCodec = checkNotNull(videoCodecOf(framing.firstVideo.codec.kind)) { COPY_UNNAMEABLE },
@@ -231,7 +232,8 @@ internal fun audioFormat(
     tracks
       .flatMap { it.clips }
       .firstNotNullOfOrNull {
-        it.info.audio
+        it.audioTrack
+          ?.track
           ?.sampleRate
           ?.takeIf { rate -> rate > 0 }
       } ?: DEFAULT_SAMPLE_RATE

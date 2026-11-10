@@ -418,7 +418,18 @@ class BrowserMixSeamMediaTest {
               MediaInfo(
                 duration = CLIP_DURATION,
                 video = null,
-                audio = AudioTrackInfo(trackCodecOf("opus"), SOURCE_RATE, 1, null),
+                audioTracks =
+                  listOf(
+                    AudioTrackInfo(
+                      CLIP_AUDIO_TRACK,
+                      trackCodecOf("opus"),
+                      SOURCE_RATE,
+                      1,
+                      null,
+                      language = null,
+                      isDefault = true,
+                    ),
+                  ),
                 isExportable = true,
               ),
             start = Duration.ZERO,
@@ -490,7 +501,18 @@ class BrowserMixSeamMediaTest {
               MediaInfo(
                 duration = CLIP_DURATION,
                 video = null,
-                audio = AudioTrackInfo(trackCodecOf("opus"), sampleRate, 1, null),
+                audioTracks =
+                  listOf(
+                    AudioTrackInfo(
+                      CLIP_AUDIO_TRACK,
+                      trackCodecOf("opus"),
+                      sampleRate,
+                      1,
+                      null,
+                      language = null,
+                      isDefault = true,
+                    ),
+                  ),
                 isExportable = true,
               ),
             start = Duration.ZERO,

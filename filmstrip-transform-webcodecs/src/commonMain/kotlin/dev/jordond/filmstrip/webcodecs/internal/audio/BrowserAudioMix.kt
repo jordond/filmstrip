@@ -130,7 +130,7 @@ internal object BrowserAudioMix {
     val period = clip.outputDuration.seconds()
     if (period <= 0.0 || span.to <= offset) return
 
-    val audioTrack = sources.open(clip.source)?.audioTrack() ?: return
+    val audioTrack = sources.open(clip.source)?.audioTrack(clip.audioTrack) ?: return
     val start = maxOf(offset, span.from)
     val end = minOf(offset + period, span.to)
     if (end <= start) return
@@ -138,10 +138,11 @@ internal object BrowserAudioMix {
     val whole = offset >= span.from && offset + period <= span.to
     val slice =
       if (whole) {
-        DecodeCache.Slice(clip.source, clip.start.seconds(), clip.end.seconds(), clip.speed)
+        DecodeCache.Slice(clip.source, clip.audioTrack?.id, clip.start.seconds(), clip.end.seconds(), clip.speed)
       } else {
         DecodeCache.Slice(
           clip.source,
+          clip.audioTrack?.id,
           clip.sourceTimeAt(start.asDuration()).seconds(),
           clip.sourceTimeAt(end.asDuration()).seconds(),
           clip.speed,
@@ -401,14 +402,14 @@ internal object BrowserAudioMix {
     clip: ResolvedClip,
     reach: Duration,
   ): Long {
-    val audio = clip.info.audio ?: return 0L
+    val audio = clip.audioTrack?.track ?: return 0L
     val length = minOf(outputLengthOf(clip.sourceDuration, clip.speed), reach)
     return bytesOf(length, audio.sampleRate, audio.channelCount)
   }
 
   // The clips a window holds one buffer each for, which is the cache's own whole-pass key.
   private fun List<ResolvedClip>.distinctByTrim(): List<ResolvedClip> =
-    distinctBy { DecodeCache.Slice(it.source, it.start.seconds(), it.end.seconds(), it.speed) }
+    distinctBy { DecodeCache.Slice(it.source, it.audioTrack?.id, it.start.seconds(), it.end.seconds(), it.speed) }
 
   private fun megabytes(bytes: Long): String = "${bytes / BYTES_PER_MEGABYTE} MB"
 

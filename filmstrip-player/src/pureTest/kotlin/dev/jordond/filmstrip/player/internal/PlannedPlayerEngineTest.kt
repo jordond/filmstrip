@@ -4,6 +4,7 @@ import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.CompositionDiff
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.geometry.Fill
+import dev.jordond.filmstrip.media.AudioTrackId
 import dev.jordond.filmstrip.player.PlaybackError
 import dev.jordond.filmstrip.player.PreviewQualityPolicy
 import dev.jordond.filmstrip.player.SetCompositionRequest
@@ -249,6 +250,17 @@ class PlannedPlayerEngineTest {
 
     planner.asked shouldBe listOf(EDIT to PreviewQualityPolicy.Full)
     engine.changes shouldBe listOf(CompositionDiff.Structural)
+  }
+
+  @Test
+  fun `choosing another audio track plans the edit again and rebuilds`() {
+    val chosen = EDIT.withClips(EDIT.clips.map { it.withAudioTrack(AudioTrackId(3)) })
+    load(EDIT)
+
+    load(chosen)
+
+    planner.asked shouldBe listOf(EDIT to PreviewQualityPolicy.Full, chosen to PreviewQualityPolicy.Full)
+    engine.changes shouldBe listOf(CompositionDiff.Structural, CompositionDiff.Structural)
   }
 
   @Test

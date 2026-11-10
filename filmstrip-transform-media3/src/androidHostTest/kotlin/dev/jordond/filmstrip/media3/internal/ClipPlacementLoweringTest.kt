@@ -223,7 +223,7 @@ class ClipPlacementLoweringTest {
               bitrate = null,
               hasAlpha = hasAlpha,
             ),
-          audio = null,
+          audioTracks = emptyList(),
           isExportable = true,
         ),
       start = Duration.ZERO,

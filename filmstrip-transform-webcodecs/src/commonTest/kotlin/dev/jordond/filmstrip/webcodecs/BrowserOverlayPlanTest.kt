@@ -287,7 +287,7 @@ class BrowserOverlayPlanTest {
           bitrate = null,
           hasAlpha = false,
         ),
-      audio = null,
+      audioTracks = emptyList(),
       isExportable = true,
     )
 

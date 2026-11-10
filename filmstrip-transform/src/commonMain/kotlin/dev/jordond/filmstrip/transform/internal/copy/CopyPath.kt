@@ -16,6 +16,7 @@ import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.audioCodecOf
+import dev.jordond.filmstrip.media.clipAudioTrackOf
 import dev.jordond.filmstrip.media.videoCodecOf
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedHdr
 import kotlin.time.Duration
@@ -24,7 +25,8 @@ import kotlin.time.Duration
  * What the engine says about copying a stream across without an encoder.
  *
  * @property supportsCopy Whether the engine can copy a stream at all.
- * @property muxerAccepts Whether its muxer takes a source's streams as they are.
+ * @property muxerAccepts Whether its muxer takes a source's streams as they are. It is handed the source as a copy
+ * writes it, with only the audio track the clip plays.
  * @property copyLimit The blocker a limit of the engine's own puts on copying a source, or null when it has none.
  */
 internal class CopySupport(
@@ -67,10 +69,11 @@ internal fun copyBlockers(
   copyPackets: List<CopyPacket>? = null,
 ): List<CopyBlocker> =
   buildList {
+    val copied = copiedInfo(edit, info)
     if (!support.supportsCopy) add(CopyBlocker.BackendCannotCopy)
-    if (!support.muxerAccepts(info)) add(CopyBlocker.MuxerRefusesSource)
-    support.copyLimit(info)?.let(::add)
-    if (!codecsAreNameable(info)) add(CopyBlocker.SourceCodecUnnameable)
+    if (!support.muxerAccepts(copied)) add(CopyBlocker.MuxerRefusesSource)
+    support.copyLimit(copied)?.let(::add)
+    if (!codecsAreNameable(copied)) add(CopyBlocker.SourceCodecUnnameable)
     if (spec.frameRate != null) add(CopyBlocker.FrameRateSet)
     if (spec.videoCodec != VideoCodec.Auto && spec.videoCodec != VideoCodec.MatchSource) {
       add(CopyBlocker.VideoCodecNamed)
@@ -158,6 +161,24 @@ internal fun copyOpening(
   val sync = opening ?: return null
   if (sync > asked) return null
   return sync.takeIf { asked - it <= clip.snapWithin }
+}
+
+/**
+ * [info] as a copy of [edit] writes it, with the one audio track its clip plays and none of the source's others.
+ *
+ * The muxer and the codec checks read this, so a source whose default track a muxer refuses still copies a chosen
+ * track it takes, and the other way round. An edit of more than one clip never copies, and gets [info] unchanged.
+ */
+private fun copiedInfo(
+  edit: Composition,
+  info: MediaInfo,
+): MediaInfo {
+  val clip =
+    edit.tracks
+      .singleOrNull()
+      ?.clips
+      ?.singleOrNull() ?: return info
+  return MediaInfo(info.duration, info.video, listOfNotNull(clipAudioTrackOf(clip, info)), info.isExportable)
 }
 
 /**

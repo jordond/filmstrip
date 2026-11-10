@@ -33,7 +33,7 @@ public object Mp4Copy {
    *
    * A source with no audio track passes on the audio half, since there is nothing to carry.
    *
-   * @param info The source to copy from.
+   * @param info The source to copy from, carrying only the audio track the copy writes.
    * @param alsoVideo Video codecs this backend's muxer takes on top of [VIDEO].
    * @param alsoAudio Audio codecs this backend's muxer takes on top of [AUDIO].
    */

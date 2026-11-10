@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application>
+        <provider
+            android:name="dev.jordond.filmstrip.media3.PackedFixtureProvider"
+            android:authorities="dev.jordond.filmstrip.media3.test.packed"
+            android:exported="false" />
+    </application>
+</manifest>

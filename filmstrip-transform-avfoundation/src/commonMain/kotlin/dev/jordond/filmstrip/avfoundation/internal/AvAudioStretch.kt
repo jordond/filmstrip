@@ -141,8 +141,7 @@ internal class StretchedAudio(
         .clipsToRender()
         .mapIndexedNotNull { index, clip ->
           val asset = AVURLAsset(uRL = clip.source.toNSURL(bytesRoot), options = null)
-          val track = asset.tracksWithMediaType(AVMediaTypeAudio).firstOrNull() as? AVAssetTrack
-          track?.let {
+          asset.audioTrackOf(clip)?.let {
             assets += asset
             ClipAudioRender(clip, it, "$directory/$index.caf", format.sampleRate, format.channelCount)
           }

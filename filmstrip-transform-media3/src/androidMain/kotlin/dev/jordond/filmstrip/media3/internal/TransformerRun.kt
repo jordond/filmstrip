@@ -24,6 +24,7 @@ import dev.jordond.filmstrip.media.MediaProber
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.ProbeResult
+import dev.jordond.filmstrip.media3.internal.bounds.ChosenTrackAssetLoaderFactory
 import dev.jordond.filmstrip.media3.internal.encoder.EncoderColor
 import dev.jordond.filmstrip.media3.internal.encoder.MeasuredEncoderColor
 import dev.jordond.filmstrip.media3.internal.encoder.encoderFactory
@@ -125,6 +126,7 @@ internal class TransformerRun(
             setMuxerFactory(videoEndingOnTheGrid())
           }
         }.setEncoderFactory(encoders)
+        .setAssetLoaderFactory(ChosenTrackAssetLoaderFactory(context))
         .setLooper(looper)
         .addListener(
           object : Transformer.Listener {

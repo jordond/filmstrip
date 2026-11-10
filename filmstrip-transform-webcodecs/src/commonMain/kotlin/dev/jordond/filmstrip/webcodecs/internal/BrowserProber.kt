@@ -5,6 +5,7 @@ package dev.jordond.filmstrip.webcodecs.internal
 import dev.jordond.filmstrip.codec.Bitrate
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.internal.awaitCatching
+import dev.jordond.filmstrip.media.AudioTrackId
 import dev.jordond.filmstrip.media.AudioTrackInfo
 import dev.jordond.filmstrip.media.CodecKind
 import dev.jordond.filmstrip.media.ColorSpace
@@ -14,6 +15,7 @@ import dev.jordond.filmstrip.media.MediaProber
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.ProbeResult
 import dev.jordond.filmstrip.media.VideoTrackInfo
+import dev.jordond.filmstrip.media.audioLanguageOf
 import dev.jordond.filmstrip.media.displaySizeOf
 import dev.jordond.filmstrip.media.trackCodecOf
 import dev.jordond.filmstrip.webcodecs.internal.interop.InputAudioTrack
@@ -71,13 +73,18 @@ internal class BrowserProber : MediaProber {
         )
       }
     val video = reader.videoTrack()?.toTrackInfo(bitrate)
-    val audio = reader.audioTrack()?.toTrackInfo(if (video == null) bitrate else null)
-    if (video == null && audio == null) return null
+    val ids = reader.audioTrackIds()
+    val flagged = reader.flagsDefaultTrack()
+    val audio =
+      reader.audioTracks().mapIndexedNotNull { ordinal, track ->
+        track.toTrackInfo(ids[ordinal], if (video == null && ordinal == 0) bitrate else null, flagged)
+      }
+    if (video == null && audio.isEmpty()) return null
 
     return MediaInfo(
       duration = durationUs.microseconds,
       video = video,
-      audio = audio,
+      audioTracks = audio,
       isExportable = true,
     )
   }
@@ -109,13 +116,22 @@ internal class BrowserProber : MediaProber {
     )
   }
 
-  private suspend fun InputAudioTrack.toTrackInfo(bitrate: Bitrate?): AudioTrackInfo? {
+  // For an MP4 mediabunny's default disposition is the enabled flag in the track header, and for Matroska the track's
+  // default flag. A track in a container with no such flag is never flagged.
+  private suspend fun InputAudioTrack.toTrackInfo(
+    id: AudioTrackId,
+    bitrate: Bitrate?,
+    flagged: Boolean,
+  ): AudioTrackInfo? {
     val codec = getCodec().await()?.toString() ?: return null
     return AudioTrackInfo(
+      id = id,
       codec = trackCodecOf(codec),
       sampleRate = getSampleRate().await().toDouble().toInt(),
       channelCount = getNumberOfChannels().await().toDouble().toInt(),
       bitrate = bitrate,
+      language = audioLanguageOf(getLanguageCode().await().toString()),
+      isDefault = flagged && getDisposition().await().default,
     )
   }
 }

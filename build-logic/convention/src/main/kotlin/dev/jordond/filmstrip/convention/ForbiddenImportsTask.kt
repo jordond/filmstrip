@@ -54,15 +54,7 @@ abstract class ForbiddenImportsTask : DefaultTask() {
               .withIndex()
               .filter { (_, line) -> line.startsWith("import ") }
               .filter { (_, line) ->
-                val fqn = line.removePrefix("import ").substringBefore(' ').trim()
-                if (allowed.any { fqn == it || fqn.startsWith("$it.") }) return@filter false
-                prefixes.any { rule ->
-                  if (rule.endsWith("*")) {
-                    fqn.startsWith(rule.dropLast(1))
-                  } else {
-                    fqn == rule || fqn.startsWith("$rule.")
-                  }
-                }
+                isForbiddenImport(line.removePrefix("import ").substringBefore(' ').trim(), prefixes, allowed)
               }.map { (i, line) -> "${file.path}:${i + 1}: ${line.trim()}" }
               .toList()
           }
@@ -77,6 +69,27 @@ abstract class ForbiddenImportsTask : DefaultTask() {
           appendLine("See LAYERS in build-logic Layering.kt for the layering contract.")
         },
       )
+    }
+  }
+}
+
+/**
+ * Whether [fqn] matches one of the [forbidden] rules and none of the [allowed] prefixes.
+ *
+ * An allowed prefix and a rule without a `*` each match the exact name or anything under it as a package. A rule
+ * ending in `*` matches any name starting with the rest of it.
+ */
+internal fun isForbiddenImport(
+  fqn: String,
+  forbidden: Set<String>,
+  allowed: Set<String>,
+): Boolean {
+  if (allowed.any { fqn == it || fqn.startsWith("$it.") }) return false
+  return forbidden.any { rule ->
+    if (rule.endsWith("*")) {
+      fqn.startsWith(rule.dropLast(1))
+    } else {
+      fqn == rule || fqn.startsWith("$rule.")
     }
   }
 }

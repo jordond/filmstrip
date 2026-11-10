@@ -109,7 +109,7 @@ class AppleToneMapFailureMediaTest {
             hasAlpha,
           )
         },
-      audio = audio,
+      audioTracks = listOfNotNull(audio),
       isExportable = isExportable,
     )
 

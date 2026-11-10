@@ -491,10 +491,11 @@ public final class dev/jordond/filmstrip/edit/AudioSpec$Volume : dev/jordond/fil
 }
 
 public final class dev/jordond/filmstrip/edit/Clip {
-	public synthetic fun <init> (Ldev/jordond/filmstrip/media/MediaSource;Ldev/jordond/filmstrip/edit/TimeRange;Ljava/util/List;Ldev/jordond/filmstrip/edit/AudioLevel;JJJDILkotlin/jvm/internal/DefaultConstructorMarker;)V
-	public synthetic fun <init> (Ldev/jordond/filmstrip/media/MediaSource;Ldev/jordond/filmstrip/edit/TimeRange;Ljava/util/List;Ldev/jordond/filmstrip/edit/AudioLevel;JJJDLkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (Ldev/jordond/filmstrip/media/MediaSource;Ldev/jordond/filmstrip/edit/TimeRange;Ljava/util/List;Ldev/jordond/filmstrip/edit/AudioLevel;JJJDLdev/jordond/filmstrip/media/AudioTrackId;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (Ldev/jordond/filmstrip/media/MediaSource;Ldev/jordond/filmstrip/edit/TimeRange;Ljava/util/List;Ldev/jordond/filmstrip/edit/AudioLevel;JJJDLdev/jordond/filmstrip/media/AudioTrackId;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getAudio ()Ldev/jordond/filmstrip/edit/AudioLevel;
+	public final fun getAudioTrack-S_-RaC0 ()Ldev/jordond/filmstrip/media/AudioTrackId;
 	public final fun getDuration-FghU774 ()Lkotlin/time/Duration;
 	public final fun getEffects ()Ljava/util/List;
 	public final fun getFadeIn-UwyO8pc ()J
@@ -506,6 +507,7 @@ public final class dev/jordond/filmstrip/edit/Clip {
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
 	public final fun withAudio (Ldev/jordond/filmstrip/edit/AudioLevel;)Ldev/jordond/filmstrip/edit/Clip;
+	public final fun withAudioTrack-T6IL_9g (Ldev/jordond/filmstrip/media/AudioTrackId;)Ldev/jordond/filmstrip/edit/Clip;
 	public final fun withEffects (Ljava/util/List;)Ldev/jordond/filmstrip/edit/Clip;
 	public final fun withFadeIn-LRDsOJo (J)Ldev/jordond/filmstrip/edit/Clip;
 	public final fun withFadeOut-LRDsOJo (J)Ldev/jordond/filmstrip/edit/Clip;
@@ -518,6 +520,7 @@ public final class dev/jordond/filmstrip/edit/ClipBuilder {
 	public fun <init> (Ldev/jordond/filmstrip/media/MediaSource;)V
 	public final fun addEffects (Ljava/util/List;)Ldev/jordond/filmstrip/edit/ClipBuilder;
 	public final fun audio (Ldev/jordond/filmstrip/edit/AudioLevel;)Ldev/jordond/filmstrip/edit/ClipBuilder;
+	public final fun audioTrack-1aA2Zc0 (J)Ldev/jordond/filmstrip/edit/ClipBuilder;
 	public final fun build ()Ldev/jordond/filmstrip/edit/Clip;
 	public final fun effects (Lkotlin/jvm/functions/Function1;)Ldev/jordond/filmstrip/edit/ClipBuilder;
 	public final fun fadeIn-LRDsOJo (J)Ldev/jordond/filmstrip/edit/ClipBuilder;
@@ -1358,14 +1361,31 @@ public final class dev/jordond/filmstrip/geometry/Size {
 	public fun toString ()Ljava/lang/String;
 }
 
+public final class dev/jordond/filmstrip/media/AudioTrackId {
+	public static final synthetic fun box-impl (J)Ldev/jordond/filmstrip/media/AudioTrackId;
+	public static fun constructor-impl (J)J
+	public fun equals (Ljava/lang/Object;)Z
+	public static fun equals-impl (JLjava/lang/Object;)Z
+	public static final fun equals-impl0 (JJ)Z
+	public final fun getValue ()J
+	public fun hashCode ()I
+	public static fun hashCode-impl (J)I
+	public fun toString ()Ljava/lang/String;
+	public static fun toString-impl (J)Ljava/lang/String;
+	public final synthetic fun unbox-impl ()J
+}
+
 public final class dev/jordond/filmstrip/media/AudioTrackInfo {
-	public fun <init> (Ldev/jordond/filmstrip/media/TrackCodec;IILdev/jordond/filmstrip/codec/Bitrate;)V
+	public synthetic fun <init> (JLdev/jordond/filmstrip/media/TrackCodec;IILdev/jordond/filmstrip/codec/Bitrate;Ljava/lang/String;ZLkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getBitrate ()Ldev/jordond/filmstrip/codec/Bitrate;
 	public final fun getChannelCount ()I
 	public final fun getCodec ()Ldev/jordond/filmstrip/media/TrackCodec;
+	public final fun getId-H9z-YEg ()J
+	public final fun getLanguage ()Ljava/lang/String;
 	public final fun getSampleRate ()I
 	public fun hashCode ()I
+	public final fun isDefault ()Z
 	public fun toString ()Ljava/lang/String;
 }
 
@@ -1471,9 +1491,10 @@ public final class dev/jordond/filmstrip/media/ImageSource$Uri : dev/jordond/fil
 }
 
 public final class dev/jordond/filmstrip/media/MediaInfo {
-	public synthetic fun <init> (JLdev/jordond/filmstrip/media/VideoTrackInfo;Ldev/jordond/filmstrip/media/AudioTrackInfo;ZLkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (JLdev/jordond/filmstrip/media/VideoTrackInfo;Ljava/util/List;ZLkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getAudio ()Ldev/jordond/filmstrip/media/AudioTrackInfo;
+	public final fun getAudioTracks ()Ljava/util/List;
 	public final fun getDuration-UwyO8pc ()J
 	public final fun getVideo ()Ldev/jordond/filmstrip/media/VideoTrackInfo;
 	public fun hashCode ()I

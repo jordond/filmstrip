@@ -52,11 +52,17 @@ internal fun contractContext(): Context = InstrumentationRegistry.getInstrumenta
  * before a test ran. Nothing here skips: a suite that returns early on a missing fixture reports
  * green without having asserted anything.
  */
-internal fun androidFixtureClip(): MediaSource {
-  val file = File(contractContext().cacheDir, CLIP_NAME)
+internal fun androidFixtureClip(): MediaSource = androidFixture(CLIP_NAME)
+
+/**
+ * The test resource [name] copied into the cache, failing rather than skipping when it was not packaged, as
+ * [androidFixtureClip] does.
+ */
+internal fun androidFixture(name: String): MediaSource {
+  val file = File(contractContext().cacheDir, name)
   if (!file.exists()) {
     val loader = AndroidContractFixtures::class.java.classLoader ?: fail("the test APK has no class loader")
-    val stream = loader.getResourceAsStream(CLIP_NAME) ?: fail("$CLIP_NAME was not packaged into the test APK")
+    val stream = loader.getResourceAsStream(name) ?: fail("$name was not packaged into the test APK")
     stream.use { input -> file.writeAtomically { input.copyTo(it) } }
   }
   return MediaSource.of(file.path)

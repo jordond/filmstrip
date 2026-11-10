@@ -70,6 +70,13 @@ internal actual fun removeEntry(path: Path) {
   remove(path.toString())
 }
 
+internal actual fun moveOnto(
+  source: Path,
+  target: Path,
+) {
+  SystemFileSystem.atomicMove(source, target)
+}
+
 // The temporary directory is the app's own on iOS and the user's own on macOS.
 internal actual fun ensurePrivateDirectory(directory: Path) {
   creatingThroughRaces(directory) { SystemFileSystem.createDirectories(directory) }

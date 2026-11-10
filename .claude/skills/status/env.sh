@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Checks the machines a plan's units run on, so an owner chore shows up before dispatch and not mid-wave.
+# Checks the machines a plan's units run on, so an owner chore shows up before a plan starts and not mid-plan.
 # Prints one `ok|BLOCKED <what>: <fix>` line per check. Exit is the number of blocked checks.
 set -u
 

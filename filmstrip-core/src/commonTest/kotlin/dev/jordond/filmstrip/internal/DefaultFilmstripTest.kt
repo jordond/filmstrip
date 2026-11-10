@@ -454,7 +454,7 @@ private class SucceedingExportEngine(
   ): Flow<ExportStatus> =
     flowOf(
       ExportStatus.Started,
-      ExportStatus.Success(to, MediaInfo(4.seconds, null, null, isExportable = true), adjustments),
+      ExportStatus.Success(to, MediaInfo(4.seconds, null, emptyList(), isExportable = true), adjustments),
     )
 
   override fun parityOf(specId: String): EffectParity? = null

@@ -4,6 +4,8 @@ import androidx.compose.runtime.Immutable
 import dev.drewhamilton.poko.Poko
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.geometry.Fill
+import dev.jordond.filmstrip.media.AudioTrackId
+import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSource
 import kotlin.time.Duration
 
@@ -229,6 +231,10 @@ public enum class TrackContent {
  * envelopes, is in composition time. A speed outside [CLIP_SPEED_RANGE] is refused with
  * [dev.jordond.filmstrip.FilmstripError.InvalidComposition] when the composition is planned. A still shows the same
  * pixels at any speed, so its length ignores this.
+ * @property audioTrack Which of the source's audio tracks this clip plays, read off [MediaInfo.audioTracks], or null
+ * for the one the container flags as the default, which is [MediaInfo.audio]. Every other audio track of the source is
+ * left out, on a copy as well. An id the source does not carry is refused with
+ * [dev.jordond.filmstrip.FilmstripError.InvalidComposition] when the composition is planned.
  */
 @Poko
 public class Clip(
@@ -240,6 +246,7 @@ public class Clip(
   public val fadeIn: Duration = Duration.ZERO,
   public val fadeOut: Duration = Duration.ZERO,
   public val speed: Double = 1.0,
+  public val audioTrack: AudioTrackId? = null,
 ) {
   /**
    * How long this clip runs on the composition timeline, or null while it is untrimmed or open-ended
@@ -256,40 +263,50 @@ public class Clip(
   /**
    * A copy trimmed to [trim], or untrimmed when null.
    */
-  public fun withTrim(trim: TimeRange?): Clip = Clip(source, trim, effects, audio, snapWithin, fadeIn, fadeOut, speed)
+  public fun withTrim(trim: TimeRange?): Clip =
+    Clip(source, trim, effects, audio, snapWithin, fadeIn, fadeOut, speed, audioTrack)
 
   /**
    * A copy with different clip-level effects.
    */
   public fun withEffects(effects: List<EffectSpec>): Clip =
-    Clip(source, trim, effects, audio, snapWithin, fadeIn, fadeOut, speed)
+    Clip(source, trim, effects, audio, snapWithin, fadeIn, fadeOut, speed, audioTrack)
 
   /**
    * A copy at a different audio level.
    */
-  public fun withAudio(audio: AudioLevel): Clip = Clip(source, trim, effects, audio, snapWithin, fadeIn, fadeOut, speed)
+  public fun withAudio(audio: AudioLevel): Clip =
+    Clip(source, trim, effects, audio, snapWithin, fadeIn, fadeOut, speed, audioTrack)
 
   /**
    * A copy that lets the cut move back up to [snapWithin] to reach a sync sample.
    */
   public fun withSnapWithin(snapWithin: Duration): Clip =
-    Clip(source, trim, effects, audio, snapWithin, fadeIn, fadeOut, speed)
+    Clip(source, trim, effects, audio, snapWithin, fadeIn, fadeOut, speed, audioTrack)
 
   /**
    * A copy whose audio rises from silence over [fadeIn].
    */
-  public fun withFadeIn(fadeIn: Duration): Clip = Clip(source, trim, effects, audio, snapWithin, fadeIn, fadeOut, speed)
+  public fun withFadeIn(fadeIn: Duration): Clip =
+    Clip(source, trim, effects, audio, snapWithin, fadeIn, fadeOut, speed, audioTrack)
 
   /**
    * A copy whose audio falls to silence over [fadeOut].
    */
   public fun withFadeOut(fadeOut: Duration): Clip =
-    Clip(source, trim, effects, audio, snapWithin, fadeIn, fadeOut, speed)
+    Clip(source, trim, effects, audio, snapWithin, fadeIn, fadeOut, speed, audioTrack)
 
   /**
    * A copy that plays its trim at [speed].
    */
-  public fun withSpeed(speed: Double): Clip = Clip(source, trim, effects, audio, snapWithin, fadeIn, fadeOut, speed)
+  public fun withSpeed(speed: Double): Clip =
+    Clip(source, trim, effects, audio, snapWithin, fadeIn, fadeOut, speed, audioTrack)
+
+  /**
+   * A copy that plays the source's audio track [audioTrack], or its default track when null.
+   */
+  public fun withAudioTrack(audioTrack: AudioTrackId?): Clip =
+    Clip(source, trim, effects, audio, snapWithin, fadeIn, fadeOut, speed, audioTrack)
 }
 
 /**

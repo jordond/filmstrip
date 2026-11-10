@@ -92,7 +92,7 @@ class Media3CopyBlockerMediaTest {
           bitrate = video.bitrate,
           hasAlpha = false,
         ),
-      audio = audio,
+      audioTracks = listOfNotNull(audio),
       isExportable = isExportable,
     )
   }

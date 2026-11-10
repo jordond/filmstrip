@@ -220,7 +220,9 @@ internal class GraphLowering(
     val clips = tracks[trackIndex].clips
     val sourceIndex = clips[index].sourceIndex
     val input = clipInput[trackIndex].getValue(sourceIndex)
-    val pad = if (audio) "$input:a" else "$input:v"
+    // The planner settled which audio track the clip plays, and ffprobe lists a source's audio tracks in the order
+    // ffmpeg numbers its audio streams, so the track's ordinal is the stream to read.
+    val pad = if (audio) "$input:a:${checkNotNull(clips[index].audioTrack).ordinal}" else "$input:v"
     // A pass that lays no picture reads no video branch, and a split outlet nothing reads is a graph
     // ffmpeg refuses to run.
     val passes = clips.count { it.sourceIndex == sourceIndex && (audio || slotsOf(it) > 0) }

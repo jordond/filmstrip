@@ -13,17 +13,22 @@ import dev.jordond.filmstrip.internal.chainedProber
 import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaProber
 import dev.jordond.filmstrip.media3.internal.Media3Driver
+import dev.jordond.filmstrip.media3.internal.Media3Prober
 import dev.jordond.filmstrip.transform.internal.PlannedExportEngine
 import dev.jordond.filmstrip.transform.internal.copy.Mp4Copy
 
 /**
  * Registers the media3 export backend, so `plan`, `export` and `capabilities` work on Android.
  *
+ * It also registers a prober that lists a source's audio tracks the way media3's own extractors read them, so `probe`
+ * names the tracks an export can play, in the order it plays them by.
+ *
  * @return This builder.
  */
 public fun FilmstripBuilder.media3Backend(): FilmstripBuilder =
   builtInEffects()
     .addExportEngineFactory { components -> media3ExportEngine(components) }
+    .addMediaProberFactory { Media3Prober() }
     .addBackendInfo(BackendInfo(name = "media3", artifact = "dev.jordond.filmstrip:filmstrip-transform-media3"))
 
 /**

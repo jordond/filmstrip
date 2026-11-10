@@ -62,5 +62,6 @@ internal fun ResolvedComposition.copyInvocation(
     seekSpeed = clip.speed,
     videoSlots = videoSlots,
     copyVideoPackets = copyVideoPackets?.takeIf { windowsEnd },
+    copyAudioTrack = clip.audioTrack?.ordinal,
   )
 }

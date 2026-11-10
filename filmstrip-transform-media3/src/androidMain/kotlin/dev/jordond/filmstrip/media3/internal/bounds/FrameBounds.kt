@@ -53,3 +53,15 @@ internal data class ClipWindow(
   val start: Duration,
   val end: Duration,
 )
+
+/**
+ * Where a clip's audio opens on its source, and which of the source's audio tracks it plays, which is all its
+ * [AudioPreroll] depends on.
+ *
+ * @property audioOrdinal Where the clip's audio track sits among the source's audio tracks, counted from zero.
+ */
+internal data class AudioWindow(
+  val source: MediaSource,
+  val start: Duration,
+  val audioOrdinal: Int,
+)

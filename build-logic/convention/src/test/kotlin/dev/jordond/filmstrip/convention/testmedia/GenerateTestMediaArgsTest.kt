@@ -35,11 +35,55 @@ class GenerateTestMediaArgsTest {
   }
 
   @Test
+  fun `only an mp4 spec moves its index to the front`() {
+    val matroska = sdr.copy(name = "matroska", container = FixtureContainer.Matroska)
+
+    task.ffmpegArgs(sdr, "out.mp4").shouldContainRun("-movflags", "+faststart")
+    task.ffmpegArgs(matroska, "out.mkv").none { it == "-movflags" } shouldBe true
+    matroska.fileName shouldBe "matroska.mkv"
+  }
+
+  @Test
+  fun `a transport stream spec is written under its own extension with no mp4 flags`() {
+    val stream = sdr.copy(name = "stream", container = FixtureContainer.MpegTs)
+
+    task.ffmpegArgs(stream, "out.ts").none { it == "-movflags" } shouldBe true
+    stream.fileName shouldBe "stream.ts"
+  }
+
+  @Test
   fun `a click spec carries silence with one click in place of the tone`() {
     val args = task.ffmpegArgs(sdr.copy(name = "click", clickSeconds = 0.25), "out.mp4")
 
     args.shouldContainRun("-i", "aevalsrc=exprs=if(eq(n\\,12000)\\,0.5\\,0):sample_rate=48000:duration=1.0")
     args.none { it.startsWith("sine=") } shouldBe true
+  }
+
+  @Test
+  fun `a single audio track is left to ffmpeg's own stream selection`() {
+    val args = task.ffmpegArgs(sdr, "out.mp4")
+
+    args.none { it == "-map" || it.startsWith("-disposition") || it.startsWith("-metadata:s") } shouldBe true
+    args.count { it.startsWith("sine=") } shouldBe 1
+  }
+
+  @Test
+  fun `several audio tracks each get a tone a language and a default flag`() {
+    val tracks =
+      listOf(
+        AudioTrackSpec(toneHz = 440, language = "eng"),
+        AudioTrackSpec(toneHz = 660, language = "fra", isDefault = true),
+        AudioTrackSpec(toneHz = 990),
+      )
+    val args = task.ffmpegArgs(sdr.copy(name = "several", audioTracks = tracks), "out.mp4")
+
+    args.filter { it.startsWith("sine=") }.map { it.substringAfter("frequency=").substringBefore(":") } shouldBe
+      listOf("440", "660", "990")
+    args.shouldContainRun("-map", "0:v", "-map", "1:a", "-map", "2:a", "-map", "3:a")
+    args.shouldContainRun("-metadata:s:a:0", "language=eng", "-disposition:a:0", "0")
+    args.shouldContainRun("-metadata:s:a:1", "language=fra", "-disposition:a:1", "default")
+    args.shouldContainRun("-disposition:a:2", "0")
+    args.none { it == "-metadata:s:a:2" } shouldBe true
   }
 
   @Test

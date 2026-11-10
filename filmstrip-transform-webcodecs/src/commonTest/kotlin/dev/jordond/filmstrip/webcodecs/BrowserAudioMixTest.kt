@@ -1,10 +1,11 @@
 @file:OptIn(ExperimentalWasmJsInterop::class)
 
-package dev.jordond.filmstrip.webcodecs.internal
+package dev.jordond.filmstrip.webcodecs
 
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.export.AudioFormat
+import dev.jordond.filmstrip.media.AudioTrackId
 import dev.jordond.filmstrip.media.AudioTrackInfo
 import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSource
@@ -198,7 +199,18 @@ class BrowserAudioMixTest {
               MediaInfo(
                 duration = duration,
                 video = null,
-                audio = AudioTrackInfo(trackCodecOf("mp4a"), 48_000, 2, null),
+                audioTracks =
+                  listOf(
+                    AudioTrackInfo(
+                      AudioTrackId(1),
+                      trackCodecOf("mp4a"),
+                      48_000,
+                      2,
+                      null,
+                      language = null,
+                      isDefault = true,
+                    ),
+                  ),
                 isExportable = true,
               ),
             start = Duration.ZERO,

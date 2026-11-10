@@ -22,11 +22,13 @@ import java.io.Serializable
  * @param patch A flat square painted over the middle of the frame, or null to leave the pattern
  * alone. A test that reads one pixel and predicts what an operation did to it needs somewhere the
  * reading does not depend on how the encoder handled the pixel next door.
- * @param toneHz The frequency of the sine the clip carries. A test that mixes two sources and has
- * to say which one it is hearing needs them at different frequencies, since two tones at the same
- * one sum by their relative phase and the level that reaches the file stops being predictable.
- * @param clickSeconds When set, the clip carries silence with one click on the sample at this time in place of the
- * tone. A test that asks where a source frame landed needs a frame it can find, and a steady tone repeats every period.
+ * @param audioTracks The audio tracks the clip carries, in the order they are written. One track with no language
+ * writes the file exactly as a single-audio clip always has, and more than one is what a test choosing between the
+ * audio tracks of a source reads.
+ * @param clickSeconds When set, the clip's one audio track carries silence with one click on the sample at this time in
+ * place of the tone. A test that asks where a source frame landed needs a frame it can find, and a steady tone repeats
+ * every period.
+ * @param container The container the clip is written in, which also names its file's extension.
  */
 data class FixtureSpec(
   val name: String,
@@ -37,18 +39,58 @@ data class FixtureSpec(
   val sampleRate: Int,
   val channelCount: Int,
   val bitrateKbps: Int,
-  val toneHz: Int = 440,
+  val audioTracks: List<AudioTrackSpec> = listOf(AudioTrackSpec()),
   val hue: Int = 0,
   val transfer: FixtureTransfer? = null,
   val rotationDegrees: Int = 0,
   val patch: FixturePatch? = null,
   val clickSeconds: Double? = null,
+  val container: FixtureContainer = FixtureContainer.Mp4,
 ) : Serializable {
-  val fileName: String get() = "$name.mp4"
+  val fileName: String get() = "$name.${container.extension}"
+
+  init {
+    require(audioTracks.isNotEmpty()) { "$name has no audio track" }
+    require(clickSeconds == null || audioTracks.size == 1) { "$name clicks on more than one audio track" }
+  }
 
   companion object {
     private const val serialVersionUID: Long = 1L
   }
+}
+
+/**
+ * One audio track of a fixture.
+ *
+ * @param toneHz The frequency of the sine the track carries. A test that mixes two sources, or picks one track of
+ * several, and has to say which one it is hearing needs them at different frequencies, since two tones at the same one
+ * sum by their relative phase and the level that reaches the file stops being predictable.
+ * @param language The ISO 639-2 code written into the track's media header, or null to leave it undetermined.
+ * @param isDefault Whether the track is written as the default audio track, which an MP4 records as the enabled flag
+ * in its track header and Matroska as the track's default flag. An MPEG transport stream carries no such flag. Only
+ * read when the fixture carries more than one audio track.
+ */
+data class AudioTrackSpec(
+  val toneHz: Int = 440,
+  val language: String? = null,
+  val isDefault: Boolean = false,
+) : Serializable {
+  companion object {
+    private const val serialVersionUID: Long = 1L
+  }
+}
+
+/**
+ * The container a fixture is written in.
+ *
+ * @param extension The file extension ffmpeg picks the muxer by.
+ */
+enum class FixtureContainer(
+  val extension: String,
+) {
+  Mp4("mp4"),
+  Matroska("mkv"),
+  MpegTs("ts"),
 }
 
 /**

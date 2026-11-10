@@ -1,7 +1,9 @@
 import dev.jordond.filmstrip.convention.androidDeviceTests
+import dev.jordond.filmstrip.convention.testmedia.AudioTrackSpec
 import dev.jordond.filmstrip.convention.testmedia.FixturePatch
 import dev.jordond.filmstrip.convention.testmedia.FixtureSpec
 import dev.jordond.filmstrip.convention.testmedia.FixtureTransfer
+import dev.jordond.filmstrip.convention.testmedia.SharedFixtures
 import dev.jordond.filmstrip.convention.testmedia.testMedia
 
 plugins {
@@ -43,7 +45,20 @@ val exportFixtures =
         FixtureSpec("android_export_a", 640, 360, 30, 2.0, 48000, 2, bitrateKbps = 1_500),
         // A bed to mix under the others. Its tone is the one frequency no other fixture carries,
         // so a test measuring the mix can say which source a level belongs to.
-        FixtureSpec("tone_bed_880", 320, 240, 30, 3.0, 48000, 2, bitrateKbps = 500, toneHz = 880),
+        FixtureSpec(
+          "tone_bed_880",
+          320,
+          240,
+          30,
+          3.0,
+          48000,
+          2,
+          bitrateKbps = 500,
+          audioTracks = listOf(AudioTrackSpec(toneHz = 880)),
+        ),
+        SharedFixtures.ThreeAudio,
+        SharedFixtures.ThreeAudioMatroska,
+        SharedFixtures.ThreeAudioTs,
         FixtureSpec("android_export_b", 480, 270, 30, 2.0, 48000, 2, bitrateKbps = 1_000, hue = 120),
         // Silence with one click partway into an AAC access unit, so a test can find where a source frame landed.
         FixtureSpec("android_click", 320, 240, 30, 1.0, 48000, 2, bitrateKbps = 500, clickSeconds = 0.31),

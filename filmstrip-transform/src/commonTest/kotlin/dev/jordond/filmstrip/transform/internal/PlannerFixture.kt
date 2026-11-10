@@ -23,6 +23,7 @@ import dev.jordond.filmstrip.export.CopyBlocker
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.media.AudioTrackId
 import dev.jordond.filmstrip.media.AudioTrackInfo
 import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.EXIF_ORIENTATION_NORMAL
@@ -157,10 +158,49 @@ internal class PlannerFixture {
             bitrate = bitrate,
             hasAlpha = hasAlpha,
           ),
-        audio = audioRate?.let { AudioTrackInfo(trackCodecOf("mp4a"), it, 2, null) },
+        audioTracks =
+          listOfNotNull(
+            audioRate?.let {
+              AudioTrackInfo(AudioTrackId(1), trackCodecOf("mp4a"), it, 2, null, language = null, isDefault = true)
+            },
+          ),
         isExportable = exportable,
       )
     return Clip(source, trim, effects, snapWithin = snapWithin, fadeIn = fadeIn, fadeOut = fadeOut)
+  }
+
+  /**
+   * A video source carrying [defaults].size audio tracks, numbered from two after the video track the way an MP4 muxer
+   * numbers them, each flagged the container default where [defaults] says so.
+   *
+   * Each track is AAC at 48 kHz unless [codecs] or [rates] say otherwise for it.
+   */
+  fun multiAudioClip(
+    defaults: List<Boolean> = listOf(false, true, false),
+    codecs: List<String> = defaults.map { "mp4a" },
+    rates: List<Int> = defaults.map { 48_000 },
+  ): Clip {
+    val plain = clip()
+    val info = registry.getValue(plain.source)
+    registry[plain.source] =
+      MediaInfo(
+        duration = info.duration,
+        video = info.video,
+        audioTracks =
+          defaults.mapIndexed { index, isDefault ->
+            AudioTrackInfo(
+              id = AudioTrackId(index + 2L),
+              codec = trackCodecOf(codecs[index]),
+              sampleRate = rates[index],
+              channelCount = 2,
+              bitrate = null,
+              language = null,
+              isDefault = isDefault,
+            )
+          },
+        isExportable = true,
+      )
+    return plain
   }
 
   /**
@@ -172,7 +212,10 @@ internal class PlannerFixture {
       MediaInfo(
         duration = duration,
         video = null,
-        audio = AudioTrackInfo(trackCodecOf("mp4a"), 44_100, 2, null),
+        audioTracks =
+          listOf(
+            AudioTrackInfo(AudioTrackId(1), trackCodecOf("mp4a"), 44_100, 2, null, language = null, isDefault = true),
+          ),
         isExportable = true,
       )
     return Clip(source)

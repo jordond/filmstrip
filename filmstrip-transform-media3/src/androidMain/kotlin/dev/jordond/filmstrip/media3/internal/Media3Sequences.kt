@@ -16,6 +16,7 @@ import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.describe
 import dev.jordond.filmstrip.media3.internal.bounds.AudioPreroll
+import dev.jordond.filmstrip.media3.internal.bounds.ChosenTracks
 import dev.jordond.filmstrip.media3.internal.bounds.Media3ClipReads
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedClip
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
@@ -258,7 +259,7 @@ internal class Lowering(
   }
 
   /**
-   * This clip's source, windowed from [from] to [to] in whole microseconds.
+   * This clip's source, windowed from [from] to [to] in whole microseconds and tagged with the [ChosenTracks] it plays.
    *
    * Unless [always] is set, a window that covers the whole source carries no clipping at all, since there is nothing to
    * seek past. A probed duration is whole milliseconds and the source's own end can sit past it, so an item whose
@@ -272,6 +273,7 @@ internal class Lowering(
     MediaItem
       .Builder()
       .setUri(source.toAndroidUri())
+      .setTag(ChosenTracks(audioTrack?.ordinal))
       .apply {
         if (always || from > Duration.ZERO || to < info.duration) {
           setClippingConfiguration(

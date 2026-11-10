@@ -95,7 +95,7 @@ class ProberChainTest {
     ProbeResult.Failure(FilmstripError.SourceUnreadable(source = "test", message = message))
 
   private companion object {
-    val INFO = MediaInfo(duration = 1_234.milliseconds, video = null, audio = null, isExportable = true)
-    val LATER = MediaInfo(duration = 9_999.milliseconds, video = null, audio = null, isExportable = true)
+    val INFO = MediaInfo(duration = 1_234.milliseconds, video = null, audioTracks = emptyList(), isExportable = true)
+    val LATER = MediaInfo(duration = 9_999.milliseconds, video = null, audioTracks = emptyList(), isExportable = true)
   }
 }

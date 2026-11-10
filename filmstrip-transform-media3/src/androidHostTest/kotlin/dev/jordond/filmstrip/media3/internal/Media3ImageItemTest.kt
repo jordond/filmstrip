@@ -323,7 +323,7 @@ class Media3ImageItemTest {
               bitrate = null,
               hasAlpha = false,
             ),
-          audio = null,
+          audioTracks = emptyList(),
           isExportable = true,
         ),
       start = Duration.ZERO,

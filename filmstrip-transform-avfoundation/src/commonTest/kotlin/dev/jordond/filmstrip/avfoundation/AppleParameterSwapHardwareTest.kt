@@ -376,7 +376,7 @@ class AppleParameterSwapHardwareTest {
               bitrate = null,
               hasAlpha = false,
             ),
-          audio = null,
+          audioTracks = emptyList(),
           isExportable = true,
         ),
       start = Duration.ZERO,

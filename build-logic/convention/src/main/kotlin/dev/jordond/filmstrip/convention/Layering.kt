@@ -172,12 +172,43 @@ private val FORBIDDEN_IMPORTS: Map<Layer, Set<String>> =
   )
 
 /**
+ * The one hole in the backend's `androidx.media3.exoplayer` ban.
+ *
+ * A source with several audio tracks plays the one the plan chose for its clip, and media3 only lets a caller pick a
+ * track through the track selector its asset loader runs or the media source factory its composition player builds
+ * each item's source with. So the media3 backend may name the track selection package, `MediaSource` for its
+ * `Factory`, `DefaultMediaSourceFactory`, which it wraps, and the four types that factory's settings take, which it
+ * hands on. Nothing here builds or drives a player, which is what the ban keeps out.
+ */
+private val MEDIA3_TRACK_CHOICE_IMPORTS =
+  setOf(
+    "androidx.media3.exoplayer.trackselection",
+    "androidx.media3.exoplayer.source.MediaSource",
+    "androidx.media3.exoplayer.source.DefaultMediaSourceFactory",
+    "androidx.media3.exoplayer.drm.DrmSessionManagerProvider",
+    "androidx.media3.exoplayer.upstream.LoadErrorHandlingPolicy",
+    "androidx.media3.exoplayer.upstream.CmcdConfiguration",
+    "androidx.media3.exoplayer.util.ReleasableExecutor",
+  )
+
+/**
  * Import prefixes a layer may name even though one of its [FORBIDDEN_IMPORTS] covers them.
  */
 private val ALLOWED_IMPORTS: Map<Layer, Set<String>> =
   mapOf(
+    Layer.Backend to MEDIA3_TRACK_CHOICE_IMPORTS,
     Layer.Player to PLAYER_IMPORTS,
   )
+
+/**
+ * The import prefixes [checkForbiddenImports][ForbiddenImportsTask] fails this layer on, or null when it checks none.
+ */
+internal val Layer.forbiddenImports: Set<String>? get() = FORBIDDEN_IMPORTS[this]
+
+/**
+ * The imports this layer may name even though one of its [forbiddenImports] covers them.
+ */
+internal val Layer.allowedImports: Set<String> get() = COMPOSE_ANNOTATION_IMPORTS + ALLOWED_IMPORTS[this].orEmpty()
 
 /**
  * Which resolvable configurations represent "what a consumer actually gets". Confirm against
@@ -208,14 +239,14 @@ fun Project.configureArchitectureGuards() {
     val target = project(path)
 
     // Guard A: source imports. Cheap, and catches the mistake people actually make.
-    FORBIDDEN_IMPORTS[module]?.let { forbidden ->
+    module.forbiddenImports?.let { forbidden ->
       val importsTask =
         target.tasks.register<ForbiddenImportsTask>("checkForbiddenImports") {
           group = "verification"
           description = "Verifies $path contains no forbidden imports."
           moduleName.set(path)
           forbiddenPrefixes.set(forbidden)
-          allowedPrefixes.set(COMPOSE_ANNOTATION_IMPORTS + ALLOWED_IMPORTS[module].orEmpty())
+          allowedPrefixes.set(module.allowedImports)
           sources.from(target.layout.projectDirectory.dir("src"))
         }
 

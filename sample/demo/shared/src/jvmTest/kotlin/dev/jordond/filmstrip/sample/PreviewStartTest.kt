@@ -45,7 +45,7 @@ class PreviewStartTest {
     onRestart()
     playersOpened shouldBe 0
 
-    resolved.complete(ProbeResult.Success(MediaInfo(5.seconds, null, null, isExportable = true)))
+    resolved.complete(ProbeResult.Success(MediaInfo(5.seconds, null, emptyList(), isExportable = true)))
     onRestart()
     playersOpened shouldBe 1
   }
