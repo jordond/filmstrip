@@ -1,10 +1,10 @@
 ---
 name: ci
-description: "Run filmstrip's full CI lane (spotless, ABI, layer guards, lint, every test target, sample build) one Gradle call per step in the background and read only the digest. Use once per plan after its review, never inline."
+description: "Run filmstrip's full CI lane (spotless, ABI, layer guards, lint, every test target, sample build) one Gradle call per step in the background and read only the digest. Use once per batch after review, never inline."
 argument-hint: "[--plan [base]] [--remote] [--hosts a,b] [--device] [--fast] [--full] [--rerun] [--dry] [--only step,step] [checkout] | --digest"
 ---
 
-Never run the whole lane inline, its output is long and a builder already ran its own narrow slice.
+Never run the whole lane inline, its output is long and each unit already ran its own narrow slice.
 
 - `$ARGUMENTS` is `--digest` → re-read the last digest: `for f in "${TMPDIR:-/tmp}"/filmstrip-ci/*/*.log; do echo "$f"; grep -a '^RESULT' "$f"; done`, report. Each path names the checkout its lane ran.
 - Otherwise: `Bash`, `run_in_background: true`, command `bash .claude/skills/ci/ci.sh $ARGUMENTS`. Do something else or end the turn, the completion notification wakes you. Read only the digest and the trailing `exit=N` (the number of `FAIL` and `unknown` steps), never a whole log.
@@ -28,6 +28,6 @@ Red:
 - `unknown` → rerun that step with `--only <step> --rerun`.
 - A single `failed=` count in an encoder test → re-run that step alone with `--only <step>` before believing it.
 - `failure message="Unknown"` → a cancelled client, not a crash. Check the daemon log per memory `cancelled-gradle-looks-like-crash`.
-- A real failure: fix it in this session unless it is a big job, then one fresh `builder` with the failing lines pasted, not the log path. Then one re-run.
+- A real failure: fix it in this session. Then one re-run of the red steps.
 
 Reply: `ci: exit=<n> @ <sha>` plus the failing lines, nothing else.

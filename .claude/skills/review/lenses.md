@@ -1,7 +1,6 @@
 # Review lenses
 
-The standing set a reviewer checks a diff against. A builder goes through its own diff with the same list before it
-reports, so a review round finds what the builder could not see, not what it skipped.
+The standing set `/review` checks a plan's diff against, once every unit is done.
 
 - Cross-backend contracts (CLAUDE.md): a quantity all four backends read is computed once in the lowest module
   that sees it and consumed, not re-derived. A backend diverges only for its own limit, clamped visibly with a
