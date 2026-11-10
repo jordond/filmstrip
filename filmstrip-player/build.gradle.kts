@@ -59,6 +59,7 @@ kotlin {
         implementation(libs.kotlinx.coroutines.test)
         implementation(libs.androidx.test.runner)
         implementation(libs.androidx.test.core)
+        implementation(libs.media3.inspector)
       }
     }
   }

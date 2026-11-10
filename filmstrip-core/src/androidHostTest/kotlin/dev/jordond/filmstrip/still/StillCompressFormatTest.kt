@@ -9,7 +9,7 @@ import kotlin.test.Test
 /**
  * Which compress format each still format asks for, and where WebP moves with the OS version.
  *
- * `WEBP_LOSSY` only exists from API 30 and the module's floor is API 24, so the version the
+ * `WEBP_LOSSY` only exists from API 30 and the module's floor is API 26, so the version the
  * encoder is running on is a parameter rather than something read inside the mapping.
  */
 class StillCompressFormatTest {

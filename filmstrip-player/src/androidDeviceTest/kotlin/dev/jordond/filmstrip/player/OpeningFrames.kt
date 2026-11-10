@@ -5,7 +5,9 @@ import androidx.media3.common.Format
 import androidx.media3.common.MimeTypes
 import androidx.media3.transformer.DefaultEncoderFactory
 import androidx.media3.transformer.VideoEncoderSettings
+import dev.jordond.filmstrip.edit.outputSlotOf
 import dev.jordond.filmstrip.test.PREVIEW_PARITY_EXPORT_BITRATE
+import kotlin.time.Duration
 
 /**
  * The software H.264 encoder the encoder bounds in these suites were measured on.
@@ -70,6 +72,14 @@ internal fun encodedMinSsimAt(
   slot: Long,
   pastOpening: Double,
 ): Double = if (slot < openingFrames) minOf(OPENING_MIN_SSIM, pastOpening) else pastOpening
+
+/**
+ * The SSIM an export's frame shown at [at] holds to against the preview, the bound [encodedMinSsimAt] gives its slot.
+ */
+internal fun encodedMinSsimAtTime(
+  at: Duration,
+  pastOpening: Double,
+): Double = encodedMinSsimAt(outputSlotOf(at, FIXTURE_FRAME_RATE), pastOpening)
 
 /**
  * The frames [MEASURED_ENCODER] opens a file with, the ones the opening bounds were measured over.

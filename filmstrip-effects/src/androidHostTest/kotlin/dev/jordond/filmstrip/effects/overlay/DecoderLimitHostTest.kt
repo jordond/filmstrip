@@ -58,7 +58,8 @@ class DecoderLimitHostTest {
     for (full in listOf(true, false)) {
       val heic = heicRecording(YCGCO, full)
       val readable = readableMatrices(full, Build.VERSION.SDK_INT, avif = false, tenBit = false)
-      val nearest = reading(YCGCO).nearestReadable(readable).shouldNotBeNull()
+      val landedFullRange = decoderFullRange(full, Build.VERSION.SDK_INT, avif = false)
+      val nearest = reading(YCGCO).nearestReadable(readable, full, landedFullRange).shouldNotBeNull()
       nearest.withinBound shouldBe false
 
       val read = ImageSource.Bytes(heic).read(context = null).shouldBeInstanceOf<RefusedPicture>()
@@ -97,6 +98,16 @@ class DecoderLimitHostTest {
     limitsOf(heicRecording(BT709, false), 33) shouldBe listOf(landedThrough(BT709, false, 33))
     limitsOf(heicRecording(BT2020, true), 30) shouldBe listOf(landedThrough(BT2020, true, 30))
     limitsOf(heicRecording(BT709, false), 34) shouldBe emptyList()
+  }
+
+  @Test
+  fun aFullRangeHeicIsReadAtLimitedRangeOnApi28AndAsItIsFromApi29() {
+    val bt601Full = heicRecording(BT601, true)
+    limitsOf(bt601Full, 28) shouldBe listOf(DecoderLimit.HeicBeforeApi29)
+    for (sdk in 29..LATEST_API) withClue("API $sdk") { limitsOf(bt601Full, sdk) shouldBe emptyList() }
+    decoderFullRange(true, 28, avif = false) shouldBe false
+    decoderFullRange(true, 29, avif = false) shouldBe true
+    decoderFullRange(false, 28, avif = false) shouldBe false
   }
 
   @Test
@@ -151,6 +162,8 @@ class DecoderLimitHostTest {
     }
     ("Android's AVIF decoder" in DecoderLimit.AvifBeforeApi33.message) shouldBe true
     ("API 31" in DecoderLimit.AvifBeforeApi33.message) shouldBe true
+    ("Android's HEIC decoder" in DecoderLimit.HeicBeforeApi29.message) shouldBe true
+    ("API 28" in DecoderLimit.HeicBeforeApi29.message) shouldBe true
     for (avif in listOf(true, false)) {
       val limit = landedThrough(BT709, false, 33, avif)
       withClue(limit.message) { limit.message.startsWith(decoderName(avif)) shouldBe true }
@@ -217,6 +230,7 @@ class DecoderLimitHostTest {
       DecoderLimit.EightBitCut,
       DecoderLimit.AvifTwelveBitCut,
       DecoderLimit.AvifBeforeApi33,
+      DecoderLimit.HeicBeforeApi29,
       landedThrough(BT709, false, 33, avif = true),
       landedThrough(BT709, false, 33, avif = false),
     )

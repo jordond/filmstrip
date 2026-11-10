@@ -2,8 +2,8 @@ package dev.jordond.filmstrip.media3
 
 import android.graphics.SurfaceTexture
 import android.media.MediaCodec
-import android.media.MediaExtractor
 import android.media.MediaFormat
+import android.net.Uri
 import android.opengl.EGL14
 import android.opengl.EGLConfig
 import android.opengl.GLES11Ext
@@ -11,6 +11,7 @@ import android.opengl.GLES20
 import android.os.Handler
 import android.os.HandlerThread
 import android.view.Surface
+import androidx.media3.inspector.MediaExtractorCompat
 import java.io.File
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -50,8 +51,8 @@ internal class SampledFrame(
  * Draws the first frame of [video] through `samplerExternalOES`, the sampler a player and media3 both read through.
  */
 internal fun sampledFirstFrame(video: File): SampledFrame {
-  val extractor = MediaExtractor()
-  extractor.setDataSource(video.path)
+  val extractor = MediaExtractorCompat()
+  extractor.setDataSource(Uri.fromFile(video), 0L)
   val track =
     (0 until extractor.trackCount).first {
       extractor.getTrackFormat(it).getString(MediaFormat.KEY_MIME)?.startsWith("video/") == true
@@ -88,7 +89,7 @@ internal fun sampledFirstFrame(video: File): SampledFrame {
   }
 }
 
-private fun MediaCodec.renderFirstFrame(extractor: MediaExtractor) {
+private fun MediaCodec.renderFirstFrame(extractor: MediaExtractorCompat) {
   val info = MediaCodec.BufferInfo()
   var inputDone = false
   val deadline = System.nanoTime() + DECODE_BUDGET_NS

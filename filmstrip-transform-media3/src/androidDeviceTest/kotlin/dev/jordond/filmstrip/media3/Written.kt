@@ -85,6 +85,7 @@ internal fun rotationOf(video: File): Int {
   return if (format.containsKey(MediaFormat.KEY_ROTATION)) format.getInteger(MediaFormat.KEY_ROTATION) else 0
 }
 
+// The framework extractor, since media3's folds the NTSC and PAL standards into one BT.601 color space.
 private fun videoFormatOf(video: File): MediaFormat {
   val extractor = MediaExtractor()
   try {

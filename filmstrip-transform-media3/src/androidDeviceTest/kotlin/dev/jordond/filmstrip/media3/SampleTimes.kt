@@ -1,9 +1,14 @@
 package dev.jordond.filmstrip.media3
 
-import android.media.MediaCodec
 import android.media.MediaExtractor
 import android.media.MediaFormat
-import android.media.MediaMuxer
+import android.net.Uri
+import androidx.media3.common.C
+import androidx.media3.common.util.MediaFormatUtil
+import androidx.media3.inspector.MediaExtractorCompat
+import androidx.media3.muxer.BufferInfo
+import androidx.media3.muxer.Mp4Muxer
+import androidx.media3.muxer.SeekableMuxerOutput
 import java.io.File
 import java.nio.ByteBuffer
 import kotlin.time.Duration
@@ -16,8 +21,8 @@ import kotlin.time.Duration.Companion.microseconds
  * decoder chose to show it.
  */
 internal fun videoSampleTimes(file: File): List<Duration> =
-  MediaExtractor().releasing { extractor ->
-    extractor.setDataSource(file.path)
+  MediaExtractorCompat().releasing { extractor ->
+    extractor.setDataSource(Uri.fromFile(file), 0L)
     extractor.selectTrack(extractor.trackOf(VIDEO))
     buildList {
       while (extractor.sampleTime >= 0) {
@@ -33,8 +38,8 @@ internal fun videoSampleTimes(file: File): List<Duration> =
  * The length is the track's own, not the file's, so an audio track running longer leaves it alone.
  */
 internal fun videoTrackLength(file: File): Duration =
-  MediaExtractor().releasing { extractor ->
-    extractor.setDataSource(file.path)
+  MediaExtractorCompat().releasing { extractor ->
+    extractor.setDataSource(Uri.fromFile(file), 0L)
     extractor.getTrackFormat(extractor.trackOf(VIDEO)).getLong(MediaFormat.KEY_DURATION).microseconds
   }
 
@@ -42,8 +47,8 @@ internal fun videoTrackLength(file: File): Duration =
  * How long [file]'s audio track runs, as its container records it.
  */
 internal fun audioTrackLength(file: File): Duration =
-  MediaExtractor().releasing { extractor ->
-    extractor.setDataSource(file.path)
+  MediaExtractorCompat().releasing { extractor ->
+    extractor.setDataSource(Uri.fromFile(file), 0L)
     extractor.getTrackFormat(extractor.trackOf(AUDIO)).getLong(MediaFormat.KEY_DURATION).microseconds
   }
 
@@ -55,6 +60,9 @@ internal fun audioTrackLength(file: File): Duration =
  * frame that was left out, and no sound. Its track ends [lastFrameLasts] after that last sample, which is shorter than
  * the frame it cut into.
  *
+ * Samples are read with media3's extractor and written with media3's muxer, so the file is the same on every API
+ * level. The framework muxer ignores the duration of the last sample below API 30.
+ *
  * @return when the copy's last frame is shown.
  */
 internal fun writePictureEndingInsideItsLastFrame(
@@ -63,47 +71,48 @@ internal fun writePictureEndingInsideItsLastFrame(
   lastFrameLasts: Duration,
 ): Duration {
   target.delete()
-  val extractor = MediaExtractor().apply { setDataSource(source.path) }
-  val muxer = MediaMuxer(target.path, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
-  return extractor.releasing {
-    try {
-      val index = it.trackOf(VIDEO)
-      it.selectTrack(index)
-      val track = muxer.addTrack(it.getTrackFormat(index))
-      muxer.start()
+  val extractor = MediaExtractorCompat().apply { setDataSource(Uri.fromFile(source), 0L) }
+  val muxer = Mp4Muxer.Builder(SeekableMuxerOutput.of(target.path)).build()
+  try {
+    val index = (0 until extractor.trackCount).first { extractor.getTrackFormat(it).isVideo() }
+    extractor.selectTrack(index)
+    val track = muxer.addTrack(MediaFormatUtil.createFormatFromMediaFormat(extractor.getTrackFormat(index)))
 
-      val buffer = ByteBuffer.allocate(SAMPLE_BUFFER_BYTES)
-      val info = MediaCodec.BufferInfo()
-      var syncs = 0
-      var last = 0L
-      // Stops once the second sync sample is written. Everything before it in decode order belongs to the first group.
-      while (it.sampleTime >= 0 && syncs < 2) {
-        val sync = (it.sampleFlags and MediaExtractor.SAMPLE_FLAG_SYNC) != 0
-        if (sync) syncs++
-        last = maxOf(last, it.sampleTime)
-        info.set(0, it.readSampleData(buffer, 0), it.sampleTime, if (sync) MediaCodec.BUFFER_FLAG_KEY_FRAME else 0)
-        muxer.writeSampleData(track, buffer, info)
-        it.advance()
-      }
-      // An empty sample marking the end sets how long the one before it lasts.
-      info.set(0, 0, last + lastFrameLasts.inWholeMicroseconds, MediaCodec.BUFFER_FLAG_END_OF_STREAM)
-      muxer.writeSampleData(track, ByteBuffer.allocate(0), info)
-      muxer.stop()
-      last.microseconds
-    } finally {
-      muxer.release()
+    val buffer = ByteBuffer.allocate(SAMPLE_BUFFER_BYTES)
+    var syncs = 0
+    var last = 0L
+    // Stops once the second sync sample is written. Everything before it in decode order belongs to the first group.
+    while (extractor.sampleTime >= 0 && syncs < 2) {
+      val sync = (extractor.sampleFlags and MediaExtractor.SAMPLE_FLAG_SYNC) != 0
+      if (sync) syncs++
+      last = maxOf(last, extractor.sampleTime)
+      buffer.clear()
+      val size = extractor.readSampleData(buffer, 0)
+      buffer.limit(size)
+      val flags = if (sync) C.BUFFER_FLAG_KEY_FRAME else 0
+      muxer.writeSampleData(track, buffer, BufferInfo(extractor.sampleTime, size, flags))
+      extractor.advance()
     }
+    // An empty sample marking the end sets how long the one before it lasts.
+    val end = BufferInfo(last + lastFrameLasts.inWholeMicroseconds, 0, C.BUFFER_FLAG_END_OF_STREAM)
+    muxer.writeSampleData(track, ByteBuffer.allocate(0), end)
+    return last.microseconds
+  } finally {
+    extractor.release()
+    muxer.close()
   }
 }
 
-private inline fun <T> MediaExtractor.releasing(block: (MediaExtractor) -> T): T =
+private fun MediaFormat.isVideo(): Boolean = getString(MediaFormat.KEY_MIME)?.startsWith(VIDEO) == true
+
+private inline fun <T> MediaExtractorCompat.releasing(block: (MediaExtractorCompat) -> T): T =
   try {
     block(this)
   } finally {
     release()
   }
 
-private fun MediaExtractor.trackOf(kind: String): Int =
+private fun MediaExtractorCompat.trackOf(kind: String): Int =
   (0 until trackCount).first { getTrackFormat(it).getString(MediaFormat.KEY_MIME)?.startsWith(kind) == true }
 
 private const val VIDEO = "video/"

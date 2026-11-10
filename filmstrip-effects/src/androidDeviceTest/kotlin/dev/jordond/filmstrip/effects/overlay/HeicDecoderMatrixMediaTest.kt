@@ -131,7 +131,7 @@ class HeicDecoderMatrixMediaTest {
       listOf(BT709, UNSPECIFIED, BT601, SMPTE_240, BT2020).flatMap { matrix ->
         listOf(true, false).mapNotNull { full ->
           val coding = Coding(matrix, full)
-          val landsAs = Coding(checkNotNull(hdRecording(coding).ownConversion()).matrix, full)
+          val landsAs = checkNotNull(hdRecording(coding).ownConversion()).let { Coding(it.matrix, it.fullRange) }
           miss("HD HEIC nclx $coding", decoded(hdRecording(coding)), YCBCR, landsAs)
         }
       }
@@ -244,7 +244,7 @@ class HeicDecoderMatrixMediaTest {
     ) {
       return "HEIC nclx $coding reported ${picture.limits}, not ${conversion.limits}"
     }
-    val lands = Coding(conversion.matrix, coding.fullRange)
+    val lands = Coding(conversion.matrix, conversion.fullRange)
     return handedMiss("HEIC nclx $coding", file, lands) ?: miss("HEIC nclx $coding", picture.bitmap, YCBCR, lands)
   }
 
@@ -258,7 +258,7 @@ class HeicDecoderMatrixMediaTest {
     matrix: Int,
   ): String? {
     val conversion = checkNotNull(recording(coding).ownConversion())
-    val limit = conversion.limits.singleOrNull() as? DecoderLimit.LandedThrough
+    val limit = conversion.limits.filterIsInstance<DecoderLimit.LandedThrough>().singleOrNull()
     val named = limit != null && limit.nearest.withinBound && conversion.matrix == matrix
     return "HEIC nclx $coding lands through ${conversion.matrix} with ${conversion.limits}".takeUnless { named }
       ?: conversion(coding, conversion)
@@ -364,7 +364,7 @@ class HeicDecoderMatrixMediaTest {
     val paired = pairing?.reads ?: BT601
     if (paired == BT709 && (sdk < WIDE_MATRIX_API || (sdk == WIDE_MATRIX_API && !fullRange))) return null
     val readsFullRange = sdk > WIDE_MATRIX_API || pairing != null
-    return Coding(paired, fullRange && readsFullRange)
+    return Coding(paired, decoderFullRange(fullRange && readsFullRange, sdk, avif = false))
   }
 
   private fun readings(ycbcr: List<Int>): String =
@@ -419,6 +419,9 @@ class HeicDecoderMatrixMediaTest {
     const val BT2020 = 9
     const val HEIC_API = Build.VERSION_CODES.P
 
+    // API 28 lands every HEIC through BT.601 at limited range, so BT.709 pairs from the first level that reads it.
+    const val HEIC_CODESTREAM_API = Build.VERSION_CODES.Q
+
     // Every matrix a still records here. 4, FCC, reads exactly as 6 does beside any primaries, and 10, BT.2020 constant
     // luminance, reads as BT.601 even beside BT.2020 primaries.
     val MATRICES = listOf(0, BT709, UNSPECIFIED, 4, BT470BG, BT601, SMPTE_240, 8, BT2020, 10, 12, 14)
@@ -428,7 +431,7 @@ class HeicDecoderMatrixMediaTest {
     // Every pairing codestreamConversion reads, and so every one the codestream pairs are held against.
     val PAIRINGS =
       listOf(
-        Pairing(listOf(BT709), listOf(BT709), reads = BT709, fromApi = HEIC_API),
+        Pairing(listOf(BT709), listOf(BT709), reads = BT709, fromApi = HEIC_CODESTREAM_API),
         Pairing(listOf(BT2020), listOf(BT2020), reads = BT2020, fromApi = WIDE_MATRIX_API),
         Pairing(BT601_MATRICES, BT601_PRIMARIES, reads = BT601, fromApi = HEIC_API),
       )

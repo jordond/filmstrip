@@ -24,6 +24,7 @@ import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.ProbeResult
 import dev.jordond.filmstrip.media3.internal.preview.toMedia3Preview
 import dev.jordond.filmstrip.media3.media3Backend
+import dev.jordond.filmstrip.player.PlaybackError
 import dev.jordond.filmstrip.player.internal.DISPLAY_DECIDES_HDR
 import dev.jordond.filmstrip.player.internal.Media3PreviewPlan
 import dev.jordond.filmstrip.player.internal.Media3PreviewPlanner
@@ -38,6 +39,7 @@ import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -90,8 +92,8 @@ class AndroidHdrPreviewMediaTest {
     }
 
   // A tone mapped frame cannot be read on the emulator, which has no ten-bit decoder, so this reads the lowering and
-  // the
-  // owner's HDR phone reads the pixels.
+  // the owner's HDR phone reads the pixels. Below API 29 media3 decodes no HDR source, so the preview refuses the tone
+  // map with the reason an export gives.
   @Test
   fun aToneMapSpecLowersThePreviewToTheOpenGlToneMap() =
     runTest(timeout = TIMEOUT) {
@@ -102,6 +104,11 @@ class AndroidHdrPreviewMediaTest {
             PreviewQualityPolicy.Full,
             ExportSpec(hdr = HdrMode.ToneMapToSdr),
           )
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+          val refused = planned.shouldBeInstanceOf<PlanResult.Refused<PlaybackError>>()
+          refused.error.message shouldContain "below API 29"
+          return@realTime
+        }
         val plan = planned.shouldBeInstanceOf<PlanResult.Ready<Media3PreviewPlan>>().plan
 
         plan.resolved.hdr shouldBe ResolvedHdr.ToneMap

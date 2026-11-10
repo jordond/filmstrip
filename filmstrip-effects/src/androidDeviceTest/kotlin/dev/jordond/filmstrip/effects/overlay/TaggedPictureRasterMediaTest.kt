@@ -1,8 +1,6 @@
 package dev.jordond.filmstrip.effects.overlay
 
 import android.graphics.Bitmap
-import android.os.Build
-import android.util.Half
 import dev.jordond.filmstrip.color.pictureLight
 import dev.jordond.filmstrip.color.pictureSrgbCodes
 import dev.jordond.filmstrip.color.srgbToLinear
@@ -16,9 +14,7 @@ import dev.jordond.filmstrip.test.IccPictures
 import io.kotest.assertions.withClue
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
-import java.nio.ShortBuffer
 import kotlin.math.abs
-import kotlin.math.roundToInt
 import kotlin.test.Test
 
 /**
@@ -95,13 +91,11 @@ class TaggedPictureRasterMediaTest {
 
   // The first texel's samples, at sixteen bits from a half float bitmap or eight bits times 257 from any other.
   private fun Bitmap.firstSamples(): ShortArray {
-    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O || config != Bitmap.Config.RGBA_F16) {
+    if (config != Bitmap.Config.RGBA_F16) {
       val argb = getPixel(0, 0)
       return ShortArray(RGBA) { (((argb ushr SAMPLE_SHIFTS[it]) and BYTE) * EIGHT_TO_SIXTEEN).toShort() }
     }
-    val halves = ShortArray(width * height * RGBA)
-    copyPixelsToBuffer(ShortBuffer.wrap(halves))
-    return ShortArray(RGBA) { (Half.toFloat(halves[it]).coerceIn(0f, 1f) * MAX_SAMPLE).roundToInt().toShort() }
+    return checkNotNull(wideSamples()).copyOf(RGBA)
   }
 
   private class Picture(
@@ -122,7 +116,6 @@ class TaggedPictureRasterMediaTest {
     val SIDE = Size(4, 4)
     const val RGB = 3
     const val RGBA = 4
-    const val MAX_SAMPLE = 65535f
     const val EIGHT_TO_SIXTEEN = 257
     val SAMPLE_SHIFTS = intArrayOf(16, 8, 0, 24)
     const val BYTE = 0xFF

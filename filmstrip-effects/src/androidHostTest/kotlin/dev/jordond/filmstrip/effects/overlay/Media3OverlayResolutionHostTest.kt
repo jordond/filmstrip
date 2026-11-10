@@ -126,7 +126,8 @@ class Media3OverlayResolutionHostTest {
       val bt2020Constant = avifRecording(BT2020_CONSTANT, true)
       val nearest = nearestFor(bt2020Constant, sdk)
       val prepared = bt2020Constant.forAndroidDecoder(sdk).bytes
-      val stated = CodestreamSignal(pairedPrimaries(nearest), UNSPECIFIED, nearest, true)
+      val landed = decoderFullRange(true, sdk, avif = true)
+      val stated = CodestreamSignal(pairedPrimaries(nearest), UNSPECIFIED, nearest, landed)
       withClue("API $sdk") { pictureYcbcrCoding(prepared)?.codestream shouldBe stated }
       withClue("the nclx on API $sdk") { pictureYcbcrCoding(prepared)?.matrix shouldBe nearest }
     }
@@ -277,7 +278,8 @@ class Media3OverlayResolutionHostTest {
   }
 
   // A codestream and nclx already stating what the restate gives come back stating the same, and the picture lands as
-  // they state, whether or not the decoder input counts as restated.
+  // they state, whether or not the decoder input counts as restated. Where the decoder lands full range at limited,
+  // the restate states limited range instead.
   @Test
   fun aPictureAlreadyStatingTheRestateLandsAsItStates() {
     val hidden = avifRecording(BT601, true).withColorDescriptionsHidden(keepNclxPrimaries = true)
@@ -289,9 +291,13 @@ class Media3OverlayResolutionHostTest {
       val described = stated.withColorDescriptionsHidden(keepNclxPrimaries = true)
       val restate = restatedForDecoder(coding.reading, true, sdk, avif = true, tenBit = false).shouldNotBeNull()
       val again = heifWithRestatedColor(described) { _, _, _ -> restate }
+      val againBytes = withClue("API $sdk") { again.shouldBeInstanceOf<RestatedHeif.Restated>() }.bytes
       withClue("API $sdk") {
-        withClue("API $sdk") { again.shouldBeInstanceOf<RestatedHeif.Restated>() }.bytes shouldBeSameInstanceAs
-          described
+        if (restate.fullRange == true) {
+          againBytes shouldBeSameInstanceAs described
+        } else {
+          pictureYcbcrCoding(againBytes)?.codestream?.fullRange shouldBe false
+        }
       }
 
       val input = stated.forAndroidDecoder(sdk)
@@ -362,7 +368,7 @@ class Media3OverlayResolutionHostTest {
     val restated =
       restatedForDecoder(coding.reading, fullRange, sdk, coding.avif, coding.tenBitSamples).shouldNotBeNull()
     val transfer = if (coding.fromNclx) UNSPECIFIED else own.transfer
-    return CodestreamSignal(restated.primaries, transfer, restated.matrix, fullRange)
+    return CodestreamSignal(restated.primaries, transfer, restated.matrix, restated.fullRange ?: fullRange)
   }
 
   // This picture with a moov box after everything else, which core's rewrite leaves alone.

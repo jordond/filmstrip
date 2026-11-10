@@ -3,7 +3,6 @@ package dev.jordond.filmstrip.effects.overlay
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.os.Build
-import android.util.Half
 import dev.jordond.filmstrip.color.pictureLight
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.CodecKind
@@ -21,9 +20,7 @@ import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeSameInstanceAs
 import org.junit.Assume.assumeTrue
-import java.nio.ShortBuffer
 import kotlin.math.abs
-import kotlin.math.roundToInt
 import kotlin.test.Test
 import kotlin.test.fail
 
@@ -88,24 +85,26 @@ class HiddenColorDescriptionsMediaTest {
   }
 
   // A sixteen-bit picture comes back as half floats, which hold each sample within a sixteenth of an eight-bit code.
+  // API 26 to 28 decode them as linear light and land within SIXTEEN_BIT_STEP_BEFORE_API29, as the limits page says.
   @Test
   fun aSixteenBitPngDecodesToItsSamplesAtSixteenBits() {
-    assumeTrue("Half float bitmaps arrive in API 26", Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
-    for (tagged in ColorPictures.HDR_PNGS) {
-      val picture =
-        withClue("$tagged") {
-          ImageSource.Bytes(tagged.pngOf(SIDE)).decode(context = null).shouldNotBeNull()
-        }
+    val step =
+      if (Build.VERSION.SDK_INT >= PREFERRED_EXTENDED_SRGB_API) HALF_FLOAT_STEP else SIXTEEN_BIT_STEP_BEFORE_API29
+    val misses =
+      ColorPictures.HDR_PNGS.mapNotNull { tagged ->
+        val picture =
+          withClue("$tagged") {
+            ImageSource.Bytes(tagged.pngOf(SIDE)).decode(context = null).shouldNotBeNull()
+          }
 
-      withClue("$tagged") { picture.bitmap.config shouldBe Bitmap.Config.RGBA_F16 }
-      val halves = ShortArray(SIDE.width * SIDE.height * RGBA)
-      picture.bitmap.copyPixelsToBuffer(ShortBuffer.wrap(halves))
-      val read = (0 until RGBA).map { (Half.toFloat(halves[it]) * MAX_SAMPLE).roundToInt() }
-      val off = read.indices.maxOf { abs(read[it] - tagged.texel[it]) }
-      withClue("$tagged read $read where it stores ${tagged.texel}, $off off") {
-        (off <= HALF_FLOAT_STEP) shouldBe true
+        withClue("$tagged") { picture.bitmap.config shouldBe Bitmap.Config.RGBA_F16 }
+        val samples = withClue("$tagged") { checkNotNull(picture.bitmap.wideSamples()) }
+        val read = (0 until RGBA).map { samples[it].toInt() and MAX_SAMPLE }
+        val off = read.indices.maxOf { abs(read[it] - tagged.texel[it]) }
+        "$tagged read $read where it stores ${tagged.texel}, $off off".takeIf { off > step }
       }
-    }
+
+    withClue(misses.joinToString("\n")) { misses.isEmpty() shouldBe true }
   }
 
   @Test
@@ -212,8 +211,9 @@ class HiddenColorDescriptionsMediaTest {
     val SIDE = Size(4, 4)
     const val SOFT_TEXEL = 0x8040C080.toInt()
     const val RGBA = 4
-    const val MAX_SAMPLE = 65535f
+    const val MAX_SAMPLE = 0xFFFF
     const val HALF_FLOAT_STEP = 16
+    const val SIXTEEN_BIT_STEP_BEFORE_API29 = 38
     const val CODED_TOLERANCE = 2
     val PROBE = intArrayOf(ColorPictures.TEXEL, 0xFF204080.toInt(), 0xFFC0A060.toInt(), 0xFFFFFFFF.toInt())
   }

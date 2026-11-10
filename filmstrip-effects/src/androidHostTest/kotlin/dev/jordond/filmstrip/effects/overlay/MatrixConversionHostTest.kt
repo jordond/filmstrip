@@ -66,7 +66,7 @@ class MatrixConversionHostTest {
           for (sdk in levels) {
             val what = "matrix $matrix full $fullRange AVIF $avif on API $sdk"
             val readable = readableMatrices(fullRange, sdk, avif, tenBit = false)
-            val cutsRange = avif && sdk < 33 && fullRange
+            val cutsRange = fullRange && sdk < (if (avif) 33 else 29)
             val nearest =
               reading(
                 matrix,
@@ -82,7 +82,8 @@ class MatrixConversionHostTest {
             val landed = conversion.limits.filterIsInstance<DecoderLimit.LandedThrough>()
             landed shouldBe (if (ownMatrix) emptyList() else listOf(DecoderLimit.LandedThrough(avif, nearest)))
             withClue(what) { conversion.refusal shouldBe (if (nearest.withinBound) null else pastBound(avif, nearest)) }
-            withClue(what) { (DecoderLimit.AvifBeforeApi33 in conversion.limits) shouldBe cutsRange }
+            val rangeLimit = if (avif) DecoderLimit.AvifBeforeApi33 else DecoderLimit.HeicBeforeApi29
+            withClue(what) { (rangeLimit in conversion.limits) shouldBe cutsRange }
             withClue(what) { conversion.fullRange shouldBe (fullRange && !cutsRange) }
           }
         }
@@ -148,7 +149,7 @@ class MatrixConversionHostTest {
           val what = "AVIF $avif full $fullRange on API $sdk"
 
           withClue(what) { (ycgco.refusal != null) shouldBe !readsYcgco }
-          val landedFullRange = fullRange && !(avif && sdk < 33)
+          val landedFullRange = fullRange && sdk >= (if (avif) 33 else 29)
           val matrices = readable(fullRange, sdk, avif)
           val nearest =
             withClue(what) {

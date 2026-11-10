@@ -268,13 +268,23 @@ internal actual class PlatformProber actual constructor() {
     )
   }
 
-  private fun CodestreamSignal.colorSpace(): ColorSpace? =
-    when (primaries) {
-      PRIMARIES_BT709 -> ColorSpace.Bt709
-      PRIMARIES_BT601_PAL, PRIMARIES_BT601_NTSC -> ColorSpace.Bt601
-      PRIMARIES_BT2020 -> ColorSpace.Bt2020
-      else -> null
-    }
+  /**
+   * The standard a `colr` box names, which is its primaries and its matrix together. A matrix that is not the one the
+   * primaries go with names no standard, the same answer the extractor gives for that pair.
+   */
+  private fun CodestreamSignal.colorSpace(): ColorSpace? {
+    val named =
+      when (primaries) {
+        PRIMARIES_BT709 -> ColorSpace.Bt709 to setOf(MATRIX_BT709)
+        PRIMARIES_BT601_PAL -> ColorSpace.Bt601 to setOf(MATRIX_BT601_PAL, MATRIX_BT601_NTSC)
+        PRIMARIES_BT601_NTSC -> ColorSpace.Bt601 to setOf(MATRIX_BT601_NTSC)
+        PRIMARIES_BT2020 -> ColorSpace.Bt2020 to setOf(MATRIX_BT2020_NCL, MATRIX_BT2020_CL)
+        else -> return null
+      }
+    val matrix = matrix
+    val agrees = matrix == null || matrix == MATRIX_UNSPECIFIED || matrix in named.second
+    return if (agrees) named.first else ColorSpace.Unknown
+  }
 
   private fun CodestreamSignal.hdrTransfer(): HdrTransfer? =
     when (transfer) {
@@ -393,6 +403,12 @@ internal actual class PlatformProber actual constructor() {
     const val PRIMARIES_BT601_PAL = 5
     const val PRIMARIES_BT601_NTSC = 6
     const val PRIMARIES_BT2020 = 9
+    const val MATRIX_BT709 = 1
+    const val MATRIX_UNSPECIFIED = 2
+    const val MATRIX_BT601_PAL = 5
+    const val MATRIX_BT601_NTSC = 6
+    const val MATRIX_BT2020_NCL = 9
+    const val MATRIX_BT2020_CL = 10
     const val TRANSFER_PQ = 16
     const val TRANSFER_HLG = 18
 

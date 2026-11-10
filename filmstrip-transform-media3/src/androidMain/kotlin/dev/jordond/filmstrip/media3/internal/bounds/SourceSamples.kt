@@ -36,7 +36,7 @@ internal suspend fun frameBoundsOf(
   end: Duration,
 ): FrameBounds? =
   withContext(Dispatchers.IO) {
-    val extractor = MediaExtractor()
+    val extractor = MediaExtractorCompat()
     try {
       if (!extractor.open(source)) return@withContext null
       val track = extractor.videoTrackIndex() ?: return@withContext null
@@ -44,7 +44,7 @@ internal suspend fun frameBoundsOf(
       extractor.selectTrack(track)
 
       val cut = end.inWholeMicroseconds
-      extractor.seekTo(start.inWholeMicroseconds, MediaExtractor.SEEK_TO_PREVIOUS_SYNC)
+      extractor.seekTo(start.inWholeMicroseconds, MediaExtractorCompat.SEEK_TO_PREVIOUS_SYNC)
       val read = mutableListOf<Long>()
       val stoppedOn =
         extractor.walkUntilSecondSyncFrom(cut) {
@@ -146,6 +146,9 @@ internal fun prerollUnitOf(
 /**
  * The H.273 color primaries code point of the SD color standard [source]'s video track names, or null when it names
  * another standard or none, or its container cannot be read.
+ *
+ * Read with the framework extractor, since media3's extractor folds the NTSC and PAL standards into one BT.601 color
+ * space and so cannot say which of the two primaries a track names.
  */
 internal suspend fun sdPrimariesNamedBy(source: MediaSource): Int? =
   withContext(Dispatchers.IO) {
@@ -179,7 +182,7 @@ internal suspend fun sdPrimariesNamedBy(source: MediaSource): Int? =
  *
  * @return the time of the second sync sample the walk stopped on, or null when it ran to the end of the track.
  */
-private inline fun MediaExtractor.walkUntilSecondSyncFrom(
+private inline fun MediaExtractorCompat.walkUntilSecondSyncFrom(
   time: Long,
   visit: (Long) -> Unit,
 ): Long? {
@@ -198,7 +201,7 @@ private fun MediaFormat.durationUs(): Long? =
   takeIf { it.containsKey(MediaFormat.KEY_DURATION) }?.getLong(MediaFormat.KEY_DURATION)
 
 /**
- * Points this extractor at [source], or returns false when there is no container to point it at.
+ * Points this framework extractor at [source], or returns false when there is no container to point it at.
  *
  * Bytes are read from the cache, under the same name an export or a probe of the same source lands on, so this never
  * writes a second copy of them. A path opens without a context. A uri and an in-memory source resolve through the
@@ -225,8 +228,12 @@ internal fun MediaExtractor.open(source: MediaSource): Boolean {
 }
 
 /**
- * Points this extractor at [source] the way [MediaExtractor.open] does, or returns false when there is no container to
- * point it at.
+ * Points this extractor at [source], or returns false when there is no container to point it at.
+ *
+ * Bytes are read from the cache, under the same name an export or a probe of the same source lands on, so this never
+ * writes a second copy of them. A uri and an in-memory source resolve through the installed context and open nothing
+ * without it. A plan never reads that answer, because probing either source has already failed with
+ * [FilmstripContext.MISSING_CONTEXT] by then.
  *
  * A path and the cached copy of bytes open as file uris. The extractor parses a bare path as a uri, which would read a
  * `#`, a `?` or a `%` in a file name as part of the uri and open another file.
@@ -273,5 +280,9 @@ private fun MediaExtractorCompat.audioTrackIndex(ordinal: Int): Int? =
  * The index of the first video track among this extractor's tracks, which is the one [ChosenTracks] has an export
  * decode, or null when it opened no container carrying one.
  */
-internal fun MediaExtractor.videoTrackIndex(): Int? =
-  trackIndexOf((0 until trackCount).map { getTrackFormat(it) }, C.TRACK_TYPE_VIDEO, 0)
+internal fun MediaExtractorCompat.videoTrackIndex(): Int? =
+  firstVideoTrackOf((0 until trackCount).map { getTrackFormat(it) })
+
+private fun MediaExtractor.videoTrackIndex(): Int? = firstVideoTrackOf((0 until trackCount).map { getTrackFormat(it) })
+
+private fun firstVideoTrackOf(formats: List<MediaFormat>): Int? = trackIndexOf(formats, C.TRACK_TYPE_VIDEO, 0)

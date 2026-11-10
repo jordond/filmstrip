@@ -6,7 +6,6 @@ import android.graphics.BitmapFactory
 import android.graphics.ColorSpace
 import android.net.Uri
 import android.opengl.GLES20
-import android.os.Build
 import androidx.media3.common.ColorInfo
 import androidx.media3.common.DebugViewProvider
 import androidx.media3.common.Effect
@@ -332,11 +331,7 @@ internal class Media3StillFrames(
     /**
      * Pins the decode to sRGB where the platform can, which is what an export asks for too.
      */
-    fun decodeOptions(): BitmapFactory.Options? =
-      if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
-        null
-      } else {
-        BitmapFactory.Options().apply { inPreferredColorSpace = ColorSpace.get(ColorSpace.Named.SRGB) }
-      }
+    fun decodeOptions(): BitmapFactory.Options =
+      BitmapFactory.Options().apply { inPreferredColorSpace = ColorSpace.get(ColorSpace.Named.SRGB) }
   }
 }

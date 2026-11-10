@@ -257,6 +257,7 @@ class AndroidCaptionChromaMediaTest {
     )
 
   // The H.273 matrix the file records, which is limited range or the codes here would mean something else.
+  // The framework extractor, since media3's folds the NTSC and PAL standards into one BT.601 color space.
   private fun limitedRangeMatrixOf(file: File): Int {
     val extractor = MediaExtractor().apply { setDataSource(file.path) }
     try {

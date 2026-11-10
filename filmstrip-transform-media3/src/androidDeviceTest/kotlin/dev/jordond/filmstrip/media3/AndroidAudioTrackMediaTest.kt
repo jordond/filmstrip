@@ -1,7 +1,8 @@
 package dev.jordond.filmstrip.media3
 
-import android.media.MediaExtractor
 import android.media.MediaFormat
+import android.net.Uri
+import androidx.media3.inspector.MediaExtractorCompat
 import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.Track
@@ -99,9 +100,9 @@ class AndroidAudioTrackMediaTest {
   }
 
   private fun audioTracksIn(file: File): Int {
-    val extractor = MediaExtractor()
+    val extractor = MediaExtractorCompat()
     return try {
-      extractor.setDataSource(file.path)
+      extractor.setDataSource(Uri.fromFile(file), 0L)
       (0 until extractor.trackCount).count {
         extractor.getTrackFormat(it).getString(MediaFormat.KEY_MIME)?.startsWith("audio/") == true
       }

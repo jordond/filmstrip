@@ -22,7 +22,7 @@ internal sealed class DecoderLimit(
     get() = Degradation(reason, message)
 
   /**
-   * A sixteen-bit picture decoded into eight bits a sample, since API 24 and 25 have no half float bitmap.
+   * A sixteen-bit picture the decoder hands back at eight bits a sample rather than as half floats.
    */
   data object EightBitCut : DecoderLimit(
     DegradationReason.PrecisionReduced,
@@ -47,6 +47,16 @@ internal sealed class DecoderLimit(
     DegradationReason.ColorSpaceConverted,
     "Android's AVIF decoder on API 31 reads every AVIF at limited range, and API 32 is taken to as well, so on this " +
       "API level this full range picture's YCbCr samples are turned into RGB at a range its file does not record.",
+  )
+
+  /**
+   * A full range HEIC decoded on API 28, where Android's HEIC decoder reads every HEIC at limited range, whatever the
+   * file records.
+   */
+  data object HeicBeforeApi29 : DecoderLimit(
+    DegradationReason.ColorSpaceConverted,
+    "Android's HEIC decoder on API 28 reads every HEIC at limited range, so on this API level this full range " +
+      "picture's YCbCr samples are turned into RGB at a range its file does not record.",
   )
 
   /**

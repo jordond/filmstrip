@@ -1,7 +1,8 @@
 package dev.jordond.filmstrip.media3.internal
 
 import android.content.Context
-import android.media.MediaExtractor
+import android.os.Build
+import androidx.media3.inspector.MediaExtractorCompat
 import androidx.media3.transformer.Composition
 import dev.jordond.filmstrip.FilmstripContext
 import dev.jordond.filmstrip.FilmstripError
@@ -48,6 +49,8 @@ internal class Media3Driver(
     hdr: Boolean,
   ): RenderCapabilities = media3RenderCapabilities(hdr)
 
+  override fun toneMapLimit(sdrSources: List<MediaSource>): String? = hdrDecodeLimit(Build.VERSION.SDK_INT)
+
   override fun unclaimed(specId: String): String =
     "No resolver claimed $specId on the Android backend. Register the built-in catalogue with " +
       "builtInEffects(), or add a resolver that recognises RenderApi.OpenGlEs."
@@ -66,12 +69,12 @@ internal class Media3Driver(
     if (source is MediaSource.Image) return null
 
     return withContext(Dispatchers.IO) {
-      val extractor = MediaExtractor()
+      val extractor = MediaExtractorCompat()
       try {
         if (!extractor.open(source)) return@withContext null
         val track = extractor.videoTrackIndex() ?: return@withContext null
         extractor.selectTrack(track)
-        extractor.seekTo(cut.inWholeMicroseconds, MediaExtractor.SEEK_TO_PREVIOUS_SYNC)
+        extractor.seekTo(cut.inWholeMicroseconds, MediaExtractorCompat.SEEK_TO_PREVIOUS_SYNC)
 
         val sampleTime = extractor.sampleTime
         if (sampleTime < 0) return@withContext null
@@ -110,6 +113,7 @@ internal class Media3Driver(
               resolved = resolved,
               composition = prepared.composition,
               destination = prepared.destination,
+              copiedVideoEnd = resolved.copiedVideoEnd(),
             ).run()
           }
         }

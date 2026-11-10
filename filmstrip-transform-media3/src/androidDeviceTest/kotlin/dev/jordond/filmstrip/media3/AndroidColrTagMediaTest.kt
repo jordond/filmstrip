@@ -72,6 +72,7 @@ class AndroidColrTagMediaTest {
     at: Int,
   ): Boolean = tag.indices.all { this[at + it] == tag[it] }
 
+  // The framework extractor, since media3's folds the NTSC and PAL standards into one BT.601 color space.
   private fun colorStandardOf(video: File): Int {
     val extractor = MediaExtractor()
     try {

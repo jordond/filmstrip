@@ -18,6 +18,10 @@ kotlin {
 
     androidMain.dependencies {
       compileOnly(libs.junit)
+      implementation(libs.media3.common)
+      compileOnly(libs.media3.inspector)
+      compileOnly(libs.media3.inspector.frame)
+      compileOnly(libs.androidx.test.runner)
     }
   }
 }

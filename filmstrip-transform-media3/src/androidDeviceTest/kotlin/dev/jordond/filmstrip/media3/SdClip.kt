@@ -8,6 +8,8 @@ import android.media.MediaCodec
 import android.media.MediaExtractor
 import android.media.MediaFormat
 import android.media.MediaMuxer
+import android.net.Uri
+import androidx.media3.inspector.MediaExtractorCompat
 import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.Track
@@ -79,7 +81,7 @@ private fun mux(
   target: File,
   colorStandard: Int?,
 ) {
-  val extractor = MediaExtractor().apply { setDataSource(source.path) }
+  val extractor = MediaExtractorCompat().apply { setDataSource(Uri.fromFile(source), 0L) }
   val muxer = MediaMuxer(target.path, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
   try {
     val index =

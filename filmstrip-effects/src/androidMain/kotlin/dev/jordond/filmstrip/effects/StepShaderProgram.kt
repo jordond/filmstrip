@@ -205,17 +205,10 @@ private class StepTarget(
       height: Int,
       format: Int,
     ): StepTarget {
-      val texture = IntArray(1)
-      GLES20.glGenTextures(1, texture, 0)
-      GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, texture[0])
-      GLES30.glTexStorage2D(GLES20.GL_TEXTURE_2D, 1, format, width, height)
-      // A later step reads past the edge as the edge, and between texels as their linear mix.
-      GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_LINEAR)
-      GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_LINEAR)
-      GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_S, GLES20.GL_CLAMP_TO_EDGE)
-      GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_T, GLES20.GL_CLAMP_TO_EDGE)
-      GlUtil.checkGlError()
-      return StepTarget(texture[0], GlUtil.createFboForTexture(texture[0]), width, height)
+      // Allocated the way media3 allocates its own frames, read linearly and clamped at the edge, so a later step reads
+      // past the edge as the edge and between texels as their linear mix.
+      val texture = GlUtil.createTexture(width, height, format == GLES30.GL_RGBA16F)
+      return StepTarget(texture, GlUtil.createFboForTexture(texture), width, height)
     }
   }
 }

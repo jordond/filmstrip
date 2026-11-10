@@ -39,8 +39,8 @@ internal class DecoderConversion(
  * From API 36 the AVIF decoder also reads FCC 4 and SMPTE 240M 7, and YCgCo 8 at full range in an eight-bit picture.
  * No API level reads the identity matrix 0.
  *
- * The HEIC side is measured on API 30, 31, 33, 34, 35 and 36, and the AVIF side on API 31, 33, 34, 35 and 36. API 28
- * and 29 are given API 30's answer and API 32 is given API 31's.
+ * The HEIC side is measured on API 28, 29, 30, 31, 33, 34, 35 and 36, and the AVIF side on API 31, 33, 34, 35 and 36.
+ * API 32 is given API 31's.
  *
  * @param avif Whether the picture is AV1 coded rather than HEVC coded.
  * @param tenBit Whether the picture's samples are ten bits deep, which moves the API levels an AVIF's BT.709 and YCgCo
@@ -68,9 +68,9 @@ internal fun readableMatrices(
  * [reading] at [fullRange], or null when [reading] is [YcbcrReading.Refused].
  *
  * The matrix is the [nearestReadable] of [readableMatrices] for samples at [fullRange] read at the range
- * [decoderFullRange] gives, beside the primaries [pairedPrimaries] gives for it, and the range is the picture's own.
- * The `nclx` of the primary item and its tiles states them too, since the AVIF decoder on API 36 takes the matrix and
- * range from it.
+ * [decoderFullRange] gives, beside the primaries [pairedPrimaries] gives for it, and the range is the one
+ * [decoderFullRange] gives, the range the decoder lands the picture at. The `nclx` of the primary item and its tiles
+ * states them too, since the AVIF decoder on API 36 takes the matrix and range from it.
  *
  * @param avif Whether the picture is AV1 coded rather than HEVC coded.
  * @param tenBit Whether the picture's samples are ten bits deep.
@@ -83,14 +83,15 @@ internal fun restatedForDecoder(
   tenBit: Boolean,
 ): RestatedColor? {
   val readable = readableMatrices(fullRange, sdk, avif, tenBit)
-  val nearest = reading.nearestReadable(readable, fullRange, decoderFullRange(fullRange, sdk, avif)) ?: return null
-  return RestatedColor(nearest.matrix, pairedPrimaries(nearest.matrix), nclx = true)
+  val landedFullRange = decoderFullRange(fullRange, sdk, avif)
+  val nearest = reading.nearestReadable(readable, fullRange, landedFullRange) ?: return null
+  return RestatedColor(nearest.matrix, pairedPrimaries(nearest.matrix), landedFullRange, nclx = true)
 }
 
 /**
  * Whether Android's HEIC or AVIF decoder on API level [sdk] reads a picture whose samples are at [fullRange] as full
- * range. The AVIF decoder before API 33 reads every picture at limited range, and every other reads the range a
- * picture states.
+ * range. The HEIC decoder before API 29 and the AVIF decoder before API 33 read every picture at limited range, and
+ * every other reads the range a picture states.
  *
  * @param avif Whether the picture is AV1 coded rather than HEVC coded.
  */
@@ -98,7 +99,7 @@ internal fun decoderFullRange(
   fullRange: Boolean,
   sdk: Int,
   avif: Boolean,
-): Boolean = fullRange && (!avif || sdk >= WIDE_MATRIX_API)
+): Boolean = fullRange && sdk >= if (avif) WIDE_MATRIX_API else HEIC_FULL_RANGE_API
 
 /**
  * How Android's HEIC or AVIF decoder on API level [sdk] lands a picture whose samples read as [reading] at
@@ -106,9 +107,10 @@ internal fun decoderFullRange(
  * [YcbcrReading.Refused].
  *
  * It lands through the [nearestReadable] of [readableMatrices] from the picture's own range to the one
- * [decoderFullRange] gives. The AVIF decoder before API 33 lands every picture at limited range, so a full range AVIF
- * there reports [DecoderLimit.AvifBeforeApi33] and its landing is measured with the range moved as well. A matrix that
- * reads the same as the picture's own reports no matrix limit, and any other reports [DecoderLimit.LandedThrough].
+ * [decoderFullRange] gives. The AVIF decoder before API 33 and the HEIC decoder before API 29 land every picture at
+ * limited range, so a full range one there reports [DecoderLimit.AvifBeforeApi33] or [DecoderLimit.HeicBeforeApi29] and
+ * its landing is measured with the range moved as well. A matrix that reads the same as the picture's own reports no
+ * matrix limit, and any other reports [DecoderLimit.LandedThrough].
  * Either is refused when the whole landing is past [NearestMatrix.withinBound].
  *
  * @param avif Whether the picture is AV1 coded rather than HEVC coded.
@@ -129,7 +131,9 @@ internal fun decoderConversionOf(
   val limits =
     listOfNotNull(
       DecoderLimit.LandedThrough(avif, nearest).takeUnless { ownMatrix },
-      DecoderLimit.AvifBeforeApi33.takeIf { fullRange != landedFullRange },
+      (if (avif) DecoderLimit.AvifBeforeApi33 else DecoderLimit.HeicBeforeApi29).takeIf {
+        fullRange != landedFullRange
+      },
     )
   val refusal = pastBound(avif, nearest).takeUnless { nearest.withinBound }
   return DecoderConversion(nearest.matrix, landedFullRange, limits, refusal)
@@ -292,6 +296,7 @@ private const val TWELVE_BITS = 12
 private val BT601_MATRICES = setOf(2, 5, BT601)
 private val AVIF_MORE_MATRICES = setOf(4, 7)
 private const val HEIC_API = 28
+private const val HEIC_FULL_RANGE_API = 29
 private const val AVIF_API = 31
 private const val WIDE_MATRIX_API = 33
 private const val BT709_LIMITED_API = 34

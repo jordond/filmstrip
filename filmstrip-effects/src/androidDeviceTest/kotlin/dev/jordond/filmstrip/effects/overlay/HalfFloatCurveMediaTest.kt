@@ -24,9 +24,9 @@ import io.kotest.assertions.withClue
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.types.shouldBeInstanceOf
 import org.junit.Assume.assumeTrue
-import org.junit.Before
 import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlin.test.Test
@@ -45,11 +45,6 @@ import kotlin.time.Duration.Companion.seconds
  * float bitmap in any other space is refused rather than read, by the raster and by the resolver.
  */
 class HalfFloatCurveMediaTest {
-  @Before
-  fun halfFloatBitmapsExist() {
-    assumeTrue("Half float bitmaps arrive in API 26", Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
-  }
-
   @Test
   fun aSixteenBitPictureDecodesIntoExtendedSrgbAndRastersOntoItsSamples() {
     val bitmap =
@@ -59,8 +54,30 @@ class HalfFloatCurveMediaTest {
         .shouldNotBeNull()
         .bitmap
 
-    bitmap.halfFloatCurve() shouldBe HalfFloatCurve.Srgb
+    bitmap.halfFloatCurve() shouldBe curveDecodedHere()
     assertSdrCodes(bitmap)
+  }
+
+  // Android's own decoder on API 26 to 28, pinned so a platform that starts taking extended sRGB shows here.
+  @Test
+  fun beforeApi29AnExtendedSrgbRequestIsRefusedAndASixteenBitPictureLandsInLinearLight() {
+    assumeTrue("This test pins API 26 to 28's decoder", Build.VERSION.SDK_INT < PREFERRED_EXTENDED_SRGB_API)
+    val asked =
+      BitmapFactory.Options().apply {
+        inPreferredConfig = Bitmap.Config.RGBA_F16
+        inPreferredColorSpace = ColorSpace.get(ColorSpace.Named.EXTENDED_SRGB)
+      }
+
+    val refusal =
+      assertFailsWith<IllegalArgumentException> { BitmapFactory.decodeByteArray(PICTURE, 0, PICTURE.size, asked) }
+    refusal.message.shouldNotBeNull() shouldContain "ICC parametric transfer function"
+    val bitmap =
+      ImageSource
+        .Bytes(PICTURE)
+        .decode(context = null)
+        .shouldNotBeNull()
+        .bitmap
+    bitmap.halfFloatCurve() shouldBe HalfFloatCurve.Linear
   }
 
   @Test
@@ -77,7 +94,7 @@ class HalfFloatCurveMediaTest {
     assumeTenBitAvifDecodes()
 
     val picture = ImageSource.Bytes(TEN_BIT_AVIF).decode(context = null).shouldNotBeNull()
-    picture.bitmap.halfFloatCurve() shouldBe HalfFloatCurve.Srgb
+    picture.bitmap.halfFloatCurve() shouldBe curveDecodedHere()
     picture.limits shouldBe emptyList()
     val codes = picture.bitmap.centreCodes()
     val want =
@@ -231,6 +248,10 @@ class HalfFloatCurveMediaTest {
     val off = codes.indices.maxOf { abs(codes[it] - want[it]) }
     return if (off <= ONE_CODE) null else "$what decoded $codes where its YCbCr gives ${want.toList()}"
   }
+
+  // Extended sRGB where the decoder takes the request for it, and the linear light it decodes into where it does not.
+  private fun curveDecodedHere(): HalfFloatCurve =
+    if (Build.VERSION.SDK_INT >= PREFERRED_EXTENDED_SRGB_API) HalfFloatCurve.Srgb else HalfFloatCurve.Linear
 
   private fun Bitmap.centreCodes(): List<Float> {
     val read = getColor(width / 2, height / 2)

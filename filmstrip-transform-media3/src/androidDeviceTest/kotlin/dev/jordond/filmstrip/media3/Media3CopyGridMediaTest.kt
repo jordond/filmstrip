@@ -2,6 +2,8 @@ package dev.jordond.filmstrip.media3
 
 import android.media.MediaExtractor
 import android.media.MediaFormat
+import android.net.Uri
+import androidx.media3.inspector.MediaExtractorCompat
 import dev.jordond.filmstrip.ComponentRegistry
 import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.Composition
@@ -218,9 +220,9 @@ class Media3CopyGridMediaTest {
 
   // The source's video samples in the order the container stores them, which is decode order.
   private fun packetsInDecodeOrder(file: File): List<CopyPacket> {
-    val extractor = MediaExtractor()
+    val extractor = MediaExtractorCompat()
     try {
-      extractor.setDataSource(file.path)
+      extractor.setDataSource(Uri.fromFile(file), 0L)
       extractor.selectTrack(extractor.trackOf(VIDEO))
       return buildList {
         while (extractor.sampleTime >= 0) {
@@ -243,9 +245,9 @@ class Media3CopyGridMediaTest {
     file: File,
     kind: String,
   ): List<Sample> {
-    val extractor = MediaExtractor()
+    val extractor = MediaExtractorCompat()
     try {
-      extractor.setDataSource(file.path)
+      extractor.setDataSource(Uri.fromFile(file), 0L)
       extractor.selectTrack(extractor.trackOf(kind))
       val buffer = ByteBuffer.allocate(SAMPLE_BUFFER_BYTES)
       // A sample time can sit before zero, so the read stops when the extractor runs out rather than on a time.
@@ -266,7 +268,7 @@ class Media3CopyGridMediaTest {
   private fun ByteArray.sha256(): String =
     MessageDigest.getInstance("SHA-256").digest(this).joinToString("") { "%02x".format(it) }
 
-  private fun MediaExtractor.trackOf(kind: String): Int =
+  private fun MediaExtractorCompat.trackOf(kind: String): Int =
     (0 until trackCount).first { getTrackFormat(it).getString(MediaFormat.KEY_MIME)?.startsWith(kind) == true }
 
   private companion object {

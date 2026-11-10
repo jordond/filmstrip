@@ -2,8 +2,9 @@ package dev.jordond.filmstrip.media3
 
 import android.media.AudioFormat
 import android.media.MediaCodec
-import android.media.MediaExtractor
 import android.media.MediaFormat
+import android.net.Uri
+import androidx.media3.inspector.MediaExtractorCompat
 import dev.jordond.filmstrip.test.ToneAnalysis
 import java.io.ByteArrayOutputStream
 import java.io.File
@@ -49,31 +50,37 @@ internal class DecodedAudio(
 }
 
 /**
- * Decodes the audio track of [file] to PCM.
+ * Decodes the audio track of [file] to PCM, minus the encoder delay its track names.
  *
- * MediaExtractor feeds the compressed samples to a MediaCodec decoder in synchronous mode and the
+ * MediaExtractorCompat feeds the compressed samples to a MediaCodec decoder in synchronous mode and the
  * output buffers are concatenated, which is the only way to read what an export actually wrote.
  * The prober reports what the container claims, and a mix that never reached the encoder claims the
  * same thing as one that did.
  *
+ * The delay is read with media3's extractor, the one the export reads it with, and dropped here rather than by the
+ * decoder, since the framework decoder honours it on some API levels and not others.
+ *
  * @throws AssertionError when the file carries no audio track, or when the decoder stalls.
  */
 internal fun decodeAudio(file: File): DecodedAudio {
-  val extractor = MediaExtractor()
+  val extractor = MediaExtractorCompat()
   try {
-    extractor.setDataSource(file.path)
+    extractor.setDataSource(Uri.fromFile(file), 0L)
     val track =
       (0 until extractor.trackCount).firstOrNull { extractor.getTrackFormat(it).isAudio }
         ?: throw AssertionError("${file.name} carries no audio track to decode")
     extractor.selectTrack(track)
 
     val format = extractor.getTrackFormat(track)
+    val delay =
+      if (format.containsKey(MediaFormat.KEY_ENCODER_DELAY)) format.getInteger(MediaFormat.KEY_ENCODER_DELAY) else 0
+    format.setInteger(MediaFormat.KEY_ENCODER_DELAY, 0)
     val mimeType = format.getString(MediaFormat.KEY_MIME) ?: throw AssertionError("the audio track names no MIME type")
     val codec = MediaCodec.createDecoderByType(mimeType)
     return try {
       codec.configure(format, null, null, 0)
       codec.start()
-      codec.drain(extractor)
+      codec.drain(extractor).withoutLeading(delay)
     } finally {
       // Stopped before it is released, which is the order MediaCodec documents for a codec that
       // reached Executing. Stopping can throw if the codec already died, and that must not mask
@@ -86,10 +93,13 @@ internal fun decodeAudio(file: File): DecodedAudio {
   }
 }
 
+private fun DecodedAudio.withoutLeading(frames: Int): DecodedAudio =
+  DecodedAudio(samples.copyOfRange(frames.coerceIn(0, samples.size), samples.size), sampleRate)
+
 /**
  * Pumps [extractor] through this decoder until the end of the stream comes back out.
  */
-private fun MediaCodec.drain(extractor: MediaExtractor): DecodedAudio {
+private fun MediaCodec.drain(extractor: MediaExtractorCompat): DecodedAudio {
   val pcm = ByteArrayOutputStream()
   val info = MediaCodec.BufferInfo()
   var format = outputFormat

@@ -2,7 +2,6 @@ package dev.jordond.filmstrip.effects.overlay
 
 import android.graphics.Bitmap
 import android.graphics.ColorSpace
-import android.os.Build
 import android.util.Half
 import androidx.core.graphics.createBitmap
 import androidx.media3.common.OverlaySettings
@@ -149,7 +148,7 @@ private fun straightBitmap(
 // A half float bitmap's samples as sixteen-bit sRGB values, red, green, blue and alpha per texel, or null for any
 // other config. A half float carries eleven significant bits, so a sample comes back within 16 of what the file
 // stores. That is the depth Android's decoder hands back, since it has no sixteen-bit integer config.
-private fun Bitmap.wideSamples(): ShortArray? {
+internal fun Bitmap.wideSamples(): ShortArray? {
   val curve = halfFloatCurve() ?: return null
   check(curve != HalfFloatCurve.Unknown) { "A half float bitmap in $colorSpace has no sRGB samples to read." }
   val halves = ShortArray(width * height * RGBA)
@@ -165,7 +164,7 @@ private fun Bitmap.wideSamples(): ShortArray? {
  * How a half float bitmap's color channels are encoded, read off the color space Android decoded it into.
  *
  * A sixteen-bit picture is asked for in extended sRGB, whose curve is the one an undescribed picture is read through.
- * Some versions decode it into linear extended sRGB whatever was asked for, so its channels are linear light and are
+ * API 26 to 28 refuse that request and decode it into linear extended sRGB, so its channels are linear light and are
  * encoded to sRGB before they are read. Alpha is linear in both.
  */
 internal enum class HalfFloatCurve {
@@ -189,7 +188,7 @@ internal enum class HalfFloatCurve {
  * The curve this bitmap's color channels are encoded with, or null when it does not hold half floats.
  */
 internal fun Bitmap.halfFloatCurve(): HalfFloatCurve? {
-  if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O || config != Bitmap.Config.RGBA_F16) return null
+  if (config != Bitmap.Config.RGBA_F16) return null
   return when (colorSpace) {
     ColorSpace.get(ColorSpace.Named.EXTENDED_SRGB) -> HalfFloatCurve.Srgb
     ColorSpace.get(ColorSpace.Named.LINEAR_EXTENDED_SRGB) -> HalfFloatCurve.Linear

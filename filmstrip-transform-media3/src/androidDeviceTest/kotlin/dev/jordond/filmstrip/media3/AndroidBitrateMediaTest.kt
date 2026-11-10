@@ -1,7 +1,8 @@
 package dev.jordond.filmstrip.media3
 
-import android.media.MediaExtractor
 import android.media.MediaFormat
+import android.net.Uri
+import androidx.media3.inspector.MediaExtractorCompat
 import dev.jordond.filmstrip.CapabilitiesResult
 import dev.jordond.filmstrip.codec.Bitrate
 import dev.jordond.filmstrip.codec.VideoCodec
@@ -110,9 +111,9 @@ class AndroidBitrateMediaTest {
 
   // The video track's bytes over its duration, read off the samples the muxer wrote rather than any header.
   private fun videoBitrateOf(file: File): Double {
-    val extractor = MediaExtractor()
+    val extractor = MediaExtractorCompat()
     try {
-      extractor.setDataSource(file.path)
+      extractor.setDataSource(Uri.fromFile(file), 0L)
       val track =
         (0 until extractor.trackCount).first {
           extractor.getTrackFormat(it).getString(MediaFormat.KEY_MIME)?.startsWith("video/") == true

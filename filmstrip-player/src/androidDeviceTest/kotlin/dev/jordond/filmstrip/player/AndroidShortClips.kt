@@ -1,9 +1,10 @@
 package dev.jordond.filmstrip.player
 
 import android.media.MediaCodec
-import android.media.MediaExtractor
 import android.media.MediaFormat
 import android.media.MediaMuxer
+import android.net.Uri
+import androidx.media3.inspector.MediaExtractorCompat
 import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.player.contract.ClipParityBackend
@@ -36,7 +37,7 @@ internal object AndroidShortClips : ShortClipBackend, ClipParityBackend by Andro
   override val writesEverySlowedSlot: Boolean get() = false
 
   override suspend fun writtenFrameCount(composition: Composition): Long {
-    val extractor = MediaExtractor().apply { setDataSource(androidExportedFile(composition).path) }
+    val extractor = MediaExtractorCompat().apply { setDataSource(Uri.fromFile(androidExportedFile(composition)), 0L) }
     try {
       extractor.selectTrack(extractor.trackOf("video/") ?: fail("the file holds no video"))
       var frames = 0L
@@ -53,7 +54,7 @@ internal object AndroidShortClips : ShortClipBackend, ClipParityBackend by Andro
   override suspend fun sourceAt(rate: Int): MediaSource {
     val moving = movingSource().shouldBeInstanceOf<MediaSource.Path>()
     val target = File(contractContext().cacheDir, "short-clip-$rate.mp4")
-    val extractor = MediaExtractor().apply { setDataSource(moving.path) }
+    val extractor = MediaExtractorCompat().apply { setDataSource(Uri.fromFile(File(moving.path)), 0L) }
     val muxer = MediaMuxer(target.path, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
     try {
       val video = extractor.trackOf("video/") ?: fail("the moving source holds no video")
@@ -80,7 +81,7 @@ internal object AndroidShortClips : ShortClipBackend, ClipParityBackend by Andro
     return MediaSource.of(target.path)
   }
 
-  private fun MediaExtractor.trackOf(mimePrefix: String): Int? =
+  private fun MediaExtractorCompat.trackOf(mimePrefix: String): Int? =
     (0 until trackCount).firstOrNull {
       getTrackFormat(it).getString(MediaFormat.KEY_MIME).orEmpty().startsWith(mimePrefix)
     }

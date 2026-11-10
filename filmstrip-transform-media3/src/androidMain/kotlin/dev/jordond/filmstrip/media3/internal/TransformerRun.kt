@@ -7,6 +7,7 @@ import android.os.Looper
 import android.os.SystemClock
 import androidx.media3.common.C
 import androidx.media3.transformer.Composition
+import androidx.media3.transformer.DefaultMuxer
 import androidx.media3.transformer.ExportException
 import androidx.media3.transformer.ExportResult
 import androidx.media3.transformer.InAppMp4Muxer
@@ -58,6 +59,7 @@ internal class TransformerRun(
   private val resolved: ResolvedComposition,
   private val composition: Composition,
   private val destination: Media3Destination,
+  private val copiedVideoEnd: Duration? = null,
 ) {
   /**
    * What media3 negotiated down to once it had the real encoders in hand, or null while it is still
@@ -124,6 +126,8 @@ internal class TransformerRun(
               .toMimeType()
               ?.let(::setAudioMimeType)
             setMuxerFactory(videoEndingOnTheGrid())
+          } else if (copiedVideoEnd != null) {
+            setMuxerFactory(DefaultMuxer.Factory().setVideoDurationUs(copiedVideoEnd.inWholeMicroseconds))
           }
         }.setEncoderFactory(encoders)
         .setAssetLoaderFactory(ChosenTrackAssetLoaderFactory(context))

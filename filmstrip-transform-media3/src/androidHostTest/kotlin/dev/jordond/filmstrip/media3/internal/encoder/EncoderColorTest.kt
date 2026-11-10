@@ -250,7 +250,7 @@ class EncoderColorTest {
         SOFTWARE_AAC to Build.VERSION_CODES.R,
         SOFTWARE_AAC to Build.VERSION_CODES.VANILLA_ICE_CREAM,
         SOFTWARE_AAC to Build.VERSION_CODES.BAKLAVA,
-        OMX_AAC to Build.VERSION_CODES.N,
+        OMX_AAC to Build.VERSION_CODES.O,
         OMX_AAC to Build.VERSION_CODES.Q,
       )
     cases.forEach { (name, sdkInt) ->

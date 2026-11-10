@@ -1,7 +1,8 @@
 package dev.jordond.filmstrip.player
 
-import android.media.MediaExtractor
 import android.media.MediaFormat
+import android.net.Uri
+import androidx.media3.inspector.MediaExtractorCompat
 import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
@@ -48,7 +49,7 @@ class AndroidVideoTrackEndMediaTest {
     }
 
   private fun videoTrackLengthOf(file: File): Duration {
-    val extractor = MediaExtractor().apply { setDataSource(file.path) }
+    val extractor = MediaExtractorCompat().apply { setDataSource(Uri.fromFile(file), 0L) }
     try {
       val video =
         (0 until extractor.trackCount)

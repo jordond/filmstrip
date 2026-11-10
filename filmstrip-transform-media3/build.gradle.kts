@@ -27,6 +27,7 @@ kotlin {
       implementation(projects.filmstripTest)
       implementation(projects.filmstripEffectsFilters)
       implementation(libs.media3.inspector.frame)
+      implementation(libs.media3.muxer)
       implementation(libs.kotlinx.coroutines.test)
       implementation(libs.androidx.test.runner)
       implementation(libs.androidx.test.core)

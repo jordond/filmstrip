@@ -114,8 +114,11 @@ class AndroidOverlayIccMediaTest {
     runTest(timeout = TIMEOUT) {
       val misses =
         IccPictures.ALL.mapNotNull { picture ->
-          val tagged = compressed(picture.texel, losslessWebp()).withWebpProfile(picture.profile, BADGE)
-          val expected = pictureSrgbCodes(pictureColor(tagged), intArrayOf(picture.texel))[0]
+          val untagged = compressed(picture.texel, losslessWebp())
+          val tagged = untagged.withWebpProfile(picture.profile, BADGE)
+          // Below API 30 the encoder has no lossless WebP, so the code it stored is the one a lossy encoder left.
+          val texel = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) picture.texel else storedTexel(untagged)
+          val expected = pictureSrgbCodes(pictureColor(tagged), intArrayOf(texel))[0]
           sdrMiss("$picture WebP", tagged, expected)
         }
 
@@ -142,7 +145,8 @@ class AndroidOverlayIccMediaTest {
           val landed = adjustments.firstNotNullOfOrNull { LANDED_THROUGH.find(it.message)?.groupValues?.get(1) }
           val (y, cb, cr) = picture.ycbcr
           val matrix = landed?.toInt() ?: nclx.matrix
-          val rgb = ycbcrToRgb(y, cb, cr, matrix, nclx.primaries, nclx.transfer, nclx.fullRange)
+          val fullRange = nclx.fullRange && adjustments.none { LANDED_LIMITED.containsMatchIn(it.message) }
+          val rgb = ycbcrToRgb(y, cb, cr, matrix, nclx.primaries, nclx.transfer, fullRange)
           val stored = rgb.fold(OPAQUE_ALPHA) { argb, code -> (argb shl 8) or code }
           sdrMiss("$picture", heic, pictureSrgbCodes(pictureColor(heic), intArrayOf(stored))[0])
         }
@@ -289,6 +293,7 @@ class AndroidOverlayIccMediaTest {
 
     const val HALF = 0.5f
     const val HEIC_UNDECODED = "Android's HEIC decoder hands back no frame for the ColorPictures HEIC stills"
+    val LANDED_LIMITED = Regex("Android's HEIC decoder .* reads every HEIC at limited range")
     val LANDED_THROUGH = Regex("Android's HEIC decoder .* through matrix (\\d+) instead")
     val SDR = ExportSpec()
     const val FULL_QUALITY = 100
@@ -328,15 +333,15 @@ private fun ByteArray.withJpegProfile(profile: ByteArray): ByteArray {
 }
 
 /**
- * This lossless WebP rewritten with a `VP8X` header flagging [profile] and an `ICCP` chunk holding it ahead of its
- * image chunk, in place of any header or profile the encoder wrote.
+ * This WebP rewritten with a `VP8X` header flagging [profile] and an `ICCP` chunk holding it ahead of its image chunk,
+ * in place of any header or profile the encoder wrote.
  */
 private fun ByteArray.withWebpProfile(
   profile: ByteArray,
   canvas: Size,
 ): ByteArray {
   var at = WEBP_HEADER
-  while (String(this, at, 4, Charsets.ISO_8859_1) != "VP8L") at += 8 + (u32le(at + 4) + 1) / 2 * 2
+  while (String(this, at, 4, Charsets.ISO_8859_1) !in IMAGE_CHUNKS) at += 8 + (u32le(at + 4) + 1) / 2 * 2
   val image = copyOfRange(at, at + 8 + (u32le(at + 4) + 1) / 2 * 2)
   val header =
     byteArrayOf((WEBP_ICC_FLAG or WEBP_ALPHA_FLAG).toByte(), 0, 0, 0) + le24(canvas.width - 1) + le24(canvas.height - 1)
@@ -363,6 +368,7 @@ private fun le32(value: Int): ByteArray = le24(value) + (value shr 24).toByte()
 
 private const val SOS = 0xDA
 private const val APP2 = 0xE2
+private val IMAGE_CHUNKS = setOf("VP8L", "VP8 ")
 private const val WEBP_HEADER = 12
 private const val WEBP_ICC_FLAG = 0x20
 private const val WEBP_ALPHA_FLAG = 0x10

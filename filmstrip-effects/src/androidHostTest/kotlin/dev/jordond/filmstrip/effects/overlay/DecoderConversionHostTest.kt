@@ -201,7 +201,7 @@ class DecoderConversionHostTest {
         for (sdk in listOf(31, 33, 34, 36)) {
           val readable = readableMatrices(true, sdk, avif, tenBit)
           val nearest = reading(matrix).nearestReadable(readable).shouldNotBeNull().matrix
-          val want = RestatedColor(nearest, pairedPrimaries(nearest), nclx = true)
+          val want = RestatedColor(nearest, pairedPrimaries(nearest), decoderFullRange(true, sdk, avif), nclx = true)
 
           withClue("matrix $matrix on $sdk") {
             restatedForDecoder(reading(matrix), true, sdk, avif, tenBit) shouldBe want

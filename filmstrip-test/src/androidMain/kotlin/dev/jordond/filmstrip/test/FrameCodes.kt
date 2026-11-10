@@ -3,9 +3,10 @@ package dev.jordond.filmstrip.test
 import android.media.Image
 import android.media.MediaCodec
 import android.media.MediaCodecInfo
-import android.media.MediaExtractor
 import android.media.MediaFormat
+import android.net.Uri
 import android.os.Build
+import androidx.media3.inspector.MediaExtractorCompat
 import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.geometry.Size
 import org.junit.AssumptionViolatedException
@@ -74,6 +75,9 @@ public class FrameCodes(
 /**
  * Decodes the first frame of [video] as ten-bit samples, skipping the calling test on a device that
  * cannot hand them back.
+ *
+ * Below API 29 no ten-bit file reaches this, since a kept grade there is refused for want of an HDR encoder and media3
+ * refuses to decode an HDR source. The limits page names both.
  */
 @InternalFilmstripApi
 public fun firstTenBitFrame(video: File): FrameCodes {
@@ -124,14 +128,14 @@ private fun decodedFrame(
   at: Duration,
   read: (Image) -> FrameCodes,
 ): FrameCodes {
-  val extractor = MediaExtractor()
-  extractor.setDataSource(video.path)
+  val extractor = MediaExtractorCompat()
+  extractor.setDataSource(Uri.fromFile(video), 0L)
   val track =
     (0 until extractor.trackCount).first {
       extractor.getTrackFormat(it).getString(MediaFormat.KEY_MIME)?.startsWith("video/") == true
     }
   extractor.selectTrack(track)
-  extractor.seekTo(at.inWholeMicroseconds, MediaExtractor.SEEK_TO_PREVIOUS_SYNC)
+  extractor.seekTo(at.inWholeMicroseconds, MediaExtractorCompat.SEEK_TO_PREVIOUS_SYNC)
   val format = extractor.getTrackFormat(track)
   format.setInteger(MediaFormat.KEY_COLOR_FORMAT, colorFormat)
   val codec = MediaCodec.createDecoderByType(checkNotNull(format.getString(MediaFormat.KEY_MIME)))
@@ -149,7 +153,7 @@ private fun decodedFrame(
 
 // Decodes forward until a frame lands at or past the target, and hands back whichever frame sat closest to it.
 private fun MediaCodec.decodeNearest(
-  extractor: MediaExtractor,
+  extractor: MediaExtractorCompat,
   target: Long,
   read: (Image) -> FrameCodes,
 ): FrameCodes? {
@@ -180,7 +184,7 @@ private fun MediaCodec.decodeNearest(
 }
 
 // Answers whether the input has run out.
-private fun MediaCodec.queueNextSample(extractor: MediaExtractor): Boolean {
+private fun MediaCodec.queueNextSample(extractor: MediaExtractorCompat): Boolean {
   val index = dequeueInputBuffer(WAIT_US)
   if (index < 0) return false
   val buffer = checkNotNull(getInputBuffer(index))

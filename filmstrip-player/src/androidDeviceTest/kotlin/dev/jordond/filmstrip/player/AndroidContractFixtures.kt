@@ -6,6 +6,8 @@ import android.media.MediaCodec
 import android.media.MediaExtractor
 import android.media.MediaFormat
 import android.media.MediaMuxer
+import android.net.Uri
+import androidx.media3.inspector.MediaExtractorCompat
 import androidx.test.platform.app.InstrumentationRegistry
 import dev.jordond.filmstrip.ComponentRegistry
 import dev.jordond.filmstrip.edit.Clip
@@ -77,7 +79,7 @@ internal fun androidSdTaggedClip(): MediaSource {
   androidFixtureClip()
   val cache = contractContext().cacheDir
   val tagged = File(cache, "sd-tagged-$CLIP_NAME")
-  val extractor = MediaExtractor().apply { setDataSource(File(cache, CLIP_NAME).path) }
+  val extractor = MediaExtractorCompat().apply { setDataSource(Uri.fromFile(File(cache, CLIP_NAME)), 0L) }
   val muxer = MediaMuxer(tagged.path, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
   try {
     val video =
@@ -111,6 +113,7 @@ internal fun androidSdTaggedClip(): MediaSource {
     muxer.release()
     extractor.release()
   }
+  // The framework extractor, since media3's folds the NTSC and PAL standards into one BT.601 color space.
   val written = MediaExtractor().apply { setDataSource(tagged.path) }
   try {
     written.getTrackFormat(0).getInteger(MediaFormat.KEY_COLOR_STANDARD) shouldBe MediaFormat.COLOR_STANDARD_BT601_NTSC

@@ -102,13 +102,31 @@ On an HDR grade an overlay keeps the brightness its colors have elsewhere in the
 naturally, on every backend. The exception is Android on an HLG grade, which is close but not exact, and the plan
 reports it as approximated. See [Overlays](/guides/overlays/) and [HDR](/guides/hdr/).
 
+## HDR on older Android
+
+media3 refuses to decode an HDR source below API 29, so the plan refuses any export there that would decode one: a
+tone map to SDR, and a kept grade that re-encodes. A copy decodes nothing, so it still keeps the grade.
+
+## Overlay pictures on older Android
+
+Android's own decoders set what an overlay picture can land as, and the plan reports each way one lands short as a
+`ColorSpaceConverted` or `PrecisionReduced` adjustment naming the decoder.
+
+- On API 28 the HEIC decoder reads every HEIC at limited range, whatever range the file records, so a full range HEIC
+  has its samples turned into RGB at the wrong range. From API 29 it reads the range the file states.
+- On API 31 and 32 the AVIF decoder does the same for AVIF, until API 33.
+- On API 26 to 28 Android's decoder refuses extended sRGB as a preferred color space and decodes a sixteen-bit picture
+  into linear half floats, which filmstrip encodes back to sRGB. Its samples come back within 38 of what the file
+  stores, out of 65535, where they come back within 16 from API 29. That is under a fifth of one eight-bit code, the
+  depth the overlay is drawn at.
+
 ## Audio
 
 On ffmpeg a long clip looped many times can use a lot of memory, up to one decoded pass for each loop still waiting to
 play. See [Extra tracks](/guides/audio/#extra-tracks).
 
 On Android a file records the priming its AAC encoder writes, so its audio starts on the first frame. Both software
-encoders write 2048 frames, measured on emulators from API 24 to 36. A device that picks a vendor's own AAC encoder gets
+encoders write 2048 frames, measured on emulators from API 26 to 36. A device that picks a vendor's own AAC encoder gets
 the delay media3 assumes for it, which no emulator can measure, so its audio can start off by the difference.
 
 Only an MP4 or QuickTime file gives its tracks ids every backend reads alike. A Matroska or WebM file, an MPEG

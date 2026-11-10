@@ -70,7 +70,7 @@ class AndroidThumbnailContractMediaTest {
           assertFramesSimilar(
             expected = exported,
             actual = thumbnail.frame(),
-            minSsim = ENCODED_MIN_SSIM,
+            minSsim = encodedMinSsimAtTime(thumbnail.presentationTime, ENCODED_MIN_SSIM),
             message = "the thumbnail and the export disagree at ${thumbnail.presentationTime}",
           )
         } finally {
@@ -252,7 +252,7 @@ class AndroidThumbnailContractMediaTest {
       assertFramesSimilar(
         expected = androidExportFrame(composition, at),
         actual = tile.frame(),
-        minSsim = ENCODED_MIN_SSIM,
+        minSsim = encodedMinSsimAtTime(at, ENCODED_MIN_SSIM),
         message = "$subject and the export disagree at $at",
       )
     }
@@ -274,7 +274,7 @@ class AndroidThumbnailContractMediaTest {
         assertFramesSimilar(
           expected = androidExportFrame(composition, tile.presentationTime),
           actual = tile.frame(),
-          minSsim = ENCODED_MIN_SSIM,
+          minSsim = encodedMinSsimAtTime(tile.presentationTime, ENCODED_MIN_SSIM),
           message = "the tile and the export disagree at ${tile.presentationTime}",
         )
         for (neighbour in listOf(slot - 1, slot + 1)) {

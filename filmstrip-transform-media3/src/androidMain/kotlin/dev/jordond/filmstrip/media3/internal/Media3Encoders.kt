@@ -3,6 +3,7 @@ package dev.jordond.filmstrip.media3.internal
 import android.media.MediaCodecInfo
 import android.media.MediaCodecList
 import android.media.MediaFormat
+import android.os.Build
 import androidx.media3.transformer.EncoderUtil
 import dev.jordond.filmstrip.capability.AudioEncoderCapability
 import dev.jordond.filmstrip.capability.DeviceCapabilities
@@ -27,10 +28,25 @@ internal fun encoderCapabilities(): DeviceCapabilities {
   return DeviceCapabilities(
     video = VIDEO_MIME_TYPES.flatMap { (codec, mime) -> codecs.videoCapabilities(codec, mime) },
     audio = AUDIO_MIME_TYPES.mapNotNull { (codec, mime) -> codecs.audioCapability(codec, mime) },
-    supportsHdrEncoding = codecs.anyHdrEncoder(),
+    // media3's limit: a grade kept through a re-encode is decoded first, and media3 decodes no HDR below API 29.
+    supportsHdrEncoding = codecs.anyHdrEncoder() && hdrDecodeLimit(Build.VERSION.SDK_INT) == null,
     concurrentSessionBudget = null,
   )
 }
+
+/**
+ * Why media3 cannot decode an HDR source on [sdkInt], or null when it can.
+ *
+ * media3's `DefaultDecoderFactory` refuses an HDR decoder below API 29, so there neither a tone map nor a kept grade
+ * that re-encodes has frames to work on. A copy decodes nothing and keeps the grade on any level.
+ */
+internal fun hdrDecodeLimit(sdkInt: Int): String? =
+  if (sdkInt < Build.VERSION_CODES.Q) {
+    "media3 decodes no HDR source below API 29 and this device runs API $sdkInt, so the grade can be neither tone " +
+      "mapped nor re-encoded. Export a copy that keeps the grade, or run on API 29 or later."
+  } else {
+    null
+  }
 
 /**
  * What media3's effect pipeline can draw for an offline export.

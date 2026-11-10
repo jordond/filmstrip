@@ -91,8 +91,7 @@ internal data object ContextlessPicture : PictureRead
  * decoder.
  *
  * A picture Android decodes deeper than eight bits a sample, a sixteen-bit PNG or a ten-bit AVIF, is decoded to half
- * floats in extended sRGB instead, which keeps its samples where the file stores them. API 24 and 25 have no half float
- * bitmaps and cut a sixteen-bit PNG to eight bits.
+ * floats in extended sRGB instead, which keeps its samples where the file stores them.
  *
  * A twelve-bit AVIF decodes to eight bits a sample on every API level that draws it. [DecodedPicture.limits] reports
  * that and every other shortfall, and a picture the decoder hands back no frame for is a [RefusedPicture] naming why.
@@ -270,17 +269,31 @@ private fun BitmapFactory.Options.readShape(picture: ByteArray): PictureShape {
   val sdk = Build.VERSION.SDK_INT
   return PictureShape(
     packedTenBit = sdk >= Build.VERSION_CODES.TIRAMISU && outConfig == Bitmap.Config.RGBA_1010102,
-    halfFloat = sdk >= Build.VERSION_CODES.O && outConfig == Bitmap.Config.RGBA_F16,
+    halfFloat = outConfig == Bitmap.Config.RGBA_F16,
   )
 }
 
-// Android decodes a sixteen-bit picture to half floats, and into linear light on some versions unless asked for
-// extended sRGB, whose curve matches the sRGB an undescribed picture is read as. halfFloatCurve reads which it got. A
-// ten-bit picture decodes to RGBA_1010102 from API 33, which the raster reads only as eight-bit codes, so it is asked
-// for half floats in extended sRGB as well, which hold its ten bits.
+// A sixteen-bit picture decodes to half floats. A ten-bit picture decodes to RGBA_1010102 from API 33, which the raster
+// reads only as eight-bit codes, so it is asked for half floats as well, which hold its ten bits.
 private fun BitmapFactory.Options.keepWideSamples(shape: PictureShape) {
-  if (shape.halfFloat || shape.packedTenBit) {
-    inPreferredConfig = Bitmap.Config.RGBA_F16
+  if (shape.halfFloat || shape.packedTenBit) preferHalfFloats()
+}
+
+/**
+ * The first API level whose decoder takes extended sRGB as [BitmapFactory.Options.inPreferredColorSpace]. API 26 to 28
+ * refuse it with an [IllegalArgumentException], since its curve is not an ICC parametric one, and decode every half
+ * float bitmap into linear extended sRGB.
+ */
+internal const val PREFERRED_EXTENDED_SRGB_API = Build.VERSION_CODES.Q
+
+/**
+ * Asks the decoder for half floats, in extended sRGB from [PREFERRED_EXTENDED_SRGB_API], whose curve matches the sRGB
+ * an undescribed picture is read as. Below it the decoder picks the space, and [halfFloatCurve] reads which curve the
+ * bitmap got.
+ */
+internal fun BitmapFactory.Options.preferHalfFloats() {
+  inPreferredConfig = Bitmap.Config.RGBA_F16
+  if (Build.VERSION.SDK_INT >= PREFERRED_EXTENDED_SRGB_API) {
     inPreferredColorSpace = ColorSpace.get(ColorSpace.Named.EXTENDED_SRGB)
   }
 }
@@ -288,9 +301,8 @@ private fun BitmapFactory.Options.keepWideSamples(shape: PictureShape) {
 /**
  * Each way Android's decoder lands [picture] short of what its file stores, or empty when it lands as stored.
  *
- * A sixteen-bit PNG decoded into a bitmap that is not half floats is cut to eight bits. It is the only picture over
- * eight bits that API 24 and 25 decode at all, and they have no half float bitmap to decode it into. An AVIF or HEIC
- * that lands through another matrix or range than its own reports the limits its landing names. A
+ * A sixteen-bit PNG decoded into a bitmap that is not half floats is cut to eight bits. An AVIF or HEIC that lands
+ * through another matrix or range than its own reports the limits its landing names. A
  * [YcbcrCoding.twelveBitAvif] picture decoded into a bitmap that is not half floats then reports
  * [DecoderLimit.AvifTwelveBitCut] as well.
  *

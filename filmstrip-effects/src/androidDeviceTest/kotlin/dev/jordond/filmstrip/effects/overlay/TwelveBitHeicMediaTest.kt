@@ -1,8 +1,6 @@
 package dev.jordond.filmstrip.effects.overlay
 
-import android.graphics.Bitmap
 import android.graphics.BitmapFactory
-import android.graphics.ColorSpace
 import android.os.Build
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.test.CicpTag
@@ -43,11 +41,7 @@ class TwelveBitHeicMediaTest {
   fun theDecoderHandsBackNoFrame() {
     assumeHeicDecodes()
     val file = twelveBit(BT709, true)
-    val wide =
-      BitmapFactory.Options().apply {
-        inPreferredConfig = Bitmap.Config.RGBA_F16
-        inPreferredColorSpace = ColorSpace.get(ColorSpace.Named.EXTENDED_SRGB)
-      }
+    val wide = BitmapFactory.Options().apply { preferHalfFloats() }
 
     BitmapFactory.decodeByteArray(file, 0, file.size).shouldBeNull()
     BitmapFactory.decodeByteArray(file, 0, file.size, wide).shouldBeNull()
