@@ -9,11 +9,14 @@ import androidx.media3.common.util.GlProgram
 import androidx.media3.common.util.GlUtil
 import androidx.media3.effect.GlEffect
 import androidx.media3.effect.GlShaderProgram
-import dev.jordond.filmstrip.color.linearDimGain
+import dev.jordond.filmstrip.effects.color.HdrColorMatrixUniforms
+import dev.jordond.filmstrip.effects.color.IDENTITY_GRADE_LIGHT_GLSL
+import dev.jordond.filmstrip.effects.media3SignalUniforms
 import dev.jordond.filmstrip.effects.spatial.SpatialBlur
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media3.internal.PlacedFrame
 import dev.jordond.filmstrip.transform.internal.geometry.PixelRect
 import dev.jordond.filmstrip.transform.internal.geometry.backgroundGain
@@ -32,16 +35,29 @@ import java.util.concurrent.Executor
  * @property fill The radius and the dim the background is drawn at.
  * @property outputSize The composition's output frame, in pixels.
  * @property rect Where the sharp frame lands, as a fraction of the output frame.
+ * @property transfer The grade the plan keeps, which an HDR frame is blurred on the SDR signal of, or null when it
+ * writes SDR.
  */
 internal class FillCoverBlur(
   private val fill: Fill.Blurred,
   private val outputSize: Size,
   private val rect: NormalizedRect,
+  private val transfer: HdrTransfer? = null,
 ) : GlEffect {
   override fun toGlShaderProgram(
     context: Context,
     useHdr: Boolean,
-  ): GlShaderProgram = FillCoverBlurShaderProgram(useHdr, fill, outputSize, rect.inWholePixelsOf(outputSize))
+  ): GlShaderProgram {
+    val domain =
+      when {
+        !useHdr -> null
+        transfer != null -> transfer.media3SignalUniforms
+        else -> throw VideoFrameProcessingException(
+          "A blurred fill keeps no grade, and this frame processor runs in HDR.",
+        )
+      }
+    return FillCoverBlurShaderProgram(useHdr, fill, outputSize, rect.inWholePixelsOf(outputSize), domain)
+  }
 
   // Compared by value so a preview can tell a re-lowering that changed this pass from one that
   // produced the same pass again.
@@ -50,10 +66,12 @@ internal class FillCoverBlur(
       other is FillCoverBlur &&
         fill == other.fill &&
         outputSize == other.outputSize &&
-        rect == other.rect
+        rect == other.rect &&
+        transfer == other.transfer
     )
 
-  override fun hashCode(): Int = HASH * (HASH * fill.hashCode() + outputSize.hashCode()) + rect.hashCode()
+  override fun hashCode(): Int =
+    HASH * (HASH * (HASH * fill.hashCode() + outputSize.hashCode()) + rect.hashCode()) + transfer.hashCode()
 
   private companion object {
     const val HASH = 31
@@ -66,15 +84,17 @@ internal class FillCoverBlur(
  * The cover pass draws the frame scaled to cover the output at the output size. The fill's [blurPlan] then boxes that
  * down with [SpatialBlur.BOX_DOWN_GLSL] and blurs it across and up with [SpatialBlur.GAUSSIAN_GLSL] at the plan's
  * size. The composite pass reads the blur back up to the output size with the texture unit's own linear filtering,
- * dims it, and draws the sharp frame over that. The composite needs the frame both blurred and untouched at once,
- * which is why this implements [GlShaderProgram] directly instead of the single-pass
- * [androidx.media3.effect.BaseGlShaderProgram].
+ * dims it, and draws the sharp frame over that. A frame holding the light of a kept grade is carried to the SDR signal
+ * it encodes to on the way into the box, so the blur and the dim run on that signal, and back on the way out. The
+ * composite needs the frame both blurred and untouched at once, which is why this implements [GlShaderProgram]
+ * directly instead of the single-pass [androidx.media3.effect.BaseGlShaderProgram].
  */
 private class FillCoverBlurShaderProgram(
   private val useHdr: Boolean,
   fill: Fill.Blurred,
   private val outputSize: Size,
   sharp: PixelRect,
+  private val domain: HdrColorMatrixUniforms?,
 ) : GlShaderProgram {
   private var inputListener: GlShaderProgram.InputListener = object : GlShaderProgram.InputListener {}
   private var outputListener: GlShaderProgram.OutputListener = object : GlShaderProgram.OutputListener {}
@@ -88,12 +108,15 @@ private class FillCoverBlurShaderProgram(
   private val smallHeight = plan.heightOf(outputSize.height)
   private val across = SpatialBlur.gaussianUniforms(plan, outputSize.height, horizontal = true)
   private val upward = SpatialBlur.gaussianUniforms(plan, outputSize.height, horizontal = false)
-  private val gain = dimGain(useHdr, fill)
+  private val gain = fill.backgroundGain
+  private val signal = SpatialBlur.signalUniforms(domain)
+  private val signalGlsl =
+    SpatialBlur.signalGlsl(IDENTITY_GRADE_LIGHT_GLSL).takeIf { domain != null } ?: IDENTITY_SIGNAL_GLSL
 
   private val coverProgram = program(VERTEX_SHADER, COVER_FRAGMENT_SHADER)
-  private val downProgram = program(STEP_VERTEX_SHADER, BOX_DOWN_FRAGMENT_SHADER)
+  private val downProgram = program(STEP_VERTEX_SHADER, boxDownFragmentShader(signalGlsl))
   private val blurProgram = program(STEP_VERTEX_SHADER, SpatialBlur.GAUSSIAN_GLSL)
-  private val compositeProgram = program(STEP_VERTEX_SHADER, COMPOSITE_FRAGMENT_SHADER)
+  private val compositeProgram = program(STEP_VERTEX_SHADER, compositeFragmentShader(signalGlsl))
 
   private var coverTexture = GlTextureInfo.UNSET
   private var downTexture = GlTextureInfo.UNSET
@@ -219,6 +242,7 @@ private class FillCoverBlurShaderProgram(
     downProgram.setSamplerTexIdUniform(FRAME, coverTexture.texId, 0)
     downProgram.setFloatsUniform("uTargetSize", floatArrayOf(smallWidth.toFloat(), smallHeight.toFloat()))
     downProgram.setFloatsUniform("uBox", floatArrayOf(plan.factor.toFloat()))
+    if (domain != null) signal.forEach { (name, value) -> downProgram.setFloatsUniform(name, value) }
     draw(downProgram)
   }
 
@@ -247,6 +271,7 @@ private class FillCoverBlurShaderProgram(
     compositeProgram.setFloatsUniform("uSharpMin", sharpMinUniform)
     compositeProgram.setFloatsUniform("uSharpMax", sharpMaxUniform)
     compositeProgram.setFloatsUniform("uGain", floatArrayOf(gain))
+    if (domain != null) signal.forEach { (name, value) -> compositeProgram.setFloatsUniform(name, value) }
     draw(compositeProgram)
   }
 
@@ -287,20 +312,15 @@ private class FillCoverBlurShaderProgram(
     }
 }
 
-/**
- * What the background's channels are multiplied by in the space media3 hands this pass.
- *
- * SDR channels arrive encoded, which is the space the gain is defined in. HDR channels arrive as
- * linear light, so the same authored dim has to be raised by a display gamma to land at the same
- * brightness rather than several times darker.
- */
-private fun dimGain(
-  useHdr: Boolean,
-  fill: Fill.Blurred,
-): Float = if (useHdr) linearDimGain(fill.dim) else fill.backgroundGain
-
 private const val FRAME = "uFrame"
 private const val QUAD_VERTICES = 4
+
+// Codes are already the signal on an SDR frame, so the box and the composite take them as they are.
+private const val IDENTITY_SIGNAL_GLSL =
+  """
+  vec3 toSignal(vec3 light) { return light; }
+  vec3 fromSignal(vec3 signal) { return signal; }
+  """
 
 private val VERTEX_SHADER =
   """
@@ -339,9 +359,9 @@ private val STEP_VERTEX_SHADER =
   }
   """.trimIndent()
 
-// Boxes the cover down to the plan's size with SpatialBlur.BOX_DOWN_GLSL. The cover is opaque, so a texel is averaged
-// as it is.
-private val BOX_DOWN_FRAGMENT_SHADER =
+// Boxes the cover down to the plan's size with SpatialBlur.BOX_DOWN_GLSL, each texel read as the signal. The cover is
+// opaque, so a texel is averaged as it is.
+private fun boxDownFragmentShader(signalGlsl: String): String =
   """
   #version 300 es
   precision highp float;
@@ -350,9 +370,11 @@ private val BOX_DOWN_FRAGMENT_SHADER =
   uniform sampler2D $FRAME;
   uniform vec2 uTargetSize;
   uniform float uBox;
+  $signalGlsl
 
   vec4 premultipliedAt(ivec2 texel, ivec2 size) {
-    return texelFetch($FRAME, clamp(texel, ivec2(0), size - 1), 0);
+    vec4 read = texelFetch($FRAME, clamp(texel, ivec2(0), size - 1), 0);
+    return vec4(toSignal(read.rgb), read.a);
   }
 
 ${SpatialBlur.BOX_DOWN_GLSL.prependIndent("  ")}
@@ -362,8 +384,9 @@ ${SpatialBlur.BOX_DOWN_GLSL.prependIndent("  ")}
   }
   """.trimIndent()
 
-// Reads the blur back up to the output with linear filtering and dims it, under the sharp frame inside its rect.
-private val COMPOSITE_FRAGMENT_SHADER =
+// Reads the blur back up to the output with linear filtering and dims its signal, under the sharp frame inside its
+// rect.
+private fun compositeFragmentShader(signalGlsl: String): String =
   """
   #version 300 es
   precision highp float;
@@ -374,12 +397,14 @@ private val COMPOSITE_FRAGMENT_SHADER =
   uniform vec2 uSharpMin;
   uniform vec2 uSharpMax;
   uniform float uGain;
+  $signalGlsl
+
   void main() {
     if (vUv.x >= uSharpMin.x && vUv.x < uSharpMax.x && vUv.y >= uSharpMin.y && vUv.y < uSharpMax.y) {
       fragColor = texture(uSharpSampler, (vUv - uSharpMin) / (uSharpMax - uSharpMin));
     } else {
       vec4 background = textureLod($FRAME, vUv, 0.0);
-      fragColor = vec4(background.rgb * uGain, 1.0);
+      fragColor = vec4(fromSignal(background.rgb * uGain), 1.0);
     }
   }
   """.trimIndent()

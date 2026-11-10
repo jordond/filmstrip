@@ -3,7 +3,9 @@
 package dev.jordond.filmstrip.webcodecs.internal.render
 
 import dev.jordond.filmstrip.color.BlurPlan
-import dev.jordond.filmstrip.color.linearDimGain
+import dev.jordond.filmstrip.effects.color.IDENTITY_GRADE_LIGHT_GLSL
+import dev.jordond.filmstrip.effects.color.displayLightGradeGlsl
+import dev.jordond.filmstrip.effects.color.displayLightGradeUniforms
 import dev.jordond.filmstrip.effects.spatial.SpatialBlur
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.Size
@@ -20,7 +22,9 @@ import kotlin.js.JsAny
  *
  * The cover is drawn into [coverFbo] at the output size, boxed down to the plan's size by [downProgram], blurred across
  * and then up by [SpatialBlur.GAUSSIAN_GLSL] in [blurProgram], and read back up to the output with linear filtering by
- * [upProgram], which applies the dim.
+ * [upProgram], which applies the dim. On a kept grade the cover holds linear display light, [downProgram] carries it to
+ * the SDR signal it encodes to before it averages, the blur and the dim run on that signal, and [upProgram] carries it
+ * back.
  *
  * @property smallWidth The width the plan blurs at.
  * @property smallHeight The height the plan blurs at.
@@ -118,18 +122,19 @@ internal fun buildBlurPass(
   val smallHeight = plan.heightOf(height)
   gl.bindBuffer(GL_ARRAY_BUFFER, buffer)
 
-  val downProgram = quadProgram(gl, FILL_BOX_DOWN_SHADER)
+  val hdr = hdrTransfer != null
+  val signal = SpatialBlur.signalUniforms(hdrTransfer?.displayLightGradeUniforms())
+  val gradeLight = hdrTransfer?.displayLightGradeGlsl() ?: IDENTITY_GRADE_LIGHT_GLSL
+  val downProgram = quadProgram(gl, fillBoxDownShader(hdr, gradeLight))
+  uploadSignal(gl, downProgram, signal)
   gl.uniform2f(gl.getUniformLocation(downProgram, "uTargetSize"), plan.width.toFloat(), smallHeight.toFloat())
   gl.uniform1f(gl.getUniformLocation(downProgram, "uBox"), plan.factor.toFloat())
 
   val blurProgram = quadProgram(gl, SpatialBlur.GAUSSIAN_GLSL)
 
-  val hdr = hdrTransfer != null
-  val upProgram = quadProgram(gl, FILL_UP_SHADER)
-  // A dim is written against an encoded value, and a kept grade holds linear light, so the gain is raised by the
-  // display's own curve there or the background darkens by less than it was asked to.
-  val gain = if (hdr) linearDimGain(fill.dim) else fill.backgroundGain
-  gl.uniform1f(gl.getUniformLocation(upProgram, "uGain"), gain)
+  val upProgram = quadProgram(gl, fillUpShader(hdr, gradeLight))
+  uploadSignal(gl, upProgram, signal)
+  gl.uniform1f(gl.getUniformLocation(upProgram, "uGain"), fill.backgroundGain)
 
   val coverTexture = createFramebufferTexture(gl, width, height, hdr)
   val coverFbo = createComplete(gl, coverTexture)
@@ -156,6 +161,15 @@ internal fun buildBlurPass(
   )
 }
 
+// Sets the figures SpatialBlur.signalGlsl reads, on a program that is in use.
+private fun uploadSignal(
+  gl: WebGl2,
+  program: JsAny,
+  signal: Map<String, FloatArray>,
+) {
+  signal.forEach { (name, value) -> gl.uniform1f(gl.getUniformLocation(program, name), value[0]) }
+}
+
 // A program over the full-screen quad, left in use with its frame on texture unit 0.
 private fun quadProgram(
   gl: WebGl2,
@@ -168,9 +182,24 @@ private fun quadProgram(
   return program
 }
 
-// Boxes the cover down to the plan's size with SpatialBlur.BOX_DOWN_GLSL. The cover is opaque, so a texel is averaged
-// as it is.
-private val FILL_BOX_DOWN_SHADER =
+// Moves a texel between the light the cover holds and the signal the blur runs on, which is the identity for a cover
+// that already holds the signal.
+private fun signalSource(
+  hdr: Boolean,
+  gradeLight: String,
+): String =
+  if (hdr) {
+    SpatialBlur.signalGlsl(gradeLight)
+  } else {
+    "vec3 toSignal(vec3 light) { return light; }\nvec3 fromSignal(vec3 signal) { return signal; }"
+  }
+
+// Boxes the cover down to the plan's size with SpatialBlur.BOX_DOWN_GLSL, each texel read as the signal. The cover is
+// opaque, so a texel is averaged as it is.
+private fun fillBoxDownShader(
+  hdr: Boolean,
+  gradeLight: String,
+): String =
   """
   #version 300 es
   precision highp float;
@@ -180,8 +209,11 @@ private val FILL_BOX_DOWN_SHADER =
   uniform vec2 uTargetSize;
   uniform float uBox;
 
+${signalSource(hdr, gradeLight).prependIndent("  ")}
+
   vec4 premultipliedAt(ivec2 texel, ivec2 size) {
-    return texelFetch(uFrame, clamp(texel, ivec2(0), size - 1), 0);
+    vec4 read = texelFetch(uFrame, clamp(texel, ivec2(0), size - 1), 0);
+    return vec4(toSignal(read.rgb), read.a);
   }
 
 ${SpatialBlur.BOX_DOWN_GLSL.prependIndent("  ")}
@@ -191,8 +223,11 @@ ${SpatialBlur.BOX_DOWN_GLSL.prependIndent("  ")}
   }
   """.trimIndent()
 
-// Reads the blurred frame back up with linear filtering and dims its color.
-private val FILL_UP_SHADER =
+// Reads the blurred frame back up with linear filtering, dims its signal and takes it back to the light the cover held.
+private fun fillUpShader(
+  hdr: Boolean,
+  gradeLight: String,
+): String =
   """
   #version 300 es
   precision highp float;
@@ -201,8 +236,10 @@ private val FILL_UP_SHADER =
   uniform sampler2D uFrame;
   uniform float uGain;
 
+${signalSource(hdr, gradeLight).prependIndent("  ")}
+
   void main() {
     vec4 blurred = textureLod(uFrame, vUv, 0.0);
-    fragColor = vec4(blurred.rgb * uGain, blurred.a);
+    fragColor = vec4(fromSignal(blurred.rgb * uGain), blurred.a);
   }
   """.trimIndent()

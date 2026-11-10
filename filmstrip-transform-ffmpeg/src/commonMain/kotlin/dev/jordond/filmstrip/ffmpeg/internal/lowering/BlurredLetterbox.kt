@@ -1,26 +1,31 @@
 package dev.jordond.filmstrip.ffmpeg.internal.lowering
 
 import dev.jordond.filmstrip.effect.FilterNode
+import dev.jordond.filmstrip.effect.Sidecar
 import dev.jordond.filmstrip.effects.spatial.SpatialBlurGraph
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.transform.internal.geometry.PixelRect
 import dev.jordond.filmstrip.transform.internal.geometry.backgroundGain
 import dev.jordond.filmstrip.transform.internal.geometry.blurPlan
 
 /**
- * The background half of a blurred letterbox, handed on in [pixelFormat].
+ * The background half of a blurred letterbox, handed on in [pixelFormat], adding the tables it reads to [sidecars].
  *
  * The frame is scaled up until it covers the output and centre-cropped to that size, then blurred by [fill]'s
  * [blurPlan] through [SpatialBlurGraph], so the edge it holds is the crop's. The blur runs on sixteen bit 4:4:4 planes
- * of the frame's own matrix, where every plane blurs at one sigma, and leaves the alpha as it came. A non-zero
- * [Fill.Blurred.dim] darkens the result afterward, as a gain on the color channels rather than an offset, so it never
- * shifts hue.
+ * of the frame's own matrix, where every plane blurs at one sigma, and leaves the alpha as it came. A frame on a kept
+ * [transfer] grade is blurred on its scaled SDR signal instead, so it is the blur the SDR signal would take. A
+ * non-zero [Fill.Blurred.dim] darkens the result afterward, as a gain on the color channels rather than an offset, so
+ * it never shifts hue.
  */
 internal fun coverBlurNodes(
   outputSize: Size,
   fill: Fill.Blurred,
   pixelFormat: String,
+  transfer: HdrTransfer? = null,
+  sidecars: MutableList<Sidecar> = mutableListOf(),
 ): List<FilterNode> =
   buildList {
     val width = outputSize.width.toString()
@@ -28,6 +33,13 @@ internal fun coverBlurNodes(
     add(FilterNode("scale", "w" to width, "h" to height, "force_original_aspect_ratio" to "increase"))
     add(FilterNode("crop", "w" to width, "h" to height))
     val plan = fill.blurPlan(outputSize)
+    if (transfer != null) {
+      val kept = SpatialBlurGraph.onKeptGrade(plan, outputSize, transfer, fill.backgroundGain)
+      addAll(kept.chain)
+      sidecars += kept.sidecars
+      add(FilterNode("format", "pix_fmts" to pixelFormat))
+      return@buildList
+    }
     addAll(SpatialBlurGraph.boxedDown(plan, plan, outputSize, COVER_FORMAT))
     addAll(SpatialBlurGraph.blurredUp(plan, plan, outputSize, COVER_FORMAT, COLOR_PLANES))
     val gain = fill.backgroundGain
@@ -44,6 +56,7 @@ internal class TrailingFrames(
   val frameRate: Int,
   val pixelFormat: String,
   val slots: Long,
+  val transfer: HdrTransfer? = null,
 )
 
 /**
@@ -52,7 +65,7 @@ internal class TrailingFrames(
  *
  * `tailNodes` writes a single chain, but this needs the frame twice, once for each copy, so [pending] is flushed
  * onto a pad of its own and fanned out with [FilterGraphBuilder.split] instead. The sharp copy lands on [grid], the
- * chroma grid of the chain both copies come from.
+ * chroma grid of the chain both copies come from. The background adds the tables it reads to [sidecars].
  */
 internal fun FilterGraphBuilder.blurredTail(
   pad: String,
@@ -63,6 +76,7 @@ internal fun FilterGraphBuilder.blurredTail(
   label: String,
   tail: TrailingFrames,
   grid: ChromaGrid,
+  sidecars: MutableList<Sidecar>,
 ): String {
   val pre = "${label}pre"
   chain(listOf(pad), pending.ifEmpty { listOf(FilterNode("null")) }, pre)
@@ -72,7 +86,7 @@ internal fun FilterGraphBuilder.blurredTail(
   split(pre, listOf(background, foreground))
 
   val blurred = "${label}blur"
-  chain(listOf(background), coverBlurNodes(outputSize, fill, tail.pixelFormat), blurred)
+  chain(listOf(background), coverBlurNodes(outputSize, fill, tail.pixelFormat, tail.transfer, sidecars), blurred)
 
   val sharp = "${label}sharp"
   chain(listOf(foreground), scaledInto(rect, outputSize), sharp)

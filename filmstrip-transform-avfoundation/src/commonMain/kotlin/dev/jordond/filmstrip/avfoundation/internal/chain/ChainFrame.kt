@@ -4,11 +4,14 @@ import dev.jordond.filmstrip.color.linearDimGain
 import dev.jordond.filmstrip.effect.Attributes
 import dev.jordond.filmstrip.effect.FrameInfo
 import dev.jordond.filmstrip.effects.spatial.blurredBy
+import dev.jordond.filmstrip.effects.spatial.blurredOnSignal
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.transform.internal.geometry.CanvasPlacement
+import dev.jordond.filmstrip.transform.internal.geometry.backgroundGain
 import dev.jordond.filmstrip.transform.internal.geometry.blurPlan
 import dev.jordond.filmstrip.transform.internal.geometry.coverScale
 import kotlinx.cinterop.ExperimentalForeignApi
@@ -186,26 +189,27 @@ internal fun CIImage.fillImage(
 ): CIImage =
   when (fill) {
     is Fill.Solid -> CIImage(color = fillCIColor(fill.color, transfer))
-    is Fill.Blurred -> blurredCover(size, fill)
+    is Fill.Blurred -> blurredCover(size, fill, transfer)
   }
 
 /**
  * Scales this frame to cover [size], centred, crops it to the output frame and blurs it by the fill's [blurPlan].
  *
- * The blur runs on the cover crop, so the edge it holds is the crop's and not the frame's. A frame with nothing in it
- * covers with black.
+ * The blur runs on the cover crop, so the edge it holds is the crop's and not the frame's. A frame on a kept
+ * [transfer] grade is blurred on its SDR signal, with the dim as a gain there. A frame with nothing in it covers with
+ * black.
  */
 @OptIn(ExperimentalForeignApi::class)
 internal fun CIImage.blurredCover(
   size: Size,
   blur: Fill.Blurred,
+  transfer: HdrTransfer? = null,
 ): CIImage {
   val cover = coverOf(size) ?: return CIImage(color = CIColor.blackColor)
-  val blurred =
-    cover.blurredBy(
-      blur.blurPlan(size),
-      CGRectMake(0.0, 0.0, size.width.toDouble(), size.height.toDouble()),
-    )
+  val extent = CGRectMake(0.0, 0.0, size.width.toDouble(), size.height.toDouble())
+  val plan = blur.blurPlan(size)
+  if (transfer != null) return cover.blurredOnSignal(plan, extent, transfer, ColorSpace.Bt2020, blur.backgroundGain)
+  val blurred = cover.blurredBy(plan, extent)
   return if (blur.dim <= 0f) blurred else blurred.dimmed(blur.dim)
 }
 

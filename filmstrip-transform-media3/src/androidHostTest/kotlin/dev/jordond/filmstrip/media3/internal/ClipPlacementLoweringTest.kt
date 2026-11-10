@@ -22,6 +22,7 @@ import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ColorSpace
+import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.VideoTrackInfo
@@ -53,6 +54,14 @@ class ClipPlacementLoweringTest {
     clip.clipVideoEffects(Fill.Black, OUTPUT).last() shouldBe
       PlacedFrame(clip.drawnRect, OUTPUT)
     clip.clipVideoEffects(Fill.Blurred(), OUTPUT).last() shouldBe FillCoverBlur(Fill.Blurred(), OUTPUT, clip.drawnRect)
+  }
+
+  @Test
+  fun `a blurred cover on a kept grade carries the grade it blurs on`() {
+    val lowered = barred.clipVideoEffects(Fill.Blurred(), OUTPUT, transfer = HdrTransfer.Hlg).last()
+
+    lowered shouldBe FillCoverBlur(Fill.Blurred(), OUTPUT, barred.drawnRect, HdrTransfer.Hlg)
+    (lowered == FillCoverBlur(Fill.Blurred(), OUTPUT, barred.drawnRect)) shouldBe false
   }
 
   @Test

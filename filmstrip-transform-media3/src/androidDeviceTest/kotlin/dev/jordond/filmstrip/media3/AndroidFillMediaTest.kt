@@ -174,6 +174,24 @@ class AndroidFillMediaTest {
       }
     }
 
+  // A kept grade blurs and dims on the SDR signal. The retriever tone maps an HDR frame on the way out and never says
+  // how, so what a code there means is not something to read an exact figure from, and this reads direction only. It
+  // also builds the cover's HDR shaders on the device.
+  @Test
+  fun aBlurredFillOnHdrDimsOnTheSignalNotTheLight() =
+    runTest(timeout = TIMEOUT) {
+      val source = probe.fixture(HDR_CLIP)
+      probe.filmstrip.assumeEncodesHdr()
+
+      val undimmed = probe.frame(export(source, listOf(squareCrop()), Fill.Blurred(dim = 0f), HdrMode.KeepHdr))
+      val halfDimmed = probe.frame(export(source, listOf(squareCrop()), Fill.Blurred(dim = 0.5f), HdrMode.KeepHdr))
+
+      val bright = undimmed.averageAt(CENTRE_X, BAR_Y).luminance()
+      val half = halfDimmed.averageAt(CENTRE_X, BAR_Y).luminance()
+      withClue("the undimmed bar reads as black, nothing to compare against") { (bright > BLACK_CEILING) shouldBe true }
+      withClue("the half dimmed bar read $half against $bright undimmed") { (half < bright) shouldBe true }
+    }
+
   @Test
   fun aBlackFillStaysBlackWhenHdrIsKept() =
     runTest(timeout = TIMEOUT) {

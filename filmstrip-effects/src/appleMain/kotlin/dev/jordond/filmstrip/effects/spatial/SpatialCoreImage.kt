@@ -7,6 +7,8 @@ import dev.jordond.filmstrip.effect.CoreImageEffect
 import dev.jordond.filmstrip.effect.EffectResolution
 import dev.jordond.filmstrip.effect.PlatformEffect
 import dev.jordond.filmstrip.effects.color.inSignalOf
+import dev.jordond.filmstrip.media.ColorSpace
+import dev.jordond.filmstrip.media.HdrTransfer
 import kotlinx.cinterop.BetaInteropApi
 import kotlinx.cinterop.CValue
 import kotlinx.cinterop.ExperimentalForeignApi
@@ -112,6 +114,34 @@ public fun CIImage.blurredBy(
       ),
     ).imageByCroppingToRect(extent)
 }
+
+/**
+ * This opaque image over [extent] blurred by [plan] on the SDR signal of a kept [transfer] grade in [colorSpace], and
+ * multiplied by [gain] there.
+ *
+ * The image is carried into the signal a color effect reads, so the blur and the gain are those of the SDR signal and
+ * not of the light the frame holds.
+ */
+@InternalFilmstripApi
+@OptIn(ExperimentalForeignApi::class)
+public fun CIImage.blurredOnSignal(
+  plan: BlurPlan,
+  extent: CValue<CGRect>,
+  transfer: HdrTransfer,
+  colorSpace: ColorSpace,
+  gain: Float,
+): CIImage =
+  inSignalOf(transfer, colorSpace) { signal ->
+    val scale = gain.toDouble()
+    signal.blurredBy(plan, extent).imageByApplyingFilter(
+      "CIColorMatrix",
+      mapOf(
+        "inputRVector" to CIVector.vectorWithX(scale, 0.0, 0.0, 0.0),
+        "inputGVector" to CIVector.vectorWithX(0.0, scale, 0.0, 0.0),
+        "inputBVector" to CIVector.vectorWithX(0.0, 0.0, scale, 0.0),
+      ),
+    )
+  }
 
 /**
  * This image blurred by Core Image's own Gaussian at [sigmaPx] of its pixels, held at its edge past [small] the way

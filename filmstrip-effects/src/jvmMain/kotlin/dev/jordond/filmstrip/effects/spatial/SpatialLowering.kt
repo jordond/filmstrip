@@ -113,6 +113,35 @@ public object SpatialBlurGraph {
       FilterNode("scale", "w" to "${stored.width}", "h" to "${stored.height}", "flags" to "bilinear"),
       format(pixelFormat),
     )
+
+  /**
+   * The fragment that blurs an opaque frame of [size] on a kept [transfer] grade by [plan], then multiplies each colour
+   * by [gain], and hands it back as `yuva420p10le`.
+   *
+   * The blur and the gain run on float planes holding [SpatialSignal]'s scaled SDR signal, so they are the blur and the
+   * gain of the SDR signal, and the alpha plane comes through as it came.
+   */
+  public fun onKeptGrade(
+    plan: BlurPlan,
+    size: Size,
+    transfer: HdrTransfer,
+    gain: Float,
+  ): FilterFragment {
+    val signal = SpatialSignal(transfer)
+    val chain =
+      buildList {
+        addAll(signal.opening)
+        add(format(FLOAT_RGBA))
+        addAll(boxedDown(plan, plan, size, FLOAT_RGBA))
+        addAll(blurredUp(plan, plan, size, FLOAT_RGBA, COLOR_PLANES))
+        if (gain != 1f) {
+          val weight = gain.toString()
+          add(FilterNode("colorchannelmixer", "rr" to weight, "gg" to weight, "bb" to weight))
+        }
+        addAll(signal.closing)
+      }
+    return FilterFragment(chain = chain, sidecars = signal.sidecars)
+  }
 }
 
 /**
@@ -215,6 +244,9 @@ private fun format(pixelFormat: String): FilterNode = FilterNode("format", "pix_
 private const val GBLUR_STEPS = 6
 private const val ALL_PLANES = 15
 private const val ALPHA_PLANES = 4
+
+// The red, green and blue planes of gbrapf32le, with its alpha left out.
+private const val COLOR_PLANES = 7
 
 private const val FRAME = "frame"
 private const val SHARP = "sharp"

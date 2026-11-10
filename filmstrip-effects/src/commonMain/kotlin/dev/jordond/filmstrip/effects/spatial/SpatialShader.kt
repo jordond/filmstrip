@@ -28,8 +28,8 @@ internal object SpatialShader {
     gradeLight: String = IDENTITY_GRADE_LIGHT_GLSL,
   ): List<SpatialStep> {
     val sigma = blur.sigma.toDouble()
-    val signal = signalUniforms(domain)
-    val source = signalGlsl(gradeLight)
+    val signal = signalFigures(domain)
+    val source = signalSource(gradeLight)
     return listOf(
       SpatialStep(
         STEP_DOWN,
@@ -57,11 +57,11 @@ internal object SpatialShader {
     domain: HdrColorMatrixUniforms?,
     gradeLight: String = IDENTITY_GRADE_LIGHT_GLSL,
   ): List<SpatialStep> {
-    val signal = signalUniforms(domain)
+    val signal = signalFigures(domain)
     return listOf(
       SpatialStep(
         STEP_VIGNETTE,
-        vignetteFragment(signalGlsl(gradeLight)),
+        vignetteFragment(signalSource(gradeLight)),
         mapOf(FRAME to INPUT),
         ::frameSize,
       ) { width, height ->
@@ -74,15 +74,6 @@ internal object SpatialShader {
       },
     )
   }
-
-  // Codes are already the signal, so they go through with every power at one and clamp at white.
-  private fun signalUniforms(domain: HdrColorMatrixUniforms?): Map<String, FloatArray> =
-    mapOf(
-      WHITE to floatArrayOf(domain?.white ?: 1f),
-      DISPLAY_GAMMA to floatArrayOf(domain?.displayGamma ?: 1f),
-      OOTF_GAMMA to floatArrayOf(domain?.ootfGamma ?: 1f),
-      CEILING to floatArrayOf(domain?.ceiling ?: 1f),
-    )
 
   private fun frameSize(
     width: Int,
@@ -152,6 +143,20 @@ public object SpatialBlur {
       return sum / (factor * factor);
     }
     """.trimIndent()
+
+  /**
+   * GLSL that moves a channel between the light a frame holds and the SDR signal it encodes to.
+   *
+   * It defines `vec3 toSignal(vec3 light)` and `vec3 fromSignal(vec3 signal)`, which clamps at the grade's ceiling, and
+   * the uniforms [signalUniforms] fills. [gradeLight] carries the light the frame holds into the light the grade reads,
+   * the way `displayLightGradeGlsl` does.
+   */
+  public fun signalGlsl(gradeLight: String = IDENTITY_GRADE_LIGHT_GLSL): String = signalSource(gradeLight)
+
+  /**
+   * The uniforms [signalGlsl] reads for a frame holding the light of [domain], or codes when it is null.
+   */
+  public fun signalUniforms(domain: HdrColorMatrixUniforms?): Map<String, FloatArray> = signalFigures(domain)
 
   /**
    * The size a blur of [sigmaFraction] of the frame's width runs at, for a frame [width] by [height].
@@ -229,8 +234,17 @@ private const val OOTF_GAMMA = "uOotfGamma"
 private const val CEILING = "uCeiling"
 private const val ORIGINAL = "uOriginal"
 
+// Codes are already the signal, so they go through with every power at one and clamp at white.
+private fun signalFigures(domain: HdrColorMatrixUniforms?): Map<String, FloatArray> =
+  mapOf(
+    WHITE to floatArrayOf(domain?.white ?: 1f),
+    DISPLAY_GAMMA to floatArrayOf(domain?.displayGamma ?: 1f),
+    OOTF_GAMMA to floatArrayOf(domain?.ootfGamma ?: 1f),
+    CEILING to floatArrayOf(domain?.ceiling ?: 1f),
+  )
+
 // Moves a channel between the light a backend holds and the SDR signal, the way HDR_COLOR_MATRIX_GLSL does.
-private fun signalGlsl(gradeLight: String): String =
+private fun signalSource(gradeLight: String): String =
   """
   $gradeLight
   uniform float $WHITE, $DISPLAY_GAMMA, $OOTF_GAMMA, $CEILING;
