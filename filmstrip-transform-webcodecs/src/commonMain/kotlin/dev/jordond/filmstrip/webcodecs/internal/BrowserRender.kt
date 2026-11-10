@@ -269,7 +269,7 @@ private fun renderedClip(
     quadHalfH = drawn.height,
     coverHalfW = leaves.width * cover / outputSize.width,
     coverHalfH = leaves.height * cover / outputSize.height,
-    hasBars = resolved.placement.showsBlurredFill(outputSize),
+    hasBars = resolved.placement.showsBlurredFill(outputSize) || resolved.info.video?.hasAlpha == true,
     matrix = if (passStage == null) chain.textureMatrix() else compositionChain.textureMatrix(),
     canvases = if (passStage == null) canvases else emptyList(),
     overlayMatrix = (resolved.effects.drop(lastOverlay + 1) + compositionChain).textureMatrix(),

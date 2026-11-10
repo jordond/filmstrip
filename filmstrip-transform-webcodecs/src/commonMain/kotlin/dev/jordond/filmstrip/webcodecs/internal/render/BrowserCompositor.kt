@@ -384,7 +384,10 @@ internal class BrowserCompositor(
     gl.useProgram(program)
     gl.viewport(0, 0, width, height)
     gl.bindFramebuffer(GL_FRAMEBUFFER, blur.coverFbo)
+    // The cover starts clear so it holds each texel's color weighted by its alpha, which the blur then carries.
+    gl.clearColor(0f, 0f, 0f, 0f)
     gl.clear(GL_COLOR_BUFFER_BIT)
+    gl.clearColor(clearColor[0], clearColor[1], clearColor[2], 1f)
     gl.activeTexture(GL_TEXTURE0)
     gl.bindTexture(GL_TEXTURE_2D, source)
     gl.uniform2f(quadScale, clip.coverHalfW, clip.coverHalfH)

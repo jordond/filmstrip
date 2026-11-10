@@ -22,7 +22,7 @@ import kotlin.js.JsAny
  *
  * The cover is drawn into [coverFbo] at the output size, boxed down to the plan's size by [downProgram], blurred across
  * and then up by [SpatialBlur.GAUSSIAN_GLSL] in [blurProgram], and read back up to the output with linear filtering by
- * [upProgram], which applies the dim. On a kept grade the cover holds linear display light, [downProgram] carries it to
+ * [upProgram], which divides by the blurred alpha and applies the dim. On a kept grade the cover holds linear display light, [downProgram] carries it to
  * the SDR signal it encodes to before it averages, the blur and the dim run on that signal, and [upProgram] carries it
  * back.
  *
@@ -47,6 +47,9 @@ internal class BlurPass(
   /**
    * Boxes down what the cover pass drew into [coverFbo], blurs it across and then up, dims it, and draws it into
    * [target] at the [width] by [height] output, which it clears first. Leaves [target] bound and [upProgram] in use.
+   *
+   * The cover holds color premultiplied by alpha, so every pass writes what it computes with blending off. The last
+   * divides by the blurred alpha, which is what keeps a picture's level beside pixels with none.
    */
   fun blurCoverOnto(
     gl: WebGl2,
@@ -54,6 +57,7 @@ internal class BlurPass(
     width: Int,
     height: Int,
   ) {
+    gl.disable(GL_BLEND)
     gl.viewport(0, 0, smallWidth, smallHeight)
     gl.useProgram(downProgram)
     drawInto(gl, downFbo, coverTexture)
@@ -67,6 +71,7 @@ internal class BlurPass(
     gl.viewport(0, 0, width, height)
     gl.useProgram(upProgram)
     drawInto(gl, target, downTexture)
+    gl.enable(GL_BLEND)
   }
 
   /**
@@ -195,7 +200,7 @@ private fun signalSource(
   }
 
 // Boxes the cover down to the plan's size with SpatialBlur.BOX_DOWN_GLSL, each texel read as the signal. The cover is
-// opaque, so a texel is averaged as it is.
+// premultiplied by alpha, so a texel is averaged as it is.
 private fun fillBoxDownShader(
   hdr: Boolean,
   gradeLight: String,
@@ -223,7 +228,8 @@ ${SpatialBlur.BOX_DOWN_GLSL.prependIndent("  ")}
   }
   """.trimIndent()
 
-// Reads the blurred frame back up with linear filtering, dims its signal and takes it back to the light the cover held.
+// Reads the blurred frame back up with linear filtering, divides it by its alpha, dims its signal and takes it back to
+// the light the cover held. The cover it writes is opaque.
 private fun fillUpShader(
   hdr: Boolean,
   gradeLight: String,
@@ -240,6 +246,7 @@ ${signalSource(hdr, gradeLight).prependIndent("  ")}
 
   void main() {
     vec4 blurred = textureLod(uFrame, vUv, 0.0);
-    fragColor = vec4(fromSignal(blurred.rgb * uGain), blurred.a);
+    vec3 color = blurred.a > 0.0 ? blurred.rgb / blurred.a : vec3(0.0);
+    fragColor = vec4(fromSignal(color * uGain), 1.0);
   }
   """.trimIndent()

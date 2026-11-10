@@ -23,8 +23,8 @@ import kotlin.time.DurationUnit
  * the shared cover scale. This is what a blurred fill's background draws with.
  * @property coverHalfH The same, for height.
  * @property hasBars Whether this clip leaves anything for a blurred fill to show through. A clip whose aspect already
- *   matches the output leaves nothing, nor does one cropped or stretched to fill it or a canvas that fills it, and a
- *   blurred fill skips its background passes for one that does not need them.
+ *   matches the output leaves nothing, nor does one cropped or stretched to fill it or a canvas that fills it, unless
+ *   its source has alpha. A blurred fill skips its background passes for one that does not need them.
  * @property matrix What the quad samples through. That is the clip's source, or its last canvas when it builds any, in
  * which case only the effects after the crop that builds that canvas are folded in, along with the composition's.
  * @property canvases Every canvas a letterboxing or stretching crop builds for the effects after it to read, bars
