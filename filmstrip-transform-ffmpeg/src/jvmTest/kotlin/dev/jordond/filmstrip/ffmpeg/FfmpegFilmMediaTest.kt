@@ -204,7 +204,8 @@ class FfmpegFilmMediaTest {
 
   // The glow takes each pixel's light weighed by its alpha, so where the clip's alpha ramps up from clear it glows far
   // less than a glow taken from the straight colour would. The look's frame lands on the black fill by its alpha. The
-  // plain clip's placement drops alpha, so its frame shows the straight colour and its alpha is read before that.
+  // plain clip lands on it the same way, so its straight colour is the opaque side of its flat colour and its alpha is
+  // read where the clip hands it to the fill.
   @Test
   fun `a clip film after a contain crop glows on the signal where its alpha ramps`() =
     runBlocking<Unit> {
@@ -215,8 +216,9 @@ class FfmpegFilmMediaTest {
       val plainComposition = draw.composition(listOf(draw.alphaRampClipOf(WIDTH, side, EDGE_GLOW, listOf(crop))))
       val plain = frameOf(plainComposition)
       val alphas = draw.alphaAt(plainComposition, 0)
-      val colourAt = { x: Int, y: Int -> DoubleArray(3) { plain.channelAt(side, x, y, it) / FULL } }
       val alphaAt = { x: Int, y: Int -> alphas[y * side + x] / FULL }
+      val opaque = DoubleArray(3) { plain.channelAt(side, side - 1, side / 2, it) / FULL }
+      val colourAt = { x: Int, y: Int -> if (alphas[y * side + x] > 0) opaque else DoubleArray(3) }
       val weighed = HalationGlow.of(side, side) { x, y -> colourAt(x, y).map { it * alphaAt(x, y) }.toDoubleArray() }
       val straight = HalationGlow.of(side, side, colourAt)
       val params = FilmParams.of(film)
