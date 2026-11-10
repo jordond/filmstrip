@@ -14,8 +14,8 @@ import dev.jordond.filmstrip.test.writeAtomically
 import dev.jordond.filmstrip.transform.internal.geometry.blendOverFill
 import dev.jordond.filmstrip.transform.internal.geometry.blurPlan
 import io.kotest.assertions.withClue
+import io.kotest.matchers.doubles.shouldBeLessThanOrEqual
 import io.kotest.matchers.ints.shouldBeGreaterThan
-import io.kotest.matchers.ints.shouldBeLessThanOrEqual
 import kotlinx.coroutines.test.runTest
 import java.io.File
 import kotlin.math.abs
@@ -63,7 +63,7 @@ class AndroidSourceAlphaMediaTest {
                 if (it % frame.width < frame.width / 2) l.toDouble() else r.toDouble()
               }
             val blurred = blurPlane(plane, DoubleArray(plane.size) { 1.0 }, frame.width, frame.height, sigma)
-            blurred[(MID_ROW * frame.height).toInt() * frame.width + (at * frame.width).toInt()].toInt()
+            blurred[(MID_ROW * frame.height).toInt() * frame.width + (at * frame.width).toInt()].roundToInt()
           }
         val source = opaque.rgbAt(at, MID_ROW)
         withClue("the cover has to differ from the source or this cannot tell a blend from no blend") {
@@ -106,7 +106,10 @@ class AndroidSourceAlphaMediaTest {
         abs(read.second - expected.second),
         abs(read.third - expected.third),
       )
-    withClue("$context, read $read, expected $expected, off by $off") { off shouldBeLessThanOrEqual TOLERANCE }
+    withClue("$context, read $read, expected $expected, off by $off") {
+      off.toDouble() shouldBeLessThanOrEqual
+        WRITTEN_COLOUR_CODES
+    }
   }
 
   private fun assertBlend(
@@ -179,8 +182,5 @@ class AndroidSourceAlphaMediaTest {
     const val CLEAR_RADIUS = 0.25f
     const val MID_ROW = 0.5f
     const val MIN_COVER_GAP = 12
-
-    // What an encoder moves a read by.
-    const val TOLERANCE = 4
   }
 }
