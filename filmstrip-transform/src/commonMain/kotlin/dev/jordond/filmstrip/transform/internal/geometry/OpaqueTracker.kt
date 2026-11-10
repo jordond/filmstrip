@@ -10,20 +10,23 @@ import dev.jordond.filmstrip.geometry.Size
  * Follows a clip's chain to say where the frame entering each effect is opaque, the way [placementOf] follows its
  * canvases.
  *
- * Call [before] for an effect, then [advance] past it, in chain order.
+ * Call [before] for an effect, then [advance] past it, in chain order. A source with [sourceHasAlpha] may be clear
+ * anywhere, so no frame of its chain has a known opaque part.
  */
-internal class OpaqueTracker {
+internal class OpaqueTracker(
+  private val sourceHasAlpha: Boolean = false,
+) {
   private var open: NormalizedRect? = null
   private var barred = false
 
   /**
    * Where the frame entering [spec] is opaque as a fraction of it. A canvas an effect reads is built before that effect,
    * so it is the placed picture of that canvas. Null when an earlier effect already read a canvas with bars, since the
-   * clear part has moved or softened by then.
+   * clear part has moved or softened by then, and always null for a source with alpha.
    */
   fun before(spec: EffectSpec): NormalizedRect? =
     when {
-      barred -> null
+      sourceHasAlpha || barred -> null
       spec.readsCanvas() -> open ?: NormalizedRect.Full
       else -> NormalizedRect.Full
     }

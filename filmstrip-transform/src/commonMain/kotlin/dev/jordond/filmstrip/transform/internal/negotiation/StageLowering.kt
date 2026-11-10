@@ -65,7 +65,8 @@ internal class StageLowering(
    * [inputSize] and [layoutSize] are chained through every geometry effect in turn, so an effect
    * late in the chain is measured against the frame an export would hand it. [storedSize] is the
    * clip's frame as its pixels are stored, and gives way to the chained size once an effect changes it
-   * or an effect at a stage [takesSquarePixels] names is reached.
+   * or an effect at a stage [takesSquarePixels] names is reached. [sourceHasAlpha] says the clip's own pixels may be
+   * clear, so no effect is told where its frame is opaque.
    */
   fun lowerStages(
     stages: List<List<EffectSpec>>,
@@ -74,6 +75,7 @@ internal class StageLowering(
     span: TimeRange,
     target: LoweringTarget,
     storedSize: Size = inputSize,
+    sourceHasAlpha: Boolean = false,
   ): List<LoweredEffect> {
     var size = inputSize
     var layout = layoutSize
@@ -95,11 +97,11 @@ internal class StageLowering(
       )
     }
     val ordered = stages.flatMap { it.inCanonicalOrder() }
-    val tracker = OpaqueTracker()
+    val tracker = OpaqueTracker(sourceHasAlpha)
     val chain =
       foldedChain(
         ordered,
-        overriddenColor(ordered, inputSize, layoutSize, storedSize, target.capabilities, attributesAt),
+        overriddenColor(ordered, inputSize, layoutSize, storedSize, target.capabilities, sourceHasAlpha, attributesAt),
       )
 
     return chain.entries.mapIndexed { position, entry ->
@@ -149,6 +151,7 @@ internal class StageLowering(
     layoutSize: Size,
     storedSize: Size,
     capabilities: RenderCapabilities,
+    sourceHasAlpha: Boolean,
     attributesAt: (Size, Size, Size, NormalizedRect?) -> Attributes,
   ): Map<Int, EffectResolution> {
     if (overriding.isEmpty()) return emptyMap()
@@ -158,7 +161,7 @@ internal class StageLowering(
     var size = inputSize
     var layout = layoutSize
     var stored = storedSize
-    val tracker = OpaqueTracker()
+    val tracker = OpaqueTracker(sourceHasAlpha)
 
     ordered.forEachIndexed { index, spec ->
       val folds = color[index] && (color.getOrElse(index - 1) { false } || color.getOrElse(index + 1) { false })
