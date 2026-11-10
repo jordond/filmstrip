@@ -1,7 +1,9 @@
 package dev.jordond.filmstrip.avfoundation.internal.chain
 
+import dev.jordond.filmstrip.color.HDR_REFERENCE_WHITE_NITS
 import dev.jordond.filmstrip.color.blurPlane
 import dev.jordond.filmstrip.color.linearDimGain
+import dev.jordond.filmstrip.color.sdrSignalFromNits
 import dev.jordond.filmstrip.effects.geometry.Crop
 import dev.jordond.filmstrip.effects.geometry.KenBurns
 import dev.jordond.filmstrip.geometry.AspectRatio
@@ -26,7 +28,6 @@ import platform.CoreImage.CIColor
 import platform.CoreImage.CIImage
 import platform.CoreImage.CIVector
 import kotlin.math.abs
-import kotlin.math.pow
 import kotlin.test.Test
 
 /**
@@ -278,12 +279,14 @@ class ChainFrameHardwareTest {
         .linearPixels(100, 100)
         .red()
     val opaque = DoubleArray(cover.size) { 1.0 }
-    val onSignal = blurPlane(DoubleArray(cover.size) { cover[it].pow(1.0 / SDR_GAMMA) }, opaque, 100, 100, sigma)
-    val onLight = blurPlane(cover, opaque, 100, 100, sigma).map { it.pow(1.0 / SDR_GAMMA) }
+    val onSignal = blurPlane(DoubleArray(cover.size) { signalOf(cover[it]) }, opaque, 100, 100, sigma)
+    val onLight = blurPlane(cover, opaque, 100, 100, sigma).map(::signalOf)
     val drawn =
-      frame.blurredCover(SQUARE, fill, HdrTransfer.Pq).linearPixels(100, 100).red().map {
-        it.pow(1.0 / SDR_GAMMA)
-      }
+      frame
+        .blurredCover(SQUARE, fill, HdrTransfer.Pq)
+        .linearPixels(100, 100)
+        .red()
+        .map(::signalOf)
     val scale = coverScale(Size(64, 32), SQUARE).toDouble()
     val whole =
       frame
@@ -292,7 +295,7 @@ class ChainFrameHardwareTest {
         .imageByCroppingToRect(CGRectMake(0.0, 0.0, 64.0 * scale, 100.0))
         .linearPixels(WHOLE_WIDTH, 100)
         .red()
-    val wholeSignal = DoubleArray(whole.size) { whole[it].pow(1.0 / SDR_GAMMA) }
+    val wholeSignal = DoubleArray(whole.size) { signalOf(whole[it]) }
     val heldAtFrame =
       blurPlane(
         wholeSignal,
@@ -440,9 +443,8 @@ class ChainFrameHardwareTest {
     // Two eight bit codes, as a GaussianBlur on Core Image is held to.
     const val BLUR_LEVEL = 2.0 / 255.0
 
-    // Core Image's Gaussian against the plan on the SDR signal a kept grade is blurred on. Measured at 2.4 codes.
-    const val KEPT_BLUR_LEVEL = 2.5 / 255.0
-    const val SDR_GAMMA = 2.4
+    // Core Image's Gaussian against the plan on the SDR signal a kept grade is blurred on, held to the same two codes.
+    const val KEPT_BLUR_LEVEL = BLUR_LEVEL
 
     // A sigma of 16 pixels on the square, the size the Core Image blur tests of a kept grade run at.
     const val KEPT_RADIUS = 0.16f
@@ -462,6 +464,9 @@ class ChainFrameHardwareTest {
     const val ONE_SIGMA_LOW = 0.1587f
   }
 }
+
+// The SDR signal of display light with reference white at one.
+private fun signalOf(light: Double): Double = sdrSignalFromNits(light * HDR_REFERENCE_WHITE_NITS)
 
 private fun LinearPixels.blue(): DoubleArray = DoubleArray(width * height) { at(it % width, it / width)[2].toDouble() }
 
