@@ -183,7 +183,9 @@ internal actual class PlatformProber actual constructor() {
     count: Int,
   ): ByteArray {
     val buffer = ByteBuffer.allocate(count)
-    while (buffer.hasRemaining() && read(buffer, start + buffer.position()) >= 0) Unit
+    while (buffer.hasRemaining()) {
+      if (read(buffer, start + buffer.position()) < 0) break
+    }
     return buffer.array().copyOf(buffer.position())
   }
 

@@ -348,9 +348,7 @@ internal class Media3PlayerEngine(
         rebuild(next, request.startAt)?.let { return it }
       }
       // Ruled out before the plan was asked for, since an equal edit never reaches a planner.
-      LoadCost.Nothing -> {
-        Unit
-      }
+      LoadCost.Nothing -> {}
     }
 
     loaded = request.composition

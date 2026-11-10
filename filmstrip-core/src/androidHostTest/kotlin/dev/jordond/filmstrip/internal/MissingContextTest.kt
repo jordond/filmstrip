@@ -10,6 +10,7 @@ import dev.jordond.filmstrip.media.ProbeResult
 import dev.jordond.filmstrip.still.StillFormat
 import dev.jordond.filmstrip.still.StillWrite
 import dev.jordond.filmstrip.still.writeStill
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldStartWith
 import io.kotest.matchers.types.shouldBeInstanceOf
@@ -99,7 +100,7 @@ class MissingContextTest {
 
       val path = written.output.shouldBeInstanceOf<MediaSink.Path>().path
       try {
-        path shouldStartWith File(System.getProperty("java.io.tmpdir")).path
+        path shouldStartWith File(System.getProperty("java.io.tmpdir").shouldNotBeNull()).path
         File(path).readBytes().toList() shouldBe BYTES.toList()
       } finally {
         File(path).delete()

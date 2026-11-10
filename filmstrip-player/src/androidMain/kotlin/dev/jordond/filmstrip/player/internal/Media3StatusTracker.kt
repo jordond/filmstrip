@@ -91,9 +91,6 @@ internal class Media3StatusTracker(
       Player.STATE_ENDED -> {
         ended = true
       }
-      else -> {
-        Unit
-      }
     }
 
     setStalled(state == Player.STATE_BUFFERING)
