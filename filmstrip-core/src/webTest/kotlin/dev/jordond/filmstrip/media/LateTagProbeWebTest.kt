@@ -40,7 +40,7 @@ class LateTagProbeWebTest {
 
               val info = PlatformProber().probe(source).shouldBeInstanceOf<ProbeResult.Success>().info
 
-              val expected = imageMediaInfoOf(still.size, exif, still.format, IMAGE_PROBE_DURATION)
+              val expected = imageMediaInfoOf(still.size, exif, still.format, IMAGE_PROBE_DURATION, still.hasAlpha)
               withClue("${still.format} $exif from $image") { info shouldBe expected }
               withClue("${still.format} $exif from $image") {
                 info.video?.displaySize shouldBe displayed(still.size, exif)
@@ -62,13 +62,14 @@ class LateTagProbeWebTest {
     val format: String,
     val size: Size,
     val bytes: (Int) -> ByteArray,
+    val hasAlpha: Boolean = false,
   )
 
   private val stills =
     listOf(
       Still("png", LATE_PNG_SIZE, ::lateTaggedPng),
       Still("jpeg", IMAGE_PROBE_SIZE, ::lateTaggedJpeg),
-      Still("webp", LATE_WEBP_SIZE, ::lateTaggedWebp),
+      Still("webp", LATE_WEBP_SIZE, ::lateTaggedWebp, hasAlpha = true),
     )
 
   private companion object {
