@@ -1,50 +1,160 @@
 package dev.jordond.filmstrip.effects.filters.vhs
 
+import dev.jordond.filmstrip.effect.FilterBranch
 import dev.jordond.filmstrip.effect.FilterNode
 import kotlin.math.ceil
 
 /**
- * Writes [VhsSignal.pixelAt]'s read of a frame as one `geq`, tap by tap, for the columns beside an edge of the picture.
+ * Writes [VhsSignal.pixelAt]'s read of a frame as one `geq`, tap by tap, for the pixels beside an edge of the picture.
  *
  * A read there divides by alpha at every tap of the blur, which no pass over the whole row can follow, so each tap is
  * the premultiplied mix of the two columns either side, taken straight again, held at the frame's edge and faded to
  * black past it. The luma blur and its wide partner give the halo, and the chroma planes blur on their own tap table
  * with the alpha at chroma's size as the mean of the luma alpha it covers.
  *
- * The `geq` draws a window cut from the frame at [width] luma pixels wide, and only the columns of a core inside that
- * window run the taps. A tap reads a column of the window, which has to hold every column the core can reach.
+ * Only a pixel whose taps can land across an edge at its row's shift runs them. A `geq` takes the branch of an `if` it
+ * needs and skips the other, so every other pixel costs a compare. A second `geq` draws a mask of those pixels, and
+ * `maskedmerge` lays the exact read over the plain tape through it.
  */
 internal class VhsEdgeReads(
   private val nodes: VhsExpressions,
   private val params: VhsParams,
   private val width: Int,
 ) {
+  private val lumaReach = tapReach(params, width, chroma = false)
+  private val chromaReach = tapReach(params, width, chroma = true) / 2.0 + EDGE_CHROMA_ROOM
+
   /**
-   * The `geq` for a window that starts [origin] luma pixels into the frame, drawing the columns from [from] up to [to]
-   * of the frame. [origin] is even, so the window's chroma starts on a sample.
+   * The branches that read each core of [coverage] exactly, lay it over its stretch of [base] and join every stretch
+   * across the frame into [into]. The frame is read from [frame]0 and up, one pad for each core's read and one for its
+   * mask, which the caller fans out to.
    */
-  fun read(
+  fun branches(
+    coverage: Coverage.Edges,
+    frame: String,
+    base: String,
+    into: String,
+    height: Int,
+  ): List<FilterBranch> {
+    val pieces = coverage.pieces(width)
+    val cut = { span: Coverage.Span ->
+      FilterNode("crop", "w" to "${span.width}", "h" to "$height", "x" to "${span.from}", "y" to "0")
+    }
+    val lays =
+      pieces.flatMapIndexed { at, piece ->
+        val index = piece.core
+        if (index == null) {
+          listOf(FilterBranch(listOf("$base$at"), listOf(cut(piece.span)), listOf("piece$at")))
+        } else {
+          val edges = coverage.edgesIn(index)
+          val window = edgeWindow(piece.span, edges, width, params)
+          listOf(
+            FilterBranch(listOf("$base$at"), listOf(cut(piece.span)), listOf("base$index")),
+            FilterBranch(
+              listOf("$frame$index"),
+              listOf(
+                cut(window),
+                read(window.from, edges),
+                cut(
+                  Coverage.Span(
+                    piece.span.from - window.from,
+                    piece.span.to - window.from,
+                  ),
+                ),
+              ),
+              listOf("exact$index"),
+            ),
+            FilterBranch(
+              listOf("$frame${index}Mask"),
+              listOf(cut(piece.span), mask(piece.span.from, edges)),
+              listOf("mask$index"),
+            ),
+            FilterBranch(
+              listOf("base$index", "exact$index", "mask$index"),
+              listOf(FilterNode("maskedmerge", "planes" to "$MERGED_PLANES")),
+              listOf("piece$at"),
+            ),
+          )
+        }
+      }
+    val fanOut = FilterBranch(listOf(base), emptyList(), pieces.indices.map { "$base$it" })
+    val joined =
+      FilterBranch(
+        pieces.indices.map { "piece$it" },
+        listOf(FilterNode("hstack", "inputs" to "${pieces.size}")),
+        listOf(into),
+      )
+    return listOf(fanOut) + lays + joined
+  }
+
+  /**
+   * The pads [branches] reads the frame from, which the caller writes the frame to.
+   */
+  fun reads(
+    coverage: Coverage.Edges,
+    frame: String,
+  ): List<String> = coverage.cores.indices.flatMap { listOf("$frame$it", "$frame${it}Mask") }
+
+  /**
+   * The `geq` that reads every pixel of the frame exactly, for a frame that can be clear anywhere.
+   */
+  fun everywhere(): FilterNode = read(0, null)
+
+  /**
+   * The `geq` for a window that starts [origin] luma pixels into the frame, drawing the pixels beside [edges], or all
+   * of them when it is null. [origin] is even, so the window's chroma starts on a sample.
+   */
+  private fun read(
     origin: Int,
-    from: Int,
-    to: Int,
+    edges: List<Int>?,
   ): FilterNode {
     val luma = Plane(1.0, origin, LUMA_BLACK, { "lum($it,Y)" }, { "alpha($it,Y)" })
     val chroma = { name: String ->
       Plane(CHROMA_SCALE, origin / 2, CHROMA_ZERO, { "$name($it,Y)" }, ::meanAlpha)
     }
-    val shift = "st(7,ld(8)*$width)"
-    val chromaShift = "st(7,(ld(8)+${params.chromaShift})*$width*$CHROMA_SCALE)"
-    val alpha = "clip(X+$origin-ld(8)*$width,0,${width - 1})-$origin"
-    val lumaGate = "between(X+$origin,$from,${to - 1})"
-    val chromaGate = "gte(2*(X+${origin / 2})+1,$from)*lt(2*(X+${origin / 2}),$to)"
     return FilterNode(
       "geq",
-      "lum" to "${nodes.shiftOpening(shift)};if($lumaGate,${lumaTaps(luma)},0)",
-      "cb" to "${nodes.shiftOpening(chromaShift)};if($chromaGate,${chromaTaps(chroma("cb"))},0)",
-      "cr" to "${nodes.shiftOpening(chromaShift)};if($chromaGate,${chromaTaps(chroma("cr"))},0)",
-      "a" to "${nodes.shiftOpening()};0.5+alpha($alpha,Y)",
+      "lum" to "${nodes.shiftOpening(lumaShift())};if(${near(origin, edges, 1.0)},${lumaTaps(luma)},0)",
+      "cb" to
+        "${nodes.shiftOpening(
+          chromaShift(),
+        )};if(${near(origin / 2, edges, CHROMA_SCALE)},${chromaTaps(chroma("cb"))},0)",
+      "cr" to
+        "${nodes.shiftOpening(
+          chromaShift(),
+        )};if(${near(origin / 2, edges, CHROMA_SCALE)},${chromaTaps(chroma("cr"))},0)",
+      "a" to "0",
     )
   }
+
+  /**
+   * The `geq` that draws 255 in each pixel [read] draws and 0 in the rest, for the core that starts [origin] luma pixels
+   * into the frame.
+   */
+  private fun mask(
+    origin: Int,
+    edges: List<Int>,
+  ): FilterNode {
+    val luma = "${nodes.shiftOpening(lumaShift())};255*gt(${near(origin, edges, 1.0)},0)"
+    val chroma = "${nodes.shiftOpening(chromaShift())};255*gt(${near(origin / 2, edges, CHROMA_SCALE)},0)"
+    return FilterNode("geq", "lum" to luma, "cb" to chroma, "cr" to chroma, "a" to "255")
+  }
+
+  // A pixel counts the edges its read starts within a blur's reach of. The read starts at the pixel's column less the
+  // row's shift, which register 7 holds in this plane's samples. The sum is a count of those edges.
+  private fun near(
+    origin: Int,
+    edges: List<Int>?,
+    scale: Double,
+  ): String {
+    if (edges == null) return "1"
+    val reach = if (scale == 1.0) lumaReach.toDouble() else chromaReach
+    return edges.joinToString("+") { "lte(abs(X+$origin-ld(7)-${it * scale}),$reach)" }
+  }
+
+  private fun lumaShift() = "st(7,ld(8)*$width)"
+
+  private fun chromaShift() = "st(7,(ld(8)+${params.chromaShift})*$width*$CHROMA_SCALE)"
 
   // The luma blur in register 6 and the wide blur in 9, each as a sum over the table, then the ring they make.
   private fun lumaTaps(plane: Plane): String {
@@ -121,5 +231,7 @@ internal class VhsEdgeReads(
 
   private companion object {
     const val CHROMA_SCALE = 0.5
+    const val EDGE_CHROMA_ROOM = 4
+    const val MERGED_PLANES = 7
   }
 }

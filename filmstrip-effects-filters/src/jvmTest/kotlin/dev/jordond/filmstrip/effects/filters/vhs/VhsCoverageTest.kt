@@ -33,6 +33,7 @@ class VhsCoverageTest {
     val picture = NormalizedRect(0.25f, 0f, 0.75f, 1f)
     val edges = coverageOf(picture, width, reach).shouldBeInstanceOf<Coverage.Edges>()
 
+    edges.edges shouldBe listOf(480, 1440)
     edges.cores.map { it.from to it.to } shouldBe listOf(420 to 540, 1380 to 1500)
     edges.pieces(width).map { it.span.from to it.span.to } shouldBe
       listOf(0 to 420, 420 to 540, 540 to 1380, 1380 to 1500, 1500 to width)
@@ -49,7 +50,7 @@ class VhsCoverageTest {
   @Test
   fun `cores that meet are one and a core across the frame reads exactly everywhere`() {
     val narrow = NormalizedRect(0.45f, 0f, 0.55f, 1f)
-    coverageOf(narrow, width, reach).shouldBeInstanceOf<Coverage.Edges>().cores.size shouldBe 1
+    coverageOf(narrow, width, 100).shouldBeInstanceOf<Coverage.Edges>().cores.size shouldBe 1
     coverageOf(narrow, width, width) shouldBe Coverage.Anywhere
   }
 
@@ -78,6 +79,7 @@ class VhsCoverageTest {
 
     names shouldContain "hstack"
     names shouldContain "mergeplanes"
+    names shouldContain "maskedmerge"
     names.count { it == "geq" } shouldBeGreaterThan 2
   }
 

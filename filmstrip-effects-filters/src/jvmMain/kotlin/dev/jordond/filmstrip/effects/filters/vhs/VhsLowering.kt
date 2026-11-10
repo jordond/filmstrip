@@ -88,12 +88,9 @@ internal fun vhsFragment(
       FilterBranch(listOf("near", "wide"), listOf(halo, unpad), listOf(into)),
     )
   }
-  val cut = { x: Int, columns: Int ->
-    FilterNode("crop", "w" to "$columns", "h" to "$height", "x" to "$x", "y" to "0")
-  }
   // Everything from the frame in [from] to the tape after its blur and halo, written to `ringed`. A frame with no clear
   // column runs the plain displace and the blurs. One with clear columns beside its picture takes the exact read in the
-  // columns around each edge of the picture and premultiplies for the rest, and one that may be clear anywhere takes the
+  // pixels beside each edge of the picture and premultiplies for the rest, and one that may be clear anywhere takes the
   // exact read across the whole frame.
   val ringed = { from: String ->
     when (coverage) {
@@ -102,64 +99,13 @@ internal fun vhsFragment(
         listOf(FilterBranch(listOf(from), tape, listOf("sharp"))) + blurred("ringed")
       }
       is Coverage.Anywhere -> {
-        listOf(FilterBranch(listOf(from), listOf(edges.read(0, 0, width)), listOf("ringed")))
+        listOf(FilterBranch(listOf(from), listOf(edges.everywhere()), listOf("ringed")))
       }
       is Coverage.Edges -> {
-        val reach = edgeReach(params, width)
-        val pieces = coverage.pieces(width)
-        val plain = pieces.indices.filter { pieces[it].core == null }
-        val reads =
-          pieces.mapNotNull { piece ->
-            val index = piece.core ?: return@mapNotNull null
-            val core = piece.span
-            val window = edgeWindow(core, width, reach)
-            val steps =
-              listOf(
-                cut(window.from, window.width),
-                edges.read(window.from, core.from, core.to),
-                cut(core.from - window.from, core.width),
-              )
-            FilterBranch(listOf("edgeIn$index"), steps, listOf("piece${pieces.indexOf(piece)}"))
-          }
-        val cuts =
-          plain.map {
-            FilterBranch(
-              listOf(
-                if (plain.size ==
-                  1
-                ) {
-                  "ringedBase"
-                } else {
-                  "plain$it"
-                },
-              ),
-              listOf(cut(pieces[it].span.from, pieces[it].span.width)),
-              listOf("piece$it"),
-            )
-          }
-        val fanOut =
-          if (plain.size >
-            1
-          ) {
-            listOf(FilterBranch(listOf("ringedBase"), emptyList(), plain.map { "plain$it" }))
-          } else {
-            emptyList()
-          }
-        val joined =
-          FilterBranch(
-            pieces.indices.map { "piece$it" },
-            listOf(
-              FilterNode(
-                "hstack",
-                "inputs" to "${pieces.size}",
-              ),
-            ),
-            listOf("ringed"),
-          )
-        val taps = listOf("tapeIn") + coverage.cores.indices.map { "edgeIn$it" }
+        val taps = listOf("tapeIn") + edges.reads(coverage, "edgeIn")
         listOf(FilterBranch(listOf(from), emptyList(), taps)) +
-          tapeBranches(nodes, width, margin, "tapeIn", softened) + blurred("ringedBase") + fanOut + cuts + reads +
-          joined
+          tapeBranches(nodes, width, margin, "tapeIn", softened) + blurred("ringedBase") +
+          edges.branches(coverage, "edgeIn", "ringedBase", "ringed", height)
       }
     }
   }

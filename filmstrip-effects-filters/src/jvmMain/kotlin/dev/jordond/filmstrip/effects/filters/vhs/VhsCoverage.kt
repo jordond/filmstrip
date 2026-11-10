@@ -2,9 +2,9 @@ package dev.jordond.filmstrip.effects.filters.vhs
 
 import dev.jordond.filmstrip.geometry.NormalizedRect
 import kotlin.math.ceil
+import kotlin.math.floor
 import kotlin.math.max
 import kotlin.math.min
-import kotlin.math.roundToInt
 
 /**
  * Where the frame a [Vhs] reads has clear columns, which decides how its tape is read.
@@ -21,12 +21,18 @@ internal sealed interface Coverage {
   data object Anywhere : Coverage
 
   /**
-   * A frame clear beside its picture, read exactly in the [cores] around the picture's edges and through
-   * premultiplied alpha elsewhere. The cores are ordered, even and do not touch.
+   * A frame clear beside its picture, read exactly in the [cores] around the picture's [edges] and through
+   * premultiplied alpha elsewhere. The cores are ordered, even and do not touch, and hold every edge between them.
    */
   class Edges(
     val cores: List<Span>,
+    val edges: List<Int>,
   ) : Coverage {
+    /**
+     * The edges that sit in the core at [index].
+     */
+    fun edgesIn(index: Int): List<Int> = edges.filter { it >= cores[index].from && it <= cores[index].to }
+
     /**
      * Every column of a frame [width] wide, cut into the cores and the stretches of tape between them in order.
      */
@@ -74,8 +80,8 @@ internal fun coverageOf(
   reach: Int,
 ): Coverage {
   if (opaque == null) return Coverage.Anywhere
-  val left = (opaque.left * width).roundToInt().coerceIn(0, width)
-  val right = (opaque.right * width).roundToInt().coerceIn(0, width)
+  val left = floor(opaque.left * width).toInt().coerceIn(0, width)
+  val right = ceil(opaque.right * width).toInt().coerceIn(0, width)
   val edges = listOfNotNull(left.takeIf { it >= 1 && it < width }, right.takeIf { width - it >= 1 && it > 0 })
   if (edges.isEmpty()) return Coverage.Opaque
   val spans = edges.map { Coverage.Span(max(0, evenDown(it - reach)), min(width, evenUp(it + reach, width))) }
@@ -89,7 +95,7 @@ internal fun coverageOf(
     }
   }
   val all = merged.singleOrNull()?.let { it.from == 0 && it.to == width } ?: false
-  return if (all) Coverage.Anywhere else Coverage.Edges(merged)
+  return if (all) Coverage.Anywhere else Coverage.Edges(merged, edges.sorted())
 }
 
 /**
@@ -102,13 +108,38 @@ internal fun edgeReach(
 ): Int = ceil(params.widestReach * width).toInt() + EDGE_ROOM
 
 /**
- * The columns a `geq` has to be handed to draw [core], which is every column it can read, on the chroma grid.
+ * How many luma pixels the blur's taps spread either side of the position a read starts from, which is how close to an
+ * edge a pixel has to be to take it into account. [chroma] picks the chroma blur over the luma blur and its halo.
+ */
+internal fun tapReach(
+  params: VhsParams,
+  width: Int,
+  chroma: Boolean,
+): Int {
+  val blur =
+    if (chroma) {
+      params.chromaSigma * CHROMA_TAP_STEP * CHROMA_TAPS
+    } else {
+      params.wideSigma * LUMA_TAP_STEP * LUMA_TAPS
+    }
+  return ceil(blur * width).toInt() + EDGE_ROOM
+}
+
+/**
+ * The columns a `geq` has to be handed to draw [core], which is the core itself and every column a pixel next to one
+ * of its [edges] can read, on the chroma grid.
  */
 internal fun edgeWindow(
   core: Coverage.Span,
+  edges: List<Int>,
   width: Int,
-  reach: Int,
-): Coverage.Span = Coverage.Span(max(0, evenDown(core.from - reach)), min(width, evenUp(core.to + reach, width)))
+  params: VhsParams,
+): Coverage.Span {
+  val reads = 2 * max(tapReach(params, width, false), tapReach(params, width, true)) + EDGE_ROOM
+  val from = min(core.from, edges.min() - reads)
+  val to = max(core.to, edges.max() + reads)
+  return Coverage.Span(max(0, evenDown(from)), min(width, evenUp(to, width)))
+}
 
 private fun evenDown(column: Int): Int = column - column % 2
 
