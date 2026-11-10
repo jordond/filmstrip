@@ -198,6 +198,9 @@ internal fun CIImage.fillImage(
  * The blur runs on the cover crop, so the edge it holds is the crop's and not the frame's. A frame on a kept
  * [transfer] grade is blurred on its SDR signal, with the dim as a gain there. A frame with nothing in it covers with
  * black.
+ *
+ * A frame with alpha is blurred weighted by that alpha, and the cover is then made opaque. The cover is the colour the
+ * picture stands for and its alpha belongs to the sharp frame laid over it, so the cover never shows through twice.
  */
 @OptIn(ExperimentalForeignApi::class)
 internal fun CIImage.blurredCover(
@@ -208,10 +211,23 @@ internal fun CIImage.blurredCover(
   val cover = coverOf(size) ?: return CIImage(color = CIColor.blackColor)
   val extent = CGRectMake(0.0, 0.0, size.width.toDouble(), size.height.toDouble())
   val plan = blur.blurPlan(size)
-  if (transfer != null) return cover.blurredOnSignal(plan, extent, transfer, ColorSpace.Bt2020, blur.backgroundGain)
-  val blurred = cover.blurredBy(plan, extent)
+  if (transfer != null) {
+    return cover.blurredOnSignal(plan, extent, transfer, ColorSpace.Bt2020, blur.backgroundGain).opaque()
+  }
+  val blurred = cover.blurredBy(plan, extent).opaque()
   return if (blur.dim <= 0f) blurred else blurred.dimmed(blur.dim)
 }
+
+// Divides the colour by its alpha and then sets the alpha to one, which leaves an opaque image as it was.
+@OptIn(ExperimentalForeignApi::class)
+private fun CIImage.opaque(): CIImage =
+  imageByUnpremultiplyingAlpha().imageByApplyingFilter(
+    "CIColorMatrix",
+    mapOf(
+      "inputAVector" to CIVector.vectorWithX(0.0, 0.0, 0.0, 0.0),
+      "inputBiasVector" to CIVector.vectorWithX(0.0, 0.0, 0.0, 1.0),
+    ),
+  )
 
 /**
  * This frame scaled to cover [size], centred and cropped to it, or null when the frame has nothing in it.

@@ -285,7 +285,8 @@ internal class CoreImageChain(
     if (fill.derivesFromFrame) {
       // Picture, not furniture: the fill is composited in first and the composition's own effects
       // grade it along with the rest of the frame. A cover the clip hides costs a blur nothing shows.
-      val under = if (span?.placement?.showsBlurredFill(size) == false) Fill.Black else fill
+      val hidden = span != null && !span.hasAlpha && !span.placement.showsBlurredFill(size)
+      val under = if (hidden) Fill.Black else fill
       image = image.fittedTo(size, rect, under, state.encodedTransfer)
       return image.stepped(resolved.effectsUnderFill, frame).stepped(resolved.effectsOverFill, frame)
     }
