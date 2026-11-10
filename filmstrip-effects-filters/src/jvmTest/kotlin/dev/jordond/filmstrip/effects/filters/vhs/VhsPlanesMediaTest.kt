@@ -6,23 +6,25 @@ import io.kotest.assertions.withClue
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import kotlin.test.Test
+import kotlin.time.Duration.Companion.seconds
 
 /**
- * Runs [VhsExpressions]' two maps through ffmpeg's own `geq` and reads the planes [VhsPlanes] draws against them.
+ * Runs [VhsExpressions]' maps through ffmpeg's own `geq` and reads the planes [VhsPlanes] draws against them.
  *
  * The ffmpeg is [hostFfmpeg], the one the build declares as this suite's input.
  */
 class VhsPlanesMediaTest {
   @Test
   fun `the planes equal the geq's at mid-range ticks and strengths`() {
-    listOf(Vhs(), Vhs(intensity = 0.5f)).forEach { vhs ->
+    listOf(Vhs(), Vhs(intensity = 0.5f), ROLLING_SNOW, EVENT_SNOW).forEach { vhs ->
       val nodes = VhsExpressions(vhs.seed, VhsParams.of(vhs))
       val inputs =
         vhsFragment(vhs, Size(WIDTH, HEIGHT))
           .live
           .shouldNotBeNull()
           .inputs
-      val (grain, drop) = inputs
+      val grain = inputs[0]
+      val drop = inputs[1]
       TICKS.forEach { tick ->
         withClue("the grain of $vhs at tick $tick") {
           differing(
@@ -38,6 +40,13 @@ class VhsPlanesMediaTest {
           ) shouldBe
             0
         }
+        if (vhs.tracking != Vhs().tracking) {
+          withClue("the snow and its weight of $vhs at tick $tick") {
+            val snow = drawn(nodes.snowMap().arguments.associate { it.key to it.value }, tick)
+            val weight = drawn(nodes.snowMask().arguments.associate { it.key to it.value }, tick, MASK)
+            differing(inputs[2].planeAt(tick), beside(snow, RASTER, weight, MASK)) shouldBe 0
+          }
+        }
       }
     }
   }
@@ -50,9 +59,33 @@ class VhsPlanesMediaTest {
     return plane.indices.count { plane[it] != frame[it] }
   }
 
+  // Two 4:2:0 frames HEIGHT rows tall as one, [left] then [right] along each row of every plane.
+  private fun beside(
+    left: ByteArray,
+    leftWidth: Int,
+    right: ByteArray,
+    rightWidth: Int,
+  ): ByteArray {
+    val planes =
+      listOf(Triple(leftWidth, rightWidth, HEIGHT)) + List(2) { Triple(leftWidth / 2, rightWidth / 2, HEIGHT / 2) }
+    var leftAt = 0
+    var rightAt = 0
+    return buildList {
+      planes.forEach { (leftRow, rightRow, rows) ->
+        repeat(rows) {
+          addAll(left.copyOfRange(leftAt, leftAt + leftRow).toList())
+          addAll(right.copyOfRange(rightAt, rightAt + rightRow).toList())
+          leftAt += leftRow
+          rightAt += rightRow
+        }
+      }
+    }.toByteArray()
+  }
+
   private fun drawn(
     planes: Map<String, String>,
     tick: Int,
+    width: Int = RASTER,
   ): ByteArray {
     val geq =
       planes.entries.joinToString(
@@ -67,7 +100,7 @@ class VhsPlanesMediaTest {
         "-f",
         "lavfi",
         "-i",
-        "color=c=black:s=${RASTER}x$HEIGHT:d=0.04",
+        "color=c=black:s=${width}x$HEIGHT:d=0.04",
         "-frames:v",
         "1",
         "-/filter:v",
@@ -95,6 +128,9 @@ class VhsPlanesMediaTest {
     const val WIDTH = 1920
     const val HEIGHT = 1080
     const val RASTER = 640
+    const val MASK = 2
     val TICKS = listOf(0, 1, 37, 240, 241, 500, 719, 3596, 9001, 20011)
+    val ROLLING_SNOW = Vhs(intensity = 0.6f, tracking = Tracking.Rolling(2.5.seconds, height = 0.15f, snow = 0.6f))
+    val EVENT_SNOW = Vhs(tracking = Tracking.Events(chance = 1f, height = 0.12f, snow = 0.4f))
   }
 }

@@ -40,16 +40,19 @@ public object VhsShader {
    * The float uniforms that draw [vhs] on a frame at [seconds] of composition time, by name.
    *
    * [RESOLUTION], [FLIP_V] and [TEXTURE] belong to whoever runs the pass. Seed and tick travel as
-   * floats, since each fits the 24 bits a float holds exactly once masked.
+   * floats, since each fits the 24 bits a float holds exactly once masked. The tracking band's place on the frame is
+   * read off [VhsSignal.trackingBand] here, once per frame.
    */
   public fun uniforms(
     vhs: Vhs,
     seconds: Double,
   ): Map<String, Float> {
     val params = VhsParams.of(vhs)
+    val tick = VhsSignal.tickAt(seconds)
+    val band = VhsSignal.trackingBand(vhs.seed, tick, params)
     return mapOf(
       "uSeed" to (vhs.seed and HASH_MASK).toFloat(),
-      "uTick" to (VhsSignal.tickAt(seconds) and HASH_MASK).toFloat(),
+      "uTick" to (tick and HASH_MASK).toFloat(),
       "uLumaSigma" to params.lumaSigma.toFloat(),
       "uChromaSigma" to params.chromaSigma.toFloat(),
       "uWideSigma" to params.wideSigma.toFloat(),
@@ -61,9 +64,12 @@ public object VhsShader {
       "uLumaNoise" to params.lumaNoise.toFloat(),
       "uChromaNoise" to params.chromaNoise.toFloat(),
       "uDropoutChance" to params.dropoutChance.toFloat(),
-      "uTrackChance" to params.trackingChance.toFloat(),
+      "uTrackCentre" to band.centre.toFloat(),
+      "uTrackStrength" to band.strength.toFloat(),
+      "uTrackHalfHeight" to params.trackingHalfHeight.toFloat(),
       "uTrackShift" to params.trackingShift.toFloat(),
       "uTrackNoise" to params.trackingNoise.toFloat(),
+      "uTrackSnow" to params.trackingSnow.toFloat(),
       "uDesaturation" to params.desaturation.toFloat(),
       "uLift" to params.lift.toFloat(),
     )
@@ -86,7 +92,7 @@ private fun fragmentSource(): String =
   uniform float uLumaSigma, uChromaSigma, uWideSigma, uHaloGain;
   uniform float uJitter, uWave, uHeadShift, uChromaShift;
   uniform float uLumaNoise, uChromaNoise, uDropoutChance;
-  uniform float uTrackChance, uTrackShift, uTrackNoise;
+  uniform float uTrackCentre, uTrackStrength, uTrackHalfHeight, uTrackShift, uTrackNoise, uTrackSnow;
   uniform float uDesaturation, uLift;
 
   const float KR = ${glslFloat(KR)};
@@ -96,7 +102,6 @@ private fun fragmentSource(): String =
   const float ROWS = ${glslFloat(VIRTUAL_ROWS.toDouble())};
   const float PI = 3.14159265358979;
   const float TAU = 2.0 * PI;
-  const float WINDOW_TICKS = ${glslFloat(trackWindowTicksValue())};
   const float HEAD_ROWS = ${glslFloat(headRowsValue())};
   const float LUMA_STEP = ${glslFloat(LUMA_TAP_STEP)};
   const float CHROMA_STEP = ${glslFloat(CHROMA_TAP_STEP)};
@@ -107,16 +112,11 @@ $HASH_GLSL
 
   float signedDraw(uint pass, uint tick, uint cell) { return draw(pass, tick, cell) * 2.0 - 1.0; }
 
-  float tracking(uint tick, uint row) {
-    uint windowTicks = uint(WINDOW_TICKS);
-    uint window = tick / windowTicks;
-    if (draw(${PASS_TRACK_EVENT}u, window, 0u) >= uTrackChance) return 0.0;
-    float phase = float(tick % windowTicks) / WINDOW_TICKS;
-    float start = draw(${PASS_TRACK_EVENT}u, window, 1u);
-    float centre = fract(start + ${glslFloat(TRACK_DRIFT * TRACK_WINDOW_SECONDS)} * phase);
-    float d = abs((float(row) + 0.5) / ROWS - centre);
+  float tracking(uint row) {
+    if (uTrackStrength == 0.0) return 0.0;
+    float d = abs((float(row) + 0.5) / ROWS - uTrackCentre);
     d = min(d, 1.0 - d);
-    return sin(PI * phase) * (1.0 - smoothstep(0.0, ${glslFloat(0.5 * TRACK_BAND)}, d));
+    return uTrackStrength * (1.0 - smoothstep(0.0, uTrackHalfHeight, d));
   }
 
   float rowShift(uint tick, uint row) {
@@ -133,7 +133,7 @@ $HASH_GLSL
       float wobble = 1.0 + ${glslFloat(HEAD_WOBBLE)} * signedDraw(${PASS_HEAD}u, tick, 0u);
       shift += uHeadShift * wobble * pow((intoBand + ${glslFloat(HEAD_OFFSET)}) / HEAD_ROWS, ${glslFloat(HEAD_POWER)});
     }
-    return shift + uTrackShift * tracking(tick, row) * signedDraw(${PASS_TRACK_SHIFT}u, tick, row);
+    return shift + uTrackShift * tracking(row) * signedDraw(${PASS_TRACK_SHIFT}u, tick, row);
   }
 
   float streak(uint pass, uint tick, uint row, float x, float cellLength) {
@@ -212,16 +212,24 @@ $HASH_GLSL
     float wide = lumaBlur(shifted, vUv.y, uWideSigma);
     vec2 chroma = chromaBlur(shifted - uChromaShift, vUv.y, uChromaSigma);
 
-    float band = tracking(tick, row);
+    float band = tracking(row);
     float drop = dropout(tick, row, x);
+    float snowWeight = uTrackSnow * band;
+    float snow = 0.0;
+    if (snowWeight > 0.0) {
+      snow = clamp(0.5 + ${glslFloat(SNOW_CONTRAST * 0.5)} *
+        streak(${PASS_SNOW}u, tick, row, x, ${glslFloat(SNOW_CELL)}), 0.0, 1.0);
+    }
     uint chromaRow = row / ${CHROMA_NOISE_ROWS}u;
     float chromaCell = ${glslFloat(STREAK * CHROMA_COARSENESS)};
-    float chromaGain = (1.0 - ${glslFloat(TRACK_CHROMA_LOSS)} * band) * (1.0 - drop) * (1.0 - uDesaturation);
+    float chromaGain = (1.0 - ${glslFloat(TRACK_CHROMA_LOSS)} * band) * (1.0 - drop) * (1.0 - uDesaturation) *
+      (1.0 - snowWeight);
 
     float luma = sharp + uHaloGain * (sharp - wide);
     luma += uLumaNoise * streak(${PASS_LUMA_NOISE}u, tick, row, x, ${glslFloat(STREAK)});
     luma += uTrackNoise * band * streak(${PASS_TRACK_NOISE}u, tick, row, x, ${glslFloat(TRACK_NOISE_CELL)});
     luma += (1.0 - luma) * drop;
+    luma += (snow - luma) * snowWeight;
     luma = uLift + luma * (1.0 - uLift);
     float cb = (chroma.x + uChromaNoise * streak(${PASS_CB_NOISE}u, tick, chromaRow, x, chromaCell)) * chromaGain;
     float cr = (chroma.y + uChromaNoise * streak(${PASS_CR_NOISE}u, tick, chromaRow, x, chromaCell)) * chromaGain;
@@ -236,7 +244,5 @@ private fun tapTable(
   taps: Int,
   step: Double,
 ): String = (0..taps).joinToString { glslFloat(VhsSignal.tapWeight(it, step)) }
-
-private fun trackWindowTicksValue(): Double = VhsSignal.trackWindowTicks.toDouble()
 
 private fun headRowsValue(): Double = VhsSignal.headRows.toDouble()

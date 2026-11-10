@@ -44,6 +44,7 @@ import androidx.compose.ui.unit.sp
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.effects.color.ColorMatrix
 import dev.jordond.filmstrip.effects.filters.vhs.TapeSpeed
+import dev.jordond.filmstrip.effects.filters.vhs.Tracking
 import dev.jordond.filmstrip.effects.overlay.ImageOverlay
 import dev.jordond.filmstrip.filekit.compose.rememberImagePickerLauncher
 import dev.jordond.filmstrip.geometry.AspectRatio
@@ -55,6 +56,7 @@ import dev.jordond.filmstrip.sample.EditState
 import dev.jordond.filmstrip.sample.EditorTool
 import dev.jordond.filmstrip.sample.FillMode
 import dev.jordond.filmstrip.sample.SampleAppState
+import dev.jordond.filmstrip.sample.VhsTrackingMode
 import dev.jordond.filmstrip.sample.ui.AnchorGrid
 import dev.jordond.filmstrip.sample.ui.Chip
 import dev.jordond.filmstrip.sample.ui.ChipGroup
@@ -591,6 +593,19 @@ private fun AdjustPanel(state: SampleAppState) {
           state.onEditChanged()
         },
       )
+      ChipGroup(
+        options = VhsTrackingMode.entries.map { it.name to it },
+        selected = edit.vhsTracking,
+        onSelect = {
+          edit.vhsTracking = it
+          state.onEditChanged()
+        },
+      )
+      if (edit.vhsTracking != VhsTrackingMode.Off) {
+        GradeSlider(state, "Snow", edit.vhsSnow, formatPercent(edit.vhsSnow), 0f..1f, Tracking.DEFAULT_SNOW) {
+          edit.vhsSnow = it
+        }
+      }
     }
   }
 

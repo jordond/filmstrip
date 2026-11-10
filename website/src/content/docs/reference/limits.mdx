@@ -124,6 +124,8 @@ one, it's refused by name.
 - **ffmpeg** works in 4:2:0, which averages out the colored stripes in `crt`'s mask. Any 4:2:0 file does the same, so
   the export matches the other backends.
 - **ffmpeg** refuses a look its build is missing a filter for.
+- **Every backend** draws `vhs` tracking snow from the same signal. Apple and Android land within 1e-4, the browser
+  within one code, and ffmpeg within 1.74 codes of luma and 1.14 of chroma, since it mixes into 8-bit planes.
 
 Filters are heavy on ffmpeg. Measured on a 12 thread x86 server with x264:
 
@@ -139,6 +141,9 @@ Filters are heavy on ffmpeg. Measured on a 12 thread x86 server with x264:
 - `film` and `vhs` fall back to a slower path with the same result when the JVM can't open a local socket, the ffmpeg
   build has no `tcp` protocol, or the graph would need more than 16 live inputs. `vhs` also falls back for a source not
   tagged BT.709. The diagnostics name the fallback.
+- A `vhs` with snow opens three live inputs and one without opens two, so five snowy clips run live and a sixth falls
+  back. A 1080p `vhs` with a snowy band always in frame ran about 16 fps live and 7.8 fps on the fallback, on ffmpeg
+  9.0.2 on an arm64 Mac.
 - Changing a `crt` in a preview restarts ffmpeg, which takes 0.6 to 1.7 s to the first frame.
 
 ## Preview on iOS 27

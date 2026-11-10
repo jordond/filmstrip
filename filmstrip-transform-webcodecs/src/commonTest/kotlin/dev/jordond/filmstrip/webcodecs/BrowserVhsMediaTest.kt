@@ -13,6 +13,7 @@ import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effects.BuiltInEffectResolver
 import dev.jordond.filmstrip.effects.filters.FilterEffectResolver
 import dev.jordond.filmstrip.effects.filters.filters
+import dev.jordond.filmstrip.effects.filters.vhs.Tracking
 import dev.jordond.filmstrip.effects.filters.vhs.Vhs
 import dev.jordond.filmstrip.effects.filters.vhs.VhsParams
 import dev.jordond.filmstrip.effects.filters.vhs.VhsSignal
@@ -41,6 +42,7 @@ import dev.jordond.filmstrip.webcodecs.internal.preview.PreviewFrame
 import dev.jordond.filmstrip.webcodecs.internal.preview.toBrowserPreview
 import dev.jordond.filmstrip.webcodecs.internal.stageFrameOn
 import io.kotest.assertions.withClue
+import io.kotest.matchers.doubles.shouldBeGreaterThan
 import io.kotest.matchers.doubles.shouldBeLessThan
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
@@ -99,6 +101,32 @@ class BrowserVhsMediaTest {
 
       frame.size.height shouldBe SMALL_HEIGHT
       worstCodes(frame, picture, vhs) shouldBeLessThan SIGNAL_CODES
+    }
+
+  @Test
+  fun snowInTheMiddleOfARollingBandLandsOnTheSignal() =
+    runTest {
+      val clip = rampClip()
+
+      val frame = drawn(edit(Clip(clip), listOf(SNOWY)))
+      val picture = drawn(edit(Clip(clip)))
+      val row = VhsSignal.virtualRow(HEIGHT / 2, HEIGHT)
+
+      VhsSignal.snowAt(SNOWY.seed, TICK, row, MIDDLE, VhsParams.of(SNOWY)).weight shouldBeGreaterThan MID / 2.0
+      worstCodes(frame, picture, SNOWY) shouldBeLessThan SIGNAL_CODES
+    }
+
+  @Test
+  fun aSmallerRenderDrawsTheSameSnowAtItsOwnVirtualRows() =
+    runTest {
+      val clip = rampClip()
+      val small = ExportSpec(heightPx = SMALL_HEIGHT, videoCodec = VideoCodec.H264)
+
+      val frame = drawn(edit(Clip(clip), listOf(SNOWY)), small)
+      val picture = drawn(edit(Clip(clip)), small)
+
+      frame.size.height shouldBe SMALL_HEIGHT
+      worstCodes(frame, picture, SNOWY) shouldBeLessThan SIGNAL_CODES
     }
 
   @Test
@@ -443,6 +471,9 @@ private const val FRAME_RATE = 30
 private const val READ_SLOT = 6L
 private val READ_TIME: Duration = outputSlotTime(READ_SLOT, FRAME_RATE)
 private val TICK: Int = VhsSignal.tickAt(READ_TIME.toDouble(DurationUnit.SECONDS))
+
+// Mid snow in a tall band that rolls through the frame once every two read times, so it sits mid frame at the read.
+private val SNOWY = Vhs(tracking = Tracking.Rolling(READ_TIME * 2, height = 0.3f, snow = MID))
 private const val RAMP_FLOOR = 64
 private const val RAMP_CODES = 128
 private const val RAMP_MIDDLE = 128

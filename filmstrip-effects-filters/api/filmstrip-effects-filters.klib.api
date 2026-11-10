@@ -22,6 +22,62 @@ final enum class dev.jordond.filmstrip.effects.filters.vhs/TapeSpeed : kotlin/En
     final fun values(): kotlin/Array<dev.jordond.filmstrip.effects.filters.vhs/TapeSpeed> // dev.jordond.filmstrip.effects.filters.vhs/TapeSpeed.values|values#static(){}[0]
 }
 
+sealed interface dev.jordond.filmstrip.effects.filters.vhs/Tracking { // dev.jordond.filmstrip.effects.filters.vhs/Tracking|null[0]
+    final class Events : dev.jordond.filmstrip.effects.filters.vhs/Tracking { // dev.jordond.filmstrip.effects.filters.vhs/Tracking.Events|null[0]
+        constructor <init>(kotlin/Float = ..., kotlin/Float = ..., kotlin/Float = ..., kotlin/Float = ...) // dev.jordond.filmstrip.effects.filters.vhs/Tracking.Events.<init>|<init>(kotlin.Float;kotlin.Float;kotlin.Float;kotlin.Float){}[0]
+
+        final val chance // dev.jordond.filmstrip.effects.filters.vhs/Tracking.Events.chance|{}chance[0]
+            final fun <get-chance>(): kotlin/Float // dev.jordond.filmstrip.effects.filters.vhs/Tracking.Events.chance.<get-chance>|<get-chance>(){}[0]
+        final val height // dev.jordond.filmstrip.effects.filters.vhs/Tracking.Events.height|{}height[0]
+            final fun <get-height>(): kotlin/Float // dev.jordond.filmstrip.effects.filters.vhs/Tracking.Events.height.<get-height>|<get-height>(){}[0]
+        final val shift // dev.jordond.filmstrip.effects.filters.vhs/Tracking.Events.shift|{}shift[0]
+            final fun <get-shift>(): kotlin/Float // dev.jordond.filmstrip.effects.filters.vhs/Tracking.Events.shift.<get-shift>|<get-shift>(){}[0]
+        final val snow // dev.jordond.filmstrip.effects.filters.vhs/Tracking.Events.snow|{}snow[0]
+            final fun <get-snow>(): kotlin/Float // dev.jordond.filmstrip.effects.filters.vhs/Tracking.Events.snow.<get-snow>|<get-snow>(){}[0]
+
+        final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.effects.filters.vhs/Tracking.Events.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.effects.filters.vhs/Tracking.Events.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // dev.jordond.filmstrip.effects.filters.vhs/Tracking.Events.toString|toString(){}[0]
+    }
+
+    final class Rolling : dev.jordond.filmstrip.effects.filters.vhs/Tracking { // dev.jordond.filmstrip.effects.filters.vhs/Tracking.Rolling|null[0]
+        constructor <init>(kotlin.time/Duration = ..., kotlin/Float = ..., kotlin/Float = ..., kotlin/Float = ...) // dev.jordond.filmstrip.effects.filters.vhs/Tracking.Rolling.<init>|<init>(kotlin.time.Duration;kotlin.Float;kotlin.Float;kotlin.Float){}[0]
+
+        final val height // dev.jordond.filmstrip.effects.filters.vhs/Tracking.Rolling.height|{}height[0]
+            final fun <get-height>(): kotlin/Float // dev.jordond.filmstrip.effects.filters.vhs/Tracking.Rolling.height.<get-height>|<get-height>(){}[0]
+        final val period // dev.jordond.filmstrip.effects.filters.vhs/Tracking.Rolling.period|{}period[0]
+            final fun <get-period>(): kotlin.time/Duration // dev.jordond.filmstrip.effects.filters.vhs/Tracking.Rolling.period.<get-period>|<get-period>(){}[0]
+        final val shift // dev.jordond.filmstrip.effects.filters.vhs/Tracking.Rolling.shift|{}shift[0]
+            final fun <get-shift>(): kotlin/Float // dev.jordond.filmstrip.effects.filters.vhs/Tracking.Rolling.shift.<get-shift>|<get-shift>(){}[0]
+        final val snow // dev.jordond.filmstrip.effects.filters.vhs/Tracking.Rolling.snow|{}snow[0]
+            final fun <get-snow>(): kotlin/Float // dev.jordond.filmstrip.effects.filters.vhs/Tracking.Rolling.snow.<get-snow>|<get-snow>(){}[0]
+
+        final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.effects.filters.vhs/Tracking.Rolling.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.effects.filters.vhs/Tracking.Rolling.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // dev.jordond.filmstrip.effects.filters.vhs/Tracking.Rolling.toString|toString(){}[0]
+    }
+
+    final object Companion { // dev.jordond.filmstrip.effects.filters.vhs/Tracking.Companion|null[0]
+        final const val DEFAULT_CHANCE // dev.jordond.filmstrip.effects.filters.vhs/Tracking.Companion.DEFAULT_CHANCE|{}DEFAULT_CHANCE[0]
+            final fun <get-DEFAULT_CHANCE>(): kotlin/Float // dev.jordond.filmstrip.effects.filters.vhs/Tracking.Companion.DEFAULT_CHANCE.<get-DEFAULT_CHANCE>|<get-DEFAULT_CHANCE>(){}[0]
+        final const val DEFAULT_HEIGHT // dev.jordond.filmstrip.effects.filters.vhs/Tracking.Companion.DEFAULT_HEIGHT|{}DEFAULT_HEIGHT[0]
+            final fun <get-DEFAULT_HEIGHT>(): kotlin/Float // dev.jordond.filmstrip.effects.filters.vhs/Tracking.Companion.DEFAULT_HEIGHT.<get-DEFAULT_HEIGHT>|<get-DEFAULT_HEIGHT>(){}[0]
+        final const val DEFAULT_SHIFT // dev.jordond.filmstrip.effects.filters.vhs/Tracking.Companion.DEFAULT_SHIFT|{}DEFAULT_SHIFT[0]
+            final fun <get-DEFAULT_SHIFT>(): kotlin/Float // dev.jordond.filmstrip.effects.filters.vhs/Tracking.Companion.DEFAULT_SHIFT.<get-DEFAULT_SHIFT>|<get-DEFAULT_SHIFT>(){}[0]
+        final const val DEFAULT_SNOW // dev.jordond.filmstrip.effects.filters.vhs/Tracking.Companion.DEFAULT_SNOW|{}DEFAULT_SNOW[0]
+            final fun <get-DEFAULT_SNOW>(): kotlin/Float // dev.jordond.filmstrip.effects.filters.vhs/Tracking.Companion.DEFAULT_SNOW.<get-DEFAULT_SNOW>|<get-DEFAULT_SNOW>(){}[0]
+
+        final val DEFAULT_PERIOD // dev.jordond.filmstrip.effects.filters.vhs/Tracking.Companion.DEFAULT_PERIOD|{}DEFAULT_PERIOD[0]
+            final fun <get-DEFAULT_PERIOD>(): kotlin.time/Duration // dev.jordond.filmstrip.effects.filters.vhs/Tracking.Companion.DEFAULT_PERIOD.<get-DEFAULT_PERIOD>|<get-DEFAULT_PERIOD>(){}[0]
+    }
+
+    final object Off : dev.jordond.filmstrip.effects.filters.vhs/Tracking { // dev.jordond.filmstrip.effects.filters.vhs/Tracking.Off|null[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.effects.filters.vhs/Tracking.Off.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.effects.filters.vhs/Tracking.Off.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // dev.jordond.filmstrip.effects.filters.vhs/Tracking.Off.toString|toString(){}[0]
+    }
+}
+
 final class dev.jordond.filmstrip.effects.filters.crt/Crt : dev.jordond.filmstrip.effect/EffectSpec { // dev.jordond.filmstrip.effects.filters.crt/Crt|null[0]
     constructor <init>(kotlin/Float = ...) // dev.jordond.filmstrip.effects.filters.crt/Crt.<init>|<init>(kotlin.Float){}[0]
 
@@ -126,8 +182,20 @@ final class dev.jordond.filmstrip.effects.filters.lut/Lut : dev.jordond.filmstri
     }
 }
 
+final class dev.jordond.filmstrip.effects.filters.vhs/TrackingBuilder { // dev.jordond.filmstrip.effects.filters.vhs/TrackingBuilder|null[0]
+    final var height // dev.jordond.filmstrip.effects.filters.vhs/TrackingBuilder.height|{}height[0]
+        final fun <get-height>(): kotlin/Float // dev.jordond.filmstrip.effects.filters.vhs/TrackingBuilder.height.<get-height>|<get-height>(){}[0]
+        final fun <set-height>(kotlin/Float) // dev.jordond.filmstrip.effects.filters.vhs/TrackingBuilder.height.<set-height>|<set-height>(kotlin.Float){}[0]
+    final var shift // dev.jordond.filmstrip.effects.filters.vhs/TrackingBuilder.shift|{}shift[0]
+        final fun <get-shift>(): kotlin/Float // dev.jordond.filmstrip.effects.filters.vhs/TrackingBuilder.shift.<get-shift>|<get-shift>(){}[0]
+        final fun <set-shift>(kotlin/Float) // dev.jordond.filmstrip.effects.filters.vhs/TrackingBuilder.shift.<set-shift>|<set-shift>(kotlin.Float){}[0]
+    final var snow // dev.jordond.filmstrip.effects.filters.vhs/TrackingBuilder.snow|{}snow[0]
+        final fun <get-snow>(): kotlin/Float // dev.jordond.filmstrip.effects.filters.vhs/TrackingBuilder.snow.<get-snow>|<get-snow>(){}[0]
+        final fun <set-snow>(kotlin/Float) // dev.jordond.filmstrip.effects.filters.vhs/TrackingBuilder.snow.<set-snow>|<set-snow>(kotlin.Float){}[0]
+}
+
 final class dev.jordond.filmstrip.effects.filters.vhs/Vhs : dev.jordond.filmstrip.effect/EffectSpec { // dev.jordond.filmstrip.effects.filters.vhs/Vhs|null[0]
-    constructor <init>(kotlin/Float = ..., dev.jordond.filmstrip.effects.filters.vhs/TapeSpeed = ..., kotlin/Int = ...) // dev.jordond.filmstrip.effects.filters.vhs/Vhs.<init>|<init>(kotlin.Float;dev.jordond.filmstrip.effects.filters.vhs.TapeSpeed;kotlin.Int){}[0]
+    constructor <init>(kotlin/Float = ..., dev.jordond.filmstrip.effects.filters.vhs/TapeSpeed = ..., kotlin/Int = ..., dev.jordond.filmstrip.effects.filters.vhs/Tracking = ...) // dev.jordond.filmstrip.effects.filters.vhs/Vhs.<init>|<init>(kotlin.Float;dev.jordond.filmstrip.effects.filters.vhs.TapeSpeed;kotlin.Int;dev.jordond.filmstrip.effects.filters.vhs.Tracking){}[0]
 
     final val beneathOverlays // dev.jordond.filmstrip.effects.filters.vhs/Vhs.beneathOverlays|{}beneathOverlays[0]
         final fun <get-beneathOverlays>(): kotlin/Boolean // dev.jordond.filmstrip.effects.filters.vhs/Vhs.beneathOverlays.<get-beneathOverlays>|<get-beneathOverlays>(){}[0]
@@ -145,6 +213,8 @@ final class dev.jordond.filmstrip.effects.filters.vhs/Vhs : dev.jordond.filmstri
         final fun <get-stage>(): dev.jordond.filmstrip.effect/EffectStage // dev.jordond.filmstrip.effects.filters.vhs/Vhs.stage.<get-stage>|<get-stage>(){}[0]
     final val tape // dev.jordond.filmstrip.effects.filters.vhs/Vhs.tape|{}tape[0]
         final fun <get-tape>(): dev.jordond.filmstrip.effects.filters.vhs/TapeSpeed // dev.jordond.filmstrip.effects.filters.vhs/Vhs.tape.<get-tape>|<get-tape>(){}[0]
+    final val tracking // dev.jordond.filmstrip.effects.filters.vhs/Vhs.tracking|{}tracking[0]
+        final fun <get-tracking>(): dev.jordond.filmstrip.effects.filters.vhs/Tracking // dev.jordond.filmstrip.effects.filters.vhs/Vhs.tracking.<get-tracking>|<get-tracking>(){}[0]
 
     final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.effects.filters.vhs/Vhs.equals|equals(kotlin.Any?){}[0]
     final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.effects.filters.vhs/Vhs.hashCode|hashCode(){}[0]
@@ -156,6 +226,24 @@ final class dev.jordond.filmstrip.effects.filters.vhs/Vhs : dev.jordond.filmstri
         final const val ID // dev.jordond.filmstrip.effects.filters.vhs/Vhs.Companion.ID|{}ID[0]
             final fun <get-ID>(): kotlin/String // dev.jordond.filmstrip.effects.filters.vhs/Vhs.Companion.ID.<get-ID>|<get-ID>(){}[0]
     }
+}
+
+final class dev.jordond.filmstrip.effects.filters.vhs/VhsBuilder { // dev.jordond.filmstrip.effects.filters.vhs/VhsBuilder|null[0]
+    final var intensity // dev.jordond.filmstrip.effects.filters.vhs/VhsBuilder.intensity|{}intensity[0]
+        final fun <get-intensity>(): kotlin/Float // dev.jordond.filmstrip.effects.filters.vhs/VhsBuilder.intensity.<get-intensity>|<get-intensity>(){}[0]
+        final fun <set-intensity>(kotlin/Float) // dev.jordond.filmstrip.effects.filters.vhs/VhsBuilder.intensity.<set-intensity>|<set-intensity>(kotlin.Float){}[0]
+    final var seed // dev.jordond.filmstrip.effects.filters.vhs/VhsBuilder.seed|{}seed[0]
+        final fun <get-seed>(): kotlin/Int // dev.jordond.filmstrip.effects.filters.vhs/VhsBuilder.seed.<get-seed>|<get-seed>(){}[0]
+        final fun <set-seed>(kotlin/Int) // dev.jordond.filmstrip.effects.filters.vhs/VhsBuilder.seed.<set-seed>|<set-seed>(kotlin.Int){}[0]
+    final var tape // dev.jordond.filmstrip.effects.filters.vhs/VhsBuilder.tape|{}tape[0]
+        final fun <get-tape>(): dev.jordond.filmstrip.effects.filters.vhs/TapeSpeed // dev.jordond.filmstrip.effects.filters.vhs/VhsBuilder.tape.<get-tape>|<get-tape>(){}[0]
+        final fun <set-tape>(dev.jordond.filmstrip.effects.filters.vhs/TapeSpeed) // dev.jordond.filmstrip.effects.filters.vhs/VhsBuilder.tape.<set-tape>|<set-tape>(dev.jordond.filmstrip.effects.filters.vhs.TapeSpeed){}[0]
+    final var tracking // dev.jordond.filmstrip.effects.filters.vhs/VhsBuilder.tracking|{}tracking[0]
+        final fun <get-tracking>(): dev.jordond.filmstrip.effects.filters.vhs/Tracking // dev.jordond.filmstrip.effects.filters.vhs/VhsBuilder.tracking.<get-tracking>|<get-tracking>(){}[0]
+        final fun <set-tracking>(dev.jordond.filmstrip.effects.filters.vhs/Tracking) // dev.jordond.filmstrip.effects.filters.vhs/VhsBuilder.tracking.<set-tracking>|<set-tracking>(dev.jordond.filmstrip.effects.filters.vhs.Tracking){}[0]
+
+    final fun events(kotlin/Float = ..., kotlin/Function1<dev.jordond.filmstrip.effects.filters.vhs/TrackingBuilder, kotlin/Unit> = ...): dev.jordond.filmstrip.effects.filters.vhs/Tracking.Events // dev.jordond.filmstrip.effects.filters.vhs/VhsBuilder.events|events(kotlin.Float;kotlin.Function1<dev.jordond.filmstrip.effects.filters.vhs.TrackingBuilder,kotlin.Unit>){}[0]
+    final fun rolling(kotlin.time/Duration = ..., kotlin/Function1<dev.jordond.filmstrip.effects.filters.vhs/TrackingBuilder, kotlin/Unit> = ...): dev.jordond.filmstrip.effects.filters.vhs/Tracking.Rolling // dev.jordond.filmstrip.effects.filters.vhs/VhsBuilder.rolling|rolling(kotlin.time.Duration;kotlin.Function1<dev.jordond.filmstrip.effects.filters.vhs.TrackingBuilder,kotlin.Unit>){}[0]
 }
 
 final class dev.jordond.filmstrip.effects.filters/FilterEffectResolver : dev.jordond.filmstrip.effect/EffectResolver { // dev.jordond.filmstrip.effects.filters/FilterEffectResolver|null[0]
@@ -170,5 +258,5 @@ final const val dev.jordond.filmstrip.effects.filters.lut/MAX_CUBE_CHARS // dev.
 final fun (dev.jordond.filmstrip.edit/EffectsBuilder).dev.jordond.filmstrip.effects.filters.crt/crt(kotlin/Float = ...): dev.jordond.filmstrip.edit/EffectsBuilder // dev.jordond.filmstrip.effects.filters.crt/crt|crt@dev.jordond.filmstrip.edit.EffectsBuilder(kotlin.Float){}[0]
 final fun (dev.jordond.filmstrip.edit/EffectsBuilder).dev.jordond.filmstrip.effects.filters.film/film(kotlin/Float = ..., kotlin/Float = ...): dev.jordond.filmstrip.edit/EffectsBuilder // dev.jordond.filmstrip.effects.filters.film/film|film@dev.jordond.filmstrip.edit.EffectsBuilder(kotlin.Float;kotlin.Float){}[0]
 final fun (dev.jordond.filmstrip.edit/EffectsBuilder).dev.jordond.filmstrip.effects.filters.lut/lut(dev.jordond.filmstrip.effects.filters.lut/CubeLut, kotlin/Float = ...): dev.jordond.filmstrip.edit/EffectsBuilder // dev.jordond.filmstrip.effects.filters.lut/lut|lut@dev.jordond.filmstrip.edit.EffectsBuilder(dev.jordond.filmstrip.effects.filters.lut.CubeLut;kotlin.Float){}[0]
-final fun (dev.jordond.filmstrip.edit/EffectsBuilder).dev.jordond.filmstrip.effects.filters.vhs/vhs(kotlin/Float = ..., dev.jordond.filmstrip.effects.filters.vhs/TapeSpeed = ..., kotlin/Int = ...): dev.jordond.filmstrip.edit/EffectsBuilder // dev.jordond.filmstrip.effects.filters.vhs/vhs|vhs@dev.jordond.filmstrip.edit.EffectsBuilder(kotlin.Float;dev.jordond.filmstrip.effects.filters.vhs.TapeSpeed;kotlin.Int){}[0]
+final fun (dev.jordond.filmstrip.edit/EffectsBuilder).dev.jordond.filmstrip.effects.filters.vhs/vhs(kotlin/Function1<dev.jordond.filmstrip.effects.filters.vhs/VhsBuilder, kotlin/Unit> = ...): dev.jordond.filmstrip.edit/EffectsBuilder // dev.jordond.filmstrip.effects.filters.vhs/vhs|vhs@dev.jordond.filmstrip.edit.EffectsBuilder(kotlin.Function1<dev.jordond.filmstrip.effects.filters.vhs.VhsBuilder,kotlin.Unit>){}[0]
 final fun (dev.jordond.filmstrip/FilmstripBuilder).dev.jordond.filmstrip.effects.filters/filters(): dev.jordond.filmstrip/FilmstripBuilder // dev.jordond.filmstrip.effects.filters/filters|filters@dev.jordond.filmstrip.FilmstripBuilder(){}[0]

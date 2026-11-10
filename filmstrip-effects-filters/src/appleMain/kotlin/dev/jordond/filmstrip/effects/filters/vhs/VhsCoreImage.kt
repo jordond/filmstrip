@@ -54,8 +54,7 @@ internal fun vhsStep(vhs: Vhs): CoreImageEffect {
   val shifts = CIVector.vectorWithX(params.jitter, Y = params.wave, Z = params.headShift, W = params.chromaShift)
   val noise =
     CIVector.vectorWithX(params.lumaNoise, Y = params.chromaNoise, Z = params.dropoutChance, W = params.desaturation)
-  val track =
-    CIVector.vectorWithX(params.trackingChance, Y = params.trackingShift, Z = params.trackingNoise, W = params.lift)
+  val band = CIVector.vectorWithX(params.trackingShift, Y = params.trackingNoise, Z = params.trackingSnow, W = 0.0)
   val seed = (vhs.seed and HASH_MASK).toDouble()
 
   return CoreImageEffect { image, frame ->
@@ -63,7 +62,11 @@ internal fun vhsStep(vhs: Vhs): CoreImageEffect {
     val extent = image.extent
     val (x, y, width, height) = extent.useContents { listOf(origin.x, origin.y, size.width, size.height) }
     val reach = params.widestReach * width + SAMPLE_MARGIN
-    val tick = VhsSignal.tickAt(frame.compositionTime.toDouble(DurationUnit.SECONDS)) and HASH_MASK
+    val exactTick = VhsSignal.tickAt(frame.compositionTime.toDouble(DurationUnit.SECONDS))
+    val tick = exactTick and HASH_MASK
+    val place = VhsSignal.trackingBand(vhs.seed, exactTick, params)
+    val track =
+      CIVector.vectorWithX(place.centre, Y = place.strength, Z = params.trackingHalfHeight, W = params.lift)
 
     inCodesOf(frame.attributes.colorSpace) { toCodes ->
       kernel.applyWithExtent(
@@ -78,6 +81,7 @@ internal fun vhsStep(vhs: Vhs): CoreImageEffect {
             shifts,
             noise,
             track,
+            band,
           ),
       ) ?: error(VHS_KERNEL_LIMIT)
     }

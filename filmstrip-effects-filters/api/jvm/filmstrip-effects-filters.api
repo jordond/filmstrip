@@ -119,13 +119,71 @@ public final class dev/jordond/filmstrip/effects/filters/vhs/TapeSpeed : java/la
 	public static fun values ()[Ldev/jordond/filmstrip/effects/filters/vhs/TapeSpeed;
 }
 
+public abstract interface class dev/jordond/filmstrip/effects/filters/vhs/Tracking {
+	public static final field Companion Ldev/jordond/filmstrip/effects/filters/vhs/Tracking$Companion;
+	public static final field DEFAULT_CHANCE F
+	public static final field DEFAULT_HEIGHT F
+	public static final field DEFAULT_SHIFT F
+	public static final field DEFAULT_SNOW F
+}
+
+public final class dev/jordond/filmstrip/effects/filters/vhs/Tracking$Companion {
+	public static final field DEFAULT_CHANCE F
+	public static final field DEFAULT_HEIGHT F
+	public static final field DEFAULT_SHIFT F
+	public static final field DEFAULT_SNOW F
+	public final fun getDEFAULT_PERIOD-UwyO8pc ()J
+}
+
+public final class dev/jordond/filmstrip/effects/filters/vhs/Tracking$Events : dev/jordond/filmstrip/effects/filters/vhs/Tracking {
+	public fun <init> ()V
+	public fun <init> (FFFF)V
+	public synthetic fun <init> (FFFFILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getChance ()F
+	public final fun getHeight ()F
+	public final fun getShift ()F
+	public final fun getSnow ()F
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/jordond/filmstrip/effects/filters/vhs/Tracking$Off : dev/jordond/filmstrip/effects/filters/vhs/Tracking {
+	public static final field INSTANCE Ldev/jordond/filmstrip/effects/filters/vhs/Tracking$Off;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/jordond/filmstrip/effects/filters/vhs/Tracking$Rolling : dev/jordond/filmstrip/effects/filters/vhs/Tracking {
+	public fun <init> ()V
+	public synthetic fun <init> (JFFFILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (JFFFLkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getHeight ()F
+	public final fun getPeriod-UwyO8pc ()J
+	public final fun getShift ()F
+	public final fun getSnow ()F
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/jordond/filmstrip/effects/filters/vhs/TrackingBuilder {
+	public final fun getHeight ()F
+	public final fun getShift ()F
+	public final fun getSnow ()F
+	public final fun setHeight (F)V
+	public final fun setShift (F)V
+	public final fun setSnow (F)V
+}
+
 public final class dev/jordond/filmstrip/effects/filters/vhs/Vhs : dev/jordond/filmstrip/effect/EffectSpec {
 	public static final field Companion Ldev/jordond/filmstrip/effects/filters/vhs/Vhs$Companion;
 	public static final field DEFAULT_SEED I
 	public static final field ID Ljava/lang/String;
 	public fun <init> ()V
-	public fun <init> (FLdev/jordond/filmstrip/effects/filters/vhs/TapeSpeed;I)V
-	public synthetic fun <init> (FLdev/jordond/filmstrip/effects/filters/vhs/TapeSpeed;IILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (FLdev/jordond/filmstrip/effects/filters/vhs/TapeSpeed;ILdev/jordond/filmstrip/effects/filters/vhs/Tracking;)V
+	public synthetic fun <init> (FLdev/jordond/filmstrip/effects/filters/vhs/TapeSpeed;ILdev/jordond/filmstrip/effects/filters/vhs/Tracking;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun equals (Ljava/lang/Object;)Z
 	public fun getBeneathOverlays ()Z
 	public fun getId ()Ljava/lang/String;
@@ -135,6 +193,7 @@ public final class dev/jordond/filmstrip/effects/filters/vhs/Vhs : dev/jordond/f
 	public final fun getSeed ()I
 	public fun getStage ()Ldev/jordond/filmstrip/effect/EffectStage;
 	public final fun getTape ()Ldev/jordond/filmstrip/effects/filters/vhs/TapeSpeed;
+	public final fun getTracking ()Ldev/jordond/filmstrip/effects/filters/vhs/Tracking;
 	public fun hashCode ()I
 	public fun isInert ()Z
 	public fun toString ()Ljava/lang/String;
@@ -143,8 +202,23 @@ public final class dev/jordond/filmstrip/effects/filters/vhs/Vhs : dev/jordond/f
 public final class dev/jordond/filmstrip/effects/filters/vhs/Vhs$Companion {
 }
 
-public final class dev/jordond/filmstrip/effects/filters/vhs/VhsKt {
-	public static final fun vhs (Ldev/jordond/filmstrip/edit/EffectsBuilder;FLdev/jordond/filmstrip/effects/filters/vhs/TapeSpeed;I)Ldev/jordond/filmstrip/edit/EffectsBuilder;
-	public static synthetic fun vhs$default (Ldev/jordond/filmstrip/edit/EffectsBuilder;FLdev/jordond/filmstrip/effects/filters/vhs/TapeSpeed;IILjava/lang/Object;)Ldev/jordond/filmstrip/edit/EffectsBuilder;
+public final class dev/jordond/filmstrip/effects/filters/vhs/VhsBuilder {
+	public final fun events (FLkotlin/jvm/functions/Function1;)Ldev/jordond/filmstrip/effects/filters/vhs/Tracking$Events;
+	public static synthetic fun events$default (Ldev/jordond/filmstrip/effects/filters/vhs/VhsBuilder;FLkotlin/jvm/functions/Function1;ILjava/lang/Object;)Ldev/jordond/filmstrip/effects/filters/vhs/Tracking$Events;
+	public final fun getIntensity ()F
+	public final fun getSeed ()I
+	public final fun getTape ()Ldev/jordond/filmstrip/effects/filters/vhs/TapeSpeed;
+	public final fun getTracking ()Ldev/jordond/filmstrip/effects/filters/vhs/Tracking;
+	public final fun rolling-VtjQ1oo (JLkotlin/jvm/functions/Function1;)Ldev/jordond/filmstrip/effects/filters/vhs/Tracking$Rolling;
+	public static synthetic fun rolling-VtjQ1oo$default (Ldev/jordond/filmstrip/effects/filters/vhs/VhsBuilder;JLkotlin/jvm/functions/Function1;ILjava/lang/Object;)Ldev/jordond/filmstrip/effects/filters/vhs/Tracking$Rolling;
+	public final fun setIntensity (F)V
+	public final fun setSeed (I)V
+	public final fun setTape (Ldev/jordond/filmstrip/effects/filters/vhs/TapeSpeed;)V
+	public final fun setTracking (Ldev/jordond/filmstrip/effects/filters/vhs/Tracking;)V
+}
+
+public final class dev/jordond/filmstrip/effects/filters/vhs/VhsBuilderKt {
+	public static final fun vhs (Ldev/jordond/filmstrip/edit/EffectsBuilder;Lkotlin/jvm/functions/Function1;)Ldev/jordond/filmstrip/edit/EffectsBuilder;
+	public static synthetic fun vhs$default (Ldev/jordond/filmstrip/edit/EffectsBuilder;Lkotlin/jvm/functions/Function1;ILjava/lang/Object;)Ldev/jordond/filmstrip/edit/EffectsBuilder;
 }
 

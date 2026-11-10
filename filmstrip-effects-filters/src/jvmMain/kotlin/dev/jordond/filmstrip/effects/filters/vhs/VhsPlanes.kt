@@ -1,8 +1,9 @@
 package dev.jordond.filmstrip.effects.filters.vhs
 
 /**
- * Draws [VhsExpressions.grainMap] and [VhsExpressions.dropMap] straight from [VhsSignal], at the codes those
- * expressions write, as whole 4:2:0 frames [width] by [height].
+ * Draws [VhsExpressions.grainMap], [VhsExpressions.dropMap], [VhsExpressions.snowMap] and [VhsExpressions.snowMask]
+ * straight from [VhsSignal], at the codes those expressions write, as whole 4:2:0 frames [width] by [height]. The snow
+ * and its weight share one frame, side by side.
  *
  * A pixel's position reads the way a `geq` reads it, its own plane's fraction across and its own plane's row.
  */
@@ -57,13 +58,43 @@ internal class VhsPlanes(
     repeat(2) {
       for (y in 0 until chromaHeight) {
         val row = VhsSignal.virtualRow(y, chromaHeight)
-        val kept = 1.0 - TRACK_CHROMA_LOSS * VhsSignal.trackingWeight(seed, tick, row, params)
+        val band = VhsSignal.trackingWeight(seed, tick, row, params)
+        val kept = (1.0 - TRACK_CHROMA_LOSS * band) * (1.0 - params.trackingSnow * band)
         for (x in chromaAcross) {
           val gain = kept * (1.0 - VhsSignal.dropout(seed, tick, row, x, params))
           frame[at++] = (ROUNDING + FULL_SCALE * gain).toInt().toByte()
         }
       }
     }
+    return frame
+  }
+
+  /**
+   * The snow at [tick] with its weight beside it, as one frame [weightWidth] samples wider than the raster.
+   *
+   * Each luma row holds the snow as the lifted code it lands on times its weight, so it adds onto a frame the weight
+   * has been taken off, 0 on a row the band misses. The [weightWidth] samples after it hold the row's weight, full
+   * scale at 1. The chroma planes are left at mid scale, since [dropAt] takes chroma toward zero.
+   */
+  fun snowAt(
+    tick: Int,
+    weightWidth: Int,
+  ): ByteArray {
+    val wide = width + weightWidth
+    val frame = ByteArray(wide * height + 2 * ((wide + 1) / 2) * chromaHeight)
+    for (y in 0 until height) {
+      val row = VhsSignal.virtualRow(y, height)
+      val weight = params.trackingSnow * VhsSignal.trackingWeight(seed, tick, row, params)
+      val at = y * wide
+      if (weight > 0.0) {
+        lumaAcross.forEachIndexed { column, x ->
+          val snow = params.lift + VhsSignal.snowValue(seed, tick, row, x) * (1.0 - params.lift)
+          frame[at + column] = (ROUNDING + weight * (LUMA_BLACK + LUMA_CODES * snow)).toInt().toByte()
+        }
+      }
+      frame.fill((ROUNDING + FULL_SCALE * weight).toInt().toByte(), at + width, at + wide)
+    }
+    frame.fill(MID_SCALE.toByte(), wide * height, frame.size)
     return frame
   }
 

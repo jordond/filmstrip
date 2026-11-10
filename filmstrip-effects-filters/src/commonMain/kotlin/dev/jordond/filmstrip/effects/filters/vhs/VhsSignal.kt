@@ -47,6 +47,7 @@ internal const val PASS_DROP_EVENT = 9
 internal const val PASS_DROP_POS = 10
 internal const val PASS_DROP_LEN = 11
 internal const val PASS_TRACK_NOISE = 12
+internal const val PASS_SNOW = 13
 
 // Shapes that stay fixed at every intensity.
 internal const val WAVE_CYCLES = 1.5
@@ -69,10 +70,11 @@ internal const val DROPOUT_LENGTH_SPREAD = 1.2
 internal const val DROPOUT_RISE = 0.1
 internal const val DROPOUT_FALL = 0.6
 internal const val TRACK_WINDOW_SECONDS = 4.0
-internal const val TRACK_BAND = 0.07
 internal const val TRACK_DRIFT = 0.05
 internal const val TRACK_NOISE_CELL = 0.008
 internal const val TRACK_CHROMA_LOSS = 0.5
+internal const val SNOW_CELL = 0.008
+internal const val SNOW_CONTRAST = 1.5
 internal const val ROW_CELL_STRIDE = 1024
 
 // The blur's tap tables, as a count each side of the pixel and a spacing in sigmas.
@@ -144,26 +146,72 @@ public object VhsSignal {
   ): Double = 1.0 + 2.0 * (1..taps).sumOf { tapWeight(it, step) }
 
   /**
-   * How much of the tracking band falls on [row] at [tick], from 0 to 1.
+   * Where the tracking band sits at [tick] and how strong it is.
    *
-   * Each window rolls once for whether a band runs in it and where it starts. A band drifts and fades in and out over
-   * the window.
+   * An event band rolls once per window for whether it runs and where it starts, then drifts and fades in and out over
+   * the window. A rolling band is always at full strength and crosses the frame top to bottom once a period.
+   */
+  public fun trackingBand(
+    seed: Int,
+    tick: Int,
+    params: VhsParams,
+  ): TrackingBand {
+    if (params.trackingRolls) return TrackingBand(fract(tick / params.trackingPeriodTicks), 1.0)
+    val window = tick / trackWindowTicks
+    if (unorm(hash24(seed, PASS_TRACK_EVENT, window, 0)) >= params.trackingChance) return TrackingBand(0.0, 0.0)
+    val phase = (tick % trackWindowTicks).toDouble() / trackWindowTicks
+    val start = unorm(hash24(seed, PASS_TRACK_EVENT, window, 1))
+    return TrackingBand(fract(start + TRACK_DRIFT * TRACK_WINDOW_SECONDS * phase), sin(PI * phase))
+  }
+
+  /**
+   * How much of the tracking band falls on [row] at [tick], from 0 to 1.
    */
   public fun trackingWeight(
     seed: Int,
     tick: Int,
     row: Int,
     params: VhsParams,
+  ): Double = bandWeight(trackingBand(seed, tick, params), row, params)
+
+  /**
+   * How much of [band] falls on [row], from 0 to 1, with a smooth edge out to half the band's height either side of
+   * its centre. The band wraps from the bottom of the frame to the top.
+   */
+  public fun bandWeight(
+    band: TrackingBand,
+    row: Int,
+    params: VhsParams,
   ): Double {
-    val window = tick / trackWindowTicks
-    if (unorm(hash24(seed, PASS_TRACK_EVENT, window, 0)) >= params.trackingChance) return 0.0
-    val phase = (tick % trackWindowTicks).toDouble() / trackWindowTicks
-    val start = unorm(hash24(seed, PASS_TRACK_EVENT, window, 1))
-    val centre = fract(start + TRACK_DRIFT * TRACK_WINDOW_SECONDS * phase)
-    val distance = abs(rowCentre(row) - centre)
+    if (band.strength == 0.0) return 0.0
+    val distance = abs(rowCentre(row) - band.centre)
     val wrapped = min(distance, 1.0 - distance)
-    return sin(PI * phase) * (1.0 - smoothstep(0.0, 0.5 * TRACK_BAND, wrapped))
+    return band.strength * (1.0 - smoothstep(0.0, params.trackingHalfHeight, wrapped))
   }
+
+  /**
+   * The snow the tracking band lays over [x] on [row] at [tick].
+   *
+   * The value is a streak of black and white along the row, and the weight is how far the picture mixes toward it,
+   * [VhsParams.trackingSnow] times the band's weight on the row.
+   */
+  public fun snowAt(
+    seed: Int,
+    tick: Int,
+    row: Int,
+    x: Double,
+    params: VhsParams,
+  ): Snow = snowOver(trackingWeight(seed, tick, row, params), seed, tick, row, x, params)
+
+  /**
+   * The luma of the snow at [x] on [row] at [tick], from 0 for black to 1 for white, whether or not a band covers it.
+   */
+  public fun snowValue(
+    seed: Int,
+    tick: Int,
+    row: Int,
+    x: Double,
+  ): Double = (0.5 + SNOW_CONTRAST * 0.5 * streak(seed, PASS_SNOW, tick, row, x, SNOW_CELL)).coerceIn(0.0, 1.0)
 
   /**
    * How far [row] slides right at [tick], a fraction of the width.
@@ -231,7 +279,7 @@ public object VhsSignal {
   }
 
   /**
-   * Adds the noise, dropouts and grade to a pixel at [x] on [row] at [tick].
+   * Adds the noise, dropouts, snow and grade to a pixel at [x] on [row] at [tick].
    *
    * Takes and returns full range Y'CbCr, with Cb and Cr centred on 0.
    *
@@ -251,13 +299,16 @@ public object VhsSignal {
     val chromaCell = STREAK * CHROMA_COARSENESS
     val band = trackingWeight(seed, tick, row, params)
     val drop = dropout(seed, tick, row, x, params)
-    val chromaGain = (1.0 - TRACK_CHROMA_LOSS * band) * (1.0 - drop) * (1.0 - params.desaturation)
+    val snow = snowOver(band, seed, tick, row, x, params)
+    val chromaGain =
+      (1.0 - TRACK_CHROMA_LOSS * band) * (1.0 - drop) * (1.0 - params.desaturation) * (1.0 - snow.weight)
     val noisy =
       luma + params.lumaNoise * streak(seed, PASS_LUMA_NOISE, tick, row, x, STREAK) +
         params.trackingNoise * band * streak(seed, PASS_TRACK_NOISE, tick, row, x, TRACK_NOISE_CELL)
     val dropped = noisy + (1.0 - noisy) * drop
+    val snowed = dropped + (snow.value - dropped) * snow.weight
     return doubleArrayOf(
-      params.lift + dropped * (1.0 - params.lift),
+      params.lift + snowed * (1.0 - params.lift),
       (cb + params.chromaNoise * streak(seed, PASS_CB_NOISE, tick, chromaRow, x, chromaCell)) * chromaGain,
       (cr + params.chromaNoise * streak(seed, PASS_CR_NOISE, tick, chromaRow, x, chromaCell)) * chromaGain,
     )
@@ -308,6 +359,15 @@ public object VhsSignal {
 
   private fun rowCentre(row: Int): Double = (row + 0.5) / VIRTUAL_ROWS
 
+  private fun snowOver(
+    band: Double,
+    seed: Int,
+    tick: Int,
+    row: Int,
+    x: Double,
+    params: VhsParams,
+  ): Snow = Snow(snowValue(seed, tick, row, x), params.trackingSnow * band)
+
   private fun pixelCover(edge: Double): Double = (edge + 0.5).coerceIn(0.0, 1.0)
 
   private fun gaussian(
@@ -348,3 +408,27 @@ public object VhsSignal {
 
   private fun fract(value: Double): Double = value - floor(value)
 }
+
+/**
+ * Where a tracking band sits on a tick.
+ *
+ * @property centre The middle of the band, a fraction of the height from the top.
+ * @property strength How strong the band is at its middle, from 0 to 1.
+ */
+@InternalFilmstripApi
+public class TrackingBand(
+  public val centre: Double,
+  public val strength: Double,
+)
+
+/**
+ * The snow at one point of a tracking band.
+ *
+ * @property value The snow's luma, from 0 for black to 1 for white.
+ * @property weight How far the picture mixes toward [value], from 0 to 1. Chroma falls by the same amount.
+ */
+@InternalFilmstripApi
+public class Snow(
+  public val value: Double,
+  public val weight: Double,
+)

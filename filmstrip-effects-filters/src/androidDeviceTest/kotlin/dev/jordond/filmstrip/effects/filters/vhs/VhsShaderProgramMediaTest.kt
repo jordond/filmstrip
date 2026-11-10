@@ -7,6 +7,7 @@ import android.opengl.GLES30
 import androidx.media3.common.util.GlUtil
 import io.kotest.assertions.withClue
 import io.kotest.matchers.doubles.plusOrMinus
+import io.kotest.matchers.doubles.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
 import org.junit.Assume.assumeTrue
 import java.nio.ByteBuffer
@@ -14,6 +15,7 @@ import java.nio.ByteOrder
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
+import kotlin.time.Duration.Companion.seconds
 
 /**
  * Reads the shader's own output, with no encoder in the way, against [VhsSignal].
@@ -65,6 +67,24 @@ class VhsShaderProgramMediaTest {
     val frame = draw(vhs, seconds = SECONDS, width = WIDTH, height = height)
 
     listOf(height / 4, height / 2, height - 1).forEach { y -> assertRowMatches(frame, vhs, y, height) }
+  }
+
+  @Test
+  fun snowInTheMiddleOfARollingBandLandsOnTheSignal() {
+    val frame = draw(SNOWY, seconds = SECONDS, width = WIDTH, height = HEIGHT)
+    val row = VhsSignal.virtualRow(HEIGHT / 2, HEIGHT)
+
+    VhsSignal.snowAt(SNOWY.seed, VhsSignal.tickAt(SECONDS), row, 0.5, VhsParams.of(SNOWY)).weight shouldBeGreaterThan
+      0.25
+    listOf(HEIGHT * 2 / 5, HEIGHT / 2, HEIGHT * 3 / 5).forEach { y -> assertRowMatches(frame, SNOWY, y, HEIGHT) }
+  }
+
+  @Test
+  fun aSmallerFrameDrawsTheSameSnowAtItsOwnVirtualRows() {
+    val height = HEIGHT / 3
+    val frame = draw(SNOWY, seconds = SECONDS, width = WIDTH, height = height)
+
+    listOf(height * 2 / 5, height / 2, height * 3 / 5).forEach { y -> assertRowMatches(frame, SNOWY, y, height) }
   }
 
   // At 1080 every ninth row lands on an exact multiple of the virtual rows, which a float's rounding can land under.
@@ -241,6 +261,8 @@ class VhsShaderProgramMediaTest {
   }
 
   private companion object {
+    // Mid snow in a tall band that rolls through the frame once every two read times, so it sits mid frame at the read.
+    val SNOWY = Vhs(tracking = Tracking.Rolling((2 * SECONDS).seconds, height = 0.3f, snow = 0.5f))
     const val WIDTH = 512
     const val HEIGHT = 480
     const val CHANNELS = 4

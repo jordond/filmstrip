@@ -18,10 +18,12 @@ internal fun lumaPlaneOf(
   column: Int,
   y: Int,
   source: (Double) -> DoubleArray,
+  width: Int = VHS_WIDTH,
+  height: Int = VHS_HEIGHT,
 ): Double {
-  val x = (column + 0.5) / VHS_WIDTH
-  val row = VhsSignal.virtualRow(y, VHS_HEIGHT)
-  val ycc = yccOf(VhsSignal.pixelAt(x, row, tick, vhs.seed, VHS_WIDTH, VhsParams.of(vhs), source))
+  val x = (column + 0.5) / width
+  val row = VhsSignal.virtualRow(y, height)
+  val ycc = yccOf(VhsSignal.pixelAt(x, row, tick, vhs.seed, width, VhsParams.of(vhs), source))
   return VHS_LUMA_BLACK + VHS_LUMA_SPAN * ycc[0]
 }
 

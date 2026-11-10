@@ -3,6 +3,8 @@ package dev.jordond.filmstrip.effects.filters.vhs
 import dev.jordond.filmstrip.InternalFilmstripApi
 import kotlin.math.max
 import kotlin.math.sqrt
+import kotlin.time.Duration
+import kotlin.time.DurationUnit
 
 /**
  * The strengths of one [Vhs], in fractions of the frame width or code values.
@@ -19,9 +21,14 @@ import kotlin.math.sqrt
  * @property lumaNoise The largest luma streak, in code values.
  * @property chromaNoise The largest chroma streak, in code values.
  * @property dropoutChance The chance a row holds a dropout on a tick.
- * @property trackingChance The chance a tracking band runs in a window.
+ * @property trackingRolls Whether the tracking band rolls through the frame on a period rather than turning up now and
+ * then.
+ * @property trackingChance The chance a tracking band runs in a window, 0 when it rolls.
+ * @property trackingPeriodTicks How many ticks a rolling band takes to cross the frame.
+ * @property trackingHeight How tall a tracking band is, a fraction of the height.
  * @property trackingShift The largest shift inside a tracking band, a fraction of the width.
  * @property trackingNoise The largest streak inside a tracking band, in code values.
+ * @property trackingSnow How far the middle of a tracking band mixes toward snow, from 0 to 1.
  * @property desaturation How much chroma is lost, from 0 to 1.
  * @property lift How far black is lifted, in code values.
  */
@@ -37,9 +44,13 @@ public class VhsParams private constructor(
   public val lumaNoise: Double,
   public val chromaNoise: Double,
   public val dropoutChance: Double,
+  public val trackingRolls: Boolean,
   public val trackingChance: Double,
+  public val trackingPeriodTicks: Double,
+  public val trackingHeight: Double,
   public val trackingShift: Double,
   public val trackingNoise: Double,
+  public val trackingSnow: Double,
   public val desaturation: Double,
   public val lift: Double,
 ) {
@@ -49,6 +60,13 @@ public class VhsParams private constructor(
    */
   public val wideSigma: Double
     get() = sqrt(lumaSigma * lumaSigma + HALO_SIGMA * HALO_SIGMA)
+
+  /**
+   * How far the smooth edge of a tracking band reaches either side of its centre, half of [trackingHeight] as a
+   * fraction of the height.
+   */
+  public val trackingHalfHeight: Double
+    get() = 0.5 * trackingHeight
 
   /**
    * How far a pixel can read from its own column, a fraction of the width.
@@ -65,16 +83,24 @@ public class VhsParams private constructor(
   @InternalFilmstripApi
   public companion object {
     /**
-     * The values a [Vhs] at [intensity] on [tape] draws with.
+     * The values a [Vhs] at [intensity] on [tape] with [tracking] draws with.
      *
-     * Strengths scale linearly, blur sigma included, so intensity 0 is the source. Event chances scale by intensity
-     * squared. Rates, cycles, and the shapes of streaks and bands stay fixed.
+     * Strengths scale linearly, blur sigma included, so intensity 0 is the source and runs no tracking band. Event
+     * chances scale by intensity squared. Rates, cycles, and the shapes of streaks and bands stay fixed.
      */
     public fun at(
       intensity: Double,
       tape: TapeSpeed,
+      tracking: Tracking = Tracking.Events(),
     ): VhsParams {
       val eventScale = intensity * intensity
+      val band = if (intensity > 0.0) tracking else Tracking.Off
+      val shape =
+        when (band) {
+          is Tracking.Events -> BandShape(band.chance, Tracking.DEFAULT_PERIOD, band.height, band.shift, band.snow)
+          is Tracking.Rolling -> BandShape(0f, band.period, band.height, band.shift, band.snow)
+          Tracking.Off -> BandShape(0f, Tracking.DEFAULT_PERIOD, Tracking.DEFAULT_HEIGHT, 0f, 0f)
+        }
       return VhsParams(
         lumaSigma = VhsSignal.sigmaFor(tape.lumaMHz) * intensity,
         chromaSigma = VhsSignal.sigmaFor(tape.chromaMHz) * intensity,
@@ -86,9 +112,13 @@ public class VhsParams private constructor(
         lumaNoise = LUMA_NOISE * intensity,
         chromaNoise = LUMA_NOISE * CHROMA_NOISE_RATIO * intensity,
         dropoutChance = DROPOUT_CHANCE * eventScale,
-        trackingChance = TRACK_CHANCE * eventScale,
-        trackingShift = TRACK_SHIFT * intensity,
-        trackingNoise = TRACK_NOISE * intensity,
+        trackingRolls = band is Tracking.Rolling,
+        trackingChance = shape.chance.decimal() * eventScale,
+        trackingPeriodTicks = shape.period.toDouble(DurationUnit.SECONDS) * TICK_RATE,
+        trackingHeight = shape.height.decimal(),
+        trackingShift = shape.shift.decimal() * intensity,
+        trackingNoise = if (band == Tracking.Off) 0.0 else TRACK_NOISE * intensity,
+        trackingSnow = shape.snow.decimal() * intensity,
         desaturation = DESATURATION * intensity,
         lift = LIFT * intensity,
       )
@@ -97,9 +127,20 @@ public class VhsParams private constructor(
     /**
      * The values [vhs] draws with.
      */
-    public fun of(vhs: Vhs): VhsParams = at(vhs.intensity.toDouble(), vhs.tape)
+    public fun of(vhs: Vhs): VhsParams = at(vhs.intensity.toDouble(), vhs.tape, vhs.tracking)
   }
 }
+
+private class BandShape(
+  val chance: Float,
+  val period: Duration,
+  val height: Float,
+  val shift: Float,
+  val snow: Float,
+)
+
+// A tracking value as the decimal it was written as, so 0.2f reads as 0.2 on every platform.
+private fun Float.decimal(): Double = toString().toDouble()
 
 // Strengths at intensity 1, in fractions of the width or code values.
 private const val HALO_GAIN = 0.3
@@ -109,8 +150,6 @@ private const val HEAD_SHIFT = 0.1042
 private const val CHROMA_SHIFT = 0.004
 private const val LUMA_NOISE = 0.008
 private const val DROPOUT_CHANCE = 0.001
-private const val TRACK_CHANCE = 0.2
-private const val TRACK_SHIFT = 0.02
 private const val TRACK_NOISE = 0.12
 private const val DESATURATION = 0.12
 private const val LIFT = 0.03

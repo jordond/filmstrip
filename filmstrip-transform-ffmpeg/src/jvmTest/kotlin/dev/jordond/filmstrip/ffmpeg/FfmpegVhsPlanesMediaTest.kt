@@ -3,6 +3,7 @@ package dev.jordond.filmstrip.ffmpeg
 import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
+import dev.jordond.filmstrip.effects.filters.vhs.Tracking
 import dev.jordond.filmstrip.effects.filters.vhs.Vhs
 import dev.jordond.filmstrip.ffmpeg.support.FilterFrames
 import dev.jordond.filmstrip.ffmpeg.support.formPlanes
@@ -17,6 +18,7 @@ import kotlin.test.Test
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.microseconds
 import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
 
 /**
  * A VHS drawn from live planes reads no differing sample against its `geq` graph.
@@ -29,8 +31,19 @@ class FfmpegVhsPlanesMediaTest {
     runBlocking<Unit> { assertFormsAgree(draw.composition(listOf(clip(1920, 1080, Vhs()))), frames = 8) }
 
   @Test
+  fun `a snowy clip vhs at 1080p`() =
+    runBlocking<Unit> { assertFormsAgree(draw.composition(listOf(clip(1920, 1080, SNOWY))), frames = 8) }
+
+  @Test
+  fun `a snowy 29_97 clip past a long seek`() = runBlocking<Unit> { assertAgreesPastSeek("30000/1001", SNOWY) }
+
+  @Test
   fun `a frame narrower than the raster`() =
     runBlocking<Unit> { assertFormsAgree(draw.composition(listOf(clip(320, 180, Vhs()))), frames = 24) }
+
+  @Test
+  fun `a snowy frame narrower than the raster`() =
+    runBlocking<Unit> { assertFormsAgree(draw.composition(listOf(clip(320, 180, SNOWY))), frames = 24) }
 
   @Test
   fun `a composition vhs across two clips`() =
@@ -147,8 +160,11 @@ class FfmpegVhsPlanesMediaTest {
   }
 
   // A preview only seeks a single clip's timeline, so this reads the look's frames that far in on the clock.
-  private suspend fun assertAgreesPastSeek(rate: String) {
-    val clip = draw.clipOf(160, 90, ::ramp, listOf(LOOK), rate = rate, seconds = 29, container = "mov")
+  private suspend fun assertAgreesPastSeek(
+    rate: String,
+    look: Vhs = LOOK,
+  ) {
+    val clip = draw.clipOf(160, 90, ::ramp, listOf(look), rate = rate, seconds = 29, container = "mov")
     assertFormsAgree(draw.composition(listOf(clip)), SEEK_FRAMES, at = LONG_SEEK)
   }
 
@@ -196,6 +212,9 @@ class FfmpegVhsPlanesMediaTest {
     const val SEEK_FRAMES = 24
     const val TICK_FRAMES = 24
     val LOOK = Vhs()
+
+    // Mid snow in a band that rolls through the frame every two and a half seconds, so every frame read holds some.
+    val SNOWY = Vhs(intensity = 0.8f, tracking = Tracking.Rolling(2.5.seconds, height = 0.2f, snow = 0.6f))
     val LONG_SEEK = 27_636_000.microseconds
   }
 }

@@ -29,7 +29,6 @@ internal fun vhsMetal(): String =
   constant float VHS_ROWS = ${metal(VIRTUAL_ROWS.toDouble())};
   constant float VHS_PI = 3.14159265358979f;
   constant float VHS_TAU = 2.0f * VHS_PI;
-  constant float VHS_WINDOW_TICKS = ${metal(VhsSignal.trackWindowTicks.toDouble())};
   constant float VHS_HEAD_ROWS = ${metal(VhsSignal.headRows.toDouble())};
   constant float VHS_LUMA_W[${LUMA_TAPS + 1}] = {${tapTable(LUMA_TAPS, LUMA_TAP_STEP)}};
   constant float VHS_CHROMA_W[${CHROMA_TAPS + 1}] = {${tapTable(CHROMA_TAPS, CHROMA_TAP_STEP)}};
@@ -53,10 +52,13 @@ internal fun vhsMetal(): String =
     float chromaNoise;
     float dropoutChance;
     float desaturation;
-    float trackChance;
+    float trackCentre;
+    float trackStrength;
+    float trackHalfHeight;
+    float lift;
     float trackShift;
     float trackNoise;
-    float lift;
+    float trackSnow;
   };
 
 $HASH_MSL
@@ -71,15 +73,10 @@ $HASH_MSL
   }
 
   float vhsTracking(VhsTape tape, uint row) {
-    uint windowTicks = uint(VHS_WINDOW_TICKS);
-    uint window = tape.tick / windowTicks;
-    if (filterDraw(tape.seed, ${PASS_TRACK_EVENT}u, window, 0u) >= tape.trackChance) return 0.0f;
-    float phase = float(tape.tick % windowTicks) / VHS_WINDOW_TICKS;
-    float start = filterDraw(tape.seed, ${PASS_TRACK_EVENT}u, window, 1u);
-    float centre = fract(start + ${metal(TRACK_DRIFT * TRACK_WINDOW_SECONDS)} * phase);
-    float d = abs((float(row) + 0.5f) / VHS_ROWS - centre);
+    if (tape.trackStrength == 0.0f) return 0.0f;
+    float d = abs((float(row) + 0.5f) / VHS_ROWS - tape.trackCentre);
     d = min(d, 1.0f - d);
-    return sin(VHS_PI * phase) * (1.0f - vhsSmooth(0.0f, ${metal(0.5 * TRACK_BAND)}, d));
+    return tape.trackStrength * (1.0f - vhsSmooth(0.0f, tape.trackHalfHeight, d));
   }
 
   float vhsRowShift(VhsTape tape, uint row) {
@@ -174,6 +171,7 @@ $HASH_MSL
       float4 shifts,
       float4 noise,
       float4 track,
+      float4 band,
       destination dest
     ) {
       VhsTape tape = {
@@ -182,7 +180,8 @@ $HASH_MSL
         blur.x, blur.y, blur.z, blur.w,
         shifts.x, shifts.y, shifts.z, shifts.w,
         noise.x, noise.y, noise.z, noise.w,
-        track.x, track.y, track.z, track.w
+        track.x, track.y, track.z, track.w,
+        band.x, band.y, band.z
       };
       float2 at = dest.coord();
       float u = (at.x - tape.originX) / tape.width;
@@ -199,16 +198,24 @@ $HASH_MSL
       float wide = vhsLumaBlur(frame, tape, shifted, at.y, tape.wideSigma);
       float2 chroma = vhsChromaBlur(frame, tape, shifted - tape.chromaShift, at.y, tape.chromaSigma);
 
-      float band = vhsTracking(tape, row);
+      float weight = vhsTracking(tape, row);
       float drop = vhsDropout(tape, row, x);
+      float snowWeight = tape.trackSnow * weight;
+      float snow = 0.0f;
+      if (snowWeight > 0.0f) {
+        snow = clamp(0.5f + ${metal(SNOW_CONTRAST * 0.5)} *
+          vhsStreak(tape, ${PASS_SNOW}u, row, x, ${metal(SNOW_CELL)}), 0.0f, 1.0f);
+      }
       uint chromaRow = row / ${CHROMA_NOISE_ROWS}u;
       float chromaCell = ${metal(STREAK * CHROMA_COARSENESS)};
-      float chromaGain = (1.0f - ${metal(TRACK_CHROMA_LOSS)} * band) * (1.0f - drop) * (1.0f - tape.desaturation);
+      float chromaGain = (1.0f - ${metal(TRACK_CHROMA_LOSS)} * weight) * (1.0f - drop) * (1.0f - tape.desaturation) *
+        (1.0f - snowWeight);
 
       float luma = sharp + tape.haloGain * (sharp - wide);
       luma += tape.lumaNoise * vhsStreak(tape, ${PASS_LUMA_NOISE}u, row, x, ${metal(STREAK)});
-      luma += tape.trackNoise * band * vhsStreak(tape, ${PASS_TRACK_NOISE}u, row, x, ${metal(TRACK_NOISE_CELL)});
+      luma += tape.trackNoise * weight * vhsStreak(tape, ${PASS_TRACK_NOISE}u, row, x, ${metal(TRACK_NOISE_CELL)});
       luma += (1.0f - luma) * drop;
+      luma += (snow - luma) * snowWeight;
       luma = tape.lift + luma * (1.0f - tape.lift);
       float cbNoise = tape.chromaNoise * vhsStreak(tape, ${PASS_CB_NOISE}u, chromaRow, x, chromaCell);
       float crNoise = tape.chromaNoise * vhsStreak(tape, ${PASS_CR_NOISE}u, chromaRow, x, chromaCell);

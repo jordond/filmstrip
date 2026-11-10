@@ -24,17 +24,30 @@ Call `filters()` on the builder. A filter with no renderer registered is refused
 ## VHS
 
 `vhs` makes a frame look like it was played back from a tape. It softens luma, smears chroma along each line, wobbles the
-lines, bends the bottom of the frame like a head switch, and adds streaky noise, dropouts and the odd tracking band. Every
+lines, bends the bottom of the frame like a head switch, and adds streaky noise, dropouts and a tracking band. Every
 backend draws the same tape, and the pattern follows the frame's composition time, so a seek or a smaller preview shows the
 same picture.
 
 <Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Filters.kt" region="vhs" />
 
-| Argument    | What it does                                                                            |
-| ----------- | --------------------------------------------------------------------------------------- |
-| `intensity` | How strong the look is. `0f` leaves the frame alone and is listed as an inert notice    |
-| `tape`      | `TapeSpeed.SP`, `LP` or `EP`, from sharpest to softest. Defaults to `EP`                |
-| `seed`      | Picks the pattern of noise and events. Equal seeds draw the same tape                   |
+| Setting     | What it does                                                                                 |
+| ----------- | -------------------------------------------------------------------------------------------- |
+| `intensity` | How strong the look is. `0f` leaves the frame alone and is listed as an inert notice         |
+| `tape`      | `TapeSpeed.SP`, `LP` or `EP`, from sharpest to softest. Defaults to `EP`                     |
+| `seed`      | Picks the pattern of noise and events. Equal seeds draw the same tape                        |
+| `tracking`  | The band of mistracked tape, `events()`, `rolling()` or `Tracking.Off`. Defaults to `events()` |
+
+`events(chance)` runs a band now and then, each one drifting down the frame and fading out over four seconds.
+`rolling(period)` runs one band that is always there, rolling from top to bottom every `period`, the look of a tape that
+needs tracking. Both take a block that shapes the band.
+
+| Band setting | What it does                                                                                 |
+| ------------ | -------------------------------------------------------------------------------------------- |
+| `height`     | How tall the band is, a fraction of the frame height from `0.02f` to `0.5f`. Defaults to `0.07f` |
+| `shift`      | The largest sideways slide in the band, a fraction of the width up to `0.1f`. Defaults to `0.02f` |
+| `snow`       | How far the band mixes toward black and white snow, from `0f` to `1f`. Defaults to `0.6f`    |
+
+`intensity` scales the slide, the noise and the snow, and the chance of an event band by its square.
 
 A `vhs` on the composition covers the whole frame, bars included. One on a clip or a track doesn't grade the bars, and
 picture it moves into a bar lands over the fill. It runs under any overlay at its own scope, so a caption next to it stays

@@ -67,6 +67,28 @@ class VhsCoreImageHardwareTest {
     listOf(height / 4, height / 2, height - 1).forEach { y -> assertRowMatches(frame, vhs, y, height, WIDTH, ::rampAt) }
   }
 
+  @Test
+  fun `snow in the middle of a rolling band lands on the signal`() {
+    val frame = drawn(SNOWY, ramp(WIDTH, HEIGHT), WIDTH, HEIGHT)
+    val row = VhsSignal.virtualRow(HEIGHT / 2, HEIGHT)
+
+    VhsSignal.snowAt(SNOWY.seed, VhsSignal.tickAt(SECONDS), row, 0.5, VhsParams.of(SNOWY)).weight shouldBeGreaterThan
+      0.25
+    listOf(HEIGHT * 2 / 5, HEIGHT / 2, HEIGHT * 3 / 5).forEach { y ->
+      assertRowMatches(frame, SNOWY, y, HEIGHT, WIDTH, ::rampAt)
+    }
+  }
+
+  @Test
+  fun `a smaller frame draws the same snow at its own rows`() {
+    val height = HEIGHT / 3
+    val frame = drawn(SNOWY, ramp(WIDTH, height), WIDTH, height)
+
+    listOf(height * 2 / 5, height / 2, height * 3 / 5).forEach { y ->
+      assertRowMatches(frame, SNOWY, y, height, WIDTH, ::rampAt)
+    }
+  }
+
   // At 1080 every ninth row lands on an exact multiple of the virtual rows, which a float's rounding can land under.
   @Test
   fun `a row on an exact multiple of the virtual rows lands on the signal`() {
@@ -417,6 +439,8 @@ class VhsCoreImageHardwareTest {
   }
 
   private companion object {
+    // Mid snow in a tall band that rolls through the frame once every two read times, so it sits mid frame at the read.
+    val SNOWY = Vhs(tracking = Tracking.Rolling((2 * SECONDS).seconds, height = 0.3f, snow = 0.5f))
     const val WIDTH = 640
     const val HEIGHT = 360
     const val CHANNELS = 4

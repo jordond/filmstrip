@@ -1,7 +1,6 @@
 package dev.jordond.filmstrip.effects.filters.vhs
 
 import dev.drewhamilton.poko.Poko
-import dev.jordond.filmstrip.edit.EffectsBuilder
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effect.EffectStage
 
@@ -9,7 +8,7 @@ import dev.jordond.filmstrip.effect.EffectStage
  * Makes the frame look like it was played back from a VHS tape.
  *
  * Softens luma and smears chroma along each line, wobbles the lines, bends the bottom of the frame like a head switch,
- * and adds streaky noise, dropouts and the odd tracking band. The pattern is a function of the frame's composition time
+ * and adds streaky noise, dropouts and a [Tracking] band. The pattern is a function of the frame's composition time
  * and its height as a fraction, so a seek or a smaller preview shows the same tape.
  *
  * The effect runs over the fill and under any overlay at the same scope, so a caption added next to it stays clean. A
@@ -25,6 +24,7 @@ import dev.jordond.filmstrip.effect.EffectStage
  * @property intensity How strong the look is, from `0f` which leaves the frame alone to `1f`.
  * @property tape The tape speed, which sets how soft the picture is.
  * @property seed Picks the pattern of noise and events. Equal seeds draw the same tape.
+ * @property tracking The band of mistracked tape that runs through the picture.
  * @throws IllegalArgumentException when [intensity] is outside `0f..1f`.
  */
 @Poko
@@ -32,6 +32,7 @@ public class Vhs(
   public val intensity: Float = 1f,
   public val tape: TapeSpeed = TapeSpeed.EP,
   public val seed: Int = DEFAULT_SEED,
+  public val tracking: Tracking = Tracking.Events(),
 ) : EffectSpec {
   init {
     require(intensity in 0f..1f) { "A VHS intensity has to be within 0 to 1, not $intensity." }
@@ -85,12 +86,3 @@ public enum class TapeSpeed(
    */
   EP(lumaMHz = 1.4, chromaMHz = 0.28),
 }
-
-/**
- * Adds a [Vhs] look at [intensity] from `0f` to `1f`, on [tape], drawing the pattern [seed] picks.
- */
-public fun EffectsBuilder.vhs(
-  intensity: Float = 1f,
-  tape: TapeSpeed = TapeSpeed.EP,
-  seed: Int = Vhs.DEFAULT_SEED,
-): EffectsBuilder = add(Vhs(intensity, tape, seed))

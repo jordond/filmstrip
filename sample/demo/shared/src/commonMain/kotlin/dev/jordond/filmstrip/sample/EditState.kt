@@ -26,6 +26,7 @@ import dev.jordond.filmstrip.effects.filters.film.film
 import dev.jordond.filmstrip.effects.filters.lut.CubeLut
 import dev.jordond.filmstrip.effects.filters.lut.lut
 import dev.jordond.filmstrip.effects.filters.vhs.TapeSpeed
+import dev.jordond.filmstrip.effects.filters.vhs.Tracking
 import dev.jordond.filmstrip.effects.filters.vhs.vhs
 import dev.jordond.filmstrip.effects.geometry.crop
 import dev.jordond.filmstrip.effects.geometry.flip
@@ -58,6 +59,15 @@ public enum class CropMode {
   Off,
   Aspect,
   Rect,
+}
+
+/**
+ * Which tracking band the VHS look runs, events now and then, one rolling band, or none.
+ */
+public enum class VhsTrackingMode {
+  Events,
+  Rolling,
+  Off,
 }
 
 /**
@@ -127,6 +137,8 @@ public class EditState {
   var vhsEnabled: Boolean by mutableStateOf(false)
   var vhsIntensity: Float by mutableStateOf(1f)
   var vhsTape: TapeSpeed by mutableStateOf(TapeSpeed.EP)
+  var vhsTracking: VhsTrackingMode by mutableStateOf(VhsTrackingMode.Events)
+  var vhsSnow: Float by mutableStateOf(Tracking.DEFAULT_SNOW)
   var filmEnabled: Boolean by mutableStateOf(false)
   var filmGrain: Float by mutableStateOf(0.5f)
   var filmHalation: Float by mutableStateOf(0.5f)
@@ -341,7 +353,18 @@ public class EditState {
 
         if (scaleEnabled) scale(scaleHeight, scaleFit)
         addAll(colorEffects)
-        if (vhsEnabled) vhs(vhsIntensity, vhsTape)
+        if (vhsEnabled) {
+          vhs {
+            intensity = vhsIntensity
+            tape = vhsTape
+            tracking =
+              when (vhsTracking) {
+                VhsTrackingMode.Events -> events { snow = vhsSnow }
+                VhsTrackingMode.Rolling -> rolling { snow = vhsSnow }
+                VhsTrackingMode.Off -> Tracking.Off
+              }
+          }
+        }
         if (filmEnabled) film(filmGrain, filmHalation)
         if (crtEnabled) crt(crtIntensity)
         if (lutEnabled) lut(SAMPLE_LUT, lutIntensity)
@@ -406,6 +429,8 @@ public class EditState {
     vhsEnabled = false
     vhsIntensity = 1f
     vhsTape = TapeSpeed.EP
+    vhsTracking = VhsTrackingMode.Events
+    vhsSnow = Tracking.DEFAULT_SNOW
     filmEnabled = false
     filmGrain = 0.5f
     filmHalation = 0.5f

@@ -11,6 +11,7 @@ import dev.jordond.filmstrip.effects.filters.lut.lut
 import dev.jordond.filmstrip.effects.filters.vhs.TapeSpeed
 import dev.jordond.filmstrip.effects.filters.vhs.vhs
 import dev.jordond.filmstrip.media.MediaSource
+import kotlin.time.Duration.Companion.seconds
 
 internal fun filtersSetup(): Filmstrip {
   // region register
@@ -42,7 +43,11 @@ internal fun vhsLook(): Composition {
     compositionOf {
       clip(MediaSource.of("/path/to/home-movie.mp4"))
       effects {
-        vhs(intensity = 0.6f, tape = TapeSpeed.LP)
+        vhs {
+          intensity = 0.6f
+          tape = TapeSpeed.LP
+          tracking = rolling(period = 6.seconds) { snow = 0.5f }
+        }
       }
     }
   // endregion
