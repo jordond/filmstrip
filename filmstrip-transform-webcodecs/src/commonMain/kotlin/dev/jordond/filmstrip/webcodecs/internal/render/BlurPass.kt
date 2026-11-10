@@ -200,7 +200,7 @@ private fun signalSource(
   }
 
 // Boxes the cover down to the plan's size with SpatialBlur.BOX_DOWN_GLSL, each texel read as the signal. The cover is
-// premultiplied by alpha, so a texel is averaged as it is.
+// premultiplied by alpha, so a texel is taken to the signal on its straight colour and premultiplied again.
 private fun fillBoxDownShader(
   hdr: Boolean,
   gradeLight: String,
@@ -218,7 +218,8 @@ ${signalSource(hdr, gradeLight).prependIndent("  ")}
 
   vec4 premultipliedAt(ivec2 texel, ivec2 size) {
     vec4 read = texelFetch(uFrame, clamp(texel, ivec2(0), size - 1), 0);
-    return vec4(toSignal(read.rgb), read.a);
+    vec3 straight = read.a > 0.0 ? read.rgb / read.a : vec3(0.0);
+    return vec4(toSignal(straight) * read.a, read.a);
   }
 
 ${SpatialBlur.BOX_DOWN_GLSL.prependIndent("  ")}
