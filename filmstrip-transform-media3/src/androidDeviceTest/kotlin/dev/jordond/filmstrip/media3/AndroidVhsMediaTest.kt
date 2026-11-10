@@ -29,6 +29,7 @@ import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.HDR_CLIP
 import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.TIMEOUT
 import dev.jordond.filmstrip.test.CODE_PATCH
 import dev.jordond.filmstrip.test.firstEightBitFrame
+import dev.jordond.filmstrip.test.writeAtomically
 import dev.jordond.filmstrip.transform.internal.geometry.placementOf
 import io.kotest.assertions.withClue
 import io.kotest.matchers.doubles.shouldBeGreaterThan
@@ -252,7 +253,7 @@ class AndroidVhsMediaTest {
     if (!file.exists()) {
       val bitmap = Bitmap.createBitmap(SWATCH_PX, SWATCH_PX, Bitmap.Config.ARGB_8888)
       bitmap.eraseColor(SWATCH_COLOR)
-      file.outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
+      file.writeAtomically { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
     }
     return ImageOverlay(ImageSource.of(file.path), Corner.TopStart, scale = SWATCH_SCALE)
   }

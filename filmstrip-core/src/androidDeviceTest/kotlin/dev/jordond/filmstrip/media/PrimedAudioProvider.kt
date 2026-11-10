@@ -7,6 +7,7 @@ import android.net.Uri
 import android.os.ParcelFileDescriptor
 import dev.jordond.filmstrip.test.PrimedAudio
 import java.io.File
+import java.io.IOException
 import kotlin.concurrent.thread
 
 /**
@@ -56,7 +57,16 @@ class PrimedAudioProvider : ContentProvider() {
 
   private fun primedFile(): File {
     val file = File(requireNotNull(context).cacheDir, "primed-aac-provided.mp4")
-    if (!file.exists()) file.writeBytes(PrimedAudio.mp4())
+    if (!file.exists()) {
+      // Written beside the file and renamed over it, so a run killed part way never leaves a truncated one behind.
+      val partial = File.createTempFile("${file.name}.", ".partial", file.parentFile)
+      try {
+        partial.writeBytes(PrimedAudio.mp4())
+        if (!partial.renameTo(file)) throw IOException("could not move $partial over $file")
+      } finally {
+        partial.delete()
+      }
+    }
     return file
   }
 

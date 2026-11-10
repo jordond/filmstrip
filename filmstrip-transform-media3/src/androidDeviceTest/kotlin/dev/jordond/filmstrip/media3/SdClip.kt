@@ -16,6 +16,7 @@ import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.test.writeAtomically
 import java.io.File
+import java.io.IOException
 import java.nio.ByteBuffer
 import kotlin.time.Duration.Companion.milliseconds
 
@@ -63,7 +64,21 @@ private fun copyNaming(
   target: File,
   colorStandard: Int?,
 ) {
-  target.delete()
+  // Muxed beside the target and renamed over it, so a run killed part way never leaves a truncated clip behind.
+  val partial = File.createTempFile("${target.name}.", ".partial", target.absoluteFile.parentFile)
+  try {
+    mux(source, partial, colorStandard)
+    if (!partial.renameTo(target)) throw IOException("could not move $partial over $target")
+  } finally {
+    partial.delete()
+  }
+}
+
+private fun mux(
+  source: File,
+  target: File,
+  colorStandard: Int?,
+) {
   val extractor = MediaExtractor().apply { setDataSource(source.path) }
   val muxer = MediaMuxer(target.path, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
   try {
