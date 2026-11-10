@@ -10,18 +10,17 @@ import androidx.media3.common.util.GlUtil
 import androidx.media3.effect.GlEffect
 import androidx.media3.effect.GlShaderProgram
 import dev.jordond.filmstrip.color.linearDimGain
+import dev.jordond.filmstrip.effects.spatial.SpatialBlur
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media3.internal.PlacedFrame
 import dev.jordond.filmstrip.transform.internal.geometry.PixelRect
 import dev.jordond.filmstrip.transform.internal.geometry.backgroundGain
+import dev.jordond.filmstrip.transform.internal.geometry.blurPlan
 import dev.jordond.filmstrip.transform.internal.geometry.coverScale
 import dev.jordond.filmstrip.transform.internal.geometry.inWholePixelsOf
-import dev.jordond.filmstrip.transform.internal.geometry.sigmaFor
 import java.util.concurrent.Executor
-import kotlin.math.ceil
-import kotlin.math.exp
 
 /**
  * Places a clip's frame in the output frame at [rect], filling the rest with a blurred, dimmed copy of the same frame
@@ -62,13 +61,14 @@ internal class FillCoverBlur(
 }
 
 /**
- * Runs [FillCoverBlur]'s three passes.
+ * Runs [FillCoverBlur]'s passes.
  *
- * The cover pass and the blur run at a fraction of the output size, so that whatever [Fill.Blurred]
- * asks for, the taps a Gaussian needs stay fixed. The composite pass upsamples back to the output
- * size with the texture unit's own bilinear filtering, and draws the sharp frame over that. The
- * composite needs the frame both blurred and untouched at once, which is why this implements
- * [GlShaderProgram] directly instead of the single-pass [androidx.media3.effect.BaseGlShaderProgram].
+ * The cover pass draws the frame scaled to cover the output at the output size. The fill's [blurPlan] then boxes that
+ * down with [SpatialBlur.BOX_DOWN_GLSL] and blurs it across and up with [SpatialBlur.GAUSSIAN_GLSL] at the plan's
+ * size. The composite pass reads the blur back up to the output size with the texture unit's own linear filtering,
+ * dims it, and draws the sharp frame over that. The composite needs the frame both blurred and untouched at once,
+ * which is why this implements [GlShaderProgram] directly instead of the single-pass
+ * [androidx.media3.effect.BaseGlShaderProgram].
  */
 private class FillCoverBlurShaderProgram(
   private val useHdr: Boolean,
@@ -82,36 +82,22 @@ private class FillCoverBlurShaderProgram(
   private var errorListenerExecutor: Executor = Executor { it.run() }
 
   // Fixed for the life of this program: the output frame never changes size mid-export, so neither
-  // does the blur's kernel or the small size it runs at.
-  private val sigma = fill.sigmaFor(outputSize)
-  private val downscale = downscaleFor(sigma)
-  private val smallWidth = ceilDiv(outputSize.width, downscale)
-  private val smallHeight = ceilDiv(outputSize.height, downscale)
-  private val weights = gaussianWeights(tapRadiusFor(sigma / downscale), sigma / downscale)
+  // does the plan or the size it blurs at.
+  private val plan = fill.blurPlan(outputSize)
+  private val smallWidth = plan.width
+  private val smallHeight = plan.heightOf(outputSize.height)
+  private val across = SpatialBlur.gaussianUniforms(plan, outputSize.height, horizontal = true)
+  private val upward = SpatialBlur.gaussianUniforms(plan, outputSize.height, horizontal = false)
+  private val gain = dimGain(useHdr, fill)
 
-  private val coverProgram =
-    try {
-      GlProgram(VERTEX_SHADER, COVER_FRAGMENT_SHADER).apply { bindFrameAttribute() }
-    } catch (e: GlUtil.GlException) {
-      throw VideoFrameProcessingException(e)
-    }
-  private val blurProgram =
-    try {
-      GlProgram(VERTEX_SHADER, horizontalBlurFragmentShader(weights, 1f / smallWidth)).apply { bindFrameAttribute() }
-    } catch (e: GlUtil.GlException) {
-      throw VideoFrameProcessingException(e)
-    }
-  private val compositeProgram =
-    try {
-      GlProgram(VERTEX_SHADER, compositeFragmentShader(weights, 1f / smallHeight, dimGain(useHdr, fill))).apply {
-        bindFrameAttribute()
-      }
-    } catch (e: GlUtil.GlException) {
-      throw VideoFrameProcessingException(e)
-    }
+  private val coverProgram = program(VERTEX_SHADER, COVER_FRAGMENT_SHADER)
+  private val downProgram = program(STEP_VERTEX_SHADER, BOX_DOWN_FRAGMENT_SHADER)
+  private val blurProgram = program(STEP_VERTEX_SHADER, SpatialBlur.GAUSSIAN_GLSL)
+  private val compositeProgram = program(STEP_VERTEX_SHADER, COMPOSITE_FRAGMENT_SHADER)
 
   private var coverTexture = GlTextureInfo.UNSET
-  private var blurTexture = GlTextureInfo.UNSET
+  private var downTexture = GlTextureInfo.UNSET
+  private var acrossTexture = GlTextureInfo.UNSET
   private var outputTexture = GlTextureInfo.UNSET
 
   private var lastInputSize: Size? = null
@@ -153,7 +139,9 @@ private class FillCoverBlurShaderProgram(
       outputTextureInUse = true
 
       drawCover(inputTexture)
-      drawHorizontalBlur()
+      drawBoxDown()
+      drawBlur(downTexture, acrossTexture, across)
+      drawBlur(acrossTexture, downTexture, upward)
       drawComposite(inputTexture)
 
       inputListener.onInputFrameProcessed(inputTexture)
@@ -182,20 +170,16 @@ private class FillCoverBlurShaderProgram(
 
   override fun release() {
     try {
-      coverTexture.release()
-      blurTexture.release()
-      outputTexture.release()
-      coverProgram.delete()
-      blurProgram.delete()
-      compositeProgram.delete()
+      listOf(coverTexture, downTexture, acrossTexture, outputTexture).forEach { it.release() }
+      listOf(coverProgram, downProgram, blurProgram, compositeProgram).forEach { it.delete() }
     } catch (e: GlUtil.GlException) {
       throw VideoFrameProcessingException(e)
     }
   }
 
   /**
-   * Allocates the three textures the first time a frame arrives, and updates the cover geometry whenever the source
-   * clip's own frame size changes.
+   * Allocates the textures the first time a frame arrives, and updates the cover geometry whenever the source clip's
+   * own frame size changes.
    */
   private fun ensureConfigured(
     glObjectsProvider: GlObjectsProvider,
@@ -203,8 +187,9 @@ private class FillCoverBlurShaderProgram(
     inputHeight: Int,
   ) {
     if (coverTexture == GlTextureInfo.UNSET) {
-      coverTexture = allocateTexture(glObjectsProvider, smallWidth, smallHeight)
-      blurTexture = allocateTexture(glObjectsProvider, smallWidth, smallHeight)
+      coverTexture = allocateTexture(glObjectsProvider, outputSize.width, outputSize.height)
+      downTexture = allocateTexture(glObjectsProvider, smallWidth, smallHeight)
+      acrossTexture = allocateTexture(glObjectsProvider, smallWidth, smallHeight)
       outputTexture = allocateTexture(glObjectsProvider, outputSize.width, outputSize.height)
     }
 
@@ -220,43 +205,59 @@ private class FillCoverBlurShaderProgram(
   }
 
   private fun drawCover(inputTexture: GlTextureInfo) {
-    GlUtil.focusFramebufferUsingCurrentContext(coverTexture.fboId, coverTexture.width, coverTexture.height)
-    GlUtil.clearFocusedBuffers()
-
+    focus(coverTexture)
     coverProgram.use()
     coverProgram.setSamplerTexIdUniform("uTexSampler", inputTexture.texId, 0)
     coverProgram.setFloatsUniform("uCoverScale", coverScaleUniform)
     coverProgram.setFloatsUniform("uCoverOffset", coverOffsetUniform)
-    coverProgram.bindAttributesAndUniforms()
-    GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4)
-    GlUtil.checkGlError()
+    draw(coverProgram)
   }
 
-  private fun drawHorizontalBlur() {
-    GlUtil.focusFramebufferUsingCurrentContext(blurTexture.fboId, blurTexture.width, blurTexture.height)
-    GlUtil.clearFocusedBuffers()
+  private fun drawBoxDown() {
+    focus(downTexture)
+    downProgram.use()
+    downProgram.setSamplerTexIdUniform(FRAME, coverTexture.texId, 0)
+    downProgram.setFloatsUniform("uTargetSize", floatArrayOf(smallWidth.toFloat(), smallHeight.toFloat()))
+    downProgram.setFloatsUniform("uBox", floatArrayOf(plan.factor.toFloat()))
+    draw(downProgram)
+  }
 
+  // GlProgram binds one element of an array uniform, so the weights go straight to GL once it has bound the rest.
+  private fun drawBlur(
+    from: GlTextureInfo,
+    into: GlTextureInfo,
+    uniforms: Map<String, FloatArray>,
+  ) {
+    focus(into)
     blurProgram.use()
-    blurProgram.setSamplerTexIdUniform("uTexSampler", coverTexture.texId, 0)
+    blurProgram.setSamplerTexIdUniform(FRAME, from.texId, 0)
+    val (arrays, values) = uniforms.entries.partition { (name, _) -> name.endsWith("[0]") }
+    values.forEach { (name, value) -> blurProgram.setFloatsUniform(name, value) }
     blurProgram.bindAttributesAndUniforms()
-    GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4)
+    arrays.forEach { (name, value) -> GLES20.glUniform1fv(blurProgram.getUniformLocation(name), value.size, value, 0) }
+    GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, QUAD_VERTICES)
     GlUtil.checkGlError()
   }
 
-  // The blur texture is a fraction of the output size, and sampling it here with the linear
-  // filtering GlUtil already binds it with is what upsamples it back, smoothing the downscale away
-  // rather than leaving it blocky.
   private fun drawComposite(inputTexture: GlTextureInfo) {
-    GlUtil.focusFramebufferUsingCurrentContext(outputTexture.fboId, outputTexture.width, outputTexture.height)
-    GlUtil.clearFocusedBuffers()
-
+    focus(outputTexture)
     compositeProgram.use()
-    compositeProgram.setSamplerTexIdUniform("uBlurSampler", blurTexture.texId, 0)
+    compositeProgram.setSamplerTexIdUniform(FRAME, downTexture.texId, 0)
     compositeProgram.setSamplerTexIdUniform("uSharpSampler", inputTexture.texId, 1)
     compositeProgram.setFloatsUniform("uSharpMin", sharpMinUniform)
     compositeProgram.setFloatsUniform("uSharpMax", sharpMaxUniform)
-    compositeProgram.bindAttributesAndUniforms()
-    GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4)
+    compositeProgram.setFloatsUniform("uGain", floatArrayOf(gain))
+    draw(compositeProgram)
+  }
+
+  private fun focus(texture: GlTextureInfo) {
+    GlUtil.focusFramebufferUsingCurrentContext(texture.fboId, texture.width, texture.height)
+    GlUtil.clearFocusedBuffers()
+  }
+
+  private fun draw(program: GlProgram) {
+    program.bindAttributesAndUniforms()
+    GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, QUAD_VERTICES)
     GlUtil.checkGlError()
   }
 
@@ -269,113 +270,21 @@ private class FillCoverBlurShaderProgram(
     return glObjectsProvider.createBuffersForTexture(texId, width, height)
   }
 
-  private fun GlProgram.bindFrameAttribute() {
-    setBufferAttribute(
-      "aFramePosition",
-      GlUtil.getNormalizedCoordinateBounds(),
-      GlUtil.HOMOGENEOUS_COORDINATE_VECTOR_SIZE,
-    )
-  }
-}
-
-/**
- * How far the blur runs below the output size, so a wide [sigma] costs no more taps than a narrow
- * one.
- *
- * `sigma / downscale` never exceeds eight: `downscale` is `sigma / 8` rounded up, so dividing
- * `sigma` by it can only bring the result back down to eight or under.
- */
-internal fun downscaleFor(sigma: Float): Int = maxOf(1, ceil(sigma / DOWNSCALE_TARGET_SIGMA).toInt())
-
-/**
- * How many taps on either side of the centre a Gaussian of this standard deviation needs.
- *
- * Three standard deviations either side keeps 99.7% of the kernel's weight, clamped to
- * [MAX_TAP_RADIUS]. [downscaleFor] already keeps `sigma` here at eight or under, which asks for at
- * most `ceil(3 * 8) = 24`, eight taps below that clamp, so a sigma handed straight in is the only
- * thing the clamp bites on.
- */
-internal fun tapRadiusFor(sigma: Float): Int = minOf(ceil(TAP_STANDARD_DEVIATIONS * sigma).toInt(), MAX_TAP_RADIUS)
-
-private fun ceilDiv(
-  value: Int,
-  divisor: Int,
-): Int = ceil(value.toFloat() / divisor).toInt().coerceAtLeast(1)
-
-/**
- * A discrete Gaussian kernel [2 * tapRadius + 1] taps wide, weights normalised to sum to one.
- */
-private fun gaussianWeights(
-  tapRadius: Int,
-  sigma: Float,
-): FloatArray {
-  val weights = FloatArray(2 * tapRadius + 1)
-  var sum = 0f
-  for (i in weights.indices) {
-    val x = (i - tapRadius).toFloat()
-    val weight = exp(-(x * x) / (2f * sigma * sigma))
-    weights[i] = weight
-    sum += weight
-  }
-  for (i in weights.indices) weights[i] /= sum
-  return weights
-}
-
-// GlProgram's uniform binding only ever uploads one element per name, so a tap count known only at
-// construction time cannot travel as a `float[]` uniform. Each tap's weight and offset are written
-// into the fragment shader's own source as literals instead, one term per tap.
-
-private fun horizontalBlurFragmentShader(
-  weights: FloatArray,
-  texelStep: Float,
-): String {
-  val center = weights.size / 2
-  val terms =
-    weights.mapIndexed { index, weight ->
-      val offset = (index - center) * texelStep
-      "texture2D(uTexSampler, vTexSamplingCoord + vec2(${offset.glsl()}, 0.0)) * ${weight.glsl()}"
-    }
-  return """
-    #version 100
-    precision highp float;
-    uniform sampler2D uTexSampler;
-    varying vec2 vTexSamplingCoord;
-    void main() {
-      gl_FragColor = ${terms.joinToString(" +\n        ")};
-    }
-    """.trimIndent()
-}
-
-private fun compositeFragmentShader(
-  weights: FloatArray,
-  texelStep: Float,
-  gain: Float,
-): String {
-  val center = weights.size / 2
-  val terms =
-    weights.mapIndexed { index, weight ->
-      val offset = (index - center) * texelStep
-      "texture2D(uBlurSampler, vTexSamplingCoord + vec2(0.0, ${offset.glsl()})) * ${weight.glsl()}"
-    }
-  return """
-    #version 100
-    precision highp float;
-    uniform sampler2D uBlurSampler;
-    uniform sampler2D uSharpSampler;
-    uniform vec2 uSharpMin;
-    uniform vec2 uSharpMax;
-    varying vec2 vTexSamplingCoord;
-    void main() {
-      vec4 background = ${terms.joinToString(" +\n        ")};
-      if (vTexSamplingCoord.x >= uSharpMin.x && vTexSamplingCoord.x < uSharpMax.x &&
-          vTexSamplingCoord.y >= uSharpMin.y && vTexSamplingCoord.y < uSharpMax.y) {
-        vec2 sharpUv = (vTexSamplingCoord - uSharpMin) / (uSharpMax - uSharpMin);
-        gl_FragColor = texture2D(uSharpSampler, sharpUv);
-      } else {
-        gl_FragColor = vec4(background.rgb * ${gain.glsl()}, 1.0);
+  private fun program(
+    vertex: String,
+    fragment: String,
+  ): GlProgram =
+    try {
+      GlProgram(vertex, fragment).apply {
+        setBufferAttribute(
+          "aFramePosition",
+          GlUtil.getNormalizedCoordinateBounds(),
+          GlUtil.HOMOGENEOUS_COORDINATE_VECTOR_SIZE,
+        )
       }
+    } catch (e: GlUtil.GlException) {
+      throw VideoFrameProcessingException(e)
     }
-    """.trimIndent()
 }
 
 /**
@@ -390,10 +299,8 @@ private fun dimGain(
   fill: Fill.Blurred,
 ): Float = if (useHdr) linearDimGain(fill.dim) else fill.backgroundGain
 
-private fun Float.glsl(): String {
-  val text = toString()
-  return if ('.' in text || 'e' in text || 'E' in text) text else "$text.0"
-}
+private const val FRAME = "uFrame"
+private const val QUAD_VERTICES = 4
 
 private val VERTEX_SHADER =
   """
@@ -420,13 +327,59 @@ private val COVER_FRAGMENT_SHADER =
   }
   """.trimIndent()
 
-private const val DOWNSCALE_TARGET_SIGMA = 8f
-internal const val TAP_STANDARD_DEVIATIONS = 3f
+// The vertex shader the shared blur's fragments read their vUv varying from.
+private val STEP_VERTEX_SHADER =
+  """
+  #version 300 es
+  in vec4 aFramePosition;
+  out vec2 vUv;
+  void main() {
+    gl_Position = aFramePosition;
+    vUv = aFramePosition.xy * 0.5 + 0.5;
+  }
+  """.trimIndent()
 
-/**
- * The widest kernel the generated fragment shader may carry, in taps either side of the centre.
- *
- * This is a limit of this backend rather than of the blur: every tap is written into the shader
- * source as its own term, so the tap count is the length of the program a driver has to compile.
- */
-internal const val MAX_TAP_RADIUS = 32
+// Boxes the cover down to the plan's size with SpatialBlur.BOX_DOWN_GLSL. The cover is opaque, so a texel is averaged
+// as it is.
+private val BOX_DOWN_FRAGMENT_SHADER =
+  """
+  #version 300 es
+  precision highp float;
+  in vec2 vUv;
+  out vec4 fragColor;
+  uniform sampler2D $FRAME;
+  uniform vec2 uTargetSize;
+  uniform float uBox;
+
+  vec4 premultipliedAt(ivec2 texel, ivec2 size) {
+    return texelFetch($FRAME, clamp(texel, ivec2(0), size - 1), 0);
+  }
+
+${SpatialBlur.BOX_DOWN_GLSL.prependIndent("  ")}
+
+  void main() {
+    fragColor = boxedDown(textureSize($FRAME, 0), vUv, uTargetSize, uBox);
+  }
+  """.trimIndent()
+
+// Reads the blur back up to the output with linear filtering and dims it, under the sharp frame inside its rect.
+private val COMPOSITE_FRAGMENT_SHADER =
+  """
+  #version 300 es
+  precision highp float;
+  in vec2 vUv;
+  out vec4 fragColor;
+  uniform sampler2D $FRAME;
+  uniform sampler2D uSharpSampler;
+  uniform vec2 uSharpMin;
+  uniform vec2 uSharpMax;
+  uniform float uGain;
+  void main() {
+    if (vUv.x >= uSharpMin.x && vUv.x < uSharpMax.x && vUv.y >= uSharpMin.y && vUv.y < uSharpMax.y) {
+      fragColor = texture(uSharpSampler, (vUv - uSharpMin) / (uSharpMax - uSharpMin));
+    } else {
+      vec4 background = textureLod($FRAME, vUv, 0.0);
+      fragColor = vec4(background.rgb * uGain, 1.0);
+    }
+  }
+  """.trimIndent()
