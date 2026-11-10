@@ -140,7 +140,7 @@ one, it's refused by name.
   row's shift, and goes through RGB and back to do it. That round trip lands within 3 codes of the signal, and 4:2:0
   averages the colour fringe across two rows where a slice ends.
 - **ffmpeg** reads a `vhs` beside a clear canvas bar tap by tap where its blur lands across the bar's edge, which runs
-  about 1 fps at 1080p on the same server where a frame with no bar runs 6 fps.
+  about 0.9 fps at 1080p on the same server where a frame with no bar runs 5.2 fps.
 - **Every backend** draws `vhs` tracking snow from the same signal. Apple and Android land within 1e-4, the browser
   within one code, and ffmpeg within 1.74 codes of luma and 1.14 of chroma, since it mixes into 8-bit planes.
 - **Every backend** draws `camcorder` from the same raster. Apple and Android land within 1e-4 and the browser within
@@ -153,7 +153,7 @@ Filters are heavy on ffmpeg. Measured on a 12 thread x86 server with x264:
 | Look                              | 1080p    | 4K       | Peak memory, 1080p and 4K |
 | --------------------------------- | -------- | -------- | ------------------------- |
 | `film`                            | 18.4 fps | 9.2 fps  | 1 GB and 3.4 GB           |
-| `vhs`                             | 9.1 fps  | 2.8 fps  | 1 GB and 3.3 GB           |
+| `vhs`                             | 5.2 fps  | 2.1 fps  | 1 GB and 3.3 GB           |
 | `crt`                             | 9.0 fps  | 2.4 fps  | 1.5 GB and 5.4 GB         |
 | `lut`                             | 70 fps   | 21 fps   |                           |
 | `Film.Super8`                     | 0.3 fps  | 0.1 fps  |                           |
