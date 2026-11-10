@@ -216,6 +216,7 @@ internal fun CIImage.blurredCover(
   if (coverOf(size) == null) return CIImage(color = CIColor.blackColor)
   val extent = CGRectMake(0.0, 0.0, size.width.toDouble(), size.height.toDouble())
   val plan = blur.blurPlan(size)
+
   fun cover(signal: CIImage): CIImage = signal.coverOf(size) ?: signal
   if (transfer != null) {
     return blurredOnSignal(plan, extent, transfer, ColorSpace.Bt2020, blur.backgroundGain, ::cover).opaque()
