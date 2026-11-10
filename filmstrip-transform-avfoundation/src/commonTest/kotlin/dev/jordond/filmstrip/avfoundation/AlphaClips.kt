@@ -1,83 +1,223 @@
 package dev.jordond.filmstrip.avfoundation
 
 /**
- * One-frame ProRes 4444 clips written with alpha by ffmpeg's prores_ks as yuva444p12le, 128 by 64 pixels and tagged
- * BT.709.
+ * One-frame ProRes 4444 clips written with alpha by ffmpeg's prores_ks as yuva444p12le, 128 by 64 pixels, converted with
+ * the BT.709 matrix and carrying BT.709 primaries, transfer and matrix in a colr atom, so no colour is guessed for them.
  *
  * The left half is 0xB4785A and the right half 0x5A78B4, and the whole picture is at the alpha the name says.
  * [HALF_CLEAR] is 0xB4785A opaque on the left and clear black on the right.
  */
 internal object AlphaClips {
   const val OPAQUE =
-    "AAAAFGZ0eXBxdCAgAAACAHF0ICAAAAAId2lkZQAAAVBtZGF0AAABSGljcGYAlAABTGF2YwCAAEDAAAICAQIAAwQEBAQEBAQEBAQE" +
+    "AAAAFGZ0eXBxdCAgAAACAHF0ICAAAAAId2lkZQAAAshtZGF0AAACwGljcGYAlAABTGF2YwCAAEDAAAICAQIAAwQEBAQEBAQEBAQE" +
       "BAQEBAQEBAQEBAQEBAQEBAQEBAQFBAQEBAQEBQUEBAQEBAUFBgQEBAQFBQYHBAQEBAUGBwcEBAQEBAQEBAQEBAQEBAQEBAQEBAQE" +
-      "BAQEBAQEBAQEBQQEBAQEBAUFBAQEBAQFBQYEBAQEBQUGBwQEBAQFBgcHQAAAAKwABDAAJwAnACcAJ0AEAAgACQAJoj//AWEf/4AU" +
-      "uP/8AYbH/+AeSP/8AVxH/+CAAAP/gEAEAAgACQAJoj//AWEf/4AUuP/8AYbH/+AeSP/8AVxH/+CAAAP/gEAEAAgACQAJoj//AWEf" +
-      "/4AUuP/8AYbH/+AeSP/8AVxH/+CAAAP/gEAEAAgACQAJoj//AWEf/4AUuP/8AYbH/+AeSP/8AVxH/+CAAAP/gAAAAsFtb292AAAA" +
-      "bG12aGQAAAAAAAAAAAAAAAAAAAPoAAAAIgABAAABAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAEAA" +
-      "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAACLXRyYWsAAABcdGtoZAAAAAMAAAAAAAAAAAAAAAEAAAAAAAAAIgAAAAAA" +
-      "AAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAEAAAAAAgAAAAEAAAAAAACRlZHRzAAAAHGVsc3QAAAAA" +
-      "AAAAAQAAACIAAAAAAAEAAAAAAaVtZGlhAAAAIG1kaGQAAAAAAAAAAAAAAAAAADwAAAACAH//AAAAAAAtaGRscgAAAABtaGxydmlk" +
-      "ZQAAAAAAAAAAAAAAAAxWaWRlb0hhbmRsZXIAAAFQbWluZgAAABR2bWhkAAAAAQAAAAAAAAAAAAAALGhkbHIAAAAAZGhscnVybCAA" +
-      "AAAAAAAAAAAAAAALRGF0YUhhbmRsZXIAAAAkZGluZgAAABxkcmVmAAAAAAAAAAEAAAAMdXJsIAAAAAEAAADkc3RibAAAAIBzdHNk" +
-      "AAAAAAAAAAEAAABwYXA0aAAAAAAAAAABAAAAAEZGTVAAAAIAAAACAACAAEAASAAAAEgAAAAAAAAAARZMYXZjNjMuMS4xMDIgcHJv" +
-      "cmVzX2tzAAAAAAAAAAAAACD//wAAAApmaWVsAQAAAAAQcGFzcAAAAAEAAAABAAAAGHN0dHMAAAAAAAAAAQAAAAEAAAIAAAAAHHN0" +
-      "c2MAAAAAAAAAAQAAAAEAAAABAAAAAQAAABRzdHN6AAAAAAAAAUgAAAABAAAAFHN0Y28AAAAAAAAAAQAAACQAAAAgdWR0YQAAABip" +
-      "c3dyAAxVxExhdmY2My4xLjEwMg=="
+      "BAQEBAQEBAQEBQQEBAQEBAUFBAQEBAQFBQYEBAQEBQUGBwQEBAQFBgcHQAAAAiQABDAAhQCFAIUAhUABACUALAAnsj//AFcR//gC" +
+      "oaW22222222222222wAI/pbbbbbbbf///////gTrj//ABhLH/+AKhpbbbbbbbAAk/n//////+AEf5///////gBj+f//////4BwSP" +
+      "/8AFZEf/4AqGlttttttttttttttsACP+f//////+2222222wgAAD/4BAAQAlACwAJ7I//wBXEf/4AqGlttttttttttttttsACP6W" +
+      "2222223///////4E64//wAYSx//gCoaW222222wAJP5///////gBH+f//////4AY/n//////+AcEj//ABWRH/+AKhpbbbbbbbbbb" +
+      "bbbbbAAj/n///////tttttttsIAAA/+AQAEAJQAsACeyP/8AVxH/+AKhpbbbbbbbbbbbbbbbAAj+lttttttt///////+BOuP/8AG" +
+      "Esf/4AqGlttttttsACT+f//////4AR/n//////+AGP5///////gHBI//wAVkR//gCoaW22222222222222wAI/5///////7bbbbb" +
+      "bbCAAAP/gEABACUALAAnsj//AFcR//gCoaW22222222222222wAI/pbbbbbbbf///////gTrj//ABhLH/+AKhpbbbbbbbAAk/n//" +
+      "////+AEf5///////gBj+f//////4BwSP/8AFZEf/4AqGlttttttttttttttsACP+f//////+2222222wgAAD/4AAAALTbW9vdgAA" +
+      "AGxtdmhkAAAAAAAAAAAAAAAAAAAD6AAAACIAAQAAAQAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAABA" +
+      "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgAAAj90cmFrAAAAXHRraGQAAAADAAAAAAAAAAAAAAABAAAAAAAAACIAAAAA" +
+      "AAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAABAAAAAAIAAAABAAAAAAAAkZWR0cwAAABxlbHN0AAAA" +
+      "AAAAAAEAAAAiAAAAAAABAAAAAAG3bWRpYQAAACBtZGhkAAAAAAAAAAAAAAAAAAA8AAAAAgB//wAAAAAALWhkbHIAAAAAbWhscnZp" +
+      "ZGUAAAAAAAAAAAAAAAAMVmlkZW9IYW5kbGVyAAABYm1pbmYAAAAUdm1oZAAAAAEAAAAAAAAAAAAAACxoZGxyAAAAAGRobHJ1cmwg" +
+      "AAAAAAAAAAAAAAAAC0RhdGFIYW5kbGVyAAAAJGRpbmYAAAAcZHJlZgAAAAAAAAABAAAADHVybCAAAAABAAAA9nN0YmwAAACSc3Rz" +
+      "ZAAAAAAAAAABAAAAgmFwNGgAAAAAAAAAAQAAAABGRk1QAAACAAAAAgAAgABAAEgAAABIAAAAAAAAAAEWTGF2YzYzLjEuMTAyIHBy" +
+      "b3Jlc19rcwAAAAAAAAAAAAAg//8AAAAKZmllbAEAAAAAEmNvbHJuY2xjAAIAAgABAAAAEHBhc3AAAAABAAAAAQAAABhzdHRzAAAA" +
+      "AAAAAAEAAAABAAACAAAAABxzdHNjAAAAAAAAAAEAAAABAAAAAQAAAAEAAAAUc3RzegAAAAAAAALAAAAAAQAAABRzdGNvAAAAAAAA" +
+      "AAEAAAAkAAAAIHVkdGEAAAAYqXN3cgAMVcRMYXZmNjMuMS4xMDI="
 
   const val CLEAR =
-    "AAAAFGZ0eXBxdCAgAAACAHF0ICAAAAAId2lkZQAAAUhtZGF0AAABQGljcGYAlAABTGF2YwCAAEDAAAICAQIAAwQEBAQEBAQEBAQE" +
+    "AAAAFGZ0eXBxdCAgAAACAHF0ICAAAAAId2lkZQAAAsBtZGF0AAACuGljcGYAlAABTGF2YwCAAEDAAAICAQIAAwQEBAQEBAQEBAQE" +
       "BAQEBAQEBAQEBAQEBAQEBAQEBAQFBAQEBAQEBQUEBAQEBAUFBgQEBAQFBQYHBAQEBAUGBwcEBAQEBAQEBAQEBAQEBAQEBAQEBAQE" +
-      "BAQEBAQEBAQEBQQEBAQEBAUFBAQEBAQFBQYEBAQEBQUGBwQEBAQFBgcHQAAAAKQABDAAJQAlACUAJUAEAAgACQAJoj//AWEf/4AU" +
-      "uP/8AYbH/+AeSP/8AVxH/+AAB/9ABAAIAAkACaI//wFhH/+AFLj//AGGx//gHkj//AFcR//gAAf/QAQACAAJAAmiP/8BYR//gBS4" +
-      "//wBhsf/4B5I//wBXEf/4AAH/0AEAAgACQAJoj//AWEf/4AUuP/8AYbH/+AeSP/8AVxH/+AAB/8AAALBbW9vdgAAAGxtdmhkAAAA" +
-      "AAAAAAAAAAAAAAAD6AAAACIAAQAAAQAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAA" +
-      "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAgAAAi10cmFrAAAAXHRraGQAAAADAAAAAAAAAAAAAAABAAAAAAAAACIAAAAAAAAAAAAAAAAA" +
-      "AAAAAAEAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAABAAAAAAIAAAABAAAAAAAAkZWR0cwAAABxlbHN0AAAAAAAAAAEAAAAi" +
-      "AAAAAAABAAAAAAGlbWRpYQAAACBtZGhkAAAAAAAAAAAAAAAAAAA8AAAAAgB//wAAAAAALWhkbHIAAAAAbWhscnZpZGUAAAAAAAAA" +
-      "AAAAAAAMVmlkZW9IYW5kbGVyAAABUG1pbmYAAAAUdm1oZAAAAAEAAAAAAAAAAAAAACxoZGxyAAAAAGRobHJ1cmwgAAAAAAAAAAAA" +
-      "AAAAC0RhdGFIYW5kbGVyAAAAJGRpbmYAAAAcZHJlZgAAAAAAAAABAAAADHVybCAAAAABAAAA5HN0YmwAAACAc3RzZAAAAAAAAAAB" +
-      "AAAAcGFwNGgAAAAAAAAAAQAAAABGRk1QAAACAAAAAgAAgABAAEgAAABIAAAAAAAAAAEWTGF2YzYzLjEuMTAyIHByb3Jlc19rcwAA" +
-      "AAAAAAAAAAAg//8AAAAKZmllbAEAAAAAEHBhc3AAAAABAAAAAQAAABhzdHRzAAAAAAAAAAEAAAABAAACAAAAABxzdHNjAAAAAAAA" +
-      "AAEAAAABAAAAAQAAAAEAAAAUc3RzegAAAAAAAAFAAAAAAQAAABRzdGNvAAAAAAAAAAEAAAAkAAAAIHVkdGEAAAAYqXN3cgAMVcRM" +
-      "YXZmNjMuMS4xMDI="
+      "BAQEBAQEBAQEBQQEBAQEBAUFBAQEBAQFBQYEBAQEBQUGBwQEBAQFBgcHQAAAAhwABDAAgwCDAIMAg0ABACUALAAnsj//AFcR//gC" +
+      "oaW22222222222222wAI/pbbbbbbbf///////gTrj//ABhLH/+AKhpbbbbbbbAAk/n//////+AEf5///////gBj+f//////4BwSP" +
+      "/8AFZEf/4AqGlttttttttttttttsACP+f//////+2222222wAAf/QAEAJQAsACeyP/8AVxH/+AKhpbbbbbbbbbbbbbbbAAj+lttt" +
+      "tttt///////+BOuP/8AGEsf/4AqGlttttttsACT+f//////4AR/n//////+AGP5///////gHBI//wAVkR//gCoaW222222222222" +
+      "22wAI/5///////7bbbbbbbAAB/9AAQAlACwAJ7I//wBXEf/4AqGlttttttttttttttsACP6W2222223///////4E64//wAYSx//g" +
+      "CoaW222222wAJP5///////gBH+f//////4AY/n//////+AcEj//ABWRH/+AKhpbbbbbbbbbbbbbbbAAj/n///////tttttttsAAH" +
+      "/0ABACUALAAnsj//AFcR//gCoaW22222222222222wAI/pbbbbbbbf///////gTrj//ABhLH/+AKhpbbbbbbbAAk/n//////+AEf" +
+      "5///////gBj+f//////4BwSP/8AFZEf/4AqGlttttttttttttttsACP+f//////+2222222wAAf/AAAC021vb3YAAABsbXZoZAAA" +
+      "AAAAAAAAAAAAAAAAA+gAAAAiAAEAAAEAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAQAAAAAAAAAAA" +
+      "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIAAAI/dHJhawAAAFx0a2hkAAAAAwAAAAAAAAAAAAAAAQAAAAAAAAAiAAAAAAAAAAAAAAAA" +
+      "AAAAAAABAAAAAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAQAAAAACAAAAAQAAAAAAAJGVkdHMAAAAcZWxzdAAAAAAAAAABAAAA" +
+      "IgAAAAAAAQAAAAABt21kaWEAAAAgbWRoZAAAAAAAAAAAAAAAAAAAPAAAAAIAf/8AAAAAAC1oZGxyAAAAAG1obHJ2aWRlAAAAAAAA" +
+      "AAAAAAAADFZpZGVvSGFuZGxlcgAAAWJtaW5mAAAAFHZtaGQAAAABAAAAAAAAAAAAAAAsaGRscgAAAABkaGxydXJsIAAAAAAAAAAA" +
+      "AAAAAAtEYXRhSGFuZGxlcgAAACRkaW5mAAAAHGRyZWYAAAAAAAAAAQAAAAx1cmwgAAAAAQAAAPZzdGJsAAAAknN0c2QAAAAAAAAA" +
+      "AQAAAIJhcDRoAAAAAAAAAAEAAAAARkZNUAAAAgAAAAIAAIAAQABIAAAASAAAAAAAAAABFkxhdmM2My4xLjEwMiBwcm9yZXNfa3MA" +
+      "AAAAAAAAAAAAIP//AAAACmZpZWwBAAAAABJjb2xybmNsYwACAAIAAQAAABBwYXNwAAAAAQAAAAEAAAAYc3R0cwAAAAAAAAABAAAA" +
+      "AQAAAgAAAAAcc3RzYwAAAAAAAAABAAAAAQAAAAEAAAABAAAAFHN0c3oAAAAAAAACuAAAAAEAAAAUc3RjbwAAAAAAAAABAAAAJAAA" +
+      "ACB1ZHRhAAAAGKlzd3IADFXETGF2ZjYzLjEuMTAy"
 
   const val HALF =
-    "AAAAFGZ0eXBxdCAgAAACAHF0ICAAAAAId2lkZQAAAVBtZGF0AAABSGljcGYAlAABTGF2YwCAAEDAAAICAQIAAwQEBAQEBAQEBAQE" +
+    "AAAAFGZ0eXBxdCAgAAACAHF0ICAAAAAId2lkZQAAJpRtZGF0AAAmjGljcGYAlAABTGF2YwCAAEDAAAICAQIAAwQEBAQEBAQEBAQE" +
       "BAQEBAQEBAQEBAQEBAQEBAQEBAQFBAQEBAQEBQUEBAQEBAUFBgQEBAQFBQYHBAQEBAUGBwcEBAQEBAQEBAQEBAQEBAQEBAQEBAQE" +
-      "BAQEBAQEBAQEBQQEBAQEBAUFBAQEBAQFBQYEBAQEBQUGBwQEBAQFBgcHQAAAAKwABDAAJwAnACcAJ0AEAAgACQAJoj//AWEf/4AU" +
-      "uP/8AYbH/+AeSP/8AVxH/+DAUIP/gEAEAAgACQAJoj//AWEf/4AUuP/8AYbH/+AeSP/8AVxH/+DAUIP/gEAEAAgACQAJoj//AWEf" +
-      "/4AUuP/8AYbH/+AeSP/8AVxH/+DAUIP/gEAEAAgACQAJoj//AWEf/4AUuP/8AYbH/+AeSP/8AVxH/+DAUIP/gAAAAsFtb292AAAA" +
-      "bG12aGQAAAAAAAAAAAAAAAAAAAPoAAAAIgABAAABAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAEAA" +
-      "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAACLXRyYWsAAABcdGtoZAAAAAMAAAAAAAAAAAAAAAEAAAAAAAAAIgAAAAAA" +
-      "AAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAEAAAAAAgAAAAEAAAAAAACRlZHRzAAAAHGVsc3QAAAAA" +
-      "AAAAAQAAACIAAAAAAAEAAAAAAaVtZGlhAAAAIG1kaGQAAAAAAAAAAAAAAAAAADwAAAACAH//AAAAAAAtaGRscgAAAABtaGxydmlk" +
-      "ZQAAAAAAAAAAAAAAAAxWaWRlb0hhbmRsZXIAAAFQbWluZgAAABR2bWhkAAAAAQAAAAAAAAAAAAAALGhkbHIAAAAAZGhscnVybCAA" +
-      "AAAAAAAAAAAAAAALRGF0YUhhbmRsZXIAAAAkZGluZgAAABxkcmVmAAAAAAAAAAEAAAAMdXJsIAAAAAEAAADkc3RibAAAAIBzdHNk" +
-      "AAAAAAAAAAEAAABwYXA0aAAAAAAAAAABAAAAAEZGTVAAAAIAAAACAACAAEAASAAAAEgAAAAAAAAAARZMYXZjNjMuMS4xMDIgcHJv" +
-      "cmVzX2tzAAAAAAAAAAAAACD//wAAAApmaWVsAQAAAAAQcGFzcAAAAAEAAAABAAAAGHN0dHMAAAAAAAAAAQAAAAEAAAIAAAAAHHN0" +
-      "c2MAAAAAAAAAAQAAAAEAAAABAAAAAQAAABRzdHN6AAAAAAAAAUgAAAABAAAAFHN0Y28AAAAAAAAAAQAAACQAAAAgdWR0YQAAABip" +
-      "c3dyAAxVxExhdmY2My4xLjEwMg=="
+      "BAQEBAQEBAQEBQQEBAQEBAUFBAQEBAQFBQYEBAQEBQUGBwQEBAQFBgcHQAAAJfAABDAJeAl4CXgJeEABACUALAAnsj//AFcR//gC" +
+      "oaW22222222222222wAI/pbbbbbbbf///////gTrj//ABhLH/+AKhpbbbbbbbAAk/n//////+AEf5///////gBj+f//////4BwSP" +
+      "/8AFZEf/4AqGlttttttttttttttsACP+f//////+2222222wwDDfr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/f" +
+      "r/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr" +
+      "/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fgv9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v" +
+      "9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9" +
+      "+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v4X6/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/3" +
+      "6/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36" +
+      "/36/36/36/36/36/36/36/34L/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr" +
+      "/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/" +
+      "fr/fr/fr/fr/fr+F+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9" +
+      "+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+" +
+      "v9+v9+C/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36" +
+      "/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/hfr" +
+      "/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/" +
+      "fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fgv9+v9+v9+v9" +
+      "+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+" +
+      "v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v4X6/36/36/36/36/36/36" +
+      "/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/" +
+      "36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/34L/fr/fr/fr/fr/fr/fr/fr/fr/fr/" +
+      "fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/f" +
+      "r/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr+F+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+" +
+      "v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v" +
+      "9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+C/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/" +
+      "36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/3" +
+      "6/36/36/36/36/36/36/36/36/36/36/36/36/36/36/hfr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/f" +
+      "r/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr" +
+      "/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fgv9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v" +
+      "9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9" +
+      "+v9+v9+v9+v9+v9+v9+v9+v9+v4X6/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/3" +
+      "6/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36" +
+      "/36/36/36/36/36/34L/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr" +
+      "/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/" +
+      "fr/fr/fr/EABACUALAAnsj//AFcR//gCoaW22222222222222wAI/pbbbbbbbf///////gTrj//ABhLH/+AKhpbbbbbbbAAk/n//" +
+      "////+AEf5///////gBj+f//////4BwSP/8AFZEf/4AqGlttttttttttttttsACP+f//////+2222222wwDDfr/fr/fr/fr/fr/fr" +
+      "/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/" +
+      "fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fgv9+v9+v9+v9+v9+v9+v9+v9+v9" +
+      "+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+" +
+      "v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v4X6/36/36/36/36/36/36/36/36/36/36/36" +
+      "/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/" +
+      "36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/34L/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/" +
+      "fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/f" +
+      "r/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr+F+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+" +
+      "v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v" +
+      "9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+C/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/" +
+      "36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/3" +
+      "6/36/36/36/36/36/36/36/36/36/hfr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/f" +
+      "r/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr" +
+      "/fr/fr/fr/fr/fr/fr/fgv9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v" +
+      "9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9" +
+      "+v9+v9+v9+v4X6/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/3" +
+      "6/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36" +
+      "/34L/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr" +
+      "/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr+F+v9+v" +
+      "9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9" +
+      "+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+C/36/36/36/36/3" +
+      "6/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36" +
+      "/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/hfr/fr/fr/fr/fr/fr/fr/fr" +
+      "/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/" +
+      "fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fgv9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9" +
+      "+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+" +
+      "v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v4X6/36/36/36/36/36/36/36/36/36/36/36/36/36" +
+      "/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/" +
+      "36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/34L/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/" +
+      "fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/f" +
+      "r/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/EABACUALAAnsj//AFcR//gCoaW22222222222222wAI/pbbbbbbbf//////" +
+      "/gTrj//ABhLH/+AKhpbbbbbbbAAk/n//////+AEf5///////gBj+f//////4BwSP/8AFZEf/4AqGlttttttttttttttsACP+f///" +
+      "///+2222222wwDDfr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/f" +
+      "r/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr" +
+      "/fr/fgv9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v" +
+      "9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v4X6/" +
+      "36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/3" +
+      "6/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/34L/fr/fr/fr/f" +
+      "r/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr" +
+      "/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr+F+v9+v9+v9+v9+v9+v9+v" +
+      "9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9" +
+      "+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+C/36/36/36/36/36/36/36/36/36/3" +
+      "6/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36" +
+      "/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/hfr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr" +
+      "/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/" +
+      "fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fgv9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9" +
+      "+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+" +
+      "v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v4X6/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36" +
+      "/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/" +
+      "36/36/36/36/36/36/36/36/36/36/36/34L/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/" +
+      "fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/f" +
+      "r/fr/fr/fr/fr/fr/fr/fr/fr+F+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+" +
+      "v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v" +
+      "9+v9+v9+v9+v9+v9+C/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/" +
+      "36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/3" +
+      "6/36/36/hfr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/f" +
+      "r/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fg" +
+      "v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v" +
+      "9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v4X6/36/36/" +
+      "36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/3" +
+      "6/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/34L/fr/fr/fr/fr/fr/f" +
+      "r/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr" +
+      "/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/EABACUALAAnsj//AFcR//gCoaW2" +
+      "2222222222222wAI/pbbbbbbbf///////gTrj//ABhLH/+AKhpbbbbbbbAAk/n//////+AEf5///////gBj+f//////4BwSP/8AF" +
+      "ZEf/4AqGlttttttttttttttsACP+f//////+2222222wwDDfr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr" +
+      "/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/" +
+      "fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fgv9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9" +
+      "+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+" +
+      "v9+v9+v9+v9+v9+v9+v9+v9+v9+v4X6/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36" +
+      "/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/" +
+      "36/36/36/36/36/36/34L/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/" +
+      "fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/f" +
+      "r/fr/fr/fr+F+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+" +
+      "v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v" +
+      "9+C/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/" +
+      "36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/hfr/fr/" +
+      "fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/f" +
+      "r/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fgv9+v9+v9+v9+v9+" +
+      "v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v" +
+      "9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v4X6/36/36/36/36/36/36/36/" +
+      "36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/3" +
+      "6/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/34L/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/f" +
+      "r/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr" +
+      "/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr+F+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v" +
+      "9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9" +
+      "+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+C/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/3" +
+      "6/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36" +
+      "/36/36/36/36/36/36/36/36/36/36/36/36/36/hfr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr" +
+      "/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/" +
+      "fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fgv9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9" +
+      "+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+v9+" +
+      "v9+v9+v9+v9+v9+v9+v9+v4X6/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36" +
+      "/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/36/" +
+      "36/36/36/36/34L/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/" +
+      "fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/fr/f" +
+      "r/fr/AAAAtNtb292AAAAbG12aGQAAAAAAAAAAAAAAAAAAAPoAAAAIgABAAABAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAEA" +
+      "AAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAACP3RyYWsAAABcdGtoZAAAAAMAAAAAAAAAAAAA" +
+      "AAEAAAAAAAAAIgAAAAAAAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAEAAAAAAgAAAAEAAAAAAACRl" +
+      "ZHRzAAAAHGVsc3QAAAAAAAAAAQAAACIAAAAAAAEAAAAAAbdtZGlhAAAAIG1kaGQAAAAAAAAAAAAAAAAAADwAAAACAH//AAAAAAAt" +
+      "aGRscgAAAABtaGxydmlkZQAAAAAAAAAAAAAAAAxWaWRlb0hhbmRsZXIAAAFibWluZgAAABR2bWhkAAAAAQAAAAAAAAAAAAAALGhk" +
+      "bHIAAAAAZGhscnVybCAAAAAAAAAAAAAAAAALRGF0YUhhbmRsZXIAAAAkZGluZgAAABxkcmVmAAAAAAAAAAEAAAAMdXJsIAAAAAEA" +
+      "AAD2c3RibAAAAJJzdHNkAAAAAAAAAAEAAACCYXA0aAAAAAAAAAABAAAAAEZGTVAAAAIAAAACAACAAEAASAAAAEgAAAAAAAAAARZM" +
+      "YXZjNjMuMS4xMDIgcHJvcmVzX2tzAAAAAAAAAAAAACD//wAAAApmaWVsAQAAAAASY29scm5jbGMAAgACAAEAAAAQcGFzcAAAAAEA" +
+      "AAABAAAAGHN0dHMAAAAAAAAAAQAAAAEAAAIAAAAAHHN0c2MAAAAAAAAAAQAAAAEAAAABAAAAAQAAABRzdHN6AAAAAAAAJowAAAAB" +
+      "AAAAFHN0Y28AAAAAAAAAAQAAACQAAAAgdWR0YQAAABipc3dyAAxVxExhdmY2My4xLjEwMg=="
 
   const val HALF_CLEAR =
-    "AAAAFGZ0eXBxdCAgAAACAHF0ICAAAAAId2lkZQAAAsRtZGF0AAACvGljcGYAlAABTGF2YwCAAEDAAAICAQIAAwQEBAQEBAQEBAQE" +
+    "AAAAFGZ0eXBxdCAgAAACAHF0ICAAAAAId2lkZQAAA5xtZGF0AAADlGljcGYAlAABTGF2YwCAAEDAAAICAQIAAwQEBAQEBAQEBAQE" +
       "BAQEBAQEBAQEBAQEBAQEBAQEBAQFBAQEBAQEBQUEBAQEBAUFBgQEBAQFBQYHBAQEBAUGBwcEBAQEBAQEBAQEBAQEBAQEBAQEBAQE" +
-      "BAQEBAQEBAQEBQQEBAQEBAUFBAQEBAQFBQYEBAQEBQUGBwQEBAQFBgcHQAAAAiAABDAAhACEAIQAhEAEAAgACQAJoj//ADgkf/4U" +
-      "uP/8Amsf/4AeSP/8A4Ef/4CAAAAfgAAfgIAfgAAfgIAfgAAfgIAfgAAfgIAfgAAfgIAfgAAfgIAfgAAfgIAfgAAfgIAfgAAfgIAf" +
-      "gAAfgIAfgAAfgIAfgAAfgIAfgAAfgIAfgAAfgIAfgAAfgIAfgAAfgEAEAAgACQAJoj//ADgkf/4UuP/8Amsf/4AeSP/8A4Ef/4CA" +
-      "AAAfgAAfgIAfgAAfgIAfgAAfgIAfgAAfgIAfgAAfgIAfgAAfgIAfgAAfgIAfgAAfgIAfgAAfgIAfgAAfgIAfgAAfgIAfgAAfgIAf" +
-      "gAAfgIAfgAAfgIAfgAAfgIAfgAAfgEAEAAgACQAJoj//ADgkf/4UuP/8Amsf/4AeSP/8A4Ef/4CAAAAfgAAfgIAfgAAfgIAfgAAf" +
+      "BAQEBAQEBAQEBQQEBAQEBAUFBAQEBAQFBQYEBAQEBQUGBwQEBAQFBgcHQAAAAvgABDAAugC6ALoAukABABoAGwAbsj//AA4GR//g" +
+      "CoaW222222wAJPpbbbbbbbAE64//wAmbH/+AKhpbbbbbbbAAk/n//////+AHBI//wA3JH/+AKhpbbbbbbbAAk/n//////+CAAAAf" +
+      "gAAfgIAfgAAfgIAfgAAfgIAfgAAfgIAfgAAfgIAfgAAfgIAfgAAfgIAfgAAfgIAfgAAfgIAfgAAfgIAfgAAfgIAfgAAfgIAfgAAf" +
+      "gIAfgAAfgIAfgAAfgIAfgAAfgEABABoAGwAbsj//AA4GR//gCoaW222222wAJPpbbbbbbbAE64//wAmbH/+AKhpbbbbbbbAAk/n/" +
+      "/////+AHBI//wA3JH/+AKhpbbbbbbbAAk/n//////+CAAAAfgAAfgIAfgAAfgIAfgAAfgIAfgAAfgIAfgAAfgIAfgAAfgIAfgAAf" +
+      "gIAfgAAfgIAfgAAfgIAfgAAfgIAfgAAfgIAfgAAfgIAfgAAfgIAfgAAfgIAfgAAfgIAfgAAfgEABABoAGwAbsj//AA4GR//gCoaW" +
+      "222222wAJPpbbbbbbbAE64//wAmbH/+AKhpbbbbbbbAAk/n//////+AHBI//wA3JH/+AKhpbbbbbbbAAk/n//////+CAAAAfgAAf" +
       "gIAfgAAfgIAfgAAfgIAfgAAfgIAfgAAfgIAfgAAfgIAfgAAfgIAfgAAfgIAfgAAfgIAfgAAfgIAfgAAfgIAfgAAfgIAfgAAfgIAf" +
-      "gAAfgEAEAAgACQAJoj//ADgkf/4UuP/8Amsf/4AeSP/8A4Ef/4CAAAAfgAAfgIAfgAAfgIAfgAAfgIAfgAAfgIAfgAAfgIAfgAAf" +
-      "gIAfgAAfgIAfgAAfgIAfgAAfgIAfgAAfgIAfgAAfgIAfgAAfgIAfgAAfgIAfgAAfgIAfgAAfgIAfgAAfgAAAAsFtb292AAAAbG12" +
-      "aGQAAAAAAAAAAAAAAAAAAAPoAAAAIgABAAABAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAEAAAAAA" +
-      "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAACLXRyYWsAAABcdGtoZAAAAAMAAAAAAAAAAAAAAAEAAAAAAAAAIgAAAAAAAAAA" +
-      "AAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAEAAAAAAgAAAAEAAAAAAACRlZHRzAAAAHGVsc3QAAAAAAAAA" +
-      "AQAAACIAAAAAAAEAAAAAAaVtZGlhAAAAIG1kaGQAAAAAAAAAAAAAAAAAADwAAAACAH//AAAAAAAtaGRscgAAAABtaGxydmlkZQAA" +
-      "AAAAAAAAAAAAAAxWaWRlb0hhbmRsZXIAAAFQbWluZgAAABR2bWhkAAAAAQAAAAAAAAAAAAAALGhkbHIAAAAAZGhscnVybCAAAAAA" +
-      "AAAAAAAAAAALRGF0YUhhbmRsZXIAAAAkZGluZgAAABxkcmVmAAAAAAAAAAEAAAAMdXJsIAAAAAEAAADkc3RibAAAAIBzdHNkAAAA" +
-      "AAAAAAEAAABwYXA0aAAAAAAAAAABAAAAAEZGTVAAAAIAAAACAACAAEAASAAAAEgAAAAAAAAAARZMYXZjNjMuMS4xMDIgcHJvcmVz" +
-      "X2tzAAAAAAAAAAAAACD//wAAAApmaWVsAQAAAAAQcGFzcAAAAAEAAAABAAAAGHN0dHMAAAAAAAAAAQAAAAEAAAIAAAAAHHN0c2MA" +
-      "AAAAAAAAAQAAAAEAAAABAAAAAQAAABRzdHN6AAAAAAAAArwAAAABAAAAFHN0Y28AAAAAAAAAAQAAACQAAAAgdWR0YQAAABipc3dy" +
-      "AAxVxExhdmY2My4xLjEwMg=="
+      "gAAfgIAfgAAfgIAfgAAfgEABABoAGwAbsj//AA4GR//gCoaW222222wAJPpbbbbbbbAE64//wAmbH/+AKhpbbbbbbbAAk/n/////" +
+      "/+AHBI//wA3JH/+AKhpbbbbbbbAAk/n//////+CAAAAfgAAfgIAfgAAfgIAfgAAfgIAfgAAfgIAfgAAfgIAfgAAfgIAfgAAfgIAf" +
+      "gAAfgIAfgAAfgIAfgAAfgIAfgAAfgIAfgAAfgIAfgAAfgIAfgAAfgIAfgAAfgIAfgAAfgAAAAtNtb292AAAAbG12aGQAAAAAAAAA" +
+      "AAAAAAAAAAPoAAAAIgABAAABAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAA" +
+      "AAAAAAAAAAAAAAAAAAAAAAACAAACP3RyYWsAAABcdGtoZAAAAAMAAAAAAAAAAAAAAAEAAAAAAAAAIgAAAAAAAAAAAAAAAAAAAAAA" +
+      "AQAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAEAAAAAAgAAAAEAAAAAAACRlZHRzAAAAHGVsc3QAAAAAAAAAAQAAACIAAAAA" +
+      "AAEAAAAAAbdtZGlhAAAAIG1kaGQAAAAAAAAAAAAAAAAAADwAAAACAH//AAAAAAAtaGRscgAAAABtaGxydmlkZQAAAAAAAAAAAAAA" +
+      "AAxWaWRlb0hhbmRsZXIAAAFibWluZgAAABR2bWhkAAAAAQAAAAAAAAAAAAAALGhkbHIAAAAAZGhscnVybCAAAAAAAAAAAAAAAAAL" +
+      "RGF0YUhhbmRsZXIAAAAkZGluZgAAABxkcmVmAAAAAAAAAAEAAAAMdXJsIAAAAAEAAAD2c3RibAAAAJJzdHNkAAAAAAAAAAEAAACC" +
+      "YXA0aAAAAAAAAAABAAAAAEZGTVAAAAIAAAACAACAAEAASAAAAEgAAAAAAAAAARZMYXZjNjMuMS4xMDIgcHJvcmVzX2tzAAAAAAAA" +
+      "AAAAACD//wAAAApmaWVsAQAAAAASY29scm5jbGMAAgACAAEAAAAQcGFzcAAAAAEAAAABAAAAGHN0dHMAAAAAAAAAAQAAAAEAAAIA" +
+      "AAAAHHN0c2MAAAAAAAAAAQAAAAEAAAABAAAAAQAAABRzdHN6AAAAAAAAA5QAAAABAAAAFHN0Y28AAAAAAAAAAQAAACQAAAAgdWR0" +
+      "YQAAABipc3dyAAxVxExhdmY2My4xLjEwMg=="
 }

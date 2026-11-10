@@ -81,7 +81,7 @@ class AppleSourceAlphaHardwareTest {
           abs(cover[0] - source.first) shouldBeGreaterThan MIN_COVER_GAP
         }
         withClue("at $at, left $left, right $right") {
-          assertBlend(half.average(at, MID_ROW), source, Triple(cover[0], cover[1], cover[2]), BLURRED_TOLERANCE)
+          assertBlend(half.average(at, MID_ROW), source, Triple(cover[0], cover[1], cover[2]), FILL_CODE_TOLERANCE)
         }
       }
     }
@@ -152,7 +152,16 @@ class AppleSourceAlphaHardwareTest {
     val output = NSTemporaryDirectory() + "filmstrip-apple-source-alpha-${clip.hashCode()}-${fill.hashCode()}.mp4"
     NSFileManager.defaultManager.removeItemAtPath(output, error = null)
     withContext(Dispatchers.Default) {
-      when (val finished = filmstrip.export(composition, ExportSpec(), MediaSink.of(output)).toList().last()) {
+      when (
+        val finished =
+          filmstrip
+            .export(
+              composition,
+              ExportSpec(bitrate = COLOR_READ_BITRATE),
+              MediaSink.of(output),
+            ).toList()
+            .last()
+      ) {
         is ExportStatus.Failure -> error(finished.error.message)
         else -> finished.shouldBeInstanceOf<ExportStatus.Success>()
       }
@@ -174,10 +183,5 @@ class AppleSourceAlphaHardwareTest {
     const val MID_ROW = 0.5f
     const val MIN_COVER_GAP = 12
     const val MAX_CODE = 255.0
-
-    // The blurred cover reads up to 7 codes off at the right half, where the opaque export reads the picture 8 codes
-    // apart from the codes the half transparent export blends. The left half and the clear half read within the fill
-    // tolerance, so the offset is in the right half's reference read and not in the blend or the blur.
-    const val BLURRED_TOLERANCE = 7
   }
 }
