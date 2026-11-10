@@ -14,7 +14,7 @@ import dev.jordond.filmstrip.transform.internal.geometry.blendOverFill
 import dev.jordond.filmstrip.transform.internal.geometry.blurPlan
 import io.kotest.assertions.withClue
 import io.kotest.matchers.ints.shouldBeGreaterThan
-import io.kotest.matchers.ints.shouldBeInRange
+import io.kotest.matchers.ints.shouldBeLessThanOrEqual
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.Dispatchers
@@ -65,7 +65,7 @@ class AppleSourceAlphaHardwareTest {
       val left = opaque.average(LEFT_AT, MID_ROW)
       val right = opaque.average(RIGHT_AT, MID_ROW)
 
-      for (at in listOf(LEFT_AT, EDGE_AT, RIGHT_AT)) {
+      for (at in listOf(LEFT_AT, RIGHT_AT)) {
         val cover =
           listOf(left.first to right.first, left.second to right.second, left.third to right.third).map { (l, r) ->
             val plane =
@@ -86,6 +86,30 @@ class AppleSourceAlphaHardwareTest {
       }
     }
 
+  @Test
+  fun `a clip with a clear half is covered by a blur weighted by its alpha`() =
+    runTest(timeout = TIMEOUT) {
+      val fill = Fill.Blurred(radius = CLEAR_RADIUS, dim = 0f)
+      val opaque = exported(AlphaClips.OPAQUE, fill)
+      val drawn = exported(AlphaClips.HALF_CLEAR, fill)
+      val size = Size(drawn.width, drawn.height)
+      val sigma = fill.blurPlan(size).let { it.sigmaPx / it.width }
+      val alpha = DoubleArray(size.width * size.height) { if (it % size.width < size.width / 2) 1.0 else 0.0 }
+      val source = opaque.average(LEFT_AT, MID_ROW)
+
+      for (at in listOf(CLEAR_AT, NEAR_EDGE_AT)) {
+        val cover =
+          listOf(source.first, source.second, source.third).map { level ->
+            val plane = DoubleArray(alpha.size) { if (alpha[it] > 0.0) level.toDouble() else 0.0 }
+            blurPlane(plane, alpha, size.width, size.height, sigma)[
+              (MID_ROW * size.height).toInt() * size.width + (at * size.width).toInt(),
+            ].roundToInt()
+          }
+        val read = drawn.average(at, MID_ROW)
+        assertWithin(read, Triple(cover[0], cover[1], cover[2]), "at $at")
+      }
+    }
+
   private fun assertBlend(
     read: Triple<Int, Int, Int>,
     source: Triple<Int, Int, Int>,
@@ -97,11 +121,21 @@ class AppleSourceAlphaHardwareTest {
         blendOverFill(source.second, HALF_ALPHA, fill.second),
         blendOverFill(source.third, HALF_ALPHA, fill.third),
       )
-    withClue("read $read, expected $expected, source $source, fill $fill") {
-      read.first shouldBeInRange (expected.first - TOLERANCE)..(expected.first + TOLERANCE)
-      read.second shouldBeInRange (expected.second - TOLERANCE)..(expected.second + TOLERANCE)
-      read.third shouldBeInRange (expected.third - TOLERANCE)..(expected.third + TOLERANCE)
-    }
+    assertWithin(read, expected, "source $source, fill $fill")
+  }
+
+  private fun assertWithin(
+    read: Triple<Int, Int, Int>,
+    expected: Triple<Int, Int, Int>,
+    context: String,
+  ) {
+    val off =
+      maxOf(
+        abs(read.first - expected.first),
+        abs(read.second - expected.second),
+        abs(read.third - expected.third),
+      )
+    withClue("$context, read $read, expected $expected, off by $off") { off shouldBeLessThanOrEqual TOLERANCE }
   }
 
   private suspend fun exported(
@@ -130,13 +164,18 @@ class AppleSourceAlphaHardwareTest {
     const val HALF_ALPHA = 128
     const val RADIUS = 0.5f
     const val LEFT_AT = 0.25f
-    const val EDGE_AT = 0.4f
+    const val CLEAR_AT = 0.75f
+    const val NEAR_EDGE_AT = 0.6f
+    const val CLEAR_RADIUS = 0.25f
     const val RIGHT_AT = 0.75f
     const val MID_ROW = 0.5f
     const val MIN_COVER_GAP = 12
     const val MAX_CODE = 255.0
 
-    // What a hardware encode moves a read by.
-    const val TOLERANCE = 8
+    // The most a blended pixel reads off the shared blend, measured at 7 over a blurred cover and 3 over a solid fill.
+    // The two ends it is read against come from the same encoder at no blend, which keeps a blend of the two ends from
+    // equalling the encoder's own blend by the encoder's rounding. The chain's blend alone is held to 1 code in
+    // ChainFrameHardwareTest.
+    const val TOLERANCE = 7
   }
 }

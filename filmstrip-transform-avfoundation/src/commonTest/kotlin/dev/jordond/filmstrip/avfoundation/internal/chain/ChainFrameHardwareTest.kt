@@ -4,6 +4,7 @@ import dev.jordond.filmstrip.color.HDR_REFERENCE_WHITE_NITS
 import dev.jordond.filmstrip.color.blurPlane
 import dev.jordond.filmstrip.color.linearDimGain
 import dev.jordond.filmstrip.color.sdrSignalFromNits
+import dev.jordond.filmstrip.effects.color.createCodeSpace
 import dev.jordond.filmstrip.effects.color.inCodesOf
 import dev.jordond.filmstrip.effects.geometry.Crop
 import dev.jordond.filmstrip.effects.geometry.KenBurns
@@ -14,6 +15,7 @@ import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.HdrTransfer
+import dev.jordond.filmstrip.transform.internal.geometry.blendOverFill
 import dev.jordond.filmstrip.transform.internal.geometry.blurPlan
 import dev.jordond.filmstrip.transform.internal.geometry.coverScale
 import dev.jordond.filmstrip.transform.internal.geometry.placeIn
@@ -356,6 +358,40 @@ class ChainFrameHardwareTest {
   }
 
   @Test
+  fun `a half transparent frame blends over a fill on the shared codes`() {
+    val source = listOf(224, 44, 29)
+    val fill = listOf(49, 78, 110)
+    val alpha = HALF_CODE_ALPHA
+    val layer = codeColour(source, alpha).imageByCroppingToRect(CGRectMake(0.0, 0.0, 10.0, 10.0))
+    val background = codeColour(fill, 255).imageByCroppingToRect(CGRectMake(0.0, 0.0, 10.0, 10.0))
+
+    val pixel = layer.blendedInCodes(background) { imageByCompositingOverImage(it) }.codePixels(10, 10).at(5, 5)
+
+    val off =
+      (0 until 3).maxOf { abs(pixel[it] * 255.0 - blendOverFill(source[it], alpha, fill[it])) }
+    withClue("the chain's blend reads ${pixel.take(3).map { it * 255 }}, off by $off codes") {
+      (off <= CODE_BLEND_LEVEL).shouldBeTrue()
+    }
+  }
+
+  private fun codeColour(
+    codes: List<Int>,
+    alpha: Int,
+  ): CIImage {
+    val space = ColorSpace.Bt709.createCodeSpace()
+    return CIImage(
+      color =
+        CIColor.colorWithRed(
+          codes[0] / 255.0,
+          green = codes[1] / 255.0,
+          blue = codes[2] / 255.0,
+          alpha = alpha / 255.0,
+          colorSpace = space,
+        )!!,
+    )
+  }
+
+  @Test
   fun `a frame with nothing in it covers with black`() {
     val covered = CIImage.emptyImage().blurredCover(SQUARE, Fill.Blurred(), null, ColorSpace.Bt709)
 
@@ -487,6 +523,8 @@ class ChainFrameHardwareTest {
 
     // Two eight bit codes, as a GaussianBlur on Core Image is held to.
     const val BLUR_LEVEL = 2.0 / 255.0
+    const val HALF_CODE_ALPHA = 128
+    const val CODE_BLEND_LEVEL = 1.0
 
     // Core Image's Gaussian against the plan on the SDR signal a kept grade is blurred on, held to the same two codes.
     const val KEPT_BLUR_LEVEL = BLUR_LEVEL
