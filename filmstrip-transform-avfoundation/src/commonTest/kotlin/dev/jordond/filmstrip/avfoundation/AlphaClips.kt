@@ -1,8 +1,8 @@
 package dev.jordond.filmstrip.avfoundation
 
 /**
- * One-frame ProRes 4444 clips written with alpha by ffmpeg's prores_ks as yuva444p12le, 128 by 64 pixels, converted with
- * the BT.709 matrix and carrying BT.709 primaries, transfer and matrix in a colr atom, so no colour is guessed for them.
+ * One-frame ProRes 4444 clips written with alpha by ffmpeg's prores_ks as yuva444p12le, 128 by 64 pixels, converted
+ * with the BT.709 matrix. A colr atom carries BT.709 primaries, transfer and matrix, so no colour is guessed for them.
  *
  * The left half is 0xB4785A and the right half 0x5A78B4, and the whole picture is at the alpha the name says.
  * [HALF_CLEAR] is 0xB4785A opaque on the left and clear black on the right.
