@@ -13,7 +13,6 @@ import dev.jordond.filmstrip.test.TestFrame
 import kotlinx.coroutines.CoroutineScope
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
-import kotlin.time.Duration.Companion.seconds
 
 /**
  * The clip speed contract on media3, where the preview and the export lower through one `toMedia3`. The frames compared
@@ -49,12 +48,6 @@ internal object AndroidClipParity : ClipParityBackend {
   // while a preview keeps every pixel's. Luma is what the encoder leaves alone, and AndroidCaptionChromaMediaTest
   // bounds the chroma.
   override fun comparedPart(frame: TestFrame): TestFrame = frame.bt709Luma()
-
-  // media3's limit: a clip's audio starts on the first access unit at or after its trim start, placed at that unit's
-  // time scaled by speed, so silence ahead of it runs a slowed clip's audio past the length while its video ends on it.
-  // A 125 ms trim at 1/32 measured 426.7 ms of it on API 36, plus the encoder's tail.
-  override fun writtenLengthSlack(speed: Double): Duration =
-    minOf(1.seconds / FIXTURE_FRAME_RATE / speed, 457.milliseconds)
 
   override fun createEngine(scope: CoroutineScope): PlayerEngine =
     Media3PlayerEngine(

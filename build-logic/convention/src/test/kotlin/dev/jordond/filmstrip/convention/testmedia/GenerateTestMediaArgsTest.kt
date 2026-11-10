@@ -35,6 +35,14 @@ class GenerateTestMediaArgsTest {
   }
 
   @Test
+  fun `a click spec carries silence with one click in place of the tone`() {
+    val args = task.ffmpegArgs(sdr.copy(name = "click", clickSeconds = 0.25), "out.mp4")
+
+    args.shouldContainRun("-i", "aevalsrc=exprs=if(eq(n\\,12000)\\,0.5\\,0):sample_rate=48000:duration=1.0")
+    args.none { it.startsWith("sine=") } shouldBe true
+  }
+
+  @Test
   fun `every pass runs on one thread with bitexact output and no metadata`() {
     val passes =
       listOf(sdr, hdr, rotated).map { task.ffmpegArgs(it, "out.mp4") } +

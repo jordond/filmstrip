@@ -3,6 +3,8 @@ package dev.jordond.filmstrip.media3.internal.bounds
 import android.media.MediaExtractor
 import android.media.MediaFormat
 import android.net.Uri
+import androidx.media3.common.C
+import androidx.media3.inspector.MediaExtractorCompat
 import dev.jordond.filmstrip.FilmstripContext
 import dev.jordond.filmstrip.color.EBU_PRIMARIES
 import dev.jordond.filmstrip.color.SMPTE_C_PRIMARIES
@@ -13,6 +15,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
+import java.io.File
 import java.io.IOException
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.microseconds
@@ -36,7 +39,7 @@ internal suspend fun frameBoundsOf(
     val extractor = MediaExtractor()
     try {
       if (!extractor.open(source)) return@withContext null
-      val track = extractor.videoTrackIndex() ?: return@withContext null
+      val track = extractor.videoTrackIndex(source) ?: return@withContext null
       val trackEnd = extractor.getTrackFormat(track).durationUs()
       extractor.selectTrack(track)
 
@@ -72,6 +75,74 @@ internal suspend fun frameBoundsOf(
   }
 
 /**
+ * Where a clip of [source]'s audio trimmed to [start] opens its decode, which is the access unit before the one holding
+ * [start], and the encoder delay its audio track names. Null when its container cannot be read or its audio track holds
+ * no sample at or before [start].
+ *
+ * The AAC decoder fades in the first unit it is fed, so a clip opened on the unit holding its start would fade in over
+ * its first frames. The unit before it decodes into that fade and is dropped with the rest of the lead. A start inside
+ * the track's first unit has nothing before it and opens on that unit.
+ *
+ * The units are timed from the head of the track, encoder delay included, so the unit holding [start] is the one
+ * holding [start] plus the delay. The time is read with media3's own extractor, so it is the time media3 gives the unit
+ * when it decodes the clip. An item clipped from exactly that time keeps the unit, where one clipped anywhere inside it
+ * drops it.
+ */
+internal suspend fun audioPrerollStartOf(
+  source: MediaSource,
+  start: Duration,
+): AudioPreroll? =
+  withContext(Dispatchers.IO) {
+    val extractor = MediaExtractorCompat()
+    try {
+      if (!extractor.open(source)) return@withContext null
+      val track = extractor.audioTrackIndex(source) ?: return@withContext null
+      val delay = extractor.getTrackFormat(track).encoderDelay()
+      extractor.selectTrack(track)
+      val target = (start + delay).inWholeMicroseconds
+      extractor.seekTo(target, MediaExtractorCompat.SEEK_TO_PREVIOUS_SYNC)
+      if (extractor.sampleTrackIndex != track) return@withContext null
+      // Every AAC unit is a sync sample, so seeking a microsecond before the holding unit lands on the one before it.
+      extractor.seekTo(maxOf(extractor.sampleTime - 1, 0L), MediaExtractorCompat.SEEK_TO_PREVIOUS_SYNC)
+      // Only the holding unit and the one before it decide the preroll.
+      val units = ArrayDeque<Long>(2)
+      while (extractor.sampleTrackIndex == track && extractor.sampleTime <= target) {
+        ensureActive()
+        if (units.size == 2) units.removeFirst()
+        units.addLast(extractor.sampleTime)
+        if (!extractor.advance()) break
+      }
+      prerollUnitOf(units, target)?.let { AudioPreroll(it.microseconds, delay) }
+    } catch (unwritable: MediaBytesFileFailure) {
+      // Thrown when a source handed over as bytes could not be written to the cache.
+      null
+    } catch (unreadable: IOException) {
+      null
+    } catch (cancelled: CancellationException) {
+      throw cancelled
+    } catch (unopened: RuntimeException) {
+      // setDataSource throws a bare RuntimeException for a container the extractor cannot make sense of.
+      null
+    } finally {
+      extractor.release()
+    }
+  }
+
+/**
+ * The unit a clip trimmed to [start] opens its decode on, out of the ascending unit start times in [units], or null
+ * when none starts at or before [start].
+ *
+ * That is the unit before the one holding [start], or the holding unit itself when it is the first in [units].
+ */
+internal fun prerollUnitOf(
+  units: List<Long>,
+  start: Long,
+): Long? {
+  val holding = units.indexOfLast { it <= start }
+  return if (holding < 0) null else units[maxOf(holding - 1, 0)]
+}
+
+/**
  * The H.273 color primaries code point of the SD color standard [source]'s video track names, or null when it names
  * another standard or none, or its container cannot be read.
  */
@@ -80,7 +151,7 @@ internal suspend fun sdPrimariesNamedBy(source: MediaSource): Int? =
     val extractor = MediaExtractor()
     try {
       if (!extractor.open(source)) return@withContext null
-      val track = extractor.videoTrackIndex() ?: return@withContext null
+      val track = extractor.videoTrackIndex(source) ?: return@withContext null
       val format = extractor.getTrackFormat(track)
       if (!format.containsKey(MediaFormat.KEY_COLOR_STANDARD)) return@withContext null
       when (format.getInteger(MediaFormat.KEY_COLOR_STANDARD)) {
@@ -153,13 +224,53 @@ internal fun MediaExtractor.open(source: MediaSource): Boolean {
 }
 
 /**
- * The index of this extractor's first video track, or null when it opened no container carrying
- * one.
+ * Points this extractor at [source] the way [MediaExtractor.open] does, or returns false when there is no container to
+ * point it at.
+ *
+ * A path and the cached copy of bytes open as file uris. The extractor parses a bare path as a uri, which would read a
+ * `#`, a `?` or a `%` in a file name as part of the uri and open another file.
  */
-internal fun MediaExtractor.videoTrackIndex(): Int? {
-  for (index in 0 until trackCount) {
-    val mime = getTrackFormat(index).getString(MediaFormat.KEY_MIME)
-    if (mime?.startsWith("video/") == true) return index
+private fun MediaExtractorCompat.open(source: MediaSource): Boolean {
+  when (source) {
+    is MediaSource.Path -> {
+      setDataSource(Uri.fromFile(File(source.path)), 0L)
+    }
+    is MediaSource.Uri -> {
+      setDataSource(FilmstripContext.get() ?: return false, Uri.parse(source.uri), null)
+    }
+    is MediaSource.Bytes -> {
+      setDataSource(Uri.fromFile(AndroidScratch.fileFor(FilmstripContext.get() ?: return false, source)), 0L)
+    }
+    is MediaSource.Image -> {
+      return false
+    }
   }
-  return null
+  return true
 }
+
+/**
+ * How long the encoder delay this audio format names runs, rounded up to a whole microsecond, or zero when it names
+ * none or no sample rate to count it at.
+ */
+private fun MediaFormat.encoderDelay(): Duration {
+  val frames = if (containsKey(MediaFormat.KEY_ENCODER_DELAY)) getInteger(MediaFormat.KEY_ENCODER_DELAY) else 0
+  val rate = if (containsKey(MediaFormat.KEY_SAMPLE_RATE)) getInteger(MediaFormat.KEY_SAMPLE_RATE) else 0
+  if (frames <= 0 || rate <= 0) return Duration.ZERO
+  return ((frames * MICROS_PER_SECOND + rate - 1) / rate).microseconds
+}
+
+private const val MICROS_PER_SECOND = 1_000_000L
+
+/**
+ * The index of the audio track an export of [source] decodes, among this extractor's tracks, or null when it opened no
+ * container carrying one.
+ */
+private fun MediaExtractorCompat.audioTrackIndex(source: MediaSource): Int? =
+  exportedTrackOf(source, (0 until trackCount).map { getTrackFormat(it) }, C.TRACK_TYPE_AUDIO)
+
+/**
+ * The index of the video track an export of [source] decodes, among this extractor's tracks, or null when it opened no
+ * container carrying one.
+ */
+internal fun MediaExtractor.videoTrackIndex(source: MediaSource): Int? =
+  exportedTrackOf(source, (0 until trackCount).map { getTrackFormat(it) }, C.TRACK_TYPE_VIDEO)

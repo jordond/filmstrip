@@ -15,6 +15,7 @@ import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.describe
+import dev.jordond.filmstrip.media3.internal.bounds.AudioPreroll
 import dev.jordond.filmstrip.media3.internal.bounds.Media3ClipReads
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedClip
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
@@ -24,11 +25,16 @@ import kotlin.time.Duration
 
 /**
  * Lays one plan's tracks onto media3 sequences, holding what every item of them is lowered against.
+ *
+ * With [ownsAudioSpeed] set, a clip's audio outside a copy opens on its trim start and runs at its speed through
+ * filmstrip's own [clipAudioSpeed]. Without it media3 changes the speed, which is what a player needs, since it refuses
+ * a processor that changes an item's length.
  */
 internal class Lowering(
   private val plan: ResolvedComposition,
   private val wrapper: EffectWrapper,
   private val bounds: Media3ClipReads,
+  private val ownsAudioSpeed: Boolean,
 ) {
   /**
    * The video of [track] on the output frame grid, or null when none of its clips covers a slot.
@@ -175,8 +181,11 @@ internal class Lowering(
     removeAudio: Boolean,
     removeVideo: Boolean,
     mixesAudio: Boolean,
-  ): EditedMediaItem =
-    EditedMediaItem
+  ): EditedMediaItem {
+    if (ownsAudioSpeed && plan.path != ExportPath.Copy && removeVideo && !removeAudio) {
+      return ownedAudioItem(mixesAudio)
+    }
+    return EditedMediaItem
       .Builder(clipped(start, copyEnd(removeVideo), always = speed != 1.0))
       .setRemoveAudio(removeAudio)
       .setRemoveVideo(removeVideo)
@@ -189,13 +198,36 @@ internal class Lowering(
           if (removeAudio) {
             emptyList()
           } else {
-            listOfNotNull(AudioLengthPin(outputDuration).takeIf { speed != 1.0 }) +
+            listOfNotNull(AudioLengthPin(outputDuration, reportsLength = false).takeIf { speed != 1.0 }) +
               audioProcessors(gain, mixesAudio)
           },
           // A copy writes the source's own samples, so a clip carrying video here has no frame to place.
           if (removeVideo) emptyList() else effects.toMedia3Effects().map(wrapper::wrap),
         ),
       ).build()
+  }
+
+  /**
+   * A clip's audio clipped from the access unit before the one holding its trim start, which media3 then decodes whole,
+   * and run through [clipAudioSpeed] from the trim start for exactly its span.
+   *
+   * A clip whose unit was never read is clipped from its trim start itself.
+   *
+   * The source's units are timed with its encoder delay included, so the item is clipped the delay past the clip's end
+   * and drops from where [AudioPreroll.opens] puts its first decoded frame up to the trim start.
+   */
+  private fun ResolvedClip.ownedAudioItem(mixesAudio: Boolean): EditedMediaItem {
+    val preroll = bounds.audioPrerollOf(this)
+    val opens = preroll?.opens ?: start
+    return EditedMediaItem
+      .Builder(clipped(preroll?.unit ?: start, end + (preroll?.encoderDelay ?: Duration.ZERO), always = true))
+      .setRemoveVideo(true)
+      .apply { sourceDuration(info) }
+      .setFrameRate(plan.output.frameRate)
+      .setEffects(
+        Effects(clipAudioSpeed(start - opens, speed, outputDuration, audioProcessors(gain, mixesAudio)), emptyList()),
+      ).build()
+  }
 
   // Where a copy carrying this clip's video ends, which is the end of the plan's grid when the window ends before the
   // source does. Every other item, a copy's audio included, ends on the clip's own end.

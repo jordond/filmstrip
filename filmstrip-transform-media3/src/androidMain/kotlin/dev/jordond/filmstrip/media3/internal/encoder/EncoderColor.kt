@@ -42,7 +42,7 @@ import dev.jordond.filmstrip.media.ColorSpace
  * the export rather than writing codes the file misnames.
  *
  * An audio encoder is passed through [aacTailPadded], so one that flushes nothing at the end of the stream on [sdkInt]
- * still writes every frame.
+ * still writes every frame, and through [aacPrimed], so the file starts its audio on the first frame of the stream.
  *
  * @param delegate The factory that picks each encoder.
  * @param pinned Gives a factory that makes only the encoder of the name it is given.
@@ -69,7 +69,7 @@ internal class EncoderColor(
   override fun createForAudioEncoding(
     format: Format,
     logSessionId: LogSessionId?,
-  ): Codec = aacTailPadded(delegate.createForAudioEncoding(format, logSessionId), sdkInt)
+  ): Codec = aacTailPadded(aacPrimed(delegate.createForAudioEncoding(format, logSessionId)), sdkInt)
 
   override fun createForVideoEncoding(
     format: Format,

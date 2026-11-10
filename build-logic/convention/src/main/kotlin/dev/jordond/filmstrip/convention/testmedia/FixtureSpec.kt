@@ -25,6 +25,8 @@ import java.io.Serializable
  * @param toneHz The frequency of the sine the clip carries. A test that mixes two sources and has
  * to say which one it is hearing needs them at different frequencies, since two tones at the same
  * one sum by their relative phase and the level that reaches the file stops being predictable.
+ * @param clickSeconds When set, the clip carries silence with one click on the sample at this time in place of the
+ * tone. A test that asks where a source frame landed needs a frame it can find, and a steady tone repeats every period.
  */
 data class FixtureSpec(
   val name: String,
@@ -40,6 +42,7 @@ data class FixtureSpec(
   val transfer: FixtureTransfer? = null,
   val rotationDegrees: Int = 0,
   val patch: FixturePatch? = null,
+  val clickSeconds: Double? = null,
 ) : Serializable {
   val fileName: String get() = "$name.mp4"
 

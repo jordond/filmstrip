@@ -24,6 +24,28 @@ internal class FrameBounds(
 }
 
 /**
+ * Where a clip's audio decode opens on its source, read off its container.
+ *
+ * @property unit The start of the access unit the decode opens on, timed from the head of the track with the encoder
+ * delay included, which is how media3 times the units it decodes.
+ * @property encoderDelay How long the encoder delay the source's audio track names runs. media3 trims it from the head
+ * of an item clipped from the source's own start, and from no other.
+ */
+internal class AudioPreroll(
+  val unit: Duration,
+  val encoderDelay: Duration,
+) {
+  /**
+   * Where the first frame an item clipped from [unit] decodes sits on the source's presented clock, which is the one a
+   * trim is given on.
+   *
+   * An item clipped from the source's own start has the delay trimmed, so it opens on the first presented frame. Any
+   * other keeps the delay, so its first frame comes the delay earlier than its unit's time.
+   */
+  val opens: Duration get() = if (unit == Duration.ZERO) Duration.ZERO else unit - encoderDelay
+}
+
+/**
  * The window a clip cuts from its source, which is all its [FrameBounds] depend on.
  */
 internal data class ClipWindow(

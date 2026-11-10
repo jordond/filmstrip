@@ -77,9 +77,10 @@ laying more than 2000 passes.
 <Aside type="note" title="Limits">
 - media3 is given no held tail, so its video track ends with the primary one and only the audio runs on through a longer
   bed.
-- A media3 file can run slightly past the plan's duration. A clip opening part way through an AAC access unit opens on the
-  unit before it, and the encoder's flush rounds up what's left. On an emulator, a bed trimmed from 200ms wrote 7.348s
-  against a 7.300s plan, with silence in the tail.
+- A media3 file can run slightly past the plan's duration, by what the AAC encoder's flush adds at the end of the
+  stream, at most 32 ms.
+- A media3 preview opens a slowed clip's audio late, up to two AAC access units of source scaled by the speed. An export
+  opens on the trim start. See [Clip speed](/reference/limits/#clip-speed).
 - The browser preview samples a clip's gain where each slice opens and holds it flat across, so a fade can't be auditioned
   there yet. The browser's export follows the curve.
 - The ffmpeg preview opens no audio device, so `setVolume` does nothing and it reports no `AudioMonitoring`.

@@ -40,15 +40,23 @@ import dev.jordond.filmstrip.transform.internal.resolve.showsFill
  * @throws Media3LoweringFailure when a source cannot be lowered.
  */
 @InternalFilmstripApi
-public fun ResolvedComposition.toMedia3(bounds: Media3ClipReads): Composition = toMedia3(UnwrappedEffects, bounds)
+public fun ResolvedComposition.toMedia3(bounds: Media3ClipReads): Composition =
+  toMedia3(UnwrappedEffects, bounds, ownsAudioSpeed = true)
 
+/**
+ * Builds the media3 composition this plan runs as, with every clip's chain seen by [wrapper].
+ *
+ * An export sets [ownsAudioSpeed] so each clip's audio opens on its trim start and runs at its speed through
+ * filmstrip's own processors. A player leaves it unset, since it refuses a processor that changes an item's length.
+ */
 internal fun ResolvedComposition.toMedia3(
   wrapper: EffectWrapper,
   bounds: Media3ClipReads,
+  ownsAudioSpeed: Boolean,
 ): Composition {
   val keepAudio = output.audioCodec != AudioCodec.None
   val keepVideo = audio != AudioSpec.AudioOnly
-  val lowering = Lowering(this, wrapper, bounds)
+  val lowering = Lowering(this, wrapper, bounds, ownsAudioSpeed)
   val sequences =
     tracks
       .filter { it.clips.isNotEmpty() }

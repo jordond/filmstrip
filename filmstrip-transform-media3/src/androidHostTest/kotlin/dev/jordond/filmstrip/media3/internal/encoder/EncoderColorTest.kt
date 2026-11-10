@@ -230,7 +230,6 @@ class EncoderColorTest {
   fun `any other audio encoder or a flushing api level passes through`() {
     val cases =
       listOf(
-        SOFTWARE_AAC to Build.VERSION_CODES.BAKLAVA,
         OTHER_AAC to Build.VERSION_CODES.R,
         OTHER_AAC to Build.VERSION_CODES.Q,
       )
@@ -242,6 +241,34 @@ class EncoderColorTest {
         color.createForAudioEncoding(aacFormat(), null) shouldBeSameInstanceAs factory.made.single().codec
       }
     }
+  }
+
+  @Test
+  fun `each software aac encoder names the priming it writes at every api level`() {
+    val cases =
+      listOf(
+        SOFTWARE_AAC to Build.VERSION_CODES.R,
+        SOFTWARE_AAC to Build.VERSION_CODES.VANILLA_ICE_CREAM,
+        SOFTWARE_AAC to Build.VERSION_CODES.BAKLAVA,
+        OMX_AAC to Build.VERSION_CODES.N,
+        OMX_AAC to Build.VERSION_CODES.Q,
+      )
+    cases.forEach { (name, sdkInt) ->
+      val factory = FakeFactory(names = listOf(name))
+      val color = audioColor(factory, sdkInt)
+
+      withClue("$name on API $sdkInt") {
+        color.createForAudioEncoding(aacFormat(), null).outputFormat?.encoderDelay shouldBe AAC_PRIMING_FRAMES.toInt()
+      }
+    }
+  }
+
+  @Test
+  fun `another aac encoder keeps the delay its output names`() {
+    val factory = FakeFactory(names = listOf(OTHER_AAC))
+    val color = audioColor(factory, Build.VERSION_CODES.Q)
+
+    color.createForAudioEncoding(aacFormat(), null).outputFormat?.encoderDelay shouldBe MEDIA3_AAC_DELAY
   }
 
   @Test
@@ -322,6 +349,7 @@ class EncoderColorTest {
           "getName" -> name.also { check(releases == 0) { "$name was asked its name after release" } }
           "toString" -> name
           "getConfigurationFormat" -> configured
+          "getOutputFormat" -> configured.buildUpon().setEncoderDelay(MEDIA3_AAC_DELAY).build()
           "release" -> releases++.let { null }
           "hashCode" -> System.identityHashCode(proxy)
           "equals" -> proxy === args?.firstOrNull()
@@ -370,6 +398,9 @@ class EncoderColorTest {
     const val SOFTWARE_AAC = "c2.android.aac.encoder"
     const val OTHER_AAC = "c2.vendor.aac.encoder"
     const val OMX_AAC = "OMX.google.aac.encoder"
+
+    // The encoder delay media3 names on the software AAC encoder's output.
+    const val MEDIA3_AAC_DELAY = 1_600
     const val SAMPLE_RATE = 48_000
     const val UNCLEAR = "it wrote green as nothing near"
     const val CONFIGURED_WIDTH = 1280

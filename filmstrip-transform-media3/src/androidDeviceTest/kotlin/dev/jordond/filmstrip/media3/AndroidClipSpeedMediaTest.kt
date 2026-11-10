@@ -6,6 +6,7 @@ import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.TrackContent
+import dev.jordond.filmstrip.edit.audioFramesOf
 import dev.jordond.filmstrip.edit.outputLengthOf
 import dev.jordond.filmstrip.edit.outputSlotTime
 import dev.jordond.filmstrip.export.ExportSpec
@@ -15,13 +16,14 @@ import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.transform.internal.videoSlotsOf
 import io.kotest.assertions.withClue
 import io.kotest.matchers.booleans.shouldBeTrue
-import io.kotest.matchers.shouldBe
+import io.kotest.matchers.ints.shouldBeInRange
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import java.io.File
+import kotlin.math.abs
 import kotlin.test.Test
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
@@ -104,6 +106,88 @@ class AndroidClipSpeedMediaTest {
       file.delete()
     }
 
+  @Test
+  fun aTrimmedClipAtSpeedOneOpensOnItsTrimStart() =
+    runTest(timeout = TIMEOUT) {
+      assertAudioOpensOnTrimStart(1.0)
+    }
+
+  @Test
+  fun aTrimmedClipInTheMiddleOfTheRangeOpensOnItsTrimStart() =
+    runTest(timeout = TIMEOUT) {
+      assertAudioOpensOnTrimStart(0.5)
+    }
+
+  @Test
+  fun aTrimmedClipAtTheSlowEndOfTheRangeOpensOnItsTrimStart() =
+    runTest(timeout = TIMEOUT) {
+      assertAudioOpensOnTrimStart(CLIP_SPEED_RANGE.start)
+    }
+
+  @Test
+  fun aTrimmedFastClipOpensOnItsTrimStart() =
+    runTest(timeout = TIMEOUT) {
+      assertAudioOpensOnTrimStart(2.0)
+    }
+
+  @Test
+  fun aTrimmedClipAtTheFastEndOfTheRangeOpensOnItsTrimStart() =
+    runTest(timeout = TIMEOUT) {
+      assertAudioOpensOnTrimStart(CLIP_SPEED_RANGE.endInclusive)
+    }
+
+  // A decode opened on the source's own start loses the encoder delay at its head, which is where a clip whose audio
+  // fell short of its end showed. The last trim opens later, which never did.
+  @Test
+  fun aSlowedClipIsLoudToItsEndWhereverItsDecodeOpens() =
+    runTest(timeout = TIMEOUT) {
+      val speed = CLIP_SPEED_RANGE.start
+      listOf(Duration.ZERO, 10.milliseconds, 30.milliseconds, 200.milliseconds).forEach { start ->
+        val run = loudRunOf(TimeRange.of(start, start + TRIM_LENGTH), speed)
+        val length = audioFramesOf(outputLengthOf(TRIM_LENGTH, speed), run.sampleRate)
+        withClue("trimmed from $start the audio was last loud at frame ${run.last} of a length of $length") {
+          (abs(length - run.last) <= run.sampleRate / OUTPUT_RATE).shouldBeTrue()
+        }
+      }
+    }
+
+  // The source's tone is loud from its first frame, so wherever a trim starts the first loud frame written is the
+  // encoder's own onset. A slowed clip from zero never copies, so it is what that onset is read off. Within one output
+  // frame of it is on the trim start.
+  private suspend fun assertAudioOpensOnTrimStart(speed: Double) {
+    val onset = loudRunOf(TimeRange.of(Duration.ZERO, TRIM_LENGTH), CLIP_SPEED_RANGE.start)
+    TRIM_STARTS.forEach { start ->
+      val loud = loudRunOf(TimeRange.of(start, start + TRIM_LENGTH), speed)
+      withClue(
+        "speed $speed trimmed from $start was first loud at frame ${loud.first} against ${onset.first} from zero",
+      ) {
+        (abs(loud.first - onset.first) <= onset.sampleRate / OUTPUT_RATE).shouldBeTrue()
+      }
+    }
+  }
+
+  private suspend fun loudRunOf(
+    trim: TimeRange,
+    speed: Double,
+  ): LoudRun {
+    val clip = Clip(probe.fixture(SHORT), trim, speed = speed)
+    val file = exported(compositionHearing(clip, probe.fixture(SHORT), OUTPUT_RATE))
+    val audio = decodeAudio(file)
+    file.delete()
+    return LoudRun(
+      first = audio.samples.indexOfFirst { abs(it) > LOUD },
+      last = audio.samples.indexOfLast { abs(it) > LOUD },
+      sampleRate = audio.sampleRate,
+    )
+  }
+
+  // Where a decoded file's audio is first and last louder than a quiet floor, in frames.
+  private class LoudRun(
+    val first: Int,
+    val last: Int,
+    val sampleRate: Int,
+  )
+
   // Where the incoming tone takes over from the outgoing one, walking a short window across the expected time.
   private fun seamOf(
     audio: DecodedAudio,
@@ -147,12 +231,14 @@ class AndroidClipSpeedMediaTest {
     val audio = decodeAudio(file)
     assertAudioLength(audio, length)
     // Sonic keeps the pitch but joins its pieces out of phase at the top of the range, so a single tone's amplitude
-    // falls
-    // there while the level holds. The dominant frequency is what says the pitch stayed.
+    // falls there while the level holds. At speed 32 the 440 Hz tone comes out peaking at 429 to 430 Hz with almost
+    // nothing left at 440, read on an API 36 emulator to 1 Hz at three points in the file, the same with the encoder
+    // delay named either way. That sits between two steps, so which one wins moves with the window. The dominant
+    // frequency landing within one step of the source's is what says the pitch stayed.
     val middle = length / 2 - TONE_WINDOW / 2
     val dominant = (MIN_HZ..MAX_HZ step HZ_STEP).maxBy { audio.amplitudeOver(middle, TONE_WINDOW, it) }
     withClue("speed $speed peaked at $dominant Hz over a source tone of $PRIMARY_HZ Hz") {
-      dominant shouldBe PRIMARY_HZ
+      dominant shouldBeInRange (PRIMARY_HZ - HZ_STEP)..(PRIMARY_HZ + HZ_STEP)
     }
     file.delete()
   }
@@ -204,5 +290,10 @@ class AndroidClipSpeedMediaTest {
     const val MIN_HZ = 100
     const val MAX_HZ = 2_000
     const val HZ_STEP = 20
+    const val LOUD = 0.05f
+    val TRIM_LENGTH = 125.milliseconds
+
+    // Two starts inside an AAC access unit of 1024 frames at 48 kHz, and one on a unit's own start.
+    val TRIM_STARTS = listOf(200.milliseconds, 210.milliseconds, 192.milliseconds)
   }
 }

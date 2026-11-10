@@ -2,6 +2,7 @@
 # Written by the module's publish task. Commit it with the clips it names.
 # ffmpeg 9.0.2 libx264 core 165 r3222 b35605a libx265 4.3+1-e9b8812:[Mac OS X][clang 21.0.0][64 bit] 10bit arch aarch64
 # name sha256 bytes
+android_click.mp4 f01d3a01b5c0f82c6781cdf4ea4d378bc9ffb5fe0218451412809a47ee370ee4 75295
 android_export_24fps.mp4 410dea62612b1855667744ccb3bd28ce79d8ec6f0e8c63ea4964510e051691bf 466262
 android_export_a.mp4 0c2cfde8ca88cb7015b1b8ab0d4105127762e3fc29a379d19fc4c1fd554bb99f 460500
 android_export_b.mp4 445f7a2e7099c3eb8912d43e26a3e56e5c9ff1e52bd02c3703d89f38f77c61c1 299788

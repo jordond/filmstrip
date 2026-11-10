@@ -114,7 +114,8 @@ abstract class GenerateTestMediaTask
             "-f",
             "lavfi",
             "-i",
-            "sine=frequency=${spec.toneHz}:sample_rate=${spec.sampleRate}:duration=${spec.durationSeconds}",
+            spec.clickSeconds?.let { clickSource(spec, it) }
+              ?: "sine=frequency=${spec.toneHz}:sample_rate=${spec.sampleRate}:duration=${spec.durationSeconds}",
           ),
         )
         // Seeded noise, so the clips carry camera-like entropy instead of testsrc's ~0.5 Mbps.
@@ -166,6 +167,20 @@ abstract class GenerateTestMediaTask
         addAll(DETERMINISTIC_ARGS)
         add(target)
       }
+
+    /**
+     * Silence with one click at [seconds], on the nearest sample to it, at [CLICK_LEVEL].
+     *
+     * The click stays under full scale so the AAC encoder has room for the ringing it adds around it.
+     */
+    internal fun clickSource(
+      spec: FixtureSpec,
+      seconds: Double,
+    ): String {
+      val sample = Math.round(seconds * spec.sampleRate)
+      return "aevalsrc=exprs=if(eq(n\\,$sample)\\,$CLICK_LEVEL\\,0):sample_rate=${spec.sampleRate}:" +
+        "duration=${spec.durationSeconds}"
+    }
 
     // -cpuflags does not reach libx264, which detects the CPU itself and encodes other frames on an AVX2 host.
     private fun sdrVideoArgs(): List<String> =
@@ -409,3 +424,6 @@ internal val DETERMINISTIC_ARGS: List<String> =
     "-map_metadata",
     "-1",
   )
+
+// Where a fixture's click peaks, as a fraction of full scale.
+private const val CLICK_LEVEL = 0.5

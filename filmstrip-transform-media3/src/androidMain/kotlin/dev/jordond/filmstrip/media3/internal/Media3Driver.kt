@@ -69,7 +69,7 @@ internal class Media3Driver(
       val extractor = MediaExtractor()
       try {
         if (!extractor.open(source)) return@withContext null
-        val track = extractor.videoTrackIndex() ?: return@withContext null
+        val track = extractor.videoTrackIndex(source) ?: return@withContext null
         extractor.selectTrack(track)
         extractor.seekTo(cut.inWholeMicroseconds, MediaExtractor.SEEK_TO_PREVIOUS_SYNC)
 
@@ -99,7 +99,7 @@ internal class Media3Driver(
   ): Flow<ExportStatus> =
     flow {
       val run =
-        when (val prepared = prepare(resolved, resolved.readClips(), to)) {
+        when (val prepared = prepare(resolved, resolved.readClips(ownsAudioSpeed = true), to)) {
           is Preparation.Failed -> {
             flowOf(ExportStatus.Failure(prepared.error))
           }

@@ -173,7 +173,7 @@ public class Media3Preview internal constructor(
   ): List<Media3Readback>? {
     val fresh =
       try {
-        resolved.toMedia3(UnwrappedEffects, bounds)
+        resolved.toMedia3(UnwrappedEffects, bounds, ownsAudioSpeed = false)
       } catch (refused: Media3LoweringFailure) {
         // A plan this lowering refuses has no frame to read either.
         return null
@@ -231,7 +231,7 @@ public class Media3Preview internal constructor(
 
     val incoming = mutableListOf<Effect>()
     try {
-      next.toMedia3(EffectWrapper { effect -> effect.also(incoming::add) }, bounds)
+      next.toMedia3(EffectWrapper { effect -> effect.also(incoming::add) }, bounds, ownsAudioSpeed = false)
     } catch (refused: Media3LoweringFailure) {
       // A plan this lowering refuses is not one the standing graph can take either. The caller
       // rebuilds and hears the same refusal there, where it has somewhere to report it.
@@ -301,7 +301,8 @@ private fun Media3Span.readbackChain(compositionEffects: List<Effect>): List<Eff
 @InternalFilmstripApi
 public fun ResolvedComposition.toMedia3Preview(bounds: Media3ClipReads): Media3Preview {
   val slots = mutableListOf<LiveSlot>()
-  val composition = toMedia3(EffectWrapper { effect -> liveSlotFor(effect).also(slots::add).effect }, bounds)
+  val composition =
+    toMedia3(EffectWrapper { effect -> liveSlotFor(effect).also(slots::add).effect }, bounds, ownsAudioSpeed = false)
   return Media3Preview(composition, composition.videoSpans(), slots, this, bounds)
 }
 

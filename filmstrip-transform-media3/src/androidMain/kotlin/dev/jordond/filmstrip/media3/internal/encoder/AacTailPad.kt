@@ -138,11 +138,12 @@ internal fun aacTailUnits(
 internal const val AAC_UNIT_FRAMES = 1_024L
 
 /**
- * The frames of priming Android's software AAC encoder puts ahead of the stream, measured on API 36, where a stream of
- * any length comes out as the fewest whole access units that hold it and these frames.
+ * The frames of priming Android's software AAC encoders put ahead of the stream, measured on an emulator at every API
+ * level from 24 to 36. A flushing encoder writes a stream of any length as the fewest whole access units that hold it
+ * and these frames.
  */
 internal const val AAC_PRIMING_FRAMES = 2_048L
 
-private const val CODEC2_AAC_ENCODER = "c2.android.aac.encoder"
+internal const val CODEC2_AAC_ENCODER = "c2.android.aac.encoder"
 
-private const val OMX_AAC_ENCODER = "OMX.google.aac.encoder"
+internal const val OMX_AAC_ENCODER = "OMX.google.aac.encoder"

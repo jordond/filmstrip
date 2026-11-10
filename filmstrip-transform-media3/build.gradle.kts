@@ -18,6 +18,7 @@ kotlin {
       dependencies {
         api(projects.filmstripTransform)
         implementation(libs.media3.transformer)
+        implementation(libs.media3.inspector)
       }
     }
 
@@ -46,6 +47,8 @@ val exportFixtures =
         // so a test measuring the mix can say which source a level belongs to.
         FixtureSpec("tone_bed_880", 320, 240, 30, 3.0, 48000, 2, bitrateKbps = 500, toneHz = 880),
         FixtureSpec("android_export_b", 480, 270, 30, 2.0, 48000, 2, bitrateKbps = 1_000, hue = 120),
+        // Silence with one click partway into an AAC access unit, so a test can find where a source frame landed.
+        FixtureSpec("android_click", 320, 240, 30, 1.0, 48000, 2, bitrateKbps = 500, clickSeconds = 0.31),
         // Long enough that there is still an export running when the collector is cancelled. A
         // phone encodes two seconds of 240p in about as long as it takes to ask it to stop.
         FixtureSpec("android_export_long", 1280, 720, 30, 12.0, 48000, 2, bitrateKbps = 6_000),

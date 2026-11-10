@@ -91,6 +91,10 @@ reports it as approximated. See [Overlays](/guides/overlays/) and [HDR](/guides/
 On ffmpeg a long clip looped many times can use a lot of memory, up to one decoded pass for each loop still waiting to
 play. See [Extra tracks](/guides/audio/#extra-tracks).
 
+On Android a file records the priming its AAC encoder writes, so its audio starts on the first frame. Both software
+encoders write 2048 frames, measured on emulators from API 24 to 36. A device that picks a vendor's own AAC encoder gets
+the delay media3 assumes for it, which no emulator can measure, so its audio can start off by the difference.
+
 ## Clip speed
 
 Every backend plays clips from 1/32 to 32 times speed with the pitch kept. Sources are decoded in full, so a fast clip
@@ -99,8 +103,13 @@ costs more. See [Speed](/guides/edits/#speed).
 Each output frame shows the source frame nearest to its time. A clip too short to cover one output frame shows no
 picture but still plays its audio. If it's the whole primary track, it's refused as `InvalidComposition`.
 
-- **Android** doesn't duplicate frames in slow motion, so at 1/32 each frame holds for about a second, and the audio can
-  run up to half a second past the video. Its AAC encoder also adds up to 32 ms of audio at the end of any file.
+- **Android** doesn't duplicate frames in slow motion, so at 1/32 each frame holds for about a second. Its AAC encoder
+  adds up to 32 ms of audio at the end of any file.
+- **Android** exports open a clip's audio on its trim start at every speed. Past that, Sonic, the stretcher media3
+  ships, repeats or drops whole pitch periods of up to 1/65 s, so a sound can land up to max(1, 1/speed - 1) periods
+  off. That's 15 ms at 0.5 and 2, and 477 ms at 1/32.
+- **Android** previews leave the speed to media3, so a clip's audio opens up to two AAC access units late, scaled by
+  the speed. That's 1.49 s for a 44.1 kHz clip at 1/32, and up to 685 ms was measured.
 - **Android** drops frames to fit a fast clip to the output rate. Past about 55 minutes of a clip at 30 fps, or 7 at 60,
   the frames it keeps drift off their slots.
 - **Apple** writes sped up audio to a temporary file during an export. A clip with more than 10 million frames is

@@ -10,13 +10,16 @@ import kotlin.time.Duration
 /**
  * Holds a clip's audio to exactly [length], cutting what runs past it and padding with silence what falls short.
  *
- * It sits after media3's speed change, whose output length is an estimate. The count runs from the first frame the item
- * plays, so a flush after that, which is a seek in a preview, leaves the rest of the item as it comes.
+ * It sits after the clip's speed change, whose output length is an estimate. The count runs from the first frame the
+ * item plays, so a flush after that, which is a seek in a preview, leaves the rest of the item as it comes.
  *
  * @param length How long the item's audio runs.
+ * @param reportsLength Whether media3 lays the item after this one by [length]. An item media3 changes the speed of
+ * refuses any processor that reports a length of its own, so the pin on one passes the length it is given through.
  */
 internal class AudioLengthPin(
   private val length: Duration,
+  private val reportsLength: Boolean,
 ) : BaseAudioProcessor() {
   private var bytesLeft = 0L
   private var started = false
@@ -56,6 +59,9 @@ internal class AudioLengthPin(
     }
     return super.getOutput()
   }
+
+  override fun getDurationAfterProcessorApplied(durationUs: Long): Long =
+    if (reportsLength) length.inWholeMicroseconds else durationUs
 
   override fun isEnded(): Boolean = super.isEnded() && (!pinned || bytesLeft == 0L)
 

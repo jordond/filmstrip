@@ -3,6 +3,7 @@ package dev.jordond.filmstrip.media3.internal
 import android.net.Uri
 import android.util.SparseArray
 import androidx.media3.common.C
+import androidx.media3.common.audio.SonicAudioProcessor
 import androidx.media3.common.audio.SpeedProvider
 import androidx.media3.common.util.SpeedProviderUtil
 import androidx.media3.common.util.SpeedProviderUtil.SpeedProviderMapper
@@ -427,7 +428,7 @@ class Media3FrameGridTest {
   }
 
   @Test
-  fun `an audio item at speed carries its window and keeps its pitch`() {
+  fun `an audio item at speed carries its window and runs its own stretch`() {
     listOf(0.7, 1.5).forEach { speed ->
       val clip = clip(source = "clip0.mp4", length = 3.seconds, at = Duration.ZERO, start = 1.seconds, speed = speed)
 
@@ -440,7 +441,8 @@ class Media3FrameGridTest {
 
       item.window() shouldBe (1.seconds.inWholeMicroseconds to 4.seconds.inWholeMicroseconds)
       item.presentationDurationUs shouldBe clip.outputDuration.inWholeMicroseconds
-      item.speedParameters.shouldMaintainPitch shouldBe true
+      item.speedProvider shouldBe SpeedProvider.DEFAULT
+      item.effects.audioProcessors.count { it is SonicAudioProcessor } shouldBe 1
     }
   }
 

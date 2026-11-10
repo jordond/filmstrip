@@ -5,6 +5,7 @@ import androidx.media3.common.Effect
 import androidx.media3.common.audio.AudioProcessor
 import androidx.media3.common.audio.ChannelMixingAudioProcessor
 import androidx.media3.common.audio.ChannelMixingMatrix
+import androidx.media3.common.audio.SonicAudioProcessor
 import androidx.media3.common.audio.ToInt16PcmAudioProcessor
 import androidx.media3.effect.GlEffect
 import androidx.media3.effect.GlShaderProgram
@@ -22,6 +23,7 @@ import dev.jordond.filmstrip.transform.internal.resolve.ResolvedClip
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedEffect
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedGain
 import dev.jordond.filmstrip.transform.internal.resolve.drawnRect
+import kotlin.time.Duration
 
 /**
  * A clip's own video effect chain, ending on the pass that places the clip in an output frame of [outputSize].
@@ -84,6 +86,28 @@ internal fun audioProcessors(
 
   return listOf(ToInt16PcmAudioProcessor(), mixer) + listOfNotNull(rampProcessorFor(gain))
 }
+
+/**
+ * The processors that open a clip on its trim start, play it at [speed] and run [then] over the result.
+ *
+ * [AudioStartDrop] cuts the [lead] between the access unit the item is clipped from and the trim start. A
+ * [SonicAudioProcessor] plays what is left at [speed] with its pitch kept, and [AudioLengthPin] holds the result to
+ * [length], which is also the length media3 lays the next item after. At a speed of one there is nothing to stretch.
+ *
+ * [then] reads the clip's output clock, like a gain ramp. media3 seeds each processor's position with what the ones
+ * ahead of it report for the position it started from, and the pin reports [length] whatever it is asked, so [then]
+ * runs ahead of the pin.
+ */
+internal fun clipAudioSpeed(
+  lead: Duration,
+  speed: Double,
+  length: Duration,
+  then: List<AudioProcessor> = emptyList(),
+): List<AudioProcessor> =
+  listOfNotNull(
+    AudioStartDrop(lead),
+    if (speed == 1.0) null else SonicAudioProcessor().apply { setSpeed(speed.toFloat()) },
+  ) + then + AudioLengthPin(length, reportsLength = true)
 
 /**
  * Lowers a resolved chain, gathering the overlays in it into as few passes as they fit into.

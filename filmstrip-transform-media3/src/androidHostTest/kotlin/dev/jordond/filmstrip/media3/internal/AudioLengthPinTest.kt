@@ -14,7 +14,8 @@ import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
 /**
- * What [AudioLengthPin] does to a stream that runs past its length, one that falls short and one a seek interrupts.
+ * What [AudioLengthPin] does to a stream that runs past its length, one that falls short and one a seek interrupts, and
+ * the length it reports.
  */
 @OptIn(InternalFilmstripApi::class)
 class AudioLengthPinTest {
@@ -64,7 +65,7 @@ class AudioLengthPinTest {
   fun `silence above two channels pads in whole frames up to the length`() {
     val surround = AudioProcessor.AudioFormat(RATE, SURROUND_CHANNELS, C.ENCODING_PCM_16BIT)
     val pin =
-      AudioLengthPin(LENGTH).apply {
+      AudioLengthPin(LENGTH, reportsLength = true).apply {
         configure(surround)
         flush(AudioProcessor.StreamMetadata.DEFAULT)
       }
@@ -91,8 +92,19 @@ class AudioLengthPinTest {
     pin.pass(FRAMES) shouldBe audioFramesOf(length, RATE)
   }
 
+  @Test
+  fun `a pin that reports its length hands media3 that length`() {
+    AudioLengthPin(LENGTH, reportsLength = true).getDurationAfterProcessorApplied(INPUT_US) shouldBe
+      LENGTH.inWholeMicroseconds
+  }
+
+  @Test
+  fun `a pin on an item media3 changes the speed of reports the length it is given`() {
+    AudioLengthPin(LENGTH, reportsLength = false).getDurationAfterProcessorApplied(INPUT_US) shouldBe INPUT_US
+  }
+
   private fun configured(length: Duration = LENGTH): AudioLengthPin =
-    AudioLengthPin(length).apply {
+    AudioLengthPin(length, reportsLength = true).apply {
       configure(format)
       flush(AudioProcessor.StreamMetadata.DEFAULT)
     }
@@ -127,5 +139,6 @@ class AudioLengthPinTest {
     val LENGTH = 500.milliseconds
     const val FRAMES = 24_000
     const val EXTRA_FRAMES = 1_000
+    const val INPUT_US = 1_234_567L
   }
 }
