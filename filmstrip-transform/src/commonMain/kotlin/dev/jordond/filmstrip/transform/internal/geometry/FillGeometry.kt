@@ -1,6 +1,7 @@
 package dev.jordond.filmstrip.transform.internal.geometry
 
 import dev.jordond.filmstrip.InternalFilmstripApi
+import dev.jordond.filmstrip.color.BlurPlan
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.Size
 import kotlin.math.max
@@ -21,6 +22,16 @@ import kotlin.math.min
 @InternalFilmstripApi
 public fun Fill.Blurred.sigmaFor(outputSize: Size): Float =
   (radius * min(outputSize.width, outputSize.height)).coerceAtLeast(1f)
+
+/**
+ * The [BlurPlan] every backend blurs this fill's cover by, for a frame of [outputSize].
+ *
+ * It runs [sigmaFor] as a fraction of the output width, so the cover is boxed down, blurred and read back up the same
+ * way a GaussianBlur effect is. Preview at its own size gets the plan for that size.
+ */
+@InternalFilmstripApi
+public fun Fill.Blurred.blurPlan(outputSize: Size): BlurPlan =
+  BlurPlan.of(sigmaFor(outputSize).toDouble() / outputSize.width, outputSize.width)
 
 /**
  * Whether this fill is drawn from the clip's own pixels rather than named as a color.
