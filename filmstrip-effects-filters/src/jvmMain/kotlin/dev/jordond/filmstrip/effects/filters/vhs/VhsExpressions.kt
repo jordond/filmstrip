@@ -87,6 +87,12 @@ internal class VhsExpressions(
     return FilterNode("geq", "lum" to "$row;0.5+lum($picture,Y)")
   }
 
+  /**
+   * The steps that open each row of a `geq` that reads the shift, which leave the row's shift in register 8 as a
+   * fraction of the width, then run [more] on the row's first sample.
+   */
+  fun shiftOpening(vararg more: String): String = onEachRow(prelude(), "st(8,${rowShift()})", *more)
+
   private fun dividedBy(black: Int) =
     "if(gt(y,0),clip($black+floor((x-$black)*$FULL_SCALE/y+0.5),0,$FULL_SCALE),$black)"
 

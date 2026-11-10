@@ -39,7 +39,7 @@ public actual class FilterEffectResolver actual constructor() : EffectResolver {
         camcorderResolution(spec, attributes)
       }
       is Vhs -> {
-        EffectResolution.Resolved(PlatformEffect(vhsFragment(spec, attributes.inputSize)))
+        EffectResolution.Resolved(PlatformEffect(vhsFragment(spec, attributes.inputSize, attributes.opaque)))
       }
       is Film -> {
         EffectResolution.Resolved(PlatformEffect(filmFragment(spec, attributes.inputSize)))

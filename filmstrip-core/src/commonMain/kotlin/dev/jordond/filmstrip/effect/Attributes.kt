@@ -2,6 +2,7 @@ package dev.jordond.filmstrip.effect
 
 import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.edit.TimeRange
+import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.HdrTransfer
@@ -34,6 +35,10 @@ import dev.jordond.filmstrip.media.HdrTransfer
  * @property storedSize The frame size entering this effect as the pixels are stored, before a clip's non-square
  *   pixels are made square. Equal to [inputSize] for square pixels, at composition scope, for a geometry or composite
  *   effect, and once an earlier effect has changed the frame's size or been a geometry or composite one.
+ * @property opaque Where the frame entering this effect is opaque, as a fraction of that frame, with the rest clear. A
+ *   letterboxed clip entering an effect after its crop holds clear bars either side of its picture, and this is the
+ *   picture. It is the whole frame when nothing is clear, and null when the clear part is not known, which a
+ *   resolver reads as clear anywhere.
  */
 public class Attributes
   @InternalFilmstripApi
@@ -46,6 +51,7 @@ public class Attributes
     public val frameRate: Float?,
     public val span: TimeRange,
     public val storedSize: Size = inputSize,
+    @property:InternalFilmstripApi public val opaque: NormalizedRect? = NormalizedRect.Full,
   ) {
     override fun toString(): String = "Attributes($inputSize -> $outputSize)"
   }

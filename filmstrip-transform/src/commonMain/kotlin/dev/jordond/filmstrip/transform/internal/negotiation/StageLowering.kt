@@ -13,9 +13,11 @@ import dev.jordond.filmstrip.effects.BuiltInEffectResolver
 import dev.jordond.filmstrip.effects.color.FoldedSpec
 import dev.jordond.filmstrip.effects.color.colorMatrixOf
 import dev.jordond.filmstrip.effects.color.fusedColorMatrices
+import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.HdrTransfer
+import dev.jordond.filmstrip.transform.internal.geometry.OpaqueTracker
 import dev.jordond.filmstrip.transform.internal.geometry.frameAfter
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedEffect
 
@@ -79,7 +81,7 @@ internal class StageLowering(
     // A kept grade is written in BT.2020, so a resolver reading the color space off an HDR export
     // sees the one the encoder is handed rather than the SDR default.
     val colorSpace = if (target.hdrTransfer != null) ColorSpace.Bt2020 else ColorSpace.Bt709
-    val attributesAt = { frame: Size, laidOut: Size, held: Size ->
+    val attributesAt = { frame: Size, laidOut: Size, held: Size, opaque: NormalizedRect? ->
       Attributes(
         frame,
         target.outputSize,
@@ -89,9 +91,11 @@ internal class StageLowering(
         target.frameRate.toFloat(),
         span,
         held,
+        opaque,
       )
     }
     val ordered = stages.flatMap { it.inCanonicalOrder() }
+    val tracker = OpaqueTracker()
     val chain =
       foldedChain(
         ordered,
@@ -101,12 +105,13 @@ internal class StageLowering(
     return chain.entries.mapIndexed { position, entry ->
       val spec = entry.spec
       stored = storedAt(spec, size, stored)
-      val attributes = attributesAt(size, layout, stored)
+      val attributes = attributesAt(size, layout, stored, tracker.before(spec))
       val resolution =
         chain.resolutions[position]
           ?: resolvers.firstNotNullOfOrNull { it.resolve(spec, target.capabilities, attributes) }
 
       stored = storedAfter(spec, size, stored)
+      tracker.advance(spec, size, frameAfter(spec, size))
       size = frameAfter(spec, size)
       layout = frameAfter(spec, layout)
 
@@ -144,7 +149,7 @@ internal class StageLowering(
     layoutSize: Size,
     storedSize: Size,
     capabilities: RenderCapabilities,
-    attributesAt: (Size, Size, Size) -> Attributes,
+    attributesAt: (Size, Size, Size, NormalizedRect?) -> Attributes,
   ): Map<Int, EffectResolution> {
     if (overriding.isEmpty()) return emptyMap()
 
@@ -153,15 +158,17 @@ internal class StageLowering(
     var size = inputSize
     var layout = layoutSize
     var stored = storedSize
+    val tracker = OpaqueTracker()
 
     ordered.forEachIndexed { index, spec ->
       val folds = color[index] && (color.getOrElse(index - 1) { false } || color.getOrElse(index + 1) { false })
       stored = storedAt(spec, size, stored)
       if (folds) {
-        val attributes = attributesAt(size, layout, stored)
+        val attributes = attributesAt(size, layout, stored, tracker.before(spec))
         overriding.firstNotNullOfOrNull { it.resolve(spec, capabilities, attributes) }?.let { claimed[index] = it }
       }
       stored = storedAfter(spec, size, stored)
+      tracker.advance(spec, size, frameAfter(spec, size))
       size = frameAfter(spec, size)
       layout = frameAfter(spec, layout)
     }

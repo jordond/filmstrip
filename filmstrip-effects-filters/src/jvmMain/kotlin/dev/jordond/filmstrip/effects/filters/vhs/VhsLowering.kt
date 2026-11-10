@@ -5,6 +5,7 @@ import dev.jordond.filmstrip.effect.FilterFragment
 import dev.jordond.filmstrip.effect.FilterNode
 import dev.jordond.filmstrip.effect.LiveBranches
 import dev.jordond.filmstrip.effect.LiveInput
+import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.geometry.Size
 import kotlin.math.ceil
 import kotlin.math.max
@@ -33,15 +34,17 @@ import kotlin.math.min
 internal fun vhsFragment(
   vhs: Vhs,
   frame: Size,
+  opaque: NormalizedRect? = NormalizedRect.Full,
 ): FilterFragment {
   val params = VhsParams.of(vhs)
   val width = frame.width
   val height = frame.height
   val nodes = VhsExpressions(vhs.seed, params)
+  val coverage = coverageOf(opaque, width, edgeReach(params, width))
   val normalised =
     listOf(
       FilterNode("scale", "out_range" to "tv"),
-      FilterNode("format", "pix_fmts" to TAPE_FORMAT),
+      FilterNode("format", "pix_fmts" to if (coverage is Coverage.Opaque) OPAQUE_TAPE_FORMATS else TAPE_FORMAT),
     )
   val margin = tapeMargin(params, width)
   // A sigma is taken per plane in that plane's own pixels. gblur reads sigmaV=0 as no blur down the column.
@@ -50,7 +53,6 @@ internal fun vhsFragment(
       gblur(params.lumaSigma * width, LUMA_PLANE),
       gblur(params.chromaSigma * width / 2.0, CHROMA_PLANES),
     )
-  val sharp = { from: String -> tapeBranches(nodes, width, margin, from, softened) }
   // lut2 does not clamp, and writes a result of -1 or lower as the top code, so black would wrap to white.
   val halo =
     FilterNode("lut2", "c0" to "max(0,0.5+x+${params.haloGain}*(x-y))")
@@ -69,6 +71,53 @@ internal fun vhsFragment(
     FilterNode("crop", "w" to "$MASK_WIDTH", "h" to "$height", "x" to "$rasterWidth", "y" to "0", "exact" to "1")
   val planes =
     VhsPlanes(vhs.seed, params, rasterWidth, height, nodes.lumaGrainScale, nodes.chromaGrainScale)
+  val edges = VhsEdgeReads(nodes, params, width)
+  val padding = FilterNode("pad", "w" to "${width + 2 * margin}", "h" to "ih", "x" to "$margin", "y" to "0", "color" to "black")
+  val blurred = { into: String ->
+    listOf(
+      FilterBranch(listOf("sharp"), emptyList(), listOf("near", "far")),
+      FilterBranch(listOf("far"), listOf(gblur(HALO_SIGMA * width, LUMA_PLANE)), listOf("wide")),
+      FilterBranch(listOf("near", "wide"), listOf(halo, unpad), listOf(into)),
+    )
+  }
+  val cut = { x: Int, columns: Int ->
+    FilterNode("crop", "w" to "$columns", "h" to "$height", "x" to "$x", "y" to "0")
+  }
+  // Everything from the frame in [from] to the tape after its blur and halo, written to `ringed`. A frame with no clear
+  // column runs the plain displace and the blurs. One with clear columns beside its picture takes the exact read in the
+  // columns around each edge of the picture and premultiplies for the rest, and one that may be clear anywhere takes the
+  // exact read across the whole frame.
+  val ringed = { from: String ->
+    when (coverage) {
+      is Coverage.Opaque -> {
+        val tape = listOf(padding, nodes.displace(width, margin)) + softened
+        listOf(FilterBranch(listOf(from), tape, listOf("sharp"))) + blurred("ringed")
+      }
+      is Coverage.Anywhere -> {
+        listOf(FilterBranch(listOf(from), listOf(edges.read(0, 0, width)), listOf("ringed")))
+      }
+      is Coverage.Edges -> {
+        val reach = edgeReach(params, width)
+        val pieces = coverage.pieces(width)
+        val plain = pieces.indices.filter { pieces[it].core == null }
+        val reads =
+          pieces.mapNotNull { piece ->
+            val index = piece.core ?: return@mapNotNull null
+            val core = piece.span
+            val window = edgeWindow(core, width, reach)
+            val steps = listOf(cut(window.from, window.width), edges.read(window.from, core.from, core.to), cut(core.from - window.from, core.width))
+            FilterBranch(listOf("edgeIn$index"), steps, listOf("piece${pieces.indexOf(piece)}"))
+          }
+        val cuts =
+          plain.map { FilterBranch(listOf(if (plain.size == 1) "ringedBase" else "plain$it"), listOf(cut(pieces[it].span.from, pieces[it].span.width)), listOf("piece$it")) }
+        val fanOut = if (plain.size > 1) listOf(FilterBranch(listOf("ringedBase"), emptyList(), plain.map { "plain$it" })) else emptyList()
+        val joined = FilterBranch(pieces.indices.map { "piece$it" }, listOf(FilterNode("hstack", "inputs" to "${pieces.size}")), listOf("ringed"))
+        val taps = listOf("tapeIn") + coverage.cores.indices.map { "edgeIn$it" }
+        listOf(FilterBranch(listOf(from), emptyList(), taps)) +
+          tapeBranches(nodes, width, margin, "tapeIn", softened) + blurred("ringedBase") + fanOut + cuts + reads + joined
+      }
+    }
+  }
   val liveInput = { pad: String, planeAt: (Int) -> ByteArray, planeWidth: Int ->
     LiveInput(
       pad = pad,
@@ -130,11 +179,8 @@ internal fun vhsFragment(
           emptyList(),
           listOf("tape", "grainIn", "dropIn") + if (snows) listOf("maskIn", "snowIn") else emptyList(),
         ),
-      ) + sharp("tape") +
+      ) + ringed("tape") +
         listOf(
-          FilterBranch(listOf("sharp"), emptyList(), listOf("near", "far")),
-          FilterBranch(listOf("far"), listOf(gblur(HALO_SIGMA * width, LUMA_PLANE)), listOf("wide")),
-          FilterBranch(listOf("near", "wide"), listOf(halo, unpad), listOf("ringed")),
           FilterBranch(listOf("grainIn"), listOf(raster, nodes.grainMap(), upscale), listOf("grain")),
           FilterBranch(listOf("ringed", "grain"), listOf(nodes.grade()), listOf("graded")),
           FilterBranch(listOf("dropIn"), listOf(raster, nodes.dropMap(), upscale), listOf("drop")),
@@ -149,11 +195,8 @@ internal fun vhsFragment(
             liveInput(DROP_PLANE, planes::dropAt, rasterWidth),
           ) + snowInputs,
         branches =
-          listOf(FilterBranch(listOf(FilterBranch.INPUT), normalised, listOf("frame"))) + sharp("frame") +
+          listOf(FilterBranch(listOf(FilterBranch.INPUT), normalised, listOf("frame"))) + ringed("frame") +
             listOf(
-              FilterBranch(listOf("sharp"), emptyList(), listOf("near", "far")),
-              FilterBranch(listOf("far"), listOf(gblur(HALO_SIGMA * width, LUMA_PLANE)), listOf("wide")),
-              FilterBranch(listOf("near", "wide"), listOf(halo, unpad), listOf("ringed")),
               FilterBranch(listOf(GRAIN_PLANE), listOf(upscale), listOf("grain")),
               FilterBranch(listOf("ringed", "grain"), listOf(nodes.grade(stopsWithFrame = true)), listOf("graded")),
               FilterBranch(listOf(DROP_PLANE), listOf(upscale), listOf("drop")),
@@ -235,6 +278,7 @@ private fun gblur(
 private const val GBLUR_STEPS = 6
 private const val MARGIN_SIGMAS = 4.0
 private const val TAPE_FORMAT = "yuva420p"
+private const val OPAQUE_TAPE_FORMATS = "yuv420p|yuva420p"
 
 // Four gray inputs laid onto the planes of a yuva420p frame in order, each plane from the first plane of its input.
 private const val ALPHA_FRAME_MAPPING = "0x00102030"
