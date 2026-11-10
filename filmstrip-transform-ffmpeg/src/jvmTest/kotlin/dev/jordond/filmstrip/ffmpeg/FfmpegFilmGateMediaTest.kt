@@ -43,6 +43,10 @@ class FfmpegFilmGateMediaTest {
     runBlocking<Unit> { assertCompositionReadsSignal(MID, WIDTH, HEIGHT) }
 
   @Test
+  fun `grain halation and flicker at a mid strength land on the signal`() =
+    runBlocking<Unit> { assertCompositionReadsSignal(GLOWING_FLICKER, WIDTH, HEIGHT) }
+
+  @Test
   fun `super 8 lands on the signal`() = runBlocking<Unit> { assertCompositionReadsSignal(Film.Super8, WIDTH, HEIGHT) }
 
   @Test
@@ -182,6 +186,7 @@ class FfmpegFilmGateMediaTest {
     val SLATE_CODES = listOf(0x2F.toDouble(), 0x4F.toDouble(), 0x6F.toDouble())
     val BRIGHT = DoubleArray(3) { FilmSignal.HALATION_FULL_LUMA }
     val MID = Film(0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 0.5f)
+    val GLOWING_FLICKER = Film(grain = 0.5f, halation = 0.5f, flicker = 0.5f)
 
     // The gate on its own, so a read lands on its map and nothing else.
     val GATE_ONLY = Film(grain = 0f, halation = 0f, gate = 0.5f)

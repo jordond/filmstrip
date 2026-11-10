@@ -2,43 +2,54 @@
 
 package dev.jordond.filmstrip.webcodecs.internal.render
 
-import dev.jordond.filmstrip.color.linearDimGain
+import dev.jordond.filmstrip.color.BlurPlan
+import dev.jordond.filmstrip.effects.color.IDENTITY_GRADE_LIGHT_GLSL
+import dev.jordond.filmstrip.effects.color.displayLightGradeGlsl
+import dev.jordond.filmstrip.effects.color.displayLightGradeUniforms
+import dev.jordond.filmstrip.effects.spatial.SpatialBlur
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.transform.internal.geometry.backgroundGain
-import dev.jordond.filmstrip.transform.internal.geometry.sigmaFor
+import dev.jordond.filmstrip.transform.internal.geometry.blurPlan
 import dev.jordond.filmstrip.webcodecs.internal.interop.WebGl2
 import dev.jordond.filmstrip.webcodecs.internal.interop.toFloat32Array
 import kotlin.js.ExperimentalWasmJsInterop
 import kotlin.js.JsAny
-import kotlin.math.ceil
-import kotlin.math.exp
 
 /**
- * The extra GL objects a blurred fill needs: one program shared by the cover, horizontal blur and
- * vertical blur passes, the two framebuffers those passes render into, and the textures backing
- * them.
+ * The GL objects a blurred fill needs to blur its cover by the fill's [BlurPlan].
  *
- * @property smallWidth The width [coverFbo] and [blurFbo] render at, from [blurPlan]. Narrower than
- *   the output whenever the blur is heavy enough to need downscaling.
- * @property smallHeight The same, for height.
+ * The cover is drawn into [coverFbo] at the output size, boxed down to the plan's size by [downProgram], blurred across
+ * and then up by [SpatialBlur.GAUSSIAN_GLSL] in [blurProgram], and read back up to the output with linear filtering by
+ * [upProgram], which divides by the blurred alpha and applies the dim. On a kept grade the cover holds linear display
+ * light, [downProgram] carries it to the SDR signal it encodes to before it averages, the blur and the dim run on that
+ * signal, and [upProgram] carries it back.
+ *
+ * @property smallWidth The width the plan blurs at.
+ * @property smallHeight The height the plan blurs at.
  */
 internal class BlurPass(
-  val program: JsAny,
-  val texelStep: JsAny?,
-  val gainUniform: JsAny?,
-  val gain: Float,
+  private val downProgram: JsAny,
+  private val blurProgram: JsAny,
+  private val upProgram: JsAny,
+  private val across: Map<String, FloatArray>,
+  private val upward: Map<String, FloatArray>,
   val smallWidth: Int,
   val smallHeight: Int,
   val coverFbo: JsAny,
-  val coverTexture: JsAny,
-  val blurFbo: JsAny,
-  val blurTexture: JsAny,
+  private val coverTexture: JsAny,
+  private val downFbo: JsAny,
+  private val downTexture: JsAny,
+  private val acrossFbo: JsAny,
+  private val acrossTexture: JsAny,
 ) {
   /**
-   * Blurs what the cover pass drew into [coverFbo] across and then down, dims it, and draws it into [target] at the
-   * [width] by [height] output, which it clears first. Leaves [target] bound and this pass's program in use.
+   * Boxes down what the cover pass drew into [coverFbo], blurs it across and then up, dims it, and draws it into
+   * [target] at the [width] by [height] output, which it clears first. Leaves [target] bound and [upProgram] in use.
+   *
+   * The cover holds color premultiplied by alpha, so every pass writes what it computes with blending off. The last
+   * divides by the blurred alpha, which is what keeps a picture's level beside pixels with none.
    */
   fun blurCoverOnto(
     gl: WebGl2,
@@ -46,40 +57,63 @@ internal class BlurPass(
     width: Int,
     height: Int,
   ) {
-    gl.useProgram(program)
+    gl.disable(GL_BLEND)
+    gl.viewport(0, 0, smallWidth, smallHeight)
+    gl.useProgram(downProgram)
+    drawInto(gl, downFbo, coverTexture)
 
-    gl.bindFramebuffer(GL_FRAMEBUFFER, blurFbo)
-    gl.clear(GL_COLOR_BUFFER_BIT)
-    gl.bindTexture(GL_TEXTURE_2D, coverTexture)
-    gl.uniform2f(texelStep, 1f / smallWidth, 0f)
-    gl.uniform1f(gainUniform, 1f)
-    gl.drawArrays(GL_TRIANGLE_STRIP, 0, QUAD_VERTICES)
+    gl.useProgram(blurProgram)
+    upload(gl, blurProgram, across)
+    drawInto(gl, acrossFbo, downTexture)
+    upload(gl, blurProgram, upward)
+    drawInto(gl, downFbo, acrossTexture)
 
     gl.viewport(0, 0, width, height)
-    gl.bindFramebuffer(GL_FRAMEBUFFER, target)
-    gl.clear(GL_COLOR_BUFFER_BIT)
-    gl.bindTexture(GL_TEXTURE_2D, blurTexture)
-    gl.uniform2f(texelStep, 0f, 1f / smallHeight)
-    gl.uniform1f(gainUniform, gain)
-    gl.drawArrays(GL_TRIANGLE_STRIP, 0, QUAD_VERTICES)
+    gl.useProgram(upProgram)
+    drawInto(gl, target, downTexture)
+    gl.enable(GL_BLEND)
   }
 
   /**
    * Deletes every program, texture and framebuffer this pass holds.
    */
   fun release(gl: WebGl2) {
-    gl.deleteFramebuffer(coverFbo)
-    gl.deleteTexture(coverTexture)
-    gl.deleteFramebuffer(blurFbo)
-    gl.deleteTexture(blurTexture)
-    gl.deleteProgram(program)
+    listOf(coverFbo, downFbo, acrossFbo).forEach { gl.deleteFramebuffer(it) }
+    listOf(coverTexture, downTexture, acrossTexture).forEach { gl.deleteTexture(it) }
+    listOf(downProgram, blurProgram, upProgram).forEach { gl.deleteProgram(it) }
+  }
+
+  private fun drawInto(
+    gl: WebGl2,
+    framebuffer: JsAny?,
+    texture: JsAny,
+  ) {
+    gl.bindFramebuffer(GL_FRAMEBUFFER, framebuffer)
+    gl.clear(GL_COLOR_BUFFER_BIT)
+    gl.bindTexture(GL_TEXTURE_2D, texture)
+    gl.drawArrays(GL_TRIANGLE_STRIP, 0, QUAD_VERTICES)
+  }
+
+  private fun upload(
+    gl: WebGl2,
+    program: JsAny,
+    uniforms: Map<String, FloatArray>,
+  ) {
+    uniforms.forEach { (name, value) ->
+      val at = gl.getUniformLocation(program, name)
+      when {
+        name.endsWith("[0]") -> gl.uniform1fv(at, value.toFloat32Array())
+        value.size == 2 -> gl.uniform2f(at, value[0], value[1])
+        else -> gl.uniform1f(at, value[0])
+      }
+    }
   }
 }
 
 /**
- * The extra program, textures and framebuffers a blurred fill needs. Built once per export and
- * never touched again outside `BrowserCompositor.drawBackground`, so a [Fill.Solid] export
- * never pays for any of it.
+ * The programs, textures and framebuffers a blurred fill needs, for a [width] by [height] output. Built once per
+ * export and never touched again outside `BrowserCompositor.drawBackground`, so a [Fill.Solid] export never pays for
+ * any of it.
  */
 internal fun buildBlurPass(
   gl: WebGl2,
@@ -89,128 +123,131 @@ internal fun buildBlurPass(
   buffer: JsAny,
   hdrTransfer: HdrTransfer?,
 ): BlurPass {
-  val program = linkedProgram(gl, FULLSCREEN_VERTEX_SHADER, blurFragmentShader(hdrTransfer))
-  gl.useProgram(program)
-
+  val plan = fill.blurPlan(Size(width, height))
+  val smallHeight = plan.heightOf(height)
   gl.bindBuffer(GL_ARRAY_BUFFER, buffer)
-  bindQuad(gl, program)
-
-  // The plan, the weights and the tap radius depend only on the fill and the output size, both
-  // fixed for the life of the compositor, so they are worked out and uploaded once here rather
-  // than every frame.
-  val plan = blurPlan(fill.sigmaFor(Size(width, height)), width, height)
-  gl.uniform1fv(
-    gl.getUniformLocation(program, "uWeights"),
-    gaussianWeights(plan.sigma, plan.tapRadius).toFloat32Array(),
-  )
-  gl.uniform1i(gl.getUniformLocation(program, "uTapRadius"), plan.tapRadius)
 
   val hdr = hdrTransfer != null
-  val coverTexture = createFramebufferTexture(gl, plan.smallWidth, plan.smallHeight, hdr)
+  val signal = SpatialBlur.signalUniforms(hdrTransfer?.displayLightGradeUniforms())
+  val gradeLight = hdrTransfer?.displayLightGradeGlsl() ?: IDENTITY_GRADE_LIGHT_GLSL
+  val downProgram = quadProgram(gl, fillBoxDownShader(hdr, gradeLight))
+  uploadSignal(gl, downProgram, signal)
+  gl.uniform2f(gl.getUniformLocation(downProgram, "uTargetSize"), plan.width.toFloat(), smallHeight.toFloat())
+  gl.uniform1f(gl.getUniformLocation(downProgram, "uBox"), plan.factor.toFloat())
+
+  val blurProgram = quadProgram(gl, SpatialBlur.GAUSSIAN_GLSL)
+
+  val upProgram = quadProgram(gl, fillUpShader(hdr, gradeLight))
+  uploadSignal(gl, upProgram, signal)
+  gl.uniform1f(gl.getUniformLocation(upProgram, "uGain"), fill.backgroundGain)
+
+  val coverTexture = createFramebufferTexture(gl, width, height, hdr)
   val coverFbo = createComplete(gl, coverTexture)
-  val blurTexture = createFramebufferTexture(gl, plan.smallWidth, plan.smallHeight, hdr)
-  val blurFbo = createComplete(gl, blurTexture)
+  val downTexture = createFramebufferTexture(gl, plan.width, smallHeight, hdr)
+  val downFbo = createComplete(gl, downTexture)
+  val acrossTexture = createFramebufferTexture(gl, plan.width, smallHeight, hdr)
+  val acrossFbo = createComplete(gl, acrossTexture)
   gl.bindFramebuffer(GL_FRAMEBUFFER, null)
 
   return BlurPass(
-    program = program,
-    texelStep = gl.getUniformLocation(program, "uTexelStep"),
-    gainUniform = gl.getUniformLocation(program, "uGain"),
-    // A dim is written against an encoded value, and a kept grade holds linear light, so the
-    // gain is raised by the display's own curve there or the background darkens by less than
-    // it was asked to.
-    gain = if (hdr) linearDimGain(fill.dim) else fill.backgroundGain,
-    smallWidth = plan.smallWidth,
-    smallHeight = plan.smallHeight,
+    downProgram = downProgram,
+    blurProgram = blurProgram,
+    upProgram = upProgram,
+    across = SpatialBlur.gaussianUniforms(plan, height, horizontal = true),
+    upward = SpatialBlur.gaussianUniforms(plan, height, horizontal = false),
+    smallWidth = plan.width,
+    smallHeight = smallHeight,
     coverFbo = coverFbo,
     coverTexture = coverTexture,
-    blurFbo = blurFbo,
-    blurTexture = blurTexture,
+    downFbo = downFbo,
+    downTexture = downTexture,
+    acrossFbo = acrossFbo,
+    acrossTexture = acrossTexture,
   )
 }
 
-// One direction at a time: uTexelStep is the horizontal step for the first pass and the vertical
-// step for the second, and uGain only takes effect on the second, once the blur is done spreading.
-// The kernel is symmetric, so uWeights only holds the centre weight and one weight per tap radius,
-// and each side samples the same texel offset twice, once in each direction.
-internal fun blurFragmentShader(transfer: HdrTransfer?): String =
+// Sets the figures SpatialBlur.signalGlsl reads, on a program that is in use.
+private fun uploadSignal(
+  gl: WebGl2,
+  program: JsAny,
+  signal: Map<String, FloatArray>,
+) {
+  signal.forEach { (name, value) -> gl.uniform1f(gl.getUniformLocation(program, name), value[0]) }
+}
+
+// A program over the full-screen quad, left in use with its frame on texture unit 0.
+private fun quadProgram(
+  gl: WebGl2,
+  fragment: String,
+): JsAny {
+  val program = linkedProgram(gl, PASS_VERTEX_SHADER, fragment)
+  gl.useProgram(program)
+  bindQuad(gl, program)
+  gl.uniform1i(gl.getUniformLocation(program, "uFrame"), 0)
+  return program
+}
+
+// Moves a texel between the light the cover holds and the signal the blur runs on, which is the identity for a cover
+// that already holds the signal.
+private fun signalSource(
+  hdr: Boolean,
+  gradeLight: String,
+): String =
+  if (hdr) {
+    SpatialBlur.signalGlsl(gradeLight)
+  } else {
+    "vec3 toSignal(vec3 light) { return light; }\nvec3 fromSignal(vec3 signal) { return signal; }"
+  }
+
+// Boxes the cover down to the plan's size with SpatialBlur.BOX_DOWN_GLSL, each texel read as the signal. The cover is
+// premultiplied by alpha, so a texel is taken to the signal on its straight colour and premultiplied again.
+private fun fillBoxDownShader(
+  hdr: Boolean,
+  gradeLight: String,
+): String =
   """
   #version 300 es
-  precision ${if (transfer == null) "mediump" else "highp"} float;
-  uniform sampler2D uTexSampler;
-  uniform vec2 uTexelStep;
-  uniform int uTapRadius;
-  uniform float uWeights[${MAX_BLUR_TAP_RADIUS + 1}];
-  uniform float uGain;
-  in vec2 vTexCoord;
-  out vec4 outColor;
+  precision highp float;
+  in vec2 vUv;
+  out vec4 fragColor;
+  uniform sampler2D uFrame;
+  uniform vec2 uTargetSize;
+  uniform float uBox;
+
+${signalSource(hdr, gradeLight).prependIndent("  ")}
+
+  vec4 premultipliedAt(ivec2 texel, ivec2 size) {
+    vec4 read = texelFetch(uFrame, clamp(texel, ivec2(0), size - 1), 0);
+    vec3 straight = read.a > 0.0 ? read.rgb / read.a : vec3(0.0);
+    return vec4(toSignal(straight) * read.a, read.a);
+  }
+
+${SpatialBlur.BOX_DOWN_GLSL.prependIndent("  ")}
+
   void main() {
-    vec4 sum = texture(uTexSampler, vTexCoord) * uWeights[0];
-    for (int i = 1; i <= uTapRadius; i++) {
-      vec2 offset = uTexelStep * float(i);
-      sum += texture(uTexSampler, vTexCoord + offset) * uWeights[i];
-      sum += texture(uTexSampler, vTexCoord - offset) * uWeights[i];
-    }
-    outColor = vec4(sum.rgb * uGain, sum.a);
+    fragColor = boxedDown(textureSize(uFrame, 0), vUv, uTargetSize, uBox);
   }
   """.trimIndent()
 
-/**
- * The downscaled resolution a blurred fill's cover and blur passes render at, and the sigma and
- * tap radius the kernel uses there.
- */
-internal class BlurPlan(
-  val downscale: Int,
-  val smallWidth: Int,
-  val smallHeight: Int,
-  val sigma: Float,
-  val tapRadius: Int,
-)
+// Reads the blurred frame back up with linear filtering, divides it by its alpha, dims its signal and takes it back to
+// the light the cover held. The cover it writes is opaque.
+private fun fillUpShader(
+  hdr: Boolean,
+  gradeLight: String,
+): String =
+  """
+  #version 300 es
+  precision highp float;
+  in vec2 vUv;
+  out vec4 fragColor;
+  uniform sampler2D uFrame;
+  uniform float uGain;
 
-/**
- * How a blurred fill's kernel is realised for a [width] by [height] output, given the true
- * [sigma] the fill's contract already resolved to (see [sigmaFor]). This is the one number every
- * backend's blur agrees on, so the same edit reads the same blur wherever it is exported.
- *
- * A large [sigma] is realised in full by blurring a downscaled copy of the frame and letting the
- * last pass's bilinear sampling upsample it back out.
- *
- * [downscale] keeps the downscaled sigma at [DOWNSCALE_SIGMA_TARGET] pixels or under, which keeps
- * the tap radius at three times that. For any sigma [sigmaFor] can produce, this stays well inside
- * [MAX_BLUR_TAP_RADIUS].
- */
-internal fun blurPlan(
-  sigma: Float,
-  width: Int,
-  height: Int,
-): BlurPlan {
-  val downscale = maxOf(1, ceil(sigma / DOWNSCALE_SIGMA_TARGET).toInt())
-  val smallWidth = ceil(width.toFloat() / downscale).toInt().coerceAtLeast(1)
-  val smallHeight = ceil(height.toFloat() / downscale).toInt().coerceAtLeast(1)
-  val smallSigma = sigma / downscale
-  val tapRadius = ceil(3f * smallSigma).toInt().coerceIn(0, MAX_BLUR_TAP_RADIUS)
-  return BlurPlan(downscale, smallWidth, smallHeight, smallSigma, tapRadius)
-}
+${signalSource(hdr, gradeLight).prependIndent("  ")}
 
-/**
- * Gaussian weights for [tapRadius] taps either side of the centre, normalised so the whole kernel
- * sums to one. Padded out to [MAX_BLUR_TAP_RADIUS] entries. The shader never reads past
- * [tapRadius].
- */
-private fun gaussianWeights(
-  sigma: Float,
-  tapRadius: Int,
-): FloatArray {
-  val weights = FloatArray(MAX_BLUR_TAP_RADIUS + 1)
-  var total = 0f
-  for (i in 0..tapRadius) {
-    val weight = exp(-(i * i) / (2f * sigma * sigma))
-    weights[i] = weight
-    total += if (i == 0) weight else 2f * weight
+  void main() {
+    vec4 blurred = textureLod(uFrame, vUv, 0.0);
+    vec3 color = blurred.a > 0.0 ? blurred.rgb / blurred.a : vec3(0.0);
+    fragColor = vec4(fromSignal(color * uGain), 1.0);
   }
-  for (i in 0..tapRadius) weights[i] /= total
-  return weights
-}
-
-internal const val MAX_BLUR_TAP_RADIUS: Int = 60
-private const val DOWNSCALE_SIGMA_TARGET = 8f
+  """.trimIndent()

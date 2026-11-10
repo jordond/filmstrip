@@ -11,6 +11,8 @@ import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.transform.internal.geometry.derivesFromFrame
+import dev.jordond.filmstrip.transform.internal.resolve.anyClipExposesFill
+import dev.jordond.filmstrip.transform.internal.resolve.anyClipLeavesBars
 import dev.jordond.filmstrip.transform.internal.resolve.paintsFillAfterEffects
 import dev.jordond.filmstrip.transform.internal.resolve.showsFill
 import io.kotest.matchers.shouldBe
@@ -111,6 +113,34 @@ class FillPlanTest {
 
     resolved.showsFill shouldBe false
     resolved.paintsFillAfterEffects shouldBe false
+  }
+
+  @Test
+  fun `showsFill is true for a clip with alpha that covers the whole frame`() {
+    val resolved = fixture.resolve(Composition(listOf(Track(listOf(fixture.clip(hasAlpha = true))))))
+
+    resolved.showsFill shouldBe true
+    resolved.paintsFillAfterEffects shouldBe true
+    resolved.anyClipExposesFill shouldBe true
+    resolved.anyClipLeavesBars shouldBe false
+  }
+
+  @Test
+  fun `a blurred fill is built for a covering clip with alpha and is not held back`() {
+    val resolved =
+      fixture.resolve(Composition(listOf(Track(listOf(fixture.clip(hasAlpha = true)))), fill = Fill.Blurred()))
+
+    resolved.fill.shouldBeInstanceOf<Fill.Blurred>()
+    resolved.anyClipExposesFill shouldBe true
+    resolved.paintsFillAfterEffects shouldBe false
+  }
+
+  @Test
+  fun `alpha on a clip of an audio track never shows the fill`() {
+    val bed = Track(listOf(fixture.clip(hasAlpha = true)), content = TrackContent.Audio)
+    val resolved = fixture.resolve(Composition(listOf(Track(listOf(fixture.clip())), bed)))
+
+    resolved.showsFill shouldBe false
   }
 
   @Test

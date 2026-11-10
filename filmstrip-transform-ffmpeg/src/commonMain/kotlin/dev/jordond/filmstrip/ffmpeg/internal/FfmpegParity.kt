@@ -10,7 +10,7 @@ import dev.jordond.filmstrip.effect.EffectIds
  * answers without doing any work.
  *
  * This backend keeps its own table. `Scale` is `Approximate` here because swscale is a different resampler,
- * `GaussianBlur` and `Vignette` because they run through gblur and a round trip through RGB, and `Text` because the JVM
+ * `GaussianBlur` and `Vignette` because they run through a round trip through RGB, and `Text` because the JVM
  * shapes its glyphs with its own fonts, as every backend does.
  */
 internal object FfmpegParity {
@@ -48,8 +48,8 @@ internal object FfmpegParity {
         "The JVM draws the glyphs with the fonts it finds on this machine, so their shapes and line breaks follow " +
         "that font stack, the way they follow each platform's own on every backend.",
       EffectIds.GAUSSIAN_BLUR to
-        "gblur runs a recursive approximation of the Gaussian, and the frame goes to RGB and back to its codes, " +
-        "rounding each way, so a soft edge lands a few codes from a preview.",
+        "The frame goes to RGB and back to its codes, rounding each way, so a soft edge lands a code or two from a " +
+        "preview.",
       EffectIds.VIGNETTE to
         "The gain is multiplied in on RGB, and the frame goes to RGB and back to its codes, rounding each way, so " +
         "the falloff lands a code or two from a preview.",

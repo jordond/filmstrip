@@ -3,7 +3,8 @@ package dev.jordond.filmstrip.ffmpeg
 /**
  * The filters the built-in effects lower onto, for a build a test hands the planner by hand.
  *
- * A blur's `gblur` and a dim's `colorchannelmixer` are left out, since the fill's own refusals are read without them.
+ * A blur's `convolution` and a dim's `colorchannelmixer` are left out, since the fill's own refusals are read without
+ * them.
  */
 internal val CATALOGUE_FILTERS: Set<String> =
   setOf(
@@ -37,10 +38,30 @@ internal val VHS_FILTERS: Set<String> =
   setOf("scale", "format", "split", "pad", "geq", "gblur", "lut2", "crop", "setpts")
 
 /**
+ * The filters a Vhs fragment adds beside a clear canvas bar, where it reads the tape exactly in windows around the
+ * edge and merges them over the plain read.
+ */
+internal val VHS_EDGE_FILTERS: Set<String> = setOf("extractplanes", "mergeplanes", "maskedmerge", "hstack")
+
+/**
  * The filters a Film fragment lowers onto at 720p, every name its own check has to find.
  */
 internal val FILM_FILTERS: Set<String> =
-  setOf("scale", "format", "split", "mergeplanes", "geq", "gblur", "lut2", "setpts")
+  setOf(
+    "scale",
+    "format",
+    "split",
+    "mergeplanes",
+    "geq",
+    "convolution",
+    "fillborders",
+    "pad",
+    "transpose",
+    "mix",
+    "lutrgb",
+    "lut2",
+    "setpts",
+  )
 
 /**
  * The filters a Crt fragment lowers onto, every name its own check has to find.

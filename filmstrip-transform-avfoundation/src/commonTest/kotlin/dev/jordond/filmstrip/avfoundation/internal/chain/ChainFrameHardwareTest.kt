@@ -1,6 +1,11 @@
 package dev.jordond.filmstrip.avfoundation.internal.chain
 
+import dev.jordond.filmstrip.color.HDR_REFERENCE_WHITE_NITS
+import dev.jordond.filmstrip.color.blurPlane
 import dev.jordond.filmstrip.color.linearDimGain
+import dev.jordond.filmstrip.color.sdrSignalFromNits
+import dev.jordond.filmstrip.effects.color.createCodeSpace
+import dev.jordond.filmstrip.effects.color.inCodesOf
 import dev.jordond.filmstrip.effects.geometry.Crop
 import dev.jordond.filmstrip.effects.geometry.KenBurns
 import dev.jordond.filmstrip.geometry.AspectRatio
@@ -8,17 +13,27 @@ import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.media.ColorSpace
+import dev.jordond.filmstrip.media.HdrTransfer
+import dev.jordond.filmstrip.transform.internal.geometry.blendOverFill
+import dev.jordond.filmstrip.transform.internal.geometry.blurPlan
 import dev.jordond.filmstrip.transform.internal.geometry.coverScale
 import dev.jordond.filmstrip.transform.internal.geometry.placeIn
 import dev.jordond.filmstrip.transform.internal.geometry.placementOf
 import dev.jordond.filmstrip.transform.internal.geometry.sigmaFor
 import io.kotest.assertions.withClue
 import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.types.shouldBeSameInstanceAs
 import kotlinx.cinterop.ExperimentalForeignApi
+import platform.CoreGraphics.CGAffineTransformMakeScale
+import platform.CoreGraphics.CGImageRelease
 import platform.CoreGraphics.CGRectMake
 import platform.CoreImage.CIColor
+import platform.CoreImage.CIContext
 import platform.CoreImage.CIImage
+import platform.CoreImage.CIVector
+import platform.CoreImage.createCGImage
 import kotlin.math.abs
 import kotlin.test.Test
 
@@ -119,7 +134,13 @@ class ChainFrameHardwareTest {
   fun `a fitted frame covers the whole output with the fill in its bars`() {
     val fitted =
       solid(GREEN, 0.0, 0.0, 50.0, 100.0)
-        .fittedTo(WIDE, placeIn(Size(50, 100), WIDE, Fit.Contain), Fill.Solid(RED_ARGB), transfer = null)
+        .fittedTo(
+          WIDE,
+          placeIn(Size(50, 100), WIDE, Fit.Contain),
+          Fill.Solid(RED_ARGB),
+          transfer = null,
+          colorSpace = ColorSpace.Bt709,
+        )
     val pixels = fitted.linearPixels(200, 100)
 
     assertNear(fitted.rect(), listOf(0.0, 0.0, 200.0, 100.0))
@@ -179,14 +200,33 @@ class ChainFrameHardwareTest {
   fun `a solid fill paints its own color and a blurred one the frame's`() {
     val frame = solid(BLUE, 0.0, 0.0, 64.0, 36.0)
 
-    assertPixel(frame.fillImage(Fill.Solid(RED_ARGB), SQUARE, null).linearPixels(100, 100).at(50, 50), RED, "solid")
-    assertPixel(frame.fillImage(Fill.Black, SQUARE, null).linearPixels(100, 100).at(50, 50), BLACK, "black")
-    assertPixel(frame.fillImage(Fill.Blurred(), SQUARE, null).linearPixels(100, 100).at(50, 50), BLUE, "blurred")
+    assertPixel(
+      frame.fillImage(Fill.Solid(RED_ARGB), SQUARE, null, ColorSpace.Bt709).linearPixels(100, 100).at(50, 50),
+      RED,
+      "solid",
+    )
+    assertPixel(
+      frame.fillImage(Fill.Black, SQUARE, null, ColorSpace.Bt709).linearPixels(100, 100).at(50, 50),
+      BLACK,
+      "black",
+    )
+    assertPixel(
+      frame.fillImage(Fill.Blurred(), SQUARE, null, ColorSpace.Bt709).linearPixels(100, 100).at(50, 50),
+      BLUE,
+      "blurred",
+    )
   }
 
   @Test
   fun `a blurred cover reaches every edge of the output without darkening`() {
-    val covered = solid(RED, 0.0, 0.0, 64.0, 36.0).blurredCover(SQUARE, Fill.Blurred(radius = 0.04f))
+    val covered =
+      solid(
+        RED,
+        0.0,
+        0.0,
+        64.0,
+        36.0,
+      ).blurredCover(SQUARE, Fill.Blurred(radius = 0.04f), null, ColorSpace.Bt709)
     val pixels = covered.linearPixels(100, 100)
 
     val (x, y, width, height) = covered.rect()
@@ -201,16 +241,68 @@ class ChainFrameHardwareTest {
   @Test
   fun `a dimmed blurred cover carries the shared linear gain`() {
     listOf(0.25f, 0.5f).forEach { dim ->
-      val covered = solid(WHITE, 0.0, 0.0, 64.0, 36.0).blurredCover(SQUARE, Fill.Blurred(dim = dim))
+      val covered =
+        solid(
+          WHITE,
+          0.0,
+          0.0,
+          64.0,
+          36.0,
+        ).blurredCover(SQUARE, Fill.Blurred(dim = dim), null, ColorSpace.Bt709)
       val gain = linearDimGain(dim)
 
       assertPixel(covered.linearPixels(100, 100).at(50, 50), listOf(gain, gain, gain, 1f), "dimmed by $dim")
     }
   }
 
+  // The cover crops this 64 by 32 frame at 16 and 48 pixels across it. Blue runs from just outside the left crop line
+  // to an edge, so a blur held at the frame's edge takes in the red past the line and reads apart from one held at the
+  // crop's. Read on blue against the shared plan run on the plain cover.
+  @Test
+  fun `a blurred cover lands on the shared plan mid-frame and at the cover crop edge`() {
+    val frame =
+      solid(BLUE, STRIP_FROM, 0.0, STRIP_TO - STRIP_FROM, 32.0)
+        .imageByCompositingOverImage(solid(GREEN, STRIP_TO, 0.0, 48.0 - STRIP_TO, 32.0))
+        .imageByCompositingOverImage(solid(RED, 0.0, 0.0, 64.0, 32.0))
+    val fill = Fill.Blurred(radius = MID_RADIUS)
+    val plan = fill.blurPlan(SQUARE)
+    val sigma = plan.sigmaPx / plan.width
+    val cover =
+      frame
+        .coverOnCodes(SQUARE)
+        .codePixels(100, 100)
+        .blue()
+    val expected = blurPlane(cover, DoubleArray(cover.size) { 1.0 }, 100, 100, sigma)
+    val drawn = frame.blurredCover(SQUARE, fill, null, ColorSpace.Bt709).codePixels(100, 100).blue()
+    val scale = coverScale(Size(64, 32), SQUARE).toDouble()
+    val whole =
+      frame
+        .imageByClampingToExtent()
+        .imageByApplyingTransform(CGAffineTransformMakeScale(scale, scale))
+        .imageByCroppingToRect(CGRectMake(0.0, 0.0, 64.0 * scale, 100.0))
+        .codePixels(WHOLE_WIDTH, 100)
+        .blue()
+    val heldAtFrame = blurPlane(whole, DoubleArray(whole.size) { 1.0 }, WHOLE_WIDTH, 100, sigma * 100 / WHOLE_WIDTH)
+    val row = 50 * 100
+    val step = ((STRIP_TO - 16.0) * scale).toInt()
+
+    val apart = abs(heldAtFrame[50 * WHOLE_WIDTH + (WHOLE_WIDTH - 100) / 2] - expected[row])
+    withClue("a blur held at the frame's edge lands $apart from one held at the crop's, too close to tell") {
+      (apart > 2 * BLUR_LEVEL).shouldBeTrue()
+    }
+    val spread = (row until row + 100).maxOf { abs(expected[it] - cover[it]) }
+    withClue("the shared blur moves the strip's edge by $spread, so the read is not of a sharp frame") {
+      (spread > 10 * BLUR_LEVEL).shouldBeTrue()
+    }
+    val worst = (row until row + 100).maxBy { abs(drawn[it] - expected[it]) }
+    withClue("the cover is ${abs(drawn[worst] - expected[worst])} off the shared plan at ${worst - row}") {
+      (abs(drawn[worst] - expected[worst]) <= BLUR_LEVEL).shouldBeTrue()
+    }
+  }
+
   @Test
   fun `a frame with nothing in it covers with black`() {
-    val covered = CIImage.emptyImage().blurredCover(SQUARE, Fill.Blurred())
+    val covered = CIImage.emptyImage().blurredCover(SQUARE, Fill.Blurred(), null, ColorSpace.Bt709)
 
     assertPixel(covered.linearPixels(100, 100).at(50, 50), BLACK, "an empty frame's cover")
   }
@@ -222,18 +314,24 @@ class ChainFrameHardwareTest {
   fun `a blurred cover spreads an edge by the shared sigma at the shared cover scale`() {
     val source = Size(64, 32)
     val fill = Fill.Blurred(radius = 0.06f)
-    val covered = split(width = 64.0, height = 32.0, redWidth = EDGE).blurredCover(SQUARE, fill)
-    val pixels = covered.linearPixels(100, 100)
+    val frame = split(width = 64.0, height = 32.0, redWidth = EDGE).materialised()
+    val covered = frame.blurredCover(SQUARE, fill, null, ColorSpace.Bt709)
+    val pixels = covered.codePixels(100, 100)
     val red = (0 until 100).map { pixels.at(it, 50)[0] }
 
     val scale = coverScale(source, SQUARE)
-    val edge = EDGE * scale - (source.width * scale - SQUARE.width) / 2
+    val placed = EDGE * scale - (source.width * scale - SQUARE.width) / 2
     val sigma = fill.sigmaFor(SQUARE)
+    val plan = fill.blurPlan(SQUARE)
+    val plain = frame.coverOnCodes(SQUARE).codePixels(100, 100).red()
+    val shared = blurPlane(plain, DoubleArray(plain.size) { 1.0 }, 100, 100, plan.sigmaPx / plan.width)
+    val edge = (0 until 100).map { shared[50 * 100 + it].toFloat() }.crossing(0.5f)
     val landed = red.crossing(0.5f)
     val spread = (red.crossing(ONE_SIGMA_LOW) - red.crossing(ONE_SIGMA_HIGH)) / 2
 
     assertNear(covered.rect(), listOf(0.0, 0.0, 100.0, 100.0))
-    withClue("the edge landed at $landed, not $edge") { (abs(landed - edge) < 0.5).shouldBeTrue() }
+    withClue("the edge sits at $edge, not $placed") { (abs(edge - placed) < 0.5).shouldBeTrue() }
+    withClue("the edge landed at $landed, not $edge on the shared plan") { (abs(landed - edge) < 0.5).shouldBeTrue() }
     withClue("the edge spread by $spread, not $sigma") { (abs(spread - sigma) < sigma * 0.1).shouldBeTrue() }
   }
 
@@ -303,6 +401,16 @@ class ChainFrameHardwareTest {
     val WHITE = listOf(1f, 1f, 1f, 1f)
     val BLACK = listOf(0f, 0f, 0f, 1f)
     const val RED_ARGB = 0xFFFF0000.toInt()
+
+    // A sigma of 12 pixels on the square, which the plan boxes down by 2 onto whole pixels.
+    const val MID_RADIUS = 0.12f
+    const val STRIP_FROM = 14.0
+    const val STRIP_TO = 24.0
+    const val WHOLE_WIDTH = 200
+
+    // Two eight bit codes, as a GaussianBlur on Core Image is held to.
+    const val BLUR_LEVEL = 2.0 / 255.0
+
     val SQUARE = Size(100, 100)
     val WIDE = Size(200, 100)
     val PORTRAIT = Size(40, 50)
@@ -315,3 +423,35 @@ class ChainFrameHardwareTest {
     const val ONE_SIGMA_LOW = 0.1587f
   }
 }
+
+// The pixels as the codes of the frame's SDR space, which is what the SDR cover is blurred on.
+internal fun CIImage.codePixels(
+  width: Int,
+  height: Int,
+): LinearPixels {
+  var codes = this
+  inCodesOf(ColorSpace.Bt709) { toCodes ->
+    codes = toCodes(this)
+    this
+  }
+  return codes.linearPixels(width, height)
+}
+
+// The cover scaled on the codes of the frame's SDR space, the way the SDR cover is drawn before its blur.
+private fun CIImage.coverOnCodes(size: Size): CIImage =
+  inCodesOf(ColorSpace.Bt709) { toCodes -> toCodes(this).coverOf(size).shouldNotBeNull() }
+
+// This image as the pixels of a decoded frame, so a step on it reads a frame and not a graph of constant colours.
+@OptIn(ExperimentalForeignApi::class)
+private fun CIImage.materialised(): CIImage {
+  val image = CIContext().createCGImage(this, fromRect = extent).shouldNotBeNull()
+  try {
+    return CIImage(image)
+  } finally {
+    CGImageRelease(image)
+  }
+}
+
+private fun LinearPixels.blue(): DoubleArray = DoubleArray(width * height) { at(it % width, it / width)[2].toDouble() }
+
+internal fun LinearPixels.red(): DoubleArray = DoubleArray(width * height) { at(it % width, it / width)[0].toDouble() }

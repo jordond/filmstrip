@@ -82,6 +82,7 @@ class HeldTailLoweringTest {
               colorSpace = ColorSpace.Bt709,
               hdrTransfer = null,
               bitrate = null,
+              hasAlpha = false,
             ),
           audioTracks =
             listOf(

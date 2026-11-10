@@ -3,13 +3,16 @@ package dev.jordond.filmstrip.avfoundation.internal.chain
 import dev.jordond.filmstrip.color.linearDimGain
 import dev.jordond.filmstrip.effect.Attributes
 import dev.jordond.filmstrip.effect.FrameInfo
+import dev.jordond.filmstrip.effects.spatial.blurredOnSignal
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.transform.internal.geometry.CanvasPlacement
+import dev.jordond.filmstrip.transform.internal.geometry.backgroundGain
+import dev.jordond.filmstrip.transform.internal.geometry.blurPlan
 import dev.jordond.filmstrip.transform.internal.geometry.coverScale
-import dev.jordond.filmstrip.transform.internal.geometry.sigmaFor
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.useContents
 import platform.CoreGraphics.CGAffineTransformConcat
@@ -49,10 +52,14 @@ internal fun CIImage.fittedTo(
   rect: NormalizedRect,
   fill: Fill,
   transfer: HdrTransfer?,
+  colorSpace: ColorSpace,
+  inCodes: Boolean = false,
 ): CIImage {
   val frame = CGRectMake(0.0, 0.0, size.width.toDouble(), size.height.toDouble())
-  val background = fillImage(fill, size, transfer).imageByCroppingToRect(frame)
-  return laidAt(size, rect).imageByCompositingOverImage(background)
+  val background = fillImage(fill, size, transfer, colorSpace).imageByCroppingToRect(frame)
+  val laid = laidAt(size, rect)
+  if (inCodes) return laid.blendedInCodes(background) { imageByCompositingOverImage(it) }
+  return laid.imageByCompositingOverImage(background)
 }
 
 /**
@@ -161,15 +168,14 @@ internal fun CIImage.over(
   background: CIImage,
   mask: CIImage,
   size: Size,
+  inCodes: Boolean = false,
 ): CIImage {
   val rect = CGRectMake(0.0, 0.0, size.width.toDouble(), size.height.toDouble())
-  return imageByApplyingFilter(
-    "CIBlendWithAlphaMask",
-    mapOf(
-      "inputBackgroundImage" to background.imageByCroppingToRect(rect),
-      "inputMaskImage" to mask,
-    ),
-  )
+  val blend: CIImage.(CIImage) -> CIImage = {
+    imageByApplyingFilter("CIBlendWithAlphaMask", mapOf("inputBackgroundImage" to it, "inputMaskImage" to mask))
+  }
+  val cropped = background.imageByCroppingToRect(rect)
+  return if (inCodes) blendedInCodes(cropped) { imageByCompositingOverImage(it) } else blend(cropped)
 }
 
 /**
@@ -182,49 +188,76 @@ internal fun CIImage.fillImage(
   fill: Fill,
   size: Size,
   transfer: HdrTransfer?,
+  colorSpace: ColorSpace,
 ): CIImage =
   when (fill) {
     is Fill.Solid -> CIImage(color = fillCIColor(fill.color, transfer))
-    is Fill.Blurred -> blurredCover(size, fill)
+    is Fill.Blurred -> blurredCover(size, fill, transfer, colorSpace)
   }
 
 /**
- * Scales this frame to cover [size], centred, blurs it and crops it to the output frame.
+ * Scales this frame to cover [size], centred, crops it to the output frame and blurs it by the fill's [blurPlan].
  *
- * The blur runs before the scale up to cover, over this frame's own resolution rather than the
- * output's, so a 4K source costs the same blur as a 720p one. [Fill.Blurred.radius] is a
- * fraction of the output frame's shorter side, so it is converted to an output pixel sigma first
- * and then divided back through the cover scale, landing at the size it was asked for once the
- * scale runs.
+ * The blur runs on the cover crop, so the edge it holds is the crop's and not the frame's. An SDR frame is scaled and
+ * blurred on the codes of its [colorSpace] and a frame on a kept [transfer] grade on its SDR signal, with the dim as a
+ * gain there.
+ * A frame with nothing in it covers with black.
+ *
+ * A frame with alpha is blurred weighted by that alpha, and the cover is then made opaque. The cover is the colour the
+ * picture stands for and its alpha belongs to the sharp frame laid over it, so the cover never shows through twice.
  */
 @OptIn(ExperimentalForeignApi::class)
 internal fun CIImage.blurredCover(
   size: Size,
   blur: Fill.Blurred,
+  transfer: HdrTransfer?,
+  colorSpace: ColorSpace,
 ): CIImage {
+  if (coverOf(size) == null) return CIImage(color = CIColor.blackColor)
+  val extent = CGRectMake(0.0, 0.0, size.width.toDouble(), size.height.toDouble())
+  val plan = blur.blurPlan(size)
+
+  fun cover(signal: CIImage): CIImage = signal.coverOf(size) ?: signal
+  if (transfer != null) {
+    return blurredOnSignal(plan, extent, transfer, ColorSpace.Bt2020, blur.backgroundGain, ::cover).opaque()
+  }
+  val blurred = blurredOnSignal(plan, extent, null, colorSpace, gain = 1f, prepare = ::cover).opaque()
+  return if (blur.dim <= 0f) blurred else blurred.dimmed(blur.dim)
+}
+
+// Sets the alpha to one. The filter works on the colour divided by its alpha, so a see through pixel keeps its colour.
+@OptIn(ExperimentalForeignApi::class)
+private fun CIImage.opaque(): CIImage =
+  imageByApplyingFilter(
+    "CIColorMatrix",
+    mapOf(
+      "inputAVector" to CIVector.vectorWithX(0.0, 0.0, 0.0, 0.0),
+      "inputBiasVector" to CIVector.vectorWithX(0.0, 0.0, 0.0, 1.0),
+    ),
+  ).imageByCroppingToRect(extent)
+
+/**
+ * This frame scaled to cover [size], centred and cropped to it, or null when the frame has nothing in it.
+ *
+ * The frame is clamped to its extent first, so the scale never reads transparent black past its edges.
+ */
+@OptIn(ExperimentalForeignApi::class)
+internal fun CIImage.coverOf(size: Size): CIImage? {
   val width = size.width.toDouble()
   val height = size.height.toDouble()
   val (x, y, sourceWidth, sourceHeight) =
     extent.useContents { listOf(origin.x, origin.y, this.size.width, this.size.height) }
-  if (sourceWidth <= 0.0 || sourceHeight <= 0.0) return CIImage(color = CIColor.blackColor)
+  if (sourceWidth <= 0.0 || sourceHeight <= 0.0) return null
 
-  val sigma = blur.sigmaFor(size).toDouble()
   val scale = coverScale(Size(sourceWidth.roundToInt(), sourceHeight.roundToInt()), size).toDouble()
   val centring =
     CGAffineTransformMakeTranslation(
       width / 2.0 - (x + sourceWidth / 2.0) * scale,
       height / 2.0 - (y + sourceHeight / 2.0) * scale,
     )
-
-  // Clamped to its extent first, so neither the blur nor the scale reads transparent black past the frame's edges,
-  // which would darken them.
-  val covered =
-    imageByClampingToExtent()
-      .imageByApplyingGaussianBlurWithSigma(sigma / scale)
-      .imageByApplyingTransform(CGAffineTransformConcat(CGAffineTransformMakeScale(scale, scale), centring))
-      .imageByCroppingToRect(CGRectMake(0.0, 0.0, width, height))
-
-  return if (blur.dim <= 0f) covered else covered.dimmed(blur.dim)
+  return imageByClampingToExtent()
+    .imageByApplyingTransform(CGAffineTransformConcat(CGAffineTransformMakeScale(scale, scale), centring))
+    .imageByCroppingToRect(CGRectMake(0.0, 0.0, width, height))
 }
 
 /**

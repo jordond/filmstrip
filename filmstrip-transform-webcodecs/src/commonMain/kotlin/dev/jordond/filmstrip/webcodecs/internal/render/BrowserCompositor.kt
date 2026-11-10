@@ -364,18 +364,15 @@ internal class BrowserCompositor(
     sdPrimariesPass ?: buildSdPrimariesPass(gl, width, height, buffer).also { sdPrimariesPass = it }
 
   /**
-   * The letterboxed clip's background: the frame scaled to cover the output, blurred across two
-   * passes and dimmed, drawn straight into the target ahead of the sharp foreground.
+   * The letterboxed clip's background: the frame scaled to cover the output, blurred by the fill's
+   * shared plan and dimmed, drawn straight into the target ahead of the sharp foreground.
    *
    * The background is the clip's own pixels, so it is drawn with the clip's color matrix still set.
    * Every other backend splits the frame for its blur after the effect chain has run, and dimming
    * only the sharp copy would leave a bright halo around a dimmed frame. The clip's overlays are part
    * of that chain, so they go into the cover pass too, at the cover geometry.
    *
-   * The cover and horizontal passes render at [BlurPass.smallWidth] by [BlurPass.smallHeight]
-   * rather than the output size. See [blurPlan] for why. The vertical pass renders at the output
-   * size again, so the small, blurred texture is upsampled by the hardware's own bilinear
-   * filtering as it stretches across the bigger viewport, finishing the smoothing for free.
+   * The cover is drawn at the output size, so [BlurPass] boxes down the cover crop and holds its edge.
    */
   private fun drawBackground(
     blur: BlurPass,
@@ -385,9 +382,12 @@ internal class BrowserCompositor(
     compositionUs: Double,
   ) {
     gl.useProgram(program)
-    gl.viewport(0, 0, blur.smallWidth, blur.smallHeight)
+    gl.viewport(0, 0, width, height)
     gl.bindFramebuffer(GL_FRAMEBUFFER, blur.coverFbo)
+    // The cover starts clear so it holds each texel's color weighted by its alpha, which the blur then carries.
+    gl.clearColor(0f, 0f, 0f, 0f)
     gl.clear(GL_COLOR_BUFFER_BIT)
+    gl.clearColor(clearColor[0], clearColor[1], clearColor[2], 1f)
     gl.activeTexture(GL_TEXTURE0)
     gl.bindTexture(GL_TEXTURE_2D, source)
     gl.uniform2f(quadScale, clip.coverHalfW, clip.coverHalfH)

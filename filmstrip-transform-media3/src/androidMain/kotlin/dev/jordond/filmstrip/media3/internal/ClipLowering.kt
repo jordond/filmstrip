@@ -16,6 +16,7 @@ import dev.jordond.filmstrip.effect.Media3Handle
 import dev.jordond.filmstrip.effects.overlay.MAX_OVERLAYS_PER_EFFECT
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media3.internal.fill.FillCoverBlur
 import dev.jordond.filmstrip.media3.internal.fill.FillFlatten
 import dev.jordond.filmstrip.transform.internal.geometry.showsBlurredFill
@@ -32,13 +33,16 @@ import kotlin.time.Duration
  * pass paints the fill into. Under [Fill.Blurred] they turn black once the clip's effects have run, since the cover is
  * drawn from the frame and carries the bars the way it carries the picture. The clip is then drawn at its [drawnRect],
  * over a blurred cover of itself when [showsBlurredFill] says the cover can be seen. An SD clip on [sdPrimaries] opens
- * on [SdPrimariesHead], ahead of everything [wrapper] sees, so its effects read the clip's colour as BT.709.
+ * on [SdPrimariesHead], ahead of everything [wrapper] sees, so its effects read the clip's colour as BT.709. A blurred
+ * cover on a kept [transfer] grade is blurred on its SDR signal. A clip whose pictures can be transparent opens on
+ * [StraightAlphaHead], so everything after it reads straight color.
  */
 internal fun ResolvedClip.clipVideoEffects(
   fill: Fill,
   outputSize: Size,
   wrapper: EffectWrapper = UnwrappedEffects,
   sdPrimaries: Int? = null,
+  transfer: HdrTransfer? = null,
 ): List<Effect> {
   // Cut at each canvas, so a run of overlays on one side of it still blends in one pass.
   val cuts = listOf(-1) + canvasEffectIndices
@@ -51,12 +55,13 @@ internal fun ResolvedClip.clipVideoEffects(
   val blackBars =
     if (fill is Fill.Blurred && placement.canvases.isNotEmpty()) listOf(FillFlatten(BLACK_BARS)) else emptyList()
   val placed =
-    if (fill is Fill.Blurred && placement.showsBlurredFill(outputSize)) {
-      FillCoverBlur(fill, outputSize, drawnRect)
+    if (fill is Fill.Blurred && (placement.showsBlurredFill(outputSize) || info.video?.hasAlpha == true)) {
+      FillCoverBlur(fill, outputSize, drawnRect, transfer)
     } else {
       PlacedFrame(drawnRect, outputSize)
     }
-  return listOfNotNull(sdPrimaries?.let(::SdPrimariesHead)) + (chain + blackBars + placed).map(wrapper::wrap)
+  val straight = StraightAlphaHead.takeIf { info.video?.hasAlpha == true }
+  return listOfNotNull(straight, sdPrimaries?.let(::SdPrimariesHead)) + (chain + blackBars + placed).map(wrapper::wrap)
 }
 
 /**

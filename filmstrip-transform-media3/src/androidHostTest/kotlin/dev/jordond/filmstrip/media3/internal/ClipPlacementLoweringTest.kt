@@ -22,6 +22,7 @@ import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ColorSpace
+import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.VideoTrackInfo
@@ -53,6 +54,24 @@ class ClipPlacementLoweringTest {
     clip.clipVideoEffects(Fill.Black, OUTPUT).last() shouldBe
       PlacedFrame(clip.drawnRect, OUTPUT)
     clip.clipVideoEffects(Fill.Blurred(), OUTPUT).last() shouldBe FillCoverBlur(Fill.Blurred(), OUTPUT, clip.drawnRect)
+  }
+
+  @Test
+  fun `a covering clip with alpha still opens a blurred cover and one without does not`() {
+    val covering = clip(hasAlpha = true, placement = ClipPlacement.Filling)
+    val opaque = clip(placement = ClipPlacement.Filling)
+
+    covering.clipVideoEffects(Fill.Blurred(), OUTPUT).last() shouldBe
+      FillCoverBlur(Fill.Blurred(), OUTPUT, covering.drawnRect)
+    opaque.clipVideoEffects(Fill.Blurred(), OUTPUT).last() shouldBe PlacedFrame(opaque.drawnRect, OUTPUT)
+  }
+
+  @Test
+  fun `a blurred cover on a kept grade carries the grade it blurs on`() {
+    val lowered = barred.clipVideoEffects(Fill.Blurred(), OUTPUT, transfer = HdrTransfer.Hlg).last()
+
+    lowered shouldBe FillCoverBlur(Fill.Blurred(), OUTPUT, barred.drawnRect, HdrTransfer.Hlg)
+    (lowered == FillCoverBlur(Fill.Blurred(), OUTPUT, barred.drawnRect)) shouldBe false
   }
 
   @Test
@@ -183,6 +202,7 @@ class ClipPlacementLoweringTest {
     effects: List<ResolvedEffect> = emptyList(),
     placement: ClipPlacement = ClipPlacement.Filling,
     canvasEffectIndices: List<Int> = emptyList(),
+    hasAlpha: Boolean = false,
   ): ResolvedClip =
     ResolvedClip(
       source = MediaSource.of("clip.mp4"),
@@ -201,6 +221,7 @@ class ClipPlacementLoweringTest {
               colorSpace = ColorSpace.Bt709,
               hdrTransfer = null,
               bitrate = null,
+              hasAlpha = hasAlpha,
             ),
           audioTracks = emptyList(),
           isExportable = true,

@@ -1332,6 +1332,7 @@ class BrowserPlannerTest {
           colorSpace = ColorSpace.Bt709,
           hdrTransfer = hdr,
           bitrate = null,
+          hasAlpha = false,
         ),
       audioTracks = listOfNotNull(audio),
       isExportable = true,

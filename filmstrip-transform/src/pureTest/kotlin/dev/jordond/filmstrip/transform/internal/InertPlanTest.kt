@@ -225,6 +225,13 @@ class InertPlanTest {
   }
 
   @Test
+  fun `a fill behind a clip with alpha is kept even when the clip covers the frame`() {
+    val edit = Composition(listOf(Track(listOf(fixture.clip(hasAlpha = true)))), fill = BLUR)
+
+    fixture.resolve(edit).fill shouldBe BLUR
+  }
+
+  @Test
   fun `a fill behind a four by three clip is kept`() {
     val edit =
       Composition(listOf(Track(listOf(fixture.clip(), fixture.clip(size = Size(1440, 1080))))), fill = BLUR)

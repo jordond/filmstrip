@@ -38,16 +38,16 @@ HDR grade also needs a float framebuffer and a VP9 Profile 2 encoder. See
 `ffmpeg` and `ffprobe` {versions.ffmpeg} or later, installed on the machine. filmstrip doesn't ship them, see
 [Requirements](/start/requirements/#ffmpeg) for how it finds them. Some features depend on how ffmpeg was built:
 
-| To do this                   | The build needs                                       |
-| ---------------------------- | ----------------------------------------------------- |
-| Encode H.264                 | `libx264` or `h264_videotoolbox`                      |
-| Encode HEVC                  | `libx265` or `hevc_videotoolbox`                      |
-| Encode VP9                   | `libvpx-vp9`                                          |
-| Encode AAC or ALAC           | The `aac` or `alac` encoder                           |
-| Tone map                     | The `lut1d`, `geq` and `colorchannelmixer` filters    |
-| Draw `Fill.Blur`             | The `gblur` filter, and `colorchannelmixer` to dim it |
-| Draw an AVIF or HEIC picture | A decoder for it                                      |
-| Draw a JPEG XL picture       | `libjxl`                                              |
+| To do this                   | The build needs                                                                        |
+| ---------------------------- | -------------------------------------------------------------------------------------- |
+| Encode H.264                 | `libx264` or `h264_videotoolbox`                                                       |
+| Encode HEVC                  | `libx265` or `hevc_videotoolbox`                                                       |
+| Encode VP9                   | `libvpx-vp9`                                                                           |
+| Encode AAC or ALAC           | The `aac` or `alac` encoder                                                            |
+| Tone map                     | The `lut1d`, `geq` and `colorchannelmixer` filters                                     |
+| Draw `Fill.Blur`             | `convolution`, `pad`, `fillborders` and `transpose`, and `colorchannelmixer` to dim it |
+| Draw an AVIF or HEIC picture | A decoder for it                                                                       |
+| Draw a JPEG XL picture       | `libjxl`                                                                               |
 
 ## Preview features
 

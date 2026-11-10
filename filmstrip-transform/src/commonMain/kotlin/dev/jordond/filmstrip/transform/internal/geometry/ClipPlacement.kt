@@ -185,7 +185,7 @@ internal fun NormalizedRect.covers(frame: Size): Boolean {
   return width > 0f && height > 0f && openWidth < 1f && openHeight < 1f
 }
 
-private fun NormalizedRect.flipped(axis: FlipAxis): NormalizedRect =
+internal fun NormalizedRect.flipped(axis: FlipAxis): NormalizedRect =
   when (axis) {
     FlipAxis.Horizontal -> NormalizedRect(1f - right, top, 1f - left, bottom)
     FlipAxis.Vertical -> NormalizedRect(left, 1f - bottom, right, 1f - top)
@@ -195,7 +195,7 @@ internal fun EffectSpec.makesCanvas(): Boolean = this is Crop && fit != Fit.Crop
 
 // Whether this effect lands somewhere different on a canvas than on the frame inside it. A flip of a centred frame
 // and a scale of the whole canvas move nothing relative to the canvas, and a color effect reads no position.
-private fun EffectSpec.readsCanvas(): Boolean =
+internal fun EffectSpec.readsCanvas(): Boolean =
   when (stage) {
     EffectStage.Geometry -> this !is Flip && this !is Scale
     EffectStage.Color -> false

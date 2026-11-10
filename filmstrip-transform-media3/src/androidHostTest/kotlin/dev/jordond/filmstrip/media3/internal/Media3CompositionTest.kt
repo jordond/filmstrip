@@ -32,13 +32,8 @@ import dev.jordond.filmstrip.media.trackCodecOf
 import dev.jordond.filmstrip.media3.internal.bounds.Media3ClipReads
 import dev.jordond.filmstrip.media3.internal.fill.FillCoverBlur
 import dev.jordond.filmstrip.media3.internal.fill.FillFlatten
-import dev.jordond.filmstrip.media3.internal.fill.MAX_TAP_RADIUS
-import dev.jordond.filmstrip.media3.internal.fill.TAP_STANDARD_DEVIATIONS
-import dev.jordond.filmstrip.media3.internal.fill.downscaleFor
-import dev.jordond.filmstrip.media3.internal.fill.tapRadiusFor
 import dev.jordond.filmstrip.transform.internal.geometry.ClipPlacement
 import dev.jordond.filmstrip.transform.internal.geometry.placementOf
-import dev.jordond.filmstrip.transform.internal.geometry.sigmaFor
 import dev.jordond.filmstrip.transform.internal.resolve.GainSegment
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedClip
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
@@ -47,7 +42,6 @@ import dev.jordond.filmstrip.transform.internal.resolve.ResolvedGain
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedHdr
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedTrack
 import io.kotest.matchers.collections.shouldBeEmpty
-import io.kotest.matchers.ints.shouldBeLessThan
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.types.shouldBeInstanceOf
@@ -158,43 +152,6 @@ class Media3CompositionTest {
     clip(size = size, placement = placement, canvasEffectIndices = listOf(-1))
       .clipVideoEffects(Fill.Blurred(), output)
       .any { it is FillCoverBlur } shouldBe false
-  }
-
-  // The default radius against a 1080-pixel shorter side, pinned so a later change to the tap
-  // budget has to move this test rather than quietly changing how soft the default blur looks.
-  @Test
-  fun `downscales a wide sigma so the tap radius stays fixed`() {
-    val output = Size(1080, 1920)
-    val sigma = Fill.Blurred(radius = 0.04f).sigmaFor(output)
-
-    val downscale = downscaleFor(sigma)
-    downscale shouldBe 6
-    tapRadiusFor(sigma / downscale) shouldBe 22
-  }
-
-  /**
-   * The clamp is this backend's own ceiling on how long the generated shader may get, not a claim
-   * about the blur, so what is asserted is that a sigma past it stops there. Both the threshold
-   * and the expected result are read off the constants the function itself reads, so a change to
-   * either moves this test rather than leaving it pinned to a number that no longer means
-   * anything.
-   */
-  @Test
-  fun `a sigma past the tap budget clamps to the shader's own ceiling`() {
-    val atCap = MAX_TAP_RADIUS / TAP_STANDARD_DEVIATIONS
-
-    tapRadiusFor(atCap / 2f) shouldBeLessThan MAX_TAP_RADIUS
-    tapRadiusFor(atCap) shouldBe MAX_TAP_RADIUS
-    tapRadiusFor(atCap * 1.5f) shouldBe MAX_TAP_RADIUS
-    tapRadiusFor(atCap * 4f) shouldBe MAX_TAP_RADIUS
-  }
-
-  @Test
-  fun `a small sigma needs no downscale at all`() {
-    val output = Size(1080, 1920)
-    val sigma = Fill.Blurred(radius = 0.001f).sigmaFor(output)
-
-    downscaleFor(sigma) shouldBe 1
   }
 
   @Test
@@ -440,6 +397,7 @@ class Media3CompositionTest {
               colorSpace = ColorSpace.Bt709,
               hdrTransfer = null,
               bitrate = null,
+              hasAlpha = false,
             ),
           audioTracks = emptyList(),
           isExportable = true,

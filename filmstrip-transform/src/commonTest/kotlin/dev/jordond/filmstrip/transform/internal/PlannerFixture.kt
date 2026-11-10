@@ -21,6 +21,7 @@ import dev.jordond.filmstrip.effect.RenderApi
 import dev.jordond.filmstrip.effect.RenderCapabilities
 import dev.jordond.filmstrip.export.CopyBlocker
 import dev.jordond.filmstrip.export.ExportSpec
+import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.AudioTrackId
 import dev.jordond.filmstrip.media.AudioTrackInfo
@@ -53,6 +54,7 @@ internal class PlannerFixture {
     renderApi: RenderApi = RenderApi.OpenGlEs,
     ladder: List<VideoCodec> = listOf(VideoCodec.H264, VideoCodec.Hevc),
     toneMapLimit: (List<MediaSource>) -> String? = { null },
+    fillLimit: (Fill) -> String? = { null },
     copyLimit: (MediaInfo) -> CopyBlocker? = { null },
     containerCarries: (VideoCodec?, AudioCodec, Boolean) -> Boolean = { _, _, _ -> true },
     containerName: (VideoCodec?, Boolean) -> String? = { _, _ -> null },
@@ -76,6 +78,7 @@ internal class PlannerFixture {
     canToneMap = canToneMap,
     muxerAccepts = muxerAccepts,
     toneMapLimit = toneMapLimit,
+    fillLimit = fillLimit,
     copyLimit = copyLimit,
     containerCarries = containerCarries,
     containerName = containerName,
@@ -135,6 +138,7 @@ internal class PlannerFixture {
     fadeIn: Duration = Duration.ZERO,
     fadeOut: Duration = Duration.ZERO,
     bitrate: Bitrate? = Bitrate.mbps(12),
+    hasAlpha: Boolean = false,
   ): Clip {
     val source = MediaSource.of("/fixtures/clip-${registry.size}.mp4")
     registry[source] =
@@ -152,6 +156,7 @@ internal class PlannerFixture {
             colorSpace = ColorSpace.Bt709,
             hdrTransfer = hdr,
             bitrate = bitrate,
+            hasAlpha = hasAlpha,
           ),
         audioTracks =
           listOfNotNull(

@@ -5,6 +5,8 @@ import dev.jordond.filmstrip.ffmpeg.internal.FfmpegProber
 import dev.jordond.filmstrip.ffmpeg.internal.FfmpegRuntime
 import dev.jordond.filmstrip.ffmpeg.support.ExportConstants.TIMEOUT
 import dev.jordond.filmstrip.ffmpeg.support.FfmpegExportFixture
+import dev.jordond.filmstrip.ffmpeg.support.hostFfmpeg
+import dev.jordond.filmstrip.ffmpeg.support.proRes4444Clip
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.ProbeResult
@@ -18,6 +20,29 @@ import kotlinx.coroutines.test.runTest
 import java.io.File
 import kotlin.test.Test
 import kotlin.time.Duration.Companion.microseconds
+
+private fun vp9AlphaClip(): File {
+  val file = File.createTempFile("filmstrip-vp9-alpha", ".webm").apply { deleteOnExit() }
+  val encode =
+    ProcessBuilder(
+      hostFfmpeg,
+      "-y",
+      "-hide_banner",
+      "-loglevel",
+      "error",
+      "-f",
+      "lavfi",
+      "-i",
+      "color=c=0xC82828@0.5:s=64x64:r=30:d=1,format=yuva420p",
+      "-c:v",
+      "libvpx-vp9",
+      "-pix_fmt",
+      "yuva420p",
+      file.path,
+    ).inheritIO().start()
+  encode.waitFor() shouldBe 0
+  return file
+}
 
 /**
  * What [FfmpegProber] reports once a real ffprobe has read the file.
@@ -52,6 +77,36 @@ class FfmpegProberReadMediaTest {
       } finally {
         primed.delete()
       }
+    }
+
+  @Test
+  fun `a prores 4444 clip with alpha reads as alpha and an opaque clip does not`() =
+    runTest(timeout = TIMEOUT) {
+      if (!fixture.available()) return@runTest
+
+      val prober = FfmpegProber(FfmpegRuntime.unshared(FfmpegConfig()))
+      val alpha = proRes4444Clip(64, 64, red = 200, green = 40, blue = 40, alpha = 128)
+
+      val clip = prober.probe(MediaSource.of(alpha.path)).shouldBeInstanceOf<ProbeResult.Success>().info
+      val opaque = prober.probe(MediaSource.of(fixture.landscape.path)).shouldBeInstanceOf<ProbeResult.Success>().info
+
+      clip.video.shouldNotBeNull().hasAlpha shouldBe true
+      opaque.video.shouldNotBeNull().hasAlpha shouldBe false
+    }
+
+  // ffmpeg's native VP9 decoder drops the alpha a WebM keeps beside the picture, so ffprobe names an opaque format and
+  // the clip reads as opaque, the limit the docs name.
+  @Test
+  fun `a vp9 clip tagged with alpha reads as opaque`() =
+    runTest(timeout = TIMEOUT) {
+      if (!fixture.available()) return@runTest
+
+      val prober = FfmpegProber(FfmpegRuntime.unshared(FfmpegConfig()))
+      val webm = vp9AlphaClip()
+
+      val clip = prober.probe(MediaSource.of(webm.path)).shouldBeInstanceOf<ProbeResult.Success>().info
+
+      clip.video.shouldNotBeNull().hasAlpha shouldBe false
     }
 
   @Test

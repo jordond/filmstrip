@@ -23,7 +23,9 @@ import dev.jordond.filmstrip.capability.DeviceCapabilities
 import dev.jordond.filmstrip.effect.RenderApi
 import dev.jordond.filmstrip.effect.RenderCapabilities
 import dev.jordond.filmstrip.effect.RenderFeature
+import dev.jordond.filmstrip.effects.spatial.blurKernelLimit
 import dev.jordond.filmstrip.export.ExportStatus
+import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.internal.AppleScratch
 import dev.jordond.filmstrip.media.ColorSpace
@@ -59,6 +61,7 @@ import kotlin.time.Duration
 internal class AvDriver(
   private val prober: MediaProber,
   private val kernelLimit: () -> String? = { toneMapKernelLimit() },
+  private val blurLimit: () -> String? = { blurKernelLimit() },
   private val bytesRoot: String = AppleScratch.defaultRoot,
   private val syncSampleCap: Int = SAMPLE_TIMES_CAP,
   private val renderClip: suspend (ClipAudioRender) -> Unit = ::renderClipAudio,
@@ -71,6 +74,8 @@ internal class AvDriver(
   ): RenderCapabilities = coreImageRenderCapabilities(outputSize, hdr)
 
   override fun toneMapLimit(sdrSources: List<MediaSource>): String? = kernelLimit()
+
+  override fun fillLimit(fill: Fill): String? = if (fill is Fill.Blurred) blurLimit() else null
 
   override suspend fun syncSampleAtOrBefore(
     source: MediaSource,

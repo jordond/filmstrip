@@ -1,34 +1,63 @@
 package dev.jordond.filmstrip.ffmpeg.internal.lowering
 
 import dev.jordond.filmstrip.effect.FilterNode
+import dev.jordond.filmstrip.effect.Sidecar
+import dev.jordond.filmstrip.effects.spatial.SpatialBlurGraph
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.transform.internal.geometry.PixelRect
 import dev.jordond.filmstrip.transform.internal.geometry.backgroundGain
-import dev.jordond.filmstrip.transform.internal.geometry.sigmaFor
-import kotlin.math.roundToInt
+import dev.jordond.filmstrip.transform.internal.geometry.blurPlan
 
 /**
- * The background half of a blurred letterbox.
+ * The background half of a blurred letterbox, handed on in [pixelFormat], adding the tables it reads to [sidecars].
  *
- * The frame is scaled up until it covers the output, centre-cropped to that size, then blurred at
- * [fill]'s radius. A non-zero [Fill.Blurred.dim] darkens the result afterward, as a gain on the
- * color channels rather than an offset, so it never shifts hue.
+ * The frame is scaled up until it covers the output and centre-cropped to that size, then blurred by [fill]'s
+ * [blurPlan] through [SpatialBlurGraph], so the edge it holds is the crop's. The blur runs on sixteen bit 4:4:4 planes
+ * of the frame's own matrix, where every plane blurs at one sigma. A frame with [hasAlpha] is blurred weighted by its
+ * alpha, so its colour is premultiplied before the blur and divided by the blurred alpha after, and the cover that
+ * comes out is opaque. A frame on a kept [transfer] grade is blurred the same way on its scaled SDR signal instead, so
+ * it is the blur the SDR signal would take. A non-zero [Fill.Blurred.dim] darkens the result afterward, as a gain on
+ * the color channels rather than an offset, so it never shifts hue.
  */
 internal fun coverBlurNodes(
   outputSize: Size,
   fill: Fill.Blurred,
+  pixelFormat: String,
+  transfer: HdrTransfer? = null,
+  sidecars: MutableList<Sidecar> = mutableListOf(),
+  hasAlpha: Boolean = false,
 ): List<FilterNode> =
   buildList {
     val width = outputSize.width.toString()
     val height = outputSize.height.toString()
     add(FilterNode("scale", "w" to width, "h" to height, "force_original_aspect_ratio" to "increase"))
     add(FilterNode("crop", "w" to width, "h" to height))
-    add(FilterNode("gblur", "sigma" to blurSigma(fill, outputSize).toString()))
+    val plan = fill.blurPlan(outputSize)
+    if (transfer != null) {
+      val kept = SpatialBlurGraph.onKeptGrade(plan, outputSize, transfer, fill.backgroundGain, hasAlpha)
+      addAll(kept.chain)
+      sidecars += kept.sidecars
+      if (hasAlpha) add(FilterNode("format", "pix_fmts" to OPAQUE_KEPT_FORMAT))
+      add(FilterNode("format", "pix_fmts" to pixelFormat))
+      return@buildList
+    }
+    if (hasAlpha) {
+      add(FilterNode("format", "pix_fmts" to COVER_FORMAT))
+      add(FilterNode("premultiply", "inplace" to "1"))
+    }
+    addAll(SpatialBlurGraph.boxedDown(plan, plan, outputSize, COVER_FORMAT))
+    addAll(SpatialBlurGraph.blurredUp(plan, plan, outputSize, COVER_FORMAT, if (hasAlpha) ALL_PLANES else COLOR_PLANES))
+    if (hasAlpha) {
+      add(FilterNode("unpremultiply", "inplace" to "1"))
+      add(FilterNode("format", "pix_fmts" to OPAQUE_COVER_FORMAT))
+    }
     val gain = fill.backgroundGain
     if (gain != 1f) {
       add(FilterNode("colorchannelmixer", "rr" to gain.toString(), "gg" to gain.toString(), "bb" to gain.toString()))
     }
+    add(FilterNode("format", "pix_fmts" to pixelFormat))
   }
 
 /**
@@ -38,6 +67,8 @@ internal class TrailingFrames(
   val frameRate: Int,
   val pixelFormat: String,
   val slots: Long,
+  val transfer: HdrTransfer? = null,
+  val hasAlpha: Boolean = false,
 )
 
 /**
@@ -46,7 +77,7 @@ internal class TrailingFrames(
  *
  * `tailNodes` writes a single chain, but this needs the frame twice, once for each copy, so [pending] is flushed
  * onto a pad of its own and fanned out with [FilterGraphBuilder.split] instead. The sharp copy lands on [grid], the
- * chroma grid of the chain both copies come from.
+ * chroma grid of the chain both copies come from. The background adds the tables it reads to [sidecars].
  */
 internal fun FilterGraphBuilder.blurredTail(
   pad: String,
@@ -57,6 +88,7 @@ internal fun FilterGraphBuilder.blurredTail(
   label: String,
   tail: TrailingFrames,
   grid: ChromaGrid,
+  sidecars: MutableList<Sidecar>,
 ): String {
   val pre = "${label}pre"
   chain(listOf(pad), pending.ifEmpty { listOf(FilterNode("null")) }, pre)
@@ -66,7 +98,11 @@ internal fun FilterGraphBuilder.blurredTail(
   split(pre, listOf(background, foreground))
 
   val blurred = "${label}blur"
-  chain(listOf(background), coverBlurNodes(outputSize, fill), blurred)
+  chain(
+    listOf(background),
+    coverBlurNodes(outputSize, fill, tail.pixelFormat, tail.transfer, sidecars, tail.hasAlpha),
+    blurred,
+  )
 
   val sharp = "${label}sharp"
   chain(listOf(foreground), scaledInto(rect, outputSize), sharp)
@@ -80,12 +116,6 @@ internal fun FilterGraphBuilder.blurredTail(
   return label
 }
 
-// 1024 is gblur's own ceiling on sigma, not a limit filmstrip picked.
-private fun blurSigma(
-  fill: Fill.Blurred,
-  outputSize: Size,
-): Int = fill.sigmaFor(outputSize).roundToInt().coerceIn(1, 1024)
-
 /**
  * Lays the sharp foreground over the blurred background at [x], [y], for a tail ending on [pixelFormat] on [grid].
  *
@@ -98,3 +128,15 @@ internal fun overlayNodes(
   pixelFormat: String,
   grid: ChromaGrid,
 ): List<FilterNode> = listOf(overlayNode(pixelFormat, grid, "x" to x.toString(), "y" to y.toString()))
+
+private const val COVER_FORMAT = "yuva444p16le"
+private const val OPAQUE_COVER_FORMAT = "yuv444p16le"
+
+// What a kept grade cover is held in once its alpha is dropped.
+private const val OPAQUE_KEPT_FORMAT = "yuv420p10le"
+
+// The luma and both chroma planes of COVER_FORMAT, with its alpha left out.
+private const val COLOR_PLANES = 7
+
+// Every plane of COVER_FORMAT, with its alpha.
+private const val ALL_PLANES = 15

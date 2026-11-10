@@ -23,6 +23,7 @@ import dev.jordond.filmstrip.transform.internal.resolve.ResolvedClip
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedEffect
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedHdr
+import dev.jordond.filmstrip.transform.internal.resolve.anyClipHasAlpha
 import dev.jordond.filmstrip.transform.internal.resolve.effectsOverFill
 import dev.jordond.filmstrip.transform.internal.resolve.effectsUnderFill
 import dev.jordond.filmstrip.transform.internal.resolve.paintsFillAfterEffects
@@ -119,7 +120,10 @@ internal class GraphLowering(
   // fill straight in and never goes through an alpha format.
   private val deferFill: Boolean =
     negotiated.paintsFillAfterEffects &&
-      (effectsUnderFill.isNotEmpty() || negotiated.hdrTransfer != null || negotiated.buildsCanvas)
+      (
+        effectsUnderFill.isNotEmpty() || negotiated.hdrTransfer != null || negotiated.buildsCanvas ||
+          negotiated.anyClipHasAlpha
+      )
 
   // The format a clip's tail actually ends on. Alpha is what marks a pixel the fill has not painted
   // yet, so every clip carries it through concat and the effects under the fill while the fill is
@@ -454,9 +458,10 @@ internal class GraphLowering(
 
     val rect = clip.drawnIn(output.size)
     val fill = negotiated.fill
-    if (fill is Fill.Blurred && clip.placement.showsBlurredFill(output.size)) {
-      val tail = TrailingFrames(frameRate, tailPixelFormat, slots)
-      return graph.blurredTail(pad, pending, fill, rect, output.size, "v$index", tail, grid)
+    val hasAlpha = clip.info.video?.hasAlpha == true
+    if (fill is Fill.Blurred && (clip.placement.showsBlurredFill(output.size) || hasAlpha)) {
+      val tail = TrailingFrames(frameRate, tailPixelFormat, slots, negotiated.hdrTransfer, hasAlpha)
+      return graph.blurredTail(pad, pending, fill, rect, output.size, "v$index", tail, grid, sidecars)
     }
 
     pending += tailNodes(output.size, rect, padColor, frameRate, tailPixelFormat, slots, grid)

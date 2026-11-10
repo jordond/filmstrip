@@ -28,8 +28,8 @@ internal object SpatialShader {
     gradeLight: String = IDENTITY_GRADE_LIGHT_GLSL,
   ): List<SpatialStep> {
     val sigma = blur.sigma.toDouble()
-    val signal = signalUniforms(domain)
-    val source = signalGlsl(gradeLight)
+    val signal = signalFigures(domain)
+    val source = signalSource(gradeLight)
     return listOf(
       SpatialStep(
         STEP_DOWN,
@@ -57,11 +57,11 @@ internal object SpatialShader {
     domain: HdrColorMatrixUniforms?,
     gradeLight: String = IDENTITY_GRADE_LIGHT_GLSL,
   ): List<SpatialStep> {
-    val signal = signalUniforms(domain)
+    val signal = signalFigures(domain)
     return listOf(
       SpatialStep(
         STEP_VIGNETTE,
-        vignetteFragment(signalGlsl(gradeLight)),
+        vignetteFragment(signalSource(gradeLight)),
         mapOf(FRAME to INPUT),
         ::frameSize,
       ) { width, height ->
@@ -74,15 +74,6 @@ internal object SpatialShader {
       },
     )
   }
-
-  // Codes are already the signal, so they go through with every power at one and clamp at white.
-  private fun signalUniforms(domain: HdrColorMatrixUniforms?): Map<String, FloatArray> =
-    mapOf(
-      WHITE to floatArrayOf(domain?.white ?: 1f),
-      DISPLAY_GAMMA to floatArrayOf(domain?.displayGamma ?: 1f),
-      OOTF_GAMMA to floatArrayOf(domain?.ootfGamma ?: 1f),
-      CEILING to floatArrayOf(domain?.ceiling ?: 1f),
-    )
 
   private fun frameSize(
     width: Int,
@@ -154,6 +145,20 @@ public object SpatialBlur {
     """.trimIndent()
 
   /**
+   * GLSL that moves a channel between the light a frame holds and the SDR signal it encodes to.
+   *
+   * It defines `vec3 toSignal(vec3 light)` and `vec3 fromSignal(vec3 signal)`, which clamps at the grade's ceiling, and
+   * the uniforms [signalUniforms] fills. [gradeLight] carries the light the frame holds into the light the grade reads,
+   * the way `displayLightGradeGlsl` does.
+   */
+  public fun signalGlsl(gradeLight: String = IDENTITY_GRADE_LIGHT_GLSL): String = signalSource(gradeLight)
+
+  /**
+   * The uniforms [signalGlsl] reads for a frame holding the light of [domain], or codes when it is null.
+   */
+  public fun signalUniforms(domain: HdrColorMatrixUniforms?): Map<String, FloatArray> = signalFigures(domain)
+
+  /**
    * The size a blur of [sigmaFraction] of the frame's width runs at, for a frame [width] by [height].
    */
   public fun blurredSize(
@@ -191,21 +196,35 @@ public object SpatialBlur {
       BLUR_FRAGMENT,
       mapOf(FRAME to reads),
       { width, height -> blurredSize(sigmaFraction, width, height) },
-    ) { width, height ->
-      val plan = BlurPlan.of(sigmaFraction, width)
-      val weights = FloatArray(BlurPlan.MAX_TAPS + 1)
-      plan.weights.forEachIndexed { index, weight -> weights[index] = weight.toFloat() }
-      mapOf(
-        "uGap" to
-          if (horizontal) {
-            floatArrayOf(1f / plan.width, 0f)
-          } else {
-            floatArrayOf(0f, 1f / plan.heightOf(height))
-          },
-        "uTaps" to floatArrayOf(plan.taps.toFloat()),
-        "uWeights[0]" to weights,
-      )
-    }
+    ) { width, height -> gaussianUniforms(BlurPlan.of(sigmaFraction, width), height, horizontal) }
+
+  /**
+   * The GLSL ES 3.00 fragment shader one pass of a plan's kernel draws with, reading at the `vUv` varying.
+   *
+   * It reads the boxed frame from the `uFrame` sampler and takes its figures from [gaussianUniforms]. Every channel is
+   * blurred.
+   */
+  public val GAUSSIAN_GLSL: String get() = BLUR_FRAGMENT
+
+  /**
+   * The uniforms [GAUSSIAN_GLSL] runs [plan]'s kernel with, across the boxed frame when [horizontal] is set and up it
+   * otherwise, for a frame [heightPx] tall.
+   *
+   * A name ending in `[0]` is a float array, and any other is a float or a vec by its length.
+   */
+  public fun gaussianUniforms(
+    plan: BlurPlan,
+    heightPx: Int,
+    horizontal: Boolean,
+  ): Map<String, FloatArray> {
+    val weights = FloatArray(BlurPlan.MAX_TAPS + 1)
+    plan.weights.forEachIndexed { index, weight -> weights[index] = weight.toFloat() }
+    return mapOf(
+      "uGap" to if (horizontal) floatArrayOf(1f / plan.width, 0f) else floatArrayOf(0f, 1f / plan.heightOf(heightPx)),
+      "uTaps" to floatArrayOf(plan.taps.toFloat()),
+      "uWeights[0]" to weights,
+    )
+  }
 }
 
 private const val FRAME = "uFrame"
@@ -215,8 +234,17 @@ private const val OOTF_GAMMA = "uOotfGamma"
 private const val CEILING = "uCeiling"
 private const val ORIGINAL = "uOriginal"
 
+// Codes are already the signal, so they go through with every power at one and clamp at white.
+private fun signalFigures(domain: HdrColorMatrixUniforms?): Map<String, FloatArray> =
+  mapOf(
+    WHITE to floatArrayOf(domain?.white ?: 1f),
+    DISPLAY_GAMMA to floatArrayOf(domain?.displayGamma ?: 1f),
+    OOTF_GAMMA to floatArrayOf(domain?.ootfGamma ?: 1f),
+    CEILING to floatArrayOf(domain?.ceiling ?: 1f),
+  )
+
 // Moves a channel between the light a backend holds and the SDR signal, the way HDR_COLOR_MATRIX_GLSL does.
-private fun signalGlsl(gradeLight: String): String =
+private fun signalSource(gradeLight: String): String =
   """
   $gradeLight
   uniform float $WHITE, $DISPLAY_GAMMA, $OOTF_GAMMA, $CEILING;

@@ -133,6 +133,7 @@ private val INFO =
         colorSpace = ColorSpace.Bt709,
         hdrTransfer = null,
         bitrate = Bitrate.mbps(12),
+        hasAlpha = false,
       ),
     audioTracks = emptyList(),
     isExportable = true,

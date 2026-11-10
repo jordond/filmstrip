@@ -19,9 +19,11 @@ import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.HDR_CLIP
 import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.TIMEOUT
 import dev.jordond.filmstrip.test.assumeDecodesTenBitHevc
 import dev.jordond.filmstrip.test.assumeEncodesHdr
+import dev.jordond.filmstrip.test.encodesHdr
 import io.kotest.assertions.withClue
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.test.runTest
+import org.junit.Assume.assumeTrue
 import java.io.File
 import kotlin.test.Test
 
@@ -172,6 +174,29 @@ class AndroidFillMediaTest {
       withClue("a mid grey landed at $ratio of white, so the fill skipped its conversion") {
         (ratio < HDR_GREY_CEILING) shouldBe true
       }
+    }
+
+  // A kept grade blurs and dims on the SDR signal. The retriever tone maps an HDR frame on the way out and never says
+  // how, so what a code there means is not something to read an exact figure from, and this reads direction only. It
+  // also builds the cover's HDR shaders on the device.
+  @Test
+  fun aBlurredFillOnHdrDimsOnTheSignalNotTheLight() =
+    runTest(timeout = TIMEOUT) {
+      val source = probe.fixture(HDR_CLIP)
+      assumeTrue(
+        "a kept grade needs an HDR encoder and this device advertises none, so the cover's blur on the SDR signal is " +
+          "not read here. Where one exists the retriever still tone maps the export unspecified, so only the dim's " +
+          "direction can be read, not an exact blurPlane figure",
+        probe.filmstrip.encodesHdr(),
+      )
+
+      val undimmed = probe.frame(export(source, listOf(squareCrop()), Fill.Blurred(dim = 0f), HdrMode.KeepHdr))
+      val halfDimmed = probe.frame(export(source, listOf(squareCrop()), Fill.Blurred(dim = 0.5f), HdrMode.KeepHdr))
+
+      val bright = undimmed.averageAt(CENTRE_X, BAR_Y).luminance()
+      val half = halfDimmed.averageAt(CENTRE_X, BAR_Y).luminance()
+      withClue("the undimmed bar reads as black, nothing to compare against") { (bright > BLACK_CEILING) shouldBe true }
+      withClue("the half dimmed bar read $half against $bright undimmed") { (half < bright) shouldBe true }
     }
 
   @Test

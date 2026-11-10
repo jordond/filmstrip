@@ -63,7 +63,8 @@ leaves the bars clear until the fill lands, and only an effect that moves pixels
 into one.
 
 Whatever a clip leaves uncovered shows the composition's `fill`, which defaults to black. `Fill.Solid` takes a color and
-`Fill.Blur` draws a blurred copy of the clip behind it.
+`Fill.Blur` draws a blurred copy of the clip behind it. A clip with transparent pixels shows the fill through them too,
+so a blurred fill is drawn behind it even when it covers the whole frame.
 
 <Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Effects.kt" region="fit" />
 
@@ -119,12 +120,12 @@ so the effect is only valid on a clip. A plan refuses it on a track, on the comp
 - The browser only turns a frame by whole quarter turns, and refuses any other `rotate` angle by name.
 - The ffmpeg backend refuses `kenBurns`, since it has no per-frame crop.
 - An effect or a blurred fill on the ffmpeg backend is refused by name when the build lacks a filter it runs on, like
-  `gblur` for `blur` and `Fill.Blur`.
+  `convolution` for `blur`, or `convolution`, `fillborders`, `pad` and `transpose` for `Fill.Blur`.
 - On Apple, `blur` and `vignette` run a Core Image Metal kernel, which takes an Apple6 GPU on iOS or macOS 12. A device
   that can't compile one refuses them by name.
-- On the ffmpeg backend, `blur` runs through `gblur`, which is recursive rather than a true Gaussian, and through 8-bit
-  RGB. It lands within 2.5 codes of the shared kernel, measured at 2.2. `vignette` rounds on the way through RGB and
-  back, and lands within 1.5 codes of the shared gain, measured at 1.25.
+- On the ffmpeg backend, `blur` runs through `convolution` with the shared kernel, and through 8-bit RGB. It lands within
+  2.5 codes of the shared kernel, measured at 2.2. `vignette` rounds on the way through RGB and back, and lands within
+  1.5 codes of the shared gain, measured at 1.25.
 - On a kept HDR grade, `brightness`, the color matrices, `blur` and `vignette` read the frame the way an SDR display at
   reference white would. Highlights keep going where an SDR export would clip. See [HDR](/guides/hdr/).
 - On a kept HLG grade, Apple reads each pixel as the same signal the other backends do, so the color matrices and the

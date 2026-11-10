@@ -131,6 +131,7 @@ class AvLadderTest {
               colorSpace = ColorSpace.Bt709,
               hdrTransfer = null,
               bitrate = null,
+              hasAlpha = false,
             ),
           audioTracks = emptyList(),
           isExportable = true,

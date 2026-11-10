@@ -51,6 +51,7 @@ public class PlannedExportEngine(
       muxerAccepts = muxerAccepts,
       copyLimit = copyLimit,
       toneMapLimit = backend::toneMapLimit,
+      fillLimit = backend::fillLimit,
     )
 
   private val reads =

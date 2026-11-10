@@ -90,12 +90,12 @@ private val ResolvedComposition.keepsAudio: Boolean
 /**
  * Whether the fill can reach the output frame at all.
  *
- * Only a clip whose placement leaves bars, or a gap in the video, lets the fill show. When neither happens nothing of
- * the fill is ever seen and a backend can skip lowering it.
+ * Only a clip whose placement leaves bars, a clip with transparent pixels or a gap in the video lets the fill show.
+ * When none of them happens nothing of the fill is ever seen and a backend can skip lowering it.
  */
 @InternalFilmstripApi
 public val ResolvedComposition.showsFill: Boolean
-  get() = anyClipLeavesBars || laysGaps
+  get() = anyClipExposesFill || laysGaps
 
 // Whether the video has a gap anywhere: a track that starts after the composition does, or a clip with no picture of
 // its own on a track that carries video.
@@ -115,15 +115,38 @@ public val ResolvedComposition.anyClipLeavesBars: Boolean
   get() = tracks.any { track -> track.content != TrackContent.Audio && track.clips.any { it.placement.leavesBars } }
 
 /**
+ * Whether any clip on a track that draws video carries transparent pixels, which the fill shows through.
+ *
+ * Read off [dev.jordond.filmstrip.media.VideoTrackInfo.hasAlpha], so a source whose alpha a backend cannot decode
+ * never counts.
+ */
+@InternalFilmstripApi
+public val ResolvedComposition.anyClipHasAlpha: Boolean
+  get() =
+    tracks.any { track ->
+      track.content != TrackContent.Audio &&
+        track.clips.any { it.info.video?.hasAlpha == true }
+    }
+
+/**
+ * Whether any clip lets the fill show through, either by leaving bars or by carrying transparent pixels.
+ *
+ * Alpha shows the fill even under a clip that covers the whole frame, so a blurred fill is built for it as well.
+ */
+@InternalFilmstripApi
+public val ResolvedComposition.anyClipExposesFill: Boolean
+  get() = anyClipLeavesBars || anyClipHasAlpha
+
+/**
  * Whether the fill has to be painted after composition-level effects have run, rather than
  * underneath the frame before they do.
  *
- * Only a color fill is held back behind a clip's bars, since a frame-derived fill carries the same
+ * Only a color fill is held back behind a clip's bars or alpha, since a frame-derived fill carries the same
  * grade the frame does. A gap is always a color, so it is always held back.
  */
 @InternalFilmstripApi
 public val ResolvedComposition.paintsFillAfterEffects: Boolean
-  get() = (anyClipLeavesBars && !fill.derivesFromFrame) || laysGaps
+  get() = (anyClipExposesFill && !fill.derivesFromFrame) || laysGaps
 
 /**
  * One track of a [ResolvedComposition].

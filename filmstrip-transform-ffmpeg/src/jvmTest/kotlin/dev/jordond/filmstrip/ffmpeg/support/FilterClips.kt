@@ -65,13 +65,24 @@ internal fun FilterFrames.pqClipOfLuma(
   luma: (Int) -> Int,
   effects: List<EffectSpec> = emptyList(),
   alpha: ((Int) -> Int)? = null,
+): Clip = pqClipOfPicture(width, height, { x, _ -> luma(x) }, effects, alpha)
+
+/**
+ * A [pqClipOfLuma] whose luma code at each column and row is [luma] of them.
+ */
+internal fun FilterFrames.pqClipOfPicture(
+  width: Int,
+  height: Int,
+  luma: (x: Int, y: Int) -> Int,
+  effects: List<EffectSpec> = emptyList(),
+  alpha: ((Int) -> Int)? = null,
 ): Clip {
   val lumaEnd = width * height
   val chromaEnd = lumaEnd * PLANES_BYTES_PER_TWO_PIXELS / 2
   val samples =
     IntArray(if (alpha == null) chromaEnd else chromaEnd + lumaEnd) {
       when {
-        it < lumaEnd -> luma(it % width)
+        it < lumaEnd -> luma(it % width, it / width)
         it < chromaEnd -> MID
         else -> checkNotNull(alpha)((it - chromaEnd) / width)
       }

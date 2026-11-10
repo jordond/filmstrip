@@ -22,6 +22,7 @@ import dev.jordond.filmstrip.export.InertNotice
 import dev.jordond.filmstrip.export.OutputFormat
 import dev.jordond.filmstrip.export.PlannedEffect
 import dev.jordond.filmstrip.export.Verdict
+import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSource
@@ -93,6 +94,7 @@ public class ExportPlanner(
   private val noteOf: (String) -> String? = { null },
   private val canToneMap: Boolean = true,
   private val toneMapLimit: (List<MediaSource>) -> String? = { null },
+  private val fillLimit: (Fill) -> String? = { null },
   private val hdrLadder: List<VideoCodec> = DEFAULT_HDR_LADDER,
   copyLimit: (MediaInfo) -> CopyBlocker? = { null },
   private val containerCarries: (VideoCodec?, AudioCodec, Boolean) -> Boolean = { _, _, _ -> true },
@@ -214,6 +216,12 @@ public class ExportPlanner(
     val framing = framingOf(inert.edit, ask).orElse { return Phase.Refused(it) }
     val grade =
       gradeOf(inert.edit, ask, framing, copySupport, canToneMap, toneMapLimit).orElse { return Phase.Refused(it) }
+    (inert.edit.fill as? Fill.Blurred)
+      ?.let {
+        fillLimit(
+          it,
+        )
+      }?.let { return Phase.Refused(invalid("Fill.Blurred: $it")) }
     return Phase.Next(Graded(streams, inert.edit, inert.notices, framing, grade))
   }
 

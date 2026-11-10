@@ -3,6 +3,7 @@ package dev.jordond.filmstrip.transform.internal.geometry
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.Size
 import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.doubles.plusOrMinus
 import io.kotest.matchers.floats.plusOrMinus
 import io.kotest.matchers.shouldBe
 import kotlin.test.Test
@@ -17,6 +18,18 @@ class FillGeometryTest {
   @Test
   fun `sigma never falls below one however small the radius`() {
     Fill.Blurred(radius = 0f).sigmaFor(Size(1080, 1920)) shouldBe 1f
+  }
+
+  @Test
+  fun `the blur plan runs sigma as a fraction of the output width`() {
+    val fill = Fill.Blurred(radius = 0.04f)
+    for (output in listOf(Size(1080, 1920), Size(1920, 1080), Size(1280, 720))) {
+      val plan = fill.blurPlan(output)
+      val fraction = fill.sigmaFor(output).toDouble() / output.width
+
+      plan.sigmaPx / plan.width shouldBe (fraction plusOrMinus 1e-9)
+      plan.factor * plan.sigmaPx shouldBe (fill.sigmaFor(output).toDouble() plusOrMinus 0.05)
+    }
   }
 
   @Test

@@ -45,6 +45,8 @@ import platform.AVFoundation.nominalFrameRate
 import platform.AVFoundation.preferredTransform
 import platform.AVFoundation.tracksWithMediaType
 import platform.CoreAudioTypes.AudioStreamBasicDescription
+import platform.CoreFoundation.CFBooleanGetTypeID
+import platform.CoreFoundation.CFBooleanGetValue
 import platform.CoreFoundation.CFDictionaryGetTypeID
 import platform.CoreFoundation.CFDictionaryRef
 import platform.CoreFoundation.CFGetTypeID
@@ -62,6 +64,8 @@ import platform.CoreMedia.CMFormatDescriptionGetMediaSubType
 import platform.CoreMedia.CMFormatDescriptionRef
 import platform.CoreMedia.CMTimeGetSeconds
 import platform.CoreMedia.kCMFormatDescriptionExtension_BitsPerComponent
+import platform.CoreMedia.kCMFormatDescriptionExtension_ContainsAlphaChannel
+import platform.CoreMedia.kCMFormatDescriptionExtension_Depth
 import platform.CoreMedia.kCMFormatDescriptionExtension_VerbatimISOSampleEntry
 import platform.CoreMedia.kCMFormatDescriptionExtension_VerbatimSampleDescription
 import platform.CoreVideo.kCVImageBufferColorPrimariesKey
@@ -205,6 +209,7 @@ internal actual class PlatformProber internal constructor(
       colorSpace = format.colorSpace,
       hdrTransfer = format.hdrTransfer,
       bitrate = estimatedDataRate.takeIf { it > 0f }?.let { Bitrate(it.toLong()) },
+      hasAlpha = format.hasAlpha,
     )
   }
 
@@ -233,6 +238,7 @@ internal actual class PlatformProber internal constructor(
    * @property bitDepth Bits per color component, or null when the description does not say.
    * @property colorSpace The color space the track is tagged with.
    * @property hdrTransfer The HDR transfer function, or null for SDR and for untagged media.
+   * @property hasAlpha Whether the description says the track carries an alpha channel.
    */
   private class TrackFormat(
     val codec: TrackCodec,
@@ -240,6 +246,7 @@ internal actual class PlatformProber internal constructor(
     val colorSpace: ColorSpace,
     val hdrTransfer: HdrTransfer?,
     val pixelAspectRatio: Float,
+    val hasAlpha: Boolean,
   )
 
   /**
@@ -259,6 +266,7 @@ internal actual class PlatformProber internal constructor(
         colorSpace = format.colorSpace(),
         hdrTransfer = format.hdrTransfer(),
         pixelAspectRatio = format.pixelAspectRatio(),
+        hasAlpha = format.carriesAlpha(),
       )
     } finally {
       CFRelease(format)
@@ -279,6 +287,29 @@ internal actual class PlatformProber internal constructor(
 
     // Padded to four characters with spaces, which 'aac ' is the one that turns up.
     return trackCodecOf(name.trim())
+  }
+
+  /**
+   * Whether the description says the track carries an alpha channel.
+   *
+   * HEVC with alpha and ProRes 4444 files written by AVFoundation set the flag. A ProRes 4444 file from another writer
+   * can state the same thing only as a 32 bit depth, which is read as alpha for the two 4444 codes.
+   */
+  private fun CMFormatDescriptionRef.carriesAlpha(): Boolean {
+    val flagged = CMFormatDescriptionGetExtension(this, kCMFormatDescriptionExtension_ContainsAlphaChannel)
+    if (flagged != null && CFGetTypeID(flagged) == CFBooleanGetTypeID() && CFBooleanGetValue(flagged.reinterpret())) {
+      return true
+    }
+
+    val subType = CMFormatDescriptionGetMediaSubType(this)
+    if (subType != PRORES_4444 && subType != PRORES_4444_XQ) return false
+    val depth = CMFormatDescriptionGetExtension(this, kCMFormatDescriptionExtension_Depth) ?: return false
+    if (CFGetTypeID(depth) != CFNumberGetTypeID()) return false
+
+    return memScoped {
+      val bits = alloc<IntVar>()
+      CFNumberGetValue(depth.reinterpret(), kCFNumberIntType, bits.ptr) && bits.value == PRORES_ALPHA_DEPTH
+    }
   }
 
   /**
@@ -385,9 +416,13 @@ internal actual class PlatformProber internal constructor(
         colorSpace = ColorSpace.Unknown,
         hdrTransfer = null,
         pixelAspectRatio = SQUARE,
+        hasAlpha = false,
       )
 
     const val SQUARE = 1f
+    const val PRORES_4444 = 0x61703468u // ap4h
+    const val PRORES_4444_XQ = 0x61703478u // ap4x
+    const val PRORES_ALPHA_DEPTH = 32
     val MOVIE_SAMPLE_ENTRIES =
       listOf(
         kCMFormatDescriptionExtension_VerbatimISOSampleEntry,

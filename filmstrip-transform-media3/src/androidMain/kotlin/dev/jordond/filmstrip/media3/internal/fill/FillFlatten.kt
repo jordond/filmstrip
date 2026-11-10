@@ -47,7 +47,8 @@ internal class FillFlatten(
   }
 }
 
-// Mixes the fill color under a pixel's own color by that pixel's alpha, then writes the result back fully opaque.
+// A pixel's alpha mixes its straight color over the fill, and the result is written back fully opaque. A clear pixel
+// shows the fill whatever color an earlier effect left on it.
 private val FRAGMENT_SHADER =
   """
   #version 100

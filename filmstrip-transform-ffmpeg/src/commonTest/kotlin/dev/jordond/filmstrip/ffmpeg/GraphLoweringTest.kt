@@ -21,6 +21,7 @@ import dev.jordond.filmstrip.effect.PlatformEffect
 import dev.jordond.filmstrip.effect.Sidecar
 import dev.jordond.filmstrip.effect.WINDOW_CLOCK
 import dev.jordond.filmstrip.effects.geometry.Scale
+import dev.jordond.filmstrip.effects.spatial.SpatialBlurGraph
 import dev.jordond.filmstrip.export.AudioFormat
 import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.export.OutputFormat
@@ -57,9 +58,9 @@ import dev.jordond.filmstrip.transform.internal.copy.copyPrefixOf
 import dev.jordond.filmstrip.transform.internal.encode.resolveVideoBitrate
 import dev.jordond.filmstrip.transform.internal.geometry.PixelRect
 import dev.jordond.filmstrip.transform.internal.geometry.backgroundGain
+import dev.jordond.filmstrip.transform.internal.geometry.blurPlan
 import dev.jordond.filmstrip.transform.internal.geometry.inWholePixelsOf
 import dev.jordond.filmstrip.transform.internal.geometry.placementOf
-import dev.jordond.filmstrip.transform.internal.geometry.sigmaFor
 import dev.jordond.filmstrip.transform.internal.passesCovering
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedClip
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
@@ -77,7 +78,6 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.string.shouldNotContain
 import io.kotest.matchers.types.shouldBeInstanceOf
-import kotlin.math.roundToInt
 import kotlin.math.roundToLong
 import kotlin.test.Test
 import kotlin.time.Duration
@@ -121,54 +121,25 @@ class GraphLoweringTest {
     val rect = containedRect(output)
 
     graph shouldContain "split=2"
-    graph shouldContain "scale=w=100:h=200:force_original_aspect_ratio=increase,crop=w=100:h=200,gblur=sigma=50"
+    graph shouldContain "scale=w=100:h=200:force_original_aspect_ratio=increase,crop=w=100:h=200,scale="
     val (x, y) = rect.drawnAt(ChromaGrid.Subsampled)
 
     graph shouldContain "[v0fg]scale=w=${rect.width}:h=${rect.height}[v0sharp]"
     graph shouldContain "overlay=x=$x:y=$y"
   }
 
-  // The report scenario: a 1920x1080 source into a 1080x1920 output. Asserted against sigmaFor
-  // itself, not a hardcoded number, so a change to the shared contract fails this test rather
-  // than silently drifting from what the other backends draw.
+  // The report scenario: a 1920x1080 source into a 1080x1920 output, at a radius between the
+  // ends of the range. Asserted against the fill's shared plan rather than a copied number.
   @Test
-  fun `sigma is the radius times the output's shorter side`() {
+  fun `the cover blurs by the fill's shared plan`() {
     val fill = Fill.Blurred(radius = 0.04f)
     val output = Size(1080, 1920)
+    val plan = fill.blurPlan(output)
 
     val graph = graphFor(fill = fill, output = output)
 
-    graph shouldContain "gblur=sigma=${fill.sigmaFor(output).roundToInt()}"
-  }
-
-  // A radius between the default and the one gblur clamps, so the assertion fails under any
-  // reading of the contract that happens to agree with it at the ends of the range.
-  @Test
-  fun `a mid-range radius lowers to the shared sigma uncapped`() {
-    val fill = Fill.Blurred(radius = 0.5f)
-    val output = Size(1080, 1920)
-    val sigma = fill.sigmaFor(output).roundToInt()
-
-    val graph = graphFor(fill = fill, output = output)
-
-    withClue("$sigma is not inside the range this test claims to cover") {
-      (sigma in 2..<GBLUR_SIGMA_CEILING) shouldBe true
-    }
-    graph shouldContain "gblur=sigma=$sigma"
-  }
-
-  // gblur itself refuses a sigma above its ceiling, so a wide-open radius on a large frame is
-  // clamped rather than handed straight through to a value ffmpeg would reject at run time.
-  @Test
-  fun `sigma clamps to gblur's own ceiling`() {
-    val fill = Fill.Blurred(radius = 1f)
-    val output = Size(1080, 1920)
-    val uncapped = fill.sigmaFor(output).roundToInt()
-
-    val graph = graphFor(fill = fill, output = output)
-
-    graph shouldContain "gblur=sigma=$GBLUR_SIGMA_CEILING"
-    graph shouldNotContain "sigma=$uncapped"
+    graph shouldContain "scale=w=${plan.width}:h=${plan.heightOf(output.height)}:flags=area"
+    graph shouldContain "convolution=0m=${SpatialBlurGraph.kernelMatrix(plan)}"
   }
 
   @Test
@@ -938,6 +909,7 @@ class GraphLoweringTest {
               colorSpace = ColorSpace.Bt709,
               hdrTransfer = null,
               bitrate = null,
+              hasAlpha = false,
             ),
           audioTracks =
             listOf(
@@ -1355,6 +1327,7 @@ class GraphLoweringTest {
             colorSpace = ColorSpace.Bt709,
             hdrTransfer = null,
             bitrate = null,
+            hasAlpha = false,
           ),
         audioTracks = emptyList(),
         isExportable = true,
@@ -1430,6 +1403,7 @@ class GraphLoweringTest {
               colorSpace = ColorSpace.Bt709,
               hdrTransfer = null,
               bitrate = null,
+              hasAlpha = false,
             ),
           audioTracks = emptyList(),
           isExportable = true,
@@ -1531,10 +1505,6 @@ private val TOOLCHAIN =
     filters = emptySet(),
     encoders = setOf("libx264"),
   )
-
-// gblur's own ceiling on sigma, a literal here on purpose: it pins what ffmpeg accepts rather than
-// anything the shared contract says.
-private const val GBLUR_SIGMA_CEILING = 1024
 
 // The header of the smallest table this backend writes, standing in for the file an effect brings.
 private const val CUBE = "LUT_3D_SIZE 2"

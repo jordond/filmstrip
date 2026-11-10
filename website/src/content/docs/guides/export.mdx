@@ -140,7 +140,7 @@ under a composition `Film` is part of the clip's frame by then, and takes the lo
 SDR first, reported as a concession under `HdrMode.Auto`, and `HdrMode.KeepHdr` refuses it.
 
 Every backend draws the same frame, within a limit of its own. Apple draws the glow with Core Image's Gaussian, within
-a couple of codes of the shared blur. ffmpeg draws it with `gblur` and rounds through RGB and back, which lands the
+a couple of codes of the shared blur. ffmpeg draws it with `convolution` and rounds through RGB and back, which lands the
 whole look within 2.5 codes of an 8 bit limited range source, and within about 5 of a full range or SD one. Apple
 refuses a `Film` on a device that can't compile its Core Image Metal kernel, the same way it refuses a tone map.
 

@@ -21,6 +21,7 @@ import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.test.runTest
+import kotlin.io.encoding.Base64
 import kotlin.test.Test
 
 /**
@@ -168,6 +169,21 @@ class AndroidProbeTest {
 
   private fun bytesOf(name: String): ByteArray = probe.fixtureFile(name).readBytes()
 
+  // Android's decoders hand a video back opaque and the extractor names no alpha track, so a VP9 WebM tagged with alpha
+  // reads as opaque and the planner never expects a fill to show through it.
+  @Test
+  fun readsAVp9WebmWithAlphaAsOpaque() =
+    runTest(timeout = TIMEOUT) {
+      val info = probe.infoOf(MediaSource.Bytes(Base64.decode(ALPHA_WEBM)))
+
+      withClue("the fixture is a VP9 track") {
+        info.video
+          .shouldNotBeNull()
+          .codec.kind shouldBe CodecKind.Vp9
+      }
+      withClue("alpha the platform cannot decode is dropped") { info.video?.hasAlpha shouldBe false }
+    }
+
   private suspend fun infoOf(name: String): MediaInfo = probe.infoOf(probe.fixture(name))
 
   private companion object {
@@ -187,3 +203,18 @@ private const val AMR_SAMPLE_RATE = 8_000
 private const val AMR_FRAME_BYTES = 32
 private const val AMR_FRAMES_PER_SECOND = 50
 private const val AMR_12K2_FRAME_HEADER: Byte = 0x3C
+
+// A 64 by 64 VP9 WebM of one half transparent frame, written by libvpx with its alpha plane kept.
+private const val ALPHA_WEBM =
+  "GkXfo59ChoEBQveBAULygQRC84EIQoKEd2VibUKHgQJChYECGFOAZwEAAAAAAAMrEU2bdLpNu4tTq4QVSalmU6yBoU27i1OrhBZU" +
+    "rmtTrIHWTbuMU6uEElTDZ1OsggE2TbuMU6uEHFO7a1OsggMV7AEAAAAAAABZAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" +
+    "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAVSalmsCrXsYMPQkBNgIxM" +
+    "YXZmNjMuMS4xMDJXQYxMYXZmNjMuMS4xMDJEiYhAaQAAAAAAABZUrmvbrgEAAAAAAABS14EBc8WIzLtOl87j/oqcgQAitZyDdW5k" +
+    "iIEAhoVWX1ZQOYOBASPjg4QB/KBV4JSwgUC6gUCagQJTwIEBVbCEVbmBAVXugQHsAQAAAAAAAAIAABJUw2f+c3OfY8CAZ8iZRaOH" +
+    "RU5DT0RFUkSHjExhdmY2My4xLjEwMnNz2WPAi2PFiMy7TpfO4/6KZ8ikRaOHRU5DT0RFUkSHl0xhdmM2My4xLjEwMiBsaWJ2cHgt" +
+    "dnA5Z8ihRaOIRFVSQVRJT05Eh5MwMDowMDowMC4yMDAwMDAwMDAAH0O2dUFW54EAoNKhroEAAACCSYNCAAPwA/YAOCQcGEIAADBg" +
+    "AAATv//3FNgAEf///+qHH/////OIAAB1oZ+mne6BAaWYgkmDQgAD8AP2ADgkHBhCAAAwYAAATgAAoLGhk4EAIQCGAECSnABJQAAD" +
+    "IAAAVHB1oZamlO6BAaWPhgBAkpwASUAAAyAAAFRw+4HfoLGhk4EAQwCGAECSnABKwAADIAAAVHB1oZamlO6BAaWPhgBAkpwASsAA" +
+    "AyAAAFRw+4HeoLGhk4EAZACGAECSnABJwAADIAAAVHB1oZamlO6BAaWPhgBAkpwAScAAAyAAAFRw+4HfoLGhk4EAhQCGAECSnABI" +
+    "oAADIAAAVHB1oZamlO6BAaWPhgBAkpwASKAAAyAAAFRw+4HfoLGhk4EApwCGAECSnABHgAADIAAAVHB1oZamlO6BAaWPhgBAkpwA" +
+    "R4AAAyAAAFRw+4HeHFO7a5G7j7OBALeK94EB8YIBufCBAw=="

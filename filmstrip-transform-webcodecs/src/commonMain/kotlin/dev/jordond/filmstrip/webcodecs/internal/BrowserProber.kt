@@ -112,6 +112,7 @@ internal class BrowserProber : MediaProber {
       colorSpace = space.primaries?.toString().toColorSpace(),
       hdrTransfer = space.transfer?.toString().toHdrTransfer(),
       bitrate = bitrate,
+      hasAlpha = canBeTransparent().await().toBoolean(),
     )
   }
 

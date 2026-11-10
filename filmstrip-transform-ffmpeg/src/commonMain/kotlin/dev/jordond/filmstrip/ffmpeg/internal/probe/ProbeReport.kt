@@ -132,6 +132,19 @@ private fun ProbeSection.pixelFormatDepth(): Int? {
   return DEEP_FORMATS.firstOrNull { (marker, _) -> format.contains(marker) }?.second ?: EIGHT_BIT
 }
 
+/**
+ * Whether the stream's decoded pixel format carries an alpha plane.
+ *
+ * ffprobe names the format the decoder hands back. A VP9 track tagged `alpha_mode` keeps its alpha in a side channel
+ * that ffmpeg's native decoder drops, so it names an opaque format and reads as opaque here.
+ */
+private fun ProbeSection.pixelFormatHasAlpha(): Boolean {
+  val format = this["pix_fmt"] ?: return false
+  return ALPHA_FORMATS.containsMatchIn(format)
+}
+
+private val ALPHA_FORMATS = Regex("^(yuva|ya\\d|ayuv|gbrap)|rgba|bgra|argb|abgr")
+
 private fun ProbeSection.toVideoTrack(): VideoTrackInfo {
   val coded = Size(this["width"]?.toIntOrNull() ?: 0, this["height"]?.toIntOrNull() ?: 0)
   val rotation = rotationDegrees()
@@ -159,6 +172,7 @@ private fun ProbeSection.toVideoTrack(): VideoTrackInfo {
         else -> null
       },
     bitrate = this["bit_rate"]?.toLongOrNull()?.takeIf { it > 0 }?.let(::Bitrate),
+    hasAlpha = pixelFormatHasAlpha(),
   )
 }
 

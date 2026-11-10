@@ -119,7 +119,16 @@ internal fun withoutInert(
   val fillIsInert =
     edit.fill != Fill.Black &&
       edit.tracks.none { it.start > Duration.ZERO } &&
-      primary.clips.all { clip -> clipPlacement(clip, primary, framing, ask)?.leavesBars == false }
+      primary.clips.all { clip -> clipPlacement(clip, primary, framing, ask)?.leavesBars == false } &&
+      edit.tracks.none { track ->
+        track.content != TrackContent.Audio &&
+          track.clips.any {
+            ask.infos
+              .getValue(it.source)
+              .video
+              ?.hasAlpha == true
+          }
+      }
   val fill =
     if (fillIsInert) {
       notices += InertNotice(FILL, InertReason.NoChangeToFrame, FILL_COVERED)

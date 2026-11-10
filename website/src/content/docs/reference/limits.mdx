@@ -58,6 +58,22 @@ See [Fit](/guides/effects/#fit).
 - On an 8-bit ffmpeg export, an overlay or a cropped region at an odd pixel offset lands one pixel up and left of the
   other backends.
 
+## Source alpha
+
+A source with transparent pixels draws over the fill, solid or blurred, even when it covers the whole frame. A track
+reports `hasAlpha` only for alpha its backend can decode, and a source whose alpha a backend drops is treated as opaque.
+
+- Android video decoders hand back opaque pictures, so a video with alpha, such as VP9 in WebM or HEVC with alpha,
+  reads as opaque there. A PNG or WebP still keeps its alpha.
+- ffmpeg decodes VP9 alpha with its native decoder, which drops it, so a WebM tagged `alpha_mode` reads as opaque.
+  ProRes 4444 and other formats whose pixel format has an alpha plane keep it.
+- A GIF, AVIF, HEIC or JPEG XL still reads as opaque everywhere except Apple.
+- On Apple, a ProRes 4444 clip draws through the compositor, which asks for BGRA frames so the alpha arrives. A graded
+  HDR export blends in Core Image's own space, not on stored codes.
+- The browser decodes VP9 alpha through WebCodecs and composites it over the fill. Images are not a browser source.
+- The ffmpeg and Android blends are rounded to the nearest code on the stored channels, so a half transparent pixel can
+  differ from another backend by a few codes.
+
 ## Preview against the file
 
 A preview doesn't encode, so it never shows compression artifacts. Late frames are dropped, so it can be less smooth
@@ -153,8 +169,8 @@ one, it's refused by name.
   frame larger than the output.
 - **Android and browser** need OpenGL ES 3 for every filter, and a texture big enough for a `lut` table, 1170×520 for a
   65 point table and 3096×1419 for 129.
-- **ffmpeg** blurs with an approximation, so a hard edge can land up to a fifth of a step off. Everywhere else it's
-  within a few code values.
+- **ffmpeg** blurs with the shared kernel, and rounds through RGB and back, so a hard edge can land a couple of codes
+  off. Everywhere else it's within a few code values.
 - **ffmpeg** works in 4:2:0, which averages out the colored stripes in `crt`'s mask. Any 4:2:0 file does the same, so
   the export matches the other backends.
 - **ffmpeg** holds `nightVision`'s grain to one of 255 steps, and writes it in 4:2:0, which averages each pixel's grain
@@ -163,6 +179,9 @@ one, it's refused by name.
 - **ffmpeg** draws `glitch` with one `geq` over each of red, green, blue and alpha, every pixel a bilinear read at its
   row's shift, and goes through RGB and back to do it. That round trip lands within 3 codes of the signal, and 4:2:0
   averages the colour fringe across two rows where a slice ends.
+- **ffmpeg** reads a `vhs` beside a clear canvas bar tap by tap where its blur lands across the bar's edge, which runs
+  about 0.9 fps at 1080p on the same server where a frame with no bar runs 5.2 fps. A source with its own alpha can be
+  clear anywhere, so it is read tap by tap over the whole frame, which is slower still.
 - **Every backend** draws `vhs` tracking snow from the same signal. Apple and Android land within 1e-4, the browser
   within one code, and ffmpeg within 1.74 codes of luma and 1.14 of chroma, since it mixes into 8-bit planes.
 - **Every backend** draws `camcorder` from the same raster. Apple and Android land within 1e-4 and the browser within
@@ -174,9 +193,9 @@ Filters are heavy on ffmpeg. Measured on a 12 thread x86 server with x264:
 
 | Look                              | 1080p    | 4K       | Peak memory, 1080p and 4K |
 | --------------------------------- | -------- | -------- | ------------------------- |
-| `film`                            | 19.3 fps | 9.2 fps  | 1 GB and 3.4 GB           |
-| `vhs`                             | 9.1 fps  | 2.8 fps  | 1 GB and 3.3 GB           |
-| `crt`                             | 8.2 fps  | 2.2 fps  | 1.5 GB and 5.4 GB         |
+| `film`                            | 18.4 fps | 9.2 fps  | 1 GB and 3.4 GB           |
+| `vhs`                             | 5.2 fps  | 2.1 fps  | 1 GB and 3.3 GB           |
+| `crt`                             | 9.0 fps  | 2.4 fps  | 1.5 GB and 5.4 GB         |
 | `lut`                             | 70 fps   | 21 fps   |                           |
 | `Film.Super8`                     | 0.3 fps  | 0.1 fps  |                           |
 | `glitch`                          | 4 fps    | 1 fps    |                           |
@@ -184,7 +203,7 @@ Filters are heavy on ffmpeg. Measured on a 12 thread x86 server with x264:
 | `pixel`                           | 54 fps   | 23.1 fps |                           |
 | `pixel` with a palette and dither | 31.6 fps | 19.1 fps |                           |
 | `vignette`                        | 18.8 fps | 4.8 fps  |                           |
-| `gaussianBlur` at 0.02            | 35.3 fps | 9.5 fps  |                           |
+| `gaussianBlur` at 0.02            | 40.3 fps | 9.5 fps  |                           |
 
 - `Film.Super8`'s weave is a per-pixel expression on ffmpeg, since no built-in filter reproduces its sub-pixel read
   exactly. `glitch` is one too, for its per-row shift.

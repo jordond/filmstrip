@@ -18,6 +18,7 @@ import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.test.Test
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.minutes
 
 /**
  * An animated overlay drawn several times, with every core of the host kept busy, draws the same frames each time.
@@ -39,7 +40,7 @@ class FfmpegOverlayDeterminismMediaTest {
 
   @Test
   fun `an animated overlay on a kept grade writes the same frames on every run`() =
-    runTest(timeout = TIMEOUT) {
+    runTest(timeout = KEPT_GRADE_TIMEOUT) {
       if (!fixture.hdr.isFile) return@runTest
 
       assertSameFrames(fixture.hdr, COLOR_READ_HDR_SPEC)
@@ -99,6 +100,10 @@ class FfmpegOverlayDeterminismMediaTest {
 
   private companion object {
     const val RUNS = 3
+
+    // A kept grade draws every frame through the HDR overlay graph, about twenty times the SDR path's cost, so its
+    // three runs took 70 s of the shared two minutes on an ffmpeg 8 CI host.
+    val KEPT_GRADE_TIMEOUT = 5.minutes
 
     // How many test JVMs the build runs at once, set by -PtestForks.
     const val TEST_FORKS = "filmstrip.testForks"

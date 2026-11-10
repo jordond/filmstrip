@@ -257,6 +257,9 @@ internal actual class PlatformProber actual constructor() {
             bitrate =
               video?.int(MediaFormat.KEY_BIT_RATE)?.toLong()?.let(::Bitrate)
                 ?: long(MediaMetadataRetriever.METADATA_KEY_BITRATE)?.let(::Bitrate),
+            // MediaCodec hands a video decoder's pictures back opaque and the extractor names no alpha track, so a
+            // codec's alpha is dropped here and the track reads as opaque.
+            hasAlpha = false,
           )
         },
       audioTracks = if (hasAudio) audioTracksOf(tracks?.audio.orEmpty(), headers) else emptyList(),

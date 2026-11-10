@@ -56,6 +56,7 @@ internal fun laidClip(
             colorSpace = ColorSpace.Bt709,
             hdrTransfer = null,
             bitrate = null,
+            hasAlpha = false,
           ),
         audioTracks =
           listOf(

@@ -7,6 +7,8 @@ import dev.jordond.filmstrip.effect.CoreImageEffect
 import dev.jordond.filmstrip.effect.EffectResolution
 import dev.jordond.filmstrip.effect.PlatformEffect
 import dev.jordond.filmstrip.effects.color.inSignalOf
+import dev.jordond.filmstrip.media.ColorSpace
+import dev.jordond.filmstrip.media.HdrTransfer
 import kotlinx.cinterop.BetaInteropApi
 import kotlinx.cinterop.CValue
 import kotlinx.cinterop.ExperimentalForeignApi
@@ -57,35 +59,13 @@ internal fun GaussianBlur.toStep(limit: String? = spatialKernelLimit()): EffectR
     PlatformEffect(
       CoreImageEffect { image, frame ->
         val extent = image.extent
-        val (x, y, width, height) = extent.useContents { listOf(origin.x, origin.y, size.width, size.height) }
+        val (width, height) = extent.useContents { listOf(size.width, size.height) }
         if (sigma <= 0f || width < 1.0 || height < 1.0) {
           image
         } else {
           val plan = BlurPlan.of(sigma.toDouble(), width.roundToInt())
-          val smallWidth = plan.width.toDouble()
-          val smallHeight = plan.heightOf(height.roundToInt()).toDouble()
-          val small = CGRectMake(0.0, 0.0, smallWidth, smallHeight)
           image.inSignalOf(frame.attributes.hdrTransfer, frame.attributes.colorSpace) { signal ->
-            val down =
-              (KERNELS[BLUR_DOWN_KERNEL] ?: error(SPATIAL_KERNEL_LIMIT)).applyWithExtent(
-                small,
-                roiCallback = { _, _ -> extent },
-                arguments =
-                  listOf(
-                    signal.imageByClampingToExtent(),
-                    CIVector.vectorWithX(x, Y = y, Z = width, W = height),
-                    CIVector.vectorWithX(smallWidth, Y = smallHeight, Z = plan.factor.toDouble()),
-                  ),
-              ) ?: error(SPATIAL_KERNEL_LIMIT)
-            val blurred =
-              down
-                .blurredWithin(plan.sigmaPx, small)
-                .imageByApplyingTransform(
-                  CGAffineTransformConcat(
-                    CGAffineTransformMakeScale(width / smallWidth, height / smallHeight),
-                    CGAffineTransformMakeTranslation(x, y),
-                  ),
-                ).imageByCroppingToRect(extent)
+            val blurred = signal.blurredBy(plan, extent)
             val restore = KERNELS[BLUR_RESTORE_KERNEL] as? CIColorKernel ?: error(SPATIAL_KERNEL_LIMIT)
             restore.applyWithExtent(extent, arguments = listOf(blurred, signal)) ?: error(SPATIAL_KERNEL_LIMIT)
           }
@@ -94,6 +74,75 @@ internal fun GaussianBlur.toStep(limit: String? = spatialKernelLimit()): EffectR
     ),
   )
 }
+
+/**
+ * This image over [extent] blurred by [plan], and read back up to [extent] linearly.
+ *
+ * The image is held at the edge of [extent], boxed down to the plan's size with [BOX_DOWN_MSL] and blurred there by
+ * [blurredWithin]. Core Image holds color premultiplied by alpha, so a pixel is weighed by its alpha. The result stays
+ * premultiplied, and a caller that wants straight color back divides it by the blurred alpha.
+ *
+ * @throws IllegalStateException when this device cannot run the box down kernel, which [SPATIAL_KERNEL_LIMIT] names.
+ */
+@InternalFilmstripApi
+@OptIn(ExperimentalForeignApi::class)
+public fun CIImage.blurredBy(
+  plan: BlurPlan,
+  extent: CValue<CGRect>,
+): CIImage {
+  val (x, y, width, height) = extent.useContents { listOf(origin.x, origin.y, size.width, size.height) }
+  val smallWidth = plan.width.toDouble()
+  val smallHeight = plan.heightOf(height.roundToInt()).toDouble()
+  val small = CGRectMake(0.0, 0.0, smallWidth, smallHeight)
+  val down =
+    (KERNELS[BLUR_DOWN_KERNEL] ?: error(SPATIAL_KERNEL_LIMIT)).applyWithExtent(
+      small,
+      roiCallback = { _, _ -> extent },
+      arguments =
+        listOf(
+          imageByClampingToExtent(),
+          CIVector.vectorWithX(x, Y = y, Z = width, W = height),
+          CIVector.vectorWithX(smallWidth, Y = smallHeight, Z = plan.factor.toDouble()),
+        ),
+    ) ?: error(SPATIAL_KERNEL_LIMIT)
+  return down
+    .blurredWithin(plan.sigmaPx, small)
+    .imageByApplyingTransform(
+      CGAffineTransformConcat(
+        CGAffineTransformMakeScale(width / smallWidth, height / smallHeight),
+        CGAffineTransformMakeTranslation(x, y),
+      ),
+    ).imageByCroppingToRect(extent)
+}
+
+/**
+ * This image over [extent] blurred by [plan] on the signal a color effect reads, and multiplied by [gain] there.
+ *
+ * The image is carried into that signal, the codes of [colorSpace] for an SDR frame with a null [transfer] and the SDR
+ * signal of a kept [transfer] grade otherwise, so the blur and the gain are those of the signal and not of the light
+ * the frame holds. [prepare] runs on that signal before the blur, so a scale to a cover is made on the signal too.
+ */
+@InternalFilmstripApi
+@OptIn(ExperimentalForeignApi::class)
+public fun CIImage.blurredOnSignal(
+  plan: BlurPlan,
+  extent: CValue<CGRect>,
+  transfer: HdrTransfer?,
+  colorSpace: ColorSpace,
+  gain: Float,
+  prepare: (CIImage) -> CIImage = { it },
+): CIImage =
+  inSignalOf(transfer, colorSpace) { signal ->
+    val scale = gain.toDouble()
+    prepare(signal).blurredBy(plan, extent).imageByApplyingFilter(
+      "CIColorMatrix",
+      mapOf(
+        "inputRVector" to CIVector.vectorWithX(scale, 0.0, 0.0, 0.0),
+        "inputGVector" to CIVector.vectorWithX(0.0, scale, 0.0, 0.0),
+        "inputBVector" to CIVector.vectorWithX(0.0, 0.0, scale, 0.0),
+      ),
+    )
+  }
 
 /**
  * This image blurred by Core Image's own Gaussian at [sigmaPx] of its pixels, held at its edge past [small] the way
@@ -178,6 +227,15 @@ internal fun spatialKernelLimit(
     ).respondsToSelector(NSSelectorFromString(KERNELS_FROM_SOURCE)),
   compiles: () -> Boolean = { listOf(BLUR_DOWN_KERNEL, BLUR_RESTORE_KERNEL, VIGNETTE_KERNEL).all { it in KERNELS } },
 ): String? = SPATIAL_KERNEL_LIMIT.takeUnless { kernelsExist && compiles() }
+
+/**
+ * Why this device cannot blur a frame through Core Image, or null when it can.
+ *
+ * It is the limit a [GaussianBlur] is refused with, which a blurred fill reads the same way since it runs the same
+ * kernels.
+ */
+@InternalFilmstripApi
+public fun blurKernelLimit(): String? = spatialKernelLimit()
 
 /**
  * What a plan is refused with on a device that cannot run the blur and vignette kernels.

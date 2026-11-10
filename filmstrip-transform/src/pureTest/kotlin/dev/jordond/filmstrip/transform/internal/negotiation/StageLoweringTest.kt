@@ -14,6 +14,7 @@ import dev.jordond.filmstrip.effects.color.Sepia
 import dev.jordond.filmstrip.effects.geometry.Scale
 import dev.jordond.filmstrip.effects.overlay.TextOverlay
 import dev.jordond.filmstrip.effects.spatial.Vignette
+import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.HdrTransfer
@@ -180,6 +181,20 @@ class StageLoweringTest {
     hdr.colorSpace shouldBe ColorSpace.Bt2020
     sdr.hdrTransfer.shouldBeNull()
     sdr.colorSpace shouldBe ColorSpace.Bt709
+  }
+
+  @Test
+  fun `an opaque source tells each effect its whole frame is opaque and a source with alpha tells it nothing`() {
+    val recorder = Recorder()
+    val lowering = StageLowering(listOf(recorder), UNCLAIMED)
+
+    lowering.lowerStages(listOf(listOf(Sepia(1f))), SIZE, SIZE, SPAN, loweringTarget())
+    val opaque = recorder.attributes.getValue(EffectIds.SEPIA)
+    lowering.lowerStages(listOf(listOf(Brightness(0.5f))), SIZE, SIZE, SPAN, loweringTarget(), sourceHasAlpha = true)
+    val clear = recorder.attributes.getValue(EffectIds.BRIGHTNESS)
+
+    opaque.opaque shouldBe NormalizedRect.Full
+    clear.opaque.shouldBeNull()
   }
 
   private fun lower(

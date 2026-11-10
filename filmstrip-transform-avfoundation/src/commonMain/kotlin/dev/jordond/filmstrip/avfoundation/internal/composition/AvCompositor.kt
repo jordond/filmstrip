@@ -1,13 +1,12 @@
 package dev.jordond.filmstrip.avfoundation.internal.composition
 
+import dev.jordond.filmstrip.avfoundation.internal.chain.BT709_CODE_SPACE
 import dev.jordond.filmstrip.avfoundation.internal.chain.ChainSnapshot
 import dev.jordond.filmstrip.avfoundation.internal.chain.CoreImageChain
 import dev.jordond.filmstrip.avfoundation.internal.chain.sdPrimariesMoved
 import dev.jordond.filmstrip.avfoundation.internal.chain.toneMapped
 import dev.jordond.filmstrip.avfoundation.internal.interop.PIXEL_FORMAT_KEY
 import dev.jordond.filmstrip.avfoundation.internal.time.toDuration
-import dev.jordond.filmstrip.effects.color.createCodeSpace
-import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.HdrTransfer
 import kotlinx.cinterop.BetaInteropApi
 import kotlinx.cinterop.CValue
@@ -42,6 +41,7 @@ import platform.CoreVideo.CVBufferCopyAttachment
 import platform.CoreVideo.CVBufferSetAttachment
 import platform.CoreVideo.CVPixelBufferCreate
 import platform.CoreVideo.CVPixelBufferGetHeight
+import platform.CoreVideo.CVPixelBufferGetPixelFormatType
 import platform.CoreVideo.CVPixelBufferGetWidth
 import platform.CoreVideo.CVPixelBufferRef
 import platform.CoreVideo.CVPixelBufferRefVar
@@ -184,12 +184,17 @@ internal class AvCompositor
 internal fun compositorClass(): AVVideoCompositingProtocol = interpretObjCPointer(AvCompositor.objcPtr())
 
 /**
- * The buffers a compositor asks for its sources in, ten-bit for a graded signal and eight-bit for an SDR one.
+ * The buffers a compositor asks for its sources in, ten-bit for a graded signal, eight-bit for an SDR one and BGRA for
+ * a source with an alpha channel, which the biplanar formats cannot carry.
  *
  * A source decoded to one of these reaches the compositor untouched.
  */
 internal fun compositorSourceAttributes(): Map<Any?, *> =
-  pixelFormats(kCVPixelFormatType_420YpCbCr10BiPlanarVideoRange, kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange)
+  pixelFormats(
+    kCVPixelFormatType_420YpCbCr10BiPlanarVideoRange,
+    kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange,
+    kCVPixelFormatType_32BGRA,
+  )
 
 /**
  * The buffers a compositor renders into, the same format the SDR route reads from its handler.
@@ -267,7 +272,8 @@ private fun ChainSnapshot.blackFrame(): CIImage =
  *
  * This composition names no colour, so the frame carries its own tags and Core Image decodes it with its real matrix. A
  * frame of [color] then moves onto BT.709's primaries with the shared matrices. Any other frame not tagged BT.709 goes
- * through VideoToolbox's pixel transfer.
+ * through VideoToolbox's pixel transfer. A BGRA frame, which is how a source with alpha arrives, already holds RGB
+ * codes and keeps its straight alpha attachment, so it is read as it is.
  *
  * @param color The SD colour read off the clip when it was planned, or null when it has none.
  * @throws IllegalStateException When the pixel transfer cannot convert the frame.
@@ -275,7 +281,9 @@ private fun ChainSnapshot.blackFrame(): CIImage =
 @OptIn(ExperimentalForeignApi::class)
 internal fun CVPixelBufferRef.sdrHead(color: SdSourceColor?): CIImage {
   if (color != null) return rawCodes().sdPrimariesMoved(color).asBt709Codes()
-  if (carriesBt709()) return rawCodes().asBt709Codes()
+  if (carriesBt709() || CVPixelBufferGetPixelFormatType(this) == kCVPixelFormatType_32BGRA) {
+    return rawCodes().asBt709Codes()
+  }
 
   val converted = convertedToBt709()
   try {
@@ -393,10 +401,6 @@ private fun CVPixelBufferRef.tagBt709() {
     kCVAttachmentMode_ShouldPropagate,
   )
 }
-
-// Held for the life of the process, every tone mapped frame reads it.
-@OptIn(ExperimentalForeignApi::class)
-private val BT709_CODE_SPACE by lazy { ColorSpace.Bt709.createCodeSpace() }
 
 private const val ERROR_DOMAIN = "dev.jordond.filmstrip.avfoundation.compositor"
 private const val NO_OUTPUT_BUFFER = "AVFoundation handed the compositor no buffer to render into."

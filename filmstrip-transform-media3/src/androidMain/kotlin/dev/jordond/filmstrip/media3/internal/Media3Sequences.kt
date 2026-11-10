@@ -167,7 +167,10 @@ internal class Lowering(
       // A maximum rather than a target: a higher-rate source has frames dropped, a lower-rate one is left alone.
       .setFrameRate(rate)
       .setEffects(
-        Effects(emptyList(), clipVideoEffects(plan.fill, plan.output.size, wrapper, bounds.sdPrimariesOf(this))),
+        Effects(
+          emptyList(),
+          clipVideoEffects(plan.fill, plan.output.size, wrapper, bounds.sdPrimariesOf(this), plan.hdrTransfer),
+        ),
       ).build()
   }
 
@@ -323,7 +326,16 @@ internal class Lowering(
       .setEffects(
         Effects(
           emptyList(),
-          if (removeVideo) emptyList() else clipVideoEffects(plan.fill, plan.output.size, wrapper),
+          if (removeVideo) {
+            emptyList()
+          } else {
+            clipVideoEffects(
+              plan.fill,
+              plan.output.size,
+              wrapper,
+              transfer = plan.hdrTransfer,
+            )
+          },
         ),
       ).build()
   }

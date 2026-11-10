@@ -90,6 +90,7 @@ internal class TrackLayer(
             span = span,
             target = target,
             storedSize = info.video?.let(::storedSizeOf) ?: target.outputSize,
+            sourceHasAlpha = info.video?.hasAlpha == true,
           )
         lowered += effects
         val sourceSize = info.video?.displaySize ?: target.outputSize

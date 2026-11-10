@@ -285,6 +285,7 @@ class BrowserOverlayPlanTest {
           colorSpace = if (transfer == null) ColorSpace.Bt709 else ColorSpace.Bt2020,
           hdrTransfer = transfer,
           bitrate = null,
+          hasAlpha = false,
         ),
       audioTracks = emptyList(),
       isExportable = true,
