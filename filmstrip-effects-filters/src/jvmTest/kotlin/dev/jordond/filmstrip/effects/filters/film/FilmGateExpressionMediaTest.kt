@@ -44,6 +44,24 @@ class FilmGateExpressionMediaTest {
   }
 
   @Test
+  fun `the geq weave alone rounds every plane to the nearest code of weaveAt`() {
+    val params = FilmParams.of(Film(weave = 1f))
+    val offset = FilmSignal.weaveAt(params.seed, WEAVE_TICK, params.weave)
+    val read = rgba(FilmExpressions.light(params, weaves = true, flickers = false, tick = "$WEAVE_TICK"))
+
+    for (y in 0 until HEIGHT) {
+      for (x in 0 until WIDTH) {
+        val wanted = woven(x, y, offset)
+        for (channel in 0 until 4) {
+          withClue("x $x y $y channel $channel") {
+            abs(read[(channel * HEIGHT + y) * WIDTH + x] - wanted[channel]) shouldBeLessThanOrEqual ROUNDING
+          }
+        }
+      }
+    }
+  }
+
+  @Test
   fun `a clear pixel lends the weave no colour`() {
     val params = FilmParams.of(Film(weave = 1f))
     val read = rgba(FilmExpressions.light(params, weaves = true, flickers = false, tick = "$WEAVE_TICK"))

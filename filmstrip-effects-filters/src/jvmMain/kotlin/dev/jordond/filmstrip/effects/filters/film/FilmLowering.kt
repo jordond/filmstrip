@@ -216,9 +216,10 @@ internal object FilmExpressions {
    * The `geq` on `gbrap` that reads each pixel at [FilmSignal.weaveAt]'s offset when [weaves], and multiplies it by
    * [FilmSignal.flickerAt]'s gain, clamped to full scale, when [flickers], at the tick [tick] names.
    *
-   * The offset and the gain are worked out on a row's first pixel into registers 3, 4 and 5. A woven read takes the
-   * four pixels around its place, each held at the frame's edge, and mixes their colour premultiplied by alpha, so a
-   * clear pixel lends its neighbour no colour. Its alpha is the mix of theirs.
+   * The offset and the gain are worked out on a row's first pixel into registers 3, 4 and 5, and the row's place down
+   * into 7 and 9. A woven read takes the four pixels around its place, each held at the frame's edge by the `geq`'s own
+   * read, and mixes their colour premultiplied by alpha, so a clear pixel lends its neighbour no colour. Its alpha is
+   * the mix of theirs. Every plane rounds to the nearest code.
    */
   fun light(
     params: FilmParams,
@@ -237,16 +238,17 @@ internal object FilmExpressions {
         "st(8,ld(8)*ld(8)*(3-2*ld(8)));${reach(PASS_WEAVE_X, WEAVE_REACH_X, "W", 3)};" +
         reach(PASS_WEAVE_Y, WEAVE_REACH_Y, "H", 4)
     val gain = "st(5,1+$FLICKER_DEPTH*${params.flicker}*(${unit(PASS_FLICKER, "ld(2)")}))"
+    val down = "st(7,Y+ld(4));st(9,floor(ld(7)));st(7,ld(7)-ld(9))"
     val row = "if(X,0,st(2,$tick);${listOfNotNull(
       weave.takeIf { weaves },
       gain.takeIf { flickers },
+      down.takeIf { weaves },
     ).joinToString(";")})"
-    val at =
-      "st(6,X+ld(3));st(7,Y+ld(4));st(8,floor(ld(6)));st(9,floor(ld(7)));st(6,ld(6)-ld(8));st(7,ld(7)-ld(9))"
+    val at = "st(6,X+ld(3));st(8,floor(ld(6)));st(6,ld(6)-ld(8))"
     val corners =
       listOf(Triple("(1-ld(6))*(1-ld(7))", 0, 0), Triple("ld(6)*(1-ld(7))", 1, 0))
         .plus(listOf(Triple("(1-ld(6))*ld(7)", 0, 1), Triple("ld(6)*ld(7)", 1, 1)))
-    val tap = { plane: String, dx: Int, dy: Int -> "$plane(clip(ld(8)+$dx,0,W-1),clip(ld(9)+$dy,0,H-1))" }
+    val tap = { plane: String, dx: Int, dy: Int -> "$plane(ld(8)+$dx,ld(9)+$dy)" }
     val coverage = corners.joinToString("+") { (weight, dx, dy) -> "$weight*${tap("alpha", dx, dy)}" }
     val read = { plane: String ->
       if (weaves) {
@@ -261,7 +263,7 @@ internal object FilmExpressions {
     }
     val lit = { plane: String ->
       val value = if (flickers) "min($FULL_SCALE,(${read(plane)})*ld(5))" else read(plane)
-      "$row;clip(0.5+$value,0,$FULL_SCALE)"
+      "$row;clip(0.5+($value),0,$FULL_SCALE)"
     }
     val alpha = if (weaves) "$row;$at;clip(0.5+$coverage,0,$FULL_SCALE)" else "alpha(X,Y)"
     return FilterNode("geq", "r" to lit("r"), "g" to lit("g"), "b" to lit("b"), "a" to alpha, "i" to "nearest")
