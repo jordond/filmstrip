@@ -120,7 +120,7 @@ public fun CIImage.blurredBy(
  *
  * The image is carried into that signal, the codes of [colorSpace] for an SDR frame with a null [transfer] and the SDR
  * signal of a kept [transfer] grade otherwise, so the blur and the gain are those of the signal and not of the light
- * the frame holds.
+ * the frame holds. [prepare] runs on that signal before the blur, so a scale to a cover is made on the signal too.
  */
 @InternalFilmstripApi
 @OptIn(ExperimentalForeignApi::class)
@@ -130,10 +130,11 @@ public fun CIImage.blurredOnSignal(
   transfer: HdrTransfer?,
   colorSpace: ColorSpace,
   gain: Float,
+  prepare: (CIImage) -> CIImage = { it },
 ): CIImage =
   inSignalOf(transfer, colorSpace) { signal ->
     val scale = gain.toDouble()
-    signal.blurredBy(plan, extent).imageByApplyingFilter(
+    prepare(signal).blurredBy(plan, extent).imageByApplyingFilter(
       "CIColorMatrix",
       mapOf(
         "inputRVector" to CIVector.vectorWithX(scale, 0.0, 0.0, 0.0),

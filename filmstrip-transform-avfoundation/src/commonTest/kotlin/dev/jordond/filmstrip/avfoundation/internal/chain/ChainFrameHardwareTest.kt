@@ -27,10 +27,13 @@ import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.types.shouldBeSameInstanceAs
 import kotlinx.cinterop.ExperimentalForeignApi
 import platform.CoreGraphics.CGAffineTransformMakeScale
+import platform.CoreGraphics.CGImageRelease
 import platform.CoreGraphics.CGRectMake
 import platform.CoreImage.CIColor
+import platform.CoreImage.CIContext
 import platform.CoreImage.CIImage
 import platform.CoreImage.CIVector
+import platform.CoreImage.createCGImage
 import kotlin.math.abs
 import kotlin.test.Test
 
@@ -266,8 +269,7 @@ class ChainFrameHardwareTest {
     val sigma = plan.sigmaPx / plan.width
     val cover =
       frame
-        .coverOf(SQUARE)
-        .shouldNotBeNull()
+        .coverOnCodes(SQUARE)
         .codePixels(100, 100)
         .blue()
     val expected = blurPlane(cover, DoubleArray(cover.size) { 1.0 }, 100, 100, sigma)
@@ -312,7 +314,8 @@ class ChainFrameHardwareTest {
   fun `a blurred cover spreads an edge by the shared sigma at the shared cover scale`() {
     val source = Size(64, 32)
     val fill = Fill.Blurred(radius = 0.06f)
-    val covered = split(width = 64.0, height = 32.0, redWidth = EDGE).blurredCover(SQUARE, fill, null, ColorSpace.Bt709)
+    val frame = split(width = 64.0, height = 32.0, redWidth = EDGE).materialised()
+    val covered = frame.blurredCover(SQUARE, fill, null, ColorSpace.Bt709)
     val pixels = covered.codePixels(100, 100)
     val red = (0 until 100).map { pixels.at(it, 50)[0] }
 
@@ -320,20 +323,14 @@ class ChainFrameHardwareTest {
     val placed = EDGE * scale - (source.width * scale - SQUARE.width) / 2
     val sigma = fill.sigmaFor(SQUARE)
     val plan = fill.blurPlan(SQUARE)
-    val plain =
-      split(
-        width = 64.0,
-        height = 32.0,
-        redWidth = EDGE,
-      ).coverOf(SQUARE).shouldNotBeNull().codePixels(100, 100).red()
+    val plain = frame.coverOnCodes(SQUARE).codePixels(100, 100).red()
     val shared = blurPlane(plain, DoubleArray(plain.size) { 1.0 }, 100, 100, plan.sigmaPx / plan.width)
     val edge = (0 until 100).map { shared[50 * 100 + it].toFloat() }.crossing(0.5f)
     val landed = red.crossing(0.5f)
     val spread = (red.crossing(ONE_SIGMA_LOW) - red.crossing(ONE_SIGMA_HIGH)) / 2
 
     assertNear(covered.rect(), listOf(0.0, 0.0, 100.0, 100.0))
-    // The scale up ramps the edge in light, so its code half level sits up to a pixel off where the edge was placed.
-    withClue("the edge sits at $edge, not $placed") { (abs(edge - placed) < 1.0).shouldBeTrue() }
+    withClue("the edge sits at $edge, not $placed") { (abs(edge - placed) < 0.5).shouldBeTrue() }
     withClue("the edge landed at $landed, not $edge on the shared plan") { (abs(landed - edge) < 0.5).shouldBeTrue() }
     withClue("the edge spread by $spread, not $sigma") { (abs(spread - sigma) < sigma * 0.1).shouldBeTrue() }
   }
@@ -438,6 +435,21 @@ internal fun CIImage.codePixels(
     this
   }
   return codes.linearPixels(width, height)
+}
+
+// The cover scaled on the codes of the frame's SDR space, the way the SDR cover is drawn before its blur.
+private fun CIImage.coverOnCodes(size: Size): CIImage =
+  inCodesOf(ColorSpace.Bt709) { toCodes -> toCodes(this).coverOf(size).shouldNotBeNull() }
+
+// This image as the pixels of a decoded frame, so a step on it reads a frame and not a graph of constant colours.
+@OptIn(ExperimentalForeignApi::class)
+private fun CIImage.materialised(): CIImage {
+  val image = CIContext().createCGImage(this, fromRect = extent).shouldNotBeNull()
+  try {
+    return CIImage(image)
+  } finally {
+    CGImageRelease(image)
+  }
 }
 
 private fun LinearPixels.blue(): DoubleArray = DoubleArray(width * height) { at(it % width, it / width)[2].toDouble() }

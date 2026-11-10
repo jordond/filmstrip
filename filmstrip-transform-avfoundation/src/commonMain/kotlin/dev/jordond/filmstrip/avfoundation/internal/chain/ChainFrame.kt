@@ -198,8 +198,9 @@ internal fun CIImage.fillImage(
 /**
  * Scales this frame to cover [size], centred, crops it to the output frame and blurs it by the fill's [blurPlan].
  *
- * The blur runs on the cover crop, so the edge it holds is the crop's and not the frame's. An SDR frame is blurred on
- * the codes of its [colorSpace] and a frame on a kept [transfer] grade on its SDR signal, with the dim as a gain there.
+ * The blur runs on the cover crop, so the edge it holds is the crop's and not the frame's. An SDR frame is scaled and
+ * blurred on the codes of its [colorSpace] and a frame on a kept [transfer] grade on its SDR signal, with the dim as a
+ * gain there.
  * A frame with nothing in it covers with black.
  *
  * A frame with alpha is blurred weighted by that alpha, and the cover is then made opaque. The cover is the colour the
@@ -212,13 +213,14 @@ internal fun CIImage.blurredCover(
   transfer: HdrTransfer?,
   colorSpace: ColorSpace,
 ): CIImage {
-  val cover = coverOf(size) ?: return CIImage(color = CIColor.blackColor)
+  if (coverOf(size) == null) return CIImage(color = CIColor.blackColor)
   val extent = CGRectMake(0.0, 0.0, size.width.toDouble(), size.height.toDouble())
   val plan = blur.blurPlan(size)
+  fun cover(signal: CIImage): CIImage = signal.coverOf(size) ?: signal
   if (transfer != null) {
-    return cover.blurredOnSignal(plan, extent, transfer, ColorSpace.Bt2020, blur.backgroundGain).opaque()
+    return blurredOnSignal(plan, extent, transfer, ColorSpace.Bt2020, blur.backgroundGain, ::cover).opaque()
   }
-  val blurred = cover.blurredOnSignal(plan, extent, null, colorSpace, gain = 1f).opaque()
+  val blurred = blurredOnSignal(plan, extent, null, colorSpace, gain = 1f, prepare = ::cover).opaque()
   return if (blur.dim <= 0f) blurred else blurred.dimmed(blur.dim)
 }
 
