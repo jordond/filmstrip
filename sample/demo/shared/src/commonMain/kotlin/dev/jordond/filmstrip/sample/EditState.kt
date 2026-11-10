@@ -21,6 +21,7 @@ import dev.jordond.filmstrip.effects.color.invert
 import dev.jordond.filmstrip.effects.color.rgbAdjustment
 import dev.jordond.filmstrip.effects.color.saturation
 import dev.jordond.filmstrip.effects.color.sepia
+import dev.jordond.filmstrip.effects.filters.camcorder.camcorder
 import dev.jordond.filmstrip.effects.filters.crt.crt
 import dev.jordond.filmstrip.effects.filters.film.film
 import dev.jordond.filmstrip.effects.filters.lut.CubeLut
@@ -146,6 +147,7 @@ public class EditState {
   var crtIntensity: Float by mutableStateOf(1f)
   var lutEnabled: Boolean by mutableStateOf(false)
   var lutIntensity: Float by mutableStateOf(1f)
+  val camcorderDisplay: CamcorderState = CamcorderState()
 
   var textEnabled: Boolean by mutableStateOf(false)
   var text: String by mutableStateOf("")
@@ -353,8 +355,10 @@ public class EditState {
 
         if (scaleEnabled) scale(scaleHeight, scaleFit)
         addAll(colorEffects)
+        val burned = camcorderDisplay.shown && camcorderDisplay.burned
         if (vhsEnabled) {
           vhs {
+            if (burned) camcorder(camcorderDisplay.elements)
             intensity = vhsIntensity
             tape = vhsTape
             tracking =
@@ -364,10 +368,13 @@ public class EditState {
                 VhsTrackingMode.Off -> Tracking.Off
               }
           }
+        } else if (burned) {
+          camcorder(camcorderDisplay.elements)
         }
         if (filmEnabled) film(filmGrain, filmHalation)
         if (crtEnabled) crt(crtIntensity)
         if (lutEnabled) lut(SAMPLE_LUT, lutIntensity)
+        if (camcorderDisplay.shown && !camcorderDisplay.burned) camcorder(camcorderDisplay.elements)
 
         if (textEnabled && text.isNotBlank()) {
           textOverlay(
@@ -438,6 +445,7 @@ public class EditState {
     crtIntensity = 1f
     lutEnabled = false
     lutIntensity = 1f
+    camcorderDisplay.reset()
     invert = 0f
     customMatrix = ColorMatrix.Identity
     textEnabled = false

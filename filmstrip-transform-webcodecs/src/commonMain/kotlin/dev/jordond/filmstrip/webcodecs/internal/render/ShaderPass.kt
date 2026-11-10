@@ -98,10 +98,19 @@ internal class ShaderPass(
     val outputs = mutableMapOf<String, PassFrame>()
     pass.steps.forEachIndexed { index, step ->
       val size = step.targetAt(width, height)
+      val frameTables = step.texturesAt(compositionTime, width, height)
+      frameTables.keys.forEach { sampler ->
+        if (sampler in step.reads || sampler in step.textures) {
+          throw BrowserExportFailure("Step ${step.name} of ${pass.programKey} binds $sampler twice.")
+        }
+      }
       val textures =
         step.reads.mapValues { (_, source) ->
           if (source == WebGlStep.INPUT) input else outputs.getValue(source).texture
-        } + step.textures.mapValues { (_, table) -> tables.textureOf("${pass.programKey}/${step.name}", table) }
+        } +
+          (step.textures + frameTables).mapValues { (_, table) ->
+            tables.textureOf("${pass.programKey}/${step.name}", table)
+          }
       val frame = StepFrame(pass, step, textures, width, height, compositionTime)
       if (index < pass.steps.lastIndex) {
         val output = pool.acquire(size.width, size.height)
@@ -126,7 +135,7 @@ internal class ShaderPass(
     targetWidth: Int,
     targetHeight: Int,
   ) {
-    val linked = linkedFor(frame.pass, frame.step)
+    val linked = linkedFor(frame.pass, frame.step, frame.textures.keys)
     gl.useProgram(linked.program)
     frame.step
       .uniformsAt(frame.compositionTime, frame.width, frame.height)
@@ -147,6 +156,7 @@ internal class ShaderPass(
   private fun linkedFor(
     pass: WebGlPass,
     step: WebGlStep,
+    samplers: Set<String>,
   ): LinkedStep {
     val key = "${pass.programKey}/${step.name}"
     val linked =
@@ -156,7 +166,7 @@ internal class ShaderPass(
         gl.bindBuffer(GL_ARRAY_BUFFER, buffer)
         bindQuad(gl, program)
         val units =
-          (step.reads.keys + step.textures.keys)
+          samplers
             .withIndex()
             .associate { (unit, sampler) -> sampler to unit }
         units.forEach { (sampler, unit) -> gl.uniform1i(gl.getUniformLocation(program, sampler), unit) }

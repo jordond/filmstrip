@@ -609,6 +609,39 @@ private fun AdjustPanel(state: SampleAppState) {
     }
   }
 
+  ToolSection("Camcorder") {
+    SwitchRow(
+      label = "Camcorder",
+      checked = edit.camcorderDisplay.enabled,
+      onCheckedChange = {
+        edit.camcorderDisplay.enabled = it
+        state.onEditChanged()
+      },
+    )
+    if (edit.camcorderDisplay.enabled) {
+      SwitchRow(label = "REC", checked = edit.camcorderDisplay.rec, onCheckedChange = {
+        edit.camcorderDisplay.rec = it
+        state.onEditChanged()
+      })
+      SwitchRow(label = "Date and clock", checked = edit.camcorderDisplay.dateAndClock, onCheckedChange = {
+        edit.camcorderDisplay.dateAndClock = it
+        state.onEditChanged()
+      })
+      SwitchRow(label = "Counter", checked = edit.camcorderDisplay.counter, onCheckedChange = {
+        edit.camcorderDisplay.counter = it
+        state.onEditChanged()
+      })
+      SwitchRow(label = "Battery", checked = edit.camcorderDisplay.battery, onCheckedChange = {
+        edit.camcorderDisplay.battery = it
+        state.onEditChanged()
+      })
+      SwitchRow(label = "Recorded on tape", checked = edit.camcorderDisplay.burned, onCheckedChange = {
+        edit.camcorderDisplay.burned = it
+        state.onEditChanged()
+      })
+    }
+  }
+
   ToolSection("Film") {
     SwitchRow(
       label = "Film",

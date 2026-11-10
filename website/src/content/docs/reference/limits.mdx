@@ -126,6 +126,10 @@ one, it's refused by name.
 - **ffmpeg** refuses a look its build is missing a filter for.
 - **Every backend** draws `vhs` tracking snow from the same signal. Apple and Android land within 1e-4, the browser
   within one code, and ffmpeg within 1.74 codes of luma and 1.14 of chroma, since it mixes into 8-bit planes.
+- **Every backend** draws `camcorder` from the same raster. Apple and Android land within 1e-4 and the browser within
+  one code. ffmpeg lays it on 4:2:0 codes, so luma lands within one code and a coloured edge blends with the pixels
+  next to it. A pixel inside a colour lands within one code.
+- **ffmpeg** refuses a `camcorder` over a span with no end.
 
 Filters are heavy on ffmpeg. Measured on a 12 thread x86 server with x264:
 

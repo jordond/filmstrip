@@ -125,3 +125,53 @@ supported.
   [Limits](/reference/limits/#filters).
 - See [Limits](/reference/limits/#filters) for how close each backend lands.
 </Aside>
+
+## Camcorder
+
+`camcorder` draws a camcorder's on screen display over the frame, like a blinking `REC`, the date and a tape counter. The
+text comes from a pixel font filmstrip draws itself, white with a black edge and the record dot in red, so it looks the
+same on every backend and needs no font on the device.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Filters.kt" region="camcorder" />
+
+Each element is one call, and each takes a `corner`. Elements in the same corner stack in the order you add them.
+
+| Element               | What it shows                                                                        | Corner        |
+| --------------------- | ------------------------------------------------------------------------------------ | ------------- |
+| `rec()`               | A record dot and `REC`, the dot blinking once a second                               | `TopLeft`     |
+| `play()`, `pause()`   | A transport icon and its label. `transport(mode)` takes any `TransportMode`          | `TopLeft`     |
+| `date(start, style)`  | The date, `MonthDayYear`, `DayMonthYear` or `YearMonthDay`. `start` sets `recordedAt` | `BottomLeft`  |
+| `clock(style)`        | The time of day, `TwelveHour` as `AM 10:32:00` or `TwentyFourHour`                   | `BottomLeft`  |
+| `counter(start, withFrames)` | A tape counter, `0:00:00`, or `0:00:00:00` with a frame count at the output rate | `TopRight` |
+| `battery(level)`      | A battery with a bar for each third of `level`, blinking while low                   | `TopRight`    |
+| `tape(speed)`         | The tape speed, `SP`, `LP` or `EP`                                                   | `TopRight`    |
+| `label(text)`         | Fixed text from `A` to `Z`, `0` to `9`, space and `: . / - ' +`                      | `BottomRight` |
+
+`recordedAt` is the date and time the date and clock show at the start of the composition, as a `RecordedAt` with no
+time zone. A reading that would run past the last second of 9999 holds at `9999-12-31 23:59:59`. `textSize` is the height of a line as a fraction of the frame height, from `0.01f` to `0.2f`, and the margins
+are a fraction of the frame too, so a smaller preview shows the export scaled down. A label with a character outside the
+font throws an `IllegalArgumentException` naming it. A `camcorder` with no elements leaves the frame alone and is listed
+as an inert notice.
+
+The date, clock and counter read the frame's composition time, the same clock `vhs` runs on, so a seek shows the reading
+that time had, and a counter on a clip still counts from the start of the composition.
+
+### Burned in or clean
+
+Where you declare it decides whether the tape degrades it. Inside `vhs { camcorder { } }` the display is added ahead of
+the `vhs`, so it is recorded on the tape and smears and wobbles with the picture. Declared after a `vhs` at the same scope
+it stays clean, like a VCR's own display over the playback. A `vhs` records one `camcorder`, and a second inside the
+same block throws an `IllegalArgumentException`.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Filters.kt" region="camcorder-order" />
+
+It runs over the fill and under any overlay at its own scope. An HDR source tone maps to SDR first. `HdrMode.Auto`
+reports that as an `HdrToneMapped` adjustment naming the effect, and `HdrMode.KeepHdr` is refused. See [HDR](/guides/hdr/).
+
+<Aside type="note" title="Limits">
+- ffmpeg lays the display from an animated PNG it writes ahead of the export, so it refuses a `camcorder` whose frames
+  have no known end by name.
+- ffmpeg carries the display in 4:2:0. Luma lands within a code of the other backends, and chroma is filtered over the
+  pixels round each sample, so the record dot blends a little with the pixels next to it. See [Limits](/reference/limits/#filters).
+- media3 and the browser need OpenGL ES 3.
+</Aside>

@@ -6,6 +6,8 @@ import dev.jordond.filmstrip.effect.EffectResolver
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effect.RenderApi
 import dev.jordond.filmstrip.effect.RenderCapabilities
+import dev.jordond.filmstrip.effects.filters.camcorder.Camcorder
+import dev.jordond.filmstrip.effects.filters.camcorder.camcorderEffect
 import dev.jordond.filmstrip.effects.filters.crt.Crt
 import dev.jordond.filmstrip.effects.filters.crt.crtKernelLimit
 import dev.jordond.filmstrip.effects.filters.crt.crtResolution
@@ -31,11 +33,24 @@ public actual class FilterEffectResolver actual constructor() : EffectResolver {
     if (capabilities.api != RenderApi.CoreImage && capabilities.api != RenderApi.Metal) return null
 
     return when (spec) {
-      is Vhs -> vhsResolution(spec, vhsKernelLimit())
-      is Film -> filmResolution(spec, filmKernelLimit())
-      is Crt -> crtResolution(spec, crtKernelLimit())
-      is Lut -> lutResolution(spec, lutKernelLimit())
-      else -> null
+      is Camcorder -> {
+        EffectResolution.Resolved(camcorderEffect(spec, attributes.frameRate))
+      }
+      is Vhs -> {
+        vhsResolution(spec, vhsKernelLimit())
+      }
+      is Film -> {
+        filmResolution(spec, filmKernelLimit())
+      }
+      is Crt -> {
+        crtResolution(spec, crtKernelLimit())
+      }
+      is Lut -> {
+        lutResolution(spec, lutKernelLimit())
+      }
+      else -> {
+        null
+      }
     }
   }
 }

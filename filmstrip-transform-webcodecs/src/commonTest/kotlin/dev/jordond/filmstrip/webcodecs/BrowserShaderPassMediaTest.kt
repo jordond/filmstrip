@@ -15,6 +15,7 @@ import dev.jordond.filmstrip.effect.EffectStage
 import dev.jordond.filmstrip.effect.PlatformEffect
 import dev.jordond.filmstrip.effect.WebGlPass
 import dev.jordond.filmstrip.effect.WebGlStep
+import dev.jordond.filmstrip.effect.WebGlTable
 import dev.jordond.filmstrip.effects.BuiltInEffectResolver
 import dev.jordond.filmstrip.effects.geometry.Crop
 import dev.jordond.filmstrip.effects.overlay.ImageOverlay
@@ -248,6 +249,22 @@ class BrowserShaderPassMediaTest {
       failure.error.message.orEmpty() shouldContain "uBad"
     }
 
+  @Test
+  fun aFrameTableNamingASamplerTheStepReadsFailsTheExport() =
+    runTest {
+      val filmstrip =
+        Filmstrip {
+          webCodecsBackend()
+          addEffectResolver(ShaderResolver)
+        }
+      val composition = editOf(listOf(Clip(source())), listOf(ShaderEffect(TABLE_OVER_FRAME)))
+
+      val statuses = filmstrip.export(planOf(filmstrip, composition), MediaSink.Uri("")).toList()
+
+      val failure = statuses.filterIsInstance<ExportStatus.Failure>().single()
+      failure.error.message.orEmpty() shouldContain "binds uFrame twice"
+    }
+
   private suspend fun source(): MediaSource.Bytes =
     MediaSource.Bytes(makeClip(WIDTH, HEIGHT, FRAMES, FRAME_RATE) { _, _ -> FLAT })
 
@@ -380,6 +397,13 @@ private val WRITES_SIZE =
   shader("fragColor = vec4(uSize / ${SIZE_RANGE}.0, 0.0, c.a);") { _, width, height ->
     mapOf("uSize" to floatArrayOf(width.toFloat(), height.toFloat()))
   }
+private val TABLE_OVER_FRAME =
+  WebGlStep(
+    "draw",
+    fragment("fragColor = c;"),
+    mapOf("uFrame" to WebGlStep.INPUT),
+    texturesAt = { _, _, _ -> mapOf("uFrame" to WebGlTable(1, 1, ByteArray(4))) },
+  ) { _, _, _ -> emptyMap() }
 private val BAD_UNIFORM =
   shader("fragColor = vec4(uBad, c.a);") { _, _, _ -> mapOf("uBad" to FloatArray(5)) }
 

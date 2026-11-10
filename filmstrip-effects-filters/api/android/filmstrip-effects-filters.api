@@ -8,6 +8,202 @@ public final class dev/jordond/filmstrip/effects/filters/FilterEffectResolverKt 
 	public static final fun filters (Ldev/jordond/filmstrip/FilmstripBuilder;)Ldev/jordond/filmstrip/FilmstripBuilder;
 }
 
+public final class dev/jordond/filmstrip/effects/filters/camcorder/Camcorder : dev/jordond/filmstrip/effect/EffectSpec {
+	public static final field Companion Ldev/jordond/filmstrip/effects/filters/camcorder/Camcorder$Companion;
+	public static final field DEFAULT_TEXT_SIZE F
+	public static final field ID Ljava/lang/String;
+	public fun <init> (Ljava/util/List;Ldev/jordond/filmstrip/effects/filters/camcorder/RecordedAt;F)V
+	public synthetic fun <init> (Ljava/util/List;Ldev/jordond/filmstrip/effects/filters/camcorder/RecordedAt;FILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getBeneathOverlays ()Z
+	public final fun getElements ()Ljava/util/List;
+	public fun getId ()Ljava/lang/String;
+	public final fun getRecordedAt ()Ldev/jordond/filmstrip/effects/filters/camcorder/RecordedAt;
+	public fun getRequiresSdr ()Z
+	public fun getScope ()Ldev/jordond/filmstrip/effect/EffectScope;
+	public fun getStage ()Ldev/jordond/filmstrip/effect/EffectStage;
+	public final fun getTextSize ()F
+	public fun hashCode ()I
+	public fun isInert ()Z
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/jordond/filmstrip/effects/filters/camcorder/Camcorder$Companion {
+	public final fun getDEFAULT_RECORDED_AT ()Ldev/jordond/filmstrip/effects/filters/camcorder/RecordedAt;
+}
+
+public final class dev/jordond/filmstrip/effects/filters/camcorder/CamcorderBuilder {
+	public final fun battery (FZLdev/jordond/filmstrip/effects/filters/camcorder/OsdCorner;)V
+	public static synthetic fun battery$default (Ldev/jordond/filmstrip/effects/filters/camcorder/CamcorderBuilder;FZLdev/jordond/filmstrip/effects/filters/camcorder/OsdCorner;ILjava/lang/Object;)V
+	public final fun clock (Ldev/jordond/filmstrip/effects/filters/camcorder/ClockStyle;Ldev/jordond/filmstrip/effects/filters/camcorder/OsdCorner;)V
+	public static synthetic fun clock$default (Ldev/jordond/filmstrip/effects/filters/camcorder/CamcorderBuilder;Ldev/jordond/filmstrip/effects/filters/camcorder/ClockStyle;Ldev/jordond/filmstrip/effects/filters/camcorder/OsdCorner;ILjava/lang/Object;)V
+	public final fun counter-KLykuaI (JZLdev/jordond/filmstrip/effects/filters/camcorder/OsdCorner;)V
+	public static synthetic fun counter-KLykuaI$default (Ldev/jordond/filmstrip/effects/filters/camcorder/CamcorderBuilder;JZLdev/jordond/filmstrip/effects/filters/camcorder/OsdCorner;ILjava/lang/Object;)V
+	public final fun date (Ldev/jordond/filmstrip/effects/filters/camcorder/RecordedAt;Ldev/jordond/filmstrip/effects/filters/camcorder/DateStyle;Ldev/jordond/filmstrip/effects/filters/camcorder/OsdCorner;)V
+	public static synthetic fun date$default (Ldev/jordond/filmstrip/effects/filters/camcorder/CamcorderBuilder;Ldev/jordond/filmstrip/effects/filters/camcorder/RecordedAt;Ldev/jordond/filmstrip/effects/filters/camcorder/DateStyle;Ldev/jordond/filmstrip/effects/filters/camcorder/OsdCorner;ILjava/lang/Object;)V
+	public final fun getRecordedAt ()Ldev/jordond/filmstrip/effects/filters/camcorder/RecordedAt;
+	public final fun getTextSize ()F
+	public final fun label (Ljava/lang/String;Ldev/jordond/filmstrip/effects/filters/camcorder/OsdCorner;)V
+	public static synthetic fun label$default (Ldev/jordond/filmstrip/effects/filters/camcorder/CamcorderBuilder;Ljava/lang/String;Ldev/jordond/filmstrip/effects/filters/camcorder/OsdCorner;ILjava/lang/Object;)V
+	public final fun pause (Ldev/jordond/filmstrip/effects/filters/camcorder/OsdCorner;)V
+	public static synthetic fun pause$default (Ldev/jordond/filmstrip/effects/filters/camcorder/CamcorderBuilder;Ldev/jordond/filmstrip/effects/filters/camcorder/OsdCorner;ILjava/lang/Object;)V
+	public final fun play (Ldev/jordond/filmstrip/effects/filters/camcorder/OsdCorner;)V
+	public static synthetic fun play$default (Ldev/jordond/filmstrip/effects/filters/camcorder/CamcorderBuilder;Ldev/jordond/filmstrip/effects/filters/camcorder/OsdCorner;ILjava/lang/Object;)V
+	public final fun rec (Ldev/jordond/filmstrip/effects/filters/camcorder/OsdCorner;)V
+	public static synthetic fun rec$default (Ldev/jordond/filmstrip/effects/filters/camcorder/CamcorderBuilder;Ldev/jordond/filmstrip/effects/filters/camcorder/OsdCorner;ILjava/lang/Object;)V
+	public final fun setRecordedAt (Ldev/jordond/filmstrip/effects/filters/camcorder/RecordedAt;)V
+	public final fun setTextSize (F)V
+	public final fun tape (Ldev/jordond/filmstrip/effects/filters/vhs/TapeSpeed;Ldev/jordond/filmstrip/effects/filters/camcorder/OsdCorner;)V
+	public static synthetic fun tape$default (Ldev/jordond/filmstrip/effects/filters/camcorder/CamcorderBuilder;Ldev/jordond/filmstrip/effects/filters/vhs/TapeSpeed;Ldev/jordond/filmstrip/effects/filters/camcorder/OsdCorner;ILjava/lang/Object;)V
+	public final fun transport (Ldev/jordond/filmstrip/effects/filters/camcorder/TransportMode;Ldev/jordond/filmstrip/effects/filters/camcorder/OsdCorner;)V
+	public static synthetic fun transport$default (Ldev/jordond/filmstrip/effects/filters/camcorder/CamcorderBuilder;Ldev/jordond/filmstrip/effects/filters/camcorder/TransportMode;Ldev/jordond/filmstrip/effects/filters/camcorder/OsdCorner;ILjava/lang/Object;)V
+}
+
+public final class dev/jordond/filmstrip/effects/filters/camcorder/CamcorderBuilderKt {
+	public static final fun camcorder (Ldev/jordond/filmstrip/edit/EffectsBuilder;Lkotlin/jvm/functions/Function1;)Ldev/jordond/filmstrip/edit/EffectsBuilder;
+}
+
+public final class dev/jordond/filmstrip/effects/filters/camcorder/ClockStyle : java/lang/Enum {
+	public static final field TwelveHour Ldev/jordond/filmstrip/effects/filters/camcorder/ClockStyle;
+	public static final field TwentyFourHour Ldev/jordond/filmstrip/effects/filters/camcorder/ClockStyle;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Ldev/jordond/filmstrip/effects/filters/camcorder/ClockStyle;
+	public static fun values ()[Ldev/jordond/filmstrip/effects/filters/camcorder/ClockStyle;
+}
+
+public final class dev/jordond/filmstrip/effects/filters/camcorder/DateStyle : java/lang/Enum {
+	public static final field DayMonthYear Ldev/jordond/filmstrip/effects/filters/camcorder/DateStyle;
+	public static final field MonthDayYear Ldev/jordond/filmstrip/effects/filters/camcorder/DateStyle;
+	public static final field YearMonthDay Ldev/jordond/filmstrip/effects/filters/camcorder/DateStyle;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Ldev/jordond/filmstrip/effects/filters/camcorder/DateStyle;
+	public static fun values ()[Ldev/jordond/filmstrip/effects/filters/camcorder/DateStyle;
+}
+
+public final class dev/jordond/filmstrip/effects/filters/camcorder/OsdCorner : java/lang/Enum {
+	public static final field BottomLeft Ldev/jordond/filmstrip/effects/filters/camcorder/OsdCorner;
+	public static final field BottomRight Ldev/jordond/filmstrip/effects/filters/camcorder/OsdCorner;
+	public static final field TopLeft Ldev/jordond/filmstrip/effects/filters/camcorder/OsdCorner;
+	public static final field TopRight Ldev/jordond/filmstrip/effects/filters/camcorder/OsdCorner;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Ldev/jordond/filmstrip/effects/filters/camcorder/OsdCorner;
+	public static fun values ()[Ldev/jordond/filmstrip/effects/filters/camcorder/OsdCorner;
+}
+
+public abstract interface class dev/jordond/filmstrip/effects/filters/camcorder/OsdElement {
+	public abstract fun getCorner ()Ldev/jordond/filmstrip/effects/filters/camcorder/OsdCorner;
+}
+
+public final class dev/jordond/filmstrip/effects/filters/camcorder/OsdElement$Battery : dev/jordond/filmstrip/effects/filters/camcorder/OsdElement {
+	public fun <init> (FZLdev/jordond/filmstrip/effects/filters/camcorder/OsdCorner;)V
+	public synthetic fun <init> (FZLdev/jordond/filmstrip/effects/filters/camcorder/OsdCorner;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getBlinkWhenLow ()Z
+	public fun getCorner ()Ldev/jordond/filmstrip/effects/filters/camcorder/OsdCorner;
+	public final fun getLevel ()F
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/jordond/filmstrip/effects/filters/camcorder/OsdElement$Clock : dev/jordond/filmstrip/effects/filters/camcorder/OsdElement {
+	public fun <init> ()V
+	public fun <init> (Ldev/jordond/filmstrip/effects/filters/camcorder/ClockStyle;Ldev/jordond/filmstrip/effects/filters/camcorder/OsdCorner;)V
+	public synthetic fun <init> (Ldev/jordond/filmstrip/effects/filters/camcorder/ClockStyle;Ldev/jordond/filmstrip/effects/filters/camcorder/OsdCorner;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getCorner ()Ldev/jordond/filmstrip/effects/filters/camcorder/OsdCorner;
+	public final fun getStyle ()Ldev/jordond/filmstrip/effects/filters/camcorder/ClockStyle;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/jordond/filmstrip/effects/filters/camcorder/OsdElement$Counter : dev/jordond/filmstrip/effects/filters/camcorder/OsdElement {
+	public fun <init> ()V
+	public synthetic fun <init> (JZLdev/jordond/filmstrip/effects/filters/camcorder/OsdCorner;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (JZLdev/jordond/filmstrip/effects/filters/camcorder/OsdCorner;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getCorner ()Ldev/jordond/filmstrip/effects/filters/camcorder/OsdCorner;
+	public final fun getStart-UwyO8pc ()J
+	public final fun getWithFrames ()Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/jordond/filmstrip/effects/filters/camcorder/OsdElement$Date : dev/jordond/filmstrip/effects/filters/camcorder/OsdElement {
+	public fun <init> ()V
+	public fun <init> (Ldev/jordond/filmstrip/effects/filters/camcorder/DateStyle;Ldev/jordond/filmstrip/effects/filters/camcorder/OsdCorner;)V
+	public synthetic fun <init> (Ldev/jordond/filmstrip/effects/filters/camcorder/DateStyle;Ldev/jordond/filmstrip/effects/filters/camcorder/OsdCorner;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getCorner ()Ldev/jordond/filmstrip/effects/filters/camcorder/OsdCorner;
+	public final fun getStyle ()Ldev/jordond/filmstrip/effects/filters/camcorder/DateStyle;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/jordond/filmstrip/effects/filters/camcorder/OsdElement$Label : dev/jordond/filmstrip/effects/filters/camcorder/OsdElement {
+	public fun <init> (Ljava/lang/String;Ldev/jordond/filmstrip/effects/filters/camcorder/OsdCorner;)V
+	public synthetic fun <init> (Ljava/lang/String;Ldev/jordond/filmstrip/effects/filters/camcorder/OsdCorner;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getCorner ()Ldev/jordond/filmstrip/effects/filters/camcorder/OsdCorner;
+	public final fun getText ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/jordond/filmstrip/effects/filters/camcorder/OsdElement$Rec : dev/jordond/filmstrip/effects/filters/camcorder/OsdElement {
+	public fun <init> ()V
+	public fun <init> (Ldev/jordond/filmstrip/effects/filters/camcorder/OsdCorner;)V
+	public synthetic fun <init> (Ldev/jordond/filmstrip/effects/filters/camcorder/OsdCorner;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getCorner ()Ldev/jordond/filmstrip/effects/filters/camcorder/OsdCorner;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/jordond/filmstrip/effects/filters/camcorder/OsdElement$Tape : dev/jordond/filmstrip/effects/filters/camcorder/OsdElement {
+	public fun <init> (Ldev/jordond/filmstrip/effects/filters/vhs/TapeSpeed;Ldev/jordond/filmstrip/effects/filters/camcorder/OsdCorner;)V
+	public synthetic fun <init> (Ldev/jordond/filmstrip/effects/filters/vhs/TapeSpeed;Ldev/jordond/filmstrip/effects/filters/camcorder/OsdCorner;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getCorner ()Ldev/jordond/filmstrip/effects/filters/camcorder/OsdCorner;
+	public final fun getSpeed ()Ldev/jordond/filmstrip/effects/filters/vhs/TapeSpeed;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/jordond/filmstrip/effects/filters/camcorder/OsdElement$Transport : dev/jordond/filmstrip/effects/filters/camcorder/OsdElement {
+	public fun <init> (Ldev/jordond/filmstrip/effects/filters/camcorder/TransportMode;Ldev/jordond/filmstrip/effects/filters/camcorder/OsdCorner;)V
+	public synthetic fun <init> (Ldev/jordond/filmstrip/effects/filters/camcorder/TransportMode;Ldev/jordond/filmstrip/effects/filters/camcorder/OsdCorner;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getCorner ()Ldev/jordond/filmstrip/effects/filters/camcorder/OsdCorner;
+	public final fun getMode ()Ldev/jordond/filmstrip/effects/filters/camcorder/TransportMode;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/jordond/filmstrip/effects/filters/camcorder/RecordedAt {
+	public fun <init> (IIIIII)V
+	public synthetic fun <init> (IIIIIIILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getDay ()I
+	public final fun getHour ()I
+	public final fun getMinute ()I
+	public final fun getMonth ()I
+	public final fun getSecond ()I
+	public final fun getYear ()I
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/jordond/filmstrip/effects/filters/camcorder/TransportMode : java/lang/Enum {
+	public static final field FastForward Ldev/jordond/filmstrip/effects/filters/camcorder/TransportMode;
+	public static final field Pause Ldev/jordond/filmstrip/effects/filters/camcorder/TransportMode;
+	public static final field Play Ldev/jordond/filmstrip/effects/filters/camcorder/TransportMode;
+	public static final field Rewind Ldev/jordond/filmstrip/effects/filters/camcorder/TransportMode;
+	public static final field Stop Ldev/jordond/filmstrip/effects/filters/camcorder/TransportMode;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Ldev/jordond/filmstrip/effects/filters/camcorder/TransportMode;
+	public static fun values ()[Ldev/jordond/filmstrip/effects/filters/camcorder/TransportMode;
+}
+
 public final class dev/jordond/filmstrip/effects/filters/crt/Crt : dev/jordond/filmstrip/effect/EffectSpec {
 	public static final field Companion Ldev/jordond/filmstrip/effects/filters/crt/Crt$Companion;
 	public static final field ID Ljava/lang/String;
@@ -203,6 +399,7 @@ public final class dev/jordond/filmstrip/effects/filters/vhs/Vhs$Companion {
 }
 
 public final class dev/jordond/filmstrip/effects/filters/vhs/VhsBuilder {
+	public final fun camcorder (Lkotlin/jvm/functions/Function1;)V
 	public final fun events (FLkotlin/jvm/functions/Function1;)Ldev/jordond/filmstrip/effects/filters/vhs/Tracking$Events;
 	public static synthetic fun events$default (Ldev/jordond/filmstrip/effects/filters/vhs/VhsBuilder;FLkotlin/jvm/functions/Function1;ILjava/lang/Object;)Ldev/jordond/filmstrip/effects/filters/vhs/Tracking$Events;
 	public final fun getIntensity ()F

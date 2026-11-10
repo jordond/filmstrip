@@ -2,6 +2,8 @@ package dev.jordond.filmstrip.effects.filters.vhs
 
 import dev.jordond.filmstrip.edit.EffectsBuilder
 import dev.jordond.filmstrip.edit.FilmstripDsl
+import dev.jordond.filmstrip.effects.filters.camcorder.Camcorder
+import dev.jordond.filmstrip.effects.filters.camcorder.CamcorderBuilder
 import kotlin.time.Duration
 
 /**
@@ -12,11 +14,17 @@ import kotlin.time.Duration
  *   intensity = 0.6f
  *   tape = TapeSpeed.SP
  *   tracking = rolling(period = 6.seconds) { snow = 0.8f }
+ *   camcorder { rec() }
  * }
  * ```
+ *
+ * A [VhsBuilder.camcorder] inside [block] is added ahead of the [Vhs], so its display is recorded on the tape.
  */
-public fun EffectsBuilder.vhs(block: VhsBuilder.() -> Unit = {}): EffectsBuilder =
-  add(VhsBuilder().apply(block).build())
+public fun EffectsBuilder.vhs(block: VhsBuilder.() -> Unit = {}): EffectsBuilder {
+  val builder = VhsBuilder().apply(block)
+  builder.camcorder?.let { add(it) }
+  return add(builder.build())
+}
 
 /**
  * Describes a [Vhs]. Every value starts at the one [Vhs] uses unless it is given one.
@@ -32,6 +40,18 @@ public class VhsBuilder internal constructor() {
   public var tape: TapeSpeed = TapeSpeed.EP
   public var seed: Int = Vhs.DEFAULT_SEED
   public var tracking: Tracking = Tracking.Events()
+  internal var camcorder: Camcorder? = null
+    private set
+
+  /**
+   * Records a [Camcorder] display described by [block] on the tape, so the look degrades it with the picture.
+   *
+   * @throws IllegalArgumentException when this [vhs] already records a camcorder.
+   */
+  public fun camcorder(block: CamcorderBuilder.() -> Unit) {
+    require(camcorder == null) { "A vhs records one camcorder, and this vhs already has one." }
+    camcorder = CamcorderBuilder().apply(block).build()
+  }
 
   /**
    * Bands that turn up now and then with [chance] in each four second window, shaped by [block].

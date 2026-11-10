@@ -6,6 +6,56 @@
 // - Show declarations: true
 
 // Library unique name: <filmstrip-root:filmstrip-effects-filters>
+final enum class dev.jordond.filmstrip.effects.filters.camcorder/ClockStyle : kotlin/Enum<dev.jordond.filmstrip.effects.filters.camcorder/ClockStyle> { // dev.jordond.filmstrip.effects.filters.camcorder/ClockStyle|null[0]
+    enum entry TwelveHour // dev.jordond.filmstrip.effects.filters.camcorder/ClockStyle.TwelveHour|null[0]
+    enum entry TwentyFourHour // dev.jordond.filmstrip.effects.filters.camcorder/ClockStyle.TwentyFourHour|null[0]
+
+    final val entries // dev.jordond.filmstrip.effects.filters.camcorder/ClockStyle.entries|#static{}entries[0]
+        final fun <get-entries>(): kotlin.enums/EnumEntries<dev.jordond.filmstrip.effects.filters.camcorder/ClockStyle> // dev.jordond.filmstrip.effects.filters.camcorder/ClockStyle.entries.<get-entries>|<get-entries>#static(){}[0]
+
+    final fun valueOf(kotlin/String): dev.jordond.filmstrip.effects.filters.camcorder/ClockStyle // dev.jordond.filmstrip.effects.filters.camcorder/ClockStyle.valueOf|valueOf#static(kotlin.String){}[0]
+    final fun values(): kotlin/Array<dev.jordond.filmstrip.effects.filters.camcorder/ClockStyle> // dev.jordond.filmstrip.effects.filters.camcorder/ClockStyle.values|values#static(){}[0]
+}
+
+final enum class dev.jordond.filmstrip.effects.filters.camcorder/DateStyle : kotlin/Enum<dev.jordond.filmstrip.effects.filters.camcorder/DateStyle> { // dev.jordond.filmstrip.effects.filters.camcorder/DateStyle|null[0]
+    enum entry DayMonthYear // dev.jordond.filmstrip.effects.filters.camcorder/DateStyle.DayMonthYear|null[0]
+    enum entry MonthDayYear // dev.jordond.filmstrip.effects.filters.camcorder/DateStyle.MonthDayYear|null[0]
+    enum entry YearMonthDay // dev.jordond.filmstrip.effects.filters.camcorder/DateStyle.YearMonthDay|null[0]
+
+    final val entries // dev.jordond.filmstrip.effects.filters.camcorder/DateStyle.entries|#static{}entries[0]
+        final fun <get-entries>(): kotlin.enums/EnumEntries<dev.jordond.filmstrip.effects.filters.camcorder/DateStyle> // dev.jordond.filmstrip.effects.filters.camcorder/DateStyle.entries.<get-entries>|<get-entries>#static(){}[0]
+
+    final fun valueOf(kotlin/String): dev.jordond.filmstrip.effects.filters.camcorder/DateStyle // dev.jordond.filmstrip.effects.filters.camcorder/DateStyle.valueOf|valueOf#static(kotlin.String){}[0]
+    final fun values(): kotlin/Array<dev.jordond.filmstrip.effects.filters.camcorder/DateStyle> // dev.jordond.filmstrip.effects.filters.camcorder/DateStyle.values|values#static(){}[0]
+}
+
+final enum class dev.jordond.filmstrip.effects.filters.camcorder/OsdCorner : kotlin/Enum<dev.jordond.filmstrip.effects.filters.camcorder/OsdCorner> { // dev.jordond.filmstrip.effects.filters.camcorder/OsdCorner|null[0]
+    enum entry BottomLeft // dev.jordond.filmstrip.effects.filters.camcorder/OsdCorner.BottomLeft|null[0]
+    enum entry BottomRight // dev.jordond.filmstrip.effects.filters.camcorder/OsdCorner.BottomRight|null[0]
+    enum entry TopLeft // dev.jordond.filmstrip.effects.filters.camcorder/OsdCorner.TopLeft|null[0]
+    enum entry TopRight // dev.jordond.filmstrip.effects.filters.camcorder/OsdCorner.TopRight|null[0]
+
+    final val entries // dev.jordond.filmstrip.effects.filters.camcorder/OsdCorner.entries|#static{}entries[0]
+        final fun <get-entries>(): kotlin.enums/EnumEntries<dev.jordond.filmstrip.effects.filters.camcorder/OsdCorner> // dev.jordond.filmstrip.effects.filters.camcorder/OsdCorner.entries.<get-entries>|<get-entries>#static(){}[0]
+
+    final fun valueOf(kotlin/String): dev.jordond.filmstrip.effects.filters.camcorder/OsdCorner // dev.jordond.filmstrip.effects.filters.camcorder/OsdCorner.valueOf|valueOf#static(kotlin.String){}[0]
+    final fun values(): kotlin/Array<dev.jordond.filmstrip.effects.filters.camcorder/OsdCorner> // dev.jordond.filmstrip.effects.filters.camcorder/OsdCorner.values|values#static(){}[0]
+}
+
+final enum class dev.jordond.filmstrip.effects.filters.camcorder/TransportMode : kotlin/Enum<dev.jordond.filmstrip.effects.filters.camcorder/TransportMode> { // dev.jordond.filmstrip.effects.filters.camcorder/TransportMode|null[0]
+    enum entry FastForward // dev.jordond.filmstrip.effects.filters.camcorder/TransportMode.FastForward|null[0]
+    enum entry Pause // dev.jordond.filmstrip.effects.filters.camcorder/TransportMode.Pause|null[0]
+    enum entry Play // dev.jordond.filmstrip.effects.filters.camcorder/TransportMode.Play|null[0]
+    enum entry Rewind // dev.jordond.filmstrip.effects.filters.camcorder/TransportMode.Rewind|null[0]
+    enum entry Stop // dev.jordond.filmstrip.effects.filters.camcorder/TransportMode.Stop|null[0]
+
+    final val entries // dev.jordond.filmstrip.effects.filters.camcorder/TransportMode.entries|#static{}entries[0]
+        final fun <get-entries>(): kotlin.enums/EnumEntries<dev.jordond.filmstrip.effects.filters.camcorder/TransportMode> // dev.jordond.filmstrip.effects.filters.camcorder/TransportMode.entries.<get-entries>|<get-entries>#static(){}[0]
+
+    final fun valueOf(kotlin/String): dev.jordond.filmstrip.effects.filters.camcorder/TransportMode // dev.jordond.filmstrip.effects.filters.camcorder/TransportMode.valueOf|valueOf#static(kotlin.String){}[0]
+    final fun values(): kotlin/Array<dev.jordond.filmstrip.effects.filters.camcorder/TransportMode> // dev.jordond.filmstrip.effects.filters.camcorder/TransportMode.values|values#static(){}[0]
+}
+
 final enum class dev.jordond.filmstrip.effects.filters.vhs/TapeSpeed : kotlin/Enum<dev.jordond.filmstrip.effects.filters.vhs/TapeSpeed> { // dev.jordond.filmstrip.effects.filters.vhs/TapeSpeed|null[0]
     enum entry EP // dev.jordond.filmstrip.effects.filters.vhs/TapeSpeed.EP|null[0]
     enum entry LP // dev.jordond.filmstrip.effects.filters.vhs/TapeSpeed.LP|null[0]
@@ -20,6 +70,117 @@ final enum class dev.jordond.filmstrip.effects.filters.vhs/TapeSpeed : kotlin/En
 
     final fun valueOf(kotlin/String): dev.jordond.filmstrip.effects.filters.vhs/TapeSpeed // dev.jordond.filmstrip.effects.filters.vhs/TapeSpeed.valueOf|valueOf#static(kotlin.String){}[0]
     final fun values(): kotlin/Array<dev.jordond.filmstrip.effects.filters.vhs/TapeSpeed> // dev.jordond.filmstrip.effects.filters.vhs/TapeSpeed.values|values#static(){}[0]
+}
+
+sealed interface dev.jordond.filmstrip.effects.filters.camcorder/OsdElement { // dev.jordond.filmstrip.effects.filters.camcorder/OsdElement|null[0]
+    abstract val corner // dev.jordond.filmstrip.effects.filters.camcorder/OsdElement.corner|{}corner[0]
+        abstract fun <get-corner>(): dev.jordond.filmstrip.effects.filters.camcorder/OsdCorner // dev.jordond.filmstrip.effects.filters.camcorder/OsdElement.corner.<get-corner>|<get-corner>(){}[0]
+
+    final class Battery : dev.jordond.filmstrip.effects.filters.camcorder/OsdElement { // dev.jordond.filmstrip.effects.filters.camcorder/OsdElement.Battery|null[0]
+        constructor <init>(kotlin/Float, kotlin/Boolean = ..., dev.jordond.filmstrip.effects.filters.camcorder/OsdCorner = ...) // dev.jordond.filmstrip.effects.filters.camcorder/OsdElement.Battery.<init>|<init>(kotlin.Float;kotlin.Boolean;dev.jordond.filmstrip.effects.filters.camcorder.OsdCorner){}[0]
+
+        final val blinkWhenLow // dev.jordond.filmstrip.effects.filters.camcorder/OsdElement.Battery.blinkWhenLow|{}blinkWhenLow[0]
+            final fun <get-blinkWhenLow>(): kotlin/Boolean // dev.jordond.filmstrip.effects.filters.camcorder/OsdElement.Battery.blinkWhenLow.<get-blinkWhenLow>|<get-blinkWhenLow>(){}[0]
+        final val corner // dev.jordond.filmstrip.effects.filters.camcorder/OsdElement.Battery.corner|{}corner[0]
+            final fun <get-corner>(): dev.jordond.filmstrip.effects.filters.camcorder/OsdCorner // dev.jordond.filmstrip.effects.filters.camcorder/OsdElement.Battery.corner.<get-corner>|<get-corner>(){}[0]
+        final val level // dev.jordond.filmstrip.effects.filters.camcorder/OsdElement.Battery.level|{}level[0]
+            final fun <get-level>(): kotlin/Float // dev.jordond.filmstrip.effects.filters.camcorder/OsdElement.Battery.level.<get-level>|<get-level>(){}[0]
+
+        final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.effects.filters.camcorder/OsdElement.Battery.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.effects.filters.camcorder/OsdElement.Battery.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // dev.jordond.filmstrip.effects.filters.camcorder/OsdElement.Battery.toString|toString(){}[0]
+    }
+
+    final class Clock : dev.jordond.filmstrip.effects.filters.camcorder/OsdElement { // dev.jordond.filmstrip.effects.filters.camcorder/OsdElement.Clock|null[0]
+        constructor <init>(dev.jordond.filmstrip.effects.filters.camcorder/ClockStyle = ..., dev.jordond.filmstrip.effects.filters.camcorder/OsdCorner = ...) // dev.jordond.filmstrip.effects.filters.camcorder/OsdElement.Clock.<init>|<init>(dev.jordond.filmstrip.effects.filters.camcorder.ClockStyle;dev.jordond.filmstrip.effects.filters.camcorder.OsdCorner){}[0]
+
+        final val corner // dev.jordond.filmstrip.effects.filters.camcorder/OsdElement.Clock.corner|{}corner[0]
+            final fun <get-corner>(): dev.jordond.filmstrip.effects.filters.camcorder/OsdCorner // dev.jordond.filmstrip.effects.filters.camcorder/OsdElement.Clock.corner.<get-corner>|<get-corner>(){}[0]
+        final val style // dev.jordond.filmstrip.effects.filters.camcorder/OsdElement.Clock.style|{}style[0]
+            final fun <get-style>(): dev.jordond.filmstrip.effects.filters.camcorder/ClockStyle // dev.jordond.filmstrip.effects.filters.camcorder/OsdElement.Clock.style.<get-style>|<get-style>(){}[0]
+
+        final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.effects.filters.camcorder/OsdElement.Clock.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.effects.filters.camcorder/OsdElement.Clock.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // dev.jordond.filmstrip.effects.filters.camcorder/OsdElement.Clock.toString|toString(){}[0]
+    }
+
+    final class Counter : dev.jordond.filmstrip.effects.filters.camcorder/OsdElement { // dev.jordond.filmstrip.effects.filters.camcorder/OsdElement.Counter|null[0]
+        constructor <init>(kotlin.time/Duration = ..., kotlin/Boolean = ..., dev.jordond.filmstrip.effects.filters.camcorder/OsdCorner = ...) // dev.jordond.filmstrip.effects.filters.camcorder/OsdElement.Counter.<init>|<init>(kotlin.time.Duration;kotlin.Boolean;dev.jordond.filmstrip.effects.filters.camcorder.OsdCorner){}[0]
+
+        final val corner // dev.jordond.filmstrip.effects.filters.camcorder/OsdElement.Counter.corner|{}corner[0]
+            final fun <get-corner>(): dev.jordond.filmstrip.effects.filters.camcorder/OsdCorner // dev.jordond.filmstrip.effects.filters.camcorder/OsdElement.Counter.corner.<get-corner>|<get-corner>(){}[0]
+        final val start // dev.jordond.filmstrip.effects.filters.camcorder/OsdElement.Counter.start|{}start[0]
+            final fun <get-start>(): kotlin.time/Duration // dev.jordond.filmstrip.effects.filters.camcorder/OsdElement.Counter.start.<get-start>|<get-start>(){}[0]
+        final val withFrames // dev.jordond.filmstrip.effects.filters.camcorder/OsdElement.Counter.withFrames|{}withFrames[0]
+            final fun <get-withFrames>(): kotlin/Boolean // dev.jordond.filmstrip.effects.filters.camcorder/OsdElement.Counter.withFrames.<get-withFrames>|<get-withFrames>(){}[0]
+
+        final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.effects.filters.camcorder/OsdElement.Counter.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.effects.filters.camcorder/OsdElement.Counter.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // dev.jordond.filmstrip.effects.filters.camcorder/OsdElement.Counter.toString|toString(){}[0]
+    }
+
+    final class Date : dev.jordond.filmstrip.effects.filters.camcorder/OsdElement { // dev.jordond.filmstrip.effects.filters.camcorder/OsdElement.Date|null[0]
+        constructor <init>(dev.jordond.filmstrip.effects.filters.camcorder/DateStyle = ..., dev.jordond.filmstrip.effects.filters.camcorder/OsdCorner = ...) // dev.jordond.filmstrip.effects.filters.camcorder/OsdElement.Date.<init>|<init>(dev.jordond.filmstrip.effects.filters.camcorder.DateStyle;dev.jordond.filmstrip.effects.filters.camcorder.OsdCorner){}[0]
+
+        final val corner // dev.jordond.filmstrip.effects.filters.camcorder/OsdElement.Date.corner|{}corner[0]
+            final fun <get-corner>(): dev.jordond.filmstrip.effects.filters.camcorder/OsdCorner // dev.jordond.filmstrip.effects.filters.camcorder/OsdElement.Date.corner.<get-corner>|<get-corner>(){}[0]
+        final val style // dev.jordond.filmstrip.effects.filters.camcorder/OsdElement.Date.style|{}style[0]
+            final fun <get-style>(): dev.jordond.filmstrip.effects.filters.camcorder/DateStyle // dev.jordond.filmstrip.effects.filters.camcorder/OsdElement.Date.style.<get-style>|<get-style>(){}[0]
+
+        final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.effects.filters.camcorder/OsdElement.Date.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.effects.filters.camcorder/OsdElement.Date.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // dev.jordond.filmstrip.effects.filters.camcorder/OsdElement.Date.toString|toString(){}[0]
+    }
+
+    final class Label : dev.jordond.filmstrip.effects.filters.camcorder/OsdElement { // dev.jordond.filmstrip.effects.filters.camcorder/OsdElement.Label|null[0]
+        constructor <init>(kotlin/String, dev.jordond.filmstrip.effects.filters.camcorder/OsdCorner = ...) // dev.jordond.filmstrip.effects.filters.camcorder/OsdElement.Label.<init>|<init>(kotlin.String;dev.jordond.filmstrip.effects.filters.camcorder.OsdCorner){}[0]
+
+        final val corner // dev.jordond.filmstrip.effects.filters.camcorder/OsdElement.Label.corner|{}corner[0]
+            final fun <get-corner>(): dev.jordond.filmstrip.effects.filters.camcorder/OsdCorner // dev.jordond.filmstrip.effects.filters.camcorder/OsdElement.Label.corner.<get-corner>|<get-corner>(){}[0]
+        final val text // dev.jordond.filmstrip.effects.filters.camcorder/OsdElement.Label.text|{}text[0]
+            final fun <get-text>(): kotlin/String // dev.jordond.filmstrip.effects.filters.camcorder/OsdElement.Label.text.<get-text>|<get-text>(){}[0]
+
+        final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.effects.filters.camcorder/OsdElement.Label.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.effects.filters.camcorder/OsdElement.Label.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // dev.jordond.filmstrip.effects.filters.camcorder/OsdElement.Label.toString|toString(){}[0]
+    }
+
+    final class Rec : dev.jordond.filmstrip.effects.filters.camcorder/OsdElement { // dev.jordond.filmstrip.effects.filters.camcorder/OsdElement.Rec|null[0]
+        constructor <init>(dev.jordond.filmstrip.effects.filters.camcorder/OsdCorner = ...) // dev.jordond.filmstrip.effects.filters.camcorder/OsdElement.Rec.<init>|<init>(dev.jordond.filmstrip.effects.filters.camcorder.OsdCorner){}[0]
+
+        final val corner // dev.jordond.filmstrip.effects.filters.camcorder/OsdElement.Rec.corner|{}corner[0]
+            final fun <get-corner>(): dev.jordond.filmstrip.effects.filters.camcorder/OsdCorner // dev.jordond.filmstrip.effects.filters.camcorder/OsdElement.Rec.corner.<get-corner>|<get-corner>(){}[0]
+
+        final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.effects.filters.camcorder/OsdElement.Rec.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.effects.filters.camcorder/OsdElement.Rec.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // dev.jordond.filmstrip.effects.filters.camcorder/OsdElement.Rec.toString|toString(){}[0]
+    }
+
+    final class Tape : dev.jordond.filmstrip.effects.filters.camcorder/OsdElement { // dev.jordond.filmstrip.effects.filters.camcorder/OsdElement.Tape|null[0]
+        constructor <init>(dev.jordond.filmstrip.effects.filters.vhs/TapeSpeed, dev.jordond.filmstrip.effects.filters.camcorder/OsdCorner = ...) // dev.jordond.filmstrip.effects.filters.camcorder/OsdElement.Tape.<init>|<init>(dev.jordond.filmstrip.effects.filters.vhs.TapeSpeed;dev.jordond.filmstrip.effects.filters.camcorder.OsdCorner){}[0]
+
+        final val corner // dev.jordond.filmstrip.effects.filters.camcorder/OsdElement.Tape.corner|{}corner[0]
+            final fun <get-corner>(): dev.jordond.filmstrip.effects.filters.camcorder/OsdCorner // dev.jordond.filmstrip.effects.filters.camcorder/OsdElement.Tape.corner.<get-corner>|<get-corner>(){}[0]
+        final val speed // dev.jordond.filmstrip.effects.filters.camcorder/OsdElement.Tape.speed|{}speed[0]
+            final fun <get-speed>(): dev.jordond.filmstrip.effects.filters.vhs/TapeSpeed // dev.jordond.filmstrip.effects.filters.camcorder/OsdElement.Tape.speed.<get-speed>|<get-speed>(){}[0]
+
+        final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.effects.filters.camcorder/OsdElement.Tape.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.effects.filters.camcorder/OsdElement.Tape.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // dev.jordond.filmstrip.effects.filters.camcorder/OsdElement.Tape.toString|toString(){}[0]
+    }
+
+    final class Transport : dev.jordond.filmstrip.effects.filters.camcorder/OsdElement { // dev.jordond.filmstrip.effects.filters.camcorder/OsdElement.Transport|null[0]
+        constructor <init>(dev.jordond.filmstrip.effects.filters.camcorder/TransportMode, dev.jordond.filmstrip.effects.filters.camcorder/OsdCorner = ...) // dev.jordond.filmstrip.effects.filters.camcorder/OsdElement.Transport.<init>|<init>(dev.jordond.filmstrip.effects.filters.camcorder.TransportMode;dev.jordond.filmstrip.effects.filters.camcorder.OsdCorner){}[0]
+
+        final val corner // dev.jordond.filmstrip.effects.filters.camcorder/OsdElement.Transport.corner|{}corner[0]
+            final fun <get-corner>(): dev.jordond.filmstrip.effects.filters.camcorder/OsdCorner // dev.jordond.filmstrip.effects.filters.camcorder/OsdElement.Transport.corner.<get-corner>|<get-corner>(){}[0]
+        final val mode // dev.jordond.filmstrip.effects.filters.camcorder/OsdElement.Transport.mode|{}mode[0]
+            final fun <get-mode>(): dev.jordond.filmstrip.effects.filters.camcorder/TransportMode // dev.jordond.filmstrip.effects.filters.camcorder/OsdElement.Transport.mode.<get-mode>|<get-mode>(){}[0]
+
+        final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.effects.filters.camcorder/OsdElement.Transport.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.effects.filters.camcorder/OsdElement.Transport.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // dev.jordond.filmstrip.effects.filters.camcorder/OsdElement.Transport.toString|toString(){}[0]
+    }
 }
 
 sealed interface dev.jordond.filmstrip.effects.filters.vhs/Tracking { // dev.jordond.filmstrip.effects.filters.vhs/Tracking|null[0]
@@ -76,6 +237,82 @@ sealed interface dev.jordond.filmstrip.effects.filters.vhs/Tracking { // dev.jor
         final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.effects.filters.vhs/Tracking.Off.hashCode|hashCode(){}[0]
         final fun toString(): kotlin/String // dev.jordond.filmstrip.effects.filters.vhs/Tracking.Off.toString|toString(){}[0]
     }
+}
+
+final class dev.jordond.filmstrip.effects.filters.camcorder/Camcorder : dev.jordond.filmstrip.effect/EffectSpec { // dev.jordond.filmstrip.effects.filters.camcorder/Camcorder|null[0]
+    constructor <init>(kotlin.collections/List<dev.jordond.filmstrip.effects.filters.camcorder/OsdElement>, dev.jordond.filmstrip.effects.filters.camcorder/RecordedAt = ..., kotlin/Float = ...) // dev.jordond.filmstrip.effects.filters.camcorder/Camcorder.<init>|<init>(kotlin.collections.List<dev.jordond.filmstrip.effects.filters.camcorder.OsdElement>;dev.jordond.filmstrip.effects.filters.camcorder.RecordedAt;kotlin.Float){}[0]
+
+    final val beneathOverlays // dev.jordond.filmstrip.effects.filters.camcorder/Camcorder.beneathOverlays|{}beneathOverlays[0]
+        final fun <get-beneathOverlays>(): kotlin/Boolean // dev.jordond.filmstrip.effects.filters.camcorder/Camcorder.beneathOverlays.<get-beneathOverlays>|<get-beneathOverlays>(){}[0]
+    final val elements // dev.jordond.filmstrip.effects.filters.camcorder/Camcorder.elements|{}elements[0]
+        final fun <get-elements>(): kotlin.collections/List<dev.jordond.filmstrip.effects.filters.camcorder/OsdElement> // dev.jordond.filmstrip.effects.filters.camcorder/Camcorder.elements.<get-elements>|<get-elements>(){}[0]
+    final val id // dev.jordond.filmstrip.effects.filters.camcorder/Camcorder.id|{}id[0]
+        final fun <get-id>(): kotlin/String // dev.jordond.filmstrip.effects.filters.camcorder/Camcorder.id.<get-id>|<get-id>(){}[0]
+    final val isInert // dev.jordond.filmstrip.effects.filters.camcorder/Camcorder.isInert|{}isInert[0]
+        final fun <get-isInert>(): kotlin/Boolean // dev.jordond.filmstrip.effects.filters.camcorder/Camcorder.isInert.<get-isInert>|<get-isInert>(){}[0]
+    final val recordedAt // dev.jordond.filmstrip.effects.filters.camcorder/Camcorder.recordedAt|{}recordedAt[0]
+        final fun <get-recordedAt>(): dev.jordond.filmstrip.effects.filters.camcorder/RecordedAt // dev.jordond.filmstrip.effects.filters.camcorder/Camcorder.recordedAt.<get-recordedAt>|<get-recordedAt>(){}[0]
+    final val requiresSdr // dev.jordond.filmstrip.effects.filters.camcorder/Camcorder.requiresSdr|{}requiresSdr[0]
+        final fun <get-requiresSdr>(): kotlin/Boolean // dev.jordond.filmstrip.effects.filters.camcorder/Camcorder.requiresSdr.<get-requiresSdr>|<get-requiresSdr>(){}[0]
+    final val stage // dev.jordond.filmstrip.effects.filters.camcorder/Camcorder.stage|{}stage[0]
+        final fun <get-stage>(): dev.jordond.filmstrip.effect/EffectStage // dev.jordond.filmstrip.effects.filters.camcorder/Camcorder.stage.<get-stage>|<get-stage>(){}[0]
+    final val textSize // dev.jordond.filmstrip.effects.filters.camcorder/Camcorder.textSize|{}textSize[0]
+        final fun <get-textSize>(): kotlin/Float // dev.jordond.filmstrip.effects.filters.camcorder/Camcorder.textSize.<get-textSize>|<get-textSize>(){}[0]
+
+    final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.effects.filters.camcorder/Camcorder.equals|equals(kotlin.Any?){}[0]
+    final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.effects.filters.camcorder/Camcorder.hashCode|hashCode(){}[0]
+    final fun toString(): kotlin/String // dev.jordond.filmstrip.effects.filters.camcorder/Camcorder.toString|toString(){}[0]
+
+    final object Companion { // dev.jordond.filmstrip.effects.filters.camcorder/Camcorder.Companion|null[0]
+        final const val DEFAULT_TEXT_SIZE // dev.jordond.filmstrip.effects.filters.camcorder/Camcorder.Companion.DEFAULT_TEXT_SIZE|{}DEFAULT_TEXT_SIZE[0]
+            final fun <get-DEFAULT_TEXT_SIZE>(): kotlin/Float // dev.jordond.filmstrip.effects.filters.camcorder/Camcorder.Companion.DEFAULT_TEXT_SIZE.<get-DEFAULT_TEXT_SIZE>|<get-DEFAULT_TEXT_SIZE>(){}[0]
+        final const val ID // dev.jordond.filmstrip.effects.filters.camcorder/Camcorder.Companion.ID|{}ID[0]
+            final fun <get-ID>(): kotlin/String // dev.jordond.filmstrip.effects.filters.camcorder/Camcorder.Companion.ID.<get-ID>|<get-ID>(){}[0]
+
+        final val DEFAULT_RECORDED_AT // dev.jordond.filmstrip.effects.filters.camcorder/Camcorder.Companion.DEFAULT_RECORDED_AT|{}DEFAULT_RECORDED_AT[0]
+            final fun <get-DEFAULT_RECORDED_AT>(): dev.jordond.filmstrip.effects.filters.camcorder/RecordedAt // dev.jordond.filmstrip.effects.filters.camcorder/Camcorder.Companion.DEFAULT_RECORDED_AT.<get-DEFAULT_RECORDED_AT>|<get-DEFAULT_RECORDED_AT>(){}[0]
+    }
+}
+
+final class dev.jordond.filmstrip.effects.filters.camcorder/CamcorderBuilder { // dev.jordond.filmstrip.effects.filters.camcorder/CamcorderBuilder|null[0]
+    final var recordedAt // dev.jordond.filmstrip.effects.filters.camcorder/CamcorderBuilder.recordedAt|{}recordedAt[0]
+        final fun <get-recordedAt>(): dev.jordond.filmstrip.effects.filters.camcorder/RecordedAt // dev.jordond.filmstrip.effects.filters.camcorder/CamcorderBuilder.recordedAt.<get-recordedAt>|<get-recordedAt>(){}[0]
+        final fun <set-recordedAt>(dev.jordond.filmstrip.effects.filters.camcorder/RecordedAt) // dev.jordond.filmstrip.effects.filters.camcorder/CamcorderBuilder.recordedAt.<set-recordedAt>|<set-recordedAt>(dev.jordond.filmstrip.effects.filters.camcorder.RecordedAt){}[0]
+    final var textSize // dev.jordond.filmstrip.effects.filters.camcorder/CamcorderBuilder.textSize|{}textSize[0]
+        final fun <get-textSize>(): kotlin/Float // dev.jordond.filmstrip.effects.filters.camcorder/CamcorderBuilder.textSize.<get-textSize>|<get-textSize>(){}[0]
+        final fun <set-textSize>(kotlin/Float) // dev.jordond.filmstrip.effects.filters.camcorder/CamcorderBuilder.textSize.<set-textSize>|<set-textSize>(kotlin.Float){}[0]
+
+    final fun battery(kotlin/Float, kotlin/Boolean = ..., dev.jordond.filmstrip.effects.filters.camcorder/OsdCorner = ...) // dev.jordond.filmstrip.effects.filters.camcorder/CamcorderBuilder.battery|battery(kotlin.Float;kotlin.Boolean;dev.jordond.filmstrip.effects.filters.camcorder.OsdCorner){}[0]
+    final fun clock(dev.jordond.filmstrip.effects.filters.camcorder/ClockStyle = ..., dev.jordond.filmstrip.effects.filters.camcorder/OsdCorner = ...) // dev.jordond.filmstrip.effects.filters.camcorder/CamcorderBuilder.clock|clock(dev.jordond.filmstrip.effects.filters.camcorder.ClockStyle;dev.jordond.filmstrip.effects.filters.camcorder.OsdCorner){}[0]
+    final fun counter(kotlin.time/Duration = ..., kotlin/Boolean = ..., dev.jordond.filmstrip.effects.filters.camcorder/OsdCorner = ...) // dev.jordond.filmstrip.effects.filters.camcorder/CamcorderBuilder.counter|counter(kotlin.time.Duration;kotlin.Boolean;dev.jordond.filmstrip.effects.filters.camcorder.OsdCorner){}[0]
+    final fun date(dev.jordond.filmstrip.effects.filters.camcorder/RecordedAt = ..., dev.jordond.filmstrip.effects.filters.camcorder/DateStyle = ..., dev.jordond.filmstrip.effects.filters.camcorder/OsdCorner = ...) // dev.jordond.filmstrip.effects.filters.camcorder/CamcorderBuilder.date|date(dev.jordond.filmstrip.effects.filters.camcorder.RecordedAt;dev.jordond.filmstrip.effects.filters.camcorder.DateStyle;dev.jordond.filmstrip.effects.filters.camcorder.OsdCorner){}[0]
+    final fun label(kotlin/String, dev.jordond.filmstrip.effects.filters.camcorder/OsdCorner = ...) // dev.jordond.filmstrip.effects.filters.camcorder/CamcorderBuilder.label|label(kotlin.String;dev.jordond.filmstrip.effects.filters.camcorder.OsdCorner){}[0]
+    final fun pause(dev.jordond.filmstrip.effects.filters.camcorder/OsdCorner = ...) // dev.jordond.filmstrip.effects.filters.camcorder/CamcorderBuilder.pause|pause(dev.jordond.filmstrip.effects.filters.camcorder.OsdCorner){}[0]
+    final fun play(dev.jordond.filmstrip.effects.filters.camcorder/OsdCorner = ...) // dev.jordond.filmstrip.effects.filters.camcorder/CamcorderBuilder.play|play(dev.jordond.filmstrip.effects.filters.camcorder.OsdCorner){}[0]
+    final fun rec(dev.jordond.filmstrip.effects.filters.camcorder/OsdCorner = ...) // dev.jordond.filmstrip.effects.filters.camcorder/CamcorderBuilder.rec|rec(dev.jordond.filmstrip.effects.filters.camcorder.OsdCorner){}[0]
+    final fun tape(dev.jordond.filmstrip.effects.filters.vhs/TapeSpeed, dev.jordond.filmstrip.effects.filters.camcorder/OsdCorner = ...) // dev.jordond.filmstrip.effects.filters.camcorder/CamcorderBuilder.tape|tape(dev.jordond.filmstrip.effects.filters.vhs.TapeSpeed;dev.jordond.filmstrip.effects.filters.camcorder.OsdCorner){}[0]
+    final fun transport(dev.jordond.filmstrip.effects.filters.camcorder/TransportMode, dev.jordond.filmstrip.effects.filters.camcorder/OsdCorner = ...) // dev.jordond.filmstrip.effects.filters.camcorder/CamcorderBuilder.transport|transport(dev.jordond.filmstrip.effects.filters.camcorder.TransportMode;dev.jordond.filmstrip.effects.filters.camcorder.OsdCorner){}[0]
+}
+
+final class dev.jordond.filmstrip.effects.filters.camcorder/RecordedAt { // dev.jordond.filmstrip.effects.filters.camcorder/RecordedAt|null[0]
+    constructor <init>(kotlin/Int, kotlin/Int, kotlin/Int, kotlin/Int = ..., kotlin/Int = ..., kotlin/Int = ...) // dev.jordond.filmstrip.effects.filters.camcorder/RecordedAt.<init>|<init>(kotlin.Int;kotlin.Int;kotlin.Int;kotlin.Int;kotlin.Int;kotlin.Int){}[0]
+
+    final val day // dev.jordond.filmstrip.effects.filters.camcorder/RecordedAt.day|{}day[0]
+        final fun <get-day>(): kotlin/Int // dev.jordond.filmstrip.effects.filters.camcorder/RecordedAt.day.<get-day>|<get-day>(){}[0]
+    final val hour // dev.jordond.filmstrip.effects.filters.camcorder/RecordedAt.hour|{}hour[0]
+        final fun <get-hour>(): kotlin/Int // dev.jordond.filmstrip.effects.filters.camcorder/RecordedAt.hour.<get-hour>|<get-hour>(){}[0]
+    final val minute // dev.jordond.filmstrip.effects.filters.camcorder/RecordedAt.minute|{}minute[0]
+        final fun <get-minute>(): kotlin/Int // dev.jordond.filmstrip.effects.filters.camcorder/RecordedAt.minute.<get-minute>|<get-minute>(){}[0]
+    final val month // dev.jordond.filmstrip.effects.filters.camcorder/RecordedAt.month|{}month[0]
+        final fun <get-month>(): kotlin/Int // dev.jordond.filmstrip.effects.filters.camcorder/RecordedAt.month.<get-month>|<get-month>(){}[0]
+    final val second // dev.jordond.filmstrip.effects.filters.camcorder/RecordedAt.second|{}second[0]
+        final fun <get-second>(): kotlin/Int // dev.jordond.filmstrip.effects.filters.camcorder/RecordedAt.second.<get-second>|<get-second>(){}[0]
+    final val year // dev.jordond.filmstrip.effects.filters.camcorder/RecordedAt.year|{}year[0]
+        final fun <get-year>(): kotlin/Int // dev.jordond.filmstrip.effects.filters.camcorder/RecordedAt.year.<get-year>|<get-year>(){}[0]
+
+    final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.effects.filters.camcorder/RecordedAt.equals|equals(kotlin.Any?){}[0]
+    final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.effects.filters.camcorder/RecordedAt.hashCode|hashCode(){}[0]
+    final fun toString(): kotlin/String // dev.jordond.filmstrip.effects.filters.camcorder/RecordedAt.toString|toString(){}[0]
 }
 
 final class dev.jordond.filmstrip.effects.filters.crt/Crt : dev.jordond.filmstrip.effect/EffectSpec { // dev.jordond.filmstrip.effects.filters.crt/Crt|null[0]
@@ -242,6 +479,7 @@ final class dev.jordond.filmstrip.effects.filters.vhs/VhsBuilder { // dev.jordon
         final fun <get-tracking>(): dev.jordond.filmstrip.effects.filters.vhs/Tracking // dev.jordond.filmstrip.effects.filters.vhs/VhsBuilder.tracking.<get-tracking>|<get-tracking>(){}[0]
         final fun <set-tracking>(dev.jordond.filmstrip.effects.filters.vhs/Tracking) // dev.jordond.filmstrip.effects.filters.vhs/VhsBuilder.tracking.<set-tracking>|<set-tracking>(dev.jordond.filmstrip.effects.filters.vhs.Tracking){}[0]
 
+    final fun camcorder(kotlin/Function1<dev.jordond.filmstrip.effects.filters.camcorder/CamcorderBuilder, kotlin/Unit>) // dev.jordond.filmstrip.effects.filters.vhs/VhsBuilder.camcorder|camcorder(kotlin.Function1<dev.jordond.filmstrip.effects.filters.camcorder.CamcorderBuilder,kotlin.Unit>){}[0]
     final fun events(kotlin/Float = ..., kotlin/Function1<dev.jordond.filmstrip.effects.filters.vhs/TrackingBuilder, kotlin/Unit> = ...): dev.jordond.filmstrip.effects.filters.vhs/Tracking.Events // dev.jordond.filmstrip.effects.filters.vhs/VhsBuilder.events|events(kotlin.Float;kotlin.Function1<dev.jordond.filmstrip.effects.filters.vhs.TrackingBuilder,kotlin.Unit>){}[0]
     final fun rolling(kotlin.time/Duration = ..., kotlin/Function1<dev.jordond.filmstrip.effects.filters.vhs/TrackingBuilder, kotlin/Unit> = ...): dev.jordond.filmstrip.effects.filters.vhs/Tracking.Rolling // dev.jordond.filmstrip.effects.filters.vhs/VhsBuilder.rolling|rolling(kotlin.time.Duration;kotlin.Function1<dev.jordond.filmstrip.effects.filters.vhs.TrackingBuilder,kotlin.Unit>){}[0]
 }
@@ -255,6 +493,7 @@ final class dev.jordond.filmstrip.effects.filters/FilterEffectResolver : dev.jor
 final const val dev.jordond.filmstrip.effects.filters.lut/MAX_CUBE_CHARS // dev.jordond.filmstrip.effects.filters.lut/MAX_CUBE_CHARS|{}MAX_CUBE_CHARS[0]
     final fun <get-MAX_CUBE_CHARS>(): kotlin/Int // dev.jordond.filmstrip.effects.filters.lut/MAX_CUBE_CHARS.<get-MAX_CUBE_CHARS>|<get-MAX_CUBE_CHARS>(){}[0]
 
+final fun (dev.jordond.filmstrip.edit/EffectsBuilder).dev.jordond.filmstrip.effects.filters.camcorder/camcorder(kotlin/Function1<dev.jordond.filmstrip.effects.filters.camcorder/CamcorderBuilder, kotlin/Unit>): dev.jordond.filmstrip.edit/EffectsBuilder // dev.jordond.filmstrip.effects.filters.camcorder/camcorder|camcorder@dev.jordond.filmstrip.edit.EffectsBuilder(kotlin.Function1<dev.jordond.filmstrip.effects.filters.camcorder.CamcorderBuilder,kotlin.Unit>){}[0]
 final fun (dev.jordond.filmstrip.edit/EffectsBuilder).dev.jordond.filmstrip.effects.filters.crt/crt(kotlin/Float = ...): dev.jordond.filmstrip.edit/EffectsBuilder // dev.jordond.filmstrip.effects.filters.crt/crt|crt@dev.jordond.filmstrip.edit.EffectsBuilder(kotlin.Float){}[0]
 final fun (dev.jordond.filmstrip.edit/EffectsBuilder).dev.jordond.filmstrip.effects.filters.film/film(kotlin/Float = ..., kotlin/Float = ...): dev.jordond.filmstrip.edit/EffectsBuilder // dev.jordond.filmstrip.effects.filters.film/film|film@dev.jordond.filmstrip.edit.EffectsBuilder(kotlin.Float;kotlin.Float){}[0]
 final fun (dev.jordond.filmstrip.edit/EffectsBuilder).dev.jordond.filmstrip.effects.filters.lut/lut(dev.jordond.filmstrip.effects.filters.lut/CubeLut, kotlin/Float = ...): dev.jordond.filmstrip.edit/EffectsBuilder // dev.jordond.filmstrip.effects.filters.lut/lut|lut@dev.jordond.filmstrip.edit.EffectsBuilder(dev.jordond.filmstrip.effects.filters.lut.CubeLut;kotlin.Float){}[0]

@@ -47,7 +47,8 @@ internal fun FilterGraphBuilder.branches(
   origin: Duration,
   liveChain: ((input: LiveInput, origin: Duration, output: String) -> Unit)? = null,
 ) {
-  val clock = "(${formatSeconds(origin.toDouble(DurationUnit.SECONDS))}+$WINDOW_CLOCK)/TB"
+  // The composition time the window opens at, in units of the frames' time base and rounded to the nearest unit.
+  val clock = "round((${formatSeconds(origin.toDouble(DurationUnit.SECONDS))}+$WINDOW_CLOCK)/TB)"
   val input =
     if (fragment.readsCompositionClock) {
       "${output}clock".also { chain(listOf(read), listOf(FilterNode("setpts", "expr" to "PTS+$clock")), it) }

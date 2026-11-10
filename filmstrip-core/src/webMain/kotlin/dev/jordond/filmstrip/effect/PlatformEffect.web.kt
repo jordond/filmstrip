@@ -123,6 +123,10 @@ public class WebGlPass private constructor(
  * @property reads Each sampler this step reads, by name, to the [name] of a step ahead of it or [INPUT].
  * @property targetAt The size this step draws at, in pixels, for a frame of a width and height in pixels.
  * @property textures Each sampler this step reads a table through, by name, and the compositor uploads each once.
+ * @property texturesAt Each sampler this step reads a table through that changes with the frame, by name, for a frame
+ * at a composition time and a width and height in pixels. It names the same samplers on every frame, none of them in
+ * [reads] or [textures], and a frame that names one of those fails by name. The compositor uploads each table once and
+ * keeps the ones read most recently, so answering the same instance for frames that share a table costs no upload.
  * @property uniformsAt The uniforms for a frame at a composition time and a width and height in pixels, by name. A name
  * ending in `[0]` sets a float array from that element. Any other value is a float, a `vec2`, a `vec3`, a `vec4`, a
  * `mat3` or a `mat4` by its length, and any other length is refused.
@@ -134,6 +138,8 @@ public class WebGlStep(
   public val reads: Map<String, String>,
   public val targetAt: (width: Int, height: Int) -> Size = { width, height -> Size(width, height) },
   public val textures: Map<String, WebGlTable> = emptyMap(),
+  public val texturesAt: (compositionTime: Duration, width: Int, height: Int) -> Map<String, WebGlTable> =
+    { _, _, _ -> emptyMap() },
   public val uniformsAt: (compositionTime: Duration, width: Int, height: Int) -> Map<String, FloatArray>,
 ) {
   public companion object {

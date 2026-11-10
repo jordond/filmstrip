@@ -7,6 +7,8 @@ import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effect.PlatformEffect
 import dev.jordond.filmstrip.effect.RenderApi
 import dev.jordond.filmstrip.effect.RenderCapabilities
+import dev.jordond.filmstrip.effects.filters.camcorder.Camcorder
+import dev.jordond.filmstrip.effects.filters.camcorder.camcorderResolution
 import dev.jordond.filmstrip.effects.filters.crt.Crt
 import dev.jordond.filmstrip.effects.filters.crt.crtFragment
 import dev.jordond.filmstrip.effects.filters.film.Film
@@ -27,11 +29,24 @@ public actual class FilterEffectResolver actual constructor() : EffectResolver {
   ): EffectResolution? {
     if (capabilities.api != RenderApi.FilterGraph) return null
     return when (spec) {
-      is Vhs -> EffectResolution.Resolved(PlatformEffect(vhsFragment(spec, attributes.inputSize)))
-      is Film -> EffectResolution.Resolved(PlatformEffect(filmFragment(spec, attributes.inputSize)))
-      is Crt -> EffectResolution.Resolved(PlatformEffect(crtFragment(spec, attributes.inputSize)))
-      is Lut -> EffectResolution.Resolved(PlatformEffect(lutFragment(spec)))
-      else -> null
+      is Camcorder -> {
+        camcorderResolution(spec, attributes)
+      }
+      is Vhs -> {
+        EffectResolution.Resolved(PlatformEffect(vhsFragment(spec, attributes.inputSize)))
+      }
+      is Film -> {
+        EffectResolution.Resolved(PlatformEffect(filmFragment(spec, attributes.inputSize)))
+      }
+      is Crt -> {
+        EffectResolution.Resolved(PlatformEffect(crtFragment(spec, attributes.inputSize)))
+      }
+      is Lut -> {
+        EffectResolution.Resolved(PlatformEffect(lutFragment(spec)))
+      }
+      else -> {
+        null
+      }
     }
   }
 }

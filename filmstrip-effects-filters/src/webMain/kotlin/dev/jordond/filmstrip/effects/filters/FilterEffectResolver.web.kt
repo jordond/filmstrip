@@ -6,6 +6,8 @@ import dev.jordond.filmstrip.effect.EffectResolver
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effect.PlatformEffect
 import dev.jordond.filmstrip.effect.RenderCapabilities
+import dev.jordond.filmstrip.effects.filters.camcorder.Camcorder
+import dev.jordond.filmstrip.effects.filters.camcorder.camcorderPass
 import dev.jordond.filmstrip.effects.filters.crt.Crt
 import dev.jordond.filmstrip.effects.filters.crt.crtPass
 import dev.jordond.filmstrip.effects.filters.film.Film
@@ -25,10 +27,23 @@ public actual class FilterEffectResolver actual constructor() : EffectResolver {
     attributes: Attributes,
   ): EffectResolution? =
     when (spec) {
-      is Vhs -> EffectResolution.Resolved(PlatformEffect(vhsPass(spec)))
-      is Film -> EffectResolution.Resolved(PlatformEffect(filmPass(spec)))
-      is Crt -> EffectResolution.Resolved(PlatformEffect(crtPass(spec)))
-      is Lut -> EffectResolution.Resolved(PlatformEffect(lutPass(spec)))
-      else -> null
+      is Camcorder -> {
+        EffectResolution.Resolved(PlatformEffect(camcorderPass(spec, attributes.frameRate)))
+      }
+      is Vhs -> {
+        EffectResolution.Resolved(PlatformEffect(vhsPass(spec)))
+      }
+      is Film -> {
+        EffectResolution.Resolved(PlatformEffect(filmPass(spec)))
+      }
+      is Crt -> {
+        EffectResolution.Resolved(PlatformEffect(crtPass(spec)))
+      }
+      is Lut -> {
+        EffectResolution.Resolved(PlatformEffect(lutPass(spec)))
+      }
+      else -> {
+        null
+      }
     }
 }
