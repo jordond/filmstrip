@@ -24,8 +24,6 @@ kotlin {
     }
 
     androidMain {
-      languageSettings.optIn("androidx.media3.common.util.UnstableApi")
-
       dependencies {
         implementation(libs.media3.exoplayer)
         implementation(libs.media3.transformer)

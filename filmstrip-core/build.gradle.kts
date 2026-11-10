@@ -69,8 +69,6 @@ kotlin {
     }
 
     androidMain {
-      languageSettings.optIn("androidx.media3.common.util.UnstableApi")
-
       dependencies {
         api(libs.kotlinx.coroutines.android)
         api(libs.media3.common)

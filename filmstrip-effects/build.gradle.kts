@@ -20,7 +20,6 @@ kotlin {
     }
 
     androidMain {
-      languageSettings.optIn("androidx.media3.common.util.UnstableApi")
       dependencies {
         implementation(libs.androidx.core)
       }

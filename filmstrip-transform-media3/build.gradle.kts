@@ -13,8 +13,6 @@ androidDeviceTests()
 kotlin {
   sourceSets {
     androidMain {
-      languageSettings.optIn("androidx.media3.common.util.UnstableApi")
-
       dependencies {
         api(projects.filmstripTransform)
         implementation(libs.media3.transformer)

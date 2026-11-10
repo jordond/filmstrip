@@ -20,17 +20,10 @@ kotlin {
       implementation(projects.filmstripEffects)
     }
 
-    androidMain {
-      languageSettings.optIn("androidx.media3.common.util.UnstableApi")
-    }
-
-    named("androidDeviceTest") {
-      languageSettings.optIn("androidx.media3.common.util.UnstableApi")
-      dependencies {
-        implementation(kotlin("test"))
-        implementation(libs.androidx.test.runner)
-        implementation(libs.kotest.assertions)
-      }
+    named("androidDeviceTest").dependencies {
+      implementation(kotlin("test"))
+      implementation(libs.androidx.test.runner)
+      implementation(libs.kotest.assertions)
     }
   }
 }

@@ -39,7 +39,6 @@ kotlin {
     named("androidDeviceTest") {
       // The fakes the host suites share, so the device suite drives the same engine they do.
       kotlin.srcDir("src/commonTest/kotlin")
-      languageSettings.optIn("androidx.media3.common.util.UnstableApi")
       dependencies {
         implementation(kotlin("test"))
         implementation(libs.kotest.assertions)
