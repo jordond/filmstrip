@@ -301,6 +301,22 @@ jobs:
           ./gradlew :filmstrip-player:bootIosSimulator "${tasks[@]}" -Pmedia --scan
       - *slowest
       - *artifact
+
+      # A stall inside the simulator leaves nothing in the test output but a timeout, so a red job keeps the
+      # simulator's own log from the test run.
+      - name: Collect the simulator log
+        if: failure()
+        run: |
+          mkdir -p build/simulator-log
+          xcrun simctl spawn booted log show --last 25m --style compact | gzip > build/simulator-log/simulator.log.gz || true
+      - name: Upload the simulator log
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: media-simulator-log-${{ env.ARTIFACT }}
+          path: build/simulator-log/
+          if-no-files-found: ignore
+          retention-days: 7
       - *results
       - *reports
 
