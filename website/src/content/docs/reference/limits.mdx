@@ -68,9 +68,8 @@ reports `hasAlpha` only for alpha its backend can decode, and a source whose alp
 - ffmpeg decodes VP9 alpha with its native decoder, which drops it, so a WebM tagged `alpha_mode` reads as opaque.
   ProRes 4444 and other formats whose pixel format has an alpha plane keep it.
 - A GIF, AVIF, HEIC or JPEG XL still reads as opaque everywhere except Apple.
-- On Apple, a ProRes 4444 clip draws through the compositor, which asks for BGRA frames so the alpha arrives. A blurred
-  fill is blurred in Core Image's linear light, so near a hard edge a see through pixel can sit further from the other
-  backends than the usual few codes. A graded HDR export blends in Core Image's own space, not on stored codes.
+- On Apple, a ProRes 4444 clip draws through the compositor, which asks for BGRA frames so the alpha arrives. A graded
+  HDR export blends in Core Image's own space, not on stored codes.
 - The browser decodes VP9 alpha through WebCodecs and composites it over the fill. Images are not a browser source.
 - The ffmpeg and Android blends are rounded to the nearest code on the stored channels, so a half transparent pixel can
   differ from another backend by a few codes.

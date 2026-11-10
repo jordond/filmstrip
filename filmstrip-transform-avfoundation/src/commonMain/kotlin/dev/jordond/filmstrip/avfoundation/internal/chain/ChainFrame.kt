@@ -3,7 +3,6 @@ package dev.jordond.filmstrip.avfoundation.internal.chain
 import dev.jordond.filmstrip.color.linearDimGain
 import dev.jordond.filmstrip.effect.Attributes
 import dev.jordond.filmstrip.effect.FrameInfo
-import dev.jordond.filmstrip.effects.spatial.blurredBy
 import dev.jordond.filmstrip.effects.spatial.blurredOnSignal
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.NormalizedRect
@@ -53,10 +52,11 @@ internal fun CIImage.fittedTo(
   rect: NormalizedRect,
   fill: Fill,
   transfer: HdrTransfer?,
+  colorSpace: ColorSpace,
   inCodes: Boolean = false,
 ): CIImage {
   val frame = CGRectMake(0.0, 0.0, size.width.toDouble(), size.height.toDouble())
-  val background = fillImage(fill, size, transfer).imageByCroppingToRect(frame)
+  val background = fillImage(fill, size, transfer, colorSpace).imageByCroppingToRect(frame)
   val laid = laidAt(size, rect)
   if (inCodes) return laid.blendedInCodes(background) { imageByCompositingOverImage(it) }
   return laid.imageByCompositingOverImage(background)
@@ -188,17 +188,18 @@ internal fun CIImage.fillImage(
   fill: Fill,
   size: Size,
   transfer: HdrTransfer?,
+  colorSpace: ColorSpace,
 ): CIImage =
   when (fill) {
     is Fill.Solid -> CIImage(color = fillCIColor(fill.color, transfer))
-    is Fill.Blurred -> blurredCover(size, fill, transfer)
+    is Fill.Blurred -> blurredCover(size, fill, transfer, colorSpace)
   }
 
 /**
  * Scales this frame to cover [size], centred, crops it to the output frame and blurs it by the fill's [blurPlan].
  *
- * The blur runs on the cover crop, so the edge it holds is the crop's and not the frame's. A frame on a kept
- * [transfer] grade is blurred on its SDR signal, with the dim as a gain there. A frame with nothing in it covers with
+ * The blur runs on the cover crop, so the edge it holds is the crop's and not the frame's. An SDR frame is blurred on
+ * the codes of its [colorSpace] and a frame on a kept [transfer] grade on its SDR signal, with the dim as a gain there. A frame with nothing in it covers with
  * black.
  *
  * A frame with alpha is blurred weighted by that alpha, and the cover is then made opaque. The cover is the colour the
@@ -208,7 +209,8 @@ internal fun CIImage.fillImage(
 internal fun CIImage.blurredCover(
   size: Size,
   blur: Fill.Blurred,
-  transfer: HdrTransfer? = null,
+  transfer: HdrTransfer?,
+  colorSpace: ColorSpace,
 ): CIImage {
   val cover = coverOf(size) ?: return CIImage(color = CIColor.blackColor)
   val extent = CGRectMake(0.0, 0.0, size.width.toDouble(), size.height.toDouble())
@@ -216,7 +218,7 @@ internal fun CIImage.blurredCover(
   if (transfer != null) {
     return cover.blurredOnSignal(plan, extent, transfer, ColorSpace.Bt2020, blur.backgroundGain).opaque()
   }
-  val blurred = cover.blurredBy(plan, extent).opaque()
+  val blurred = cover.blurredOnSignal(plan, extent, null, colorSpace, gain = 1f).opaque()
   return if (blur.dim <= 0f) blurred else blurred.dimmed(blur.dim)
 }
 

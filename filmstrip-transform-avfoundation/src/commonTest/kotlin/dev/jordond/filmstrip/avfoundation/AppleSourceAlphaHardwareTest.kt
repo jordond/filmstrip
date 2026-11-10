@@ -25,7 +25,6 @@ import platform.Foundation.NSFileManager
 import platform.Foundation.NSTemporaryDirectory
 import kotlin.io.encoding.Base64
 import kotlin.math.abs
-import kotlin.math.pow
 import kotlin.math.roundToInt
 import kotlin.test.Test
 import kotlin.time.Duration.Companion.seconds
@@ -66,19 +65,16 @@ class AppleSourceAlphaHardwareTest {
       val left = opaque.average(LEFT_AT, MID_ROW)
       val right = opaque.average(RIGHT_AT, MID_ROW)
 
-      for (at in listOf(LEFT_AT, RIGHT_AT)) {
+      for (at in listOf(LEFT_AT, EDGE_AT, RIGHT_AT)) {
         val cover =
           listOf(left.first to right.first, left.second to right.second, left.third to right.third).map { (l, r) ->
             val plane =
               DoubleArray(size.width * size.height) {
-                bt709Light((if (it % size.width < size.width / 2) l else r) / MAX_CODE)
+                (if (it % size.width < size.width / 2) l else r) /
+                  MAX_CODE
               }
             val blurred = blurPlane(plane, DoubleArray(plane.size) { 1.0 }, size.width, size.height, sigma)
-            (
-              bt709Code(
-                blurred[(MID_ROW * size.height).toInt() * size.width + (at * size.width).toInt()],
-              ) * MAX_CODE
-            ).roundToInt()
+            (blurred[(MID_ROW * size.height).toInt() * size.width + (at * size.width).toInt()] * MAX_CODE).roundToInt()
           }
         val source = opaque.average(at, MID_ROW)
         withClue("the cover has to differ from the source or this cannot tell a blend from no blend") {
@@ -88,25 +84,6 @@ class AppleSourceAlphaHardwareTest {
           assertBlend(half.average(at, MID_ROW), source, Triple(cover[0], cover[1], cover[2]))
         }
       }
-    }
-
-  // Core Image blurs the cover in linear light, so the shared plan runs on the light the codes stand for.
-  private fun bt709Light(code: Double): Double =
-    if (code <
-      LINEAR_TOE_CODE
-    ) {
-      code / 4.5
-    } else {
-      ((code + 0.099) / 1.099).pow(1 / 0.45)
-    }
-
-  private fun bt709Code(light: Double): Double =
-    if (light <
-      LINEAR_TOE
-    ) {
-      light * 4.5
-    } else {
-      1.099 * light.pow(0.45) - 0.099
     }
 
   private fun assertBlend(
@@ -153,12 +130,11 @@ class AppleSourceAlphaHardwareTest {
     const val HALF_ALPHA = 128
     const val RADIUS = 0.5f
     const val LEFT_AT = 0.25f
+    const val EDGE_AT = 0.4f
     const val RIGHT_AT = 0.75f
     const val MID_ROW = 0.5f
     const val MIN_COVER_GAP = 12
     const val MAX_CODE = 255.0
-    const val LINEAR_TOE = 0.018
-    const val LINEAR_TOE_CODE = 0.081
 
     // What a hardware encode moves a read by.
     const val TOLERANCE = 8

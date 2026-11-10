@@ -116,18 +116,18 @@ public fun CIImage.blurredBy(
 }
 
 /**
- * This opaque image over [extent] blurred by [plan] on the SDR signal of a kept [transfer] grade in [colorSpace], and
- * multiplied by [gain] there.
+ * This image over [extent] blurred by [plan] on the signal a color effect reads, and multiplied by [gain] there.
  *
- * The image is carried into the signal a color effect reads, so the blur and the gain are those of the SDR signal and
- * not of the light the frame holds.
+ * The image is carried into that signal, the codes of [colorSpace] for an SDR frame with a null [transfer] and the SDR
+ * signal of a kept [transfer] grade otherwise, so the blur and the gain are those of the signal and not of the light
+ * the frame holds.
  */
 @InternalFilmstripApi
 @OptIn(ExperimentalForeignApi::class)
 public fun CIImage.blurredOnSignal(
   plan: BlurPlan,
   extent: CValue<CGRect>,
-  transfer: HdrTransfer,
+  transfer: HdrTransfer?,
   colorSpace: ColorSpace,
   gain: Float,
 ): CIImage =

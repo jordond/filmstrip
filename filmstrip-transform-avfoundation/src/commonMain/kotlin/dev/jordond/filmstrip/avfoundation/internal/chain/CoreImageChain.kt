@@ -291,7 +291,15 @@ internal class CoreImageChain(
       // grade it along with the rest of the frame. A cover the clip hides costs a blur nothing shows.
       val hidden = span != null && !span.hasAlpha && !span.placement.showsBlurredFill(size)
       val under = if (hidden) Fill.Black else fill
-      image = image.fittedTo(size, rect, under, state.encodedTransfer, inCodes = blendsInCodes)
+      image =
+        image.fittedTo(
+          size,
+          rect,
+          under,
+          state.encodedTransfer,
+          state.compositionAttributes.colorSpace,
+          inCodes = blendsInCodes,
+        )
       return image.stepped(resolved.effectsUnderFill, frame).stepped(resolved.effectsOverFill, frame)
     }
 
@@ -305,7 +313,7 @@ internal class CoreImageChain(
         frame,
         layout = CGRectMake(0.0, 0.0, size.width.toDouble(), size.height.toDouble()),
       )
-    val background = image.fillImage(fill, size, state.encodedTransfer)
+    val background = image.fillImage(fill, size, state.encodedTransfer, state.compositionAttributes.colorSpace)
     val flattened = graded.over(background, mask = laid, size = size, inCodes = blendsInCodes)
     return flattened.stepped(resolved.effectsOverFill, frame)
   }
