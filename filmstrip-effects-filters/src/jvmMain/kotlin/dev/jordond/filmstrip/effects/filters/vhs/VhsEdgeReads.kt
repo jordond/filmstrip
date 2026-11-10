@@ -98,7 +98,9 @@ internal class VhsEdgeReads(
       "st(4,(1-ld(1))*${plane.alphaAt(first)})",
       "st(5,ld(1)*${plane.alphaAt(second)})",
       "st(1,ld(4)+ld(5))",
-      "st(8,$black+(if(gt(ld(1),0),(${plane.valueAt(first)}*ld(4)+${plane.valueAt(second)}*ld(5))/ld(1),$black)-$black)*ld(2))",
+      "st(8,$black+(if(gt(ld(1),0),(${plane.valueAt(
+        first,
+      )}*ld(4)+${plane.valueAt(second)}*ld(5))/ld(1),$black)-$black)*ld(2))",
       "st($sum,ld($sum)+$weight*ld(8))",
     ).joinToString("+", "(", ")*0")
   }

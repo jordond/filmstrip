@@ -72,7 +72,15 @@ internal fun vhsFragment(
   val planes =
     VhsPlanes(vhs.seed, params, rasterWidth, height, nodes.lumaGrainScale, nodes.chromaGrainScale)
   val edges = VhsEdgeReads(nodes, params, width)
-  val padding = FilterNode("pad", "w" to "${width + 2 * margin}", "h" to "ih", "x" to "$margin", "y" to "0", "color" to "black")
+  val padding =
+    FilterNode(
+      "pad",
+      "w" to "${width + 2 * margin}",
+      "h" to "ih",
+      "x" to "$margin",
+      "y" to "0",
+      "color" to "black",
+    )
   val blurred = { into: String ->
     listOf(
       FilterBranch(listOf("sharp"), emptyList(), listOf("near", "far")),
@@ -105,16 +113,53 @@ internal fun vhsFragment(
             val index = piece.core ?: return@mapNotNull null
             val core = piece.span
             val window = edgeWindow(core, width, reach)
-            val steps = listOf(cut(window.from, window.width), edges.read(window.from, core.from, core.to), cut(core.from - window.from, core.width))
+            val steps =
+              listOf(
+                cut(window.from, window.width),
+                edges.read(window.from, core.from, core.to),
+                cut(core.from - window.from, core.width),
+              )
             FilterBranch(listOf("edgeIn$index"), steps, listOf("piece${pieces.indexOf(piece)}"))
           }
         val cuts =
-          plain.map { FilterBranch(listOf(if (plain.size == 1) "ringedBase" else "plain$it"), listOf(cut(pieces[it].span.from, pieces[it].span.width)), listOf("piece$it")) }
-        val fanOut = if (plain.size > 1) listOf(FilterBranch(listOf("ringedBase"), emptyList(), plain.map { "plain$it" })) else emptyList()
-        val joined = FilterBranch(pieces.indices.map { "piece$it" }, listOf(FilterNode("hstack", "inputs" to "${pieces.size}")), listOf("ringed"))
+          plain.map {
+            FilterBranch(
+              listOf(
+                if (plain.size ==
+                  1
+                ) {
+                  "ringedBase"
+                } else {
+                  "plain$it"
+                },
+              ),
+              listOf(cut(pieces[it].span.from, pieces[it].span.width)),
+              listOf("piece$it"),
+            )
+          }
+        val fanOut =
+          if (plain.size >
+            1
+          ) {
+            listOf(FilterBranch(listOf("ringedBase"), emptyList(), plain.map { "plain$it" }))
+          } else {
+            emptyList()
+          }
+        val joined =
+          FilterBranch(
+            pieces.indices.map { "piece$it" },
+            listOf(
+              FilterNode(
+                "hstack",
+                "inputs" to "${pieces.size}",
+              ),
+            ),
+            listOf("ringed"),
+          )
         val taps = listOf("tapeIn") + coverage.cores.indices.map { "edgeIn$it" }
         listOf(FilterBranch(listOf(from), emptyList(), taps)) +
-          tapeBranches(nodes, width, margin, "tapeIn", softened) + blurred("ringedBase") + fanOut + cuts + reads + joined
+          tapeBranches(nodes, width, margin, "tapeIn", softened) + blurred("ringedBase") + fanOut + cuts + reads +
+          joined
       }
     }
   }
