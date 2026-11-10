@@ -5,10 +5,15 @@ package dev.jordond.filmstrip.webcodecs
 import dev.jordond.filmstrip.codec.AudioCodec
 import dev.jordond.filmstrip.color.authoredHdrNits
 import dev.jordond.filmstrip.color.blurPlane
+import dev.jordond.filmstrip.color.hlgNitsFromScene
+import dev.jordond.filmstrip.color.hlgSceneFromDisplayNits
 import dev.jordond.filmstrip.color.linearDimGain
 import dev.jordond.filmstrip.color.nitsFromSdrSignal
+import dev.jordond.filmstrip.color.sceneFromHlgSignal
+import dev.jordond.filmstrip.color.sdrSignalFromHlgScene
 import dev.jordond.filmstrip.color.sdrSignalFromNits
 import dev.jordond.filmstrip.color.signalFromNits
+import dev.jordond.filmstrip.color.signalFromTenBitCodes
 import dev.jordond.filmstrip.color.tenBitCodesFromSignal
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.Clip
@@ -209,7 +214,9 @@ class BrowserHdrMediaTest {
 
     val plan = fill.blurPlan(Size(COVER_WIDTH, COVER_HEIGHT))
     val sigma = plan.sigmaPx / plan.width
-    val rows = (0 until COVER_HEIGHT).map { coverNitsAt(it + CROP_TOP) }
+    val decoded = decodeTenBitFrames(MediaSource.Bytes(tall), transfer).first()
+    val sourceNits = (0 until TALL_HEIGHT).map { decoded.nitsAt(x = 0.5, y = (it + 0.5) / TALL_HEIGHT)[1].toDouble() }
+    val rows = (0 until COVER_HEIGHT).map { sourceNits[it + CROP_TOP].toFloat() }
     val cover = DoubleArray(COVER_WIDTH * COVER_HEIGHT) { rows[it / COVER_WIDTH].toDouble() }
     val opaque = DoubleArray(cover.size) { 1.0 }
     val onSignal =
@@ -224,7 +231,7 @@ class BrowserHdrMediaTest {
         COVER_HEIGHT,
         sigma,
       )
-    val whole = (0 until TALL_HEIGHT).map { lumaCodeOf(transfer, coverNitsAt(it).toDouble()).toDouble() }
+    val whole = (0 until TALL_HEIGHT).map { lumaCodeOf(transfer, sourceNits[it]).toDouble() }
     val heldAtClip =
       blurPlane(
         DoubleArray(COVER_WIDTH * TALL_HEIGHT) { whole[it / COVER_WIDTH] },
@@ -261,8 +268,118 @@ class BrowserHdrMediaTest {
       (edge > 2 * LUMA_TOLERANCE) shouldBe true
     }
     withClue("$transfer: the bar is $worst codes off the shared plan on the sdr signal at row $worstRow") {
-      (worst <= if (transfer == HdrTransfer.Hlg) HLG_BLUR_CODES else LUMA_TOLERANCE) shouldBe true
+      (worst <= LUMA_TOLERANCE) shouldBe true
     }
+  }
+
+  // Saturated and grey stripes, one row each and eighteen rows each, read channel by channel against blurPlane on the
+  // SDR signal of what the stripes decode to, which a four two zero chroma plane has already mixed across a one row
+  // stripe. On HLG the signal is each channel's scene light, and the bar goes back through the luminance driven
+  // opto-optical transfer the way unpack decodes it.
+  @Test
+  fun aBlurredFillOfSaturatedStripesLandsOnTheSharedPlanOnTheSdrSignal() =
+    runTest {
+      if (!webCodecsFilmstrip().encodesHdr()) return@runTest
+
+      for (transfer in HdrTransfer.entries) {
+        for (run in listOf(1, STRIPE_RUN)) assertStripedFillBlurredOnSignal(transfer, run)
+      }
+    }
+
+  private suspend fun assertStripedFillBlurredOnSignal(
+    transfer: HdrTransfer,
+    run: Int,
+  ) {
+    val filler = makeHdrClip(transfer, width = COVER_WIDTH, height = COVER_HEIGHT) { GREY }
+    val tall =
+      makeHdrClip(transfer, width = COVER_WIDTH, height = TALL_HEIGHT) { y ->
+        if ((y / run) % 2 ==
+          0
+        ) {
+          SATURATED
+        } else {
+          GREY
+        }
+      }
+    val fill = Fill.Blurred(radius = COVER_RADIUS, dim = 0f)
+    val composition =
+      Composition(
+        tracks = listOf(Track(listOf(Clip(MediaSource.Bytes(filler)), Clip(MediaSource.Bytes(tall))))),
+        audio = AudioSpec.Remove,
+        fill = fill,
+      )
+    val frame =
+      decodeTenBitFrames(outputOf(hdrExportOf(composition, transfer)), transfer)
+        .lastOrNull()
+        .shouldNotBeNull()
+    val source = decodeTenBitFrames(MediaSource.Bytes(tall), transfer).first()
+
+    val plan = fill.blurPlan(Size(COVER_WIDTH, COVER_HEIGHT))
+    val sigma = plan.sigmaPx / plan.width
+    val rowSignals =
+      (0 until COVER_HEIGHT).map { row ->
+        val codes = source.codesAt(x = 0.5, y = (row + CROP_TOP + 0.5) / TALL_HEIGHT)
+        sdrSignalOf(transfer, signalFromTenBitCodes(codes[0], codes[1], codes[2]))
+      }
+    val opaque = DoubleArray(COVER_WIDTH * COVER_HEIGHT) { 1.0 }
+    val blurred =
+      List(3) { channel ->
+        blurPlane(
+          DoubleArray(opaque.size) { rowSignals[it / COVER_WIDTH][channel] },
+          opaque,
+          COVER_WIDTH,
+          COVER_HEIGHT,
+          sigma,
+        )
+      }
+
+    var worstLuma = 0
+    var worstChroma = 0
+    var spread = 0
+    for (row in 0 until COVER_HEIGHT) {
+      val signal = DoubleArray(3) { blurred[it][row * COVER_WIDTH] }
+      val expected = tenBitCodesFromSignal(transfer.signalFromNits(nitsFromSdrSignals(transfer, signal)))
+      val y = (row + 0.5) / COVER_HEIGHT
+      val (cb, cr) = frame.chromaAt(x = BAR_AT, y = y)
+      worstLuma = maxOf(worstLuma, abs(frame.lumaAt(x = BAR_AT, y = y) - expected[0]))
+      worstChroma = maxOf(worstChroma, abs(cb - expected[1]), abs(cr - expected[2]))
+      val sharp = source.codesAt(x = 0.5, y = (row + CROP_TOP + 0.5) / TALL_HEIGHT)
+      spread = maxOf(spread, abs(sharp[0] - expected[0]))
+    }
+    withClue("$transfer, runs of $run: the reference moves the stripes by $spread codes, too close to a sharp frame") {
+      (spread > 2 * LUMA_TOLERANCE) shouldBe true
+    }
+    withClue("$transfer, runs of $run: the bar is $worstLuma luma codes off the shared plan on the sdr signal") {
+      (worstLuma <= LUMA_TOLERANCE) shouldBe true
+    }
+    withClue("$transfer, runs of $run: the bar is $worstChroma chroma codes off the shared plan on the sdr signal") {
+      (worstChroma <= CHROMA_TOLERANCE) shouldBe true
+    }
+  }
+
+  // The SDR signal of each channel of a picture signal, which on HLG is the signal of its scene light.
+  private fun sdrSignalOf(
+    transfer: HdrTransfer,
+    signal: FloatArray,
+  ): DoubleArray =
+    DoubleArray(3) {
+      when (transfer) {
+        HdrTransfer.Pq -> sdrSignalFromNits(transfer.displayNitsFromSignal(signal[it]).toDouble())
+        HdrTransfer.Hlg -> sdrSignalFromHlgScene(sceneFromHlgSignal(signal[it].toDouble()))
+      }
+    }
+
+  private fun nitsFromSdrSignals(
+    transfer: HdrTransfer,
+    signal: DoubleArray,
+  ): FloatArray {
+    val nits = DoubleArray(3) { nitsFromSdrSignal(signal[it]) }
+    val display =
+      when (transfer) {
+        HdrTransfer.Pq -> nits
+        HdrTransfer.Hlg -> hlgNitsFromScene(DoubleArray(3) { hlgSceneFromDisplayNits(nits[it]) })
+      }
+    return FloatArray(3) { display[it].toFloat() }
   }
 
   // A dim grey on the rows the crop cuts, a light band across its middle and mid grey beside it.
@@ -437,6 +554,8 @@ class BrowserHdrMediaTest {
     const val MID_GREY = 40f
     const val LIGHT_GREY = 150f
     const val SHORT = 6
+    const val STRIPE_RUN = 18
+    val SATURATED = floatArrayOf(250f, 20f, 250f)
     const val BAR = 0.05
     const val STRETCHED = 1.5f
     const val MUTED = 0.4f
@@ -456,9 +575,6 @@ class BrowserHdrMediaTest {
     // pixels' worth of rounding on top of the encoder's own.
     const val LUMA_TOLERANCE = 2
     const val CHROMA_TOLERANCE = 4
-
-    // HLG codes move faster per nit than PQ ones at these levels. Measured at 3 on headless Chrome 156 and 157.
-    const val HLG_BLUR_CODES = 3
 
     const val NITS_TOLERANCE = 0.04f
     const val HLG_NITS_TOLERANCE = 0.06f

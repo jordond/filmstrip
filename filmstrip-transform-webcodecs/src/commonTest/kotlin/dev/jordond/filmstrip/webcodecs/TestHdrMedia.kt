@@ -171,6 +171,17 @@ internal class TenBitFrame(
     return FloatArray(3) { transfer.displayNitsFromSignal(signal[it]) }
   }
 
+  /**
+   * The luma, Cb and Cr codes covering that same point.
+   */
+  fun codesAt(
+    x: Double,
+    y: Double,
+  ): IntArray {
+    val (cbCode, crCode) = chromaAt(x, y)
+    return intArrayOf(lumaAt(x, y), cbCode, crCode)
+  }
+
   private fun columnOf(x: Double): Int = (x * width).toInt().coerceIn(0, width - 1)
 
   private fun rowOf(y: Double): Int = (y * height).toInt().coerceIn(0, height - 1)
