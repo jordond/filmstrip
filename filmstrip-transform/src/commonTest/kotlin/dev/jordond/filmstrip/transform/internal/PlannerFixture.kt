@@ -21,6 +21,7 @@ import dev.jordond.filmstrip.effect.RenderApi
 import dev.jordond.filmstrip.effect.RenderCapabilities
 import dev.jordond.filmstrip.export.CopyBlocker
 import dev.jordond.filmstrip.export.ExportSpec
+import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.AudioTrackInfo
 import dev.jordond.filmstrip.media.ColorSpace
@@ -52,6 +53,7 @@ internal class PlannerFixture {
     renderApi: RenderApi = RenderApi.OpenGlEs,
     ladder: List<VideoCodec> = listOf(VideoCodec.H264, VideoCodec.Hevc),
     toneMapLimit: (List<MediaSource>) -> String? = { null },
+    fillLimit: (Fill) -> String? = { null },
     copyLimit: (MediaInfo) -> CopyBlocker? = { null },
     containerCarries: (VideoCodec?, AudioCodec, Boolean) -> Boolean = { _, _, _ -> true },
     containerName: (VideoCodec?, Boolean) -> String? = { _, _ -> null },
@@ -75,6 +77,7 @@ internal class PlannerFixture {
     canToneMap = canToneMap,
     muxerAccepts = muxerAccepts,
     toneMapLimit = toneMapLimit,
+    fillLimit = fillLimit,
     copyLimit = copyLimit,
     containerCarries = containerCarries,
     containerName = containerName,

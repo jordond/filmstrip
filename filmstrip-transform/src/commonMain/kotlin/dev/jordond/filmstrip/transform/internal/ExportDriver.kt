@@ -5,6 +5,7 @@ import dev.jordond.filmstrip.capability.DeviceCapabilities
 import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.effect.RenderCapabilities
 import dev.jordond.filmstrip.export.ExportStatus
+import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
@@ -77,6 +78,14 @@ public interface ExportDriver {
    * @param sdrSources The sources drawn beside that HDR source that carry no grade of their own.
    */
   public fun toneMapLimit(sdrSources: List<MediaSource>): String? = null
+
+  /**
+   * Why this device cannot draw [fill], or null when it can.
+   *
+   * Read once per plan that carries a [Fill.Blurred], so an answer that costs something to work out is only paid for
+   * there. A plan carrying a fill this refuses is refused with it as its message.
+   */
+  public fun fillLimit(fill: Fill): String? = null
 
   /**
    * Names the render backend an unclaimed effect would have needed a resolver for.

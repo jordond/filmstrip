@@ -228,6 +228,15 @@ internal fun spatialKernelLimit(
 ): String? = SPATIAL_KERNEL_LIMIT.takeUnless { kernelsExist && compiles() }
 
 /**
+ * Why this device cannot blur a frame through Core Image, or null when it can.
+ *
+ * It is the limit a [GaussianBlur] is refused with, which a blurred fill reads the same way since it runs the same
+ * kernels.
+ */
+@InternalFilmstripApi
+public fun blurKernelLimit(): String? = spatialKernelLimit()
+
+/**
  * What a plan is refused with on a device that cannot run the blur and vignette kernels.
  */
 internal const val SPATIAL_KERNEL_LIMIT: String =
