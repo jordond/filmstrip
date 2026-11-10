@@ -29,12 +29,11 @@ class FfmpegVhsBarEdgeMediaTest {
   private val draw = FilterFrames()
 
   // The canvas holds clear bars either side of the picture, so the slid read beside one weighs by alpha, and alpha
-  // itself mixes the two columns either side. Luma is read since 4:2:0 holds one chroma sample across that edge. A
-  // light tape blurs too little to move the edge, so what is left is the read.
+  // itself mixes the two columns either side. Luma is read since 4:2:0 holds one chroma sample across that edge.
   @Test
-  fun `a light clip vhs read between the picture and a clear bar weighs by alpha`() =
+  fun `a clip vhs read between the picture and a clear bar weighs by alpha`() =
     runBlocking<Unit> {
-      val vhs = Vhs(intensity = LIGHT_INTENSITY)
+      val vhs = Vhs(intensity = INTENSITY)
       val crop = Crop(AspectRatio(16, 9), fit = Fit.Contain)
       val clip = draw.clipOf(RAMP_HEIGHT, RAMP_HEIGHT, { BRIGHT.copyOf() }, listOf(crop, vhs))
       val frame = draw.planesAt(draw.composition(listOf(clip), fill = Fill.Solid(BAR_FILL)), READ_SLOT)
@@ -57,9 +56,6 @@ class FfmpegVhsBarEdgeMediaTest {
             VhsSignal.pixelAt((x + 0.5) / RAMP_WIDTH, row, tick, vhs.seed, RAMP_WIDTH, params) { column ->
               if (column in pictureLeft until pictureRight) BRIGHT + 1.0 else DoubleArray(4)
             }
-          // Under half alpha a tap of the blur can land in the clear column beside it, which a blur on the pixel grid
-          // cannot follow.
-          if (shown[3] < HALF) return@forEach
           val miss = abs(frame.luma(x, y).toDouble() - laid(shown, shown[3]))
           worst = max(worst, miss)
         }
@@ -75,9 +71,8 @@ class FfmpegVhsBarEdgeMediaTest {
     const val RAMP_HEIGHT = 360
     const val LUMA_CODES = 4.0
     const val BAR_FILL = 0xFF20C040.toInt()
-    const val LIGHT_INTENSITY = 0.1f
+    const val INTENSITY = 0.5f
     const val MIN_SLIDE = 0.1
-    const val HALF = 0.5
     const val BOUNDARY_READS = 6
     val BRIGHT = doubleArrayOf(0.745, 0.725, 0.706)
   }
