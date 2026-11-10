@@ -22,9 +22,9 @@ import kotlin.js.JsAny
  *
  * The cover is drawn into [coverFbo] at the output size, boxed down to the plan's size by [downProgram], blurred across
  * and then up by [SpatialBlur.GAUSSIAN_GLSL] in [blurProgram], and read back up to the output with linear filtering by
- * [upProgram], which divides by the blurred alpha and applies the dim. On a kept grade the cover holds linear display light, [downProgram] carries it to
- * the SDR signal it encodes to before it averages, the blur and the dim run on that signal, and [upProgram] carries it
- * back.
+ * [upProgram], which divides by the blurred alpha and applies the dim. On a kept grade the cover holds linear display
+ * light, [downProgram] carries it to the SDR signal it encodes to before it averages, the blur and the dim run on that
+ * signal, and [upProgram] carries it back.
  *
  * @property smallWidth The width the plan blurs at.
  * @property smallHeight The height the plan blurs at.

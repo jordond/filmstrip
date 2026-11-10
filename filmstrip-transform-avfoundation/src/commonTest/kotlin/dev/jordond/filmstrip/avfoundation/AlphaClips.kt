@@ -4,8 +4,8 @@ package dev.jordond.filmstrip.avfoundation
  * One-frame ProRes 4444 clips written with alpha by ffmpeg's prores_ks as yuva444p12le, 128 by 64 pixels and tagged
  * BT.709.
  *
- * The left half is 0xB4785A and the right half 0x5A78B4, and the whole picture is at the alpha the name says. [HALF_CLEAR]
- * is 0xB4785A opaque on the left and clear black on the right.
+ * The left half is 0xB4785A and the right half 0x5A78B4, and the whole picture is at the alpha the name says.
+ * [HALF_CLEAR] is 0xB4785A opaque on the left and clear black on the right.
  */
 internal object AlphaClips {
   const val OPAQUE =

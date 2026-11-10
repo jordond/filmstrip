@@ -199,8 +199,8 @@ internal fun CIImage.fillImage(
  * Scales this frame to cover [size], centred, crops it to the output frame and blurs it by the fill's [blurPlan].
  *
  * The blur runs on the cover crop, so the edge it holds is the crop's and not the frame's. An SDR frame is blurred on
- * the codes of its [colorSpace] and a frame on a kept [transfer] grade on its SDR signal, with the dim as a gain there. A frame with nothing in it covers with
- * black.
+ * the codes of its [colorSpace] and a frame on a kept [transfer] grade on its SDR signal, with the dim as a gain there.
+ * A frame with nothing in it covers with black.
  *
  * A frame with alpha is blurred weighted by that alpha, and the cover is then made opaque. The cover is the colour the
  * picture stands for and its alpha belongs to the sharp frame laid over it, so the cover never shows through twice.

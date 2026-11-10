@@ -16,11 +16,10 @@ import dev.jordond.filmstrip.transform.internal.geometry.blurPlan
  * The frame is scaled up until it covers the output and centre-cropped to that size, then blurred by [fill]'s
  * [blurPlan] through [SpatialBlurGraph], so the edge it holds is the crop's. The blur runs on sixteen bit 4:4:4 planes
  * of the frame's own matrix, where every plane blurs at one sigma. A frame with [hasAlpha] is blurred weighted by its
- * alpha, so its colour is premultiplied before the blur and divided by the blurred alpha after, and the cover that comes
- * out is opaque. A frame on a kept [transfer] grade is blurred on its scaled SDR signal instead, so it is the blur the
- * SDR signal would take. A
- * non-zero [Fill.Blurred.dim] darkens the result afterward, as a gain on the color channels rather than an offset, so
- * it never shifts hue.
+ * alpha, so its colour is premultiplied before the blur and divided by the blurred alpha after, and the cover that
+ * comes out is opaque. A frame on a kept [transfer] grade is blurred on its scaled SDR signal instead, so it is the
+ * blur the SDR signal would take. A non-zero [Fill.Blurred.dim] darkens the result afterward, as a gain on the color
+ * channels rather than an offset, so it never shifts hue.
  */
 internal fun coverBlurNodes(
   outputSize: Size,
