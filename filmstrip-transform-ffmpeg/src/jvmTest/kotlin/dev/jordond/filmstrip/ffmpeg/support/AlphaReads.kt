@@ -132,11 +132,17 @@ internal suspend fun FilterFrames.alphaAt(
           Duration.ZERO,
         ).map { if (it == PREVIEW_PIXEL_FORMAT) "gray" else it }
     val graph = arguments.indexOf(GRAPH_FLAG) + 1
-    withClue("the placement drops the clip's alpha here") { arguments[graph] shouldContain PLACED }
+    // A clip with alpha keeps it to the fill's overlay, one without has it dropped by the placement.
+    val placed = listOf(PLACED, KEPT).first { it in arguments[graph] }
     withClue("the preview takes the frame to its codes here") { arguments[graph] shouldContain SHOWN }
     val tapped =
       arguments.mapIndexed { index, it ->
-        if (index == graph) it.replace(PLACED, "$PLACED_ALPHA[v0]").replace(SHOWN, "null[vshown]") else it
+        when {
+          index != graph -> it
+          // The fill's overlay would convert the extracted plane on its way through, so the tap takes its place.
+          placed == KEPT -> it.replace(placed, "$PLACED_ALPHA[vout]").withoutFill().replace(SHOWN, "null[vshown]")
+          else -> it.replace(placed, "$PLACED_ALPHA[v0]").replace(SHOWN, "null[vshown]")
+        }
       }
     val command = tapped.readingGraphFrom(scratch)
     val size = invocation.output.size
@@ -150,6 +156,12 @@ internal suspend fun FilterFrames.alphaAt(
   } finally {
     scratch.delete()
   }
+}
+
+// Drops the fill and its overlay, from the fill's colour source up to the label the flattened frame is named by.
+private fun String.withoutFill(): String {
+  val start = indexOf(";color=c=")
+  return removeRange(start, indexOf("[vout]", start) + "[vout]".length)
 }
 
 // Luma, blue difference and red difference codes of a colour on BT.709's matrix in limited range.
@@ -173,4 +185,5 @@ private const val CHROMA_SPAN = 224
 private const val ERROR_TAIL = 2000
 private const val PLACED = "format=pix_fmts=yuv420p[v0]"
 private const val PLACED_ALPHA = "format=pix_fmts=$ALPHA_FORMAT,alphaextract"
+private const val KEPT = "format=pix_fmts=yuva420p[v0]"
 private const val SHOWN = "format=pix_fmts=yuv420p[vshown]"
