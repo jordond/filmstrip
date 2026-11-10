@@ -38,6 +38,23 @@ internal fun proRes4444TwoTone(
   return proRes4444Of("$a;$b;[l][r]hstack")
 }
 
+/**
+ * Like [proRes4444Clip], with the left half opaque in [colour] and the right half clear and black.
+ *
+ * A blur that does not weigh its pixels by alpha mixes the clear half's black into the cover, so a pixel over the clear
+ * half reads darker than the colour beside it.
+ */
+internal fun proRes4444HalfClear(
+  width: Int,
+  height: Int,
+  colour: Triple<Int, Int, Int>,
+): File {
+  val half = width / 2
+  val a = "color=c=${lavfiColour(colour.first, colour.second, colour.third, BYTE_MAX)}:s=${half}x$height:r=30:d=1[l]"
+  val b = "color=c=${lavfiColour(0, 0, 0, 0)}:s=${half}x$height:r=30:d=1[r]"
+  return proRes4444Of("$a;$b;[l][r]hstack")
+}
+
 private fun lavfiColour(
   red: Int,
   green: Int,

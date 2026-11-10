@@ -28,6 +28,24 @@ class BlurredLetterboxTest {
   }
 
   @Test
+  fun `a background with alpha is blurred weighted by it and handed on opaque`() {
+    val fill = Fill.Blurred(radius = 0.05f, dim = 0f)
+    val plan = fill.blurPlan(OUTPUT)
+    val nodes = coverBlurNodes(OUTPUT, fill, PIXEL_FORMAT, hasAlpha = true).render()
+
+    nodes shouldContain
+      "format=pix_fmts=$COVER_FORMAT,premultiply=inplace=1," +
+      SpatialBlurGraph.boxedDown(plan, plan, OUTPUT, COVER_FORMAT).render() + "," +
+      SpatialBlurGraph.blurredUp(plan, plan, OUTPUT, COVER_FORMAT, ALL_PLANES).render() +
+      ",unpremultiply=inplace=1,format=pix_fmts=yuv444p16le,format=pix_fmts=$PIXEL_FORMAT"
+  }
+
+  @Test
+  fun `a background without alpha is not premultiplied`() {
+    coverBlurNodes(OUTPUT, Fill.Blurred(), PIXEL_FORMAT).render() shouldNotContain "premultiply"
+  }
+
+  @Test
   fun `the background is handed on in the tail's format`() {
     coverBlurNodes(OUTPUT, Fill.Blurred(), PIXEL_FORMAT).last().render() shouldBe "format=pix_fmts=$PIXEL_FORMAT"
   }
@@ -51,5 +69,6 @@ class BlurredLetterboxTest {
     const val PIXEL_FORMAT = "yuv420p"
     const val COVER_FORMAT = "yuva444p16le"
     const val COLOR_PLANES = 7
+    const val ALL_PLANES = 15
   }
 }

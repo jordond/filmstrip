@@ -457,7 +457,14 @@ internal class GraphLowering(
     val rect = clip.drawnIn(output.size)
     val fill = negotiated.fill
     if (fill is Fill.Blurred && (clip.placement.showsBlurredFill(output.size) || clip.info.video?.hasAlpha == true)) {
-      val tail = TrailingFrames(frameRate, tailPixelFormat, slots, negotiated.hdrTransfer)
+      val tail =
+        TrailingFrames(
+          frameRate,
+          tailPixelFormat,
+          slots,
+          negotiated.hdrTransfer,
+          clip.info.video?.hasAlpha == true,
+        )
       return graph.blurredTail(pad, pending, fill, rect, output.size, "v$index", tail, grid, sidecars)
     }
 

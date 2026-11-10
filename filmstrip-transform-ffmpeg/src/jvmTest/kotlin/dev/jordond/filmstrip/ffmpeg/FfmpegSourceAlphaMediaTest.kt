@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip.ffmpeg
 
+import dev.jordond.filmstrip.color.blurPlane
 import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.export.ExportSpec
@@ -10,11 +11,14 @@ import dev.jordond.filmstrip.ffmpeg.support.ExportConstants.TIMEOUT
 import dev.jordond.filmstrip.ffmpeg.support.FfmpegExportFixture
 import dev.jordond.filmstrip.ffmpeg.support.pixelAt
 import dev.jordond.filmstrip.ffmpeg.support.proRes4444Clip
+import dev.jordond.filmstrip.ffmpeg.support.proRes4444HalfClear
 import dev.jordond.filmstrip.ffmpeg.support.proRes4444TwoTone
 import dev.jordond.filmstrip.geometry.Fill
+import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.transform.internal.geometry.blendOverFill
+import dev.jordond.filmstrip.transform.internal.geometry.blurPlan
 import io.kotest.assertions.withClue
 import io.kotest.matchers.ints.shouldBeInRange
 import io.kotest.matchers.shouldNotBe
@@ -22,6 +26,7 @@ import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
 import java.io.File
+import kotlin.math.roundToInt
 import kotlin.test.Test
 
 /**
@@ -51,25 +56,64 @@ class FfmpegSourceAlphaMediaTest {
     runTest(timeout = TIMEOUT) {
       if (!fixture.available()) return@runTest
 
-      val fill = Fill.Blurred(radius = 0.5f)
+      val fill = Fill.Blurred(radius = 0.5f, dim = 0f)
       val left = Triple(220, 40, 40)
       val right = Triple(40, 40, 220)
-      val at = SIDE * 2 / 4
+      val width = SIDE * 2
+      val at = width / 4
 
-      suspend fun pixel(alpha: Int) =
-        pixelAt(
-          exported(proRes4444TwoTone(SIDE * 2, SIDE, left, right, alpha), fill),
-          at,
-          SIDE / 2,
-        )
-      val opaque = pixel(255)
-      val cover = pixel(0)
-      val half = pixel(128)
+      suspend fun frame(alpha: Int) = exported(proRes4444TwoTone(width, SIDE, left, right, alpha), fill)
+      val opaque = frame(255)
+      val source = pixelAt(opaque, at, SIDE / 2)
+      val leftCodes = source
+      val rightCodes = pixelAt(opaque, width - at, SIDE / 2)
+      val plan = fill.blurPlan(Size(width, SIDE))
+      val sigma = plan.sigmaPx / plan.width
+      val cover =
+        listOf(
+          leftCodes.first to rightCodes.first,
+          leftCodes.second to rightCodes.second,
+          leftCodes.third to rightCodes.third,
+        ).map { (l, r) ->
+          val plane = DoubleArray(width * SIDE) { (if (it % width < width / 2) l else r).toDouble() }
+          blurPlane(plane, DoubleArray(plane.size) { 1.0 }, width, SIDE, sigma)[(SIDE / 2) * width + at].roundToInt()
+        }.let { Triple(it[0], it[1], it[2]) }
+      val half = pixelAt(frame(128), at, SIDE / 2)
 
       withClue("the cover has to differ from the source or this cannot tell a blend from no blend") {
-        cover.first shouldNotBe opaque.first
+        cover.first shouldNotBe source.first
       }
-      assertBlend(half, opaque, 128, cover)
+      assertBlend(half, source, 128, cover)
+    }
+
+  @Test
+  fun `a clip with a clear half is covered by a blur weighted by its alpha`() =
+    runTest(timeout = TIMEOUT) {
+      if (!fixture.available()) return@runTest
+
+      val fill = Fill.Blurred(radius = RADIUS_CLEAR, dim = 0f)
+      val colour = Triple(220, 60, 40)
+      val width = SIDE * 2
+      val drawn = exported(proRes4444HalfClear(width, SIDE, colour), fill)
+      val whole = exported(proRes4444Clip(width, SIDE, colour.first, colour.second, colour.third, alpha = 255), fill)
+      val source = pixelAt(whole, SIDE / 2, SIDE / 2)
+      val plan = fill.blurPlan(Size(width, SIDE))
+      val sigma = plan.sigmaPx / plan.width
+      val alpha = DoubleArray(width * SIDE) { if (it % width < width / 2) 1.0 else 0.0 }
+
+      for (at in listOf(CLEAR_AT, NEAR_EDGE_AT)) {
+        val cover =
+          listOf(source.first, source.second, source.third).map { level ->
+            val plane = DoubleArray(alpha.size) { if (alpha[it] > 0.0) level.toDouble() else 0.0 }
+            blurPlane(plane, alpha, width, SIDE, sigma)[(SIDE / 2) * width + at].roundToInt()
+          }
+        val read = pixelAt(drawn, at, SIDE / 2)
+        withClue("at $at read $read, expected $cover") {
+          read.first shouldBeInRange (cover[0] - TOLERANCE)..(cover[0] + TOLERANCE)
+          read.second shouldBeInRange (cover[1] - TOLERANCE)..(cover[1] + TOLERANCE)
+          read.third shouldBeInRange (cover[2] - TOLERANCE)..(cover[2] + TOLERANCE)
+        }
+      }
     }
 
   private fun assertBlend(
@@ -123,6 +167,9 @@ class FfmpegSourceAlphaMediaTest {
   private companion object {
     const val SIDE = 64
     const val SOLID = 0xFF3060A0.toInt()
-    const val TOLERANCE = 6
+    const val TOLERANCE = 2
+    const val RADIUS_CLEAR = 0.25f
+    const val CLEAR_AT = 96
+    const val NEAR_EDGE_AT = 76
   }
 }
