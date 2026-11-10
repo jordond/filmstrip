@@ -25,7 +25,8 @@ internal class VhsExpressions(
    *
    * Alpha moves with the row, so picture displaced into a canvas's clear bar lands over the fill and the part of a bar
    * displaced into the picture lets the fill through. It holds at the picture's own edge past either side, and the
-   * margin's own alpha is never read. A frame with no alpha plane ignores it.
+   * margin's own alpha is never read. The colour planes are read premultiplied by [premultiply], so a clear column adds
+   * none of its colour to a read, and [divide] takes the alpha back off.
    */
   fun displace(
     width: Int,
@@ -40,6 +41,54 @@ internal class VhsExpressions(
       "a" to "${onEachRow(prelude(), "st(8,${rowShift()})")};0.5+alpha($alpha,Y)",
     )
   }
+
+  /**
+   * The `lut2` that premultiplies the colour planes of a tape by the alpha frame it is paired with, which holds the
+   * alpha at luma's size in its luma plane and at chroma's size in its chroma planes. Black stays black, and an opaque
+   * pixel keeps its code.
+   */
+  fun premultiply(): FilterNode =
+    FilterNode(
+      "lut2",
+      "c0" to "$LUMA_BLACK+floor((x-$LUMA_BLACK)*y/$FULL_SCALE+0.5)",
+      "c1" to "$CHROMA_ZERO+floor((x-$CHROMA_ZERO)*y/$FULL_SCALE+0.5)",
+      "c2" to "$CHROMA_ZERO+floor((x-$CHROMA_ZERO)*y/$FULL_SCALE+0.5)",
+      "c3" to "x",
+    )
+
+  /**
+   * The `lut2` that takes the alpha off a [premultiply]ed tape that [displace] has moved, paired with an alpha frame
+   * laid out the way [premultiply]'s is. A pixel with no alpha reads black.
+   */
+  fun divide(): FilterNode =
+    FilterNode(
+      "lut2",
+      "c0" to dividedBy(LUMA_BLACK),
+      "c1" to dividedBy(CHROMA_ZERO),
+      "c2" to dividedBy(CHROMA_ZERO),
+      "c3" to "x",
+    )
+
+  /**
+   * The `geq` that moves the alpha at chroma's size the way [displace] moves the chroma planes, which sit
+   * [VhsParams.chromaShift] from luma, so [divide] weighs each chroma sample by the alpha it was read with.
+   */
+  fun displaceChromaAlpha(
+    width: Int,
+    margin: Int,
+  ): FilterNode {
+    val row =
+      onEachRow(
+        prelude(),
+        "st(8,${rowShift()})",
+        "st(7,(ld(8)+${params.chromaShift})*$width*$CHROMA_SCALE)",
+      )
+    val picture = "clip(X-ld(7),${margin / 2},${(margin + width - 1) / 2})"
+    return FilterNode("geq", "lum" to "$row;0.5+lum($picture,Y)")
+  }
+
+  private fun dividedBy(black: Int) =
+    "if(gt(y,0),clip($black+floor((x-$black)*$FULL_SCALE/y+0.5),0,$FULL_SCALE),$black)"
 
   /**
    * The `geq` that draws the added noise as an offset from mid scale in each plane, widened to fill the map so a code
@@ -359,5 +408,6 @@ internal class VhsExpressions(
 
   private companion object {
     const val TAU = 6.283185307179586
+    const val CHROMA_SCALE = 0.5
   }
 }
