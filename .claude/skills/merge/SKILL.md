@@ -26,10 +26,10 @@ Conflicts, by hand:
 A conflict you cannot settle from the two sides and the plan → stop, name the file and both sides.
 
 ## 3. Companion checklist
-Read `checklist.md` here and run the rows the diff hits. A fix goes to a fresh `builder` or `scribe` with the lines pasted, landed as its own commit on the plan branch.
+Read `checklist.md` here and run the rows the diff hits. Fix hits in this session, only a big job goes to a fresh `builder` with the lines pasted. Either lands as its own commit on the plan branch.
 
 ## 4. Verify once per plan
-`/orchestrate` runs the lane once, after the review, against the plan worktree. Red → one fresh builder with the failing lines, one re-run. Never a retry loop.
+`/orchestrate` runs the lane once, after the review, against the plan worktree. Red → fix it here, or one fresh builder if it is a big job, with the failing lines, then one re-run. Never a retry loop.
 
 ## 5. Integration branch → `main`, only on the owner's go
 The owner decides when an plan branch lands. With the go:

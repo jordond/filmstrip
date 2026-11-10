@@ -28,6 +28,6 @@ Red:
 - `unknown` → rerun that step with `--only <step> --rerun`.
 - A single `failed=` count in an encoder test → re-run that step alone with `--only <step>` before believing it.
 - `failure message="Unknown"` → a cancelled client, not a crash. Check the daemon log per memory `cancelled-gradle-looks-like-crash`.
-- A real failure: one fresh `builder` with the failing lines pasted, not the log path, then one re-run. The orchestrating session never edits the code itself.
+- A real failure: fix it in this session unless it is a big job, then one fresh `builder` with the failing lines pasted, not the log path. Then one re-run.
 
 Reply: `ci: exit=<n> @ <sha>` plus the failing lines, nothing else.

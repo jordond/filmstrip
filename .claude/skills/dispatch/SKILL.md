@@ -40,7 +40,7 @@ Running at the same time (do not touch their files): <other agents and their pat
 If measured behaviour is nondeterministic or a platform limit, stop and report it, do not pin it.
 Stay on the plan's goal. A bug you find outside it goes in the report as a follow-up, not into the branch.
 Prove a test can fail with a temporary mutation only for a new fence, seam or limit, not for every test.
-Budget: finish under 250k context. Past it, commit the units that are done and report which are left.
+Budget: finish under 175k context. Past it, commit the units that are done and report which are left.
 Self-check before you report: run `bash /Users/jordon/dev/filmstrip/.claude/skills/review/precheck.sh <base> .`
 and fix every hit. Then go through your diff against /Users/jordon/dev/filmstrip/.claude/skills/review/lenses.md,
 fix what it finds, and end the report with one line per lens you left open and why. A reviewer gets the same list.

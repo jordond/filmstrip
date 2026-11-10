@@ -9,13 +9,13 @@ whole branch, after every unit is done.
 
 ## 0. Skip
 No reviewer when the branch changes no production code: only tests, CI, docs, build files or skills. Run the precheck,
-read the builder's open-lens lines, and merge. A scribe fixes precheck hits.
+read the builder's open-lens lines, and merge. Fix precheck hits in this session.
 
 ## 1. Precheck, one Bash
 ```sh
 bash .claude/skills/review/precheck.sh <base> <branch or worktree>
 ```
-It prints `path:line: reason` for mechanical hits in changed Kotlin: lines past 120 columns, leftover `// <slug>-u<n>` or `-m<n>` markers, files past 500 lines, commas in Native test names. Hits ride with the builder brief of the next fix, or go to a scribe when there is none. The reviewer sees judgement items only.
+It prints `path:line: reason` for mechanical hits in changed Kotlin: lines past 120 columns, leftover `// <slug>-u<n>` or `-m<n>` markers, files past 500 lines, commas in Native test names. Fix hits in this session, or add them to the brief of a fix builder if one is spawned. The reviewer sees judgement items only.
 
 ## 2. Diff by path
 Write `git diff <base>...<branch>` to `scratchpad/reviews/<branch with / as ->.diff`. Working changes: `git diff` and `git diff --cached` into the same file. Hand the reviewer the path, never a command to run.
@@ -36,8 +36,8 @@ Return at most 15 lines `path:line: severity: problem. fix.` and a `verdict:` li
 ```
 
 ## 4. Then
-- 🔴, and 🟠 with a failing input: one fresh `builder` with every such line and the precheck hits pasted, the branch
-  named. No re-review unless a 🔴 was in it, then a narrow one on the fix commits only.
+- 🔴, and 🟠 with a failing input: fix them in this session unless it is a big job, then one fresh
+  `builder` with every such line and the precheck hits pasted, the branch named. No re-review unless a 🔴 was in it, then a narrow one on the fix commits only.
 - 🟡, 🔵, untested 🟠 and the trailing board line: note them on `scratchpad/upnext.md` under the plan. They never
   loop and never become a unit of this plan.
 - A second fix-first verdict on the same plan → stop and report the lines.

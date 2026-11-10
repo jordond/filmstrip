@@ -18,22 +18,23 @@ The owner may be away. Speak at decision points and outcomes only, no narration 
 
 ## 2. Per plan
 
-A plan is built by **one builder**, working its units in order on one branch. A second builder runs beside it only
+A big plan is built by **one builder**, working its units in order on one branch. A second builder runs beside it only
 when the plan has a unit on another machine (Mac vs cerebro) with no shared files. Never one agent per unit.
 
 1. **Plan.** The plan file exists and its units carry files, tests and verification → go on. Otherwise `/plan <slug>`.
-2. **Dispatch.** `/dispatch <slug>` spawns the builder for every unit. End the turn, the completion notification wakes
+2. **Build.** A plan small enough to finish in this session is built here, then go to step 3. A big one:
+   `/dispatch <slug>` spawns the builder for every unit. End the turn, the completion notification wakes
    you. Never poll, never read a transcript. A builder that stops at its budget reports what is left. A fresh builder
    continues from its branch with the plan's unfinished units, never a message to the one that finished.
 3. **On the report.** Scope checkpoint first (below). A report that is a stop-gap goes back as the proper fix.
 4. **Review once, per plan.** `/review` the whole branch. It skips a branch with no production code (tests, CI,
-   docs, build files). Only 🔴, and 🟠 with a failing input, go back: one fresh builder with every such line, no
-   re-review unless a 🔴 was in it. 🟡, 🔵 and anything outside the plan's goal go to the board, never into the chain.
+   docs, build files). Only 🔴, and 🟠 with a failing input, go back: fixed in this session, one fresh builder only
+   for a big job, with every such line, no re-review unless a 🔴 was in it. 🟡, 🔵 and anything outside the plan's goal go to the board, never into the chain.
    A second fix-first verdict → **stop** with the lines.
 5. **Verify once per batch, not per plan.** Plans this call runs stack on one integration branch. When every plan
    has landed, one `/ci --plan <base>` on its head in the background (only the suites the batch owes), `--device`
    only when a pixel path changed in the batch. A test-only or script-only plan owes no lane, its builder's touched
-   run is its verification. Red → bisect to the plan, one fresh builder with the failing lines, one rerun of the red
+   run is its verification. Red → bisect to the plan, fix it here or one fresh builder for a big job, with the failing lines, one rerun of the red
    steps only. Red again → **stop** with the digest.
 6. Green → write the verified line and counts into each plan's `upnext.md` section and stop for the owner's go.
    **Never squash onto `main`, push, or open a PR without it.**
@@ -65,7 +66,9 @@ A question or chore for the owner parks only the work that needs the answer. Nam
   becomes a teammate whose result arrives as an idle message, and those have been lost. Before any status reply or
   wait, `ListAgents`: an idle agent whose result never arrived has its last message read from its transcript.
 - Model and effort come from the agent files. Never pass `model:` unless the owner names one.
-- Read source only to write the exact lines you are routing to a builder or scribe. Lookups go to `scout`, explanations to `analyst`.
+- Do the work in this session by default: fixes, review findings, red CI lines and plans small enough to finish
+  here. Builders are for long running big tasks, like a multi-unit plan or work across modules. Lookups and reading
+  are done here, `scout` and `analyst` only for questions too big to answer inline.
 - Never run the lane inline, `/ci` runs it in the background.
 - A compaction warning mid-run → `/wrap-up` now, the board resumes you.
 - Two failed attempts at the same step: report and stop. Scaling the work down is the owner's call.
