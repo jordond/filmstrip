@@ -299,6 +299,7 @@ class Media3PreviewMediaTest {
               colorSpace = ColorSpace.Bt709,
               hdrTransfer = null,
               bitrate = null,
+              hasAlpha = false,
             ),
           audio = null,
           isExportable = true,

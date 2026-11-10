@@ -90,6 +90,7 @@ class Media3CopyBlockerMediaTest {
           colorSpace = video.colorSpace,
           hdrTransfer = video.hdrTransfer,
           bitrate = video.bitrate,
+          hasAlpha = false,
         ),
       audio = audio,
       isExportable = isExportable,

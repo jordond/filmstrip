@@ -60,7 +60,7 @@ public class VideoTrackInfo(
   public val colorSpace: ColorSpace,
   public val hdrTransfer: HdrTransfer?,
   public val bitrate: Bitrate?,
-  public val hasAlpha: Boolean = false,
+  public val hasAlpha: Boolean,
 )
 
 /**

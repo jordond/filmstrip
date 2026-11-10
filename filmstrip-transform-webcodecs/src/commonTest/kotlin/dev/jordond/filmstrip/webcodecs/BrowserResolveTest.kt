@@ -122,6 +122,7 @@ class BrowserResolveTest {
           colorSpace = ColorSpace.Bt709,
           hdrTransfer = null,
           bitrate = null,
+          hasAlpha = false,
         ),
       audio = null,
       isExportable = true,

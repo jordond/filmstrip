@@ -81,6 +81,7 @@ class HeldTailLoweringTest {
               colorSpace = ColorSpace.Bt709,
               hdrTransfer = null,
               bitrate = null,
+              hasAlpha = false,
             ),
           audio = AudioTrackInfo(trackCodecOf("mp4a"), 48_000, 2, null),
           isExportable = true,

@@ -106,6 +106,7 @@ class AppleToneMapFailureMediaTest {
             colorSpace,
             transfer,
             bitrate,
+            hasAlpha,
           )
         },
       audio = audio,

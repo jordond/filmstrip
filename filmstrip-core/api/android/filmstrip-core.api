@@ -1515,7 +1515,6 @@ public final class dev/jordond/filmstrip/media/TrackCodec {
 
 public final class dev/jordond/filmstrip/media/VideoTrackInfo {
 	public fun <init> (Ldev/jordond/filmstrip/geometry/Size;Ldev/jordond/filmstrip/geometry/Size;IFLjava/lang/Float;Ldev/jordond/filmstrip/media/TrackCodec;Ljava/lang/Integer;Ldev/jordond/filmstrip/media/ColorSpace;Ldev/jordond/filmstrip/media/HdrTransfer;Ldev/jordond/filmstrip/codec/Bitrate;Z)V
-	public synthetic fun <init> (Ldev/jordond/filmstrip/geometry/Size;Ldev/jordond/filmstrip/geometry/Size;IFLjava/lang/Float;Ldev/jordond/filmstrip/media/TrackCodec;Ljava/lang/Integer;Ldev/jordond/filmstrip/media/ColorSpace;Ldev/jordond/filmstrip/media/HdrTransfer;Ldev/jordond/filmstrip/codec/Bitrate;ZILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getBitDepth ()Ljava/lang/Integer;
 	public final fun getBitrate ()Ldev/jordond/filmstrip/codec/Bitrate;

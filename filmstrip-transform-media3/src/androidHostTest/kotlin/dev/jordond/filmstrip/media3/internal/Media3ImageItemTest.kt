@@ -321,6 +321,7 @@ class Media3ImageItemTest {
               colorSpace = ColorSpace.Bt709,
               hdrTransfer = hdrTransfer,
               bitrate = null,
+              hasAlpha = false,
             ),
           audio = null,
           isExportable = true,

@@ -165,6 +165,7 @@ class OutputDriftTest {
       colorSpace = ColorSpace.Bt709,
       hdrTransfer = null,
       bitrate = null,
+      hasAlpha = false,
     )
 
   private fun audio(

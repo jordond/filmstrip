@@ -86,6 +86,7 @@ class Mp4CopyTest {
         colorSpace = ColorSpace.Bt709,
         hdrTransfer = null,
         bitrate = null,
+        hasAlpha = false,
       ),
     audio = audio?.let { track(it) },
     isExportable = true,

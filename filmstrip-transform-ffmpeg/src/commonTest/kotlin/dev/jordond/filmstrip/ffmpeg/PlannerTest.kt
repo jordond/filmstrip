@@ -1206,6 +1206,7 @@ class PlannerTest {
         colorSpace = if (hdr == null) ColorSpace.Bt709 else ColorSpace.Bt2020,
         hdrTransfer = hdr,
         bitrate = null,
+        hasAlpha = false,
       ),
     audio = AudioTrackInfo(trackCodecOf("mp4a"), 48_000, 2, null),
     isExportable = true,
