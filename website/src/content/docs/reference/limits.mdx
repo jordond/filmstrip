@@ -147,13 +147,12 @@ picture but still plays its audio. If it's the whole primary track, it's refused
 Each [filter](/guides/filters/) looks the same on every backend, within a few code values. Where a backend can't run
 one, it's refused by name.
 
-- **Apple** runs `vhs`, `crt`, `glitch`, `lut`, `nightVision` and `pixel` on Core Image Metal kernels, which need an
-  Apple6 GPU on iOS, or macOS 12 on a Mac.
+- **Apple** runs `vhs`, `film`, `crt`, `glitch`, `lut`, `nightVision` and `pixel` on Core Image Metal kernels, which
+  need an Apple6 GPU on iOS, or macOS 12 on a Mac.
 - **Browser** refuses a clip larger on a side than the page's `MAX_TEXTURE_SIZE`. A fit that crops makes the clip's
   frame larger than the output.
-- **Android and browser** need OpenGL ES 3 for `lut`, and a texture big enough for the table, 1170×520 for a 65 point
-  table and 3096×1419 for 129.
-- **Android** refuses `vhs`, `glitch` and `nightVision` on a device below OpenGL ES 3.
+- **Android and browser** need OpenGL ES 3 for every filter, and a texture big enough for a `lut` table, 1170×520 for a
+  65 point table and 3096×1419 for 129.
 - **ffmpeg** blurs with an approximation, so a hard edge can land up to a fifth of a step off. Everywhere else it's
   within a few code values.
 - **ffmpeg** works in 4:2:0, which averages out the colored stripes in `crt`'s mask. Any 4:2:0 file does the same, so
@@ -251,7 +250,8 @@ The rest are next to the feature they limit.
 - [Player](/guides/player/): seeking, scrubbing and redraw per backend.
 - [Overlays](/guides/overlays/): file paths in the browser, texture sizes, off-frame animation, the ffmpeg
   even pixel snap and line breaking.
-- [Effects](/guides/effects/): `kenBurns`, `rotate`, `Fill.Blur` and color effects on a kept grade.
+- [Effects](/guides/effects/#limits): `kenBurns`, `rotate`, `blur`, `vignette`, `Fill.Blur` and color effects on a kept
+  grade.
 - [Audio](/guides/audio/): the Android AAC tail, the browser preview's fades and which backends play a chosen track.
 - [HDR](/guides/hdr/): what each backend can tone map and read.
 - [Stills](/guides/stills/): which backends put a still on the timeline.

@@ -21,6 +21,8 @@ to use them.
 | `invert`        | ✓       | ✓     | ✓             | ✓   |
 | `rgbAdjustment` | ✓       | ✓     | ✓             | ✓   |
 | `colorMatrix`   | ✓       | ✓     | ✓             | ✓   |
+| `blur`          | ✓       | ✓     | ✓             | ✓   |
+| `vignette`      | ✓       | ✓     | ✓             | ✓   |
 | `imageOverlay`  | ✓       | ✓     | No file paths | ✓   |
 | `textOverlay`   | ✓       | ✓     | ✓             | ✓   |
 
@@ -51,6 +53,12 @@ ffmpeg refuses it.
 
 Every backend applies the same color math. On an SDR export, ffmpeg can land one code value below the others when an
 effect mixes channels, like `sepia` or `hueRotate`.
+
+### blur and vignette
+
+On Apple both run a Core Image Metal kernel, which needs an Apple6 GPU on iOS or macOS 12. On ffmpeg `blur` runs through
+`gblur` and 8-bit RGB, landing within 2.5 codes of the shared kernel, and `vignette` rounds through RGB and back,
+landing within 1.5 codes.
 
 ### imageOverlay
 
