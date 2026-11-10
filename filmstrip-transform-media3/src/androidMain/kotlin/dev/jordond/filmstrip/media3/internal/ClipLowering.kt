@@ -54,7 +54,7 @@ internal fun ResolvedClip.clipVideoEffects(
   val blackBars =
     if (fill is Fill.Blurred && placement.canvases.isNotEmpty()) listOf(FillFlatten(BLACK_BARS)) else emptyList()
   val placed =
-    if (fill is Fill.Blurred && placement.showsBlurredFill(outputSize)) {
+    if (fill is Fill.Blurred && (placement.showsBlurredFill(outputSize) || info.video?.hasAlpha == true)) {
       FillCoverBlur(fill, outputSize, drawnRect, transfer)
     } else {
       PlacedFrame(drawnRect, outputSize)

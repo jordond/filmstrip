@@ -385,7 +385,7 @@ ${SpatialBlur.BOX_DOWN_GLSL.prependIndent("  ")}
   """.trimIndent()
 
 // Reads the blur back up to the output with linear filtering and dims its signal, under the sharp frame inside its
-// rect.
+// rect. The sharp frame's alpha mixes it over that cover, and the result is opaque.
 private fun compositeFragmentShader(signalGlsl: String): String =
   """
   #version 300 es
@@ -400,11 +400,13 @@ private fun compositeFragmentShader(signalGlsl: String): String =
   $signalGlsl
 
   void main() {
+    vec4 background = textureLod($FRAME, vUv, 0.0);
+    vec3 cover = fromSignal(background.rgb * uGain);
     if (vUv.x >= uSharpMin.x && vUv.x < uSharpMax.x && vUv.y >= uSharpMin.y && vUv.y < uSharpMax.y) {
-      fragColor = texture(uSharpSampler, (vUv - uSharpMin) / (uSharpMax - uSharpMin));
+      vec4 sharp = texture(uSharpSampler, (vUv - uSharpMin) / (uSharpMax - uSharpMin));
+      fragColor = vec4(mix(cover, sharp.rgb, sharp.a), 1.0);
     } else {
-      vec4 background = textureLod($FRAME, vUv, 0.0);
-      fragColor = vec4(fromSignal(background.rgb * uGain), 1.0);
+      fragColor = vec4(cover, 1.0);
     }
   }
   """.trimIndent()

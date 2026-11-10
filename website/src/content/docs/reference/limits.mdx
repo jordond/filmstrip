@@ -58,6 +58,18 @@ See [Fit](/guides/effects/#fit).
 - On an 8-bit ffmpeg export, an overlay or a cropped region at an odd pixel offset lands one pixel up and left of the
   other backends.
 
+## Source alpha
+
+A source with transparent pixels draws over the fill, solid or blurred, even when it covers the whole frame. A track
+reports `hasAlpha` only for alpha its backend can decode, and a source whose alpha a backend drops is treated as opaque.
+
+- Android video decoders hand back opaque pictures, so a video with alpha, such as VP9 in WebM or HEVC with alpha,
+  reads as opaque there. A PNG or WebP still keeps its alpha.
+- ffmpeg decodes VP9 alpha with its native decoder, which drops it, so a WebM tagged `alpha_mode` reads as opaque.
+  ProRes 4444 and other formats whose pixel format has an alpha plane keep it.
+- The ffmpeg and Android blends are rounded to the nearest code on the stored channels, so a half transparent pixel can
+  differ from another backend by a few codes.
+
 ## Preview against the file
 
 A preview doesn't encode, so it never shows compression artifacts. Late frames are dropped, so it can be less smooth
