@@ -317,7 +317,7 @@ class AppleVhsHardwareTest {
     picture: Rgb,
   ): Rgb {
     val tick = VhsSignal.tickAt(index / FRAME_RATE)
-    val source = { _: Double -> doubleArrayOf(picture.r, picture.g, picture.b) }
+    val source = { _: Int -> doubleArrayOf(picture.r, picture.g, picture.b) }
     val pixels =
       (-PATCH_HALF until PATCH_HALF step PATCH_STEP).flatMap { dy ->
         (-PATCH_HALF until PATCH_HALF step PATCH_STEP).map { dx ->

@@ -59,6 +59,24 @@ public fun sdrSignalFromHlgScene(scene: Double): Double = sdrSignalFromNits(hlgD
 internal fun hlgSceneFromSdrSignal(signal: Double): Double = hlgSceneFromDisplayNits(nitsFromSdrSignal(signal))
 
 /**
+ * Encodes one channel of an HLG [signal] as the SDR signal a color effect reads a kept HLG grade in, in double.
+ *
+ * Runs [sceneFromHlgSignal] and then [sdrSignalFromHlgScene] without rounding in between, so a backend holding the
+ * HLG signal itself lands in the same domain as one holding scene light. A full signal encodes to the HLG
+ * [sdrSignalCeiling].
+ */
+@InternalFilmstripApi
+public fun sdrSignalFromHlgSignal(signal: Double): Double = sdrSignalFromHlgScene(sceneFromHlgSignal(signal))
+
+/**
+ * Decodes an SDR [signal] back to one channel of an HLG signal, the inverse of [sdrSignalFromHlgSignal], in double.
+ *
+ * A signal past the HLG [sdrSignalCeiling] decodes to a full HLG signal.
+ */
+@InternalFilmstripApi
+public fun hlgSignalFromSdrSignal(signal: Double): Double = hlgSignalFromScene(hlgSceneFromSdrSignal(signal))
+
+/**
  * Encodes [nits] of linear light as a PQ signal in the range zero to one, in double.
  *
  * The inverse EOTF of SMPTE ST 2084. Light past [PQ_PEAK_NITS] encodes as the full signal.

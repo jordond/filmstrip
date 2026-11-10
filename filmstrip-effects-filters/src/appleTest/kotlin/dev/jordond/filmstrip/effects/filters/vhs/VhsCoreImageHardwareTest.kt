@@ -35,7 +35,7 @@ import platform.Foundation.NSNumber
 import platform.Foundation.NSString
 import platform.Foundation.create
 import platform.Foundation.dictionaryWithObject
-import kotlin.math.floor
+import kotlin.math.ceil
 import kotlin.math.pow
 import kotlin.math.sqrt
 import kotlin.test.Test
@@ -55,7 +55,7 @@ class VhsCoreImageHardwareTest {
     val vhs = Vhs(intensity = 0.5f)
     val frame = drawn(vhs, ramp(WIDTH, HEIGHT), WIDTH, HEIGHT)
 
-    READ_ROWS.forEach { y -> assertRowMatches(frame, vhs, y, HEIGHT, WIDTH, ::rampAt) }
+    READ_ROWS.forEach { y -> assertRowMatches(frame, vhs, y, HEIGHT, WIDTH, ::rampTexel) }
   }
 
   @Test
@@ -64,7 +64,11 @@ class VhsCoreImageHardwareTest {
     val height = HEIGHT / 3
     val frame = drawn(vhs, ramp(WIDTH, height), WIDTH, height)
 
-    listOf(height / 4, height / 2, height - 1).forEach { y -> assertRowMatches(frame, vhs, y, height, WIDTH, ::rampAt) }
+    listOf(
+      height / 4,
+      height / 2,
+      height - 1,
+    ).forEach { y -> assertRowMatches(frame, vhs, y, height, WIDTH, ::rampTexel) }
   }
 
   @Test
@@ -75,7 +79,7 @@ class VhsCoreImageHardwareTest {
     VhsSignal.snowAt(SNOWY.seed, VhsSignal.tickAt(SECONDS), row, 0.5, VhsParams.of(SNOWY)).weight shouldBeGreaterThan
       0.25
     listOf(HEIGHT * 2 / 5, HEIGHT / 2, HEIGHT * 3 / 5).forEach { y ->
-      assertRowMatches(frame, SNOWY, y, HEIGHT, WIDTH, ::rampAt)
+      assertRowMatches(frame, SNOWY, y, HEIGHT, WIDTH, ::rampTexel)
     }
   }
 
@@ -85,7 +89,7 @@ class VhsCoreImageHardwareTest {
     val frame = drawn(SNOWY, ramp(WIDTH, height), WIDTH, height)
 
     listOf(height * 2 / 5, height / 2, height * 3 / 5).forEach { y ->
-      assertRowMatches(frame, SNOWY, y, height, WIDTH, ::rampAt)
+      assertRowMatches(frame, SNOWY, y, height, WIDTH, ::rampTexel)
     }
   }
 
@@ -96,7 +100,7 @@ class VhsCoreImageHardwareTest {
     val frame = drawn(vhs, ramp(WIDTH, TALL_HEIGHT), WIDTH, TALL_HEIGHT)
 
     (0 until TALL_HEIGHT step EXACT_ROW_STEP).forEach { y ->
-      assertRowMatches(frame, vhs, y, TALL_HEIGHT, WIDTH, ::rampAt)
+      assertRowMatches(frame, vhs, y, TALL_HEIGHT, WIDTH, ::rampTexel)
     }
   }
 
@@ -105,7 +109,7 @@ class VhsCoreImageHardwareTest {
     val vhs = Vhs(intensity = 0.5f)
     val frame = drawn(vhs, imageOf(WIDTH, HEIGHT, ::edge), WIDTH, HEIGHT)
 
-    assertRowMatches(frame, vhs, HEIGHT / 2, HEIGHT, WIDTH, ::edgeAt)
+    assertRowMatches(frame, vhs, HEIGHT / 2, HEIGHT, WIDTH, ::edgeTexel)
   }
 
   @Test
@@ -135,6 +139,41 @@ class VhsCoreImageHardwareTest {
         val at = (y * WIDTH + column) * CHANNELS
         withClue("row $y column $column") {
           frame[at].toDouble() shouldBe (still[at].toDouble() plusOrMinus TOLERANCE)
+        }
+      }
+    }
+  }
+
+  // Straight colour, opaque on the left half and half alpha on the right, handed over premultiplied the way Core Image
+  // holds it. A read between the two halves mixes them on Core Image's own weight, so the columns either side of the
+  // step land within SAMPLER_WEIGHT_STEP and the rest of the row at the tolerance.
+  @Test
+  fun `a half alpha step lands on the signal in straight colour`() {
+    val vhs = Vhs(intensity = 0.5f)
+    val params = VhsParams.of(vhs)
+    val tick = VhsSignal.tickAt(SECONDS)
+    val straight = { column: Int -> rampTexel(column) + if (column < STEP_COLUMN) 1.0 else HALF_ALPHA }
+    val image =
+      imageOf(WIDTH, HEIGHT) { x, _ ->
+        val texel = straight(x)
+        FloatArray(CHANNELS) { (if (it == 3) texel[3] else texel[it] * texel[3]).toFloat() }
+      }
+    val frame = drawn(vhs, image, WIDTH, HEIGHT)
+
+    READ_ROWS.forEach { y ->
+      val row = VhsSignal.virtualRow(y, HEIGHT)
+      // The column whose read lands between the last opaque column and the first half alpha one.
+      val straddles = ceil(STEP_COLUMN - 1 + VhsSignal.rowShift(vhs.seed, tick, row, params) * WIDTH).toInt()
+      val step = straddles - STEP_READS..straddles + STEP_READS
+      (READ_COLUMNS.filter { it !in step } + step).forEach { column ->
+        val wanted = VhsSignal.pixelAt((column + 0.5) / WIDTH, row, tick, vhs.seed, WIDTH, params, straight)
+        val at = (y * WIDTH + column) * CHANNELS
+        val within = if (column in step) SAMPLER_WEIGHT_STEP else TOLERANCE
+        withClue("row $y column $column alpha") { frame[at + 3].toDouble() shouldBe (wanted[3] plusOrMinus within) }
+        for (channel in 0 until RGB) {
+          withClue("row $y column $column channel $channel premultiplied") {
+            frame[at + channel].toDouble() shouldBe (wanted[channel] * wanted[3] plusOrMinus within)
+          }
         }
       }
     }
@@ -173,10 +212,7 @@ class VhsCoreImageHardwareTest {
   fun `luma grain under half a code tips the rounded sum`() {
     val code = { column: Int -> (GRAIN_RAMP_LOW + column / GRAIN_RAMP_PIXELS_PER_CODE) / FULL_CODE }
     val image = imageOf(WIDTH, HEIGHT) { x, _ -> floatArrayOf(code(x), code(x), code(x), 1f) }
-    val source = { at: Double ->
-      val luma = at.interpolatedOver(WIDTH) { code(it).toDouble() }
-      doubleArrayOf(luma, luma, luma)
-    }
+    val source = { column: Int -> code(column).toDouble().let { doubleArrayOf(it, it, it) } }
     listOf(0.25f, 0.4f).forEach { intensity ->
       val vhs = Vhs(intensity = intensity)
       val params = VhsParams.of(vhs)
@@ -256,7 +292,7 @@ class VhsCoreImageHardwareTest {
     y: Int,
     height: Int,
     width: Int,
-    source: (Double) -> DoubleArray,
+    source: (Int) -> DoubleArray,
   ) {
     val params = VhsParams.of(vhs)
     val tick = VhsSignal.tickAt(SECONDS)
@@ -379,8 +415,7 @@ class VhsCoreImageHardwareTest {
     return floatArrayOf(RAMP_RED + RAMP_SPAN * t, RAMP_GREEN - RAMP_SPAN * t / 2, RAMP_BLUE + RAMP_SPAN * t, 1f)
   }
 
-  private fun rampAt(x: Double): DoubleArray =
-    DoubleArray(RGB) { channel -> x.interpolatedOver(WIDTH) { rampPixel(it, WIDTH)[channel].toDouble() } }
+  private fun rampTexel(column: Int): DoubleArray = DoubleArray(RGB) { rampPixel(column, WIDTH)[it].toDouble() }
 
   @Suppress("UNUSED_PARAMETER")
   private fun edge(
@@ -388,10 +423,8 @@ class VhsCoreImageHardwareTest {
     y: Int,
   ): FloatArray = if (column < WIDTH / 2) EDGE_LEFT else EDGE_RIGHT
 
-  private fun edgeAt(x: Double): DoubleArray =
-    DoubleArray(RGB) { channel ->
-      x.interpolatedOver(WIDTH) { (if (it < WIDTH / 2) EDGE_LEFT else EDGE_RIGHT)[channel].toDouble() }
-    }
+  private fun edgeTexel(column: Int): DoubleArray =
+    DoubleArray(RGB) { (if (column < WIDTH / 2) EDGE_LEFT else EDGE_RIGHT)[it].toDouble() }
 
   // Picture between the two canvas edges, clear either side.
   @Suppress("UNUSED_PARAMETER")
@@ -400,17 +433,6 @@ class VhsCoreImageHardwareTest {
     y: Int,
   ): FloatArray =
     if (column in CANVAS_LEFT until CANVAS_RIGHT) rampPixel(column, WIDTH) else floatArrayOf(0f, 0f, 0f, 0f)
-
-  private fun Double.interpolatedOver(
-    columns: Int,
-    value: (Int) -> Double,
-  ): Double {
-    val position = this * columns - 0.5
-    val left = floor(position).toInt()
-    val before = value(left.coerceIn(0, columns - 1))
-    val after = value((left + 1).coerceIn(0, columns - 1))
-    return before + (after - before) * (position - left)
-  }
 
   private fun correlationOf(
     a: List<Double>,
@@ -447,6 +469,9 @@ class VhsCoreImageHardwareTest {
     const val RGB = 3
     const val SECONDS = 1.5
     const val TOLERANCE = 1e-4
+    const val HALF_ALPHA = 0.5
+    const val STEP_COLUMN = WIDTH / 2
+    const val STEP_READS = 2
     const val MOVED_X = 40.0
     const val MOVED_Y = 25.0
     val READ_ROWS = listOf(40, HEIGHT / 2, HEIGHT - 3, HEIGHT - 1)

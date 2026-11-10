@@ -61,7 +61,9 @@ internal class StageLowering(
    * resolver.
    *
    * [inputSize] and [layoutSize] are chained through every geometry effect in turn, so an effect
-   * late in the chain is measured against the frame an export would hand it.
+   * late in the chain is measured against the frame an export would hand it. [storedSize] is the
+   * clip's frame as its pixels are stored, and gives way to the chained size once an effect changes it
+   * or an effect at a stage [takesSquarePixels] names is reached.
    */
   fun lowerStages(
     stages: List<List<EffectSpec>>,
@@ -69,13 +71,15 @@ internal class StageLowering(
     layoutSize: Size,
     span: TimeRange,
     target: LoweringTarget,
+    storedSize: Size = inputSize,
   ): List<LoweredEffect> {
     var size = inputSize
     var layout = layoutSize
+    var stored = storedSize
     // A kept grade is written in BT.2020, so a resolver reading the color space off an HDR export
     // sees the one the encoder is handed rather than the SDR default.
     val colorSpace = if (target.hdrTransfer != null) ColorSpace.Bt2020 else ColorSpace.Bt709
-    val attributesAt = { frame: Size, laidOut: Size ->
+    val attributesAt = { frame: Size, laidOut: Size, held: Size ->
       Attributes(
         frame,
         target.outputSize,
@@ -84,19 +88,25 @@ internal class StageLowering(
         target.hdrTransfer,
         target.frameRate.toFloat(),
         span,
+        held,
       )
     }
     val ordered = stages.flatMap { it.inCanonicalOrder() }
     val chain =
-      foldedChain(ordered, overriddenColor(ordered, inputSize, layoutSize, target.capabilities, attributesAt))
+      foldedChain(
+        ordered,
+        overriddenColor(ordered, inputSize, layoutSize, storedSize, target.capabilities, attributesAt),
+      )
 
     return chain.entries.mapIndexed { position, entry ->
       val spec = entry.spec
-      val attributes = attributesAt(size, layout)
+      stored = storedAt(spec, size, stored)
+      val attributes = attributesAt(size, layout, stored)
       val resolution =
         chain.resolutions[position]
           ?: resolvers.firstNotNullOfOrNull { it.resolve(spec, target.capabilities, attributes) }
 
+      stored = storedAfter(spec, size, stored)
       size = frameAfter(spec, size)
       layout = frameAfter(spec, layout)
 
@@ -132,8 +142,9 @@ internal class StageLowering(
     ordered: List<EffectSpec>,
     inputSize: Size,
     layoutSize: Size,
+    storedSize: Size,
     capabilities: RenderCapabilities,
-    attributesAt: (Size, Size) -> Attributes,
+    attributesAt: (Size, Size, Size) -> Attributes,
   ): Map<Int, EffectResolution> {
     if (overriding.isEmpty()) return emptyMap()
 
@@ -141,13 +152,16 @@ internal class StageLowering(
     val claimed = mutableMapOf<Int, EffectResolution>()
     var size = inputSize
     var layout = layoutSize
+    var stored = storedSize
 
     ordered.forEachIndexed { index, spec ->
       val folds = color[index] && (color.getOrElse(index - 1) { false } || color.getOrElse(index + 1) { false })
+      stored = storedAt(spec, size, stored)
       if (folds) {
-        val attributes = attributesAt(size, layout)
+        val attributes = attributesAt(size, layout, stored)
         overriding.firstNotNullOfOrNull { it.resolve(spec, capabilities, attributes) }?.let { claimed[index] = it }
       }
+      stored = storedAfter(spec, size, stored)
       size = frameAfter(spec, size)
       layout = frameAfter(spec, layout)
     }
@@ -155,6 +169,20 @@ internal class StageLowering(
     return claimed
   }
 }
+
+// A stage that takes square pixels is handed the frame squared, so the stored frame is the frame itself from there.
+private fun storedAt(
+  spec: EffectSpec,
+  size: Size,
+  stored: Size,
+): Size = if (spec.stage.takesSquarePixels) size else stored
+
+// An effect that changes the frame's size writes the size it was asked for, so the stored frame is that size after it.
+private fun storedAfter(
+  spec: EffectSpec,
+  size: Size,
+  stored: Size,
+): Size = frameAfter(spec, size).let { after -> if (after == size) stored else after }
 
 /**
  * The chain a backend lowers: every run of color effects folded, except around the effects an

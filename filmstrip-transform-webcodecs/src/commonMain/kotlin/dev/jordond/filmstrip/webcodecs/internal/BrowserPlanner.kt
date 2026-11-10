@@ -249,6 +249,8 @@ internal fun browserParityOf(specId: String): EffectParity? =
     EffectIds.SEPIA,
     EffectIds.INVERT,
     EffectIds.COLOR_MATRIX,
+    EffectIds.GAUSSIAN_BLUR,
+    EffectIds.VIGNETTE,
     EffectIds.IMAGE_OVERLAY,
     EffectIds.TEXT_OVERLAY,
     -> EffectParity.Exact

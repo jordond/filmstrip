@@ -10,9 +10,7 @@ import androidx.media3.effect.BaseGlShaderProgram
 import androidx.media3.effect.GlEffect
 import androidx.media3.effect.GlShaderProgram
 import dev.jordond.filmstrip.InternalFilmstripApi
-import dev.jordond.filmstrip.color.HDR_REFERENCE_WHITE_NITS
-import dev.jordond.filmstrip.color.HLG_NOMINAL_PEAK_NITS
-import dev.jordond.filmstrip.effects.MEDIA3_HDR_PEAK_NITS
+import dev.jordond.filmstrip.effects.media3SignalUniforms
 import dev.jordond.filmstrip.media.HdrTransfer
 
 /**
@@ -44,19 +42,10 @@ public class HdrColorMatrixEffect(
   public val columns: FloatArray = matrix.toColumnMajor4x4()
 
   /**
-   * The figures the shader reads the frame's light through. media3 stores PQ against the peak it
-   * decodes to and HLG against its nominal peak, and it hands HLG over as scene light.
+   * The figures the shader reads the frame's light through, which are the transfer's own
+   * [media3SignalUniforms].
    */
-  public val uniforms: HdrColorMatrixUniforms =
-    transfer.hdrColorMatrixUniforms(
-      white =
-        HDR_REFERENCE_WHITE_NITS /
-          when (transfer) {
-            HdrTransfer.Pq -> MEDIA3_HDR_PEAK_NITS
-            HdrTransfer.Hlg -> HLG_NOMINAL_PEAK_NITS
-          },
-      holdsSceneLight = transfer == HdrTransfer.Hlg,
-    )
+  public val uniforms: HdrColorMatrixUniforms = transfer.media3SignalUniforms
 
   override fun toGlShaderProgram(
     context: Context,

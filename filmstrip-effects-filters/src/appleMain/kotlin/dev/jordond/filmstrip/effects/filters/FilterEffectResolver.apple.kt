@@ -14,9 +14,18 @@ import dev.jordond.filmstrip.effects.filters.crt.crtResolution
 import dev.jordond.filmstrip.effects.filters.film.Film
 import dev.jordond.filmstrip.effects.filters.film.filmKernelLimit
 import dev.jordond.filmstrip.effects.filters.film.filmResolution
+import dev.jordond.filmstrip.effects.filters.glitch.Glitch
+import dev.jordond.filmstrip.effects.filters.glitch.glitchKernelLimit
+import dev.jordond.filmstrip.effects.filters.glitch.glitchResolution
 import dev.jordond.filmstrip.effects.filters.lut.Lut
 import dev.jordond.filmstrip.effects.filters.lut.lutKernelLimit
 import dev.jordond.filmstrip.effects.filters.lut.lutResolution
+import dev.jordond.filmstrip.effects.filters.nightvision.NightVision
+import dev.jordond.filmstrip.effects.filters.nightvision.nightVisionKernelLimit
+import dev.jordond.filmstrip.effects.filters.nightvision.nightVisionResolution
+import dev.jordond.filmstrip.effects.filters.pixel.Pixel
+import dev.jordond.filmstrip.effects.filters.pixel.pixelKernelLimit
+import dev.jordond.filmstrip.effects.filters.pixel.pixelResolution
 import dev.jordond.filmstrip.effects.filters.vhs.Vhs
 import dev.jordond.filmstrip.effects.filters.vhs.vhsKernelLimit
 import dev.jordond.filmstrip.effects.filters.vhs.vhsResolution
@@ -47,6 +56,15 @@ public actual class FilterEffectResolver actual constructor() : EffectResolver {
       }
       is Lut -> {
         lutResolution(spec, lutKernelLimit())
+      }
+      is NightVision -> {
+        nightVisionResolution(spec, nightVisionKernelLimit())
+      }
+      is Pixel -> {
+        pixelResolution(spec, pixelKernelLimit())
+      }
+      is Glitch -> {
+        glitchResolution(spec, glitchKernelLimit())
       }
       else -> {
         null

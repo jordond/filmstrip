@@ -118,7 +118,8 @@ public enum class EffectStage {
   Color,
 
   /**
-   * Effects that sample neighbouring pixels. Runs after [Color] so a grade applies to sharp pixels.
+   * Effects that read neighbouring pixels or depend on position. Runs after [Color] so a grade applies to sharp
+   * pixels, and under every overlay at the same scope.
    */
   Spatial,
 
@@ -149,6 +150,8 @@ public object EffectIds {
   public const val SEPIA: String = "filmstrip.sepia"
   public const val INVERT: String = "filmstrip.invert"
   public const val COLOR_MATRIX: String = "filmstrip.colorMatrix"
+  public const val GAUSSIAN_BLUR: String = "filmstrip.gaussianBlur"
+  public const val VIGNETTE: String = "filmstrip.vignette"
   public const val IMAGE_OVERLAY: String = "filmstrip.imageOverlay"
   public const val TEXT_OVERLAY: String = "filmstrip.textOverlay"
 }
@@ -178,7 +181,8 @@ public fun List<EffectSpec>.inCanonicalOrder(): List<EffectSpec> =
 // corners rotation adds can be cropped away, a pan runs after crop so it travels inside the framing
 // the crop chose, and scale is last because it sets the output size. Color matrices do not commute,
 // so the color stage runs exposure first, contrast on the exposed frame, the hue and tone changes
-// on that, and a caller's own matrix last as the look the rest was graded for.
+// on that, and a caller's own matrix last as the look the rest was graded for. A vignette runs after a blur so its
+// falloff stays the shape it was given.
 private val CANONICAL_RANK: Map<String, Int> =
   mapOf(
     EffectIds.ROTATE to 0,
@@ -195,6 +199,8 @@ private val CANONICAL_RANK: Map<String, Int> =
     EffectIds.SEPIA to 5,
     EffectIds.INVERT to 6,
     EffectIds.COLOR_MATRIX to 7,
+    EffectIds.GAUSSIAN_BLUR to 0,
+    EffectIds.VIGNETTE to 1,
     EffectIds.IMAGE_OVERLAY to 0,
     EffectIds.TEXT_OVERLAY to 1,
   )

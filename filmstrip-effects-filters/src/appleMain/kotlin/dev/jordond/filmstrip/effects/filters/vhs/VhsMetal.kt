@@ -131,11 +131,14 @@ $HASH_MSL
     return frame.sample(frame.transform(float2(tape.originX + clamp(x, 0.0f, 1.0f) * tape.width, y)));
   }
 
-  // The frame in Y'CbCr at x, black past either edge the way an exposed line of tape is. An 8 bit source holds nothing
-  // past 0 to 1, so a working space value that does is cut back to read the same.
+  // The frame in Y'CbCr at x, black past either edge the way an exposed line of tape is. The sampler mixes
+  // premultiplied codes, so the mix is divided back to straight colour, black where nothing under it has alpha. An 8
+  // bit source holds nothing past 0 to 1, so a working space value that does is cut back to read the same.
   float3 vhsOnTape(coreimage::sampler frame, VhsTape tape, float x, float y) {
     float inside = clamp(x * tape.width + 0.5f, 0.0f, 1.0f) * clamp((1.0f - x) * tape.width + 0.5f, 0.0f, 1.0f);
-    return vhsRgbToYcc(clamp(vhsRead(frame, tape, x, y).rgb, 0.0f, 1.0f)) * inside;
+    float4 read = vhsRead(frame, tape, x, y);
+    float3 straight = read.a > 0.0f ? read.rgb / read.a : float3(0.0f);
+    return vhsRgbToYcc(clamp(straight, 0.0f, 1.0f)) * inside;
   }
 
   float vhsLumaBlur(coreimage::sampler frame, VhsTape tape, float x, float y, float sigma) {

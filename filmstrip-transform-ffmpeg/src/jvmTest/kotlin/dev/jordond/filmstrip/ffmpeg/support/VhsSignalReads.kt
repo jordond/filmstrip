@@ -23,7 +23,7 @@ internal fun lumaPlaneOf(
 ): Double {
   val x = (column + 0.5) / width
   val row = VhsSignal.virtualRow(y, height)
-  val ycc = yccOf(VhsSignal.pixelAt(x, row, tick, vhs.seed, width, VhsParams.of(vhs), source))
+  val ycc = yccOf(VhsSignal.pixelAt(x, row, tick, vhs.seed, width, VhsParams.of(vhs), source.texelsOver(width)))
   return VHS_LUMA_BLACK + VHS_LUMA_SPAN * ycc[0]
 }
 
@@ -36,7 +36,7 @@ internal fun chromaPlanesOf(
 ): DoubleArray {
   val x = (column + 0.5) / (VHS_WIDTH / 2)
   val row = VhsSignal.virtualRow(planeRow, VHS_HEIGHT / 2)
-  val ycc = yccOf(VhsSignal.pixelAt(x, row, tick, vhs.seed, VHS_WIDTH, VhsParams.of(vhs), source))
+  val ycc = yccOf(VhsSignal.pixelAt(x, row, tick, vhs.seed, VHS_WIDTH, VhsParams.of(vhs), source.texelsOver(VHS_WIDTH)))
   return doubleArrayOf(VHS_CHROMA_ZERO + VHS_CHROMA_SPAN * ycc[1], VHS_CHROMA_ZERO + VHS_CHROMA_SPAN * ycc[2])
 }
 
@@ -89,7 +89,7 @@ internal fun lumaSampleSignal(
 ): DoubleArray {
   val row = VhsSignal.virtualRow(y, height)
   val x = (column + 0.5) / width
-  return VhsSignal.pixelAt(x, row, tick, vhs.seed, width, VhsParams.of(vhs), source).scaled()
+  return VhsSignal.pixelAt(x, row, tick, vhs.seed, width, VhsParams.of(vhs), source.texelsOver(width)).scaled()
 }
 
 // The sample of a 4:2:0 chroma plane this pixel takes its chroma from, read at that plane's own row.
@@ -104,7 +104,7 @@ internal fun chromaSampleSignal(
 ): DoubleArray {
   val row = VhsSignal.virtualRow(y / 2, height / 2)
   val x = (column / 2 + 0.5) / (width / 2)
-  return VhsSignal.pixelAt(x, row, tick, vhs.seed, width, VhsParams.of(vhs), source).scaled()
+  return VhsSignal.pixelAt(x, row, tick, vhs.seed, width, VhsParams.of(vhs), source.texelsOver(width)).scaled()
 }
 
 private fun DoubleArray.scaled(): DoubleArray = DoubleArray(size) { this[it] * FULL }

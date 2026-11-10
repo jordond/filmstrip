@@ -37,7 +37,11 @@ import kotlin.time.DurationUnit
 class FfmpegEffectClockMediaTest {
   private val resolver =
     EffectResolver { spec, _, _ ->
-      if (spec is ClockRamp) EffectResolution.Resolved(PlatformEffect(fragment())) else null
+      when (spec) {
+        ClockRamp -> EffectResolution.Resolved(PlatformEffect(fragment()))
+        ChainClockRamp -> EffectResolution.Resolved(PlatformEffect(chainFragment()))
+        else -> null
+      }
     }
   private val draw = FilterFrames(resolver)
 
@@ -99,6 +103,21 @@ class FfmpegEffectClockMediaTest {
       assertExportReadsSlotTimes(planOpening(AHEAD_OF_SLOT, rate = "${FILTER_RATE * 2}"), AHEAD_OF_SLOT_SLOTS)
     }
 
+  @Test
+  fun `a chain reading the clock lands each frame on its slot time in a windowed preview`() =
+    runBlocking<Unit> {
+      val plan = draw.composition(listOf(draw.clipOf(WIDTH, HEIGHT, { GREY }, listOf(ChainClockRamp))))
+
+      WINDOW_SLOTS.forEach { slot ->
+        val frame = draw.frames(plan, outputSlotTime(slot.toLong(), FILTER_RATE), 1).single()
+        val read = frame.channelAt(WIDTH, WIDTH / 2, HEIGHT / 2, 0)
+        val expected = fullCodeAt(slot)
+        withClue("slot $slot read $read, expected $expected") {
+          abs(read - expected) shouldBeLessThanOrEqual EXPORT_TOLERANCE
+        }
+      }
+    }
+
   private suspend fun assertReadsSlotTimes(
     plan: Composition,
     slots: List<Int>,
@@ -117,7 +136,7 @@ class FfmpegEffectClockMediaTest {
   ) {
     val frames = draw.exportedFrames(plan, slots, ExportSpec())
     frames.zip(slots).forEach { (frame, slot) ->
-      val expected = ((codeAt(slot) - LUMA_BLACK) * FULL_CODE / LUMA_CODES).roundToInt()
+      val expected = fullCodeAt(slot)
       val read = frame.channelAt(WIDTH, WIDTH / 2, HEIGHT / 2, 0)
       withClue("slot $slot read $read, expected $expected") {
         abs(read - expected) shouldBeLessThanOrEqual EXPORT_TOLERANCE
@@ -140,23 +159,28 @@ class FfmpegEffectClockMediaTest {
     return (LUMA_BLACK + (seconds - RAMP_OPENS) * RAMP_SLOPE).roundToInt()
   }
 
-  private fun fragment(): FilterFragment {
-    val code = "round(clip($LUMA_BLACK+(T-$RAMP_OPENS)*$RAMP_SLOPE,$LUMA_BLACK,$LUMA_WHITE))"
-    return FilterFragment(
+  // The same code as a full range RGB channel.
+  private fun fullCodeAt(slot: Int): Int = ((codeAt(slot) - LUMA_BLACK) * FULL_CODE / LUMA_CODES).roundToInt()
+
+  private fun fragment(): FilterFragment =
+    FilterFragment(
       readsCompositionClock = true,
-      branches =
-        listOf(
-          FilterBranch(
-            listOf(FilterBranch.INPUT),
-            listOf(FilterNode("geq", "lum" to code, "cb" to "128", "cr" to "128")),
-            listOf("out"),
-          ),
-        ),
+      branches = listOf(FilterBranch(listOf(FilterBranch.INPUT), listOf(ramp()), listOf("out"))),
     )
+
+  private fun chainFragment(): FilterFragment = FilterFragment(chain = listOf(ramp()), readsCompositionClock = true)
+
+  private fun ramp(): FilterNode {
+    val code = "round(clip($LUMA_BLACK+(T-$RAMP_OPENS)*$RAMP_SLOPE,$LUMA_BLACK,$LUMA_WHITE))"
+    return FilterNode("geq", "lum" to code, "cb" to "128", "cr" to "128")
   }
 
   private object ClockRamp : EffectSpec {
     override val id: String = "test.clock-ramp"
+  }
+
+  private object ChainClockRamp : EffectSpec {
+    override val id: String = "test.chain-clock-ramp"
   }
 
   private companion object {
@@ -182,5 +206,8 @@ class FfmpegEffectClockMediaTest {
     // Each opening's first slot and three in the middle of the ramp.
     val PAST_SLOT_SLOTS = listOf(30, 36, 40, 44)
     val AHEAD_OF_SLOT_SLOTS = listOf(31, 36, 40, 44)
+
+    // Slots on the middle of the ramp, each the first a preview window draws.
+    val WINDOW_SLOTS = listOf(36, 40, 44)
   }
 }

@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip.effects.filters.film
 
+import dev.jordond.filmstrip.color.BlurPlan
 import dev.jordond.filmstrip.effects.filters.internal.lumaOf
 import io.kotest.assertions.withClue
 import io.kotest.matchers.comparables.shouldBeLessThanOrEqualTo
@@ -126,10 +127,10 @@ class FilmSignalTest {
     for (width in listOf(640, 1280, 1920, 2560, 3840)) {
       val plan = FilmSignal.wideBlurPlan(HALATION_SIGMA, width)
 
-      plan.sigmaPx shouldBeLessThanOrEqualTo WIDE_BLUR_MAX_SIGMA
-      plan.taps shouldBeLessThanOrEqualTo WIDE_BLUR_MAX_TAPS
+      plan.sigmaPx shouldBeLessThanOrEqualTo BlurPlan.MAX_SIGMA_PX
+      plan.taps shouldBeLessThanOrEqualTo BlurPlan.MAX_TAPS
       plan.weights.size shouldBe plan.taps + 1
-      plan.taps shouldBe kotlin.math.ceil(WIDE_BLUR_SUPPORT * plan.sigmaPx).toInt()
+      plan.taps shouldBe kotlin.math.ceil(BlurPlan.SUPPORT_SIGMAS * plan.sigmaPx).toInt()
     }
   }
 

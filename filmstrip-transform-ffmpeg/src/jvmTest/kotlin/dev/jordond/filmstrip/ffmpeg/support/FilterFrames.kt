@@ -166,7 +166,32 @@ internal class FilterFrames(
     composition: Composition,
     slot: Int,
     spec: ExportSpec = ExportSpec(),
-  ): Yuv420Frame {
+  ): Yuv420Frame =
+    rawFrameAt(composition, slot, spec, PLANES_ARGUMENTS, 1) { width, height, bytes ->
+      Yuv420Frame(width, height, bytes)
+    }
+
+  /**
+   * The luma plane of frame [slot] of the graph [frames] runs at a kept grade [spec], as the ten-bit codes the graph
+   * writes, rows from the top.
+   */
+  suspend fun tenBitLumaAt(
+    composition: Composition,
+    slot: Int,
+    spec: ExportSpec,
+  ): IntArray =
+    rawFrameAt(composition, slot, spec, TEN_BIT_PLANES_ARGUMENTS, TEN_BIT_BYTES) { width, height, bytes ->
+      IntArray(width * height) { (bytes[2 * it].toInt() and BYTE) or ((bytes[2 * it + 1].toInt() and BYTE) shl 8) }
+    }
+
+  private suspend fun <T> rawFrameAt(
+    composition: Composition,
+    slot: Int,
+    spec: ExportSpec,
+    format: List<String>,
+    bytesPerSample: Int,
+    frameOf: (width: Int, height: Int, bytes: ByteArray) -> T,
+  ): T {
     val (toolchain, invocation) =
       engine.runs
         .lowered(composition, spec, null)
@@ -182,15 +207,15 @@ internal class FilterFrames(
             invocation.inputs.map { scratch.resolve(it.source).path },
             invocation.sidecars.map { scratch.write(it) },
             Duration.ZERO,
-          ).flatMap { if (it == PREVIEW_PIXEL_FORMAT) PLANES_ARGUMENTS else listOf(it) }
+          ).flatMap { if (it == PREVIEW_PIXEL_FORMAT) format else listOf(it) }
           .readingGraphFrom(scratch)
       val size = invocation.output.size
-      val bytes = size.width * size.height * PLANES_BYTES_PER_TWO_PIXELS / 2
+      val bytes = size.width * size.height * PLANES_BYTES_PER_TWO_PIXELS / 2 * bytesPerSample
       val process = ProcessBuilder(command).redirectError(ProcessBuilder.Redirect.DISCARD).start()
       val read = process.inputStream.readNBytes(bytes * (slot + 1))
       process.destroy()
       read.size shouldBe bytes * (slot + 1)
-      return Yuv420Frame(size.width, size.height, read.copyOfRange(bytes * slot, bytes * (slot + 1)))
+      return frameOf(size.width, size.height, read.copyOfRange(bytes * slot, bytes * (slot + 1)))
     } finally {
       scratch.delete()
     }
@@ -241,11 +266,7 @@ internal class FilterFrames(
     container: String = "mkv",
     timescale: Int? = null,
   ): Clip {
-    val image = BufferedImage(width, height, BufferedImage.TYPE_INT_RGB)
-    for (x in 0 until width) {
-      val rgb = source((x + 0.5) / width).map { (it * FULL).roundToInt() }
-      for (y in 0 until height) image.setRGB(x, y, (rgb[0] shl 16) or (rgb[1] shl 8) or rgb[2])
-    }
+    val image = imageOf(width, height) { x, _ -> source(x) }
     val still = File.createTempFile("filter-still", ".png").apply { deleteOnExit() }
     ImageIO.write(image, "png", still)
     val video = File.createTempFile("filter-still", ".$container").apply { deleteOnExit() }
@@ -425,9 +446,17 @@ internal class Yuv420Frame(
   ): Int = bytes[width * height + (width / 2) * (height / 2) + row * (width / 2) + column].toInt() and BYTE
 }
 
-private const val PLANES_FORMAT = "yuv420p"
+// How far a frame drawn under a Pixel reads from its reference after rounding through gbrap and back.
+internal const val PIXEL_CODES = 4
+
+internal const val PLANES_FORMAT = "yuv420p"
 internal const val PLANES_BYTES_PER_TWO_PIXELS = 3
 internal val PLANES_ARGUMENTS = listOf(PLANES_FORMAT, "-color_range", "tv", "-colorspace", "bt709")
+internal const val TEN_BIT_FORMAT = "yuv420p10le"
+internal const val TEN_BIT_ALPHA_FORMAT = "yuva420p10le"
+internal val TEN_BIT_PLANES_ARGUMENTS = listOf(TEN_BIT_FORMAT)
+internal const val TEN_BIT_BYTES = 2
+internal const val MID = 512
 
 internal const val FILTER_RATE = 30
 

@@ -43,6 +43,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.effects.color.ColorMatrix
+import dev.jordond.filmstrip.effects.filters.pixel.Pixel
+import dev.jordond.filmstrip.effects.filters.pixel.PixelPalette
 import dev.jordond.filmstrip.effects.filters.vhs.TapeSpeed
 import dev.jordond.filmstrip.effects.filters.vhs.Tracking
 import dev.jordond.filmstrip.effects.overlay.ImageOverlay
@@ -572,6 +574,15 @@ private fun AdjustPanel(state: SampleAppState) {
     }
   }
 
+  ToolSection("Lens") {
+    GradeSlider(state, "Blur", edit.blur, formatPercent(edit.blur), 0f..0.1f, 0f) {
+      edit.blur = it
+    }
+    GradeSlider(state, "Vignette", edit.vignette, formatPercent(edit.vignette), 0f..1f, 0f) {
+      edit.vignette = it
+    }
+  }
+
   ToolSection("Tape") {
     SwitchRow(
       label = "VHS",
@@ -673,6 +684,66 @@ private fun AdjustPanel(state: SampleAppState) {
     if (edit.crtEnabled) {
       GradeSlider(state, "Intensity", edit.crtIntensity, formatPercent(edit.crtIntensity), 0f..1f, 1f) {
         edit.crtIntensity = it
+      }
+    }
+  }
+
+  ToolSection("Pixel") {
+    SwitchRow(
+      label = "Pixel",
+      checked = edit.pixelLook.enabled,
+      onCheckedChange = {
+        edit.pixelLook.enabled = it
+        state.onEditChanged()
+      },
+    )
+    if (edit.pixelLook.enabled) {
+      GradeSlider(
+        state,
+        "Cells",
+        edit.pixelLook.cells,
+        edit.pixelLook.cells
+          .toInt()
+          .toString(),
+        Pixel.MIN_CELLS.toFloat()..PIXEL_CELLS_MAX,
+        Pixel.DEFAULT_CELLS.toFloat(),
+      ) {
+        edit.pixelLook.cells = it
+      }
+      ChipGroup(
+        options =
+          listOf<Pair<String, PixelPalette?>>(
+            "Levels" to null,
+            "Game Boy" to PixelPalette.GameBoy,
+            "CGA" to PixelPalette.Cga,
+          ),
+        selected = edit.pixelLook.palette,
+        onSelect = {
+          edit.pixelLook.palette = it
+          state.onEditChanged()
+        },
+      )
+      if (edit.pixelLook.palette == null) {
+        val levels = edit.pixelLook.levelCount
+        GradeSlider(
+          state,
+          "Levels",
+          edit.pixelLook.levels,
+          if (levels ==
+            0
+          ) {
+            "Off"
+          } else {
+            "$levels"
+          },
+          0f..PIXEL_LEVELS_MAX,
+          0f,
+        ) {
+          edit.pixelLook.levels = it
+        }
+      }
+      GradeSlider(state, "Dither", edit.pixelLook.dither, formatPercent(edit.pixelLook.dither), 0f..1f, 0f) {
+        edit.pixelLook.dither = it
       }
     }
   }
@@ -855,6 +926,10 @@ private fun colorMatrixOfEntries(entries: List<Float>): ColorMatrix =
   )
 
 private const val MATRIX_COLUMNS = 4
+
+// The coarse end of the cell range, where the look reads as pixel art.
+private const val PIXEL_CELLS_MAX = 360f
+private const val PIXEL_LEVELS_MAX = Pixel.MAX_LEVELS.toFloat()
 private val MATRIX_LABEL_WIDTH = 16.dp
 
 @Composable

@@ -16,9 +16,12 @@ import dev.jordond.filmstrip.transform.internal.resolve.drawsSameFormatAs
 import dev.jordond.filmstrip.transform.internal.resolve.effectsOverFill
 import dev.jordond.filmstrip.transform.internal.resolve.effectsUnderFill
 import kotlinx.cinterop.BetaInteropApi
+import kotlinx.cinterop.CValue
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.autoreleasepool
 import platform.AVFoundation.AVAsynchronousCIImageFilteringRequest
+import platform.CoreGraphics.CGRect
+import platform.CoreGraphics.CGRectMake
 import platform.CoreImage.CIColor
 import platform.CoreImage.CIContext
 import platform.CoreImage.CIImage
@@ -291,7 +294,12 @@ internal class CoreImageChain(
     // against the fill so no grade reaches it, and only then do the overlays draw, over bars and
     // gaps as well as the picture.
     val laid = image.laidAt(size, rect)
-    val graded = laid.stepped(resolved.effectsUnderFill, frame)
+    val graded =
+      laid.stepped(
+        resolved.effectsUnderFill,
+        frame,
+        layout = CGRectMake(0.0, 0.0, size.width.toDouble(), size.height.toDouble()),
+      )
     val flattened = graded.over(image.fillImage(fill, size, state.encodedTransfer), mask = laid, size = size)
     return flattened.stepped(resolved.effectsOverFill, frame)
   }
@@ -326,29 +334,42 @@ internal class CoreImageChain(
    * A resolver is third-party code and this is the only place it runs, so which spec it was is
    * knowable here and nowhere later.
    *
-   * A [EffectStage.Composite] step is cut back to the frame it was handed. An overlay an offset
-   * carries past the edge would otherwise grow the image, and a clip laid into the output by its
-   * extent would move over to make room for it.
+   * A [EffectStage.Spatial] or [EffectStage.Composite] step is cut back to the frame it was handed.
+   * A blur over an image clamped to its extent, or an overlay an offset carries past the edge, would
+   * otherwise grow the image, and a clip laid into the output by its extent would move over to make
+   * room for it.
+   *
+   * With a [layout], a [EffectStage.Spatial] step is handed the picture over a clear frame that size, so a blur reads
+   * the bars as pixels with no alpha and a vignette measures the layout, rather than either stopping at the picture.
    */
   private fun CIImage.stepped(
     effects: List<ResolvedEffect>,
     frame: FrameInfo,
+    layout: CValue<CGRect>? = null,
   ): CIImage {
     var image = this
     effects.forEach { resolved ->
       val input = image
+      val handed =
+        if (layout != null && resolved.stage == EffectStage.Spatial) {
+          input.imageByCompositingOverImage(CIImage(color = CIColor.clearColor).imageByCroppingToRect(layout))
+        } else {
+          input
+        }
       image =
         try {
-          resolved.effect.step.apply(input, frame)
+          resolved.effect.step.apply(handed, frame)
         } catch (broken: Exception) {
           throw StepFailure(resolved.specId, broken.message ?: broken.toString())
         }
-      if (resolved.stage == EffectStage.Composite) image = image.imageByCroppingToRect(input.extent)
+      if (resolved.stage in CROPPED_STAGES) image = image.imageByCroppingToRect(input.extent)
     }
     return image
   }
 
   private companion object {
+    val CROPPED_STAGES = setOf(EffectStage.Spatial, EffectStage.Composite)
+
     /**
      * A context to render through, or null when this process cannot build one.
      *

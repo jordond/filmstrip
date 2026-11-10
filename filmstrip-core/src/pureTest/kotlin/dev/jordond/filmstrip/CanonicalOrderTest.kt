@@ -104,6 +104,18 @@ class CanonicalOrderTest {
   }
 
   @Test
+  fun aVignetteRunsAfterABlurAndBeforeAThirdPartySpatialEffect() {
+    val ordered =
+      listOf(
+        spec("acme.bloom", EffectStage.Spatial),
+        spec(EffectIds.VIGNETTE, EffectStage.Spatial),
+        spec(EffectIds.GAUSSIAN_BLUR, EffectStage.Spatial),
+      ).inCanonicalOrder()
+
+    ordered.map { it.id } shouldBe listOf(EffectIds.GAUSSIAN_BLUR, EffectIds.VIGNETTE, "acme.bloom")
+  }
+
+  @Test
   fun thirdPartyEffectsLandAtTheEndOfTheirStageInDeclarationOrder() {
     val ordered =
       listOf(

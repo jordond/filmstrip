@@ -13,6 +13,11 @@ import dev.jordond.filmstrip.effect.FilterNode
  * the other is cropped and runs the fragment's chain, merge and post. An `overlay` then puts the worked region back
  * on the base at the crop's `x` and `y`, or centred where the crop names neither, which is where `crop` itself cuts
  * by default. Those positions are handed to `overlay` as written, so they have to read the same to both filters.
+ *
+ * The worked region replaces the pixels it was cut from, alpha included. `overlay` blends a region with alpha over
+ * the base by it, so the base's alpha under the region is cleared first, and a region that read the frame's own alpha
+ * is not laid over that frame a second time. A base with no alpha leaves carrying an opaque one, in the alpha format
+ * of [pixelFormat] on [grid].
  * [auxPads] prepares the extra inputs the merge reads, the same way an uncropped fragment's are. Both overlays run in
  * the format [overlayFormat] picks for [pixelFormat], the format the export writes. The one laying the region back
  * runs on [grid], and the merge runs on the grid the fragment's chain leaves, `grid.after(fragment.chain)`.
@@ -57,13 +62,23 @@ internal fun FilterGraphBuilder.cropped(
     chain(listOf(prepared) + auxPads(fragment.auxInputs, label), listOf(merged) + fragment.post, worked)
   }
 
-  val recombine =
-    overlayNode(
-      pixelFormat,
-      grid,
-      "x" to grid.snap(crop.x ?: "(W-w)/2"),
-      "y" to grid.snap(crop.y ?: "(H-h)/2"),
-    )
-  chain(listOf(base, worked), listOf(recombine), label)
+  val at = arrayOf("x" to grid.snap(crop.x ?: "(W-w)/2"), "y" to grid.snap(crop.y ?: "(H-h)/2"))
+
+  // The base is given an alpha plane where it has none, its alpha flipped, the region laid over it with its own alpha
+  // dropped, so opaque, and the alpha flipped back. That leaves the base clear under the region and its alpha
+  // everywhere else exactly as it was.
+  val withAlpha = alphaPixelFormat(pixelFormat).let { if (grid == ChromaGrid.Full) fullChromaFormat(it) else it }
+  val laid = "${label}lay"
+  val stamp = "${label}stamp"
+  val flipped = "${label}flip"
+  val cleared = "${label}clear"
+  split(worked, listOf(laid, "${stamp}in"))
+  chain(listOf("${stamp}in"), listOf(FilterNode("format", "pix_fmts" to pixelFormat)), stamp)
+  chain(listOf(base), listOf(FilterNode("format", "pix_fmts" to withAlpha), FLIP_ALPHA), flipped)
+  chain(listOf(flipped, stamp), listOf(overlayNode(pixelFormat, grid, *at), FLIP_ALPHA), cleared)
+  chain(listOf(cleared, laid), listOf(overlayNode(pixelFormat, grid, *at)), label)
   return label
 }
+
+// Every alpha code flipped to its distance from opaque. negate fails a frame with no alpha plane.
+private val FLIP_ALPHA = FilterNode("negate", "components" to "a")

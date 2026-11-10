@@ -31,7 +31,8 @@ internal val tearsOfSteel: SamplePreset by lazy { samplePresets.first { it.file 
 
 /**
  * The filters sample: real footage on a loop with one look on it at a time, its intensity, the tape, tracking, snow
- * and camcorder display for VHS, and the Kotlin that gives the same picture. NONE plays the untouched clip.
+ * and camcorder display for VHS, the colours for the pixel look and the Kotlin that gives the same picture. NONE plays
+ * the untouched clip.
  *
  * @param filmstrip Opens the player, with the filters registered.
  * @param copy Puts the code listing on the clipboard.
@@ -67,7 +68,7 @@ internal fun FiltersPlayground(
         }
       }
     }
-    if (settings.look != FilterLook.None) {
+    if (settings.look.hasIntensity && settings.look != FilterLook.None) {
       SliderRow(
         label = "Intensity",
         value = settings.intensity(),
@@ -119,6 +120,23 @@ internal fun FiltersPlayground(
                 }
               }
             }
+          }
+        }
+      }
+      FilterLook.Pixel -> {
+        Group("COLOURS") {
+          ChipRow {
+            PixelColours.entries.forEach { colours ->
+              Chip(colours.label, settings.colours == colours) { settings = settings.copy(colours = colours) }
+            }
+          }
+        }
+      }
+      FilterLook.Film -> {
+        Group("PRESET") {
+          ChipRow {
+            Chip("DEFAULT", !settings.super8) { settings = settings.copy(super8 = false) }
+            Chip("SUPER 8", settings.super8) { settings = settings.copy(super8 = true) }
           }
         }
       }

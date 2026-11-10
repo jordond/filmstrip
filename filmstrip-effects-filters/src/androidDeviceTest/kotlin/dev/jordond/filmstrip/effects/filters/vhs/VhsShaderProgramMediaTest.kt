@@ -5,6 +5,7 @@ import android.opengl.EGLConfig
 import android.opengl.GLES20
 import android.opengl.GLES30
 import androidx.media3.common.util.GlUtil
+import dev.jordond.filmstrip.effects.filters.toDoubles
 import io.kotest.assertions.withClue
 import io.kotest.matchers.doubles.plusOrMinus
 import io.kotest.matchers.doubles.shouldBeGreaterThan
@@ -101,7 +102,7 @@ class VhsShaderProgramMediaTest {
     val vhs = Vhs(intensity = 0.5f)
     val frame = draw(vhs, seconds = SECONDS, width = WIDTH, height = HEIGHT, source = ::edge)
 
-    assertRowMatches(frame, vhs, HEIGHT / 2, HEIGHT, ::edgeAt)
+    assertRowMatches(frame, vhs, HEIGHT / 2, HEIGHT, ::edge)
   }
 
   @Test
@@ -137,19 +138,44 @@ class VhsShaderProgramMediaTest {
     }
   }
 
+  // Straight colour at half alpha left of the middle, so the blurs and the slide reading across the middle mix the two.
+  @Test
+  fun aHalfAlphaPictureLandsOnTheSignalInStraightColour() {
+    val vhs = Vhs(intensity = 0.5f)
+    val params = VhsParams.of(vhs)
+    val tick = VhsSignal.tickAt(SECONDS)
+    val frame = draw(vhs, seconds = SECONDS, width = WIDTH, height = HEIGHT, source = ::halfAlpha)
+
+    READ_ROWS.forEach { y ->
+      val row = VhsSignal.virtualRow(y, HEIGHT)
+      (READ_COLUMNS + HALF_ALPHA_EDGE).forEach { column ->
+        val x = (column + 0.5) / WIDTH
+        val expected = VhsSignal.pixelAt(x, row, tick, vhs.seed, WIDTH, params) { halfAlpha(it).toDoubles() }
+        val at = ((HEIGHT - 1 - y) * WIDTH + column) * CHANNELS
+        expected.forEachIndexed { channel, value ->
+          withClue("row $y column $column channel $channel") {
+            frame[at + channel].toDouble() shouldBe (value plusOrMinus TOLERANCE)
+          }
+        }
+      }
+    }
+  }
+
+  private fun halfAlpha(column: Int): FloatArray = ramp(column) + if (column < WIDTH / 2) 0.5f else 1f
+
   private fun assertRowMatches(
     frame: FloatArray,
     vhs: Vhs,
     y: Int,
     height: Int,
-    source: (Double) -> DoubleArray = ::rampAt,
+    source: (Int) -> FloatArray = ::ramp,
   ) {
     val params = VhsParams.of(vhs)
     val tick = VhsSignal.tickAt(SECONDS)
     val row = VhsSignal.virtualRow(y, height)
     READ_COLUMNS.forEach { column ->
       val x = (column + 0.5) / WIDTH
-      val expected = VhsSignal.pixelAt(x, row, tick, vhs.seed, WIDTH, params, source)
+      val expected = VhsSignal.pixelAt(x, row, tick, vhs.seed, WIDTH, params) { source(it).toDoubles() }
       // The frame reads bottom up, the way GL hands it back.
       val at = ((height - 1 - y) * WIDTH + column) * CHANNELS
       expected.forEachIndexed { channel, value ->
@@ -242,23 +268,11 @@ class VhsShaderProgramMediaTest {
     return floatArrayOf(code, 0.5f, 1f - code)
   }
 
-  private fun rampAt(x: Double): DoubleArray {
-    // Bilinear over a straight ramp, flat past the centres of the two outside texels.
-    val column = (x * WIDTH - 0.5).coerceIn(0.0, WIDTH - 1.0)
-    val code = 0.25 + column / RAMP_STEPS
-    return doubleArrayOf(code, 0.5, 1.0 - code)
-  }
-
   // A canvas: clear bars either side of a mid grey picture, with the alpha to tell them apart.
   private fun canvas(column: Int): FloatArray =
     if (column in CANVAS_LEFT until CANVAS_RIGHT) floatArrayOf(0.5f, 0.5f, 0.5f, 1f) else floatArrayOf(0f, 0f, 0f, 0f)
 
   private fun edge(column: Int): FloatArray = if (column < WIDTH / 2) EDGE_LEFT else EDGE_RIGHT
-
-  private fun edgeAt(x: Double): DoubleArray {
-    val across = (x * WIDTH - (WIDTH / 2 - 0.5)).coerceIn(0.0, 1.0)
-    return DoubleArray(3) { EDGE_LEFT[it] + (EDGE_RIGHT[it] - EDGE_LEFT[it]) * across }
-  }
 
   private companion object {
     // Mid snow in a tall band that rolls through the frame once every two read times, so it sits mid frame at the read.
@@ -275,6 +289,7 @@ class VhsShaderProgramMediaTest {
     const val TOLERANCE = 1e-4
     val READ_ROWS = listOf(60, 240, 300, 475)
     val READ_COLUMNS = listOf(0, 128, 256, 384, WIDTH - 1)
+    val HALF_ALPHA_EDGE = (WIDTH / 2 - 6..WIDTH / 2 + 6).toList()
     const val TALL_HEIGHT = 1080
     const val EXACT_ROW_STEP = 9
     val EDGE_LEFT = floatArrayOf(0.75f, 0.5f, 0.25f)

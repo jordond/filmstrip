@@ -10,8 +10,7 @@ import dev.jordond.filmstrip.effect.FilterFragment
 import dev.jordond.filmstrip.effect.FilterNode
 import dev.jordond.filmstrip.effect.PlaneLanes
 import dev.jordond.filmstrip.effect.Sidecar
-import dev.jordond.filmstrip.effects.FLOAT_RGB
-import dev.jordond.filmstrip.effects.GRADE_TO_FLOAT
+import dev.jordond.filmstrip.effects.GRADE_WITH_ALPHA_TO_FLOAT
 import dev.jordond.filmstrip.effects.HdrGradeTables
 import dev.jordond.filmstrip.effects.LINEAR
 import dev.jordond.filmstrip.effects.PIXEL
@@ -161,17 +160,21 @@ internal fun HdrOverlayLayout.windowNodes(
  *
  * The region is cut out of the frame, decoded from [transfer]'s signal to display light on planar float RGB, and
  * merged with [picture] by [mask], both decoded the same way. The merge is `a·overlay + (1 - a)·background` per
- * channel, the rule every backend lands an overlay texel on. The result is encoded back onto the signal and into the
- * grade's own YUV, which carries no alpha, so the region goes back onto the frame opaque and replaces what it cut.
+ * channel, the rule every backend lands an overlay texel on. The region's own alpha comes along on a fourth plane, and
+ * its color is premultiplied by it for the merge and divided back out after, so the picture lands over a bar the frame
+ * left empty in its own color and the alpha there becomes the picture's. The result is encoded back onto the signal and
+ * into the grade's own YUV with its alpha, so the region goes back onto the frame and the fill still shows through
+ * wherever the picture is clear.
  *
- * The grade's Y'CbCr goes to R'G'B' on the way in through [GRADE_TO_FLOAT] and [signalFromGrade], and back on the way
- * out through [shiftedSignalToGrade], so the matrix runs on the tables and mixer rows of [HdrGradeTables] and no
- * `format` step applies one. Each signal is decoded to light on [HdrGradeTables.lightCurve], with HLG's luminance gain
- * after it in geq, and the blend's light is encoded back in geq.
+ * The grade's Y'CbCr goes to R'G'B' on the way in through [GRADE_WITH_ALPHA_TO_FLOAT] and [signalFromGrade], and back
+ * on the way out through [shiftedSignalToGrade], so the matrix runs on the tables and mixer rows of [HdrGradeTables]
+ * and no `format` step applies one. Each signal is decoded to light on [HdrGradeTables.lightCurve], with HLG's
+ * luminance gain after it in geq, and the blend's light is encoded back in geq.
  *
  * [picture] and [mask] arrive as the same picture on the grade's signal, cut to the region's size. The color is read
- * from the first and the alpha, with any opacity already folded in, from the second. Both go to float one plane at a
- * time too, so every sixteen-bit sample is read as it is, and the picture is decoded to light the way the region is.
+ * from the first, with its alpha set opaque, and the alpha, with any opacity already folded in, from the second onto
+ * all four planes. Both go to float one plane at a time too, so every sixteen-bit sample is read as it is, and the
+ * picture is decoded to light the way the region is.
  */
 internal fun hdrOverlayFragment(
   transfer: HdrTransfer,
@@ -182,7 +185,9 @@ internal fun hdrOverlayFragment(
   val region = layout.region
   val tables = mutableListOf<Sidecar>()
   val light = tables.displayLightFromSignal(transfer)
-  val encode = geq(signalFromDisplayLight(transfer, PIXEL).mapIndexed { channel, signal -> shifted(signal, channel) })
+  val encode =
+    geq(signalFromDisplayLight(transfer, STRAIGHT).mapIndexed { channel, signal -> shifted(signal, channel) })
+      .keepingAlpha()
 
   return FilterFragment(
     crop =
@@ -192,17 +197,16 @@ internal fun hdrOverlayFragment(
         x = region.x.toString(),
         y = region.y.toString(),
       ),
-    chain = GRADE_TO_FLOAT + tables.signalFromGrade() + light,
-    // The lanes pin their own input to planar RGB, which carries no alpha, and colorchannelmixer takes whatever format
-    // the filter after it asks for. So each branch is pinned to its sixteen-bit RGBA right before its lanes, and the
-    // mask's colorchannelmixer runs where the alpha it reads still is.
+    chain = GRADE_WITH_ALPHA_TO_FLOAT + tables.signalFromGrade() + light + PREMULTIPLIED,
+    // colorchannelmixer and lutrgb take whatever format the filter after them asks for. So each branch is pinned to its
+    // sixteen-bit RGBA right before its lanes, and the mask's colorchannelmixer runs where the alpha it reads still is.
     auxInputs =
       listOf(
-        AuxInput(picture.image, picture.chain + RGB_TO_FLOAT + light, picture.timeline),
-        AuxInput(mask.image, mask.chain + ALPHA_TO_RGB + RGB_TO_FLOAT, mask.timeline),
+        AuxInput(picture.image, picture.chain + OPAQUE_TO_FLOAT + light, picture.timeline),
+        AuxInput(mask.image, mask.chain + ALPHA_TO_RGB + RGBA_TO_FLOAT, mask.timeline),
       ),
     merge = FilterNode("maskedmerge"),
-    post = listOf(encode) + tables.shiftedSignalToGrade(),
+    post = listOf(encode) + tables.shiftedSignalToGrade(alpha = true),
     sidecars = tables.distinct(),
   )
 }
@@ -214,8 +218,11 @@ private fun MutableList<Sidecar>.displayLightFromSignal(transfer: HdrTransfer): 
   buildList {
     add(lut1d(HdrGradeTables.LIGHT_WARP, LINEAR))
     add(lut1d(HdrGradeTables.lightCurve(transfer), LINEAR))
-    if (transfer == HdrTransfer.Hlg) add(geq(displayLightFromHlgScene(PIXEL)))
+    if (transfer == HdrTransfer.Hlg) add(geq(displayLightFromHlgScene(PIXEL)).keepingAlpha())
   }
+
+// geq writes an alpha it is given no expression for as opaque, so the frame's own is read back.
+private fun FilterNode.keepingAlpha(): FilterNode = FilterNode(name, arguments + FilterArgument("a", "alpha(X,Y)"))
 
 // A signal expression moved by its channel's share of the chroma offset, which the encode rows read it at.
 private fun shifted(
@@ -223,9 +230,23 @@ private fun shifted(
   channel: Int,
 ): String = "($signal)+(${BT2020_CHROMA_SHIFT[channel]})"
 
-// An overlay branch's sixteen-bit RGBA carried onto planar float RGB one plane at a time, alpha left behind.
-private val RGB_TO_FLOAT =
-  listOf(FilterNode("format", "pix_fmts" to HDR_OVERLAY_RGBA), PlaneLanes.node(listOf("r", "g", "b"), FLOAT_RGB))
+// An overlay branch's sixteen-bit RGBA carried onto planar float RGBA one plane at a time.
+private val RGBA_TO_FLOAT =
+  listOf(
+    FilterNode("format", "pix_fmts" to HDR_OVERLAY_RGBA),
+    PlaneLanes.node(listOf("r", "g", "b", "a"), PlaneLanes.WITH_ALPHA.format),
+  )
+
+// The picture branch carried the same way with its alpha set opaque, so the merge lays the alpha the mask holds.
+private val OPAQUE_TO_FLOAT =
+  listOf(FilterNode("format", "pix_fmts" to HDR_OVERLAY_RGBA), FilterNode("lutrgb", "a" to "maxval")) +
+    RGBA_TO_FLOAT.last()
+
+// The region's light weighed by its alpha for the merge, and the pixel the encode reads with it divided back out where
+// there is any. Both run in geq, since ffmpeg 9's premultiply and unpremultiply tag the frame's alpha mode, and
+// maskedmerge then converts the overlay's straight branches to match, squaring the mask and dropping to sixteen bits.
+private val PREMULTIPLIED = geq(PIXEL.map { "$it*alpha(X,Y)" }).keepingAlpha()
+private val STRAIGHT = PIXEL.map { "if(gt(alpha(X,Y),0),$it/alpha(X,Y),$it)" }
 
 // Every color channel of the mask branch replaced by its alpha, which is what maskedmerge reads plane by plane.
 private val ALPHA_TO_RGB =

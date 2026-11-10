@@ -212,14 +212,56 @@ class BrowserShaderPassMediaTest {
     }
 
   @Test
-  fun aShaderPassOutsideTheCompositeStageThrows() =
+  fun aClipPassAtTheSpatialStageRunsOnTheGradedClip() =
+    runTest {
+      val source = source()
+      val clip = Clip(source, effects = listOf(ShaderEffect(INVERT, stage = EffectStage.Spatial), Grade))
+      val frame = drawn(listOf(clip), emptyList())
+
+      val expected = plain(source).map { FULL - it * HALF_GAIN }
+      withClue("the clip's grade and then the spatial pass") {
+        frame.at(MIDDLE, MIDDLE).isNear(expected.toRgb(), DRAWN_CODES) shouldBe true
+      }
+    }
+
+  @Test
+  fun aShaderPassAtTheColorStageThrows() =
     runTest {
       val failure =
         assertFailsWith<BrowserExportFailure> {
-          lowered(listOf(Clip(source())), listOf(ShaderEffect(INVERT, stage = EffectStage.Spatial)))
+          lowered(listOf(Clip(source(), effects = listOf(ShaderEffect(INVERT, stage = EffectStage.Color)))))
         }
 
-      failure.message.orEmpty() shouldContain "Composite stage"
+      failure.message.orEmpty() shouldContain "Spatial and Composite stages"
+    }
+
+  @Test
+  fun aCompositionPassUnderAColorFillRunsOnThePictureAndLeavesTheBar() =
+    runTest {
+      val source = source()
+      val under = ShaderEffect(INVERT, stage = EffectStage.Spatial)
+      val frame = frameOf(contained(source, under, Fill.Black))
+      val expected = plain(source).map { FULL - it }
+
+      withClue("the picture inverted under the fill") {
+        frame.at(MIDDLE, MIDDLE).isNear(expected.toRgb(), DRAWN_CODES) shouldBe true
+      }
+      withClue("the bar read ${frame.at(MIDDLE, BAR_ROW)}, and the fill is black") {
+        frame.at(MIDDLE, BAR_ROW).isNear(Rgb.Black, DRAWN_CODES) shouldBe true
+      }
+    }
+
+  @Test
+  fun aCompositionPassUnderABlurredFillRunsOnTheBackgroundToo() =
+    runTest {
+      val source = source()
+      val under = ShaderEffect(INVERT, stage = EffectStage.Spatial)
+      val bar = frameOf(contained(source, null, Fill.Blur)).at(MIDDLE, BAR_ROW)
+      val read = frameOf(contained(source, under, Fill.Blur)).at(MIDDLE, BAR_ROW)
+
+      withClue("the bar read $read, and the blurred fill there is $bar") {
+        read.isNear(Rgb(255 - bar.red, 255 - bar.green, 255 - bar.blue), DRAWN_CODES) shouldBe true
+      }
     }
 
   @Test
@@ -316,6 +358,16 @@ class BrowserShaderPassMediaTest {
     clips: List<Clip>,
     effects: List<EffectSpec>,
   ) = Composition(tracks = listOf(Track(clips)), effects = effects, audio = AudioSpec.Remove)
+
+  // The source contained in a square under [fill], with [under] after the crop when there is one.
+  private fun contained(
+    source: MediaSource,
+    under: EffectSpec?,
+    fill: Fill,
+  ): Composition {
+    val square = Crop(AspectRatio.Square, Fit.Contain)
+    return Composition(listOf(Track(listOf(Clip(source)))), listOfNotNull(square, under), AudioSpec.Remove, fill)
+  }
 
   private fun overlay(): ImageOverlay =
     ImageOverlay(ImageSource.ofBytes(OverlayPixels.pngOf(Size(4, 4), OVERLAY_ARGB)), Corner.TopStart)

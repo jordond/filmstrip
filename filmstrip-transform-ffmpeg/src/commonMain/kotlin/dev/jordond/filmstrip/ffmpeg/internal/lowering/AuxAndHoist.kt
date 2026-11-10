@@ -1,6 +1,7 @@
 package dev.jordond.filmstrip.ffmpeg.internal.lowering
 
 import dev.jordond.filmstrip.effect.AuxInput
+import dev.jordond.filmstrip.effect.EffectStage
 import dev.jordond.filmstrip.effect.FilterFragment
 import dev.jordond.filmstrip.effect.FilterNode
 import dev.jordond.filmstrip.geometry.Size
@@ -46,8 +47,9 @@ internal fun FilterGraphBuilder.auxPads(
  *
  * Running it once after the join holds its work in the graph once rather than once per clip. It takes a look that
  * reads no clock, since a clip's look reads a frame's own stamp and the join's grid moves it, which rules out Film and
- * VHS and leaves CRT. A clip's tail has to be a no-op on the picture too, so each clip already fills the frame in the
- * tail's format, [plainTail] says nothing else lands on it, and the clips run on from each other with no gap.
+ * VHS and leaves CRT. A spatial effect stays on its clip too, since it reads the clip's own frame. A clip's tail has to
+ * be a no-op on the picture too, so each clip already fills the frame in the tail's format, [plainTail] says nothing
+ * else lands on it, and the clips run on from each other with no gap.
  *
  * @param track The primary track.
  * @param output The size every clip has to fill.
@@ -63,13 +65,9 @@ internal fun hoistableLook(
   slotsOf: (ResolvedClip) -> Long,
 ): FilterFragment? {
   val clips = track?.clips.orEmpty().filter { slotsOf(it) > 0 }
-  val look =
-    clips
-      .firstOrNull()
-      ?.effects
-      ?.singleOrNull()
-      ?.effect
-      ?.fragment ?: return null
+  val first = clips.firstOrNull()?.effects?.singleOrNull() ?: return null
+  if (first.stage == EffectStage.Spatial) return null
+  val look = first.effect.fragment ?: return null
   val whole = PixelRect(0, 0, output.width, output.height)
   val hoists =
     plainTail &&

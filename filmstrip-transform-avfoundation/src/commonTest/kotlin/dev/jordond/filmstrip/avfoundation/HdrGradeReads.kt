@@ -25,9 +25,21 @@ import io.kotest.assertions.withClue
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.cinterop.ExperimentalForeignApi
+import kotlinx.cinterop.addressOf
+import kotlinx.cinterop.usePinned
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.withContext
+import platform.CoreFoundation.CFStringRef
+import platform.CoreGraphics.CGColorSpaceCreateWithName
+import platform.CoreGraphics.CGColorSpaceRelease
+import platform.CoreGraphics.CGRectMake
+import platform.CoreGraphics.kCGColorSpaceExtendedLinearITUR_2020
+import platform.CoreGraphics.kCGColorSpaceITUR_2100_HLG
+import platform.CoreImage.CIColor
+import platform.CoreImage.CIContext
+import platform.CoreImage.CIImage
+import platform.CoreImage.kCIFormatRGBAf
 import platform.Foundation.NSFileManager
 import kotlin.math.abs
 
@@ -95,7 +107,8 @@ internal suspend fun Filmstrip.assertSofterContrastPivots(lit: List<Float>) {
  *
  * It also checks each wrong domain [matrix] could run in on [lit] lands more than twice [drift] off [expected] on at
  * least one lit channel, so a read held to [drift] fails on that mistake. Light is a wrong domain on either
- * [transfer], and HLG adds scene light.
+ * [transfer]. HLG adds scene light, and the SDR signal of Core Image's light, which is a power of a colored pixel's
+ * light that Core Image's decode does not give.
  */
 internal fun assertGraded(
   matrix: ColorMatrix,
@@ -108,8 +121,16 @@ internal fun assertGraded(
   val channels = lit.litChannels()
   val wrongs =
     when (transfer) {
-      HdrTransfer.Pq -> mapOf("light" to matrix.onLight(lit))
-      HdrTransfer.Hlg -> mapOf("light" to matrix.onLight(lit), "HLG scene light" to matrix.onHlgScene(lit))
+      HdrTransfer.Pq -> {
+        mapOf("light" to matrix.onLight(lit))
+      }
+      HdrTransfer.Hlg -> {
+        mapOf(
+          "light" to matrix.onLight(lit),
+          "HLG scene light" to matrix.onHlgScene(lit),
+          "the SDR signal of Core Image's light" to matrix.transformNits(lit[0], lit[1], lit[2], transfer).toList(),
+        )
+      }
     }
   wrongs.forEach { (domain, wrong) ->
     val miss = channels.maxOf { abs(wrong[it] - expected[it]) / expected[it] }
@@ -147,6 +168,69 @@ internal fun List<Float>.litChannels(): List<Int> {
     }
   }
 }
+
+/**
+ * The HLG codes Core Image encodes [nits] of linear BT.2020 light to, the inverse of the decode [hdrFrameOf] reads a
+ * frame with.
+ */
+@OptIn(ExperimentalForeignApi::class)
+internal fun hlgCodesOfNits(nits: List<Float>): List<Float> =
+  convertedColor(
+    nits.map {
+      it / HDR_DISPLAY_UNIT_NITS
+    },
+    kCGColorSpaceExtendedLinearITUR_2020,
+    kCGColorSpaceITUR_2100_HLG,
+  )
+
+/**
+ * The linear BT.2020 light in cd/m2 Core Image decodes HLG [codes] to, the way [hdrFrameOf] reads a frame.
+ */
+@OptIn(ExperimentalForeignApi::class)
+internal fun nitsOfHlgCodes(codes: List<Float>): List<Float> =
+  convertedColor(codes, kCGColorSpaceITUR_2100_HLG, kCGColorSpaceExtendedLinearITUR_2020).map {
+    it * HDR_DISPLAY_UNIT_NITS
+  }
+
+// One flat pixel named in the space called [from] and rendered as float in the space called [to].
+@OptIn(ExperimentalForeignApi::class)
+private fun convertedColor(
+  rgb: List<Float>,
+  from: CFStringRef?,
+  to: CFStringRef?,
+): List<Float> {
+  val source = CGColorSpaceCreateWithName(from)
+  val target = CGColorSpaceCreateWithName(to)
+  try {
+    val color =
+      checkNotNull(
+        CIColor.colorWithRed(
+          rgb[0].toDouble(),
+          rgb[1].toDouble(),
+          rgb[2].toDouble(),
+          alpha = 1.0,
+          colorSpace = source,
+        ),
+      ) { "no color in $source" }
+    val pixel = FloatArray(PIXEL_CHANNELS)
+    pixel.usePinned { pinned ->
+      CIContext().render(
+        CIImage(color = color).imageByCroppingToRect(CGRectMake(0.0, 0.0, 1.0, 1.0)),
+        toBitmap = pinned.addressOf(0),
+        rowBytes = (PIXEL_CHANNELS * Float.SIZE_BYTES).toLong(),
+        bounds = CGRectMake(0.0, 0.0, 1.0, 1.0),
+        format = kCIFormatRGBAf,
+        colorSpace = target,
+      )
+    }
+    return pixel.take(3)
+  } finally {
+    CGColorSpaceRelease(source)
+    CGColorSpaceRelease(target)
+  }
+}
+
+private const val PIXEL_CHANNELS = 4
 
 /**
  * The matrix [specs] fold to, applied in order.

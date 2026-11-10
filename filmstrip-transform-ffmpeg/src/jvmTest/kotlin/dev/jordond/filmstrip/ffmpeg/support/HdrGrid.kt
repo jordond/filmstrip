@@ -108,6 +108,27 @@ internal object HdrRender {
   const val FLOAT_RGB = "gbrpf32le"
 
   /**
+   * [GRADE_YUV] with an alpha plane after its chroma.
+   *
+   * What a color effect or an overlay on a kept grade writes, so the fill still shows where the frame is clear.
+   */
+  const val GRADE_YUVA = "yuva420p10le"
+
+  /**
+   * [WIDE_YUV] with an alpha plane after its chroma.
+   *
+   * A test reads a graph that carries alpha in it before any chroma is resampled.
+   */
+  const val WIDE_YUVA = "yuva444p16le"
+
+  /**
+   * [FLOAT_RGB] with an alpha plane after red.
+   *
+   * What the HDR graphs carry light and signal in when the frame's alpha comes along.
+   */
+  const val FLOAT_RGBA = "gbrapf32le"
+
+  /**
    * The side of a flat test frame, in pixels.
    *
    * It is even, so a 4:2:0 frame has whole chroma samples.
@@ -282,6 +303,20 @@ internal fun FilterFragment.written(): FilterFragment {
     post = post.swapped(),
   )
 }
+
+/**
+ * This raw frame of [format] with its alpha plane cut off, so a reader of the same format without alpha reads it.
+ *
+ * [format] is one of [HdrRender.GRADE_YUVA], [HdrRender.WIDE_YUVA] or [HdrRender.FLOAT_RGBA], each of which stores its
+ * alpha as its last plane.
+ */
+internal fun ByteArray.withoutAlpha(format: String): ByteArray =
+  when (format) {
+    // Luma and alpha are full size and each chroma plane a quarter of it.
+    HdrRender.GRADE_YUVA -> copyOf(size / 5 * 3)
+    HdrRender.WIDE_YUVA, HdrRender.FLOAT_RGBA -> copyOf(size / 4 * 3)
+    else -> error("$format holds no alpha plane this reads")
+  }
 
 /**
  * Lays planes of float samples out as a planar frame of the grid's size.

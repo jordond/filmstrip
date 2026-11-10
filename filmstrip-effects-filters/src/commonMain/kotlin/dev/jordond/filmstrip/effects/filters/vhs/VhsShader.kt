@@ -5,14 +5,17 @@ import dev.jordond.filmstrip.effects.filters.internal.HASH_GLSL
 import dev.jordond.filmstrip.effects.filters.internal.HASH_MASK
 import dev.jordond.filmstrip.effects.filters.internal.KB
 import dev.jordond.filmstrip.effects.filters.internal.KR
+import dev.jordond.filmstrip.effects.filters.internal.STRAIGHT_READ_GLSL
 import dev.jordond.filmstrip.effects.filters.internal.glslFloat
+import dev.jordond.filmstrip.effects.filters.internal.uniformFloat
 
 /**
  * The one GLSL ES 3.00 fragment source that draws a [Vhs], read by media3 and the browser.
  *
  * Every fixed number is written in from [VhsSignal]'s constants, and everything an intensity or a frame changes is a
  * uniform [uniforms] hands back, so the shader holds no figure of its own. It reads the frame from [TEXTURE] at the
- * `vUv` varying, and takes [FLIP_V] as 1 when `v` runs up the picture.
+ * `vUv` varying, and takes [FLIP_V] as 1 when `v` runs up the picture. A read between texels mixes them
+ * premultiplied, so a picture beside a clear bar keeps its colour.
  */
 @InternalFilmstripApi
 public object VhsShader {
@@ -53,25 +56,25 @@ public object VhsShader {
     return mapOf(
       "uSeed" to (vhs.seed and HASH_MASK).toFloat(),
       "uTick" to (tick and HASH_MASK).toFloat(),
-      "uLumaSigma" to params.lumaSigma.toFloat(),
-      "uChromaSigma" to params.chromaSigma.toFloat(),
-      "uWideSigma" to params.wideSigma.toFloat(),
-      "uHaloGain" to params.haloGain.toFloat(),
-      "uJitter" to params.jitter.toFloat(),
-      "uWave" to params.wave.toFloat(),
-      "uHeadShift" to params.headShift.toFloat(),
-      "uChromaShift" to params.chromaShift.toFloat(),
-      "uLumaNoise" to params.lumaNoise.toFloat(),
-      "uChromaNoise" to params.chromaNoise.toFloat(),
-      "uDropoutChance" to params.dropoutChance.toFloat(),
-      "uTrackCentre" to band.centre.toFloat(),
-      "uTrackStrength" to band.strength.toFloat(),
-      "uTrackHalfHeight" to params.trackingHalfHeight.toFloat(),
-      "uTrackShift" to params.trackingShift.toFloat(),
-      "uTrackNoise" to params.trackingNoise.toFloat(),
-      "uTrackSnow" to params.trackingSnow.toFloat(),
-      "uDesaturation" to params.desaturation.toFloat(),
-      "uLift" to params.lift.toFloat(),
+      "uLumaSigma" to uniformFloat(params.lumaSigma),
+      "uChromaSigma" to uniformFloat(params.chromaSigma),
+      "uWideSigma" to uniformFloat(params.wideSigma),
+      "uHaloGain" to uniformFloat(params.haloGain),
+      "uJitter" to uniformFloat(params.jitter),
+      "uWave" to uniformFloat(params.wave),
+      "uHeadShift" to uniformFloat(params.headShift),
+      "uChromaShift" to uniformFloat(params.chromaShift),
+      "uLumaNoise" to uniformFloat(params.lumaNoise),
+      "uChromaNoise" to uniformFloat(params.chromaNoise),
+      "uDropoutChance" to uniformFloat(params.dropoutChance),
+      "uTrackCentre" to uniformFloat(band.centre),
+      "uTrackStrength" to uniformFloat(band.strength),
+      "uTrackHalfHeight" to uniformFloat(params.trackingHalfHeight),
+      "uTrackShift" to uniformFloat(params.trackingShift),
+      "uTrackNoise" to uniformFloat(params.trackingNoise),
+      "uTrackSnow" to uniformFloat(params.trackingSnow),
+      "uDesaturation" to uniformFloat(params.desaturation),
+      "uLift" to uniformFloat(params.lift),
     )
   }
 }
@@ -109,6 +112,7 @@ private fun fragmentSource(): String =
   const float CHROMA_W[${CHROMA_TAPS + 1}] = float[${CHROMA_TAPS + 1}](${tapTable(CHROMA_TAPS, CHROMA_TAP_STEP)});
 
 $HASH_GLSL
+$STRAIGHT_READ_GLSL
 
   float signedDraw(uint pass, uint tick, uint cell) { return draw(pass, tick, cell) * 2.0 - 1.0; }
 
@@ -171,7 +175,7 @@ $HASH_GLSL
   vec3 tape(float x, float v) {
     float inside = clamp(x * ${VhsShader.RESOLUTION}.x + 0.5, 0.0, 1.0) *
       clamp((1.0 - x) * ${VhsShader.RESOLUTION}.x + 0.5, 0.0, 1.0);
-    return rgbToYcc(textureLod(${VhsShader.TEXTURE}, vec2(clamp(x, 0.0, 1.0), v), 0.0).rgb) * inside;
+    return rgbToYcc(straightRead(${VhsShader.TEXTURE}, vec2(clamp(x, 0.0, 1.0), v)).rgb) * inside;
   }
 
   float lumaBlur(float x, float v, float sigma) {
@@ -235,7 +239,7 @@ $HASH_GLSL
     float cr = (chroma.y + uChromaNoise * streak(${PASS_CR_NOISE}u, tick, chromaRow, x, chromaCell)) * chromaGain;
 
     // Alpha moves with the row, and colour and noise never raise it, so a clear bar lets the fill through.
-    float alpha = textureLod(${VhsShader.TEXTURE}, vec2(clamp(shifted, 0.0, 1.0), vUv.y), 0.0).a;
+    float alpha = straightRead(${VhsShader.TEXTURE}, vec2(clamp(shifted, 0.0, 1.0), vUv.y)).a;
     fragColor = vec4(clamp(yccToRgb(vec3(luma, cb, cr)), 0.0, 1.0), alpha);
   }
   """.trimIndent()

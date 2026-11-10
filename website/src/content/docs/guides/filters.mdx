@@ -3,7 +3,7 @@ title: Filters
 description: Add an opt-in look like VHS, with its own module and its own resolver.
 playground:
   sample: filters
-  label: VHS, a camcorder display, CRT and a LUT on real footage
+  label: VHS, a camcorder display, CRT, glitch, pixel, night vision and a LUT on real footage
 ---
 
 import { Aside } from '@astrojs/starlight/components'
@@ -67,6 +67,47 @@ An HDR source tone maps to SDR first. `HdrMode.Auto` reports that as an `HdrTone
 - See [Limits](/reference/limits/#filters) for how close each backend lands.
 </Aside>
 
+## Film
+
+`film` makes a frame look like it was shot on film. Halation glows warm around the brightest parts of the picture, and
+grain lands over the result, heaviest in the midtones. The grain follows the frame's composition time on a fixed raster,
+and the glow's width is a fraction of the frame's, so a seek or a smaller preview shows the same picture.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Filters.kt" region="film" />
+
+| Argument   | What it does                                                                                  |
+| ---------- | --------------------------------------------------------------------------------------------- |
+| `grain`    | How strong the grain is, `0f` to `1f`                                                         |
+| `halation` | How strong the glow is, `0f` to `1f`                                                          |
+| `weave`    | How far the frame wanders in the gate, `0f` to `1f`. Defaults to `0f`                         |
+| `flicker`  | How much the frame's brightness flickers, `0f` to `1f`. Defaults to `0f`                      |
+| `dust`     | How much dust and how many scratches land on the frame, `0f` to `1f`. Defaults to `0f`        |
+| `gate`     | How far the gate's rounded, dark edge closes in, `0f` to `1f`. Defaults to `0f`               |
+| `seed`     | Picks the pattern of grain, weave, flicker, dust and scratches. Equal seeds draw the same reel |
+
+With every argument at `0f` the look is listed as an inert notice.
+
+`Film.Super8` sets every one of them, for small gauge stock run through a worn projector. The frame drifts a little in the
+gate, its brightness flickers from frame to frame, specks of dust land for a single frame and a thin scratch runs down the
+picture for up to a second and a half, and a rounded gate darkens the corners. The gate holds still, and the rest
+changes 24 times a second with the frame's composition time, so a seek or a smaller preview shows the same reel. Set the arguments yourself for a
+heavier or a lighter one.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Filters.kt" region="super8" />
+
+A `film` on the composition covers the whole frame, bars included. One on a clip or a track doesn't grade the bars, and a
+clear bar stays clear. It runs under any overlay at its own scope, so a caption next to it stays clean. A clip overlay
+under a composition `film` is part of the clip's frame by then, and is burned in with it.
+
+An HDR source tone maps to SDR first. `HdrMode.Auto` reports that as an `HdrToneMapped` adjustment naming the effect, and
+`HdrMode.KeepHdr` is refused. See [HDR](/guides/hdr/).
+
+<Aside type="note" title="Limits">
+- An Apple device that can't compile a Core Image Metal kernel refuses `film` by name, the same as `vhs`.
+- media3 refuses `film` by name on a device without OpenGL ES 3.
+- See [Limits](/reference/limits/#filters) for how close each backend lands.
+</Aside>
+
 ## CRT
 
 `crt` makes a frame look like it is showing on a curved tube. The picture bows out with black past its edge, scanlines and
@@ -92,6 +133,59 @@ An HDR source tone maps to SDR first. `HdrMode.Auto` reports that as an `HdrTone
   so a long track holds far less memory.
 - On ffmpeg the look runs well under real time and holds a lot of memory per clip. See [Limits](/reference/limits/#filters)
   for the numbers, and how close each backend lands.
+</Aside>
+
+## Pixel
+
+`pixel` makes a frame look like low resolution pixel art. The frame is cut into square cells, `cells` of them down its
+height, and every pixel in a cell takes the colour at the cell's centre. A `palette` then snaps each cell to its nearest
+colour, or without one `levels` cuts each channel down to that many steps. `dither` spreads the step between two colours
+over a 4 by 4 ordered pattern laid on the cells. Cells are counted across the frame, so a smaller preview draws the same
+cells, and nothing reads the clock.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Filters.kt" region="pixel" />
+
+| Argument  | What it does                                                                                    |
+| --------- | ----------------------------------------------------------------------------------------------- |
+| `cells`   | How many cells run down the frame, from 8 to 1080. The columns follow from the frame's shape    |
+| `levels`  | How many steps each channel keeps, from 2 to 64, or `0` to keep the colour. A palette overrides it |
+| `dither`  | How strongly the ordered pattern pushes a colour toward its next step, from `0f` to `1f`         |
+| `palette` | A `PixelPalette` of 2 to 16 colours, or `PixelPalette.GameBoy` and `PixelPalette.Cga`            |
+
+`pixel` always changes the frame, so it is never listed as an inert notice. It runs under any overlay at its own scope,
+so a caption next to it stays clean, and a clear bar stays clear. An HDR source tone maps to SDR first, as with `crt`.
+
+<Aside type="note" title="Limits">
+- An Apple device that can't compile a Core Image Metal kernel refuses `pixel` by name, the same as `crt`.
+- ffmpeg writes `yuva420p`, whose chroma is shared by 2 by 2 pixels, so a cell edge that falls inside a chroma sample
+  blends the colours either side of it.
+</Aside>
+
+## Glitch
+
+`glitch` makes a frame look like a broken digital signal. Red and blue sit a little apart from green all the time. Now
+and then a burst tears through the picture, cutting it into horizontal slices that slide sideways, with thin rows torn
+further and the colours pulled wider apart. The bursts follow composition time and the frame's height as a fraction, so
+a seek or a smaller preview shows the same glitch.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Filters.kt" region="glitch" />
+
+| Argument    | What it does                                                                         |
+| ----------- | ------------------------------------------------------------------------------------ |
+| `intensity` | How strong the look is. `0f` leaves the frame alone and is listed as an inert notice |
+| `seed`      | Picks the pattern of bursts. Equal seeds draw the same glitches                      |
+
+A `glitch` on the composition covers the whole frame, bars included. One on a clip or a track slides a clear bar with the
+picture, so the fill shows where the picture left. It runs under any overlay at its own scope, so a caption next to it
+stays clean. A clip overlay under a composition `glitch` is part of the clip's frame by then, and is torn with it.
+
+An HDR source tone maps to SDR first. `HdrMode.Auto` reports that as an `HdrToneMapped` adjustment naming the effect, and
+`HdrMode.KeepHdr` is refused. See [HDR](/guides/hdr/).
+
+<Aside type="note" title="Limits">
+- An Apple device that can't compile a Core Image Metal kernel refuses `glitch` by name, the same as `vhs`.
+- On ffmpeg red, green and blue each read from their own place, so the look runs in RGB and back, which rounds and
+  softens the colour fringe. See [Limits](/reference/limits/#filters).
 </Aside>
 
 ## LUT
@@ -174,4 +268,31 @@ reports that as an `HdrToneMapped` adjustment naming the effect, and `HdrMode.Ke
 - ffmpeg carries the display in 4:2:0. Luma lands within a code of the other backends, and chroma is filtered over the
   pixels round each sample, so the record dot blends a little with the pixels next to it. See [Limits](/reference/limits/#filters).
 - media3 and the browser need OpenGL ES 3.
+</Aside>
+
+## Night vision
+
+`nightVision` makes a frame look like it came through an image intensifier. The frame's brightness is lifted and rolls
+off toward white, heavy grain is added, and the result is drawn in phosphor green, darker toward the corners. The grain
+follows the frame's composition time, so a seek or a smaller preview shows the same picture.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Filters.kt" region="night-vision" />
+
+| Argument    | What it does                                                                         |
+| ----------- | ------------------------------------------------------------------------------------ |
+| `intensity` | How strong the look is. `0f` leaves the frame alone and is listed as an inert notice |
+| `seed`      | Picks the pattern of grain. Equal seeds draw the same grain                          |
+
+A `nightVision` on the composition covers the whole frame, bars included. One on a clip or a track doesn't grade the bars,
+and a clear bar stays clear. It runs under any overlay at its own scope, so a caption next to it stays clean. A clip
+overlay under a composition `nightVision` is part of the clip's frame by then, and is burned in with it.
+
+An HDR source tone maps to SDR first. `HdrMode.Auto` reports that as an `HdrToneMapped` adjustment naming the effect, and
+`HdrMode.KeepHdr` is refused. See [HDR](/guides/hdr/).
+
+<Aside type="note" title="Limits">
+- An Apple device that can't compile a Core Image Metal kernel refuses `nightVision` by name, the same as `vhs`.
+- media3 refuses `nightVision` by name on a device without OpenGL ES 3.
+- The ffmpeg backend refuses `nightVision` by name on a build missing a filter it runs on, like `lut1d` or `blend`.
+- See [Limits](/reference/limits/#filters) for how close each backend lands.
 </Aside>

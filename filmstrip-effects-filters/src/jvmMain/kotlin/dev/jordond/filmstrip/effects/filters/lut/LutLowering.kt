@@ -4,7 +4,7 @@ import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.effect.FilterFragment
 import dev.jordond.filmstrip.effect.FilterNode
 import dev.jordond.filmstrip.effect.Sidecar
-import dev.jordond.filmstrip.effects.filters.internal.RgbRoundTrip
+import dev.jordond.filmstrip.effects.RgbRoundTrip
 import kotlin.math.roundToLong
 
 /**

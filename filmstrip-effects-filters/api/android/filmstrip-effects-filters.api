@@ -232,29 +232,64 @@ public final class dev/jordond/filmstrip/effects/filters/crt/CrtKt {
 
 public final class dev/jordond/filmstrip/effects/filters/film/Film : dev/jordond/filmstrip/effect/EffectSpec {
 	public static final field Companion Ldev/jordond/filmstrip/effects/filters/film/Film$Companion;
+	public static final field DEFAULT_SEED I
 	public static final field ID Ljava/lang/String;
 	public fun <init> ()V
-	public fun <init> (FF)V
-	public synthetic fun <init> (FFILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (FFFFFFI)V
+	public synthetic fun <init> (FFFFFFIILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun equals (Ljava/lang/Object;)Z
 	public fun getBeneathOverlays ()Z
+	public final fun getDust ()F
+	public final fun getFlicker ()F
+	public final fun getGate ()F
 	public final fun getGrain ()F
 	public final fun getHalation ()F
 	public fun getId ()Ljava/lang/String;
 	public fun getRequiresSdr ()Z
 	public fun getScope ()Ldev/jordond/filmstrip/effect/EffectScope;
+	public final fun getSeed ()I
 	public fun getStage ()Ldev/jordond/filmstrip/effect/EffectStage;
+	public final fun getWeave ()F
 	public fun hashCode ()I
 	public fun isInert ()Z
 	public fun toString ()Ljava/lang/String;
 }
 
 public final class dev/jordond/filmstrip/effects/filters/film/Film$Companion {
+	public final fun getSuper8 ()Ldev/jordond/filmstrip/effects/filters/film/Film;
 }
 
 public final class dev/jordond/filmstrip/effects/filters/film/FilmKt {
-	public static final fun film (Ldev/jordond/filmstrip/edit/EffectsBuilder;FF)Ldev/jordond/filmstrip/edit/EffectsBuilder;
-	public static synthetic fun film$default (Ldev/jordond/filmstrip/edit/EffectsBuilder;FFILjava/lang/Object;)Ldev/jordond/filmstrip/edit/EffectsBuilder;
+	public static final fun film (Ldev/jordond/filmstrip/edit/EffectsBuilder;FFFFFFI)Ldev/jordond/filmstrip/edit/EffectsBuilder;
+	public static synthetic fun film$default (Ldev/jordond/filmstrip/edit/EffectsBuilder;FFFFFFIILjava/lang/Object;)Ldev/jordond/filmstrip/edit/EffectsBuilder;
+}
+
+public final class dev/jordond/filmstrip/effects/filters/glitch/Glitch : dev/jordond/filmstrip/effect/EffectSpec {
+	public static final field Companion Ldev/jordond/filmstrip/effects/filters/glitch/Glitch$Companion;
+	public static final field DEFAULT_SEED I
+	public static final field ID Ljava/lang/String;
+	public fun <init> ()V
+	public fun <init> (FI)V
+	public synthetic fun <init> (FIILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getBeneathOverlays ()Z
+	public fun getId ()Ljava/lang/String;
+	public final fun getIntensity ()F
+	public fun getRequiresSdr ()Z
+	public fun getScope ()Ldev/jordond/filmstrip/effect/EffectScope;
+	public final fun getSeed ()I
+	public fun getStage ()Ldev/jordond/filmstrip/effect/EffectStage;
+	public fun hashCode ()I
+	public fun isInert ()Z
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/jordond/filmstrip/effects/filters/glitch/Glitch$Companion {
+}
+
+public final class dev/jordond/filmstrip/effects/filters/glitch/GlitchKt {
+	public static final fun glitch (Ldev/jordond/filmstrip/edit/EffectsBuilder;FI)Ldev/jordond/filmstrip/edit/EffectsBuilder;
+	public static synthetic fun glitch$default (Ldev/jordond/filmstrip/edit/EffectsBuilder;FIILjava/lang/Object;)Ldev/jordond/filmstrip/edit/EffectsBuilder;
 }
 
 public final class dev/jordond/filmstrip/effects/filters/lut/CubeLut {
@@ -302,6 +337,84 @@ public final class dev/jordond/filmstrip/effects/filters/lut/Lut$Companion {
 public final class dev/jordond/filmstrip/effects/filters/lut/LutKt {
 	public static final fun lut (Ldev/jordond/filmstrip/edit/EffectsBuilder;Ldev/jordond/filmstrip/effects/filters/lut/CubeLut;F)Ldev/jordond/filmstrip/edit/EffectsBuilder;
 	public static synthetic fun lut$default (Ldev/jordond/filmstrip/edit/EffectsBuilder;Ldev/jordond/filmstrip/effects/filters/lut/CubeLut;FILjava/lang/Object;)Ldev/jordond/filmstrip/edit/EffectsBuilder;
+}
+
+public final class dev/jordond/filmstrip/effects/filters/nightvision/NightVision : dev/jordond/filmstrip/effect/EffectSpec {
+	public static final field Companion Ldev/jordond/filmstrip/effects/filters/nightvision/NightVision$Companion;
+	public static final field DEFAULT_SEED I
+	public static final field ID Ljava/lang/String;
+	public fun <init> ()V
+	public fun <init> (FI)V
+	public synthetic fun <init> (FIILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getBeneathOverlays ()Z
+	public fun getId ()Ljava/lang/String;
+	public final fun getIntensity ()F
+	public fun getRequiresSdr ()Z
+	public fun getScope ()Ldev/jordond/filmstrip/effect/EffectScope;
+	public final fun getSeed ()I
+	public fun getStage ()Ldev/jordond/filmstrip/effect/EffectStage;
+	public fun hashCode ()I
+	public fun isInert ()Z
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/jordond/filmstrip/effects/filters/nightvision/NightVision$Companion {
+}
+
+public final class dev/jordond/filmstrip/effects/filters/nightvision/NightVisionKt {
+	public static final fun nightVision (Ldev/jordond/filmstrip/edit/EffectsBuilder;FI)Ldev/jordond/filmstrip/edit/EffectsBuilder;
+	public static synthetic fun nightVision$default (Ldev/jordond/filmstrip/edit/EffectsBuilder;FIILjava/lang/Object;)Ldev/jordond/filmstrip/edit/EffectsBuilder;
+}
+
+public final class dev/jordond/filmstrip/effects/filters/pixel/Pixel : dev/jordond/filmstrip/effect/EffectSpec {
+	public static final field Companion Ldev/jordond/filmstrip/effects/filters/pixel/Pixel$Companion;
+	public static final field DEFAULT_CELLS I
+	public static final field ID Ljava/lang/String;
+	public static final field MAX_CELLS I
+	public static final field MAX_LEVELS I
+	public static final field MIN_CELLS I
+	public static final field MIN_LEVELS I
+	public fun <init> ()V
+	public fun <init> (IIFLdev/jordond/filmstrip/effects/filters/pixel/PixelPalette;)V
+	public synthetic fun <init> (IIFLdev/jordond/filmstrip/effects/filters/pixel/PixelPalette;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getBeneathOverlays ()Z
+	public final fun getCells ()I
+	public final fun getDither ()F
+	public fun getId ()Ljava/lang/String;
+	public final fun getLevels ()I
+	public final fun getPalette ()Ldev/jordond/filmstrip/effects/filters/pixel/PixelPalette;
+	public fun getRequiresSdr ()Z
+	public fun getScope ()Ldev/jordond/filmstrip/effect/EffectScope;
+	public fun getStage ()Ldev/jordond/filmstrip/effect/EffectStage;
+	public fun hashCode ()I
+	public fun isInert ()Z
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/jordond/filmstrip/effects/filters/pixel/Pixel$Companion {
+}
+
+public final class dev/jordond/filmstrip/effects/filters/pixel/PixelKt {
+	public static final fun pixel (Ldev/jordond/filmstrip/edit/EffectsBuilder;IIFLdev/jordond/filmstrip/effects/filters/pixel/PixelPalette;)Ldev/jordond/filmstrip/edit/EffectsBuilder;
+	public static synthetic fun pixel$default (Ldev/jordond/filmstrip/edit/EffectsBuilder;IIFLdev/jordond/filmstrip/effects/filters/pixel/PixelPalette;ILjava/lang/Object;)Ldev/jordond/filmstrip/edit/EffectsBuilder;
+}
+
+public final class dev/jordond/filmstrip/effects/filters/pixel/PixelPalette {
+	public static final field Companion Ldev/jordond/filmstrip/effects/filters/pixel/PixelPalette$Companion;
+	public static final field MAX_COLORS I
+	public static final field MIN_COLORS I
+	public fun <init> (Ljava/util/List;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getColors ()Ljava/util/List;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/jordond/filmstrip/effects/filters/pixel/PixelPalette$Companion {
+	public final fun getCga ()Ldev/jordond/filmstrip/effects/filters/pixel/PixelPalette;
+	public final fun getGameBoy ()Ldev/jordond/filmstrip/effects/filters/pixel/PixelPalette;
 }
 
 public final class dev/jordond/filmstrip/effects/filters/vhs/TapeSpeed : java/lang/Enum {

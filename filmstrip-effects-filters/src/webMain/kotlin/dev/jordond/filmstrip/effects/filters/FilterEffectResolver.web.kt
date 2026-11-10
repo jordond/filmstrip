@@ -12,8 +12,14 @@ import dev.jordond.filmstrip.effects.filters.crt.Crt
 import dev.jordond.filmstrip.effects.filters.crt.crtPass
 import dev.jordond.filmstrip.effects.filters.film.Film
 import dev.jordond.filmstrip.effects.filters.film.filmPass
+import dev.jordond.filmstrip.effects.filters.glitch.Glitch
+import dev.jordond.filmstrip.effects.filters.glitch.glitchPass
 import dev.jordond.filmstrip.effects.filters.lut.Lut
 import dev.jordond.filmstrip.effects.filters.lut.lutPass
+import dev.jordond.filmstrip.effects.filters.nightvision.NightVision
+import dev.jordond.filmstrip.effects.filters.nightvision.nightVisionPass
+import dev.jordond.filmstrip.effects.filters.pixel.Pixel
+import dev.jordond.filmstrip.effects.filters.pixel.pixelPass
 import dev.jordond.filmstrip.effects.filters.vhs.Vhs
 import dev.jordond.filmstrip.effects.filters.vhs.vhsPass
 
@@ -41,6 +47,15 @@ public actual class FilterEffectResolver actual constructor() : EffectResolver {
       }
       is Lut -> {
         EffectResolution.Resolved(PlatformEffect(lutPass(spec)))
+      }
+      is NightVision -> {
+        EffectResolution.Resolved(PlatformEffect(nightVisionPass(spec)))
+      }
+      is Pixel -> {
+        EffectResolution.Resolved(PlatformEffect(pixelPass(spec)))
+      }
+      is Glitch -> {
+        EffectResolution.Resolved(PlatformEffect(glitchPass(spec)))
       }
       else -> {
         null

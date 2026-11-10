@@ -6,6 +6,7 @@ import dev.jordond.filmstrip.effects.color.Contrast
 import dev.jordond.filmstrip.effects.color.Saturation
 import dev.jordond.filmstrip.effects.color.contrast
 import dev.jordond.filmstrip.effects.color.saturation
+import dev.jordond.filmstrip.effects.color.transformHlgCodes
 import dev.jordond.filmstrip.effects.color.transformNits
 import dev.jordond.filmstrip.media.HdrTransfer
 import io.kotest.assertions.withClue
@@ -19,9 +20,10 @@ import kotlin.time.Duration.Companion.minutes
  *
  * Core Image holds an HDR frame as display referred linear light, and the lowering moves that into
  * the SDR signal a display at reference white would have been fed, runs the matrix there, and moves
- * it back. The figure under test comes from [transformNits], the reading every backend is held to,
- * rather than from a measurement taken once. Each transfer's identity export is made once and shared
- * by every case in the class. AppleHdrColorGradeCanaryHardwareTest runs the contrast case on iOS.
+ * it back. The figure under test comes from [transformNits] on PQ and [transformHlgCodes] on HLG,
+ * the readings every backend is held to, rather than from a measurement taken once. Each transfer's
+ * identity export is made once and shared by every case in the class.
+ * AppleHdrColorGradeCanaryHardwareTest runs the contrast case on iOS.
  *
  * A case fails when its fixture is missing, as in [AppleExportHardwareTest].
  */
@@ -47,9 +49,10 @@ class AppleHdrColorGradeHardwareTest {
       assertGraded(matrix, expected, graded, SATURATION_DRIFT, lit, HdrTransfer.Pq)
     }
 
-  // The HLG arm, with both halves of the matrix in one run. Core Image is display referred whatever
-  // the transfer, and the probe decodes HLG the same way the effect saw it, so the reading holds to
-  // the encode's drift here too. The matrix run on scene light is the mistake HLG adds.
+  // The HLG arm, with both halves of the matrix in one run. The reference centre is carried back to the HLG codes Core
+  // Image decoded it from, the matrix runs on the shared signal of those codes, and the codes it writes are decoded the
+  // way the probe reads the export. The matrix run on scene light, or on the signal of Core Image's light, is the
+  // mistake HLG adds.
   @Test
   fun `an HLG grade lands where the shared reading says`() =
     runTest(timeout = TIMEOUT) {
@@ -57,7 +60,8 @@ class AppleHdrColorGradeHardwareTest {
       val graded =
         filmstrip.exportedGradeLight(hdrFixture(HdrTransfer.Hlg)) { contrast(SOFTER_CONTRAST).saturation(MUTED) }
       val matrix = matrixOf(Contrast(SOFTER_CONTRAST), Saturation(MUTED))
-      val expected = matrix.transformNits(lit[0], lit[1], lit[2], HdrTransfer.Hlg)
+      val codes = hlgCodesOfNits(lit)
+      val expected = nitsOfHlgCodes(matrix.transformHlgCodes(codes[0], codes[1], codes[2]).toList()).toFloatArray()
 
       assertGraded(matrix, expected, graded, HLG_GRADE_DRIFT, lit, HdrTransfer.Hlg)
     }
@@ -104,8 +108,8 @@ class AppleHdrColorGradeHardwareTest {
     // iOS simulator.
     const val SATURATION_DRIFT = 0.04f
 
-    // The same for an HLG contrast and saturation together. Held on macOS, where it measured 0.22%, against 0.90% on
-    // the iOS simulator. Run on scene light it misses by 13% and on light by 42%.
+    // The same for an HLG contrast and saturation together. Held on macOS, where it measured 0.05%. Run on scene light
+    // it misses by 9.0%, on the SDR signal of Core Image's light by 4.9% and on light by 49%.
     const val HLG_GRADE_DRIFT = 0.02f
 
     // How close to PQ's peak a reading has to get to count as having hit the format's ceiling

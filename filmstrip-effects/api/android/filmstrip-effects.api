@@ -8,6 +8,9 @@ public final class dev/jordond/filmstrip/effects/BuiltInEffectResolverKt {
 	public static final fun builtInEffects (Ldev/jordond/filmstrip/FilmstripBuilder;)Ldev/jordond/filmstrip/FilmstripBuilder;
 }
 
+public final class dev/jordond/filmstrip/effects/StepShaderProgram$Companion {
+}
+
 public final class dev/jordond/filmstrip/effects/color/Brightness : dev/jordond/filmstrip/effect/EffectSpec {
 	public fun <init> (F)V
 	public fun equals (Ljava/lang/Object;)Z
@@ -459,5 +462,46 @@ public final class dev/jordond/filmstrip/effects/overlay/TextOverlayKt {
 	public static final fun textOverlay (Ldev/jordond/filmstrip/edit/EffectsBuilder;Ljava/lang/String;Lkotlin/ranges/ClosedRange;Ldev/jordond/filmstrip/style/TextStyle;Ldev/jordond/filmstrip/geometry/Anchor;Ldev/jordond/filmstrip/effects/overlay/OverlayAnimation;)Ldev/jordond/filmstrip/edit/EffectsBuilder;
 	public static synthetic fun textOverlay$default (Ldev/jordond/filmstrip/edit/EffectsBuilder;Ljava/lang/String;Ldev/jordond/filmstrip/style/TextStyle;Ldev/jordond/filmstrip/geometry/Anchor;Ldev/jordond/filmstrip/edit/TimeRange;Ldev/jordond/filmstrip/effects/overlay/OverlayAnimation;ILjava/lang/Object;)Ldev/jordond/filmstrip/edit/EffectsBuilder;
 	public static synthetic fun textOverlay$default (Ldev/jordond/filmstrip/edit/EffectsBuilder;Ljava/lang/String;Lkotlin/ranges/ClosedRange;Ldev/jordond/filmstrip/style/TextStyle;Ldev/jordond/filmstrip/geometry/Anchor;Ldev/jordond/filmstrip/effects/overlay/OverlayAnimation;ILjava/lang/Object;)Ldev/jordond/filmstrip/edit/EffectsBuilder;
+}
+
+public final class dev/jordond/filmstrip/effects/spatial/GaussianBlur : dev/jordond/filmstrip/effect/EffectSpec {
+	public fun <init> (F)V
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getBeneathOverlays ()Z
+	public fun getId ()Ljava/lang/String;
+	public fun getRequiresSdr ()Z
+	public fun getScope ()Ldev/jordond/filmstrip/effect/EffectScope;
+	public final fun getSigma ()F
+	public fun getStage ()Ldev/jordond/filmstrip/effect/EffectStage;
+	public fun hashCode ()I
+	public fun isInert ()Z
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/jordond/filmstrip/effects/spatial/GaussianBlurKt {
+	public static final fun blur (Ldev/jordond/filmstrip/edit/EffectsBuilder;F)Ldev/jordond/filmstrip/edit/EffectsBuilder;
+}
+
+public final class dev/jordond/filmstrip/effects/spatial/Vignette : dev/jordond/filmstrip/effect/EffectSpec {
+	public fun <init> ()V
+	public fun <init> (FFF)V
+	public synthetic fun <init> (FFFILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getBeneathOverlays ()Z
+	public fun getId ()Ljava/lang/String;
+	public final fun getRadius ()F
+	public fun getRequiresSdr ()Z
+	public fun getScope ()Ldev/jordond/filmstrip/effect/EffectScope;
+	public final fun getSoftness ()F
+	public fun getStage ()Ldev/jordond/filmstrip/effect/EffectStage;
+	public final fun getStrength ()F
+	public fun hashCode ()I
+	public fun isInert ()Z
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/jordond/filmstrip/effects/spatial/VignetteKt {
+	public static final fun vignette (Ldev/jordond/filmstrip/edit/EffectsBuilder;FFF)Ldev/jordond/filmstrip/edit/EffectsBuilder;
+	public static synthetic fun vignette$default (Ldev/jordond/filmstrip/edit/EffectsBuilder;FFFILjava/lang/Object;)Ldev/jordond/filmstrip/edit/EffectsBuilder;
 }
 

@@ -213,7 +213,7 @@ class CrtSignalTest {
 
     val read = CrtSignal.pixelAt(0.03, 0.97, 1920, 1080, params) { _, _ -> codes }
 
-    read.toList() shouldBe codes.toList()
+    codes.indices.forEach { read[it] shouldBe (codes[it] plusOrMinus 1e-12) }
   }
 
   @Test
@@ -231,6 +231,17 @@ class CrtSignalTest {
           CrtSignal.vignetteAt(0.3, 0.6, 1366, 768, params.vignette) * params.gain
       read[channel] shouldBe (expected plusOrMinus 1e-12)
     }
+  }
+
+  @Test
+  fun aPixelKeepsTheReadsAlphaAndLooksOnlyAtItsColour() {
+    val params = CrtParams.at(0.5)
+    val opaque = CrtSignal.pixelAt(0.3, 0.6, 1366, 768, params) { _, _ -> doubleArrayOf(0.2, 0.4, 0.6) }
+
+    val read = CrtSignal.pixelAt(0.3, 0.6, 1366, 768, params) { _, _ -> doubleArrayOf(0.2, 0.4, 0.6, 0.5) }
+
+    read[3] shouldBe (0.5 plusOrMinus 1e-12)
+    for (channel in 0 until CHANNELS) read[channel] shouldBe (opaque[channel] plusOrMinus 1e-12)
   }
 
   @Test

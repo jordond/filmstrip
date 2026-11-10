@@ -122,17 +122,23 @@ picture but still plays its audio. If it's the whole primary track, it's refused
 Each [filter](/guides/filters/) looks the same on every backend, within a few code values. Where a backend can't run
 one, it's refused by name.
 
-- **Apple** runs `vhs`, `crt` and `lut` on Core Image Metal kernels, which need an Apple6 GPU on iOS, or macOS 12 on a
-  Mac.
+- **Apple** runs `vhs`, `crt`, `glitch`, `lut`, `nightVision` and `pixel` on Core Image Metal kernels, which need an
+  Apple6 GPU on iOS, or macOS 12 on a Mac.
 - **Browser** refuses a clip larger on a side than the page's `MAX_TEXTURE_SIZE`. A fit that crops makes the clip's
   frame larger than the output.
 - **Android and browser** need OpenGL ES 3 for `lut`, and a texture big enough for the table, 1170×520 for a 65 point
   table and 3096×1419 for 129.
+- **Android** refuses `vhs`, `glitch` and `nightVision` on a device below OpenGL ES 3.
 - **ffmpeg** blurs with an approximation, so a hard edge can land up to a fifth of a step off. Everywhere else it's
   within a few code values.
 - **ffmpeg** works in 4:2:0, which averages out the colored stripes in `crt`'s mask. Any 4:2:0 file does the same, so
   the export matches the other backends.
+- **ffmpeg** holds `nightVision`'s grain to one of 255 steps, and writes it in 4:2:0, which averages each pixel's grain
+  colour with its neighbours'. Each plane lands within 1.5 code values of the other backends' signal.
 - **ffmpeg** refuses a look its build is missing a filter for.
+- **ffmpeg** draws `glitch` with one `geq` over each of red, green, blue and alpha, every pixel a bilinear read at its
+  row's shift, and goes through RGB and back to do it. That round trip lands within 3 codes of the signal, and 4:2:0
+  averages the colour fringe across two rows where a slice ends.
 - **Every backend** draws `vhs` tracking snow from the same signal. Apple and Android land within 1e-4, the browser
   within one code, and ffmpeg within 1.74 codes of luma and 1.14 of chroma, since it mixes into 8-bit planes.
 - **Every backend** draws `camcorder` from the same raster. Apple and Android land within 1e-4 and the browser within
@@ -142,13 +148,22 @@ one, it's refused by name.
 
 Filters are heavy on ffmpeg. Measured on a 12 thread x86 server with x264:
 
-| Look   | 1080p    | 4K      | Peak memory, 1080p and 4K |
-| ------ | -------- | ------- | ------------------------- |
-| `film` | 17.5 fps | 7.9 fps | 1 GB and 3.4 GB           |
-| `vhs`  | 9.1 fps  | 2.8 fps | 1 GB and 3.3 GB           |
-| `crt`  | 10 fps   | 2.6 fps | 1.5 GB and 5.4 GB         |
-| `lut`  | 70 fps   | 21 fps  |                           |
+| Look                              | 1080p    | 4K       | Peak memory, 1080p and 4K |
+| --------------------------------- | -------- | -------- | ------------------------- |
+| `film`                            | 19.3 fps | 9.2 fps  | 1 GB and 3.4 GB           |
+| `vhs`                             | 9.1 fps  | 2.8 fps  | 1 GB and 3.3 GB           |
+| `crt`                             | 8.2 fps  | 2.2 fps  | 1.5 GB and 5.4 GB         |
+| `lut`                             | 70 fps   | 21 fps   |                           |
+| `Film.Super8`                     | 0.3 fps  | 0.1 fps  |                           |
+| `glitch`                          | 4 fps    | 1 fps    |                           |
+| `nightVision`                     | 24.8 fps | 6.9 fps  |                           |
+| `pixel`                           | 54 fps   | 23.1 fps |                           |
+| `pixel` with a palette and dither | 31.6 fps | 19.1 fps |                           |
+| `vignette`                        | 18.8 fps | 4.8 fps  |                           |
+| `gaussianBlur` at 0.02            | 35.3 fps | 9.5 fps  |                           |
 
+- `Film.Super8`'s weave is a per-pixel expression on ffmpeg, since no built-in filter reproduces its sub-pixel read
+  exactly. `glitch` is one too, for its per-row shift.
 - `crt` on each clip adds about 550 MB per 1080p clip. When every clip has the same `crt` at the output size and
   they join with no gap, it runs once over the whole export instead.
 - `film` and `vhs` fall back to a slower path with the same result when the JVM can't open a local socket, the ffmpeg

@@ -1,6 +1,7 @@
 package dev.jordond.filmstrip.effects.filters.crt
 
 import dev.jordond.filmstrip.InternalFilmstripApi
+import dev.jordond.filmstrip.effects.filters.internal.straightRead
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.cos
@@ -26,6 +27,7 @@ internal const val MASK_PHASE_STEP = TWO_PI / 3.0
 private const val SINC_FLOOR = 1e-9
 
 private const val FULL_SCALE = 1.0
+private const val ALPHA = 3
 private const val CENTRE = 0.5
 
 // What the curve's slope gains per unit of squared position from the centre, the doubling in its distance squared and
@@ -199,8 +201,11 @@ public object CrtSignal {
    * The R'G'B' a pixel at [u], [v] of a frame [width] by [height] ends on, a pure function a test holds a backend's
    * pixels against.
    *
-   * @param picture The picture with no look on it, read at a source position. That position runs past `0.0` to `1.0`
-   * near the curve's edge, where a read holds the edge pixel.
+   * @param texel The picture with no look on it, the straight R'G'B' of a texel by its column and its row counted
+   * along `v`, with alpha after it when the frame has one. The curve reads between texels, mixing the four around the
+   * source position premultiplied and taking the mix back straight, so a clear texel lends its neighbours no colour.
+   * That position runs past `0.0` to `1.0` near the curve's edge, where a read holds the edge texel.
+   * @return red, green and blue, with the read's alpha after them when [texel] gives one.
    */
   public fun pixelAt(
     u: Double,
@@ -208,14 +213,18 @@ public object CrtSignal {
     width: Int,
     height: Int,
     params: CrtParams,
-    picture: (u: Double, v: Double) -> DoubleArray,
+    texel: (column: Int, row: Int) -> DoubleArray,
   ): DoubleArray {
     val source = barrelMap(u, v, width, height, params.barrelK)
     val coverage = coverageAt(u, v, width, height, params.barrelK)
-    val codes = picture(source[0], source[1])
+    val codes = straightRead(source[0], source[1], width, height, texel)
     return DoubleArray(codes.size) { channel ->
-      // An encoded code stops at full scale, so the gain's lift ends there too.
-      min(FULL_SCALE, codes[channel] * multiplierAt(u, v, width, height, params, channel)) * coverage
+      if (channel == ALPHA) {
+        codes[channel]
+      } else {
+        // An encoded code stops at full scale, so the gain's lift ends there too.
+        min(FULL_SCALE, codes[channel] * multiplierAt(u, v, width, height, params, channel)) * coverage
+      }
     }
   }
 

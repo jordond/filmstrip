@@ -699,6 +699,7 @@ public final class dev/jordond/filmstrip/effect/Attributes {
 	public final fun getLayoutSize ()Ldev/jordond/filmstrip/geometry/Size;
 	public final fun getOutputSize ()Ldev/jordond/filmstrip/geometry/Size;
 	public final fun getSpan ()Ldev/jordond/filmstrip/edit/TimeRange;
+	public final fun getStoredSize ()Ldev/jordond/filmstrip/geometry/Size;
 	public fun toString ()Ljava/lang/String;
 }
 
@@ -731,6 +732,7 @@ public final class dev/jordond/filmstrip/effect/EffectIds {
 	public static final field CROP Ljava/lang/String;
 	public static final field CROP_RECT Ljava/lang/String;
 	public static final field FLIP Ljava/lang/String;
+	public static final field GAUSSIAN_BLUR Ljava/lang/String;
 	public static final field HUE_ROTATE Ljava/lang/String;
 	public static final field IMAGE_OVERLAY Ljava/lang/String;
 	public static final field INSTANCE Ldev/jordond/filmstrip/effect/EffectIds;
@@ -742,6 +744,7 @@ public final class dev/jordond/filmstrip/effect/EffectIds {
 	public static final field SCALE Ljava/lang/String;
 	public static final field SEPIA Ljava/lang/String;
 	public static final field TEXT_OVERLAY Ljava/lang/String;
+	public static final field VIGNETTE Ljava/lang/String;
 }
 
 public abstract interface class dev/jordond/filmstrip/effect/EffectResolution {

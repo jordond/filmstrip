@@ -38,6 +38,10 @@ import dev.jordond.filmstrip.effects.overlay.TextOverlay
 import dev.jordond.filmstrip.effects.overlay.encodedRead
 import dev.jordond.filmstrip.effects.overlay.filterGraphOverlay
 import dev.jordond.filmstrip.effects.overlay.filterGraphText
+import dev.jordond.filmstrip.effects.spatial.GaussianBlur
+import dev.jordond.filmstrip.effects.spatial.Vignette
+import dev.jordond.filmstrip.effects.spatial.blurFragment
+import dev.jordond.filmstrip.effects.spatial.vignetteFragment
 import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.geometry.FlipAxis
 import dev.jordond.filmstrip.geometry.NormalizedRect
@@ -139,6 +143,16 @@ public actual class BuiltInEffectResolver : EffectResolver {
       is ColorMatrix,
       -> {
         colorMatrix(spec, attributes.hdrTransfer)
+      }
+      is GaussianBlur -> {
+        EffectResolution.Resolved(
+          PlatformEffect(blurFragment(spec, attributes.inputSize, attributes.storedSize, attributes.hdrTransfer)),
+        )
+      }
+      is Vignette -> {
+        EffectResolution.Resolved(
+          PlatformEffect(vignetteFragment(spec, attributes.inputSize, attributes.storedSize, attributes.hdrTransfer)),
+        )
       }
       is ImageOverlay -> {
         filterGraphOverlay(spec, attributes, pictureDecoder, pictures[spec.image])

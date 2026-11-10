@@ -23,11 +23,21 @@ internal fun FilterFragment.filterNames(): Set<String> =
       if (node.name == PlaneLanes.NAME) addAll(PLANE_LANES_FILTERS) else add(node.name.substringBefore('@'))
     }
     if (branches.any { it.writes.size > 1 }) add("split")
-    if (branches.isNotEmpty()) add(if (readsCompositionClock) "setpts" else "null")
+    if (laysBranches) add(if (readsCompositionClock) "setpts" else "null")
     if (crop != null) addAll(CROPPED_FILTERS)
   }
 
+/**
+ * Whether the backend lays this fragment with [branches], which is every fragment with a graph of its own and every
+ * chain that reads the composition clock.
+ *
+ * A clock reader with a merge or a crop runs its own way and keeps the timestamps it was handed.
+ */
+internal val FilterFragment.laysBranches: Boolean
+  get() = branches.isNotEmpty() || (readsCompositionClock && merge == null && crop == null)
+
 // What a plane lanes node and a cropped fragment are expanded to.
+private const val CHAIN_PAD = "chain"
 private val PLANE_LANES_FILTERS = setOf("format", "extractplanes", "mergeplanes")
 private val CROPPED_FILTERS = setOf("split", "crop", "overlay")
 
@@ -36,6 +46,8 @@ private val CROPPED_FILTERS = setOf("split", "crop", "overlay")
  *
  * A fragment that reads the composition clock runs with its frames' timestamps moved onto it, then moved back. [origin]
  * is where the frames handed to it land in the composition, and [WINDOW_CLOCK] adds where a windowed preview opened.
+ *
+ * A fragment with no branches of its own runs its chain and post as one branch.
  *
  * With [liveChain] set a fragment carrying [FilterFragment.live] runs that graph, each of its inputs laid onto its pad
  * by [liveChain].
@@ -58,7 +70,10 @@ internal fun FilterGraphBuilder.branches(
   val pad = { name: String -> if (name == FilterBranch.INPUT) input else "$output$name" }
   val live = fragment.live?.takeIf { liveChain != null }
   live?.inputs?.forEach { checkNotNull(liveChain)(it, origin, pad(it.pad)) }
-  val laid = live?.branches ?: fragment.branches
+  val laid =
+    live?.branches ?: fragment.branches.ifEmpty {
+      listOf(FilterBranch(listOf(FilterBranch.INPUT), fragment.chain + fragment.post, listOf(CHAIN_PAD)))
+    }
   laid.forEach { branch ->
     if (branch.writes.size > 1) {
       split(pad(branch.reads.single()), branch.writes.map(pad))

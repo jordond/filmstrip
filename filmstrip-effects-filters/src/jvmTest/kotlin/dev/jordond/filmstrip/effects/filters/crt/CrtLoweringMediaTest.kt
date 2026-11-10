@@ -16,6 +16,7 @@ import kotlin.math.abs
 import kotlin.math.floor
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.roundToInt
 import kotlin.test.Test
 
 /**
@@ -126,34 +127,19 @@ class CrtLoweringMediaTest {
   }
 
   @Test
-  fun `the way down to eight bits lands every code on itself on every plane`() {
-    val empty = emptyMap<String, String>()
-    val down = CRT_TO_EIGHT_BITS.joinToString(",") { it.rendered(empty) }
-    val coded = "X*257"
+  fun `a clip whose first frame lands before zero still reads its maps`() {
+    val frame = Size(320, 180)
+    val params = CrtParams.at(MID)
 
-    val process =
-      ProcessBuilder(
-        hostFfmpeg,
-        "-hide_banner",
-        "-loglevel",
-        "error",
-        "-f",
-        "lavfi",
-        "-i",
-        "color=c=black:s=${CODES}x1:d=0.04",
-        "-frames:v",
-        "1",
-        "-vf",
-        "format=gbrap16le,geq=r=$coded:g=$coded:b=$coded:a=$coded,$down",
-        "-f",
-        "rawvideo",
-        "-",
-      ).redirectError(ProcessBuilder.Redirect.INHERIT).start()
-    val read = process.inputStream.readBytes()
-    process.waitFor() shouldBe 0
-
-    read.size shouldBe CODES * PLANES
-    read.forEachIndexed { at, code -> withClue("sample $at") { (code.toInt() and 0xFF) shouldBe at % CODES } }
+    val read = drawn(params, frame, PICTURE, OPAQUE, BEFORE_ZERO)
+    readsOf(frame).forEach { (x, y) ->
+      val wanted = wanted(frame, params, x, y, PICTURE)
+      for (channel in 0 until RGB) {
+        withClue("at $x $y channel $channel") {
+          abs(read.share(frame, x, y, channel) - wanted[channel]) shouldBeLessThan DRAWN_SHARE
+        }
+      }
+    }
   }
 
   private fun wanted(
@@ -179,12 +165,14 @@ class CrtLoweringMediaTest {
       spreadX.flatMap { x -> (0 until frame.height step EDGE_STRIDE).map { x to it } }
   }
 
-  // Runs crtTube on a flat premultiplied frame, and hands back straight colour and alpha as ffmpeg's own planes.
+  // Runs crtTube on a flat premultiplied frame of eight bit codes widened to sixteen bits, the way the fragment hands
+  // it one, and hands back straight colour and alpha as ffmpeg's own planes.
   private fun drawn(
     params: CrtParams,
     frame: Size,
     picture: DoubleArray,
     alpha: Double,
+    retimed: String = "",
   ): ByteArray {
     val frames = CrtFrames.of(params, frame)
     val directory = File.createTempFile("crt-lowering", "").apply { delete() }
@@ -197,9 +185,9 @@ class CrtLoweringMediaTest {
           sidecar.placeholder to file.path
         }
       val flat =
-        "color=c=black:s=${frame.width}x${frame.height}:d=0.04,format=gbrap16le," +
-          "geq=r=${picture[0] * FULL_CODE}:g=${picture[1] * FULL_CODE}:b=${picture[2] * FULL_CODE}:" +
-          "a=${alpha * FULL_CODE},premultiply=inplace=1[$TUBE_READ]"
+        "color=c=black:s=${frame.width}x${frame.height}:d=0.04,format=gbrap," +
+          "geq=r=${codeOf(picture[0])}:g=${codeOf(picture[1])}:b=${codeOf(picture[2])}:a=${codeOf(alpha)}," +
+          "format=gbrap16le,premultiply=inplace=1$retimed[$TUBE_READ]"
       val graph =
         (listOf(flat) + crtTube(params, frames).map { it.rendered(paths) } + "[$TUBE_WRITE]null[done]")
           .joinToString(";")
@@ -229,6 +217,8 @@ class CrtLoweringMediaTest {
       directory.deleteRecursively()
     }
   }
+
+  private fun codeOf(share: Double): Int = (share * BYTE).roundToInt()
 
   private fun FilterBranch.rendered(paths: Map<String, String>): String {
     val reading = reads.joinToString("") { "[$it]" }
@@ -289,18 +279,21 @@ class CrtLoweringMediaTest {
     const val MID = 0.5
     const val RGB = 3
     const val FRAME_COUNT = 8
-    const val CODES = 256
-    const val PLANES = 4
     const val STRIDE = 7
     const val SPREAD = 6
     const val EDGE_STRIDE = 3
     const val OPAQUE = 1.0
-    const val CLAMPING_ALPHA = 0x90 / 255.0
+
+    // The clip's first frame a frame before zero, ahead of any map drawn at zero.
+    const val BEFORE_ZERO = ",setpts=PTS-0.04/TB"
+
+    const val BYTE = 255.0
+    const val CLAMPING_ALPHA = 0x90 / BYTE
     const val ALPHA_PLANE = 3
     const val HEADER_READ = 32
     const val HEADER_LINES = 3
-    val PICTURE = doubleArrayOf(0x60 / 255.0, 0x80 / 255.0, 0xA0 / 255.0)
-    val CLAMPING_PICTURE = doubleArrayOf(1.0, 0.9, 0.95)
+    val PICTURE = doubleArrayOf(0x60 / BYTE, 0x80 / BYTE, 0xA0 / BYTE)
+    val CLAMPING_PICTURE = doubleArrayOf(0xFF / BYTE, 0xE6 / BYTE, 0xF2 / BYTE)
     val PLANE_OF_CHANNEL = intArrayOf(2, 0, 1, 3)
 
     // How close a code in a frame sits to its share, a rounding either side.

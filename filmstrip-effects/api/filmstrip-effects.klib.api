@@ -406,6 +406,44 @@ final class dev.jordond.filmstrip.effects.overlay/TextOverlay : dev.jordond.film
     final fun toString(): kotlin/String // dev.jordond.filmstrip.effects.overlay/TextOverlay.toString|toString(){}[0]
 }
 
+final class dev.jordond.filmstrip.effects.spatial/GaussianBlur : dev.jordond.filmstrip.effect/EffectSpec { // dev.jordond.filmstrip.effects.spatial/GaussianBlur|null[0]
+    constructor <init>(kotlin/Float) // dev.jordond.filmstrip.effects.spatial/GaussianBlur.<init>|<init>(kotlin.Float){}[0]
+
+    final val id // dev.jordond.filmstrip.effects.spatial/GaussianBlur.id|{}id[0]
+        final fun <get-id>(): kotlin/String // dev.jordond.filmstrip.effects.spatial/GaussianBlur.id.<get-id>|<get-id>(){}[0]
+    final val isInert // dev.jordond.filmstrip.effects.spatial/GaussianBlur.isInert|{}isInert[0]
+        final fun <get-isInert>(): kotlin/Boolean // dev.jordond.filmstrip.effects.spatial/GaussianBlur.isInert.<get-isInert>|<get-isInert>(){}[0]
+    final val sigma // dev.jordond.filmstrip.effects.spatial/GaussianBlur.sigma|{}sigma[0]
+        final fun <get-sigma>(): kotlin/Float // dev.jordond.filmstrip.effects.spatial/GaussianBlur.sigma.<get-sigma>|<get-sigma>(){}[0]
+    final val stage // dev.jordond.filmstrip.effects.spatial/GaussianBlur.stage|{}stage[0]
+        final fun <get-stage>(): dev.jordond.filmstrip.effect/EffectStage // dev.jordond.filmstrip.effects.spatial/GaussianBlur.stage.<get-stage>|<get-stage>(){}[0]
+
+    final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.effects.spatial/GaussianBlur.equals|equals(kotlin.Any?){}[0]
+    final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.effects.spatial/GaussianBlur.hashCode|hashCode(){}[0]
+    final fun toString(): kotlin/String // dev.jordond.filmstrip.effects.spatial/GaussianBlur.toString|toString(){}[0]
+}
+
+final class dev.jordond.filmstrip.effects.spatial/Vignette : dev.jordond.filmstrip.effect/EffectSpec { // dev.jordond.filmstrip.effects.spatial/Vignette|null[0]
+    constructor <init>(kotlin/Float = ..., kotlin/Float = ..., kotlin/Float = ...) // dev.jordond.filmstrip.effects.spatial/Vignette.<init>|<init>(kotlin.Float;kotlin.Float;kotlin.Float){}[0]
+
+    final val id // dev.jordond.filmstrip.effects.spatial/Vignette.id|{}id[0]
+        final fun <get-id>(): kotlin/String // dev.jordond.filmstrip.effects.spatial/Vignette.id.<get-id>|<get-id>(){}[0]
+    final val isInert // dev.jordond.filmstrip.effects.spatial/Vignette.isInert|{}isInert[0]
+        final fun <get-isInert>(): kotlin/Boolean // dev.jordond.filmstrip.effects.spatial/Vignette.isInert.<get-isInert>|<get-isInert>(){}[0]
+    final val radius // dev.jordond.filmstrip.effects.spatial/Vignette.radius|{}radius[0]
+        final fun <get-radius>(): kotlin/Float // dev.jordond.filmstrip.effects.spatial/Vignette.radius.<get-radius>|<get-radius>(){}[0]
+    final val softness // dev.jordond.filmstrip.effects.spatial/Vignette.softness|{}softness[0]
+        final fun <get-softness>(): kotlin/Float // dev.jordond.filmstrip.effects.spatial/Vignette.softness.<get-softness>|<get-softness>(){}[0]
+    final val stage // dev.jordond.filmstrip.effects.spatial/Vignette.stage|{}stage[0]
+        final fun <get-stage>(): dev.jordond.filmstrip.effect/EffectStage // dev.jordond.filmstrip.effects.spatial/Vignette.stage.<get-stage>|<get-stage>(){}[0]
+    final val strength // dev.jordond.filmstrip.effects.spatial/Vignette.strength|{}strength[0]
+        final fun <get-strength>(): kotlin/Float // dev.jordond.filmstrip.effects.spatial/Vignette.strength.<get-strength>|<get-strength>(){}[0]
+
+    final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.effects.spatial/Vignette.equals|equals(kotlin.Any?){}[0]
+    final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.effects.spatial/Vignette.hashCode|hashCode(){}[0]
+    final fun toString(): kotlin/String // dev.jordond.filmstrip.effects.spatial/Vignette.toString|toString(){}[0]
+}
+
 final class dev.jordond.filmstrip.effects/BuiltInEffectResolver : dev.jordond.filmstrip.effect/EffectResolver { // dev.jordond.filmstrip.effects/BuiltInEffectResolver|null[0]
     constructor <init>() // dev.jordond.filmstrip.effects/BuiltInEffectResolver.<init>|<init>(){}[0]
 
@@ -432,6 +470,8 @@ final fun (dev.jordond.filmstrip.edit/EffectsBuilder).dev.jordond.filmstrip.effe
 final fun (dev.jordond.filmstrip.edit/EffectsBuilder).dev.jordond.filmstrip.effects.overlay/imageOverlay(dev.jordond.filmstrip.media/ImageSource, dev.jordond.filmstrip.geometry/Corner, kotlin/Float = ..., kotlin/Float = ..., kotlin/Float = ..., dev.jordond.filmstrip.edit/TimeRange? = ..., dev.jordond.filmstrip.effects.overlay/OverlayAnimation? = ...): dev.jordond.filmstrip.edit/EffectsBuilder // dev.jordond.filmstrip.effects.overlay/imageOverlay|imageOverlay@dev.jordond.filmstrip.edit.EffectsBuilder(dev.jordond.filmstrip.media.ImageSource;dev.jordond.filmstrip.geometry.Corner;kotlin.Float;kotlin.Float;kotlin.Float;dev.jordond.filmstrip.edit.TimeRange?;dev.jordond.filmstrip.effects.overlay.OverlayAnimation?){}[0]
 final fun (dev.jordond.filmstrip.edit/EffectsBuilder).dev.jordond.filmstrip.effects.overlay/textOverlay(kotlin/String, dev.jordond.filmstrip.style/TextStyle = ..., dev.jordond.filmstrip.geometry/Anchor = ..., dev.jordond.filmstrip.edit/TimeRange? = ..., dev.jordond.filmstrip.effects.overlay/OverlayAnimation? = ...): dev.jordond.filmstrip.edit/EffectsBuilder // dev.jordond.filmstrip.effects.overlay/textOverlay|textOverlay@dev.jordond.filmstrip.edit.EffectsBuilder(kotlin.String;dev.jordond.filmstrip.style.TextStyle;dev.jordond.filmstrip.geometry.Anchor;dev.jordond.filmstrip.edit.TimeRange?;dev.jordond.filmstrip.effects.overlay.OverlayAnimation?){}[0]
 final fun (dev.jordond.filmstrip.edit/EffectsBuilder).dev.jordond.filmstrip.effects.overlay/textOverlay(kotlin/String, kotlin.ranges/ClosedRange<kotlin.time/Duration>, dev.jordond.filmstrip.style/TextStyle = ..., dev.jordond.filmstrip.geometry/Anchor = ..., dev.jordond.filmstrip.effects.overlay/OverlayAnimation? = ...): dev.jordond.filmstrip.edit/EffectsBuilder // dev.jordond.filmstrip.effects.overlay/textOverlay|textOverlay@dev.jordond.filmstrip.edit.EffectsBuilder(kotlin.String;kotlin.ranges.ClosedRange<kotlin.time.Duration>;dev.jordond.filmstrip.style.TextStyle;dev.jordond.filmstrip.geometry.Anchor;dev.jordond.filmstrip.effects.overlay.OverlayAnimation?){}[0]
+final fun (dev.jordond.filmstrip.edit/EffectsBuilder).dev.jordond.filmstrip.effects.spatial/blur(kotlin/Float): dev.jordond.filmstrip.edit/EffectsBuilder // dev.jordond.filmstrip.effects.spatial/blur|blur@dev.jordond.filmstrip.edit.EffectsBuilder(kotlin.Float){}[0]
+final fun (dev.jordond.filmstrip.edit/EffectsBuilder).dev.jordond.filmstrip.effects.spatial/vignette(kotlin/Float = ..., kotlin/Float = ..., kotlin/Float = ...): dev.jordond.filmstrip.edit/EffectsBuilder // dev.jordond.filmstrip.effects.spatial/vignette|vignette@dev.jordond.filmstrip.edit.EffectsBuilder(kotlin.Float;kotlin.Float;kotlin.Float){}[0]
 final fun (dev.jordond.filmstrip.effects.geometry/Crop).dev.jordond.filmstrip.effects.geometry/retainedRect(dev.jordond.filmstrip.geometry/Size): dev.jordond.filmstrip.geometry/NormalizedRect // dev.jordond.filmstrip.effects.geometry/retainedRect|retainedRect@dev.jordond.filmstrip.effects.geometry.Crop(dev.jordond.filmstrip.geometry.Size){}[0]
 final fun (dev.jordond.filmstrip.effects.geometry/KenBurns).dev.jordond.filmstrip.effects.geometry/regionAt(kotlin.time/Duration, dev.jordond.filmstrip.edit/TimeRange): dev.jordond.filmstrip.geometry/NormalizedRect // dev.jordond.filmstrip.effects.geometry/regionAt|regionAt@dev.jordond.filmstrip.effects.geometry.KenBurns(kotlin.time.Duration;dev.jordond.filmstrip.edit.TimeRange){}[0]
 final fun (dev.jordond.filmstrip.effects.overlay/ImageOverlay).dev.jordond.filmstrip.effects.overlay/placedOn(dev.jordond.filmstrip.geometry/Size, dev.jordond.filmstrip.geometry/Size): dev.jordond.filmstrip.effects.overlay/OverlayPlacement // dev.jordond.filmstrip.effects.overlay/placedOn|placedOn@dev.jordond.filmstrip.effects.overlay.ImageOverlay(dev.jordond.filmstrip.geometry.Size;dev.jordond.filmstrip.geometry.Size){}[0]

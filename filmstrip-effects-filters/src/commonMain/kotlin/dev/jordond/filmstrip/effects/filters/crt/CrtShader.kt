@@ -1,6 +1,7 @@
 package dev.jordond.filmstrip.effects.filters.crt
 
 import dev.jordond.filmstrip.InternalFilmstripApi
+import dev.jordond.filmstrip.effects.filters.internal.STRAIGHT_READ_GLSL
 import dev.jordond.filmstrip.effects.filters.internal.glslFloat
 
 /**
@@ -13,7 +14,7 @@ import dev.jordond.filmstrip.effects.filters.internal.glslFloat
  *
  * A clip's frame holds clear bars. Alpha moves with the curve and a read past the frame takes the alpha of the edge
  * under it, while the picture fades by [CrtSignal.coverageAt]. So a picture ends in black and a bar stays clear out to
- * the edge of the frame.
+ * the edge of the frame. A read between texels mixes them premultiplied, so a picture beside a bar keeps its colour.
  */
 @InternalFilmstripApi
 public object CrtShader {
@@ -49,43 +50,44 @@ public object CrtShader {
       "uGain" to floatArrayOf(params.gain.toFloat()),
     )
   }
-
-  private fun fragmentSource(): String =
-    """
-    #version 300 es
-    precision highp float;
-    in vec2 vUv;
-    out vec4 fragColor;
-    uniform sampler2D $TEXTURE;
-    uniform vec2 uFit, uFootprint;
-    uniform float uBarrelK, uScanlineDepth, uScanlineAverage, uMaskDepth, uMaskAverage, uVignette, uGain;
-
-    float stripe(float phase, float average, float depth) {
-      return 1.0 - depth * (0.5 - 0.5 * cos(phase) * average);
-    }
-
-    void main() {
-      vec2 centred = vUv - 0.5;
-      vec2 fitted = 2.0 * centred * uFit;
-      float radius = dot(fitted, fitted);
-      vec2 source = 0.5 + centred * (1.0 + uBarrelK * radius);
-      vec4 texel = textureLod($TEXTURE, source, 0.0);
-      vec2 fitSquared = uFit * uFit;
-      float turn = abs(${glslFloat(CURVE_SLOPE)} * uBarrelK * centred.x * centred.y);
-      vec2 stretch = 1.0 + uBarrelK * radius + ${glslFloat(CURVE_SLOPE)} * uBarrelK * centred * centred * fitSquared;
-      vec2 reach = stretch * uFootprint + turn * fitSquared.yx * uFootprint.yx;
-      vec2 share = clamp(min(source, 1.0 - source) / reach + 0.5, 0.0, 1.0);
-      float coverage = share.x * share.y;
-      float scanline = stripe(${glslFloat(TWO_PI * CRT_LINES)} * source.y, uScanlineAverage, uScanlineDepth);
-      float across = ${glslFloat(TWO_PI * CRT_TRIADS)} * source.x;
-      vec3 mask = vec3(
-        stripe(across - ${glslFloat(CrtSignal.maskPhase(0))}, uMaskAverage, uMaskDepth),
-        stripe(across - ${glslFloat(CrtSignal.maskPhase(1))}, uMaskAverage, uMaskDepth),
-        stripe(across - ${glslFloat(CrtSignal.maskPhase(2))}, uMaskAverage, uMaskDepth)
-      );
-      float vignette = 1.0 - uVignette * radius / dot(uFit, uFit);
-      // A clip's frame is premultiplied, so the gain stops at the pixel's own alpha, which is full scale when opaque.
-      fragColor = vec4(min(texel.rgb * scanline * mask * vignette * uGain, vec3(texel.a)) * coverage, texel.a);
-    }
-    """.trimIndent()
 }
+
+private fun fragmentSource(): String =
+  """
+  #version 300 es
+  precision highp float;
+  precision highp int;
+  in vec2 vUv;
+  out vec4 fragColor;
+  uniform sampler2D ${CrtShader.TEXTURE};
+  uniform vec2 uFit, uFootprint;
+  uniform float uBarrelK, uScanlineDepth, uScanlineAverage, uMaskDepth, uMaskAverage, uVignette, uGain;
+
+  float stripe(float phase, float average, float depth) {
+    return 1.0 - depth * (0.5 - 0.5 * cos(phase) * average);
+  }
+$STRAIGHT_READ_GLSL
+  void main() {
+    vec2 centred = vUv - 0.5;
+    vec2 fitted = 2.0 * centred * uFit;
+    float radius = dot(fitted, fitted);
+    vec2 source = 0.5 + centred * (1.0 + uBarrelK * radius);
+    vec4 texel = straightRead(${CrtShader.TEXTURE}, source);
+    vec2 fitSquared = uFit * uFit;
+    float turn = abs(${glslFloat(CURVE_SLOPE)} * uBarrelK * centred.x * centred.y);
+    vec2 stretch = 1.0 + uBarrelK * radius + ${glslFloat(CURVE_SLOPE)} * uBarrelK * centred * centred * fitSquared;
+    vec2 reach = stretch * uFootprint + turn * fitSquared.yx * uFootprint.yx;
+    vec2 share = clamp(min(source, 1.0 - source) / reach + 0.5, 0.0, 1.0);
+    float coverage = share.x * share.y;
+    float scanline = stripe(${glslFloat(TWO_PI * CRT_LINES)} * source.y, uScanlineAverage, uScanlineDepth);
+    float across = ${glslFloat(TWO_PI * CRT_TRIADS)} * source.x;
+    vec3 mask = vec3(
+      stripe(across - ${glslFloat(CrtSignal.maskPhase(0))}, uMaskAverage, uMaskDepth),
+      stripe(across - ${glslFloat(CrtSignal.maskPhase(1))}, uMaskAverage, uMaskDepth),
+      stripe(across - ${glslFloat(CrtSignal.maskPhase(2))}, uMaskAverage, uMaskDepth)
+    );
+    float vignette = 1.0 - uVignette * radius / dot(uFit, uFit);
+    // An encoded code stops at full scale, so the gain's lift ends there too.
+    fragColor = vec4(min(texel.rgb * scanline * mask * vignette * uGain, vec3(1.0)) * coverage, texel.a);
+  }
+  """.trimIndent()

@@ -51,6 +51,9 @@ import dev.jordond.filmstrip.effects.overlay.preloadOverlays
 import dev.jordond.filmstrip.effects.overlay.rasterizeText
 import dev.jordond.filmstrip.effects.overlay.rectOn
 import dev.jordond.filmstrip.effects.overlay.resolvedFrom
+import dev.jordond.filmstrip.effects.spatial.GaussianBlur
+import dev.jordond.filmstrip.effects.spatial.Vignette
+import dev.jordond.filmstrip.effects.spatial.toPass
 import dev.jordond.filmstrip.geometry.FlipAxis
 import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.media.ImageSource
@@ -109,6 +112,8 @@ public actual class BuiltInEffectResolver internal constructor(
       is KenBurns -> spec.toPass(attributes)
       is Rotate -> spec.toPass()
       is Scale -> textureMatrix(IDENTITY.copyOf())
+      is GaussianBlur -> spec.toPass(attributes)
+      is Vignette -> spec.toPass(attributes)
       is ImageOverlay -> spec.toOverlay(capabilities, attributes)
       is TextOverlay -> spec.toOverlay(capabilities, attributes)
       else -> null

@@ -31,6 +31,9 @@ import dev.jordond.filmstrip.media.HdrTransfer
  *   sees its clip's slot on the timeline, a composition effect sees the whole composition. Every
  *   backend hands an effect composition-relative timestamps, so an effect whose result varies over
  *   its run measures against this rather than against zero.
+ * @property storedSize The frame size entering this effect as the pixels are stored, before a clip's non-square
+ *   pixels are made square. Equal to [inputSize] for square pixels, at composition scope, for a geometry or composite
+ *   effect, and once an earlier effect has changed the frame's size or been a geometry or composite one.
  */
 public class Attributes
   @InternalFilmstripApi
@@ -42,6 +45,7 @@ public class Attributes
     public val hdrTransfer: HdrTransfer?,
     public val frameRate: Float?,
     public val span: TimeRange,
+    public val storedSize: Size = inputSize,
   ) {
     override fun toString(): String = "Attributes($inputSize -> $outputSize)"
   }

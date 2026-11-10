@@ -1,6 +1,7 @@
 package dev.jordond.filmstrip.sample.playground
 
 import dev.jordond.filmstrip.effects.filters.camcorder.Camcorder
+import dev.jordond.filmstrip.effects.filters.glitch.Glitch
 import dev.jordond.filmstrip.effects.filters.vhs.TapeSpeed
 import dev.jordond.filmstrip.effects.filters.vhs.Tracking
 import dev.jordond.filmstrip.effects.filters.vhs.Vhs
@@ -106,6 +107,15 @@ class FilterSettingsTest {
   }
 
   @Test
+  fun `a glitch builds the look the code names`() {
+    val settings = FilterSettings(look = FilterLook.Glitch).withIntensity(0.4f)
+
+    codeText(filtersCode(settings)) shouldContain "glitch(intensity = 0.4f)"
+    filtersEffects(settings) shouldBe listOf(Glitch(0.4f))
+    filterSummary(settings) shouldBe "GLITCH 0.4"
+  }
+
+  @Test
   fun `each look keeps its own intensity`() {
     val settings = FilterSettings().withIntensity(0.3f).copy(look = FilterLook.Crt)
     settings.intensity() shouldBe FilterSettings.FULL
@@ -121,6 +131,34 @@ class FilterSettingsTest {
       "VHS · EP · OFF · CLEAN"
     filterSummary(FilterSettings(look = FilterLook.Crt).withIntensity(0.5f)) shouldBe "CRT 0.5"
     filterSummary(FilterSettings(look = FilterLook.None)) shouldBe "NO LOOK"
+  }
+
+  @Test
+  fun `night vision calls its builder by its camel case name`() {
+    val settings = FilterSettings(look = FilterLook.NightVision).withIntensity(0.5f)
+
+    codeText(filtersCode(settings)) shouldContain "  nightVision(intensity = 0.5f)"
+    filterSummary(settings) shouldBe "NIGHT VISION 0.5"
+  }
+
+  @Test
+  fun `a pixel look names its palette and no intensity`() {
+    val settings = FilterSettings(look = FilterLook.Pixel, colours = PixelColours.Cga)
+
+    codeText(filtersCode(settings)) shouldContain "pixel(palette = PixelPalette.Cga)"
+    codeText(filtersCode(settings.copy(colours = PixelColours.Mosaic))) shouldContain "  pixel()"
+    filterSummary(settings) shouldBe "PIXEL · CGA"
+  }
+
+  @Test
+  fun `film takes its super 8 preset and no intensity`() {
+    val plain = FilterSettings(look = FilterLook.Film).withIntensity(0.5f)
+    val super8 = plain.copy(super8 = true)
+
+    codeText(filtersCode(plain)) shouldContain "  film()"
+    codeText(filtersCode(super8)) shouldContain "  add(Film.Super8)"
+    filterSummary(plain) shouldBe "FILM"
+    filterSummary(super8) shouldBe "FILM · SUPER 8"
   }
 
   @Test

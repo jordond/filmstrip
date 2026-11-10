@@ -1091,7 +1091,9 @@ class GraphLoweringTest {
       "[vfx0crop]crop=w=400:h=200:x=100:y=50:exact=1,format=pix_fmts=gbrpf32le[vfx0pre]",
       "[1:v]setpts=expr=PTS-STARTPTS[vfx0a0]",
       "[vfx0pre][vfx0a0]overlay=x=0:y=0:format=auto:alpha=straight,format=pix_fmts=yuv420p[vfx0fx]",
-      "[vfx0base][vfx0fx]overlay=x=100:y=50:format=yuv420:alpha=straight[vfx0]",
+      "[vfx0base]format=pix_fmts=yuva420p,negate=components=a[vfx0flip]",
+      "[vfx0flip][vfx0stamp]overlay=x=100:y=50:format=yuv420:alpha=straight,negate=components=a[vfx0clear]",
+      "[vfx0clear][vfx0lay]overlay=x=100:y=50:format=yuv420:alpha=straight[vfx0]",
     )
   }
 
@@ -1105,7 +1107,9 @@ class GraphLoweringTest {
       "[v0m0crop]crop=w=400:h=200:x=100:y=50:exact=1,format=pix_fmts=gbrpf32le[v0m0pre]",
       "[1:v]setpts=expr=PTS-STARTPTS[v0m0a0]",
       "[v0m0pre][v0m0a0]overlay=x=0:y=0:format=auto:alpha=straight,format=pix_fmts=yuv420p[v0m0fx]",
-      "[v0m0base][v0m0fx]overlay=x=100:y=50:format=yuv420:alpha=straight[v0m0]",
+      "[v0m0base]format=pix_fmts=yuva420p,negate=components=a[v0m0flip]",
+      "[v0m0flip][v0m0stamp]overlay=x=100:y=50:format=yuv420:alpha=straight,negate=components=a[v0m0clear]",
+      "[v0m0clear][v0m0lay]overlay=x=100:y=50:format=yuv420:alpha=straight[v0m0]",
       "[v0m0]scale=",
     )
   }
@@ -1130,7 +1134,7 @@ class GraphLoweringTest {
     graph shouldContain
       "[vfx0crop]crop=w=64:h=64:x=2*floor(((in_w-out_w)/2)/2):y=2*floor(((in_h-out_h)/2)/2):exact=1,negate[vfx0fx]"
     graph shouldContain
-      "[vfx0base][vfx0fx]overlay=x=2*floor(((W-w)/2)/2):y=2*floor(((H-h)/2)/2):format=yuv420:alpha=straight[vfx0]"
+      "[vfx0clear][vfx0lay]overlay=x=2*floor(((W-w)/2)/2):y=2*floor(((H-h)/2)/2):format=yuv420:alpha=straight[vfx0]"
   }
 
   @Test
@@ -1138,7 +1142,7 @@ class GraphLoweringTest {
     val graph = graphFor(fill = Fill.Solid(0), compositionEffects = listOf(croppedOverlay()))
 
     graph shouldContain "[vfx0crop]crop=w=400:h=200:x=100:y=50:exact=1,"
-    graph shouldContain "[vfx0base][vfx0fx]overlay=x=100:y=50:format=yuv420:alpha=straight[vfx0]"
+    graph shouldContain "[vfx0clear][vfx0lay]overlay=x=100:y=50:format=yuv420:alpha=straight[vfx0]"
   }
 
   @Test
@@ -1162,9 +1166,9 @@ class GraphLoweringTest {
     val graph = graphFor(fill = Fill.Solid(0), compositionEffects = listOf(odd, computed))
 
     graph shouldContain "[vfx0crop]crop=w=20:h=20:x=10:y=12:exact=1,negate[vfx0fx]"
-    graph shouldContain "[vfx0base][vfx0fx]overlay=x=10:y=12:format=yuv420:alpha=straight[vfx0]"
+    graph shouldContain "[vfx0clear][vfx0lay]overlay=x=10:y=12:format=yuv420:alpha=straight[vfx0]"
     graph shouldContain "[vfx1crop]crop=w=20:h=20:x=2*floor((7+t)/2):y=4:exact=1,negate[vfx1fx]"
-    graph shouldContain "[vfx1base][vfx1fx]overlay=x=2*floor((7+t)/2):y=4:format=yuv420:alpha=straight[vfx1]"
+    graph shouldContain "[vfx1clear][vfx1lay]overlay=x=2*floor((7+t)/2):y=4:format=yuv420:alpha=straight[vfx1]"
   }
 
   @Test

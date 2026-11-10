@@ -36,7 +36,6 @@ import platform.Foundation.NSString
 import platform.Foundation.create
 import platform.Foundation.dictionaryWithObject
 import kotlin.math.abs
-import kotlin.math.floor
 import kotlin.math.max
 import kotlin.test.Test
 import kotlin.time.Duration
@@ -106,10 +105,8 @@ class CamcorderCoreImageHardwareTest {
     for (y in 0 until HEIGHT) {
       if ((0 until WIDTH).all { raster.argbAt(it, y) == HIDDEN }) continue
       rows++
-      val source = { at: Double ->
-        DoubleArray(RGB) { channel ->
-          at.interpolatedOver(WIDTH) { x -> recorded[(y * WIDTH + x) * CHANNELS + channel].toDouble() }
-        }
+      val source = { x: Int ->
+        DoubleArray(RGB) { channel -> recorded[(y * WIDTH + x) * CHANNELS + channel].toDouble() }
       }
       for (x in 0 until WIDTH) {
         val want =
@@ -288,18 +285,6 @@ class CamcorderCoreImageHardwareTest {
       abs(this[1] - (argb shr 8 and 0xFF) / FULL),
       abs(this[2] - (argb and 0xFF) / FULL),
     )
-
-  // The value between two columns' centres a linear sampler reads at [this], a fraction of [columns].
-  private fun Double.interpolatedOver(
-    columns: Int,
-    value: (Int) -> Double,
-  ): Double {
-    val position = this * columns - 0.5
-    val left = floor(position).toInt()
-    val before = value(left.coerceIn(0, columns - 1))
-    val after = value((left + 1).coerceIn(0, columns - 1))
-    return before + (after - before) * (position - left)
-  }
 
   private fun attributes(
     width: Int,

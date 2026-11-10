@@ -124,17 +124,21 @@ class LutShaderProgramMediaTest {
       if (column < WIDTH / 2) {
         FloatArray(CHANNELS)
       } else {
-        floatArrayOf(HALF_ALPHA * GREY, HALF_ALPHA * GREY, HALF_ALPHA * GREY, HALF_ALPHA)
+        floatArrayOf(GREY, GREY, GREY, HALF_ALPHA)
       }
     }
     val frame = draw(Lut(table), WIDTH, HEIGHT, source)
 
-    val bar = (0 until CHANNELS).map { frame[(HEIGHT / 2 * WIDTH + WIDTH / 4) * CHANNELS + it] }
-    bar shouldBe listOf(0f, 0f, 0f, 0f)
+    val bar = (HEIGHT / 2 * WIDTH + WIDTH / 4) * CHANNELS
+    val black = table.at(0f, 0f, 0f)
+    for (channel in 0 until RGB) {
+      abs(frame[bar + channel] - black[channel]).toDouble() shouldBeLessThan TOLERANCE
+    }
+    frame[bar + RGB] shouldBe 0f
     val want = table.at(GREY, GREY, GREY)
     val at = (HEIGHT / 2 * WIDTH + WIDTH * 3 / 4) * CHANNELS
     for (channel in 0 until RGB) {
-      abs(frame[at + channel] - want[channel] * HALF_ALPHA).toDouble() shouldBeLessThan TOLERANCE
+      abs(frame[at + channel] - want[channel]).toDouble() shouldBeLessThan TOLERANCE
     }
     abs(frame[at + RGB] - HALF_ALPHA).toDouble() shouldBeLessThan TOLERANCE
   }

@@ -6,8 +6,8 @@ import dev.jordond.filmstrip.InternalFilmstripApi
  * The GLSL ES 3.00 fragment source that draws a [Lut], read by media3 and the browser.
  *
  * It reads the [LutAtlas] with nearest fetches and blends the eight corners itself, the same trilinear as [CubeLut.at],
- * so nothing rests on a device's texture filtering. A frame is premultiplied, so the table reads a pixel's straight
- * colour and alpha goes back on after, which keeps a clear bar clear.
+ * so nothing rests on a device's texture filtering. The table reads a pixel's straight colour and the pixel keeps its
+ * alpha, which keeps a clear bar clear.
  */
 @InternalFilmstripApi
 public object LutShader {
@@ -79,8 +79,7 @@ public object LutShader {
 
     void main() {
       vec4 texel = textureLod($TEXTURE, vUv, 0.0);
-      vec3 straight = texel.a > 0.0 ? texel.rgb / texel.a : vec3(0.0);
-      fragColor = vec4(throughTable(straight) * texel.a, texel.a);
+      fragColor = vec4(throughTable(texel.rgb), texel.a);
     }
     """.trimIndent()
 }

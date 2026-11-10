@@ -33,6 +33,16 @@ public val GRADE_TO_FLOAT: List<FilterNode> =
   listOf(FilterNode("setrange", "range" to "limited"), PlaneLanes.node(listOf("y", "u", "v"), FLOAT_RGB))
 
 /**
+ * The nodes that carry the grade's ten-bit Y'CbCr and its alpha onto planar float, the way [GRADE_TO_FLOAT] carries
+ * the codes, with alpha on a fourth plane between zero and one.
+ */
+internal val GRADE_WITH_ALPHA_TO_FLOAT: List<FilterNode> =
+  listOf(
+    FilterNode("setrange", "range" to "limited"),
+    PlaneLanes.node(listOf("y", "u", "v", "a"), PlaneLanes.WITH_ALPHA.format),
+  )
+
+/**
  * The nodes that read the planes [GRADE_TO_FLOAT] leaves as each pixel's red, green and blue signal, adding the tables
  * they read to this list of sidecars.
  *
@@ -49,10 +59,12 @@ public fun MutableList<Sidecar>.signalFromGrade(): List<FilterNode> =
  * ten-bit 4:2:0 Y'CbCr, adding the tables they read to this list of sidecars.
  *
  * [HdrGradeTables.ENCODE_ROWS] mixes the signal into each code's distance from black, [HdrGradeTables.CODE_STEPS]
- * rounds that to the whole code, and [CODES_TO_GRADE] carries the codes into the grade.
+ * rounds that to the whole code, and [CODES_TO_GRADE] carries the codes into the grade. With [alpha] the frame's
+ * alpha plane comes along, and the grade is written as `yuva420p10le`.
  */
-internal fun MutableList<Sidecar>.shiftedSignalToGrade(): List<FilterNode> =
-  listOf(mixer(HdrGradeTables.ENCODE_ROWS), lut1d(HdrGradeTables.CODE_STEPS, NEAREST)) + CODES_TO_GRADE
+internal fun MutableList<Sidecar>.shiftedSignalToGrade(alpha: Boolean = false): List<FilterNode> =
+  listOf(mixer(HdrGradeTables.ENCODE_ROWS), lut1d(HdrGradeTables.CODE_STEPS, NEAREST)) +
+    if (alpha) CODES_WITH_ALPHA_TO_GRADE else CODES_TO_GRADE
 
 /**
  * A lut1d that reads [table] with [interp] sampling, adding the table's sidecar to this list.
@@ -88,11 +100,20 @@ internal val CODES_TO_GRADE: List<FilterNode> =
     FilterNode("format", "pix_fmts" to GRADE_YUV),
   )
 
+// CODES_TO_GRADE with the alpha plane carried through every step.
+private val CODES_WITH_ALPHA_TO_GRADE: List<FilterNode> =
+  listOf(
+    FilterNode("format", "pix_fmts" to WIDE_RGBA),
+    FilterNode("mergeplanes", "map1p" to "1", "map2p" to "2", "map3p" to "3", "format" to WIDE_YUVA),
+    FilterNode("format", "pix_fmts" to GRADE_YUVA),
+  )
+
 /**
  * The fragment a color [matrix] on a kept [transfer] grade lowers to, run through the tables of [HdrGradeTables].
  *
- * [GRADE_TO_FLOAT] carries the grade's codes onto float planes, lut1d and colorchannelmixer run each table and set of
- * rows in turn, and [CODES_TO_GRADE] writes the whole codes the last table rounds to. Every table travels as a sidecar.
+ * [GRADE_WITH_ALPHA_TO_FLOAT] carries the grade's codes and alpha onto float planes, lut1d and colorchannelmixer run
+ * each table and set of rows in turn, and [shiftedSignalToGrade] writes the whole codes the last table rounds to as
+ * `yuva420p10le`, with the alpha the frame came with. Every table travels as a sidecar.
  */
 internal fun gradedOnTables(
   matrix: ColorMatrix,
@@ -102,7 +123,7 @@ internal fun gradedOnTables(
   val sidecars = mutableListOf<Sidecar>()
   val chain =
     buildList {
-      addAll(GRADE_TO_FLOAT)
+      addAll(GRADE_WITH_ALPHA_TO_FLOAT)
       addAll(sidecars.signalFromGrade())
       tables.decodeWarp?.let { add(sidecars.lut1d(it, LINEAR)) }
       add(sidecars.lut1d(tables.curve, LINEAR))
@@ -116,7 +137,7 @@ internal fun gradedOnTables(
       }
       add(sidecars.lut1d(tables.encodeWarp, LINEAR))
       add(sidecars.lut1d(tables.encode, LINEAR))
-      addAll(sidecars.shiftedSignalToGrade())
+      addAll(sidecars.shiftedSignalToGrade(alpha = true))
     }
   return FilterFragment(chain = chain, sidecars = sidecars.distinct())
 }
@@ -174,3 +195,6 @@ private const val GRADE_YUV = "yuv420p10le"
 // The grade's codes at sixteen bits and 4:4:4, and planar RGB at the same depth, which mergeplanes swaps between.
 private const val WIDE_YUV = "yuv444p16le"
 private const val WIDE_RGB = "gbrp16le"
+private const val GRADE_YUVA = "yuva420p10le"
+private const val WIDE_YUVA = "yuva444p16le"
+private const val WIDE_RGBA = "gbrap16le"

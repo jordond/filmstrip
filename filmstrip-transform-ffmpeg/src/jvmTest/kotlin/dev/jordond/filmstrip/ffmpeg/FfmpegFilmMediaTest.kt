@@ -11,6 +11,8 @@ import dev.jordond.filmstrip.ffmpeg.support.FILM_READ_SLOT
 import dev.jordond.filmstrip.ffmpeg.support.FILTER_RATE
 import dev.jordond.filmstrip.ffmpeg.support.FULL
 import dev.jordond.filmstrip.ffmpeg.support.FilterFrames
+import dev.jordond.filmstrip.ffmpeg.support.alphaAt
+import dev.jordond.filmstrip.ffmpeg.support.alphaRampClipOf
 import dev.jordond.filmstrip.ffmpeg.support.assertFilmLanded
 import dev.jordond.filmstrip.ffmpeg.support.channelAt
 import dev.jordond.filmstrip.ffmpeg.support.filmReads
@@ -21,6 +23,7 @@ import io.kotest.assertions.withClue
 import io.kotest.matchers.doubles.plusOrMinus
 import io.kotest.matchers.doubles.shouldBeGreaterThan
 import io.kotest.matchers.doubles.shouldBeLessThan
+import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.ints.shouldBeLessThanOrEqual
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.runBlocking
@@ -199,6 +202,41 @@ class FfmpegFilmMediaTest {
       }
     }
 
+  // The glow takes each pixel's light weighed by its alpha, so where the clip's alpha ramps up from clear it glows far
+  // less than a glow taken from the straight colour would. The look's frame lands on the black fill by its alpha. The
+  // plain clip's placement drops alpha, so its frame shows the straight colour and its alpha is read before that.
+  @Test
+  fun `a clip film after a contain crop glows on the signal where its alpha ramps`() =
+    runBlocking<Unit> {
+      val film = Film(grain = 0f, halation = 1f)
+      val crop = Crop(AspectRatio.Square, fit = Fit.Contain)
+      val side = HEIGHT
+      val frame = frameOf(draw.composition(listOf(draw.alphaRampClipOf(WIDTH, side, EDGE_GLOW, listOf(crop, film)))))
+      val plainComposition = draw.composition(listOf(draw.alphaRampClipOf(WIDTH, side, EDGE_GLOW, listOf(crop))))
+      val plain = frameOf(plainComposition)
+      val alphas = draw.alphaAt(plainComposition, 0)
+      val colourAt = { x: Int, y: Int -> DoubleArray(3) { plain.channelAt(side, x, y, it) / FULL } }
+      val alphaAt = { x: Int, y: Int -> alphas[y * side + x] / FULL }
+      val weighed = HalationGlow.of(side, side) { x, y -> colourAt(x, y).map { it * alphaAt(x, y) }.toDoubleArray() }
+      val straight = HalationGlow.of(side, side, colourAt)
+      val params = FilmParams.of(film)
+      val row = side / 2
+      val columns = (0 until side).filter { alphaAt(it, row) in RAMP_READS }
+
+      columns.size shouldBeGreaterThan RAMP_COLUMNS
+      columns.forEach { column ->
+        val (red, green, blue) = colourAt(column, row)
+        val alpha = alphaAt(column, row)
+        val wanted = FilmSignal.halated(red, green, blue, weighed.at(column, row), params)[1] * alpha * FULL
+        val unweighed = FilmSignal.halated(red, green, blue, straight.at(column, row), params)[1] * alpha * FULL
+        val read = frame.channelAt(side, column, row, 1).toDouble()
+        withClue("column $column at alpha $alpha read $read against $wanted") {
+          abs(unweighed - wanted) shouldBeGreaterThan BAR_GLOW_CODES * 2
+          abs(read - wanted) shouldBeLessThan BAR_GLOW_CODES
+        }
+      }
+    }
+
   private suspend fun assertCompositionReadsSignal(
     film: Film,
     width: Int,
@@ -251,6 +289,13 @@ class FfmpegFilmMediaTest {
     val PATCH = doubleArrayOf(0.875, 0.8125, 0.75)
     val GROUND = doubleArrayOf(0.375, 0.5, 0.25)
     val BRIGHT = DoubleArray(3) { FilmSignal.HALATION_FULL_LUMA }
+
+    // Bright enough to glow with green under full scale, so the glow green takes reads.
+    val EDGE_GLOW = doubleArrayOf(1.0, 0.85, 0.3)
+
+    // The alphas read across the ramp, clear of either end, and how many columns at least hold one.
+    val RAMP_READS = 0.55..0.9
+    const val RAMP_COLUMNS = 20
     const val BLACK = 0xFF000000.toInt()
     const val SLATE = 0xFF2F4F6F.toInt()
     val SLATE_CODES = listOf(0x2F.toDouble(), 0x4F.toDouble(), 0x6F.toDouble())

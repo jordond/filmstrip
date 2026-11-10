@@ -443,7 +443,7 @@ private val TABLE_FRAGMENT =
   }
   """.trimIndent()
 
-private fun cubeText(
+internal fun cubeText(
   size: Int,
   entry: (red: Double, green: Double, blue: Double) -> DoubleArray,
 ): String =

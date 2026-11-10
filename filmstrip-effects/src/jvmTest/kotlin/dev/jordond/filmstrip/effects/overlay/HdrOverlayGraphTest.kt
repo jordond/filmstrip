@@ -162,7 +162,8 @@ class HdrOverlayGraphTest {
   fun `the picture is decoded to light the way the region it lands on is`() {
     for ((transfer, nodes) in listOf(HdrTransfer.Pq to 2, HdrTransfer.Hlg to 3)) {
       val fragment = hdrFragment(ImageOverlay(ImageSource.ofBytes(OrientedPictures.png()), Corner.TopStart), transfer)
-      val light = fragment.chain.takeLast(nodes)
+      // The region's light is premultiplied by its alpha after it is decoded, by one geq.
+      val light = fragment.chain.dropLast(1).takeLast(nodes)
 
       withClue("$transfer") { fragment.auxInputs[0].chain.takeLast(nodes) shouldBe light }
       withClue("$transfer") { (light.last().name == "geq") shouldBe (transfer == HdrTransfer.Hlg) }

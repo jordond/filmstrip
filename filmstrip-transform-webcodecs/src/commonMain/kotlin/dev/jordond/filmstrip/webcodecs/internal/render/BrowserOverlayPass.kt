@@ -9,6 +9,7 @@ import dev.jordond.filmstrip.color.pictureSrgbCodes
 import dev.jordond.filmstrip.effect.OverlaySource
 import dev.jordond.filmstrip.effect.WebGlOverlay
 import dev.jordond.filmstrip.effects.color.HDR_COLOR_MATRIX_GLSL
+import dev.jordond.filmstrip.effects.color.displayLightGradeGlsl
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.webcodecs.internal.BrowserExportFailure
@@ -392,7 +393,7 @@ private fun overlayFragmentShader(transfer: HdrTransfer?): String {
       uniform float uOotfGamma;
       uniform float uCeiling;
       $HDR_COLOR_MATRIX_GLSL
-      ${gradeLightGlsl(transfer)}
+      ${transfer.displayLightGradeGlsl()}
       """
     }
   val grade =

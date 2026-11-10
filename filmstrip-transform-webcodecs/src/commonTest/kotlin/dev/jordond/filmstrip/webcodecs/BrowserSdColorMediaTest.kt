@@ -91,8 +91,9 @@ class BrowserSdColorMediaTest {
             val column = ((x * drawn.size.width).toInt() + MIDDLE) / drawn.size.width
             val wanted =
               VhsSignal
-                .pixelAt(column, row, tick, vhs.seed, drawn.size.width, VhsParams.of(vhs), shownAt)
-                .toList()
+                .pixelAt(column, row, tick, vhs.seed, drawn.size.width, VhsParams.of(vhs)) {
+                  shownAt((it + 0.5) / drawn.size.width)
+                }.toList()
             withClue("$scope scope at row $y") { assertCodes(drawn.rgbAt(x, y), wanted, x, VHS_CODES) }
           }
         }

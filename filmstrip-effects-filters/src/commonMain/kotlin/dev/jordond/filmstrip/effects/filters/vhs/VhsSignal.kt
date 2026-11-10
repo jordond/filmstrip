@@ -8,6 +8,7 @@ import dev.jordond.filmstrip.effects.filters.internal.FilterNoise.unorm
 import dev.jordond.filmstrip.effects.filters.internal.KB
 import dev.jordond.filmstrip.effects.filters.internal.KR
 import dev.jordond.filmstrip.effects.filters.internal.smoothstep
+import dev.jordond.filmstrip.effects.filters.internal.straightReadAcross
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.ceil
@@ -20,6 +21,9 @@ import kotlin.math.sin
 // The clock and the raster.
 internal const val TICK_RATE = 59.94
 internal const val VIRTUAL_ROWS = 480
+
+// Where alpha sits in a texel a test hands the signal.
+private const val ALPHA = 3
 
 // How a frame's time lands on a tick. The time reads on whole microseconds, the clock ffmpeg holds a live plane's stamp
 // against, and rounds to the nearest tick, which opens on the whole microsecond nearest its exact time. The margin
@@ -317,9 +321,13 @@ public object VhsSignal {
   /**
    * The R'G'B' a shader lowering draws at [x] on [row], a pure function a test holds a backend's pixels against.
    *
-   * [source] reads the frame's R'G'B' at a fraction of the width, already filtered the way the backend's sampler is.
-   * Everything else follows the shader: the shift, the two luma blurs and the chroma blur over a tape that is black
-   * past either edge of its [width] pixels, then [onTape] and a clamp.
+   * [texel] gives the straight R'G'B' of a column of the row, with alpha after it when the frame has one. Every read
+   * mixes the two columns either side premultiplied, held at the edge of the frame, and comes back straight, so a
+   * clear column lends its neighbour no colour. Everything else follows the shader: the shift, the two luma blurs and
+   * the chroma blur over a tape that is black past either edge of its [width] pixels, then [onTape] and a clamp. Alpha
+   * is the read at the shifted position.
+   *
+   * @return red, green and blue, with alpha after them when [texel] gives one.
    */
   public fun pixelAt(
     x: Double,
@@ -328,12 +336,13 @@ public object VhsSignal {
     seed: Int,
     width: Int,
     params: VhsParams,
-    source: (Double) -> DoubleArray,
+    texel: (column: Int) -> DoubleArray,
   ): DoubleArray {
     val shifted = x - rowShift(seed, tick, row, params)
+    val read = { at: Double -> straightReadAcross(at.coerceIn(0.0, 1.0), width, texel) }
     val tape = { at: Double ->
       val inside = pixelCover(at * width) * pixelCover((1.0 - at) * width)
-      yccOf(source(at.coerceIn(0.0, 1.0))).also { ycc -> for (i in ycc.indices) ycc[i] *= inside }
+      yccOf(read(at)).also { ycc -> for (i in ycc.indices) ycc[i] *= inside }
     }
     val luma = { sigma: Double ->
       gaussian(LUMA_TAPS, LUMA_TAP_STEP, sigma, shifted) { tape(it)[0] }
@@ -344,7 +353,9 @@ public object VhsSignal {
     val cr = gaussian(CHROMA_TAPS, CHROMA_TAP_STEP, params.chromaSigma, chromaAt) { tape(it)[2] }
     val halo = sharp + params.haloGain * (sharp - luma(params.wideSigma))
     val (y, b, r) = onTape(halo, cb, cr, seed, tick, row, x.coerceIn(0.0, 1.0), params).toList()
-    return rgbOf(y, b, r)
+    val colour = rgbOf(y, b, r)
+    val centre = read(shifted)
+    return if (centre.size > ALPHA) colour + centre[ALPHA] else colour
   }
 
   /**

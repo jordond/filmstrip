@@ -18,6 +18,7 @@ import dev.jordond.filmstrip.media.describe
 import dev.jordond.filmstrip.transform.internal.geometry.PixelRect
 import dev.jordond.filmstrip.transform.internal.geometry.showsBlurredFill
 import dev.jordond.filmstrip.transform.internal.heldTail
+import dev.jordond.filmstrip.transform.internal.negotiation.takesSquarePixels
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedClip
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedEffect
@@ -92,10 +93,7 @@ internal class GraphLowering(
   // frames each one holds to it. Fragment chains, a LUT's among them, keep the decoder ffmpeg sizes.
   private val runsLook: Boolean =
     (tracks.flatMap { track -> track.clips.flatMap { it.effects } } + negotiated.compositionEffects)
-      .any {
-        it.effect.fragment.branches
-          .isNotEmpty()
-      }
+      .any { it.effect.fragment.laysBranches }
 
   // The source time composition time zero maps to, for a caller windowing this graph with an input
   // seek. Only a single clip on a track that opens with the composition can be windowed: a concat's
@@ -326,7 +324,7 @@ internal class GraphLowering(
       val label = "vfx${firstIndex + offset}"
       val merge = fragment.merge
       val crop = fragment.crop
-      if (fragment.branches.isNotEmpty()) {
+      if (fragment.laysBranches) {
         graph.branches(current, fragment, label, Duration.ZERO, liveChain)
       } else if (crop != null) {
         graph.cropped(current, fragment, crop, label, grid, pixelFormat, ::auxPads)
@@ -388,11 +386,18 @@ internal class GraphLowering(
     val blackBars = negotiated.fill is Fill.Blurred && clip.placement.canvases.isNotEmpty()
 
     val clipEffects = if (hoistedLook == null) clip.effects else emptyList()
+    var squared = false
     clipEffects.forEachIndexed { effectIndex, resolved ->
+      if (!squared && resolved.stage.takesSquarePixels) {
+        squared = true
+        val squaring = clip.squaringNodes()
+        pending += squaring
+        grid = grid.after(squaring)
+      }
       val fragment = resolved.effect.fragment
       sidecars += fragment.sidecars
       val crop = fragment.crop
-      if (crop != null || fragment.branches.isNotEmpty()) {
+      if (crop != null || fragment.laysBranches) {
         val label = "v${index}m$merged"
         val read = if (pending.isEmpty()) pad else "${label}in".also { graph.chain(listOf(pad), pending, it) }
         pending.clear()
@@ -400,7 +405,7 @@ internal class GraphLowering(
           if (crop != null) {
             graph.cropped(read, fragment, crop, label, grid, pixelFormat, ::auxPads)
           } else {
-            grid = grid.after(fragment.branches.flatMap { it.nodes })
+            grid = grid.after(fragment.branches.flatMap { it.nodes } + fragment.chain + fragment.post)
             label.also { graph.branches(read, fragment, it, clockOrigin, liveChain) }
           }
         merged++

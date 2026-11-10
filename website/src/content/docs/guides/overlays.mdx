@@ -12,7 +12,8 @@ import Snippet from '../../../components/Snippet.astro'
 
 Overlays are effects, so they go in an `effects { }` block. They run after geometry has settled, which is what makes
 their measurements fractions of the final frame. An overlay on a clip is measured against the clip's frame, and one on
-the composition against the output frame.
+the composition against the output frame. A clip with non-square pixels, like anamorphic footage, is measured at the
+shape it shows at, so a square picture stays square on it.
 
 <PagePlayground {...frontmatter.playground} />
 

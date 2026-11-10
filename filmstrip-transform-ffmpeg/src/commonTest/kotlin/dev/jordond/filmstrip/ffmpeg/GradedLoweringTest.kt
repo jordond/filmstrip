@@ -89,8 +89,8 @@ class GradedLoweringTest {
     }
   }
 
-  // The planes are carried onto float one at a time, the first and last tables read the entry nearest a code and every
-  // table between them interpolates.
+  // The planes and alpha are carried onto float one at a time, the first and last tables read the entry nearest a code
+  // and every table between them interpolates.
   @Test
   fun `lowers every color matrix on a kept grade`() {
     val specs =
@@ -102,8 +102,8 @@ class GradedLoweringTest {
         val fragment = fragmentOf(spec, transfer)
         val tables = fragment.chain.filter { it.name == "lut1d" }.map { it.argument("interp") }
 
-        fragment.chain[1] shouldBe PlaneLanes.node(listOf("y", "u", "v"), "gbrpf32le")
-        fragment.chain.last().render() shouldBe "format=pix_fmts=yuv420p10le"
+        fragment.chain[1] shouldBe PlaneLanes.node(listOf("y", "u", "v", "a"), PlaneLanes.WITH_ALPHA.format)
+        fragment.chain.last().render() shouldBe "format=pix_fmts=yuva420p10le"
         tables.first() shouldBe "nearest"
         tables.last() shouldBe "nearest"
         tables.drop(1).dropLast(1).forEach { it shouldBe "linear" }

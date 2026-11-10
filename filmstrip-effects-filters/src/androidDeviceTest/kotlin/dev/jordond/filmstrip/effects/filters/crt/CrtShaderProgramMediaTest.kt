@@ -5,6 +5,7 @@ import android.opengl.EGLConfig
 import android.opengl.GLES20
 import android.opengl.GLES30
 import androidx.media3.common.util.GlUtil
+import dev.jordond.filmstrip.effects.filters.toDoubles
 import io.kotest.assertions.withClue
 import io.kotest.matchers.doubles.plusOrMinus
 import io.kotest.matchers.doubles.shouldBeGreaterThan
@@ -116,7 +117,47 @@ class CrtShaderProgramMediaTest {
   }
 
   @Test
-  fun theGainStopsAtAPremultipliedPixelsOwnAlpha() {
+  fun aReadBetweenAPictureAndAClearBarKeepsThePicturesColour() {
+    val crt = Crt(MID)
+    val params = CrtParams.of(crt)
+    val frame =
+      draw(crt, WIDTH, HEIGHT) { column, _ -> if (column < CANVAS_LEFT) FloatArray(CHANNELS) else PICTURE.copyOf() }
+    // The bar ends between texels CANVAS_LEFT - 1 and CANVAS_LEFT, so a read landing between them mixes the two.
+    val (x, y, share) =
+      (HEIGHT / 4 until HEIGHT * 3 / 4)
+        .flatMap { row -> (0 until WIDTH / 2).map { column -> column to row } }
+        .map { (column, row) ->
+          val source = CrtSignal.barrelMap((column + 0.5) / WIDTH, (row + 0.5) / HEIGHT, WIDTH, HEIGHT, params.barrelK)
+          Triple(column, row, source[0] * WIDTH - 0.5 - (CANVAS_LEFT - 1))
+        }.filter { (_, _, t) -> t in 0.0..1.0 }
+        .minBy { (_, _, t) -> abs(t - HALF) }
+    withClue("a read has to land well between the two texels for this to tell") {
+      abs(share - HALF) shouldBeLessThan BOUNDARY_SLACK
+    }
+
+    val at = { texel: (Int, Int) -> DoubleArray ->
+      CrtSignal.pixelAt((x + 0.5) / WIDTH, (y + 0.5) / HEIGHT, WIDTH, HEIGHT, params, texel)
+    }
+    val wanted = at { column, _ -> if (column < CANVAS_LEFT) DoubleArray(CHANNELS) else PICTURE.toDoubles() }
+    val straight = at { _, _ -> PICTURE.toDoubles() }
+    val read = pixel(frame, WIDTH, x, y)
+    withClue("the alpha at column $x row $y") { abs(read[ALPHA] - wanted[ALPHA]) shouldBeLessThan TOLERANCE }
+    for (channel in 0 until RGB) {
+      val expected = wanted[channel] * wanted[ALPHA] + FILL[channel] * (1.0 - wanted[ALPHA])
+      val laid = read[channel] * read[ALPHA] + FILL[channel] * (1.0 - read[ALPHA])
+      // A straight bilinear read takes the bar's black in by the same share again.
+      val darkened = straight[channel] * share * share + FILL[channel] * (1.0 - share)
+      withClue("a straight bilinear read lands at $darkened, too close to $expected to tell") {
+        abs(expected - darkened) shouldBeGreaterThan TELLS
+      }
+      withClue("column $x row $y channel $channel laid over the fill") {
+        abs(laid - expected) shouldBeLessThan TOLERANCE
+      }
+    }
+  }
+
+  @Test
+  fun theGainLiftsAHalfAlphaPixelsStraightColourAndLeavesItsAlpha() {
     val crt = Crt(1f)
     val params = CrtParams.of(crt)
     val frame = draw(crt, FULL_HD_WIDTH, FULL_HD_HEIGHT) { _, _ -> floatArrayOf(HALF, HALF, HALF, HALF) }
@@ -127,7 +168,21 @@ class CrtShaderProgramMediaTest {
         .first { (x, y) -> unclamped(x, y, params) > 1.0 + CREST_MARGIN }
 
     val read = pixel(frame, FULL_HD_WIDTH, x, y)
-    read[0].toDouble() shouldBe (HALF.toDouble() plusOrMinus TOLERANCE)
+    val wanted =
+      CrtSignal.pixelAt(
+        (x + 0.5) / FULL_HD_WIDTH,
+        (y + 0.5) / FULL_HD_HEIGHT,
+        FULL_HD_WIDTH,
+        FULL_HD_HEIGHT,
+        params,
+      ) { _, _ ->
+        doubleArrayOf(HALF.toDouble())
+      }[0]
+    withClue("the gain has to lift the straight colour for this to tell") {
+      wanted shouldBeGreaterThan
+        HALF + CREST_MARGIN / 2
+    }
+    read[0].toDouble() shouldBe (wanted plusOrMinus TOLERANCE)
     read[3].toDouble() shouldBe (HALF.toDouble() plusOrMinus TOLERANCE)
   }
 
@@ -157,7 +212,13 @@ class CrtShaderProgramMediaTest {
     readRows(height, width, params).forEach { y ->
       readColumns(width, height, params).forEach { x ->
         val wanted =
-          CrtSignal.pixelAt((x + 0.5) / width, (y + 0.5) / height, width, height, params) { u, _ -> rampAt(u, width) }
+          CrtSignal.pixelAt(
+            (x + 0.5) / width,
+            (y + 0.5) / height,
+            width,
+            height,
+            params,
+          ) { column, _ -> ramp(column).toDoubles() }
         val tolerance = if (coverage(x, y, width, height, params) in EDGE_RANGE) EDGE_TOLERANCE else TOLERANCE
         for (channel in 0 until RGB) {
           withClue("column $x row $y channel $channel of $width by $height") {
@@ -286,16 +347,6 @@ class CrtShaderProgramMediaTest {
     return floatArrayOf(code, 0.5f, 1f - code, 1f)
   }
 
-  private fun rampAt(
-    u: Double,
-    width: Int,
-  ): DoubleArray {
-    // Bilinear over a straight ramp, flat past the centres of the two outside texels.
-    val column = (u * width - 0.5).coerceIn(0.0, width - 1.0)
-    val code = RAMP_START + column / RAMP_STEPS
-    return doubleArrayOf(code, 0.5, 1.0 - code)
-  }
-
   private companion object {
     const val MID = 0.5f
     const val WIDTH = 640
@@ -319,6 +370,11 @@ class CrtShaderProgramMediaTest {
     const val CANVAS_LEFT = 160
     const val CANVAS_RIGHT = 480
     const val TOLERANCE = 1e-4
+    const val ALPHA = 3
+    const val BOUNDARY_SLACK = 0.3
+    const val TELLS = 0.05
+    val PICTURE = floatArrayOf(0.875f, 0.625f, 0.375f, 1f)
+    val FILL = doubleArrayOf(0.125, 0.25, 0.75)
 
     // A box and a small frame differ by the footprint's stretch, and by a pattern weighed unevenly where the edge
     // crosses.

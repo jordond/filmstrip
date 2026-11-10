@@ -4,7 +4,8 @@ import dev.jordond.filmstrip.effect.FilterBranch
 import dev.jordond.filmstrip.effect.FilterFragment
 import dev.jordond.filmstrip.effect.FilterNode
 import dev.jordond.filmstrip.effect.Sidecar
-import dev.jordond.filmstrip.effects.filters.internal.RgbRoundTrip
+import dev.jordond.filmstrip.effects.AHEAD_OF_THE_CLIP
+import dev.jordond.filmstrip.effects.RgbRoundTrip
 import dev.jordond.filmstrip.geometry.Size
 import java.lang.ref.WeakReference
 
@@ -24,12 +25,15 @@ internal fun crtFragment(
 ): FilterFragment = CrtFragments.of(crt, frame)
 
 /**
- * The branches that draw [CrtSignal.pixelAt] on a `gbrap16le` frame at the pad [TUBE_READ], writing [TUBE_WRITE].
+ * The branches that draw [CrtSignal.pixelAt] on a `gbrap16le` frame swscale widened from `gbrap` at the pad
+ * [TUBE_READ], writing [TUBE_WRITE] at 65535 full scale.
  *
  * A read between pixels is four `remap`s of the corners around it and three `maskedmerge`s between them, on
  * premultiplied frames so a read between a picture and a clear bar weighs by alpha, with every plane of a share frame
  * holding the share so alpha moves with the colour. Past the frame the clamped columns and rows hold the edge pixel, as
- * a clamped texture does, so alpha comes from there. The gain stops at full scale, and coverage fades colour alone.
+ * a clamped texture does, so alpha comes from there. The gain carries colour to full scale through
+ * [RgbRoundTrip.scaledOfWidened] and stops there, alpha lands back on its code through
+ * [RgbRoundTrip.keptOfWidened], and coverage fades colour alone.
  */
 internal fun crtTube(
   params: CrtParams,
@@ -63,7 +67,13 @@ internal fun crtTube(
     ),
     FilterBranch(
       listOf("straight", "multiplier"),
-      listOf(FilterNode("blend", "all_expr" to "min(A*B*${params.gain}/$FULL_CODE,$FULL_CODE)", ALPHA_THROUGH)),
+      listOf(
+        FilterNode(
+          "blend",
+          "all_expr" to "min(${RgbRoundTrip.scaledOfWidened("A")}*B*${params.gain}/$FULL_CODE,$FULL_CODE)",
+          "c3_expr" to RgbRoundTrip.keptOfWidened("A"),
+        ),
+      ),
       listOf("lit"),
     ),
     FilterBranch(
@@ -71,24 +81,6 @@ internal fun crtTube(
       listOf(FilterNode("blend", "all_expr" to "A*B/$FULL_CODE", ALPHA_THROUGH)),
       listOf(TUBE_WRITE),
     ),
-  )
-
-/**
- * The nodes that carry a [crtTube] frame down to `gbrap`, every code of sixteen bits landing on the nearest of eight.
- *
- * swscale's step down rounds at 256 to the code where a code of eight is 257 wide, which lifts every code past 128 by
- * one, alpha included. So every plane is scaled to the width the step reads first.
- */
-internal val CRT_TO_EIGHT_BITS: List<FilterNode> =
-  listOf(
-    FilterNode(
-      "lutrgb",
-      "r" to TO_STEP_WIDTH,
-      "g" to TO_STEP_WIDTH,
-      "b" to TO_STEP_WIDTH,
-      "a" to TO_STEP_WIDTH,
-    ),
-    FilterNode("format", "pix_fmts" to CODES_RGB_FORMAT),
   )
 
 /**
@@ -130,7 +122,9 @@ private object CrtFragments {
           crtTube(params, frames) +
           FilterBranch(
             listOf(TUBE_WRITE),
-            CRT_TO_EIGHT_BITS + RgbRoundTrip.toCodes(),
+            // swscale's way to 4:2:0 lands chroma up to 6 codes off the mean from sixteen bits and 2.4 from eight, so
+            // it starts on eight.
+            RgbRoundTrip.toEightBits() + RgbRoundTrip.toCodes(),
             listOf("out"),
           ),
       sidecars = frames.sidecars,
@@ -140,11 +134,6 @@ private object CrtFragments {
 
 private const val RGB_FORMAT = "gbrap16le"
 private const val GRAY_FORMAT = "gray16le"
-
-// swscale's way to 4:2:0 lands chroma up to 6 codes off the mean from sixteen bits and 2.4 from eight, so it starts on
-// eight.
-private const val CODES_RGB_FORMAT = "gbrap"
-private const val TO_STEP_WIDTH = "val*65280/$FULL_CODE"
 
 private val REMAP = FilterNode("remap")
 private val MERGE = FilterNode("maskedmerge")
@@ -176,7 +165,7 @@ private fun share(
 ): FilterBranch =
   FilterBranch(
     emptyList(),
-    listOf(movieOf(sidecar), FilterNode("format", "pix_fmts" to GRAY_FORMAT), ON_EVERY_PLANE),
+    listOf(movieOf(sidecar), AHEAD_OF_THE_CLIP, FilterNode("format", "pix_fmts" to GRAY_FORMAT), ON_EVERY_PLANE),
     listOf(write),
   )
 
@@ -187,7 +176,7 @@ private fun sourceOf(
 ): FilterBranch =
   FilterBranch(
     emptyList(),
-    listOf(movieOf(sidecar)) + formats.map { FilterNode("format", "pix_fmts" to it) },
+    listOf(movieOf(sidecar), AHEAD_OF_THE_CLIP) + formats.map { FilterNode("format", "pix_fmts" to it) },
     listOf(write),
   )
 

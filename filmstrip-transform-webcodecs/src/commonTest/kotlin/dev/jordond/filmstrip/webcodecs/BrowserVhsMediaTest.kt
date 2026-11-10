@@ -164,7 +164,7 @@ class BrowserVhsMediaTest {
       val written = decodeFrames(outputOf(success))[READ_SLOT.toInt()]
 
       val row = VhsSignal.virtualRow((BAR_ROW_OF_HEIGHT * written.height).toInt(), written.height)
-      val black = { _: Double -> doubleArrayOf(0.0, 0.0, 0.0) }
+      val black = { _: Int -> doubleArrayOf(0.0, 0.0, 0.0) }
       val expected =
         VhsSignal.pixelAt(MIDDLE, row, TICK, vhs.seed, written.width, VhsParams.of(vhs), black).meanCodes()
       abs(written.at(MIDDLE, BAR_ROW_OF_HEIGHT).mean() - expected) shouldBeLessThan EXPORT_CODES
@@ -194,7 +194,7 @@ class BrowserVhsMediaTest {
 
       val y = BAR_ROW_OF_HEIGHT
       val row = VhsSignal.virtualRow((y * frame.size.height).toInt(), frame.size.height)
-      val black = { _: Double -> doubleArrayOf(0.0, 0.0, 0.0) }
+      val black = { _: Int -> doubleArrayOf(0.0, 0.0, 0.0) }
       val expected =
         VhsSignal.pixelAt(MIDDLE, row, TICK, vhs.seed, frame.size.width, VhsParams.of(vhs), black).meanCodes()
 
@@ -251,8 +251,8 @@ class BrowserVhsMediaTest {
       val headRow = VhsSignal.virtualRow(bottom, height)
       val headShift = VhsSignal.rowShift(vhs.seed, TICK, headRow, params)
       val shown = picture.at(MIDDLE, MIDDLE).channels()
-      val canvas = { x: Double ->
-        if (x in contentLeft..contentRight) shown else doubleArrayOf(0.0, 0.0, 0.0)
+      val canvas = { column: Int ->
+        if ((column + 0.5) / width in contentLeft..contentRight) shown else doubleArrayOf(0.0, 0.0, 0.0)
       }
 
       withClue("the head band moves the picture right, so it shows over the right bar") {
@@ -288,8 +288,8 @@ class BrowserVhsMediaTest {
       val headRow = VhsSignal.virtualRow(bottom, height)
       val headShift = VhsSignal.rowShift(vhs.seed, TICK, headRow, params)
       val shown = picture.at(MIDDLE, MIDDLE).channels()
-      val canvas = { x: Double ->
-        if (x in contentLeft..contentRight) shown else doubleArrayOf(0.0, 0.0, 0.0)
+      val canvas = { column: Int ->
+        if ((column + 0.5) / width in contentLeft..contentRight) shown else doubleArrayOf(0.0, 0.0, 0.0)
       }
 
       withClue("the head band moves the picture right, so it shows over the right bar") {
@@ -417,29 +417,15 @@ class BrowserVhsMediaTest {
     var worst = 0.0
     listOf(height / 4, height / 2, height * 5 / 8, height - 1).forEach { y ->
       val row = VhsSignal.virtualRow(y, height)
-      val source = { x: Double -> picture.rowAt(x, y) }
+      val texel = { column: Int -> picture.at((column + 0.5) / width, (y + 0.5) / height).channels() }
       listOf(0, width / 4, width / 2, width * 3 / 4, width - 1).forEach { column ->
         val x = (column + 0.5) / width
-        val expected = VhsSignal.pixelAt(x, row, TICK, vhs.seed, width, params, source)
+        val expected = VhsSignal.pixelAt(x, row, TICK, vhs.seed, width, params, texel)
         val read = frame.at(x, (y + 0.5) / height).channels()
         for (channel in 0 until RGB) worst = max(worst, abs(read[channel] - expected[channel]) * FULL)
       }
     }
     return worst
-  }
-
-  private fun PreviewFrame.rowAt(
-    x: Double,
-    y: Int,
-  ): DoubleArray {
-    val across = (x * size.width - 0.5).coerceIn(0.0, size.width - 1.0)
-    val left = across.toInt()
-    val right = (left + 1).coerceAtMost(size.width - 1)
-    val blend = across - left
-    val row = (y + 0.5) / size.height
-    val a = at((left + 0.5) / size.width, row).channels()
-    val b = at((right + 0.5) / size.width, row).channels()
-    return DoubleArray(RGB) { a[it] + (b[it] - a[it]) * blend }
   }
 
   private fun Rgb.channels(): DoubleArray = doubleArrayOf(red / FULL, green / FULL, blue / FULL)

@@ -178,7 +178,24 @@ class VhsSignalTest {
     source.contains("(h * ${HASH_M4}u)") shouldBe true
   }
 
+  @Test
+  fun `pixelAt reads alpha between a clear bar and the picture at the shifted position`() {
+    val params = VhsParams.of(Vhs())
+    val tick = 300
+    val row = 200
+    val texel = { column: Int -> if (column < WIDTH / 2) DoubleArray(4) else doubleArrayOf(0.5, 0.5, 0.5, 1.0) }
+    // Three tenths of the way from the bar's last centre to the picture's first, once the row's slide is taken off.
+    val x = (WIDTH / 2 - 0.5 + 0.3) / WIDTH + VhsSignal.rowShift(Vhs.DEFAULT_SEED, tick, row, params)
+
+    val read = VhsSignal.pixelAt(x, row, tick, Vhs.DEFAULT_SEED, WIDTH, params, texel)
+
+    read.size shouldBe 4
+    read[3] shouldBe (0.3 plusOrMinus 1e-9)
+    VhsSignal.pixelAt(x, row, tick, Vhs.DEFAULT_SEED, WIDTH, params) { texel(it).copyOf(3) }.size shouldBe 3
+  }
+
   private companion object {
+    const val WIDTH = 640
     const val BUCKETS = 16
     const val TRACK_CHANCE_AT_ONE = 0.2
   }

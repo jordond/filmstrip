@@ -20,7 +20,12 @@ class FragmentCropTest {
     graph shouldBe
       "[0:v]split=2[rbase][rcrop];" +
       "[rcrop]crop=w=320:h=180:x=2*floor(((in_w-out_w)/2)/2):y=2*floor(((in_h-out_h)/2)/2):exact=1,hue=s=0[rfx];" +
-      "[rbase][rfx]overlay=x=2*floor(((W-w)/2)/2):y=2*floor(((H-h)/2)/2):format=yuv420:alpha=straight[r]"
+      "[rfx]split=2[rlay][rstampin];" +
+      "[rstampin]format=pix_fmts=yuv420p[rstamp];" +
+      "[rbase]format=pix_fmts=yuva420p,negate=components=a[rflip];" +
+      "[rflip][rstamp]overlay=x=2*floor(((W-w)/2)/2):y=2*floor(((H-h)/2)/2):format=yuv420:alpha=straight," +
+      "negate=components=a[rclear];" +
+      "[rclear][rlay]overlay=x=2*floor(((W-w)/2)/2):y=2*floor(((H-h)/2)/2):format=yuv420:alpha=straight[r]"
   }
 
   // overlay places on the 4:2:0 chroma grid, so a whole position moves down to the even pixel at or
@@ -84,7 +89,11 @@ class FragmentCropTest {
       "[rcrop]crop=w=320:h=180:x=0:y=0:exact=1,scale=w=64:h=64[rpre];" +
       "[1:v]null[raux0];" +
       "[rpre][raux0]overlay=format=yuv420:alpha=straight,format=pix_fmts=yuva420p[rfx];" +
-      "[rbase][rfx]overlay=x=0:y=0:format=yuv420:alpha=straight[r]"
+      "[rfx]split=2[rlay][rstampin];" +
+      "[rstampin]format=pix_fmts=yuv420p[rstamp];" +
+      "[rbase]format=pix_fmts=yuva420p,negate=components=a[rflip];" +
+      "[rflip][rstamp]overlay=x=0:y=0:format=yuv420:alpha=straight,negate=components=a[rclear];" +
+      "[rclear][rlay]overlay=x=0:y=0:format=yuv420:alpha=straight[r]"
   }
 
   // A base in 4:4:4, the way an odd canvas leaves its chain, has a chroma sample on every pixel, so overlay lands an
@@ -99,6 +108,17 @@ class FragmentCropTest {
     odd shouldContain "overlay=x=5:y=7:format=auto"
     centred shouldContain "crop=w=320:h=180:x=(in_w-out_w)/2:y=(in_h-out_h)/2:exact=1"
     centred shouldContain "overlay=x=(W-w)/2:y=(H-h)/2:format=auto"
+  }
+
+  // The base is cleared under the region in its own chroma layout, so a full chroma base keeps a sample on every pixel.
+  @Test
+  fun `the base is cleared under the region in the alpha format of its own grid`() {
+    val subsampled = croppedGraph(FilterCrop(width = "320", height = "180", x = "4", y = "8"))
+    val full = croppedGraph(FilterCrop(width = "320", height = "180", x = "5", y = "7"), ChromaGrid.Full)
+
+    subsampled shouldContain "[rbase]format=pix_fmts=yuva420p,negate=components=a[rflip]"
+    full shouldContain "[rbase]format=pix_fmts=yuva444p,negate=components=a[rflip]"
+    full shouldContain "[rflip][rstamp]overlay=x=5:y=7:format=auto:alpha=straight,negate=components=a[rclear]"
   }
 
   private fun croppedGraph(

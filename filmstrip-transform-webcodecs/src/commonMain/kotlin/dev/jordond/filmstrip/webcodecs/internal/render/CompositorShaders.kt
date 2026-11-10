@@ -15,6 +15,8 @@ import dev.jordond.filmstrip.color.TEN_BIT_LUMA_FLOOR
 import dev.jordond.filmstrip.color.TEN_BIT_LUMA_RANGE
 import dev.jordond.filmstrip.color.TEN_BIT_MAX_CODE
 import dev.jordond.filmstrip.effects.color.HDR_COLOR_MATRIX_GLSL
+import dev.jordond.filmstrip.effects.color.displayLightGradeGlsl
+import dev.jordond.filmstrip.effects.color.glsl
 import dev.jordond.filmstrip.media.HdrTransfer
 import kotlin.js.ExperimentalWasmJsInterop
 
@@ -91,7 +93,7 @@ internal fun compositeFragmentShader(transfer: HdrTransfer?): String =
     in vec2 vTexCoord;
     out vec4 outColor;
     $HDR_COLOR_MATRIX_GLSL
-    ${gradeLightGlsl(transfer)}
+    ${transfer.displayLightGradeGlsl()}
     $CLIP_TEXEL_GLSL
     void main() {
       vec4 c = clipTexel(vTexCoord);

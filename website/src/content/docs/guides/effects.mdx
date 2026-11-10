@@ -47,6 +47,9 @@ still drawn after it.
 `crop` also takes a rectangle in fractions of the frame, measured after whatever geometry ran before it. A rectangle
 with no area or reaching outside the frame throws `IllegalArgumentException` when you build it.
 
+A clip with non-square pixels, like anamorphic footage, is cropped and rotated at the shape it shows at, so
+`crop(AspectRatio.Square)` comes out square and a turn doesn't skew the picture.
+
 <Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Effects.kt" region="crop-rect" />
 
 ### Fit
@@ -89,6 +92,29 @@ A value that isn't a finite number throws `IllegalArgumentException` when you bu
 An effect that changes nothing, like a brightness of one, is left out of the plan and listed on its
 [inert notices](/guides/export/#inert-notices).
 
+## Blur and vignette
+
+| Call       | What it does                                                                          |
+| ---------- | ------------------------------------------------------------------------------------- |
+| `blur`     | A Gaussian blur. `sigma` is a fraction of the frame width, from `0f` to `0.1f`        |
+| `vignette` | Darkens toward the edges by `strength`, with the falloff half way at `radius`         |
+
+Both measure from the frame they run on, the clip's own on a clip and the composed frame on the composition, so they
+look the same at any export size and in a preview. They run after the color effects and under every overlay at the same
+scope. The blur holds the edge pixels past the frame, so the edges don't darken. On the composition it runs on the
+picture before the fill goes in, so a color bar keeps exactly its color and the picture's edge keeps its level beside it.
+On a kept HDR grade both run on the signal an SDR display at reference white would see, the way `brightness` does, and
+the bars and any transparent part of the frame stay exactly as they are there too.
+
+<Aside type="note" title="Limits">
+- Every backend draws them, on a clip, a track or the composition.
+- On Apple both run a Core Image Metal kernel, which takes an Apple6 GPU on iOS or macOS 12. A device that can't compile
+  one refuses them by name.
+- The ffmpeg backend runs the blur through `gblur`, which is recursive rather than a true Gaussian, and through 8-bit RGB.
+  It lands within 2.5 codes of the shared kernel, measured at 2.2. The vignette rounds on the way through RGB and back,
+  and lands within 1.5 codes of the shared gain, measured at 1.25.
+</Aside>
+
 ## Pan and zoom
 
 `kenBurns` travels between two regions of the frame over the clip's length. It's marked `@ExperimentalFilmstripApi`.
@@ -105,4 +131,6 @@ so the effect is only valid on a clip. A plan refuses it on a track, on the comp
   Any effect is refused the same way when a build lacks a filter it runs on.
 - On a kept HDR grade, `brightness` and the color matrices read the frame the way an SDR display at reference white
   would. Highlights keep going where an SDR export would clip. See [HDR](/guides/hdr/).
+- On a kept HLG grade, Apple reads each pixel as the same signal the other backends do, so the color matrices and the
+  blur land where they land everywhere else. That's slightly off from what Core Image's own HLG handling would give.
 </Aside>

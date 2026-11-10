@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import dev.jordond.filmstrip.compose.ui.geometry.TimelineScale
 import dev.jordond.filmstrip.sample.EditState
 import dev.jordond.filmstrip.sample.ui.Tokens
+import dev.jordond.filmstrip.sample.visibleWindow
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
@@ -72,7 +73,7 @@ internal fun laneSpans(
   val text =
     if (edit.textEnabled && edit.text.isNotBlank()) {
       val offset = edit.trimOffset()
-      val window = edit.window(edit.textTimed, edit.textStartSeconds, edit.textEndSeconds)
+      val window = visibleWindow(edit.textTimed, edit.textStartSeconds, edit.textEndSeconds)
       if (window == null) kept else kept.clamp(window.start + offset, (window.endExclusive ?: duration) + offset)
     } else {
       null

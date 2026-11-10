@@ -320,7 +320,7 @@ class FfmpegOverlayHdrMediaTest {
       val fragment = still.effect.fragment
       val (picture, mask) = fragment.auxInputs
       withClue("$transfer: the picture is decoded on its branch") {
-        picture.chain.last() shouldBe fragment.chain.last()
+        picture.chain.last() shouldBe fragment.chain.dropLast(PREMULTIPLY_NODES).last()
       }
       withClue("$transfer: a still picture is looped, so its decode runs per frame") { picture.timeline.shouldBeNull() }
       withClue("$transfer: an ungated still alpha is looped") { mask.timeline.shouldBeNull() }
@@ -359,11 +359,12 @@ class FfmpegOverlayHdrMediaTest {
       withClue("$transfer: a fade leaves the picture where it is, so it holds one frame") {
         held.timeline.shouldBeNull()
       }
-      // HLG's decode to light is a geq of its own, so the fade is the geq that writes the alpha.
+      // HLG's decode to light is a geq of its own that keeps the alpha it reads, so the fade is the geq that writes
+      // another.
       val fades = { chain: List<FilterNode> ->
         chain.any { node ->
           node.name == "geq" &&
-            node.arguments.any { it.key == "a" }
+            node.arguments.any { it.key == "a" && it.value != "alpha(X,Y)" }
         }
       }
       withClue("$transfer: a faded picture fades its color") { fades(held.chain).shouldBeFalse() }
@@ -521,6 +522,9 @@ class FfmpegOverlayHdrMediaTest {
   private fun hex(color: Int): String = color.toUInt().toString(16)
 
   private companion object {
+    // The geq that premultiplies the region's light by its alpha, which its chain ends on after the decode to light.
+    const val PREMULTIPLY_NODES = 1
+
     const val HALF = 0.5f
 
     // A texel at half alpha, built from an opaque color by swapping its alpha byte.

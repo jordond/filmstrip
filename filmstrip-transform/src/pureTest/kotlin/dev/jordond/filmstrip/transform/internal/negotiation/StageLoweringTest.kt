@@ -12,6 +12,8 @@ import dev.jordond.filmstrip.effects.BuiltInEffectResolver
 import dev.jordond.filmstrip.effects.color.Brightness
 import dev.jordond.filmstrip.effects.color.Sepia
 import dev.jordond.filmstrip.effects.geometry.Scale
+import dev.jordond.filmstrip.effects.overlay.TextOverlay
+import dev.jordond.filmstrip.effects.spatial.Vignette
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.HdrTransfer
@@ -112,6 +114,46 @@ class StageLoweringTest {
     recorder.attributes.getValue(EffectIds.SCALE).inputSize shouldBe input
     recorder.attributes.getValue(EffectIds.BRIGHTNESS).inputSize shouldBe frameAfter(scale, input)
     recorder.attributes.getValue(EffectIds.BRIGHTNESS).layoutSize shouldBe frameAfter(scale, layout)
+  }
+
+  @Test
+  fun `the stored frame reaches color and spatial effects until a geometry effect squares it`() {
+    val recorder = Recorder()
+    val scale = Scale(720)
+    val input = Size(1920, 1080)
+    val stored = Size(960, 1080)
+
+    StageLowering(listOf(recorder), UNCLAIMED).lowerStages(
+      listOf(listOf(Sepia(1f), Vignette()), listOf(scale), listOf(Brightness(0.5f))),
+      input,
+      input,
+      SPAN,
+      loweringTarget(),
+      stored,
+    )
+
+    recorder.attributes.getValue(EffectIds.SEPIA).storedSize shouldBe stored
+    recorder.attributes.getValue(EffectIds.VIGNETTE).storedSize shouldBe stored
+    recorder.attributes.getValue(EffectIds.SCALE).storedSize shouldBe input
+    recorder.attributes.getValue(EffectIds.BRIGHTNESS).storedSize shouldBe frameAfter(scale, input)
+  }
+
+  @Test
+  fun `a composite effect and every effect after it are handed the frame squared`() {
+    val recorder = Recorder()
+    val input = Size(1920, 1080)
+
+    StageLowering(listOf(recorder), UNCLAIMED).lowerStages(
+      listOf(listOf(Vignette(), TextOverlay("Wide")), listOf(Brightness(0.5f))),
+      input,
+      input,
+      SPAN,
+      loweringTarget(),
+      Size(960, 1080),
+    )
+
+    recorder.attributes.getValue(EffectIds.TEXT_OVERLAY).storedSize shouldBe input
+    recorder.attributes.getValue(EffectIds.BRIGHTNESS).storedSize shouldBe input
   }
 
   @Test

@@ -51,6 +51,11 @@ Each platform's answer is a `PlatformEffect`, in that platform's own terms. Gate
 didn't write for. `attributes` holds what the pipeline already worked out, so multiply a fraction by `inputSize` to get
 pixels, the frame size entering this effect. Return a fresh `PlatformEffect` each time, since each plan holds its own.
 
+On ffmpeg a clip with non-square pixels reaches your fragment in one of two shapes. A `Geometry` or `Composite` effect
+always gets square pixels, and `inputSize` is the frame it draws on. A `Color` or `Spatial` effect runs on the frame as
+it's stored, which `attributes.storedSize` holds, while `inputSize` is the size it shows at. A spatial effect that
+measures in pixels works out each axis from both, so its reach is the one the viewer sees.
+
 The resolver's `softFocusOn` is an `expect` function you declare yourself, whose `actual` on each platform calls that
 platform's function below.
 
@@ -70,8 +75,8 @@ platform's function below.
     <Snippet file="jvmMain/kotlin/dev/jordond/filmstrip/docs/extending/CustomEffects.jvm.kt" region="jvm" />
   </TabItem>
   <TabItem label="Web">
-    A `WebGlPass` that brings its own fragment source through `WebGlShader`, or a refusal by name, which is what this one
-    does.
+    A `WebGlPass` that runs the frame through its own `WebGlStep`s, each a fragment source with what it reads and its
+    uniforms, or a refusal by name, which is what this one does.
     <Snippet file="wasmJsMain/kotlin/dev/jordond/filmstrip/docs/extending/CustomEffects.wasmJs.kt" region="web" />
   </TabItem>
 </Tabs>
@@ -88,6 +93,9 @@ Resolvers are asked newest registration first, so add yours after the backends.
 A spec no resolver claims is refused by name at plan time.
 
 <Aside type="note" title="Limits">
-A `PlatformEffect` in the browser is a `WebGlPass`. One with no `WebGlShader` is folded into the compositor's own draw through
-its texture matrix or color matrix uniform, and the compositor refuses a pass that gives it neither.
+A `PlatformEffect` in the browser is a `WebGlPass`. One with no `WebGlStep`s is folded into the compositor's own draw
+through its texture matrix or color matrix uniform, and the compositor refuses a pass that gives it neither.
+
+A fragment shader on the browser or on media3 reads straight color, not color multiplied by alpha, and writes straight
+color back, whatever the frame under it holds.
 </Aside>

@@ -123,7 +123,13 @@ class BrowserCamcorderMediaTest {
         val row = VhsSignal.virtualRow(y, HEIGHT)
         for (column in 0 until WIDTH) {
           val x = (column + 0.5) / WIDTH
-          val expected = VhsSignal.pixelAt(x, row, tick, vhs.seed, WIDTH, params) { at -> recorded.rowAt(at, y) }
+          val expected =
+            VhsSignal.pixelAt(x, row, tick, vhs.seed, WIDTH, params) { column ->
+              DoubleArray(RGB) {
+                recorded.codesAt(column, y)[it] /
+                  FULL
+              }
+            }
           val read = frame.codesAt(column, y)
           for (channel in 0 until RGB) worst = max(worst, abs(read[channel] - expected[channel] * FULL))
           val argb = raster.argbAt(column, y)
@@ -242,20 +248,6 @@ class BrowserCamcorderMediaTest {
   ): DoubleArray {
     val rgb = at((x + 0.5) / size.width, (y + 0.5) / size.height)
     return doubleArrayOf(rgb.red.toDouble(), rgb.green.toDouble(), rgb.blue.toDouble())
-  }
-
-  // Bilinear over the row the way the sampler reads it, as fractions of full scale.
-  private fun PreviewFrame.rowAt(
-    x: Double,
-    y: Int,
-  ): DoubleArray {
-    val across = (x * size.width - 0.5).coerceIn(0.0, size.width - 1.0)
-    val left = across.toInt()
-    val right = (left + 1).coerceAtMost(size.width - 1)
-    val blend = across - left
-    val a = codesAt(left, y)
-    val b = codesAt(right, y)
-    return DoubleArray(RGB) { (a[it] + (b[it] - a[it]) * blend) / FULL }
   }
 
   private fun DoubleArray.gapTo(argb: Int): Double =

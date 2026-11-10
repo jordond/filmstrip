@@ -14,9 +14,6 @@ kotlin {
   sourceSets {
     commonMain.dependencies {
       api(projects.filmstripCore)
-    }
-
-    appleMain.dependencies {
       implementation(projects.filmstripEffects)
     }
 

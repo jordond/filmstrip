@@ -2,8 +2,11 @@ package dev.jordond.filmstrip.effects.color
 
 import dev.drewhamilton.poko.Poko
 import dev.jordond.filmstrip.InternalFilmstripApi
+import dev.jordond.filmstrip.color.hlgSignalFromSdrSignal
 import dev.jordond.filmstrip.color.nitsFromSdrSignal
 import dev.jordond.filmstrip.color.peakNits
+import dev.jordond.filmstrip.color.sdrSignalCeilingDouble
+import dev.jordond.filmstrip.color.sdrSignalFromHlgSignal
 import dev.jordond.filmstrip.color.sdrSignalFromNits
 import dev.jordond.filmstrip.edit.EffectsBuilder
 import dev.jordond.filmstrip.effect.EffectIds
@@ -245,6 +248,36 @@ public fun ColorMatrix.transformNits(
     nitsFromSdrSignal(gr * r + gg * g + gb * b + gBias).coerceAtMost(peak),
     nitsFromSdrSignal(br * r + bg * g + bb * b + bBias).coerceAtMost(peak),
   )
+}
+
+/**
+ * What this matrix writes for a pixel of HLG signal on a kept grade, as HLG signal.
+ *
+ * Each channel is read as the SDR signal of [sdrSignalFromHlgSignal], the matrix runs on that as written, and the
+ * result is clamped between black and HLG's [sdrSignalCeilingDouble] and taken back through [hlgSignalFromSdrSignal].
+ * It is the HLG reading of [transformNits], held in codes rather than light, and every backend that grades HLG is
+ * measured against it.
+ *
+ * @return red, green and blue HLG signal, each between zero and one.
+ */
+@InternalFilmstripApi
+public fun ColorMatrix.transformHlgCodes(
+  red: Float,
+  green: Float,
+  blue: Float,
+): FloatArray {
+  val r = sdrSignalFromHlgSignal(red.toDouble())
+  val g = sdrSignalFromHlgSignal(green.toDouble())
+  val b = sdrSignalFromHlgSignal(blue.toDouble())
+  val ceiling = HdrTransfer.Hlg.sdrSignalCeilingDouble
+  val rows =
+    doubleArrayOf(
+      rr * r + rg * g + rb * b + rBias,
+      gr * r + gg * g + gb * b + gBias,
+      br * r + bg * g + bb * b + bBias,
+    )
+
+  return FloatArray(rows.size) { hlgSignalFromSdrSignal(rows[it].coerceIn(0.0, ceiling)).toFloat() }
 }
 
 /**

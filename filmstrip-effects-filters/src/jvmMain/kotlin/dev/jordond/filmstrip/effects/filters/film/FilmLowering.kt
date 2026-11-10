@@ -5,11 +5,12 @@ import dev.jordond.filmstrip.effect.FilterFragment
 import dev.jordond.filmstrip.effect.FilterNode
 import dev.jordond.filmstrip.effect.LiveBranches
 import dev.jordond.filmstrip.effect.LiveInput
+import dev.jordond.filmstrip.effects.RgbRoundTrip
 import dev.jordond.filmstrip.effects.filters.internal.HASH_RANGE
 import dev.jordond.filmstrip.effects.filters.internal.HashExpression
 import dev.jordond.filmstrip.effects.filters.internal.KB
 import dev.jordond.filmstrip.effects.filters.internal.KR
-import dev.jordond.filmstrip.effects.filters.internal.RgbRoundTrip
+import dev.jordond.filmstrip.effects.spatial.SpatialBlurGraph
 import dev.jordond.filmstrip.geometry.Size
 
 /**
@@ -18,12 +19,16 @@ import dev.jordond.filmstrip.geometry.Size
  * The fragment opens by converting whatever it is handed to 8 bit limited range BT.709 4:2:0, keeping any alpha,
  * because its expressions are written in those codes. Halation runs in `gbrap`, since it adds to red, green and blue,
  * with the matrix named both ways. A branch takes the frame's alpha into its light, boxes it to
- * [FilmSignal.halationBlurPlan]'s size, draws the response with `geq`, blurs it with `gblur`, and widens it back to be
- * added through `lut2`. Grain is a map of [FilmSignal.grainAt], weighted and added to luma alone by another `lut2`,
- * which leaves chroma and alpha as they came.
+ * [FilmSignal.halationBlurPlan]'s size, draws the response with `geq`, and blurs it and widens it back through
+ * [SpatialBlurGraph] to be added through `lut2`. Grain is a map of [FilmSignal.grainAt], weighted and added to luma
+ * alone by another `lut2`, which leaves chroma and alpha as they came.
  *
  * The map comes two ways with the same samples: as [FilterFragment.branches] a `geq` draws it, and as
  * [FilterFragment.live] [GrainPlanes] does and hands it over as a live input.
+ *
+ * The weave and the flicker are a `geq` on the same `gbrap` frame, the weave reading each pixel at
+ * [FilmSignal.weaveAt]'s offset between its four nearest pixels with their colour premultiplied by alpha, ahead of the
+ * halation, and the flicker after it. Dust and scratches, then the gate, run after the grain in [filmGate].
  *
  * Going through `gbrap` and back rounds twice, and `gblur` is a recursive approximation of a Gaussian that holds its
  * edge pixel past the frame, where the signal's blur clamps to it as well. Both are ffmpeg's own limits, and a test
@@ -36,38 +41,72 @@ internal fun filmFragment(
 ): FilterFragment {
   val params = FilmParams.of(film)
   val graded = mutableListOf(FilterBranch(listOf(FilterBranch.INPUT), RgbRoundTrip.opening(), listOf("frame")))
-  val last = if (params.halationGain > 0.0) graded.addHalation(params, frame, "frame") else "frame"
+  val gate = filmGate(params, frame)
+  val lit = graded.addLight(params, frame, "frame", fullChroma = gate != null)
   val grains = params.grainStrength > 0.0
-  check(graded.size > 1 || grains) { "A film with both strengths at 0 is inert and never lowers." }
+  check(graded.size > 1 || grains || gate != null) { "A film with every control at 0 is inert and never lowers." }
+  val drawn = if (grains) graded + drawnGrain(params, frame, lit) else graded
+  val grained = if (grains) GRAINED else lit
+  val liveGrain = if (grains) liveGrain(params, frame, graded, lit) else null
+  val live =
+    when {
+      gate?.live != null -> {
+        LiveBranches(
+          inputs = liveGrain?.inputs.orEmpty() + gate.live.inputs,
+          branches = (liveGrain?.branches ?: graded) + gate.live.branches(grained),
+        )
+      }
+      liveGrain != null -> {
+        LiveBranches(liveGrain.inputs, liveGrain.branches + gate?.drawn(grained).orEmpty())
+      }
+      else -> {
+        null
+      }
+    }
   return FilterFragment(
     readsCompositionClock = true,
-    branches = if (grains) graded + drawnGrain(params, frame, last) else graded,
-    live = if (grains) liveGrain(params, frame, graded, last) else null,
+    branches = drawn + gate?.drawn(grained).orEmpty(),
+    sidecars = gate?.sidecars.orEmpty(),
+    live = live,
   )
 }
 
-private fun MutableList<FilterBranch>.addHalation(
+// The weave, the halation and the flicker in that order, all on gbrap, and the pad the frame's codes come back on,
+// with full chroma when the gate turns them back to RGB.
+private fun MutableList<FilterBranch>.addLight(
   params: FilmParams,
   frame: Size,
   reads: String,
+  fullChroma: Boolean,
 ): String {
+  val weaves = params.weave > 0.0
+  val glows = params.halationGain > 0.0
+  val flickers = params.flicker > 0.0
+  if (!weaves && !glows && !flickers) return reads
+  val woven = if (weaves || (flickers && !glows)) listOf(FilmExpressions.light(params, weaves, !glows)) else emptyList()
+  if (!glows) {
+    add(FilterBranch(listOf(reads), RgbRoundTrip.toRgb() + woven + RgbRoundTrip.toCodes(fullChroma), listOf(LIT)))
+    return LIT
+  }
   val plan = FilmSignal.halationBlurPlan(frame.width)
+  // The frame reaching a Film has square pixels, so one plan blurs both ways.
   val light =
-    listOf(
-      FilterNode("premultiply", "inplace" to "1"),
-      FilterNode("scale", "w" to "${plan.width}", "h" to "${plan.heightOf(frame.height)}", "flags" to "area"),
-      FilmExpressions.response(),
-      // gblur's sigma is in the pixels of the plane it runs on, and every plane here is one size, the plan's.
-      FilterNode("gblur", "sigma" to "${plan.sigmaPx}", "steps" to "$GBLUR_STEPS", "planes" to "$RGB_PLANES"),
-      FilterNode("scale", "w" to "${frame.width}", "h" to "${frame.height}", "flags" to "bilinear"),
-    )
+    SpatialBlurGraph.boxedDown(plan, plan, frame, RGB_FORMAT) +
+      FilmExpressions.response() +
+      SpatialBlurGraph.blurredUp(plan, plan, frame, RGB_FORMAT, RGB_PLANES)
   val add = "clip(0.5+x+${params.halationGain}*y,0,$FULL_SCALE)"
-  val toCodes = listOf(FilterNode("lut2", "c0" to add, "c1" to add, "c2" to add)) + RgbRoundTrip.toCodes()
-  add(FilterBranch(listOf(reads), RgbRoundTrip.toRgb(), listOf("rgb")))
+  val flicker = if (flickers) listOf(FilmExpressions.light(params, weaves = false, flickers = true)) else emptyList()
+  val toCodes =
+    listOf(FilterNode("lut2", "c0" to add, "c1" to add, "c2" to add)) + flicker + RgbRoundTrip.toCodes(fullChroma)
+  add(FilterBranch(listOf(reads), RgbRoundTrip.toRgb() + woven, listOf("rgb")))
   add(FilterBranch(listOf("rgb"), emptyList(), listOf("near", "far")))
-  add(FilterBranch(listOf("far"), light, listOf("glow")))
-  add(FilterBranch(listOf("near", "glow"), toCodes, listOf("glowed")))
-  return "glowed"
+  // The glow is weighed by its alpha through a lut2 reading alpha on every plane.
+  add(FilterBranch(listOf("far"), emptyList(), listOf("weighedlight", "weighedcover")))
+  add(FilterBranch(listOf("weighedcover"), listOf(ALPHA_ON_EVERY_PLANE), listOf("weighedalpha")))
+  add(FilterBranch(listOf("weighedlight", "weighedalpha"), listOf(PREMULTIPLIED), listOf("weighed")))
+  add(FilterBranch(listOf("weighed"), light, listOf("glow")))
+  add(FilterBranch(listOf("near", "glow"), toCodes, listOf(GLOWED)))
+  return GLOWED
 }
 
 private fun drawnGrain(
@@ -77,8 +116,8 @@ private fun drawnGrain(
 ): List<FilterBranch> =
   listOf(
     FilterBranch(listOf(reads), emptyList(), listOf("base", "grainIn")),
-    FilterBranch(listOf("grainIn"), grainMap(frame), listOf("grain")),
-    FilterBranch(listOf("base", "grain"), listOf(FilmExpressions.landGrain(params)), listOf("grained")),
+    FilterBranch(listOf("grainIn"), grainMap(frame, params.seed), listOf("grain")),
+    FilterBranch(listOf("base", "grain"), listOf(FilmExpressions.landGrain(params)), listOf(GRAINED)),
   )
 
 // A live plane runs on past the frames it lands on, so only here does the lut2 stop with the shorter of its inputs.
@@ -99,36 +138,41 @@ private fun liveGrain(
           width = raster.width,
           height = raster.height,
           ticksPerSecond = GRAIN_TICK_RATE,
-          key = "film.grain",
-          planeAt = GrainPlanes(raster.width, raster.height)::at,
+          key = "film.grain.${params.seed}",
+          planeAt = GrainPlanes(raster.width, raster.height, params.seed)::at,
           tickOpening = FilmSignal::grainTickOpening,
         ),
       ),
-    branches = graded + widened + FilterBranch(listOf(reads, "grain"), listOf(land), listOf("grained")),
+    branches = graded + widened + FilterBranch(listOf(reads, "grain"), listOf(land), listOf(GRAINED)),
   )
 }
 
 // A frame whose cells are a whole number of pixels draws its map on the cells and widens it by neighbour, at the same
 // figure. A map reads no input, so its raster is a crop, which copies nothing. Any other frame draws each pixel, since
 // a neighbour scale reads a pixel at its centre where the signal's floor reads its corner.
-private fun grainMap(frame: Size): List<FilterNode> {
+internal fun grainMap(
+  frame: Size,
+  seed: Int = GRAIN_SEED,
+): List<FilterNode> {
   val raster = grainRaster(frame)
-  if (raster == frame) return listOf(FilmExpressions.grainMap(FilmSignal.grainCellSpan(frame.width, frame.height)))
+  if (raster == frame) {
+    return listOf(FilmExpressions.grainMap(FilmSignal.grainCellSpan(frame.width, frame.height), seed = seed))
+  }
   return listOf(
     FilterNode("crop", "w" to "${raster.width}", "h" to "${raster.height}", "x" to "0", "y" to "0"),
-    FilmExpressions.grainMap(GRAIN_CELL_SCALE),
+    FilmExpressions.grainMap(GRAIN_CELL_SCALE, seed = seed),
   ) + raster.widen(frame)
 }
 
 // The size a frame's map is made at, its cells where they are a whole number of pixels and the frame otherwise.
-private fun grainRaster(frame: Size): Size {
+internal fun grainRaster(frame: Size): Size {
   val span = FilmSignal.grainCellSpan(frame.width, frame.height)
   val edge = span / GRAIN_CELL_SCALE
   val whole = span % GRAIN_CELL_SCALE == 0 && edge > 1 && frame.width % edge == 0 && frame.height % edge == 0
   return if (whole) Size(frame.width / edge, frame.height / edge) else frame
 }
 
-private fun Size.widen(frame: Size): List<FilterNode> =
+internal fun Size.widen(frame: Size): List<FilterNode> =
   if (this == frame) {
     listOf(FilterNode("null"))
   } else {
@@ -136,12 +180,13 @@ private fun Size.widen(frame: Size): List<FilterNode> =
   }
 
 /**
- * Draws a raster [width] by [height] of [FilmSignal.grainAt] per tick, at the codes
+ * Draws a raster [width] by [height] of [FilmSignal.grainAt] under [seed] per tick, at the codes
  * [FilmExpressions.grainPlane] writes.
  */
 internal class GrainPlanes(
   private val width: Int,
   private val height: Int,
+  private val seed: Int = GRAIN_SEED,
 ) {
   private val columns = IntArray(width) { FilmSignal.grainCell(it, 0, width, height) }
   private val rows = IntArray(height) { FilmSignal.grainCell(0, it, width, height) }
@@ -151,7 +196,7 @@ internal class GrainPlanes(
     var index = 0
     for (row in rows) {
       for (column in columns) {
-        plane[index++] = (GRAIN_MID_CODE + GRAIN_REACH * FilmSignal.grainAt(row + column, tick)).toInt().toByte()
+        plane[index++] = (GRAIN_MID_CODE + GRAIN_REACH * FilmSignal.grainAt(row + column, tick, seed)).toInt().toByte()
       }
     }
     return plane
@@ -162,15 +207,69 @@ internal class GrainPlanes(
  * Writes [FilmSignal]'s functions as ffmpeg expressions.
  */
 internal object FilmExpressions {
-  private val hash = HashExpression(GRAIN_SEED)
-
   // FilmSignal.grainTickAt of the frame's time.
-  private val clockTick =
+  val clockTick =
     "floor((floor(T*$GRAIN_CLOCK_BASE+$GRAIN_CLOCK_ROUNDING)+$GRAIN_CLOCK_ROUNDING)/$GRAIN_CLOCK_BASE*" +
       "$GRAIN_TICK_RATE+$GRAIN_TICK_MARGIN)"
 
   /**
-   * The `geq` that draws [FilmSignal.grainAt] as an offset from mid scale in luma, with the frame's span in [span].
+   * The `geq` on `gbrap` that reads each pixel at [FilmSignal.weaveAt]'s offset when [weaves], and multiplies it by
+   * [FilmSignal.flickerAt]'s gain, clamped to full scale, when [flickers], at the tick [tick] names.
+   *
+   * The offset and the gain are worked out on a row's first pixel into registers 3, 4 and 5. A woven read takes the
+   * four pixels around its place, each held at the frame's edge, and mixes their colour premultiplied by alpha, so a
+   * clear pixel lends its neighbour no colour. Its alpha is the mix of theirs.
+   */
+  fun light(
+    params: FilmParams,
+    weaves: Boolean,
+    flickers: Boolean,
+    tick: String = clockTick,
+  ): FilterNode {
+    val hash = HashExpression(params.seed)
+    val unit = { pass: Int, knot: String -> "(${hash.hash(pass, knot, "0")})/$HASH_RANGE*2-1" }
+    val reach = { pass: Int, reach: Double, size: String, register: Int ->
+      "st(6,${unit(pass, "ld(9)")});st(7,${unit(pass, "ld(9)+1")});" +
+        "st($register,${params.weave}*$reach*(ld(6)+(ld(7)-ld(6))*ld(8))*$size)"
+    }
+    val weave =
+      "st(9,floor(ld(2)/$WEAVE_KNOT_TICKS));st(8,(ld(2)-ld(9)*$WEAVE_KNOT_TICKS)/$WEAVE_KNOT_TICKS);" +
+        "st(8,ld(8)*ld(8)*(3-2*ld(8)));${reach(PASS_WEAVE_X, WEAVE_REACH_X, "W", 3)};" +
+        reach(PASS_WEAVE_Y, WEAVE_REACH_Y, "H", 4)
+    val gain = "st(5,1+$FLICKER_DEPTH*${params.flicker}*(${unit(PASS_FLICKER, "ld(2)")}))"
+    val row = "if(X,0,st(2,$tick);${listOfNotNull(
+      weave.takeIf { weaves },
+      gain.takeIf { flickers },
+    ).joinToString(";")})"
+    val at =
+      "st(6,X+ld(3));st(7,Y+ld(4));st(8,floor(ld(6)));st(9,floor(ld(7)));st(6,ld(6)-ld(8));st(7,ld(7)-ld(9))"
+    val corners =
+      listOf(Triple("(1-ld(6))*(1-ld(7))", 0, 0), Triple("ld(6)*(1-ld(7))", 1, 0))
+        .plus(listOf(Triple("(1-ld(6))*ld(7)", 0, 1), Triple("ld(6)*ld(7)", 1, 1)))
+    val tap = { plane: String, dx: Int, dy: Int -> "$plane(clip(ld(8)+$dx,0,W-1),clip(ld(9)+$dy,0,H-1))" }
+    val coverage = corners.joinToString("+") { (weight, dx, dy) -> "$weight*${tap("alpha", dx, dy)}" }
+    val read = { plane: String ->
+      if (weaves) {
+        val mixed =
+          corners.joinToString(
+            "+",
+          ) { (weight, dx, dy) -> "$weight*${tap(plane, dx, dy)}*${tap("alpha", dx, dy)}" }
+        "$at;st(2,$coverage);if(gt(ld(2),0),($mixed)/ld(2),0)"
+      } else {
+        "$plane(X,Y)"
+      }
+    }
+    val lit = { plane: String ->
+      val value = if (flickers) "min($FULL_SCALE,(${read(plane)})*ld(5))" else read(plane)
+      "$row;clip(0.5+$value,0,$FULL_SCALE)"
+    }
+    val alpha = if (weaves) "$row;$at;clip(0.5+$coverage,0,$FULL_SCALE)" else "alpha(X,Y)"
+    return FilterNode("geq", "r" to lit("r"), "g" to lit("g"), "b" to lit("b"), "a" to alpha, "i" to "nearest")
+  }
+
+  /**
+   * The `geq` that draws [FilmSignal.grainAt] under [seed] as an offset from mid scale in luma, with the frame's span
+   * in [span].
    *
    * Registers 2 and 3 hold each draw's state for the frame and 4 the row's first cell, worked out on the row's first
    * pixel, and the rest of the row only runs the end of each hash.
@@ -178,10 +277,11 @@ internal object FilmExpressions {
   fun grainMap(
     span: Int,
     tick: String = clockTick,
+    seed: Int = GRAIN_SEED,
   ): FilterNode =
     FilterNode(
       "geq",
-      "lum" to grainPlane(span, tick),
+      "lum" to grainPlane(span, tick, seed),
       "cb" to "$MID_SCALE",
       "cr" to "$MID_SCALE",
     )
@@ -192,7 +292,9 @@ internal object FilmExpressions {
   fun grainPlane(
     span: Int,
     tick: String,
+    seed: Int = GRAIN_SEED,
   ): String {
+    val hash = HashExpression(seed)
     val row =
       "if(X,0,st(2,${hash.state(PASS_GRAIN_FIRST, tick)});st(3,${hash.state(PASS_GRAIN_SECOND, tick)});" +
         "st(4,floor(Y*$GRAIN_CELL_SCALE/$span)*$GRAIN_CELLS_ACROSS))"
@@ -237,17 +339,39 @@ internal object FilmExpressions {
   }
 }
 
-// The most gblur takes, and the closest it lands to a Gaussian. Its recursive filter is ffmpeg's limit past this.
-private const val GBLUR_STEPS = 6
+private const val RGB_FORMAT = "gbrap"
+
+// Each colour code weighed by its alpha code over 256 and rounded, where ffmpeg's premultiply lands on eight bits.
+private const val WEIGHED_CODE = "floor((x*y+128)/256)"
+private val PREMULTIPLIED =
+  FilterNode(
+    "lut2",
+    "c0" to WEIGHED_CODE,
+    "c1" to WEIGHED_CODE,
+    "c2" to WEIGHED_CODE,
+    "c3" to "x",
+  )
+private val ALPHA_ON_EVERY_PLANE =
+  FilterNode(
+    "mergeplanes",
+    *(0 until RGBA_PLANES).flatMap { listOf("map${it}s" to "0", "map${it}p" to "${RGBA_PLANES - 1}") }.toTypedArray(),
+    "format" to RGB_FORMAT,
+  )
+private const val RGBA_PLANES = 4
 private const val RGB_PLANES = 7
 private const val FULL_SCALE = 255
 private const val LUMA_BLACK = 16
 private const val LUMA_CODES = 219
-private const val MID_SCALE = 128
 
 // Where a grain of nothing lands, half a code above mid scale so a truncation rounds.
 private const val GRAIN_MID_CODE = 128.5
 private const val GRAIN_PLANE = "grainPlane"
+private const val LIT = "lit"
+private const val GLOWED = "glowed"
+private const val GRAINED = "grained"
+
+// Mid scale, the code a chroma plane holds for no colour and the grain map holds for no grain.
+internal const val MID_SCALE = 128
 
 // The grain map's codes span this much either side of mid scale.
-private const val GRAIN_REACH = 127.0
+internal const val GRAIN_REACH = 127.0

@@ -1,34 +1,16 @@
 package dev.jordond.filmstrip.effects.filters.film
 
-import dev.jordond.filmstrip.edit.TimeRange
-import dev.jordond.filmstrip.effect.Attributes
+import dev.jordond.filmstrip.color.BlurPlan
 import dev.jordond.filmstrip.effect.EffectResolution
 import dev.jordond.filmstrip.effect.FrameInfo
-import dev.jordond.filmstrip.effects.color.createCodeSpace
-import dev.jordond.filmstrip.geometry.Size
-import dev.jordond.filmstrip.media.ColorSpace
+import dev.jordond.filmstrip.effects.spatial.blurredWithin
 import io.kotest.assertions.withClue
 import io.kotest.matchers.doubles.plusOrMinus
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.cinterop.ExperimentalForeignApi
-import kotlinx.cinterop.addressOf
-import kotlinx.cinterop.convert
-import kotlinx.cinterop.usePinned
-import platform.CoreGraphics.CGColorSpaceRelease
 import platform.CoreGraphics.CGRectMake
-import platform.CoreGraphics.CGSizeMake
-import platform.CoreImage.CIContext
-import platform.CoreImage.CIImage
-import platform.CoreImage.kCIContextWorkingFormat
-import platform.CoreImage.kCIFormatRGBAf
-import platform.Foundation.NSData
-import platform.Foundation.NSDictionary
-import platform.Foundation.NSNumber
-import platform.Foundation.NSString
-import platform.Foundation.create
-import platform.Foundation.dictionaryWithObject
 import kotlin.math.abs
 import kotlin.test.Test
 import kotlin.time.Duration.Companion.seconds
@@ -40,20 +22,19 @@ import kotlin.time.Duration.Companion.seconds
  * Rows of a render come back from the top.
  */
 @OptIn(ExperimentalForeignApi::class)
-@Suppress("UNCHECKED_CAST")
 class FilmCoreImageHardwareTest {
   @Test
   fun `core image's blur lands within two codes of the plan's kernel`() {
     val plan = FilmSignal.halationBlurPlan(BLUR_WIDTH)
-    val patch = imageOf(BLUR_WIDTH, BLUR_HEIGHT) { x, y -> if (inPatch(x, y)) WHITE else CLEAR_BLACK }
+    val patch = filmImageOf(BLUR_WIDTH, BLUR_HEIGHT) { x, y -> if (inPatch(x, y)) WHITE else CLEAR_BLACK }
     val small = CGRectMake(0.0, 0.0, BLUR_WIDTH.toDouble(), BLUR_HEIGHT.toDouble())
-    val frame = rendered(blurredGlow(patch, plan.sigmaPx, small), BLUR_WIDTH, BLUR_HEIGHT)
+    val frame = filmRendered(patch.blurredWithin(plan.sigmaPx, small), BLUR_WIDTH, BLUR_HEIGHT)
 
     var worst = 0.0
     for (y in 0 until BLUR_HEIGHT step READ_STEP) {
       for (x in 0 until BLUR_WIDTH step READ_STEP) {
         val expected = planBlur(plan, x, y)
-        worst = maxOf(worst, abs(frame[(y * BLUR_WIDTH + x) * CHANNELS].toDouble() - expected))
+        worst = maxOf(worst, abs(frame[(y * BLUR_WIDTH + x) * FILM_CHANNELS].toDouble() - expected))
       }
     }
     withClue("the worst read landed ${worst * FULL} codes off") { (worst * FULL < BLUR_CODES) shouldBe true }
@@ -133,12 +114,13 @@ class FilmCoreImageHardwareTest {
     val film = Film(grain = 1f, halation = 1f)
     val picture = floatArrayOf(PATCH[0].toFloat(), PATCH[1].toFloat(), PATCH[2].toFloat(), 1f)
     val canvas =
-      imageOf(WIDTH, HEIGHT) { x, _ -> if (x in CANVAS_LEFT until CANVAS_RIGHT) picture else CLEAR_BLACK }
+      filmImageOf(WIDTH, HEIGHT) { x, _ -> if (x in CANVAS_LEFT until CANVAS_RIGHT) picture else CLEAR_BLACK }
     val step = filmStep(film)
-    val frame = rendered(step.apply(canvas, FrameInfo(attributes(WIDTH, HEIGHT), SECONDS.seconds)), WIDTH, HEIGHT)
+    val frame =
+      filmRendered(step.apply(canvas, FrameInfo(filmAttributes(WIDTH, HEIGHT), SECONDS.seconds)), WIDTH, HEIGHT)
 
     val y = HEIGHT / 2
-    val at = { x: Int, channel: Int -> frame[(y * WIDTH + x) * CHANNELS + channel].toDouble() }
+    val at = { x: Int, channel: Int -> frame[(y * WIDTH + x) * FILM_CHANNELS + channel].toDouble() }
     withClue("a bar stays clear") {
       at(CANVAS_LEFT / 2, ALPHA) shouldBe (0.0 plusOrMinus TOLERANCE)
       at(CANVAS_LEFT / 2, 0) shouldBe (0.0 plusOrMinus TOLERANCE)
@@ -190,7 +172,7 @@ class FilmCoreImageHardwareTest {
     listOf(height / 8, height / 3, height / 2 + height / 16, height - 2).forEach { y ->
       columns.forEach { x ->
         val wanted = expected(x, y, codesAt(x, y, width, height))
-        val at = (y * width + x) * CHANNELS
+        val at = (y * width + x) * FILM_CHANNELS
         wanted.forEachIndexed { channel, value ->
           withClue("row $y column $x channel $channel of a ${width}x$height frame") {
             frame[at + channel].toDouble() shouldBe (value plusOrMinus tolerance)
@@ -219,7 +201,7 @@ class FilmCoreImageHardwareTest {
   ) = x in BLUR_LEFT until BLUR_RIGHT && y in BLUR_TOP until BLUR_BOTTOM
 
   private fun planBlur(
-    plan: WideBlurPlan,
+    plan: BlurPlan,
     x: Int,
     y: Int,
   ): Double {
@@ -238,85 +220,15 @@ class FilmCoreImageHardwareTest {
     seconds: Double = SECONDS,
   ): FloatArray {
     val image =
-      imageOf(width, height) { x, y ->
+      filmImageOf(width, height) { x, y ->
         val codes = codesAt(x, y, width, height)
         floatArrayOf(codes[0].toFloat(), codes[1].toFloat(), codes[2].toFloat(), 1f)
       }
-    return rendered(filmStep(film).apply(image, FrameInfo(attributes(width, height), seconds.seconds)), width, height)
-  }
-
-  private fun attributes(
-    width: Int,
-    height: Int,
-  ) = Attributes(
-    inputSize = Size(width, height),
-    outputSize = Size(width, height),
-    layoutSize = Size(width, height),
-    colorSpace = ColorSpace.Bt709,
-    hdrTransfer = null,
-    frameRate = 30f,
-    span = TimeRange(0.seconds, 4.seconds),
-  )
-
-  private fun rendered(
-    image: CIImage,
-    width: Int,
-    height: Int,
-  ): FloatArray {
-    val values = FloatArray(width * height * CHANNELS)
-    val space = ColorSpace.Bt709.createCodeSpace()
-    try {
-      values.usePinned { pinned ->
-        floatContext().render(
-          image,
-          toBitmap = pinned.addressOf(0),
-          rowBytes = (width * CHANNELS * Float.SIZE_BYTES).toLong(),
-          bounds = CGRectMake(0.0, 0.0, width.toDouble(), height.toDouble()),
-          format = kCIFormatRGBAf,
-          colorSpace = space,
-        )
-      }
-    } finally {
-      CGColorSpaceRelease(space)
-    }
-    return values
-  }
-
-  // Core Image works in half floats unless told otherwise, whose rounding around 0.5 is wider than a read of 1e-4.
-  private fun floatContext(): CIContext {
-    val options =
-      NSDictionary.dictionaryWithObject(NSNumber(int = kCIFormatRGBAf), forKey = kCIContextWorkingFormat as NSString)
-    return CIContext.contextWithOptions(options as Map<Any?, *>)
-  }
-
-  // Rows of the bitmap run from the top, where [pixel] counts its y.
-  private fun imageOf(
-    width: Int,
-    height: Int,
-    pixel: (Int, Int) -> FloatArray,
-  ): CIImage {
-    val values = FloatArray(width * height * CHANNELS)
-    for (y in 0 until height) {
-      for (x in 0 until width) {
-        pixel(x, y).copyInto(values, (y * width + x) * CHANNELS)
-      }
-    }
-    val space = ColorSpace.Bt709.createCodeSpace()
-    try {
-      val data =
-        values.usePinned { pinned ->
-          NSData.create(bytes = pinned.addressOf(0), length = (values.size * Float.SIZE_BYTES).convert())
-        }
-      return CIImage.imageWithBitmapData(
-        data,
-        bytesPerRow = (width * CHANNELS * Float.SIZE_BYTES).convert(),
-        size = CGSizeMake(width.toDouble(), height.toDouble()),
-        format = kCIFormatRGBAf,
-        colorSpace = space,
-      )
-    } finally {
-      CGColorSpaceRelease(space)
-    }
+    return filmRendered(
+      filmStep(film).apply(image, FrameInfo(filmAttributes(width, height), seconds.seconds)),
+      width,
+      height,
+    )
   }
 
   private companion object {
@@ -335,7 +247,6 @@ class FilmCoreImageHardwareTest {
     const val BLUR_TOP = 120
     const val BLUR_BOTTOM = 152
     const val READ_STEP = 7
-    const val CHANNELS = 4
     const val ALPHA = 3
     const val FULL = 255.0
     const val SECONDS = 25.0

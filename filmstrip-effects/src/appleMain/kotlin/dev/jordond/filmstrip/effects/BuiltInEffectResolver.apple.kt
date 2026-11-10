@@ -36,6 +36,9 @@ import dev.jordond.filmstrip.effects.overlay.frameWithin
 import dev.jordond.filmstrip.effects.overlay.placedOn
 import dev.jordond.filmstrip.effects.overlay.rasterizeText
 import dev.jordond.filmstrip.effects.overlay.resolvedFrom
+import dev.jordond.filmstrip.effects.spatial.GaussianBlur
+import dev.jordond.filmstrip.effects.spatial.Vignette
+import dev.jordond.filmstrip.effects.spatial.toStep
 import dev.jordond.filmstrip.geometry.FlipAxis
 import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.media.ImageSource
@@ -78,6 +81,8 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
       is CropRect -> step { image, _ -> image.cropped(spec.rect) }
       is KenBurns -> spec.toStep()
       is Scale -> step { image, _ -> image.scaledToHeight(spec.heightPx) }
+      is GaussianBlur -> spec.toStep()
+      is Vignette -> spec.toStep()
       is ImageOverlay -> spec.toOverlay(attributes)
       is TextOverlay -> spec.toOverlay(capabilities, attributes)
       else -> spec.toColorStep()

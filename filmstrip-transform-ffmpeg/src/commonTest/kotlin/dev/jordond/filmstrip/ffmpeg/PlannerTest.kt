@@ -30,8 +30,10 @@ import dev.jordond.filmstrip.effects.color.Invert
 import dev.jordond.filmstrip.effects.filters.FilterEffectResolver
 import dev.jordond.filmstrip.effects.filters.crt.Crt
 import dev.jordond.filmstrip.effects.filters.film.Film
+import dev.jordond.filmstrip.effects.filters.glitch.Glitch
 import dev.jordond.filmstrip.effects.filters.lut.CubeLut
 import dev.jordond.filmstrip.effects.filters.lut.Lut
+import dev.jordond.filmstrip.effects.filters.nightvision.NightVision
 import dev.jordond.filmstrip.effects.filters.vhs.Vhs
 import dev.jordond.filmstrip.effects.geometry.Crop
 import dev.jordond.filmstrip.effects.geometry.CropRect
@@ -584,6 +586,27 @@ class PlannerTest {
   }
 
   @Test
+  fun `refuses a night vision by name on a build missing any filter it lowers`() {
+    val composition = Composition(listOf(Track(listOf(Clip(landscape)))), listOf(NightVision()))
+    val named = NIGHT_VISION_FILTERS + TONE_MAPPING
+    val spec = ExportSpec(heightPx = 720)
+    val resolvers = listOf(BuiltInEffectResolver(), FilterEffectResolver())
+
+    FfmpegPlanner(toolchain(named), resolvers).lower(composition, Ask(spec, device(), infos)).graph.shouldNotBeNull()
+
+    NIGHT_VISION_FILTERS.forEach { filter ->
+      val verdict =
+        FfmpegPlanner(toolchain(named - filter), resolvers).lower(composition, Ask(spec, device(), infos)).verdict
+      withClue(filter) {
+        val reason = verdict.shouldBeInstanceOf<Verdict.Incapable>().reasons.single()
+        val message = reason.shouldBeInstanceOf<FilmstripError.InvalidComposition>().message
+        message shouldContain filter
+        message shouldContain NightVision.ID
+      }
+    }
+  }
+
+  @Test
   fun `refuses a vhs by name on a build missing any filter it lowers`() {
     val composition = Composition(listOf(Track(listOf(Clip(landscape)))), listOf(Vhs()))
     val named = VHS_FILTERS + TONE_MAPPING
@@ -605,6 +628,27 @@ class PlannerTest {
   }
 
   @Test
+  fun `refuses a glitch by name on a build missing any filter it lowers`() {
+    val composition = Composition(listOf(Track(listOf(Clip(landscape)))), listOf(Glitch()))
+    val named = GLITCH_FILTERS + TONE_MAPPING
+    val spec = ExportSpec(heightPx = 720)
+    val resolvers = listOf(BuiltInEffectResolver(), FilterEffectResolver())
+
+    FfmpegPlanner(toolchain(named), resolvers).lower(composition, Ask(spec, device(), infos)).graph.shouldNotBeNull()
+
+    GLITCH_FILTERS.forEach { filter ->
+      val verdict =
+        FfmpegPlanner(toolchain(named - filter), resolvers).lower(composition, Ask(spec, device(), infos)).verdict
+      withClue(filter) {
+        val reason = verdict.shouldBeInstanceOf<Verdict.Incapable>().reasons.single()
+        val message = reason.shouldBeInstanceOf<FilmstripError.InvalidComposition>().message
+        message shouldContain filter
+        message shouldContain Glitch.ID
+      }
+    }
+  }
+
+  @Test
   fun `names every filter a fragment leaves to the backend`() {
     val branched =
       FilterFragment(
@@ -613,8 +657,10 @@ class PlannerTest {
       )
     val cropped = FilterFragment(crop = FilterCrop("1", "1"))
     val lanes = FilterFragment(chain = listOf(FilterNode(PlaneLanes.NAME)))
+    val clocked = FilterFragment(chain = listOf(FilterNode("geq")), readsCompositionClock = true)
 
     branched.filterNames() shouldBe setOf("split", "setpts")
+    clocked.filterNames() shouldBe setOf("geq", "setpts")
     cropped.filterNames() shouldBe setOf("split", "crop", "overlay")
     lanes.filterNames() shouldBe setOf("format", "extractplanes", "mergeplanes")
   }
@@ -953,13 +999,17 @@ class PlannerTest {
     verdict.adjustments.map { it.kind } shouldBe listOf(AdjustmentKind.ResolutionClamped)
   }
 
-  // This backend reports its own parity: Scale and TextOverlay are not Exact here.
+  // This backend reports its own parity: Scale, TextOverlay, GaussianBlur and Vignette are not Exact here.
   @Test
   fun `reports its own parity and not the mobile table`() {
     FfmpegParity.of(EffectIds.SCALE) shouldBe EffectParity.Approximate
     FfmpegParity.of(EffectIds.ROTATE) shouldBe EffectParity.Exact
     FfmpegParity.of(EffectIds.BRIGHTNESS) shouldBe EffectParity.Exact
     FfmpegParity.of(EffectIds.TEXT_OVERLAY) shouldBe EffectParity.Approximate
+    FfmpegParity.of(EffectIds.GAUSSIAN_BLUR) shouldBe EffectParity.Approximate
+    FfmpegParity.of(EffectIds.VIGNETTE) shouldBe EffectParity.Approximate
+    FfmpegParity.noteFor(EffectIds.GAUSSIAN_BLUR).shouldNotBeNull()
+    FfmpegParity.noteFor(EffectIds.VIGNETTE).shouldNotBeNull()
   }
 
   // Every color matrix lowers to a table ffmpeg evaluates exactly, whether it is the per-channel

@@ -4,7 +4,6 @@ import dev.jordond.filmstrip.effects.filters.crt.Crt
 import dev.jordond.filmstrip.effects.filters.crt.CrtParams
 import dev.jordond.filmstrip.effects.filters.crt.CrtSignal
 import kotlin.math.abs
-import kotlin.math.floor
 import kotlin.math.max
 
 // Worst measured: 2.75 on luma on an interior read on ffmpeg 9.0.2 arm64, and 2.34 on chroma on 8.0.1 x86_64. Only the
@@ -40,8 +39,8 @@ internal fun crtMissOf(
   val height = frame.height
   val params = CrtParams.of(crt)
   val wanted = { x: Int, y: Int ->
-    CrtSignal.pixelAt((x + 0.5) / width, (y + 0.5) / height, width, height, params) { u, v ->
-      plain.bilinear(width, height, u, v)
+    CrtSignal.pixelAt((x + 0.5) / width, (y + 0.5) / height, width, height, params) { column, row ->
+      DoubleArray(RGB_CHANNELS) { plain.channelAt(width, column, row, it) / FULL }
     }
   }
   val rows =
@@ -93,29 +92,6 @@ private fun readsAcross(
   val atEdge = listOf(edge - 1, edge, edge + 1, size - edge - 2, size - edge - 1, size - edge)
   val middle = (-MIDDLE_READS..MIDDLE_READS).map { size / 2 + it }
   return (spread + atEdge + middle).filter { it in 0 until size }.distinct()
-}
-
-// The frame read the way the lowering and a texture filter do, between pixel centres and clamped at the edge.
-private fun ByteArray.bilinear(
-  width: Int,
-  height: Int,
-  u: Double,
-  v: Double,
-): DoubleArray {
-  val x = u * width - 0.5
-  val y = v * height - 0.5
-  val left = floor(x).toInt()
-  val top = floor(y).toInt()
-  val across = x - left
-  val down = y - top
-  val texel = { column: Int, row: Int, channel: Int ->
-    channelAt(width, column.coerceIn(0, width - 1), row.coerceIn(0, height - 1), channel) / FULL
-  }
-  return DoubleArray(RGB_CHANNELS) {
-    val upper = texel(left, top, it) + (texel(left + 1, top, it) - texel(left, top, it)) * across
-    val lower = texel(left, top + 1, it) + (texel(left + 1, top + 1, it) - texel(left, top + 1, it)) * across
-    upper + (lower - upper) * down
-  }
 }
 
 private fun lumaOf(rgb: DoubleArray): Double =

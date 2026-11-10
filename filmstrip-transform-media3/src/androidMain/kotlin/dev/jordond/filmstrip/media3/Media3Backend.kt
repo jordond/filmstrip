@@ -89,5 +89,7 @@ private val MEDIA3_PARITY: Map<String, EffectParity> =
     EffectIds.INVERT to EffectParity.Exact,
     EffectIds.COLOR_MATRIX to EffectParity.Exact,
     EffectIds.IMAGE_OVERLAY to EffectParity.Exact,
+    EffectIds.GAUSSIAN_BLUR to EffectParity.Exact,
+    EffectIds.VIGNETTE to EffectParity.Exact,
     EffectIds.TEXT_OVERLAY to EffectParity.Approximate,
   )

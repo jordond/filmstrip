@@ -163,7 +163,9 @@ class AndroidCrtMediaTest {
     val plain = probe.writtenBy(probe.finish(probe.plan(edit(listOf(crop), plainFill), spec)))
     val rect = placementOf(SOURCE, listOf(listOf(crop)), plan.output.size).drawnRect
 
-    val fx = rect.right + (1f - rect.right) / 2f
+    // The left bar comes before the picture in the encoder's scan. A bar after it is predicted off the picture's edge
+    // and carries a code of whatever the encoder made of that edge, so it reads the edge rather than the bar.
+    val fx = rect.left / 2f
     val read = written.rgbAt(fx, 0.5f)
     val wanted = plain.rgbAt(fx, 0.5f)
     withClue("the bar read $read against $wanted") {

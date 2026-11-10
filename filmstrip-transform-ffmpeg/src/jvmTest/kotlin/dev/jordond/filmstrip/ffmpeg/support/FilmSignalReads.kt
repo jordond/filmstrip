@@ -7,6 +7,7 @@ import dev.jordond.filmstrip.effects.filters.film.HalationGlow
 import io.kotest.assertions.withClue
 import io.kotest.matchers.doubles.shouldBeLessThan
 import kotlin.math.abs
+import kotlin.math.floor
 
 internal const val FILM_READ_SLOT = 12
 
@@ -30,35 +31,48 @@ internal class FilmRead(
 /**
  * Reads [frame] of [film] against [FilmSignal] over [plain], a render of the same clip with no film on it.
  *
- * The glow's source and the pixel under it both come from [plain]. Two pixels hold the same chroma on a 4:2:0 frame, so
- * the columns sit [EDGE_MARGIN] off the picture's edge at the middle of the frame.
+ * The glow's source and the pixel under it both come from [plain], read where [FilmSignal.weaveAt] moves the pixel.
+ * Two pixels hold the same chroma on a 4:2:0 frame, so the columns sit [EDGE_MARGIN] off the picture's edge at the
+ * middle of the frame. Each of [extra] is read as well, and every read is taken at the grain's [tick].
  */
 internal fun filmReads(
   frame: Yuv420Frame,
   plain: Yuv420Frame,
   film: Film,
+  extra: List<Pair<Int, Int>> = emptyList(),
+  tick: Int = filmReadTick(),
 ): List<FilmRead> {
   val width = frame.width
   val height = frame.height
   val params = FilmParams.of(film)
-  val glow = if (params.halationGain > 0.0) HalationGlow.of(width, height, plain::rgbAt) else null
-  val tick = FilmSignal.grainTickAt(FILM_READ_SLOT.toDouble() / FILTER_RATE)
+  val offset = FilmSignal.weaveAt(params.seed, tick, params.weave)
+  val moved = { x: Int, y: Int -> plain.rgbBetween(x + offset[0] * width, y + offset[1] * height) }
+  val glow = if (params.halationGain > 0.0) HalationGlow.of(width, height, moved) else null
   val columns = listOf(2, width / 4, width / 2 - EDGE_MARGIN, width / 2 + EDGE_MARGIN, 3 * width / 4, width - 3)
-  return listOf(2, height / 3, height / 2, height - 3).flatMap { y ->
-    columns.flatMap { x ->
-      val codes = plain.rgbAt(x, y)
-      val wanted =
-        planeCodesOf(
-          FilmSignal.pixelAt(
-            codes[0],
-            codes[1],
-            codes[2],
-            glow?.at(x, y) ?: doubleArrayOf(0.0, 0.0, 0.0),
-            FilmSignal.grainCell(x, y, width, height),
-            tick,
-            params,
-          ),
-        )
+  val points = listOf(2, height / 3, height / 2, height - 3).flatMap { y -> columns.map { x -> x to y } } + extra
+  val pixel = { x: Int, y: Int ->
+    val codes = moved(x, y)
+    planeCodesOf(
+      FilmSignal.pixelAt(
+        codes[0],
+        codes[1],
+        codes[2],
+        glow?.at(x, y) ?: doubleArrayOf(0.0, 0.0, 0.0),
+        FilmSignal.grainCell(x, y, width, height),
+        tick,
+        params,
+        (x + HALF) / width,
+        (y + HALF) / height,
+        width.toDouble() / height,
+      ),
+    )
+  }
+  return points.flatMap { (x, y) ->
+    run {
+      // A chroma sample holds the mean of the two by two pixels it covers.
+      val block = listOf(0 to 0, 1 to 0, 0 to 1, 1 to 1).map { (dx, dy) -> pixel(x / 2 * 2 + dx, y / 2 * 2 + dy) }
+      val own = pixel(x, y)
+      val wanted = DoubleArray(PLANES.size) { plane -> if (plane == 0) own[0] else block.sumOf { it[plane] } / 4 }
       val read = frame.planeCodesAt(x, y)
       PLANES.indices.map { plane ->
         FilmRead(
@@ -78,9 +92,33 @@ internal fun assertFilmLanded(
   frame: Yuv420Frame,
   plain: Yuv420Frame,
   film: Film,
-) = filmReads(frame, plain, film).forEach { read ->
+  extra: List<Pair<Int, Int>> = emptyList(),
+  tick: Int = filmReadTick(),
+) = filmReads(frame, plain, film, extra, tick).forEach { read ->
   withClue(read.label) { read.miss shouldBeLessThan read.limit }
 }
+
+/**
+ * The tick [filmReads] reads a frame at.
+ */
+internal fun filmReadTick(): Int = FilmSignal.grainTickAt(FILM_READ_SLOT.toDouble() / FILTER_RATE)
+
+// The exact decode between the four pixels around x, y, each held at the frame's edge, the way the weave reads.
+private fun Yuv420Frame.rgbBetween(
+  x: Double,
+  y: Double,
+): DoubleArray {
+  val left = floor(x).toInt()
+  val top = floor(y).toInt()
+  val fx = x - left
+  val fy = y - top
+  val at = { tx: Int, ty: Int -> rgbAt(tx.coerceIn(0, width - 1), ty.coerceIn(0, height - 1)) }
+  val near = at(left, top).zip(at(left + 1, top)) { a, b -> a + (b - a) * fx }
+  val far = at(left, top + 1).zip(at(left + 1, top + 1)) { a, b -> a + (b - a) * fx }
+  return DoubleArray(near.size) { near[it] + (far[it] - near[it]) * fy }
+}
+
+private const val HALF = 0.5
 
 /**
  * The luma, Cb and Cr codes the unit [rgb] encodes to in 8 bit limited range BT.709.

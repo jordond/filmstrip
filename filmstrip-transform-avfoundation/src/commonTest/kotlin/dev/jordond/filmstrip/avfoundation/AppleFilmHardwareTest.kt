@@ -134,6 +134,19 @@ class AppleFilmHardwareTest {
     }
 
   @Test
+  fun `an overlay at the same scope stays clean under super 8`() =
+    runTest(timeout = TIMEOUT) {
+      val source = flatClip("dark", DARK)
+      val swatch = swatch()
+
+      val plain = redOfSwatch(Composition(listOf(Track(listOf(Clip(source)))), listOf(swatch)), "super8-plain")
+      val filmed =
+        redOfSwatch(Composition(listOf(Track(listOf(Clip(source)))), listOf(swatch, Film.Super8)), "super8-film")
+
+      withClue("the swatch read $filmed against $plain") { abs(filmed - plain) shouldBeLessThan WRITTEN_COLOUR_CODES }
+    }
+
+  @Test
   fun `a clip overlay under a composition film is burned`() =
     runTest(timeout = TIMEOUT) {
       val clip = Clip(flatClip("dark", DARK), effects = listOf(swatch()))

@@ -20,11 +20,12 @@ import dev.jordond.filmstrip.effects.BuiltInEffectResolver
 import dev.jordond.filmstrip.effects.overlay.ImageOverlay
 import dev.jordond.filmstrip.ffmpeg.support.HdrGrid
 import dev.jordond.filmstrip.ffmpeg.support.HdrRender.CAPABILITIES
-import dev.jordond.filmstrip.ffmpeg.support.HdrRender.FLOAT_RGB
+import dev.jordond.filmstrip.ffmpeg.support.HdrRender.FLOAT_RGBA
 import dev.jordond.filmstrip.ffmpeg.support.HdrRender.FRAME_YUV
 import dev.jordond.filmstrip.ffmpeg.support.HdrRender.GRADE_YUV
+import dev.jordond.filmstrip.ffmpeg.support.HdrRender.GRADE_YUVA
 import dev.jordond.filmstrip.ffmpeg.support.HdrRender.SIDE
-import dev.jordond.filmstrip.ffmpeg.support.HdrRender.WIDE_YUV
+import dev.jordond.filmstrip.ffmpeg.support.HdrRender.WIDE_YUVA
 import dev.jordond.filmstrip.ffmpeg.support.HdrRender.attributes
 import dev.jordond.filmstrip.ffmpeg.support.OverlayConstants.OVERLAY_SIZE
 import dev.jordond.filmstrip.ffmpeg.support.RawFrame
@@ -38,6 +39,7 @@ import dev.jordond.filmstrip.ffmpeg.support.planarFloats
 import dev.jordond.filmstrip.ffmpeg.support.planarShorts
 import dev.jordond.filmstrip.ffmpeg.support.pngOf
 import dev.jordond.filmstrip.ffmpeg.support.rendered
+import dev.jordond.filmstrip.ffmpeg.support.withoutAlpha
 import dev.jordond.filmstrip.ffmpeg.support.written
 import dev.jordond.filmstrip.geometry.Corner
 import dev.jordond.filmstrip.media.HdrTransfer
@@ -76,8 +78,8 @@ class FfmpegOverlayHdrGraphMediaTest {
         val post = fragmentOn(transfer).post
         COLORS.mapNotNull { color ->
           val light = authoredHdrNits(color).map { it / transfer.peakNits }
-          val source = "format=$FLOAT_RGB,geq=r=${light[0]}:g=${light[1]}:b=${light[2]}"
-          val read = flatCodes(rendered(source, post, GRADE_YUV), SIDE)
+          val source = "format=$FLOAT_RGBA,geq=r=${light[0]}:g=${light[1]}:b=${light[2]}:a=1"
+          val read = flatCodes(rendered(source, post, GRADE_YUVA).withoutAlpha(GRADE_YUVA), SIDE)
           val expected = tenBitCodesFromSignal(transfer.signalFromNits(authoredHdrNits(color)))
           miss(read, expected, "$transfer ${hex(color)}")
         }
@@ -99,8 +101,9 @@ class FfmpegOverlayHdrGraphMediaTest {
         val post = fragmentOn(transfer).post
         val nits = cells.map { transfer.nitsFromSignal(it.second) }
         val light = (0..2).map { channel -> ramp(nits.map { it[channel] / transfer.peakNits }) }
-        val source = "format=$FLOAT_RGB,geq=r='${light[0]}':g='${light[1]}':b='${light[2]}'"
-        val read = rampCodes(rendered(source, post, GRADE_YUV, cells.size * CELL, CELL_HEIGHT), cells.size)
+        val source = "format=$FLOAT_RGBA,geq=r='${light[0]}':g='${light[1]}':b='${light[2]}':a=1"
+        val ramp = rendered(source, post, GRADE_YUVA, cells.size * CELL, CELL_HEIGHT).withoutAlpha(GRADE_YUVA)
+        val read = rampCodes(ramp, cells.size)
         cells.indices.mapNotNull { cell ->
           val expected = tenBitCodesFromSignal(transfer.signalFromNits(nits[cell]))
           read[cell].firstNotNullOfOrNull { miss(it, expected, "$transfer ${cells[cell].first}") }
@@ -122,11 +125,18 @@ class FfmpegOverlayHdrGraphMediaTest {
       HdrTransfer.entries.flatMap { transfer ->
         val whole = fragmentOn(transfer).post
         withClue("$transfer: the encode ends on 4:2:0") {
-          whole.last() shouldBe FilterNode("format", "pix_fmts" to GRADE_YUV)
+          whole.last() shouldBe FilterNode("format", "pix_fmts" to GRADE_YUVA)
         }
         val nits = GRID.map { transfer.nitsFromSignal(it) }
-        val light = planarFloats(listOf(1, 2, 0).map { channel -> nits.map { it[channel] / transfer.peakNits } })
-        val read = gridSamples(RawFrame(light, FLOAT_RGB).rendered(whole.dropLast(1), WIDE_YUV), GRID.size)
+        val light =
+          planarFloats(
+            listOf(1, 2, 0).map { channel -> nits.map { it[channel] / transfer.peakNits } } + listOf(listOf(1f)),
+          )
+        val read =
+          gridSamples(
+            RawFrame(light, FLOAT_RGBA).rendered(whole.dropLast(1), WIDE_YUVA).withoutAlpha(WIDE_YUVA),
+            GRID.size,
+          )
         GRID.indices.mapNotNull { pixel ->
           val codes = IntArray(3) { (read[it][pixel] + TEN_TO_SIXTEEN_BITS / 2) / TEN_TO_SIXTEEN_BITS }
           val signal = transfer.signalFromNits(nits[pixel])
@@ -155,7 +165,8 @@ class FfmpegOverlayHdrGraphMediaTest {
         val planes = (0..2).map { plane -> ramp(codes.map { it[plane].toFloat() }) }
         val drawn = "geq=lum='${planes[0]}':cb='${planes[1]}':cr='${planes[2]}'"
         val source = "format=yuv444p10le,$drawn,format=$GRADE_YUV,setrange=full"
-        val read = rampCodes(rendered(source, graph, GRADE_YUV, COLORS.size * CELL, CELL_HEIGHT), COLORS.size)
+        val ramp = rendered(source, graph, GRADE_YUVA, COLORS.size * CELL, CELL_HEIGHT).withoutAlpha(GRADE_YUVA)
+        val read = rampCodes(ramp, COLORS.size)
         COLORS.indices.mapNotNull { cell ->
           read[cell].firstNotNullOfOrNull { miss(it, codes[cell], "$transfer ${hex(COLORS[cell])}") }
         }
@@ -172,7 +183,8 @@ class FfmpegOverlayHdrGraphMediaTest {
         COLORS.mapNotNull { color ->
           val codes = tenBitCodesFromSignal(transfer.signalFromNits(authoredHdrNits(color)))
           val source = "format=yuv444p10le,geq=lum=${codes[0]}:cb=${codes[1]}:cr=${codes[2]},format=$GRADE_YUV"
-          decodeMiss(transfer, flatLight(rendered(source, chain, FLOAT_RGB), SIDE), codes, hex(color))
+          val light = flatLight(rendered(source, chain, FLOAT_RGBA).withoutAlpha(FLOAT_RGBA), SIDE)
+          decodeMiss(transfer, light, codes, hex(color))
         }
       }
 
@@ -215,7 +227,7 @@ class FfmpegOverlayHdrGraphMediaTest {
       val codes = GRID.map { tenBitCodesFromSignal(transfer.signalFromNits(transfer.nitsFromSignal(it))) }
       val planes = (0..2).map { plane -> IntArray(codes.size) { codes[it][plane] } }
       val drawn = RawFrame(planarShorts(planes), FRAME_YUV, tag)
-      val light = gridLight(drawn.rendered(fragmentOn(transfer).chain, FLOAT_RGB), GRID.size)
+      val light = gridLight(drawn.rendered(fragmentOn(transfer).chain, FLOAT_RGBA).withoutAlpha(FLOAT_RGBA), GRID.size)
       GRID.indices.mapNotNull { pixel -> decodeMiss(transfer, light[pixel], codes[pixel], "${GRID[pixel].toList()}") }
     }
 
@@ -231,7 +243,8 @@ class FfmpegOverlayHdrGraphMediaTest {
         withClue("$transfer: the picture goes to float on plane lanes, read ${chain.size} nodes") {
           decode.isNotEmpty().shouldBeTrue()
         }
-        val light = gridLight(RawFrame(packedShorts(PICTURE), PICTURE_RGBA).rendered(decode, FLOAT_RGB), HdrGrid.PIXELS)
+        val bytes = RawFrame(packedShorts(PICTURE), PICTURE_RGBA).rendered(decode, FLOAT_RGBA)
+        val light = gridLight(bytes.withoutAlpha(FLOAT_RGBA), HdrGrid.PIXELS)
         light.indices.mapNotNull { pixel ->
           val read = transfer.signalFromNits(FloatArray(3) { light[pixel][it] * transfer.peakNits })
           val off = read.indices.maxOf { abs(read[it] - PICTURE[it][pixel].toFloat() / SIXTEEN_BIT_MAX) }
@@ -247,7 +260,8 @@ class FfmpegOverlayHdrGraphMediaTest {
     withClue(reported(misses)) { misses.isEmpty().shouldBeTrue() }
   }
 
-  // maskedmerge reads the alpha off every plane of the mask, so each plane has to carry the alpha's sample as it is.
+  // maskedmerge reads the alpha off every plane of the mask, alpha's own among them, so each plane has to carry the
+  // alpha's sample as it is.
   // The branch is run from the last colorchannelmixer, the one that puts its alpha on every color.
   @Test
   fun `the mask branch carries every sixteen-bit alpha onto each plane as it is`() {
@@ -260,11 +274,15 @@ class FfmpegOverlayHdrGraphMediaTest {
           (mixer >= 0).shouldBeTrue()
         }
         val decode = chain.drop(mixer)
-        val bytes = RawFrame(packedShorts(PICTURE), PICTURE_RGBA).rendered(decode, FLOAT_RGB)
-        val read = gridLight(bytes, HdrGrid.PIXELS)
+        val bytes = RawFrame(packedShorts(PICTURE), PICTURE_RGBA).rendered(decode, FLOAT_RGBA)
+        val read = gridLight(bytes.withoutAlpha(FLOAT_RGBA), HdrGrid.PIXELS)
+        val alphas = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN).asFloatBuffer()
         read.indices.mapNotNull { pixel ->
           val alpha = PICTURE[3][pixel]
-          val planes = read[pixel].map { (it * SIXTEEN_BIT_MAX).roundToInt() }
+          val planes =
+            (read[pixel].toList() + alphas.get(3 * HdrGrid.PIXELS + pixel)).map {
+              (it * SIXTEEN_BIT_MAX).roundToInt()
+            }
           if (planes.all { it == alpha }) null else "$transfer pixel $pixel read $planes, expected $alpha"
         }
       }

@@ -7,7 +7,7 @@ import dev.jordond.filmstrip.effect.FilterFragment
 import dev.jordond.filmstrip.effect.FilterNode
 import dev.jordond.filmstrip.effect.PlatformEffect
 import dev.jordond.filmstrip.effect.Sidecar
-import dev.jordond.filmstrip.effects.filters.internal.RgbRoundTrip
+import dev.jordond.filmstrip.effects.RgbRoundTrip
 import dev.jordond.filmstrip.geometry.Size
 import kotlin.math.ceil
 import kotlin.time.Duration

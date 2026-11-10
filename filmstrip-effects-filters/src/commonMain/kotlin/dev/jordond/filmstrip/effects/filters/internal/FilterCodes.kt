@@ -26,3 +26,6 @@ internal fun glslFloat(value: Double): String {
   val text = value.toString()
   return if (text.contains('.') || text.contains('e') || text.contains('E')) text else "$text.0"
 }
+
+// A double as the 32 bit float a uniform holds. A Float on js keeps the whole double, a FloatArray rounds everywhere.
+internal fun uniformFloat(value: Double): Float = floatArrayOf(value.toFloat())[0]

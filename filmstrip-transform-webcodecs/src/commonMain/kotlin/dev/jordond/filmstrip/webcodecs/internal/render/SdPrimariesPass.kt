@@ -9,6 +9,7 @@ import dev.jordond.filmstrip.color.EBU_PRIMARIES
 import dev.jordond.filmstrip.color.POWER_SEGMENT_EXPONENT
 import dev.jordond.filmstrip.color.SMPTE_C_PRIMARIES
 import dev.jordond.filmstrip.color.sdPrimariesToBt709
+import dev.jordond.filmstrip.effects.color.glsl
 import dev.jordond.filmstrip.webcodecs.internal.interop.WebGl2
 import kotlin.js.ExperimentalWasmJsInterop
 import kotlin.js.JsAny

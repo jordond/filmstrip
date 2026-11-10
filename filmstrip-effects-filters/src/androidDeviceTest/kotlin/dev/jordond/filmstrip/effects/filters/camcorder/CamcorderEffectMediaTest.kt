@@ -68,6 +68,22 @@ class CamcorderEffectMediaTest {
     assertOnRaster(frame, OSD.rasterAt(BLINK_ON, WIDTH, HEIGHT))
   }
 
+  // The display lays over straight colour, so a clear pixel keeps the frame's colour and half alpha, and a lit one is
+  // the display's own colour, opaque.
+  @Test
+  fun aHalfAlphaFrameKeepsItsStraightColourUnderTheDisplay() {
+    val frame = drawn(listOf(display()), WIDTH, HEIGHT, listOf(BLINK_ON), alpha = HALF).single()
+    val raster = OSD.rasterAt(BLINK_ON, WIDTH, HEIGHT)
+
+    assertOnRaster(frame, raster)
+    for (y in 0 until HEIGHT) {
+      for (x in 0 until WIDTH) {
+        val wanted = if (raster.argbAt(x, y) == HIDDEN) HALF.toDouble() else 1.0
+        withClue("alpha ($x, $y)") { frame.alphaAt(x, y) shouldBe (wanted plusOrMinus TOLERANCE) }
+      }
+    }
+  }
+
   @Test
   fun aFrameEachSideOfASecondShowsItsOwnDisplay() {
     val before = OSD.rasterAt(BEFORE_SECOND, WIDTH, HEIGHT)
@@ -104,7 +120,7 @@ class CamcorderEffectMediaTest {
       val row = VhsSignal.virtualRow(y, HEIGHT)
       for (column in 0 until WIDTH) {
         val x = (column + 0.5) / WIDTH
-        val expected = VhsSignal.pixelAt(x, row, tick, vhs.seed, WIDTH, params) { at -> recorded.rowAt(at, y) }
+        val expected = VhsSignal.pixelAt(x, row, tick, vhs.seed, WIDTH, params) { recorded.rgbAt(it, y) }
         val read = burned.rgbAt(column, y)
         for (channel in 0 until RGB) {
           withClue("row $y column $column channel $channel") {
@@ -166,9 +182,10 @@ class CamcorderEffectMediaTest {
     width: Int,
     height: Int,
     times: List<Duration>,
+    alpha: Float = 1f,
   ): List<Frame> {
     programs.forEach { it.configure(width, height) }
-    val input = rampTexture(width, height)
+    val input = rampTexture(width, height, alpha)
     val targets = List(programs.size) { floatTarget(width, height) }
     val frames =
       times.map { time ->
@@ -228,12 +245,13 @@ class CamcorderEffectMediaTest {
   private fun rampTexture(
     width: Int,
     height: Int,
+    alpha: Float,
   ): Int {
     val texels = ByteBuffer.allocateDirect(width * height * CHANNELS * Float.SIZE_BYTES).order(ByteOrder.nativeOrder())
     repeat(height) {
       for (x in 0 until width) {
         ramp(x, width).forEach(texels::putFloat)
-        texels.putFloat(1f)
+        texels.putFloat(alpha)
       }
     }
     texels.rewind()
@@ -291,19 +309,10 @@ class CamcorderEffectMediaTest {
       return DoubleArray(RGB) { texels[at + it].toDouble() }
     }
 
-    // Bilinear over the row the way the sampler reads it, flat past the centres of the two outside texels.
-    fun rowAt(
-      x: Double,
+    fun alphaAt(
+      x: Int,
       y: Int,
-    ): DoubleArray {
-      val across = (x * width - 0.5).coerceIn(0.0, width - 1.0)
-      val left = across.toInt()
-      val right = (left + 1).coerceAtMost(width - 1)
-      val blend = across - left
-      val a = rgbAt(left, y)
-      val b = rgbAt(right, y)
-      return DoubleArray(RGB) { a[it] + (b[it] - a[it]) * blend }
-    }
+    ): Double = texels[((height - 1 - y) * width + x) * CHANNELS + RGB].toDouble()
   }
 
   private fun DoubleArray.gapTo(argb: Int): Double =
@@ -338,6 +347,7 @@ class CamcorderEffectMediaTest {
     const val RAMP_SPAN = 512
     const val RAMP_STEPS = 1024f
     const val TOLERANCE = 1e-4
+    const val HALF = 0.5f
 
     val CONFIG =
       intArrayOf(

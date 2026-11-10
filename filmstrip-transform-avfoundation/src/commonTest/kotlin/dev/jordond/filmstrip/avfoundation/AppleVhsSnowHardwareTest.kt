@@ -99,7 +99,7 @@ class AppleVhsSnowHardwareTest {
     picture: Rgb,
   ): Rgb {
     val tick = VhsSignal.tickAt(SNOW_READ_FRAME / FRAME_RATE)
-    val source = { _: Double -> doubleArrayOf(picture.r, picture.g, picture.b) }
+    val source = { _: Int -> doubleArrayOf(picture.r, picture.g, picture.b) }
     val left = (width * CENTRE).toInt() - READ_HALF
     val top = (height * CENTRE).toInt() - READ_HALF
     val pixels =

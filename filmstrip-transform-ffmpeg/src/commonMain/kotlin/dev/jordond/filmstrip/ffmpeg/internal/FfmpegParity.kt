@@ -9,8 +9,9 @@ import dev.jordond.filmstrip.effect.EffectIds
  * A plain lookup, with no I/O and no suspending, because it backs `Filmstrip.parityOf`, which
  * answers without doing any work.
  *
- * This backend keeps its own table. `Scale` is `Approximate` here because swscale is a different
- * resampler, and `Text` because the JVM shapes its glyphs with its own fonts, as every backend does.
+ * This backend keeps its own table. `Scale` is `Approximate` here because swscale is a different resampler,
+ * `GaussianBlur` and `Vignette` because they run through gblur and a round trip through RGB, and `Text` because the JVM
+ * shapes its glyphs with its own fonts, as every backend does.
  */
 internal object FfmpegParity {
   fun of(specId: String): EffectParity? = TABLE[specId]
@@ -34,6 +35,8 @@ internal object FfmpegParity {
       EffectIds.IMAGE_OVERLAY to EffectParity.Exact,
       EffectIds.SCALE to EffectParity.Approximate,
       EffectIds.TEXT_OVERLAY to EffectParity.Approximate,
+      EffectIds.GAUSSIAN_BLUR to EffectParity.Approximate,
+      EffectIds.VIGNETTE to EffectParity.Approximate,
     )
 
   private val NOTES: Map<String, String> =
@@ -44,5 +47,11 @@ internal object FfmpegParity {
       EffectIds.TEXT_OVERLAY to
         "The JVM draws the glyphs with the fonts it finds on this machine, so their shapes and line breaks follow " +
         "that font stack, the way they follow each platform's own on every backend.",
+      EffectIds.GAUSSIAN_BLUR to
+        "gblur runs a recursive approximation of the Gaussian, and the frame goes to RGB and back to its codes, " +
+        "rounding each way, so a soft edge lands a few codes from a preview.",
+      EffectIds.VIGNETTE to
+        "The gain is multiplied in on RGB, and the frame goes to RGB and back to its codes, rounding each way, so " +
+        "the falloff lands a code or two from a preview.",
     )
 }

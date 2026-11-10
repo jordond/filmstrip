@@ -57,6 +57,9 @@ import dev.jordond.filmstrip.effects.overlay.rasterizeText
 import dev.jordond.filmstrip.effects.overlay.read
 import dev.jordond.filmstrip.effects.overlay.resolvedFrom
 import dev.jordond.filmstrip.effects.overlay.size
+import dev.jordond.filmstrip.effects.spatial.GaussianBlur
+import dev.jordond.filmstrip.effects.spatial.SpatialGlEffect
+import dev.jordond.filmstrip.effects.spatial.Vignette
 import dev.jordond.filmstrip.geometry.FlipAxis
 import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.geometry.Size
@@ -94,6 +97,8 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
       is CropRect -> resolved(spec.rect.toMedia3())
       is KenBurns -> spec.toTransformation(attributes)
       is Scale -> resolved(spec.toMedia3())
+      is GaussianBlur -> resolved(SpatialGlEffect(spec, attributes.hdrTransfer))
+      is Vignette -> resolved(SpatialGlEffect(spec, attributes.hdrTransfer))
       is ImageOverlay -> spec.toOverlay(capabilities, attributes)
       is TextOverlay -> spec.toOverlay(capabilities, attributes)
       else -> null

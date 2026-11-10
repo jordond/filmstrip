@@ -47,6 +47,27 @@ class FfmpegFilmPlanesMediaTest {
     }
 
   @Test
+  fun `super 8 at 1080p draws the same grain and marks live`() =
+    runBlocking<Unit> {
+      val plan = draw.composition(listOf(clip(1920, 1080, Film.Super8)))
+      assertFormsAgree(plan, frames = 12)
+    }
+
+  @Test
+  fun `super 8 at 4k draws the same grain and marks live`() =
+    runBlocking<Unit> {
+      val plan = draw.composition(listOf(clip(3840, 2160, Film.Super8)))
+      assertFormsAgree(plan, frames = 4)
+    }
+
+  @Test
+  fun `a seed of its own and full dust draw the same planes live`() =
+    runBlocking<Unit> {
+      val plan = draw.composition(listOf(clip(640, 360, Film(dust = 1f, gate = 0.5f, seed = 7))))
+      assertFormsAgree(plan, frames = 30)
+    }
+
+  @Test
   fun `grain alone has no gbrap ahead of it`() =
     runBlocking<Unit> {
       val plan = draw.composition(listOf(clip(640, 360, Film(grain = 0.5f, halation = 0f))))

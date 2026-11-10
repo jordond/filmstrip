@@ -3,6 +3,7 @@ package dev.jordond.filmstrip.color
 import dev.jordond.filmstrip.media.HdrTransfer
 import io.kotest.assertions.withClue
 import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.doubles.plusOrMinus
 import io.kotest.matchers.shouldBe
 import kotlin.math.abs
 import kotlin.math.pow
@@ -103,6 +104,18 @@ class HdrSignalDoubleTest {
     }
   }
 
+  @Test
+  fun `the HLG signal reads as the SDR signal of its scene light and back`() {
+    // Mid-range signals, either side of the knee at a half.
+    listOf(0.3, 0.45, 0.75).forEach { signal ->
+      sdrSignalFromHlgSignal(signal) shouldBeNear sdrSignalFromNits(hlgDisplayNitsFromSignal(signal))
+      hlgSignalFromSdrSignal(sdrSignalFromHlgSignal(signal)) shouldBeNear signal
+    }
+    // BT.2100's rounded constants decode a full signal a hair past one scene light.
+    sdrSignalFromHlgSignal(1.0) shouldBe (HdrTransfer.Hlg.sdrSignalCeilingDouble plusOrMinus FULL_SIGNAL_SLACK)
+    hlgSignalFromSdrSignal(HdrTransfer.Hlg.sdrSignalCeilingDouble * 2) shouldBe 1.0
+  }
+
   // A linear sweep plus a logarithmic one, so the dark end, where the curves bend hardest, gets as many points as the
   // bright end.
   private fun grid(
@@ -142,5 +155,6 @@ class HdrSignalDoubleTest {
     const val GRID_STEPS = 4_000
     const val COLOR_STEPS = 12
     const val LOG_FLOOR = 1e-4f
+    const val FULL_SIGNAL_SLACK = 1e-6
   }
 }

@@ -13,8 +13,14 @@ import dev.jordond.filmstrip.effects.filters.crt.Crt
 import dev.jordond.filmstrip.effects.filters.crt.crtFragment
 import dev.jordond.filmstrip.effects.filters.film.Film
 import dev.jordond.filmstrip.effects.filters.film.filmFragment
+import dev.jordond.filmstrip.effects.filters.glitch.Glitch
+import dev.jordond.filmstrip.effects.filters.glitch.glitchFragment
 import dev.jordond.filmstrip.effects.filters.lut.Lut
 import dev.jordond.filmstrip.effects.filters.lut.lutFragment
+import dev.jordond.filmstrip.effects.filters.nightvision.NightVision
+import dev.jordond.filmstrip.effects.filters.nightvision.nightVisionFragment
+import dev.jordond.filmstrip.effects.filters.pixel.Pixel
+import dev.jordond.filmstrip.effects.filters.pixel.pixelFragment
 import dev.jordond.filmstrip.effects.filters.vhs.Vhs
 import dev.jordond.filmstrip.effects.filters.vhs.vhsFragment
 
@@ -43,6 +49,15 @@ public actual class FilterEffectResolver actual constructor() : EffectResolver {
       }
       is Lut -> {
         EffectResolution.Resolved(PlatformEffect(lutFragment(spec)))
+      }
+      is NightVision -> {
+        EffectResolution.Resolved(PlatformEffect(nightVisionFragment(spec, attributes.inputSize)))
+      }
+      is Pixel -> {
+        EffectResolution.Resolved(PlatformEffect(pixelFragment(spec, attributes.inputSize)))
+      }
+      is Glitch -> {
+        EffectResolution.Resolved(PlatformEffect(glitchFragment(spec)))
       }
       else -> {
         null

@@ -218,7 +218,13 @@ class CrtCoreImageHardwareTest {
     rows.forEach { y ->
       columns.forEach { x ->
         val expected =
-          CrtSignal.pixelAt((x + 0.5) / width, (y + 0.5) / height, width, height, params) { u, _ -> rampAt(u, width) }
+          CrtSignal.pixelAt(
+            (x + 0.5) / width,
+            (y + 0.5) / height,
+            width,
+            height,
+            params,
+          ) { column, _ -> rampTexel(column, width) }
         val tolerance = if (coverage(x, y, width, height, params) in EDGE_RANGE) EDGE_TOLERANCE else TOLERANCE
         val at = (y * width + x) * CHANNELS
         expected.forEachIndexed { channel, value ->
@@ -383,11 +389,11 @@ class CrtCoreImageHardwareTest {
   }
 
   // Bilinear over a straight ramp, flat past the centres of the two outside texels.
-  private fun rampAt(
-    u: Double,
+  private fun rampTexel(
+    column: Int,
     width: Int,
   ): DoubleArray {
-    val across = (u * width - 0.5).coerceIn(0.0, width - 1.0) / (width - 1)
+    val across = column.toDouble() / (width - 1)
     return doubleArrayOf(RAMP_RED + RAMP_SPAN * across, RAMP_GREEN - RAMP_SPAN * across, RAMP_BLUE.toDouble())
   }
 

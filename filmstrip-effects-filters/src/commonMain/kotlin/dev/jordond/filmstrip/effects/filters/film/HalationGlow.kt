@@ -1,6 +1,8 @@
 package dev.jordond.filmstrip.effects.filters.film
 
 import dev.jordond.filmstrip.InternalFilmstripApi
+import dev.jordond.filmstrip.color.BlurPlan
+import dev.jordond.filmstrip.color.blurPlane
 import kotlin.math.floor
 
 private const val RGB = 3
@@ -9,8 +11,9 @@ private const val RGB = 3
  * The light halation adds across a frame, worked out the way the shader lowerings draw it, for a test to hold a
  * backend's pixels against.
  *
- * The frame's codes box down to the blur's size, each blurred pixel takes [FilmSignal.halationResponse], the two blurs
- * of the plan run over that, and a read filters between the blurred pixels.
+ * The frame's codes box down to the blur's size, each blurred pixel takes [FilmSignal.halationResponse], [blurPlane]
+ * blurs that by the plan's kernel one blurred pixel a tap on either axis, and a read filters between the blurred
+ * pixels.
  */
 @InternalFilmstripApi
 public class HalationGlow private constructor(
@@ -92,14 +95,11 @@ public class HalationGlow private constructor(
       pixel: (x: Int, y: Int) -> DoubleArray,
     ): HalationGlow {
       val plan = FilmSignal.halationBlurPlan(width)
-      val response = responseField(plan, width, height, pixel)
-      val across = blurred(plan, response, 1.0, 0.0)
-      val rowsPerGap = plan.heightOf(height) * width.toDouble() / (plan.width * height)
-      return HalationGlow(width, height, blurred(plan, across, 0.0, rowsPerGap))
+      return HalationGlow(width, height, blurred(responseField(plan, width, height, pixel)))
     }
 
     private fun responseField(
-      plan: WideBlurPlan,
+      plan: BlurPlan,
       width: Int,
       height: Int,
       pixel: (x: Int, y: Int) -> DoubleArray,
@@ -127,23 +127,18 @@ public class HalationGlow private constructor(
       return field
     }
 
-    private fun blurred(
-      plan: WideBlurPlan,
-      source: Field,
-      columnsPerGap: Double,
-      rowsPerGap: Double,
-    ): Field {
-      val field = Field(source.width, source.height)
-      for (y in 0 until source.height) {
-        for (x in 0 until source.width) {
-          val sum = DoubleArray(RGB)
-          for (tap in -plan.taps..plan.taps) {
-            val weight = plan.weights[if (tap < 0) -tap else tap]
-            val read = source.read(x + tap * columnsPerGap, y + tap * rowsPerGap)
-            for (channel in 0 until RGB) sum[channel] += weight * read[channel]
-          }
-          field.put(x, y, sum)
+    // The field is already at the plan's size, where the plan's sigma is at most BlurPlan.MAX_SIGMA_PX, so blurPlane
+    // runs it at a factor of 1 with the plan's own weights.
+    private fun blurred(source: Field): Field {
+      val opaque = DoubleArray(source.width * source.height) { 1.0 }
+      val channels =
+        List(RGB) { channel ->
+          val plane = DoubleArray(source.width * source.height) { source.values[it * RGB + channel] }
+          blurPlane(plane, opaque, source.width, source.height, HALATION_SIGMA)
         }
+      val field = Field(source.width, source.height)
+      for (index in 0 until source.width * source.height) {
+        for (channel in 0 until RGB) field.values[index * RGB + channel] = channels[channel][index]
       }
       return field
     }

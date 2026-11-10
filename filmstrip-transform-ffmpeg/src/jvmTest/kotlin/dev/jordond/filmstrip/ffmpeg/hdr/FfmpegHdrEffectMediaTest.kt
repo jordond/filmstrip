@@ -2,20 +2,21 @@ package dev.jordond.filmstrip.ffmpeg.hdr
 
 import dev.jordond.filmstrip.color.brightnessDisplayGain
 import dev.jordond.filmstrip.color.brightnessSceneGain
-import dev.jordond.filmstrip.color.hlgDisplayNitsFromSignal
-import dev.jordond.filmstrip.color.hlgSignalFromDisplayNits
 import dev.jordond.filmstrip.color.hlgSignalFromScene
 import dev.jordond.filmstrip.color.nitsFromPqSignal
 import dev.jordond.filmstrip.color.pqSignalFromNits
 import dev.jordond.filmstrip.color.sceneFromHlgSignal
 import dev.jordond.filmstrip.color.tenBitCodesFromSignal
+import dev.jordond.filmstrip.color.vignetteGain
 import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effects.color.Brightness
 import dev.jordond.filmstrip.effects.color.Contrast
 import dev.jordond.filmstrip.effects.color.Saturation
 import dev.jordond.filmstrip.effects.color.colorMatrixOf
-import dev.jordond.filmstrip.effects.color.transformNits
+import dev.jordond.filmstrip.effects.color.transformHlgCodes
+import dev.jordond.filmstrip.effects.spatial.GaussianBlur
+import dev.jordond.filmstrip.effects.spatial.Vignette
 import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.export.ExportStatus
 import dev.jordond.filmstrip.export.Verdict
@@ -35,7 +36,6 @@ import dev.jordond.filmstrip.ffmpeg.support.pqGraded
 import dev.jordond.filmstrip.ffmpeg.support.signalGraded
 import dev.jordond.filmstrip.ffmpeg.support.sourceSize
 import dev.jordond.filmstrip.ffmpeg.support.tenBitCodesAt
-import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
 import io.kotest.assertions.withClue
@@ -158,8 +158,8 @@ class FfmpegHdrEffectMediaTest {
       assertGraded(desaturated, expected, lit, wrongs)
     }
 
-  // The HLG arm. Only the inverse OETF runs here, so the light the line runs on comes through the
-  // per-channel opto-optical transfer, and the reading goes back the same way.
+  // The HLG arm, held to transformHlgCodes, the reading Apple's HLG grade is held to as well. Each code is read as
+  // the SDR signal it stands for, the line runs there, and the result goes back to HLG codes.
   @Test
   fun `a contrast on a kept HLG grade pivots on the light mid grey makes`() =
     runTest(timeout = TIMEOUT) {
@@ -170,6 +170,35 @@ class FfmpegHdrEffectMediaTest {
       val wrongs = mapOf("the signal" to signalGraded(lit, Contrast(HALF)))
 
       assertGraded(flattened, expected, lit, wrongs)
+    }
+
+  // A vignette with no radius and no softness takes its whole strength everywhere, so on a kept HLG
+  // grade its gain lands on the SDR signal the way a brightness does.
+  @Test
+  fun `a vignette on a kept HLG grade takes its gain on the SDR signal`() =
+    runTest(timeout = TIMEOUT) {
+      val lit = fixture.authoredSignal(fixture.hdrHlg)
+      val vignette = Vignette(strength = HALF, radius = 0f, softness = 0f)
+      val darkened = exportedHdrGrade(vignette, fixture.hdrHlg)
+
+      val gain = vignetteGain(CENTRE, CENTRE, 1.0, HALF.toDouble(), 0.0, 0.0).toFloat()
+      val expected = lit.hlgScaledBy(brightnessSceneGain(gain))
+      val wrongs =
+        mapOf(
+          "the display gain" to lit.hlgScaledBy(brightnessDisplayGain(gain)),
+          "the signal" to signalGraded(lit, Brightness(gain)),
+        )
+
+      assertGraded(darkened, expected, lit, wrongs)
+    }
+
+  // A narrow blur leaves the flat patch at the centre as it was, through the float planes and back.
+  @Test
+  fun `a blur on a kept grade keeps a flat patch`() =
+    runTest(timeout = TIMEOUT) {
+      val lit = fixture.authoredSignal()
+
+      assertGraded(exportedHdrGrade(GaussianBlur(NARROW_SIGMA)), lit, lit, emptyMap())
     }
 
   // The luma, Cb and Cr codes at the centre of an export of [source] with [spec] on it.
@@ -241,16 +270,18 @@ class FfmpegHdrEffectMediaTest {
   private fun hlgGraded(
     lit: FloatArray,
     spec: EffectSpec,
-  ): FloatArray {
-    val nits = lit.mapChannels { hlgDisplayNitsFromSignal(it) }
-    val graded = checkNotNull(colorMatrixOf(spec)).transformNits(nits[0], nits[1], nits[2], HdrTransfer.Hlg)
-
-    return graded.mapChannels { hlgSignalFromDisplayNits(it) }
-  }
+  ): FloatArray = checkNotNull(colorMatrixOf(spec)).transformHlgCodes(lit[0], lit[1], lit[2])
 
   private fun FloatArray.pqScaledBy(gain: Float): FloatArray =
     mapChannels { pqSignalFromNits(nitsFromPqSignal(it) * gain) }
 
   private fun FloatArray.hlgScaledBy(gain: Float): FloatArray =
     mapChannels { hlgSignalFromScene(sceneFromHlgSignal(it) * gain) }
+
+  private companion object {
+    const val CENTRE = 0.5
+
+    // A blur this narrow reaches a few pixels, all inside the fixture's centre patch.
+    const val NARROW_SIGMA = 0.002f
+  }
 }

@@ -85,7 +85,7 @@ public class WebGlPass private constructor(
   ) : this(programKey, emptyMap(), textureMatrixAt, emptyList())
 
   /**
-   * A pass that draws the whole frame through [steps], on a target of its own, at the composite stage.
+   * A pass that draws the whole frame through [steps], on a target of its own, at the spatial or composite stage.
    *
    * It carries no uniforms, so a fold over the uniforms of a chain reads nothing from it.
    *
@@ -113,7 +113,8 @@ public class WebGlPass private constructor(
 /**
  * One GLSL ES 3.00 fragment program in a [WebGlPass], with what it reads and what it needs on each frame.
  *
- * The fragment reads its textures at the `vUv` varying, whose `v` runs up the picture. Its alpha is written as is, with
+ * The fragment reads its textures at the `vUv` varying, whose `v` runs up the picture. Every frame it reads holds
+ * straight color, not color premultiplied by alpha, and it writes straight color too. Its alpha is written as is, with
  * no blending, and clear pixels hold no fill until the compositor lays the result over one. The last step of a pass
  * writes the frame the pass was asked for, and every step before it writes a target of its own, which lives until the
  * pass ends and filters linearly when read.

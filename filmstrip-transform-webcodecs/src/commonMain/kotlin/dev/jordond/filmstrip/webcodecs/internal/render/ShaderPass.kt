@@ -17,9 +17,11 @@ import kotlin.time.Duration
  * through the first.
  *
  * A frame is read from one texture and written to another target with blending off, so alpha comes through as the
- * shader writes it. Each draw hands the output viewport and the blending back, so the compositor's own draws find the
- * state they left, and the compositor puts its own program back after a run. The targets between a pass's steps come
- * from a pool of [hdr] frames, held until that pass ends. Each table a step reads comes from [tables].
+ * shader writes it. Every step reads and writes straight color, so a chain over [PassFrames] holding premultiplied
+ * color takes the alpha out of the frame before its first pass and puts it back after its last. Each draw hands the
+ * output viewport and the blending back, so the compositor's own draws find the state they left, and the compositor
+ * puts its own program back after a run. The targets between a pass's steps come from a pool of [hdr] frames, held
+ * until that pass ends. Each table a step reads comes from [tables].
  */
 internal class ShaderPass(
   private val gl: WebGl2,
@@ -31,6 +33,8 @@ internal class ShaderPass(
 ) {
   private val programs = mutableMapOf<String, LinkedStep>()
   private val pool = StepFramePool(gl, hdr)
+  private var straighten: JsAny? = null
+  private var premultiply: JsAny? = null
 
   /**
    * The texture of every table held right now.
@@ -38,7 +42,8 @@ internal class ShaderPass(
   val tableTextures: List<JsAny> get() = tables.textures
 
   /**
-   * Runs [passes] over the frame [frames] holds, one after the other, and answers the texture the last one wrote.
+   * Runs [passes] over the frame [frames] holds, one after the other, and answers the texture the last one wrote, which
+   * holds color the way [frames] does.
    */
   fun run(
     passes: List<WebGlPass>,
@@ -47,16 +52,15 @@ internal class ShaderPass(
     height: Int,
     compositionTime: Duration,
   ): JsAny {
-    passes.forEach { pass ->
-      val input = frames.read(width, height).texture
-      runSteps(pass, input, frames.write(width, height).framebuffer, width, height, compositionTime)
-      frames.swap()
-    }
+    if (frames.alpha == FrameAlpha.Premultiplied) convert(straightenProgram(), frames, width, height)
+    runStraight(passes, frames, width, height, compositionTime)
+    if (frames.alpha == FrameAlpha.Premultiplied) convert(premultiplyProgram(), frames, width, height)
     return frames.read(width, height).texture
   }
 
   /**
-   * Runs [passes] over the frame [frames] holds, one after the other, with the last one writing [target].
+   * Runs [passes] over the straight color frame [frames] holds, one after the other, with the last one writing
+   * [target] in straight color too.
    */
   fun runOnto(
     passes: List<WebGlPass>,
@@ -66,7 +70,8 @@ internal class ShaderPass(
     height: Int,
     compositionTime: Duration,
   ) {
-    run(passes.dropLast(1), frames, width, height, compositionTime)
+    require(frames.alpha == FrameAlpha.Straight) { "runOnto takes straight color frames" }
+    runStraight(passes.dropLast(1), frames, width, height, compositionTime)
     runSteps(passes.last(), frames.read(width, height).texture, target, width, height, compositionTime)
   }
 
@@ -76,6 +81,9 @@ internal class ShaderPass(
   fun release() {
     programs.values.forEach { gl.deleteProgram(it.program) }
     programs.clear()
+    listOfNotNull(straighten, premultiply).forEach { gl.deleteProgram(it) }
+    straighten = null
+    premultiply = null
     pool.release()
     tables.forget()
   }
@@ -85,6 +93,62 @@ internal class ShaderPass(
    */
   fun forgetTables() {
     tables.forget()
+  }
+
+  private fun runStraight(
+    passes: List<WebGlPass>,
+    frames: PassFrames,
+    width: Int,
+    height: Int,
+    compositionTime: Duration,
+  ) {
+    passes.forEach { pass ->
+      val input = frames.read(width, height).texture
+      runSteps(pass, input, frames.write(width, height).framebuffer, width, height, compositionTime)
+      frames.swap()
+    }
+  }
+
+  // Draws the frame [frames] reads through [program] into the one it writes, and makes that the one it reads.
+  private fun convert(
+    program: JsAny,
+    frames: PassFrames,
+    width: Int,
+    height: Int,
+  ) {
+    drawConverted(program, frames.read(width, height).texture, frames.write(width, height).framebuffer, width, height)
+    frames.swap()
+  }
+
+  private fun drawConverted(
+    program: JsAny,
+    input: JsAny,
+    target: JsAny?,
+    width: Int,
+    height: Int,
+  ) {
+    gl.useProgram(program)
+    gl.bindFramebuffer(GL_FRAMEBUFFER, target)
+    gl.viewport(0, 0, width, height)
+    gl.disable(GL_BLEND)
+    gl.activeTexture(GL_TEXTURE0)
+    gl.bindTexture(GL_TEXTURE_2D, input)
+    gl.drawArrays(GL_TRIANGLE_STRIP, 0, QUAD_VERTICES)
+    gl.enable(GL_BLEND)
+    gl.viewport(0, 0, outputWidth, outputHeight)
+  }
+
+  private fun straightenProgram(): JsAny = straighten ?: conversionProgram(STRAIGHTEN).also { straighten = it }
+
+  private fun premultiplyProgram(): JsAny = premultiply ?: conversionProgram(PREMULTIPLY).also { premultiply = it }
+
+  private fun conversionProgram(body: String): JsAny {
+    val program = linkedProgram(gl, PASS_VERTEX_SHADER, conversionFragment(body))
+    gl.useProgram(program)
+    gl.bindBuffer(GL_ARRAY_BUFFER, buffer)
+    bindQuad(gl, program)
+    gl.uniform1i(gl.getUniformLocation(program, "uFrame"), 0)
+    return program
   }
 
   private fun runSteps(
@@ -218,14 +282,31 @@ internal class ShaderPass(
 }
 
 /**
+ * How a frame holds its color against its alpha.
+ */
+internal enum class FrameAlpha {
+  /**
+   * Color as it is, with alpha beside it.
+   */
+  Straight,
+
+  /**
+   * Color multiplied by alpha, the way a draw blended over a clear frame leaves it.
+   */
+  Premultiplied,
+}
+
+/**
  * A pair of frames a chain of passes reads and writes in turn, which follow the size asked for and are allocated the
  * first time each is asked for.
  *
- * [hdr] allocates them at half float, which is the light a kept grade holds.
+ * [hdr] allocates them at half float, which is the light a kept grade holds. [alpha] is how the frame the chain starts
+ * from holds its color, and how the frame it answers holds it.
  */
 internal class PassFrames(
   private val gl: WebGl2,
   private val hdr: Boolean,
+  val alpha: FrameAlpha,
 ) {
   private val frames = arrayOfNulls<PassFrame>(2)
   private var reading = 0
@@ -366,6 +447,21 @@ private val PASS_VERTEX_SHADER =
   }
   """.trimIndent()
 
+// Reads the texel under each pixel unfiltered, since a conversion draws at the frame's own size.
+private fun conversionFragment(body: String): String =
+  """
+  #version 300 es
+  precision highp float;
+  uniform sampler2D uFrame;
+  out vec4 fragColor;
+  void main() {
+    vec4 texel = texelFetch(uFrame, ivec2(gl_FragCoord.xy), 0);
+    $body
+  }
+  """.trimIndent()
+
+private const val STRAIGHTEN = "fragColor = vec4(texel.a > 0.0 ? texel.rgb / texel.a : vec3(0.0), texel.a);"
+private const val PREMULTIPLY = "fragColor = vec4(texel.rgb * texel.a, texel.a);"
 private const val ARRAY_SUFFIX = "[0]"
 private const val MAT3_FLOATS = 9
 private const val MAT4_FLOATS = 16

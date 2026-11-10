@@ -22,6 +22,7 @@ import dev.jordond.filmstrip.ffmpeg.support.FULL
 import dev.jordond.filmstrip.ffmpeg.support.FilterFrames
 import dev.jordond.filmstrip.ffmpeg.support.RGBA
 import dev.jordond.filmstrip.ffmpeg.support.channelAt
+import dev.jordond.filmstrip.ffmpeg.support.texelsOver
 import dev.jordond.filmstrip.geometry.AspectRatio
 import dev.jordond.filmstrip.geometry.Corner
 import dev.jordond.filmstrip.geometry.Fill
@@ -158,8 +159,8 @@ class FfmpegVhsMediaTest {
       withClue("the head band has to reach into the bar for this to tell") {
         (shift * WIDE_WIDTH).toInt() shouldBeGreaterThan 2 * BAR_MARGIN
       }
-      val inside = { at: Double ->
-        val across = (at - content.left) / (content.right - content.left)
+      val inside = { column: Int ->
+        val across = ((column + 0.5) / WIDE_WIDTH - content.left) / (content.right - content.left)
         if (across in 0.0..1.0) rampAt(across) else doubleArrayOf(0.0, 0.0, 0.0)
       }
 
@@ -220,8 +221,8 @@ class FfmpegVhsMediaTest {
       val y = RAMP_HEIGHT - 1
       val row = VhsSignal.virtualRow(y, RAMP_HEIGHT)
       val shift = VhsSignal.rowShift(vhs.seed, tick, row, params)
-      val inside = { at: Double ->
-        val across = (at - content.left) / (content.right - content.left)
+      val inside = { column: Int ->
+        val across = ((column + 0.5) / WIDE_WIDTH - content.left) / (content.right - content.left)
         if (across in 0.0..1.0) rampAt(across) else doubleArrayOf(0.0, 0.0, 0.0)
       }
 
@@ -322,11 +323,12 @@ class FfmpegVhsMediaTest {
   ): Double {
     val params = VhsParams.of(vhs)
     val tick = VhsSignal.tickAt(outputSlotTime(slot.toLong(), FILTER_RATE).toDouble(DurationUnit.SECONDS))
+    val ramp = (::rampAt).texelsOver(RAMP_WIDTH)
     val errors =
       (0 until RAMP_HEIGHT step SIGNAL_STEP).flatMap { y ->
         val row = VhsSignal.virtualRow(y, RAMP_HEIGHT)
         (0 until RAMP_WIDTH step SIGNAL_STEP).map { x ->
-          val want = VhsSignal.pixelAt((x + 0.5) / RAMP_WIDTH, row, tick, vhs.seed, RAMP_WIDTH, params, ::rampAt)
+          val want = VhsSignal.pixelAt((x + 0.5) / RAMP_WIDTH, row, tick, vhs.seed, RAMP_WIDTH, params, ramp)
           val read = DoubleArray(3) { frame.channelAt(RAMP_WIDTH, x, y, it).toDouble() }
           abs(lumaOf(read[0], read[1], read[2]) - lumaOf(want[0] * FULL, want[1] * FULL, want[2] * FULL))
         }
@@ -404,7 +406,7 @@ class FfmpegVhsMediaTest {
   private fun barLumaOnSignal(vhs: Vhs): Double {
     val params = VhsParams.of(vhs)
     val tick = VhsSignal.tickAt(0.0)
-    val black = { _: Double -> doubleArrayOf(0.0, 0.0, 0.0) }
+    val black = { _: Int -> doubleArrayOf(0.0, 0.0, 0.0) }
     return meanAcrossBar { x, y ->
       val row = VhsSignal.virtualRow(y, CANVAS)
       val rgb = VhsSignal.pixelAt((x + 0.5) / CANVAS, row, tick, vhs.seed, CANVAS, params, black)

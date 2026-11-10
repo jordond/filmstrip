@@ -1,8 +1,12 @@
 package dev.jordond.filmstrip.effects
 
 import dev.jordond.filmstrip.InternalFilmstripApi
+import dev.jordond.filmstrip.color.HDR_REFERENCE_WHITE_NITS
+import dev.jordond.filmstrip.color.HLG_NOMINAL_PEAK_NITS
 import dev.jordond.filmstrip.color.authoredHdrNits
 import dev.jordond.filmstrip.color.hlgSceneFromNits
+import dev.jordond.filmstrip.effects.color.HdrColorMatrixUniforms
+import dev.jordond.filmstrip.effects.color.hdrColorMatrixUniforms
 import dev.jordond.filmstrip.media.HdrTransfer
 
 /**
@@ -35,3 +39,22 @@ public fun media3WorkingLight(
     HdrTransfer.Pq -> FloatArray(3) { rgbNits[it] / MEDIA3_HDR_PEAK_NITS }
     HdrTransfer.Hlg -> hlgSceneFromNits(rgbNits)
   }
+
+/**
+ * The figures a pass reads a frame media3 holds in this transfer through, to move it to the SDR signal and back.
+ *
+ * media3 stores PQ against [MEDIA3_HDR_PEAK_NITS] and HLG against its nominal peak, and it hands HLG over as scene
+ * light.
+ */
+@InternalFilmstripApi
+public val HdrTransfer.media3SignalUniforms: HdrColorMatrixUniforms
+  get() =
+    hdrColorMatrixUniforms(
+      white =
+        HDR_REFERENCE_WHITE_NITS /
+          when (this) {
+            HdrTransfer.Pq -> MEDIA3_HDR_PEAK_NITS
+            HdrTransfer.Hlg -> HLG_NOMINAL_PEAK_NITS
+          },
+      holdsSceneLight = this == HdrTransfer.Hlg,
+    )

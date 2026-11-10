@@ -1,8 +1,11 @@
 package dev.jordond.filmstrip.effects.filters.crt
 
 import dev.jordond.filmstrip.effect.EffectStage
+import dev.jordond.filmstrip.effects.filters.internal.glslFloat
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.string.shouldContain
+import io.kotest.matchers.string.shouldStartWith
 import kotlin.test.Test
 
 /**
@@ -37,11 +40,15 @@ class CrtTest {
   }
 
   @Test
-  fun theFragmentOpensOnItsVersionAndCarriesTheSignalsConstants() {
-    CrtShader.FRAGMENT.startsWith("#version 300 es") shouldBe true
-    CrtShader.FRAGMENT.contains(TWO_PI.times(CRT_LINES).toString()) shouldBe true
-    CrtShader.FRAGMENT.contains(TWO_PI.times(CRT_TRIADS).toString()) shouldBe true
-    CrtShader.FRAGMENT.contains(CrtSignal.maskPhase(2).toString()) shouldBe true
+  fun theFragmentOpensOnItsVersionAndCarriesTheSharedReadAndTheSignalsConstants() {
+    val fragment = CrtShader.FRAGMENT
+
+    fragment shouldStartWith "#version 300 es"
+    fragment shouldContain "vec4 straightRead(sampler2D frame, vec2 uv)"
+    fragment shouldContain "straightRead(${CrtShader.TEXTURE}, source)"
+    fragment shouldContain glslFloat(TWO_PI * CRT_LINES)
+    fragment shouldContain glslFloat(TWO_PI * CRT_TRIADS)
+    fragment shouldContain glslFloat(CrtSignal.maskPhase(2))
   }
 
   @Test

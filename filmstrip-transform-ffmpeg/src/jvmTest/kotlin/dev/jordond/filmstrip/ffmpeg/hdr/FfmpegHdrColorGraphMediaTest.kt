@@ -28,10 +28,12 @@ import dev.jordond.filmstrip.ffmpeg.support.ExportConstants.HALF
 import dev.jordond.filmstrip.ffmpeg.support.HdrGrid
 import dev.jordond.filmstrip.ffmpeg.support.HdrRender.CAPABILITIES
 import dev.jordond.filmstrip.ffmpeg.support.HdrRender.FLOAT_RGB
+import dev.jordond.filmstrip.ffmpeg.support.HdrRender.FLOAT_RGBA
 import dev.jordond.filmstrip.ffmpeg.support.HdrRender.FRAME_YUV
 import dev.jordond.filmstrip.ffmpeg.support.HdrRender.GRADE_YUV
+import dev.jordond.filmstrip.ffmpeg.support.HdrRender.GRADE_YUVA
 import dev.jordond.filmstrip.ffmpeg.support.HdrRender.SIDE
-import dev.jordond.filmstrip.ffmpeg.support.HdrRender.WIDE_YUV
+import dev.jordond.filmstrip.ffmpeg.support.HdrRender.WIDE_YUVA
 import dev.jordond.filmstrip.ffmpeg.support.HdrRender.attributes
 import dev.jordond.filmstrip.ffmpeg.support.OverlayConstants.OVERLAY_SIZE
 import dev.jordond.filmstrip.ffmpeg.support.RawFrame
@@ -43,6 +45,7 @@ import dev.jordond.filmstrip.ffmpeg.support.hostFfmpeg
 import dev.jordond.filmstrip.ffmpeg.support.planarShorts
 import dev.jordond.filmstrip.ffmpeg.support.pngOf
 import dev.jordond.filmstrip.ffmpeg.support.rendered
+import dev.jordond.filmstrip.ffmpeg.support.withoutAlpha
 import dev.jordond.filmstrip.ffmpeg.support.writtenChain
 import dev.jordond.filmstrip.geometry.Corner
 import dev.jordond.filmstrip.media.HdrTransfer
@@ -56,6 +59,8 @@ import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 import java.nio.file.Files
 import kotlin.math.abs
 import kotlin.test.Test
@@ -96,7 +101,11 @@ class FfmpegHdrColorGraphMediaTest {
       misses.isEmpty().shouldBeTrue()
     }
     WIDE_EXTREMES.forEach { (spec, codes) ->
-      val written = flatCodes(rendered(codes, fragmentOf(spec, HdrTransfer.Pq).writtenChain(), GRADE_YUV), SIDE)
+      val written =
+        flatCodes(
+          rendered(codes, fragmentOf(spec, HdrTransfer.Pq).writtenChain(), GRADE_YUVA).withoutAlpha(GRADE_YUVA),
+          SIDE,
+        )
       val what = "${spec.id} ${codes.toList()}"
 
       gradedMiss(HdrTransfer.Pq, spec, codes, written, what, FLOAT32_PLANES).shouldBeNull()
@@ -127,7 +136,11 @@ class FfmpegHdrColorGraphMediaTest {
   fun `each color effect writes a flat color at the codes the shared grade rounds it to`() {
     val misses =
       flatCases().mapNotNull { (transfer, spec, codes) ->
-        val written = flatCodes(rendered(codes, fragmentOf(spec, transfer).writtenChain(), GRADE_YUV), SIDE)
+        val written =
+          flatCodes(
+            rendered(codes, fragmentOf(spec, transfer).writtenChain(), GRADE_YUVA).withoutAlpha(GRADE_YUVA),
+            SIDE,
+          )
         gradedMiss(transfer, spec, codes, written, "$transfer ${spec.id} ${codes.toList()}")
       }
 
@@ -141,7 +154,15 @@ class FfmpegHdrColorGraphMediaTest {
     val misses =
       flatCases().mapNotNull { (transfer, spec, codes) ->
         val nodes = fragmentOf(spec, transfer).writtenChain() + overlayOn(transfer).writtenChain()
-        val light = flatLight(rendered(codes, nodes, FLOAT_RGB), SIDE)
+        // The overlay's decode ends premultiplied by the frame's alpha, so the light is divided back out by it.
+        val written = rendered(codes, nodes, FLOAT_RGBA)
+        val alpha =
+          ByteBuffer
+            .wrap(written)
+            .order(ByteOrder.LITTLE_ENDIAN)
+            .asFloatBuffer()
+            .get(3 * SIDE * SIDE)
+        val light = flatLight(written.withoutAlpha(FLOAT_RGBA), SIDE).map { it / alpha }
         val read = transfer.signalFromNits(FloatArray(3) { light[it] * transfer.peakNits })
         val expected = gradedCodes(transfer, spec, codes)
         val signal = signalFromTenBitCodes(expected[0], expected[1], expected[2])
@@ -173,8 +194,8 @@ class FfmpegHdrColorGraphMediaTest {
     precision: Float,
   ): List<String> {
     val chain = fragmentOf(spec, transfer).writtenChain()
-    withClue("$transfer ${spec.id} ends 4:2:0") { chain.last() shouldBe FilterNode("format", "pix_fmts" to GRADE_YUV) }
-    val read = gridSamples(GRID_FRAME.rendered(chain.dropLast(1), WIDE_YUV), GRID_CODES.size)
+    withClue("$transfer ${spec.id} ends 4:2:0") { chain.last() shouldBe FilterNode("format", "pix_fmts" to GRADE_YUVA) }
+    val read = gridSamples(GRID_FRAME.rendered(chain.dropLast(1), WIDE_YUVA).withoutAlpha(WIDE_YUVA), GRID_CODES.size)
     return GRID_CODES.indices.mapNotNull { pixel ->
       val written = IntArray(3) { (read[it][pixel] + TEN_TO_SIXTEEN_BITS / 2) / TEN_TO_SIXTEEN_BITS }
       gradedMiss(transfer, spec, GRID_CODES[pixel], written, "$transfer ${spec.id} ${GRID[pixel].toList()}", precision)

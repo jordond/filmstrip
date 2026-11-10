@@ -1,10 +1,10 @@
 package dev.jordond.filmstrip.effects.color
 
 import dev.jordond.filmstrip.color.HDR_REFERENCE_WHITE_NITS
-import dev.jordond.filmstrip.color.HLG_NOMINAL_PEAK_NITS
 import dev.jordond.filmstrip.color.PQ_PEAK_NITS
 import dev.jordond.filmstrip.color.hlgSignalFromDisplayNits
 import dev.jordond.filmstrip.color.pqSignalFromNits
+import dev.jordond.filmstrip.color.sdrSignalFromHlgSignal
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.effect.Attributes
 import dev.jordond.filmstrip.effect.EffectResolution
@@ -62,7 +62,10 @@ import kotlin.time.Duration.Companion.seconds
  * On a kept grade the frame is built and read back as float light in linear BT.2020, the primaries
  * an HDR frame arrives in and the ones the other backends mix in, and checked against
  * [transformNits] with reference white at one. The cases there sit above white on one channel and
- * below it on another, which is where the encoded reading and a bare linear one part company.
+ * below it on another, which is where the encoded reading and a bare linear one part company. An
+ * HLG frame is built and read back as HLG codes instead and checked against the matrix run on
+ * [sdrSignalFromHlgSignal] of each code, since Core Image's light for a colored HLG pixel is not a
+ * power of that signal.
  */
 @OptIn(ExperimentalForeignApi::class)
 class CoreImageColorHardwareTest {
@@ -142,7 +145,7 @@ class CoreImageColorHardwareTest {
     val context = renderingContext()
 
     assertDrawsOnGrade(Contrast(FIRMER), HdrTransfer.Pq, context)
-    assertDrawsOnGrade(Contrast(FIRMER), HdrTransfer.Hlg, context)
+    assertDrawsOnHlgCodes(Contrast(FIRMER), context)
   }
 
   @Test
@@ -150,7 +153,15 @@ class CoreImageColorHardwareTest {
     val context = renderingContext()
 
     assertDrawsOnGrade(Saturation(MUTED), HdrTransfer.Pq, context)
-    assertDrawsOnGrade(Saturation(MUTED), HdrTransfer.Hlg, context)
+  }
+
+  // Core Image decodes HLG through an opto-optical transfer that reads all three channels at once, so a colored
+  // pixel's light is not a power of the signal the other backends mix. Only a colored pixel tells the two apart.
+  @Test
+  fun `a saturation on an hlg grade mixes the shared signal of a colored pixel`() {
+    val context = renderingContext()
+
+    assertDrawsOnHlgCodes(Saturation(MUTED), context)
   }
 
   // A matrix that scales all three channels alike takes the cheap lowering, which multiplies the
@@ -161,7 +172,7 @@ class CoreImageColorHardwareTest {
     val context = renderingContext()
 
     assertDrawsOnGrade(Brightness(FIRMER), HdrTransfer.Pq, context)
-    assertDrawsOnGrade(Brightness(FIRMER), HdrTransfer.Hlg, context)
+    assertDrawsOnHlgCodes(Brightness(FIRMER), context)
     assertDrawsOnGrade(ColorMatrix(rr = MUTED, gg = MUTED, bb = MUTED), HdrTransfer.Pq, context)
   }
 
@@ -170,7 +181,7 @@ class CoreImageColorHardwareTest {
     val context = renderingContext()
 
     assertDrawsOnGrade(MIXED, HdrTransfer.Pq, context)
-    assertDrawsOnGrade(MIXED, HdrTransfer.Hlg, context)
+    assertDrawsOnHlgCodes(MIXED, context)
   }
 
   // A channel the matrix pushes past the format's peak lands on that peak, and one it pushes below
@@ -181,14 +192,12 @@ class CoreImageColorHardwareTest {
     val context = renderingContext()
 
     val step = stepFor(Contrast(HARSH), HdrTransfer.Hlg)
-    val drawn =
-      readLight(step.apply(extremes(), frameOn(HdrTransfer.Hlg)), context, kCGColorSpaceExtendedLinearITUR_2020)
+    val drawn = readHlgCodes(step.apply(hlgCodes(HLG_EXTREMES), frameOn(HdrTransfer.Hlg)), context)
 
-    val peak = HLG_NOMINAL_PEAK_NITS / HDR_REFERENCE_WHITE_NITS
     withClue("red was not held at the format's peak: ${drawn.toList()}") {
-      drawn[0] shouldBe (peak plusOrMinus peak * LIGHT_DRIFT)
+      drawn[0] shouldBe (1f plusOrMinus CODE_DRIFT)
     }
-    withClue("blue was not floored at black: ${drawn.toList()}") { drawn[2] shouldBe (0f plusOrMinus LIGHT_DRIFT) }
+    withClue("blue was not floored at black: ${drawn.toList()}") { drawn[2] shouldBe (0f plusOrMinus CODE_DRIFT) }
   }
 
   // What pins the reading above. A color named in the PQ color space at reference white comes
@@ -298,6 +307,43 @@ class CoreImageColorHardwareTest {
     }
   }
 
+  /**
+   * Runs [spec]'s step over a flat frame of colored HLG codes and checks every channel landed where [transformHlgCodes]
+   * of those codes says.
+   *
+   * The frame goes in and comes out as HLG codes, so nothing here reads Core Image's own decode to light.
+   */
+  private fun assertDrawsOnHlgCodes(
+    spec: EffectSpec,
+    context: CIContext,
+  ) {
+    val plain = readHlgCodes(hlgCodes(HLG_COLOR), context)
+    val drawn =
+      readHlgCodes(stepFor(spec, HdrTransfer.Hlg).apply(hlgCodes(HLG_COLOR), frameOn(HdrTransfer.Hlg)), context)
+
+    val matrix = checkNotNull(colorMatrixOf(spec)) { "${spec.id} is not a color matrix" }
+    val expected = matrix.transformHlgCodes(plain[0], plain[1], plain[2])
+
+    withClue("${spec.id} asks for ${expected.toList()} from a plain ${plain.toList()}, which is inside the tolerance") {
+      (expected.indices.sumOf { abs(expected[it] - plain[it]).toDouble() } > CHANNELS * CODE_DRIFT) shouldBe true
+    }
+    expected.indices.forEach { channel ->
+      withClue(
+        "${spec.id} on HLG drew codes ${drawn.toList()} and the shared signal asks for ${expected.toList()} from " +
+          "${plain.toList()}",
+      ) {
+        drawn[channel] shouldBe (expected[channel] plusOrMinus CODE_DRIFT)
+      }
+    }
+  }
+
+  private fun hlgCodes(codes: List<Float>): CIImage = flatIn(codes[0], codes[1], codes[2], kCGColorSpaceITUR_2100_HLG)
+
+  private fun readHlgCodes(
+    image: CIImage,
+    context: CIContext,
+  ): FloatArray = readLight(image, context, kCGColorSpaceITUR_2100_HLG)
+
   private fun stepFor(
     spec: EffectSpec,
     transfer: HdrTransfer? = null,
@@ -314,13 +360,8 @@ class CoreImageColorHardwareTest {
   private fun inCodes(codes: List<Float>): CIImage =
     flatIn(codes[0], codes[1], codes[2], ColorSpace.Bt709.createCodeSpace())
 
-  // Above white on red and green and below it on blue, all inside HLG's ceiling under every case
-  // but the one that goes looking for it.
+  // Above white on red and green and below it on blue, all inside PQ's ceiling.
   private fun lit(): CIImage = light(LIT_RED, LIT_GREEN, LIT_BLUE)
-
-  // Red well past where a harsh contrast can stay under the ceiling, blue low enough that the same
-  // contrast takes it below zero.
-  private fun extremes(): CIImage = light(EXTREME_RED, 1f, EXTREME_BLUE)
 
   private fun light(
     red: Float,
@@ -473,11 +514,15 @@ class CoreImageColorHardwareTest {
     val SATURATION_TO_BLACK = listOf(0.6f, 0.45f, 0.18f)
     val MIXED_TO_BLACK = listOf(0.6f, 0.1f, 0.1f)
 
+    // A colored HLG pixel with each channel a long way from the others, above reference white on red.
+    val HLG_COLOR = listOf(0.75f, 0.45f, 0.2f)
+
+    // Red far enough up and blue far enough down that a harsh contrast takes them past the peak and below zero.
+    val HLG_EXTREMES = listOf(0.9f, 0.6f, 0.1f)
+
     const val LIT_RED = 1.8f
     const val LIT_GREEN = 1.2f
     const val LIT_BLUE = 0.4f
-    const val EXTREME_RED = 3f
-    const val EXTREME_BLUE = 0.05f
 
     const val FULL = 255f
     const val CHANNELS = 3
@@ -489,6 +534,9 @@ class CoreImageColorHardwareTest {
     // What a half float working format leaves on a value, as a fraction of it.
     const val LIGHT_DRIFT = 0.01f
     const val WHITE_DRIFT = 0.005f
+
+    // One ten bit code, what a half float working format and the curves Core Image interpolates leave on an HLG code.
+    const val CODE_DRIFT = 1f / 1_023
 
     val CAPABILITIES =
       RenderCapabilities(

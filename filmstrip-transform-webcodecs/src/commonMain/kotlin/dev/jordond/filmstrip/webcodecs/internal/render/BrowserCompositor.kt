@@ -59,8 +59,9 @@ internal class BrowserCompositor(
   private var overlayPass: BrowserOverlayPass? = null
   private var toneMapPass: ToneMapPass? = null
   private val shaderPass = ShaderPass(gl, buffer, width, height, hdrTransfer != null)
-  private val clipFrames = PassFrames(gl, hdrTransfer != null)
-  private val compositionFrames = PassFrames(gl, hdrTransfer != null)
+  private val clipFrames = PassFrames(gl, hdrTransfer != null, FrameAlpha.Straight)
+  private val compositionFrames = PassFrames(gl, hdrTransfer != null, FrameAlpha.Straight)
+  private var underFillStage: UnderFillStage? = null
   private var sdPrimariesPass: SdPrimariesPass? = null
 
   /**
@@ -111,6 +112,10 @@ internal class BrowserCompositor(
    * place of the decoded frame. The composition's shader passes need a frame they can read, so the composite draws into
    * one of [compositionFrames] when there are any and they write the target.
    *
+   * The composition's passes under the fill need a frame they can read, so a clip with any is drawn on one of an
+   * [UnderFillStage] instead, they run over that, and the result is laid over the fill. A blurred background is part of
+   * the picture they run on, and a color fill is not, so that frame starts clear under a color fill.
+   *
    * The clip's overlays go on right after the composite, inside its quad, and after the composition's passes the
    * composition's go on last over the whole frame.
    *
@@ -149,23 +154,56 @@ internal class BrowserCompositor(
     }
     val target = targetFor(compositionPasses)
 
-    // Either branch leaves the target bound for the sharp draw below.
+    if (clip.passesUnderFill.isEmpty()) {
+      drawFillUnder(clip, source, target, compositionUs)
+      drawPicture(clip, source, compositionUs)
+    } else {
+      val stage = underFill()
+      if (blur != null && clip.hasBars) {
+        drawFillUnder(clip, source, stage.frame(width, height), compositionUs)
+      } else {
+        stage.open(width, height, clearColor)
+      }
+      drawPicture(clip, source, compositionUs)
+      val picture = stage.run(shaderPass, clip.passesUnderFill, width, height, compositionUs.microseconds)
+      gl.bindFramebuffer(GL_FRAMEBUFFER, target)
+      gl.clear(GL_COLOR_BUFFER_BIT)
+      stage.lay(picture)
+    }
+    finishComposition(compositionPasses, compositionOverlays, compositionUs)
+  }
+
+  // Clears the target to the fill, or draws a blurred fill's background into it, and leaves it bound with the clip's
+  // contained geometry set.
+  private fun drawFillUnder(
+    clip: RenderedClip,
+    source: JsAny,
+    target: JsAny?,
+    compositionUs: Double,
+  ) {
     if (blur != null && clip.hasBars) {
       drawBackground(blur, clip, source, target, compositionUs)
       // The cover pass above reused this program's quad uniforms for its own geometry. Put the
-      // clip's contained geometry back before the sharp draw below.
+      // clip's contained geometry back before the sharp draw.
       gl.useProgram(program)
       gl.uniform2f(quadScale, clip.quadHalfW, clip.quadHalfH)
     } else {
       gl.bindFramebuffer(GL_FRAMEBUFFER, target)
       gl.clear(GL_COLOR_BUFFER_BIT)
     }
+  }
 
+  // The sharp clip and its overlays, into the bound framebuffer.
+  private fun drawPicture(
+    clip: RenderedClip,
+    source: JsAny,
+    compositionUs: Double,
+  ) {
+    gl.useProgram(program)
     gl.activeTexture(GL_TEXTURE0)
     gl.bindTexture(GL_TEXTURE_2D, source)
     gl.drawArrays(GL_TRIANGLE_STRIP, 0, QUAD_VERTICES)
     drawClipOverlays(clip, clip.quadHalfW, clip.quadHalfH, compositionUs)
-    finishComposition(compositionPasses, compositionOverlays, compositionUs)
   }
 
   /**
@@ -288,6 +326,9 @@ internal class BrowserCompositor(
   private fun overlays(): BrowserOverlayPass =
     overlayPass ?: BrowserOverlayPass.create(gl, buffer, hdrTransfer).also { overlayPass = it }
 
+  private fun underFill(): UnderFillStage =
+    underFillStage ?: UnderFillStage.create(gl, buffer, hdrTransfer != null).also { underFillStage = it }
+
   private fun toneMap(): ToneMapPass =
     toneMapPass ?: buildToneMapPass(gl, width, height, buffer).also { toneMapPass = it }
 
@@ -352,23 +393,7 @@ internal class BrowserCompositor(
     gl.uniform2f(quadScale, clip.coverHalfW, clip.coverHalfH)
     gl.drawArrays(GL_TRIANGLE_STRIP, 0, QUAD_VERTICES)
     drawClipOverlays(clip, clip.coverHalfW, clip.coverHalfH, compositionUs)
-
-    gl.useProgram(blur.program)
-
-    gl.bindFramebuffer(GL_FRAMEBUFFER, blur.blurFbo)
-    gl.clear(GL_COLOR_BUFFER_BIT)
-    gl.bindTexture(GL_TEXTURE_2D, blur.coverTexture)
-    gl.uniform2f(blur.texelStep, 1f / blur.smallWidth, 0f)
-    gl.uniform1f(blur.gainUniform, 1f)
-    gl.drawArrays(GL_TRIANGLE_STRIP, 0, QUAD_VERTICES)
-
-    gl.viewport(0, 0, width, height)
-    gl.bindFramebuffer(GL_FRAMEBUFFER, target)
-    gl.clear(GL_COLOR_BUFFER_BIT)
-    gl.bindTexture(GL_TEXTURE_2D, blur.blurTexture)
-    gl.uniform2f(blur.texelStep, 0f, 1f / blur.smallHeight)
-    gl.uniform1f(blur.gainUniform, blur.gain)
-    gl.drawArrays(GL_TRIANGLE_STRIP, 0, QUAD_VERTICES)
+    blur.blurCoverOnto(gl, target, width, height)
   }
 
   /**
@@ -431,6 +456,7 @@ internal class BrowserCompositor(
     shaderPass.release()
     clipFrames.release()
     compositionFrames.release()
+    underFillStage?.release()
     sdPrimariesPass?.release(gl)
     hdr?.release(gl)
     blur?.release(gl)

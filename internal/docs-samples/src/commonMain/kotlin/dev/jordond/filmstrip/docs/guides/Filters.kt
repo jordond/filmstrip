@@ -9,9 +9,15 @@ import dev.jordond.filmstrip.effects.filters.camcorder.DateStyle
 import dev.jordond.filmstrip.effects.filters.camcorder.RecordedAt
 import dev.jordond.filmstrip.effects.filters.camcorder.camcorder
 import dev.jordond.filmstrip.effects.filters.crt.crt
+import dev.jordond.filmstrip.effects.filters.film.Film
+import dev.jordond.filmstrip.effects.filters.film.film
 import dev.jordond.filmstrip.effects.filters.filters
+import dev.jordond.filmstrip.effects.filters.glitch.glitch
 import dev.jordond.filmstrip.effects.filters.lut.CubeLut
 import dev.jordond.filmstrip.effects.filters.lut.lut
+import dev.jordond.filmstrip.effects.filters.nightvision.nightVision
+import dev.jordond.filmstrip.effects.filters.pixel.PixelPalette
+import dev.jordond.filmstrip.effects.filters.pixel.pixel
 import dev.jordond.filmstrip.effects.filters.vhs.TapeSpeed
 import dev.jordond.filmstrip.effects.filters.vhs.vhs
 import dev.jordond.filmstrip.media.MediaSource
@@ -28,6 +34,52 @@ internal fun filtersSetup(): Filmstrip {
   return filmstrip
 }
 
+internal fun pixelLook(): Composition {
+  // region pixel
+  val composition =
+    compositionOf {
+      clip(MediaSource.of("/path/to/arcade.mp4"))
+      effects {
+        pixel(cells = 96, dither = 0.5f, palette = PixelPalette.GameBoy)
+      }
+    }
+  // endregion
+  return composition
+}
+
+internal fun filmLook(): Composition {
+  // region film
+  val composition =
+    compositionOf {
+      clip(MediaSource.of("/path/to/holiday.mp4"))
+      effects {
+        film(grain = 0.6f, halation = 0.4f)
+      }
+    }
+  // endregion
+  return composition
+}
+
+internal fun super8Looks(): List<Composition> {
+  // region super8
+  val composition =
+    compositionOf {
+      clip(MediaSource.of("/path/to/holiday.mp4"))
+      effects {
+        add(Film.Super8)
+      }
+    }
+  val wornReel =
+    compositionOf {
+      clip(MediaSource.of("/path/to/holiday.mp4"))
+      effects {
+        film(grain = 0.9f, weave = 0.8f, flicker = 0.6f, dust = 0.7f, gate = 0.5f, seed = 8)
+      }
+    }
+  // endregion
+  return listOf(composition, wornReel)
+}
+
 internal fun crtLook(): Composition {
   // region crt
   val composition =
@@ -35,6 +87,19 @@ internal fun crtLook(): Composition {
       clip(MediaSource.of("/path/to/arcade.mp4"))
       effects {
         crt(intensity = 0.75f)
+      }
+    }
+  // endregion
+  return composition
+}
+
+internal fun glitchLook(): Composition {
+  // region glitch
+  val composition =
+    compositionOf {
+      clip(MediaSource.of("/path/to/teaser.mp4"))
+      effects {
+        glitch(intensity = 0.6f, seed = 7)
       }
     }
   // endregion
@@ -106,6 +171,19 @@ internal fun camcorderOrder(): Composition {
         }
         // The VCR's own display, clean over the playback.
         camcorder { play() }
+      }
+    }
+  // endregion
+  return composition
+}
+
+internal fun nightVisionLook(): Composition {
+  // region night-vision
+  val composition =
+    compositionOf {
+      clip(MediaSource.of("/path/to/backyard.mp4"))
+      effects {
+        nightVision(intensity = 0.8f)
       }
     }
   // endregion

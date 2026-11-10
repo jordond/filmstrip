@@ -2048,6 +2048,8 @@ final class dev.jordond.filmstrip.effect/Attributes { // dev.jordond.filmstrip.e
         final fun <get-outputSize>(): dev.jordond.filmstrip.geometry/Size // dev.jordond.filmstrip.effect/Attributes.outputSize.<get-outputSize>|<get-outputSize>(){}[0]
     final val span // dev.jordond.filmstrip.effect/Attributes.span|{}span[0]
         final fun <get-span>(): dev.jordond.filmstrip.edit/TimeRange // dev.jordond.filmstrip.effect/Attributes.span.<get-span>|<get-span>(){}[0]
+    final val storedSize // dev.jordond.filmstrip.effect/Attributes.storedSize|{}storedSize[0]
+        final fun <get-storedSize>(): dev.jordond.filmstrip.geometry/Size // dev.jordond.filmstrip.effect/Attributes.storedSize.<get-storedSize>|<get-storedSize>(){}[0]
 
     final fun toString(): kotlin/String // dev.jordond.filmstrip.effect/Attributes.toString|toString(){}[0]
 }
@@ -2672,6 +2674,8 @@ final object dev.jordond.filmstrip.effect/EffectIds { // dev.jordond.filmstrip.e
         final fun <get-CROP_RECT>(): kotlin/String // dev.jordond.filmstrip.effect/EffectIds.CROP_RECT.<get-CROP_RECT>|<get-CROP_RECT>(){}[0]
     final const val FLIP // dev.jordond.filmstrip.effect/EffectIds.FLIP|{}FLIP[0]
         final fun <get-FLIP>(): kotlin/String // dev.jordond.filmstrip.effect/EffectIds.FLIP.<get-FLIP>|<get-FLIP>(){}[0]
+    final const val GAUSSIAN_BLUR // dev.jordond.filmstrip.effect/EffectIds.GAUSSIAN_BLUR|{}GAUSSIAN_BLUR[0]
+        final fun <get-GAUSSIAN_BLUR>(): kotlin/String // dev.jordond.filmstrip.effect/EffectIds.GAUSSIAN_BLUR.<get-GAUSSIAN_BLUR>|<get-GAUSSIAN_BLUR>(){}[0]
     final const val HUE_ROTATE // dev.jordond.filmstrip.effect/EffectIds.HUE_ROTATE|{}HUE_ROTATE[0]
         final fun <get-HUE_ROTATE>(): kotlin/String // dev.jordond.filmstrip.effect/EffectIds.HUE_ROTATE.<get-HUE_ROTATE>|<get-HUE_ROTATE>(){}[0]
     final const val IMAGE_OVERLAY // dev.jordond.filmstrip.effect/EffectIds.IMAGE_OVERLAY|{}IMAGE_OVERLAY[0]
@@ -2692,6 +2696,8 @@ final object dev.jordond.filmstrip.effect/EffectIds { // dev.jordond.filmstrip.e
         final fun <get-SEPIA>(): kotlin/String // dev.jordond.filmstrip.effect/EffectIds.SEPIA.<get-SEPIA>|<get-SEPIA>(){}[0]
     final const val TEXT_OVERLAY // dev.jordond.filmstrip.effect/EffectIds.TEXT_OVERLAY|{}TEXT_OVERLAY[0]
         final fun <get-TEXT_OVERLAY>(): kotlin/String // dev.jordond.filmstrip.effect/EffectIds.TEXT_OVERLAY.<get-TEXT_OVERLAY>|<get-TEXT_OVERLAY>(){}[0]
+    final const val VIGNETTE // dev.jordond.filmstrip.effect/EffectIds.VIGNETTE|{}VIGNETTE[0]
+        final fun <get-VIGNETTE>(): kotlin/String // dev.jordond.filmstrip.effect/EffectIds.VIGNETTE.<get-VIGNETTE>|<get-VIGNETTE>(){}[0]
 }
 
 final object dev.jordond.filmstrip/FilmstripVersion { // dev.jordond.filmstrip/FilmstripVersion|null[0]

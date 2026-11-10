@@ -26,6 +26,7 @@ import dev.jordond.filmstrip.effects.filters.crt.crt
 import dev.jordond.filmstrip.effects.filters.film.film
 import dev.jordond.filmstrip.effects.filters.lut.CubeLut
 import dev.jordond.filmstrip.effects.filters.lut.lut
+import dev.jordond.filmstrip.effects.filters.pixel.pixel
 import dev.jordond.filmstrip.effects.filters.vhs.TapeSpeed
 import dev.jordond.filmstrip.effects.filters.vhs.Tracking
 import dev.jordond.filmstrip.effects.filters.vhs.vhs
@@ -36,6 +37,8 @@ import dev.jordond.filmstrip.effects.geometry.scale
 import dev.jordond.filmstrip.effects.overlay.imageOverlay
 import dev.jordond.filmstrip.effects.overlay.nearestCornerInset
 import dev.jordond.filmstrip.effects.overlay.textOverlay
+import dev.jordond.filmstrip.effects.spatial.blur
+import dev.jordond.filmstrip.effects.spatial.vignette
 import dev.jordond.filmstrip.geometry.Anchor
 import dev.jordond.filmstrip.geometry.AspectRatio
 import dev.jordond.filmstrip.geometry.Corner
@@ -133,6 +136,8 @@ public class EditState {
   var hueDegrees: Float by mutableStateOf(0f)
   var sepia: Float by mutableStateOf(0f)
   var invert: Float by mutableStateOf(0f)
+  var blur: Float by mutableStateOf(0f)
+  var vignette: Float by mutableStateOf(0f)
   var customMatrix: ColorMatrix by mutableStateOf(ColorMatrix.Identity)
 
   var vhsEnabled: Boolean by mutableStateOf(false)
@@ -145,6 +150,7 @@ public class EditState {
   var filmHalation: Float by mutableStateOf(0.5f)
   var crtEnabled: Boolean by mutableStateOf(false)
   var crtIntensity: Float by mutableStateOf(1f)
+  val pixelLook: PixelState = PixelState()
   var lutEnabled: Boolean by mutableStateOf(false)
   var lutIntensity: Float by mutableStateOf(1f)
   val camcorderDisplay: CamcorderState = CamcorderState()
@@ -355,6 +361,8 @@ public class EditState {
 
         if (scaleEnabled) scale(scaleHeight, scaleFit)
         addAll(colorEffects)
+        if (blur != 0f) blur(blur)
+        if (vignette != 0f) vignette(strength = vignette)
         val burned = camcorderDisplay.shown && camcorderDisplay.burned
         if (vhsEnabled) {
           vhs {
@@ -373,6 +381,7 @@ public class EditState {
         }
         if (filmEnabled) film(filmGrain, filmHalation)
         if (crtEnabled) crt(crtIntensity)
+        if (pixelLook.enabled) pixel(pixelLook.cells.toInt(), pixelLook.levelCount, pixelLook.dither, pixelLook.palette)
         if (lutEnabled) lut(SAMPLE_LUT, lutIntensity)
         if (camcorderDisplay.shown && !camcorderDisplay.burned) camcorder(camcorderDisplay.elements)
 
@@ -381,7 +390,7 @@ public class EditState {
             text = text,
             style = textStyle,
             anchor = textAnchor,
-            visibleDuring = window(textTimed, textStartSeconds, textEndSeconds),
+            visibleDuring = visibleWindow(textTimed, textStartSeconds, textEndSeconds),
           )
         }
 
@@ -392,7 +401,7 @@ public class EditState {
             margin = watermarkMargin,
             scale = watermarkScale,
             opacity = watermarkOpacity,
-            visibleDuring = window(watermarkTimed, watermarkStartSeconds, watermarkEndSeconds),
+            visibleDuring = visibleWindow(watermarkTimed, watermarkStartSeconds, watermarkEndSeconds),
           )
         }
       }
@@ -443,10 +452,13 @@ public class EditState {
     filmHalation = 0.5f
     crtEnabled = false
     crtIntensity = 1f
+    pixelLook.reset()
     lutEnabled = false
     lutIntensity = 1f
     camcorderDisplay.reset()
     invert = 0f
+    blur = 0f
+    vignette = 0f
     customMatrix = ColorMatrix.Identity
     textEnabled = false
     text = ""
@@ -472,17 +484,6 @@ public class EditState {
     fillColor = BLACK
     blurRadius = 0.04f
     blurDim = 0f
-  }
-
-  internal fun window(
-    enabled: Boolean,
-    startSeconds: Float,
-    endSeconds: Float,
-  ): TimeRange? {
-    if (!enabled) return null
-    val start = startSeconds.toDouble().seconds
-    val end = endSeconds.toDouble().seconds
-    return if (end > start) TimeRange(start, end) else null
   }
 
   public companion object {

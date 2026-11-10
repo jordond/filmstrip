@@ -45,7 +45,6 @@ import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
 import kotlin.math.abs
-import kotlin.math.floor
 import kotlin.math.max
 import kotlin.test.Test
 import kotlin.time.Duration
@@ -72,7 +71,7 @@ abstract class BrowserCrtFixture {
   ): PreviewFrame {
     val preview = previewOf(composition, spec)
     try {
-      return preview.frameAt(READ_TIME).shouldNotBeNull()
+      return preview.frameAt(DRAWN_READ_TIME).shouldNotBeNull()
     } finally {
       preview.release()
     }
@@ -148,8 +147,8 @@ abstract class BrowserCrtFixture {
     readRows.forEach { y ->
       readColumns.forEach { x ->
         val expected =
-          CrtSignal.pixelAt((x + 0.5) / width, (y + 0.5) / height, width, height, params) { u, v ->
-            picture.bilinear(u, v)
+          CrtSignal.pixelAt((x + 0.5) / width, (y + 0.5) / height, width, height, params) { column, row ->
+            picture.pixelAt(column, row).channels()
           }
         val read = frame.pixelAt(x, y).channels()
         for (channel in 0 until RGB) worst = max(worst, abs(read[channel] - expected[channel]) * FULL)
@@ -169,31 +168,6 @@ abstract class BrowserCrtFixture {
     return (spread + atEdge + middle).filter { it in 0 until size }.distinct()
   }
 
-  // The frame read the way a texture filters, between pixel centres and clamped at the edge.
-  private fun PreviewFrame.bilinear(
-    u: Double,
-    v: Double,
-  ): DoubleArray {
-    val x = u * size.width - 0.5
-    val y = v * size.height - 0.5
-    val left = floor(x).toInt()
-    val top = floor(y).toInt()
-    val across = x - left
-    val down = y - top
-    val texel = { column: Int, row: Int ->
-      pixelAt(column.coerceIn(0, size.width - 1), row.coerceIn(0, size.height - 1)).channels()
-    }
-    val upperLeft = texel(left, top)
-    val upperRight = texel(left + 1, top)
-    val lowerLeft = texel(left, top + 1)
-    val lowerRight = texel(left + 1, top + 1)
-    return DoubleArray(RGB) {
-      val upper = upperLeft[it] + (upperRight[it] - upperLeft[it]) * across
-      val lower = lowerLeft[it] + (lowerRight[it] - lowerLeft[it]) * across
-      upper + (lower - upper) * down
-    }
-  }
-
   internal fun PreviewFrame.pixelAt(
     x: Int,
     y: Int,
@@ -210,7 +184,11 @@ private const val HEIGHT = 720
 private const val FRAMES = 12
 private const val FRAME_RATE = 30
 private const val READ_SLOT = 6L
-private val READ_TIME: Duration = outputSlotTime(READ_SLOT, FRAME_RATE)
+
+/**
+ * The composition time [BrowserCrtFixture.drawn] reads its frame at, a few frames into the clip.
+ */
+internal val DRAWN_READ_TIME: Duration = outputSlotTime(READ_SLOT, FRAME_RATE)
 private const val SPREAD_READS = 9
 private const val MIDDLE_READS = 6
 private const val BLACK_ARGB = 0xFF000000.toInt()

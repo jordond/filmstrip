@@ -5,6 +5,7 @@ import dev.jordond.filmstrip.effect.EffectResolution
 import dev.jordond.filmstrip.effect.PlatformEffect
 import dev.jordond.filmstrip.effects.color.inCodesOf
 import dev.jordond.filmstrip.effects.filters.internal.HASH_MASK
+import dev.jordond.filmstrip.effects.spatial.blurredWithin
 import kotlinx.cinterop.BetaInteropApi
 import kotlinx.cinterop.CValue
 import kotlinx.cinterop.ExperimentalForeignApi
@@ -12,8 +13,8 @@ import kotlinx.cinterop.interpretObjCPointer
 import kotlinx.cinterop.objcPtr
 import kotlinx.cinterop.useContents
 import platform.CoreGraphics.CGRect
+import platform.CoreGraphics.CGRectInset
 import platform.CoreGraphics.CGRectMake
-import platform.CoreImage.CIImage
 import platform.CoreImage.CIKernel
 import platform.CoreImage.CIVector
 import platform.Foundation.NSSelectorFromString
@@ -51,14 +52,16 @@ internal fun filmResolution(
  * The Core Image step that draws [film], on the frame's own codes.
  *
  * A frame's look comes from its composition time and its extent alone, so a seek or a smaller render shows the same
- * one. The response runs at the size [FilmSignal.halationBlurPlan] picks, and its blur is Core Image's own Gaussian,
- * which a test holds to the plan's kernel.
+ * one. The weave reads the frame moved by [FilmSignal.weaveAt] first, and everything after it reads what it moved. The
+ * response runs at the size [FilmSignal.halationBlurPlan] picks, and [blurredWithin] blurs it with Core Image's own
+ * Gaussian, which a test holds to the plan's kernel.
  *
  * @throws IllegalStateException When a kernel will not run, which [filmKernelLimit] refused at plan time.
  */
 @OptIn(ExperimentalForeignApi::class)
 internal fun filmStep(film: Film): CoreImageEffect {
   val params = FilmParams.of(film)
+  val seed = (params.seed and HASH_MASK).toDouble()
   return CoreImageEffect { image, frame ->
     val extent = image.extent
     val (x, y, width, height) = extent.useContents { listOf(origin.x, origin.y, size.width, size.height) }
@@ -67,11 +70,26 @@ internal fun filmStep(film: Film): CoreImageEffect {
     val plan = FilmSignal.halationBlurPlan(pixelsWide)
     val blurWidth = plan.width.toDouble()
     val blurHeight = plan.heightOf(pixelsTall).toDouble()
-    val tick = FilmSignal.grainTickAt(frame.compositionTime.toDouble(DurationUnit.SECONDS)) and HASH_MASK
+    val tick = (FilmSignal.grainTickAt(frame.compositionTime.toDouble(DurationUnit.SECONDS)) and HASH_MASK).toDouble()
 
     inCodesOf(frame.attributes.colorSpace) { toCodes ->
-      val edge = toCodes(image).imageByClampingToExtent()
       val box = CIVector.vectorWithX(x, Y = y, Z = width, W = height)
+      val edge =
+        if (params.weave > 0.0) {
+          kernel(FILM_WEAVE_KERNEL)
+            .applyWithExtent(
+              extent,
+              roiCallback = { _, rect -> filmSourceRegion(rect, pixelsWide, pixelsTall, params.weave) },
+              arguments =
+                listOf(
+                  toCodes(image).imageByClampingToExtent(),
+                  box,
+                  CIVector.vectorWithX(seed, Y = tick, Z = params.weave),
+                ),
+            )?.imageByClampingToExtent() ?: error(FILM_KERNEL_LIMIT)
+        } else {
+          toCodes(image).imageByClampingToExtent()
+        }
       val glow =
         if (params.halationGain > 0.0) {
           val small = CGRectMake(0.0, 0.0, blurWidth, blurHeight)
@@ -86,7 +104,7 @@ internal fun filmStep(film: Film): CoreImageEffect {
                   CIVector.vectorWithX(blurWidth, Y = blurHeight, Z = plan.factor.toDouble()),
                 ),
             ) ?: error(FILM_KERNEL_LIMIT)
-          blurredGlow(response, plan.sigmaPx, small)
+          response.blurredWithin(plan.sigmaPx, small)
         } else {
           edge
         }
@@ -100,10 +118,11 @@ internal fun filmStep(film: Film): CoreImageEffect {
             box,
             CIVector.vectorWithX(blurWidth, Y = blurHeight, Z = params.halationGain, W = params.grainStrength),
             CIVector.vectorWithX(
-              (GRAIN_SEED and HASH_MASK).toDouble(),
-              Y = tick.toDouble(),
+              seed,
+              Y = tick,
               Z = FilmSignal.grainCellSpan(pixelsWide, pixelsTall).toDouble(),
             ),
+            CIVector.vectorWithX(params.flicker, Y = params.dust, Z = params.gate),
           ),
       ) ?: error(FILM_KERNEL_LIMIT)
     }
@@ -111,18 +130,19 @@ internal fun filmStep(film: Film): CoreImageEffect {
 }
 
 /**
- * The response blurred at [sigma] of its own pixels and held at its edge past [small], the way the plan's blur clamps.
+ * The part of the source a weave of [weave] reads under a render of [rect], on a frame [width] by [height].
+ *
+ * No read moves further than the weave's reach at [weave] from its pixel, plus the pixel past it a read between two
+ * pixels takes.
  */
 @OptIn(ExperimentalForeignApi::class)
-internal fun blurredGlow(
-  response: CIImage,
-  sigma: Double,
-  small: CValue<CGRect>,
-): CIImage =
-  response
-    .imageByClampingToExtent()
-    .imageByApplyingGaussianBlurWithSigma(sigma)
-    .imageByClampingToRect(small)
+internal fun filmSourceRegion(
+  rect: CValue<CGRect>,
+  width: Int,
+  height: Int,
+  weave: Double,
+): CValue<CGRect> =
+  CGRectInset(rect, -(WEAVE_REACH_X * weave * width + SAMPLE_MARGIN), -(WEAVE_REACH_Y * weave * height + SAMPLE_MARGIN))
 
 /**
  * Why this device cannot draw a [Film], or null when it can.
@@ -139,7 +159,13 @@ internal fun filmKernelLimit(
     interpretObjCPointer<NSObjectProtocol>(
       CIKernel.objcPtr(),
     ).respondsToSelector(NSSelectorFromString(KERNELS_FROM_SOURCE)),
-  compiles: () -> Boolean = { FILM_RESPONSE_KERNEL in KERNELS && FILM_GRADE_KERNEL in KERNELS },
+  compiles: () -> Boolean = {
+    listOf(
+      FILM_WEAVE_KERNEL,
+      FILM_RESPONSE_KERNEL,
+      FILM_GRADE_KERNEL,
+    ).all { it in KERNELS }
+  },
 ): String? = FILM_KERNEL_LIMIT.takeUnless { kernelsExist && compiles() }
 
 /**
@@ -151,8 +177,7 @@ internal const val FILM_KERNEL_LIMIT: String =
 
 private fun kernel(name: String): CIKernel = KERNELS[name] ?: error(FILM_KERNEL_LIMIT)
 
-@OptIn(ExperimentalForeignApi::class)
-private fun CIImage.imageByClampingToRect(rect: CValue<CGRect>): CIImage =
-  imageByCroppingToRect(rect).imageByClampingToExtent()
-
 private const val KERNELS_FROM_SOURCE = "kernelsWithMetalString:error:"
+
+// A read between two pixels takes the pixel past it on either side.
+private const val SAMPLE_MARGIN = 2.0

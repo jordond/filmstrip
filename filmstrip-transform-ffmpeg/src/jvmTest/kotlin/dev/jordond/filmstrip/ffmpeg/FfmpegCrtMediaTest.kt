@@ -169,8 +169,11 @@ class FfmpegCrtMediaTest {
             }
           }.first { (_, _, mix) -> mix in MIXED_READ }
       val shown =
-        CrtSignal.pixelAt((x + 0.5) / width, (y + 0.5) / height, width, height, params) { _, _ -> BRIGHT }
-      val wanted = lumaCode(DoubleArray(RGB) { shown[it] * mix + SLATE_CODES[it] / FULL * (1.0 - mix) })
+        CrtSignal.pixelAt((x + 0.5) / width, (y + 0.5) / height, width, height, params) { column, _ ->
+          if (column < pictureLeft) DoubleArray(RGB + 1) else BRIGHT + 1.0
+        }
+      val alpha = shown[RGB]
+      val wanted = lumaCode(DoubleArray(RGB) { shown[it] * alpha + SLATE_CODES[it] / FULL * (1.0 - alpha) })
 
       withClue("column $x at a mix of $mix") {
         frame.luma(x, y).toDouble() shouldBe (wanted plusOrMinus MIXED_CODES)

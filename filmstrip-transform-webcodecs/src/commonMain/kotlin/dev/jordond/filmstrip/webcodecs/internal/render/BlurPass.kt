@@ -37,6 +37,34 @@ internal class BlurPass(
   val blurTexture: JsAny,
 ) {
   /**
+   * Blurs what the cover pass drew into [coverFbo] across and then down, dims it, and draws it into [target] at the
+   * [width] by [height] output, which it clears first. Leaves [target] bound and this pass's program in use.
+   */
+  fun blurCoverOnto(
+    gl: WebGl2,
+    target: JsAny?,
+    width: Int,
+    height: Int,
+  ) {
+    gl.useProgram(program)
+
+    gl.bindFramebuffer(GL_FRAMEBUFFER, blurFbo)
+    gl.clear(GL_COLOR_BUFFER_BIT)
+    gl.bindTexture(GL_TEXTURE_2D, coverTexture)
+    gl.uniform2f(texelStep, 1f / smallWidth, 0f)
+    gl.uniform1f(gainUniform, 1f)
+    gl.drawArrays(GL_TRIANGLE_STRIP, 0, QUAD_VERTICES)
+
+    gl.viewport(0, 0, width, height)
+    gl.bindFramebuffer(GL_FRAMEBUFFER, target)
+    gl.clear(GL_COLOR_BUFFER_BIT)
+    gl.bindTexture(GL_TEXTURE_2D, blurTexture)
+    gl.uniform2f(texelStep, 0f, 1f / smallHeight)
+    gl.uniform1f(gainUniform, gain)
+    gl.drawArrays(GL_TRIANGLE_STRIP, 0, QUAD_VERTICES)
+  }
+
+  /**
    * Deletes every program, texture and framebuffer this pass holds.
    */
   fun release(gl: WebGl2) {
