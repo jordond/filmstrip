@@ -19,9 +19,11 @@ import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.HDR_CLIP
 import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.TIMEOUT
 import dev.jordond.filmstrip.test.assumeDecodesTenBitHevc
 import dev.jordond.filmstrip.test.assumeEncodesHdr
+import dev.jordond.filmstrip.test.encodesHdr
 import io.kotest.assertions.withClue
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.test.runTest
+import org.junit.Assume.assumeTrue
 import java.io.File
 import kotlin.test.Test
 
@@ -181,7 +183,12 @@ class AndroidFillMediaTest {
   fun aBlurredFillOnHdrDimsOnTheSignalNotTheLight() =
     runTest(timeout = TIMEOUT) {
       val source = probe.fixture(HDR_CLIP)
-      probe.filmstrip.assumeEncodesHdr()
+      assumeTrue(
+        "a kept grade needs an HDR encoder and this device advertises none, so the cover's blur on the SDR signal is " +
+          "not read here. Where one exists the retriever still tone maps the export unspecified, so only the dim's " +
+          "direction can be read, not an exact blurPlane figure",
+        probe.filmstrip.encodesHdr(),
+      )
 
       val undimmed = probe.frame(export(source, listOf(squareCrop()), Fill.Blurred(dim = 0f), HdrMode.KeepHdr))
       val halfDimmed = probe.frame(export(source, listOf(squareCrop()), Fill.Blurred(dim = 0.5f), HdrMode.KeepHdr))

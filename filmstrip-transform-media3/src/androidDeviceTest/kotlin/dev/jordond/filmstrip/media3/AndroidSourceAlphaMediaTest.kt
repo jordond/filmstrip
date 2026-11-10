@@ -15,10 +15,11 @@ import dev.jordond.filmstrip.transform.internal.geometry.blendOverFill
 import dev.jordond.filmstrip.transform.internal.geometry.blurPlan
 import io.kotest.assertions.withClue
 import io.kotest.matchers.ints.shouldBeGreaterThan
-import io.kotest.matchers.ints.shouldBeInRange
+import io.kotest.matchers.ints.shouldBeLessThanOrEqual
 import kotlinx.coroutines.test.runTest
 import java.io.File
 import kotlin.math.abs
+import kotlin.math.roundToInt
 import kotlin.test.Test
 import kotlin.time.Duration.Companion.milliseconds
 
@@ -72,6 +73,42 @@ class AndroidSourceAlphaMediaTest {
       }
     }
 
+  @Test
+  fun aPictureWithAClearHalfIsCoveredByABlurWeightedByItsAlpha() =
+    runTest(timeout = TIMEOUT) {
+      val fill = Fill.Blurred(radius = CLEAR_RADIUS, dim = 0f)
+      val frame = probe.plan(composition(picture(OPAQUE_ALPHA), fill)).output.size
+      val source = probe.written(composition(picture(OPAQUE_ALPHA), fill)).rgbAt(LEFT_AT, MID_ROW)
+      val drawn = probe.written(composition(clearHalfPicture(), fill))
+      val sigma = fill.blurPlan(frame).let { it.sigmaPx / it.width }
+      val alpha = DoubleArray(frame.width * frame.height) { if (it % frame.width < frame.width / 2) 1.0 else 0.0 }
+
+      for (at in listOf(CLEAR_AT, NEAR_EDGE_AT)) {
+        val cover =
+          listOf(source.first, source.second, source.third).map { level ->
+            val plane = DoubleArray(alpha.size) { if (alpha[it] > 0.0) level.toDouble() else 0.0 }
+            blurPlane(plane, alpha, frame.width, frame.height, sigma)[
+              (MID_ROW * frame.height).toInt() * frame.width + (at * frame.width).toInt(),
+            ].roundToInt()
+          }
+        assertWithin(drawn.rgbAt(at, MID_ROW), Triple(cover[0], cover[1], cover[2]), "at $at")
+      }
+    }
+
+  private fun assertWithin(
+    read: Triple<Int, Int, Int>,
+    expected: Triple<Int, Int, Int>,
+    context: String,
+  ) {
+    val off =
+      maxOf(
+        abs(read.first - expected.first),
+        abs(read.second - expected.second),
+        abs(read.third - expected.third),
+      )
+    withClue("$context, read $read, expected $expected, off by $off") { off shouldBeLessThanOrEqual TOLERANCE }
+  }
+
   private fun assertBlend(
     read: Triple<Int, Int, Int>,
     source: Triple<Int, Int, Int>,
@@ -83,11 +120,7 @@ class AndroidSourceAlphaMediaTest {
         blendOverFill(source.second, HALF_ALPHA, fill.second),
         blendOverFill(source.third, HALF_ALPHA, fill.third),
       )
-    withClue("read $read, expected $expected") {
-      read.first shouldBeInRange (expected.first - TOLERANCE)..(expected.first + TOLERANCE)
-      read.second shouldBeInRange (expected.second - TOLERANCE)..(expected.second + TOLERANCE)
-      read.third shouldBeInRange (expected.third - TOLERANCE)..(expected.third + TOLERANCE)
-    }
+    assertWithin(read, expected, "source $source, fill $fill")
   }
 
   private fun composition(
@@ -103,6 +136,20 @@ class AndroidSourceAlphaMediaTest {
         IntArray(SOURCE.width * SOURCE.height) {
           val rgb = if (it % SOURCE.width < SOURCE.width / 2) WARM else COOL
           (alpha shl ALPHA_SHIFT) or rgb
+        }
+      val bitmap = Bitmap.createBitmap(pixels, SOURCE.width, SOURCE.height, Bitmap.Config.ARGB_8888)
+      file.writeAtomically { bitmap.compress(Bitmap.CompressFormat.PNG, PNG_QUALITY, it) }
+    }
+    return MediaSource.Image(ImageSource.of(file.path), LENGTH)
+  }
+
+  // Opaque warm on the left and clear black on the right.
+  private fun clearHalfPicture(): MediaSource {
+    val file = File(probe.context.cacheDir, "source-alpha-clear-half.png")
+    if (!file.exists()) {
+      val pixels =
+        IntArray(SOURCE.width * SOURCE.height) {
+          if (it % SOURCE.width < SOURCE.width / 2) (OPAQUE_ALPHA shl ALPHA_SHIFT) or WARM else 0
         }
       val bitmap = Bitmap.createBitmap(pixels, SOURCE.width, SOURCE.height, Bitmap.Config.ARGB_8888)
       file.writeAtomically { bitmap.compress(Bitmap.CompressFormat.PNG, PNG_QUALITY, it) }
@@ -127,6 +174,9 @@ class AndroidSourceAlphaMediaTest {
     const val LEFT_AT = 0.25f
     const val RIGHT_AT = 0.75f
     const val NEAR_STEP_AT = 0.4f
+    const val CLEAR_AT = 0.75f
+    const val NEAR_EDGE_AT = 0.6f
+    const val CLEAR_RADIUS = 0.25f
     const val MID_ROW = 0.5f
     const val MIN_COVER_GAP = 12
 
