@@ -34,7 +34,8 @@ import kotlin.time.Duration
  * drawn from the frame and carries the bars the way it carries the picture. The clip is then drawn at its [drawnRect],
  * over a blurred cover of itself when [showsBlurredFill] says the cover can be seen. An SD clip on [sdPrimaries] opens
  * on [SdPrimariesHead], ahead of everything [wrapper] sees, so its effects read the clip's colour as BT.709. A blurred
- * cover on a kept [transfer] grade is blurred on its SDR signal.
+ * cover on a kept [transfer] grade is blurred on its SDR signal. A clip whose pictures can be transparent opens on
+ * [StraightAlphaHead], so everything after it reads straight color.
  */
 internal fun ResolvedClip.clipVideoEffects(
   fill: Fill,
@@ -59,7 +60,8 @@ internal fun ResolvedClip.clipVideoEffects(
     } else {
       PlacedFrame(drawnRect, outputSize)
     }
-  return listOfNotNull(sdPrimaries?.let(::SdPrimariesHead)) + (chain + blackBars + placed).map(wrapper::wrap)
+  val straight = StraightAlphaHead.takeIf { info.video?.hasAlpha == true }
+  return listOfNotNull(straight, sdPrimaries?.let(::SdPrimariesHead)) + (chain + blackBars + placed).map(wrapper::wrap)
 }
 
 /**

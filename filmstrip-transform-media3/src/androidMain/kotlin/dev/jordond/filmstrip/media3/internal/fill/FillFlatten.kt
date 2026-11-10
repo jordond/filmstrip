@@ -47,9 +47,8 @@ internal class FillFlatten(
   }
 }
 
-// A pixel holds its color multiplied by its alpha, so the fill shows through in the share the pixel leaves clear. A
-// clear pixel adds nothing of its own, since a color effect may have lifted its color without its alpha. The result is
-// written back fully opaque.
+// A pixel's alpha mixes its straight color over the fill, and the result is written back fully opaque. A clear pixel
+// shows the fill whatever color an earlier effect left on it.
 private val FRAGMENT_SHADER =
   """
   #version 100
@@ -59,7 +58,6 @@ private val FRAGMENT_SHADER =
   varying vec2 vTexSamplingCoord;
   void main() {
     vec4 src = texture2D(uTexSampler, vTexSamplingCoord);
-    vec3 own = src.a > 0.0 ? src.rgb : vec3(0.0);
-    gl_FragColor = vec4(own + uFill * (1.0 - src.a), 1.0);
+    gl_FragColor = vec4(mix(uFill, src.rgb, src.a), 1.0);
   }
   """.trimIndent()
