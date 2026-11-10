@@ -57,35 +57,13 @@ internal fun GaussianBlur.toStep(limit: String? = spatialKernelLimit()): EffectR
     PlatformEffect(
       CoreImageEffect { image, frame ->
         val extent = image.extent
-        val (x, y, width, height) = extent.useContents { listOf(origin.x, origin.y, size.width, size.height) }
+        val (width, height) = extent.useContents { listOf(size.width, size.height) }
         if (sigma <= 0f || width < 1.0 || height < 1.0) {
           image
         } else {
           val plan = BlurPlan.of(sigma.toDouble(), width.roundToInt())
-          val smallWidth = plan.width.toDouble()
-          val smallHeight = plan.heightOf(height.roundToInt()).toDouble()
-          val small = CGRectMake(0.0, 0.0, smallWidth, smallHeight)
           image.inSignalOf(frame.attributes.hdrTransfer, frame.attributes.colorSpace) { signal ->
-            val down =
-              (KERNELS[BLUR_DOWN_KERNEL] ?: error(SPATIAL_KERNEL_LIMIT)).applyWithExtent(
-                small,
-                roiCallback = { _, _ -> extent },
-                arguments =
-                  listOf(
-                    signal.imageByClampingToExtent(),
-                    CIVector.vectorWithX(x, Y = y, Z = width, W = height),
-                    CIVector.vectorWithX(smallWidth, Y = smallHeight, Z = plan.factor.toDouble()),
-                  ),
-              ) ?: error(SPATIAL_KERNEL_LIMIT)
-            val blurred =
-              down
-                .blurredWithin(plan.sigmaPx, small)
-                .imageByApplyingTransform(
-                  CGAffineTransformConcat(
-                    CGAffineTransformMakeScale(width / smallWidth, height / smallHeight),
-                    CGAffineTransformMakeTranslation(x, y),
-                  ),
-                ).imageByCroppingToRect(extent)
+            val blurred = signal.blurredBy(plan, extent)
             val restore = KERNELS[BLUR_RESTORE_KERNEL] as? CIColorKernel ?: error(SPATIAL_KERNEL_LIMIT)
             restore.applyWithExtent(extent, arguments = listOf(blurred, signal)) ?: error(SPATIAL_KERNEL_LIMIT)
           }
@@ -93,6 +71,46 @@ internal fun GaussianBlur.toStep(limit: String? = spatialKernelLimit()): EffectR
       },
     ),
   )
+}
+
+/**
+ * This image over [extent] blurred by [plan], and read back up to [extent] linearly.
+ *
+ * The image is held at the edge of [extent], boxed down to the plan's size with [BOX_DOWN_MSL] and blurred there by
+ * [blurredWithin]. Core Image holds color premultiplied by alpha, so a pixel is weighed by its alpha, and an image
+ * with clear pixels is divided by the blurred alpha after.
+ *
+ * @throws IllegalStateException when this device cannot run the box down kernel, which [SPATIAL_KERNEL_LIMIT] names.
+ */
+@InternalFilmstripApi
+@OptIn(ExperimentalForeignApi::class)
+public fun CIImage.blurredBy(
+  plan: BlurPlan,
+  extent: CValue<CGRect>,
+): CIImage {
+  val (x, y, width, height) = extent.useContents { listOf(origin.x, origin.y, size.width, size.height) }
+  val smallWidth = plan.width.toDouble()
+  val smallHeight = plan.heightOf(height.roundToInt()).toDouble()
+  val small = CGRectMake(0.0, 0.0, smallWidth, smallHeight)
+  val down =
+    (KERNELS[BLUR_DOWN_KERNEL] ?: error(SPATIAL_KERNEL_LIMIT)).applyWithExtent(
+      small,
+      roiCallback = { _, _ -> extent },
+      arguments =
+        listOf(
+          imageByClampingToExtent(),
+          CIVector.vectorWithX(x, Y = y, Z = width, W = height),
+          CIVector.vectorWithX(smallWidth, Y = smallHeight, Z = plan.factor.toDouble()),
+        ),
+    ) ?: error(SPATIAL_KERNEL_LIMIT)
+  return down
+    .blurredWithin(plan.sigmaPx, small)
+    .imageByApplyingTransform(
+      CGAffineTransformConcat(
+        CGAffineTransformMakeScale(width / smallWidth, height / smallHeight),
+        CGAffineTransformMakeTranslation(x, y),
+      ),
+    ).imageByCroppingToRect(extent)
 }
 
 /**

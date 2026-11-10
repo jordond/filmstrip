@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip.avfoundation.internal.chain
 
+import dev.jordond.filmstrip.color.blurPlane
 import dev.jordond.filmstrip.color.linearDimGain
 import dev.jordond.filmstrip.effects.geometry.Crop
 import dev.jordond.filmstrip.effects.geometry.KenBurns
@@ -8,14 +9,17 @@ import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.transform.internal.geometry.blurPlan
 import dev.jordond.filmstrip.transform.internal.geometry.coverScale
 import dev.jordond.filmstrip.transform.internal.geometry.placeIn
 import dev.jordond.filmstrip.transform.internal.geometry.placementOf
 import dev.jordond.filmstrip.transform.internal.geometry.sigmaFor
 import io.kotest.assertions.withClue
 import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.types.shouldBeSameInstanceAs
 import kotlinx.cinterop.ExperimentalForeignApi
+import platform.CoreGraphics.CGAffineTransformMakeScale
 import platform.CoreGraphics.CGRectMake
 import platform.CoreImage.CIColor
 import platform.CoreImage.CIImage
@@ -208,6 +212,52 @@ class ChainFrameHardwareTest {
     }
   }
 
+  // The cover crops this 64 by 32 frame at 16 and 48 pixels across it. Blue runs from just outside the left crop line
+  // to an edge, so a blur held at the frame's edge takes in the red past the line and reads apart from one held at the
+  // crop's. Read on blue against the shared plan run on the plain cover.
+  @Test
+  fun `a blurred cover lands on the shared plan mid-frame and at the cover crop edge`() {
+    val frame =
+      solid(BLUE, STRIP_FROM, 0.0, STRIP_TO - STRIP_FROM, 32.0)
+        .imageByCompositingOverImage(solid(GREEN, STRIP_TO, 0.0, 48.0 - STRIP_TO, 32.0))
+        .imageByCompositingOverImage(solid(RED, 0.0, 0.0, 64.0, 32.0))
+    val fill = Fill.Blurred(radius = MID_RADIUS)
+    val plan = fill.blurPlan(SQUARE)
+    val sigma = plan.sigmaPx / plan.width
+    val cover =
+      frame
+        .coverOf(SQUARE)
+        .shouldNotBeNull()
+        .linearPixels(100, 100)
+        .blue()
+    val expected = blurPlane(cover, DoubleArray(cover.size) { 1.0 }, 100, 100, sigma)
+    val drawn = frame.blurredCover(SQUARE, fill).linearPixels(100, 100).blue()
+    val scale = coverScale(Size(64, 32), SQUARE).toDouble()
+    val whole =
+      frame
+        .imageByClampingToExtent()
+        .imageByApplyingTransform(CGAffineTransformMakeScale(scale, scale))
+        .imageByCroppingToRect(CGRectMake(0.0, 0.0, 64.0 * scale, 100.0))
+        .linearPixels(WHOLE_WIDTH, 100)
+        .blue()
+    val heldAtFrame = blurPlane(whole, DoubleArray(whole.size) { 1.0 }, WHOLE_WIDTH, 100, sigma * 100 / WHOLE_WIDTH)
+    val row = 50 * 100
+    val step = ((STRIP_TO - 16.0) * scale).toInt()
+
+    val apart = abs(heldAtFrame[50 * WHOLE_WIDTH + (WHOLE_WIDTH - 100) / 2] - expected[row])
+    withClue("a blur held at the frame's edge lands $apart from one held at the crop's, too close to tell") {
+      (apart > 2 * BLUR_LEVEL).shouldBeTrue()
+    }
+    val spread = abs(expected[row + step] - cover[row + step])
+    withClue("the shared blur moves the strip's edge by $spread, so the read is not of a sharp frame") {
+      (spread > 10 * BLUR_LEVEL).shouldBeTrue()
+    }
+    val worst = (row until row + 100).maxBy { abs(drawn[it] - expected[it]) }
+    withClue("the cover is ${abs(drawn[worst] - expected[worst])} off the shared plan at ${worst - row}") {
+      (abs(drawn[worst] - expected[worst]) <= BLUR_LEVEL).shouldBeTrue()
+    }
+  }
+
   @Test
   fun `a frame with nothing in it covers with black`() {
     val covered = CIImage.emptyImage().blurredCover(SQUARE, Fill.Blurred())
@@ -303,6 +353,15 @@ class ChainFrameHardwareTest {
     val WHITE = listOf(1f, 1f, 1f, 1f)
     val BLACK = listOf(0f, 0f, 0f, 1f)
     const val RED_ARGB = 0xFFFF0000.toInt()
+
+    // A sigma of 12 pixels on the square, which the plan boxes down by 2 onto whole pixels.
+    const val MID_RADIUS = 0.12f
+    const val STRIP_FROM = 14.0
+    const val STRIP_TO = 24.0
+    const val WHOLE_WIDTH = 200
+
+    // Two eight bit codes, as a GaussianBlur on Core Image is held to.
+    const val BLUR_LEVEL = 2.0 / 255.0
     val SQUARE = Size(100, 100)
     val WIDE = Size(200, 100)
     val PORTRAIT = Size(40, 50)
@@ -315,3 +374,5 @@ class ChainFrameHardwareTest {
     const val ONE_SIGMA_LOW = 0.1587f
   }
 }
+
+private fun LinearPixels.blue(): DoubleArray = DoubleArray(width * height) { at(it % width, it / width)[2].toDouble() }
