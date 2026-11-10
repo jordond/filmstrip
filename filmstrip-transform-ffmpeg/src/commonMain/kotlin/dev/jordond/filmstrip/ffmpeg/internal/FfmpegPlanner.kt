@@ -169,7 +169,7 @@ internal class FfmpegPlanner(
     val negotiated = export.composition ?: return LoweredExport(export, null)
     val fill = negotiated.fill
     if (fill is Fill.Blurred && negotiated.anyClipLeavesBars) {
-      if (!toolchain.hasFilter("gblur")) return unsupportedBlur("gblur")
+      BLUR_FILTERS.firstOrNull { !toolchain.hasFilter(it) }?.let { return unsupportedBlur(it) }
       // colorchannelmixer is only reached when dim actually darkens the background, so a build
       // missing it is refused only for the fills that would need it.
       if (fill.backgroundGain != 1f &&
@@ -257,6 +257,9 @@ private fun Toolchain.liveRefusal(fragments: List<FilterFragment>): String? {
     .firstOrNull { !hasFilter(it) }
     ?.let { "This ffmpeg build has no $it filter, so a look draws its map with its own graph." }
 }
+
+// The filters SpatialBlurGraph draws the blur with.
+private val BLUR_FILTERS = listOf("convolution", "pad", "fillborders", "transpose")
 
 private const val SD_CLIP = "a clip on SMPTE C or EBU primaries"
 

@@ -17,7 +17,7 @@ import kotlin.math.roundToInt
  * when it is null.
  *
  * The blur runs at [BlurPlan.of]'s size on planar RGB, so every plane is blurred by the same sigma, which 4:2:0 chroma
- * would not be. The frame is boxed down by `scale` with `area`, blurred by `gblur` and widened back with `bilinear`.
+ * would not be. The frame is boxed down by `scale` with `area`, blurred by `convolution` and widened back with `bilinear`.
  * A clip with non-square pixels is blurred as it is stored, with a plan for each axis so the sigma is the one [frame]
  * shows.
  *
@@ -27,8 +27,8 @@ import kotlin.math.roundToInt
  * frame comes back as `yuva420p`. A kept grade is blurred the same way on planes holding [SpatialSignal]'s scaled SDR
  * signal, and comes back as `yuva420p10le`.
  *
- * `gblur` is a recursive approximation of a Gaussian that holds its edge pixel past the frame, and the way through RGB
- * rounds both ways. Both are ffmpeg's limits, and a test pins how close they land.
+ * The blur is [BlurPlan]'s kernel with the frame's edge pixel held past it. The way through RGB rounds both ways, which
+ * is ffmpeg's limit, and a test pins how close it lands.
  */
 internal fun blurFragment(
   blur: GaussianBlur,
@@ -67,8 +67,8 @@ internal fun blurFragment(
  * The filters every effect that blurs a frame on ffmpeg runs, so they all blur by [BlurPlan.of]'s kernel.
  *
  * An effect boxes its frame down with [boxedDown], may draw on the small frame, and blurs it and widens it back with
- * [blurredUp]. Each step is pinned to the format it reads, so the graph never picks another between them. `gblur`
- * takes its sigma in the pixels of the plane it runs on, so the frame is held on planes of one size, like planar RGB.
+ * [blurredUp]. Each step is pinned to the format it reads, so the graph never picks another between them. `convolution`
+ * takes its taps in the pixels of the plane it runs on, so the frame is held on planes of one size, like planar RGB.
  */
 @InternalFilmstripApi
 public object SpatialBlurGraph {
@@ -91,8 +91,13 @@ public object SpatialBlurGraph {
     )
 
   /**
-   * Blurs a [boxedDown] frame by `gblur` at [across]' sigma along a row and [down]'s up a column, on the [planes]
-   * bit mask, and widens it back to [stored] with `bilinear`, in [pixelFormat].
+   * Blurs a [boxedDown] frame by [across]' weights along a row and [down]'s up a column, on the [planes] bit mask, and
+   * widens it back to [stored] with `bilinear`, in [pixelFormat].
+   *
+   * `convolution` runs each pass along a row with the plan's own taps on a sixteen bit copy of the frame, held out past
+   * its edge by `fillborders` so every tap beyond the frame reads the edge pixel, as the plan's weights do. The pass up
+   * a column runs between two `transpose`. A frame in `gbrap` is
+   * widened at 256 to a code and comes back on its nearest code, and any other is carried through `gbrap16le`.
    */
   public fun blurredUp(
     across: BlurPlan,
@@ -100,19 +105,60 @@ public object SpatialBlurGraph {
     stored: Size,
     pixelFormat: String,
     planes: Int,
-  ): List<FilterNode> =
-    listOf(
-      FilterNode(
-        "gblur",
-        "sigma" to "${across.sigmaPx}",
-        "sigmaV" to "${down.sigmaPx}",
-        "steps" to "$GBLUR_STEPS",
-        "planes" to "$planes",
-      ),
-      format(pixelFormat),
-      FilterNode("scale", "w" to "${stored.width}", "h" to "${stored.height}", "flags" to "bilinear"),
-      format(pixelFormat),
-    )
+  ): List<FilterNode> {
+    val wide = wideOf(pixelFormat)
+    return buildList {
+      add(format(wide))
+      add(
+        FilterNode(
+          "pad",
+          "w" to "iw+${2 * across.taps}",
+          "h" to "ih+${2 * down.taps}",
+          "x" to "${across.taps}",
+          "y" to "${down.taps}",
+        ),
+      )
+      add(
+        FilterNode(
+          "fillborders",
+          "left" to "${across.taps}",
+          "right" to "${across.taps}",
+          "top" to "${down.taps}",
+          "bottom" to "${down.taps}",
+          "mode" to "smear",
+        ),
+      )
+      add(convolution(across, planes))
+      add(TRANSPOSE)
+      add(convolution(down, planes))
+      add(TRANSPOSE)
+      add(
+        FilterNode(
+          "crop",
+          "w" to "iw-${2 * across.taps}",
+          "h" to "ih-${2 * down.taps}",
+          "x" to "${across.taps}",
+          "y" to "${down.taps}",
+        ),
+      )
+      add(FilterNode("scale", "w" to "${stored.width}", "h" to "${stored.height}", "flags" to "bilinear"))
+      add(format(wide))
+      if (pixelFormat == EIGHT_BIT_RGBA) add(RgbRoundTrip.toCodeStarts())
+      add(format(pixelFormat))
+    }
+  }
+
+  /**
+   * The taps of [plan]'s kernel from the far one on one side through the centre to the far one on the other, as the
+   * whole numbers `convolution` takes.
+   *
+   * Each weight is rounded at 16384 to the unit, which is as fine as a sixteen bit sum stays inside the filter's 32 bit
+   * accumulator, and `convolution` divides by the sum of the numbers it is given.
+   */
+  public fun kernelMatrix(plan: BlurPlan): String {
+    val reach = (plan.taps downTo 1) + (0..plan.taps)
+    return reach.joinToString(" ") { (plan.weights[it] * KERNEL_SCALE).roundToInt().toString() }
+  }
 
   /**
    * The fragment that blurs an opaque frame of [size] on a kept [transfer] grade by [plan], then multiplies each colour
@@ -238,10 +284,34 @@ private data class VignetteShape(
 
 private fun rangeOf(range: String): FilterNode = FilterNode("setrange", "range" to range)
 
+// The sixteen bit format a blur runs in, which a sixteen bit frame already is.
+private fun wideOf(pixelFormat: String): String = if (pixelFormat.endsWith("16le")) pixelFormat else WIDE_RGBA_BLUR
+
+// One pass of the plan's weights on every plane of the bit mask and none other.
+private fun convolution(
+  plan: BlurPlan,
+  planes: Int,
+): FilterNode {
+  val matrix = SpatialBlurGraph.kernelMatrix(plan)
+  val arguments =
+    (0 until PLANE_COUNT).filter { planes and (1 shl it) != 0 }.flatMap {
+      listOf(
+        "${it}m" to matrix,
+        "${it}mode" to "row",
+      )
+    }
+  return FilterNode("convolution", *arguments.toTypedArray())
+}
+
 private fun format(pixelFormat: String): FilterNode = FilterNode("format", "pix_fmts" to pixelFormat)
 
-// The most gblur takes, and the closest it lands to a Gaussian. Its recursive filter is ffmpeg's limit past this.
-private const val GBLUR_STEPS = 6
+// A column pass is a row pass between two of these, since convolution's own column mode answers 0 on sixteen bit
+// frames, which is ffmpeg's limit. dir 0 is the plain transpose, so two put every pixel back where it was.
+private val TRANSPOSE = FilterNode("transpose", "dir" to "0")
+private const val KERNEL_SCALE = 16384
+private const val EIGHT_BIT_RGBA = "gbrap"
+private const val WIDE_RGBA_BLUR = "gbrap16le"
+private const val PLANE_COUNT = 4
 private const val ALL_PLANES = 15
 private const val ALPHA_PLANES = 4
 

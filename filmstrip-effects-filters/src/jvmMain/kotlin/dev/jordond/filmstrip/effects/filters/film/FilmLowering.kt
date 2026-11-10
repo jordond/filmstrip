@@ -30,10 +30,10 @@ import dev.jordond.filmstrip.geometry.Size
  * [FilmSignal.weaveAt]'s offset between its four nearest pixels with their colour premultiplied by alpha, ahead of the
  * halation, and the flicker after it. Dust and scratches, then the gate, run after the grain in [filmGate].
  *
- * Going through `gbrap` and back rounds twice, and `gblur` is a recursive approximation of a Gaussian that holds its
- * edge pixel past the frame, where the signal's blur clamps to it as well. Both are ffmpeg's own limits, and a test
- * pins how close they land. A frame that went through `gbrap` comes out in `yuva420p` with its alpha as it read, opaque
- * if it had none.
+ * The glow is blurred by [SpatialBlurGraph]'s exact kernel and added, and the flicker applied, on sixteen bit planes,
+ * so it rounds once to a code before the frame goes back to `yuva420p`. Going through `gbrap` and back rounds twice,
+ * which is ffmpeg's own limit, and a test pins how close it lands. A frame that went through `gbrap` comes out in
+ * `yuva420p` with its alpha as it read, opaque if it had none.
  */
 internal fun filmFragment(
   film: Film,
@@ -93,13 +93,20 @@ private fun MutableList<FilterBranch>.addLight(
   val light =
     SpatialBlurGraph.boxedDown(plan, plan, frame, RGB_FORMAT) +
       FilmExpressions.response() +
-      SpatialBlurGraph.blurredUp(plan, plan, frame, RGB_FORMAT, RGB_PLANES)
-  val add = "clip(0.5+x+${params.halationGain}*y,0,$FULL_SCALE)"
-  val flicker = if (flickers) listOf(FilmExpressions.light(params, weaves = false, flickers = true)) else emptyList()
+      SpatialBlurGraph.blurredUp(plan, plan, frame, WIDE_FORMAT, RGB_PLANES)
+  val add = "clip(x+${params.halationGain}*y,0,$WIDE_FULL_SCALE)"
+  val flicker =
+    if (flickers) listOf(FilmExpressions.light(params, weaves = false, flickers = true, wide = true)) else emptyList()
   val toCodes =
-    listOf(FilterNode("lut2", "c0" to add, "c1" to add, "c2" to add)) + flicker + RgbRoundTrip.toCodes(fullChroma)
+    listOf(FilterNode("lut2", "c0" to add, "c1" to add, "c2" to add), FilterNode("format", "pix_fmts" to WIDE_FORMAT)) +
+      flicker +
+      FilterNode("format", "pix_fmts" to WIDE_FORMAT) +
+      RgbRoundTrip.toCodeStarts() +
+      FilterNode("format", "pix_fmts" to RGB_FORMAT) +
+      RgbRoundTrip.toCodes(fullChroma)
   add(FilterBranch(listOf(reads), RgbRoundTrip.toRgb() + woven, listOf("rgb")))
-  add(FilterBranch(listOf("rgb"), emptyList(), listOf("near", "far")))
+  add(FilterBranch(listOf("rgb"), emptyList(), listOf("narrow", "far")))
+  add(FilterBranch(listOf("narrow"), listOf(FilterNode("format", "pix_fmts" to WIDE_FORMAT)), listOf("near")))
   // The glow is weighed by its alpha through a lut2 reading alpha on every plane.
   add(FilterBranch(listOf("far"), emptyList(), listOf("weighedlight", "weighedcover")))
   add(FilterBranch(listOf("weighedcover"), listOf(ALPHA_ON_EVERY_PLANE), listOf("weighedalpha")))
@@ -226,7 +233,10 @@ internal object FilmExpressions {
     weaves: Boolean,
     flickers: Boolean,
     tick: String = clockTick,
+    wide: Boolean = false,
   ): FilterNode {
+    val full = if (wide) WIDE_FULL_SCALE else FULL_SCALE
+    val rounding = if (wide) "" else "0.5+"
     val hash = HashExpression(params.seed)
     val unit = { pass: Int, knot: String -> "(${hash.hash(pass, knot, "0")})/$HASH_RANGE*2-1" }
     val reach = { pass: Int, reach: Double, size: String, register: Int ->
@@ -262,8 +272,8 @@ internal object FilmExpressions {
       }
     }
     val lit = { plane: String ->
-      val value = if (flickers) "min($FULL_SCALE,(${read(plane)})*ld(5))" else read(plane)
-      "$row;clip(0.5+($value),0,$FULL_SCALE)"
+      val value = if (flickers) "min($full,(${read(plane)})*ld(5))" else read(plane)
+      "$row;clip($rounding($value),0,$full)"
     }
     val alpha = if (weaves) "$row;$at;clip(0.5+$coverage,0,$FULL_SCALE)" else "alpha(X,Y)"
     return FilterNode("geq", "r" to lit("r"), "g" to lit("g"), "b" to lit("b"), "a" to alpha, "i" to "nearest")
@@ -362,6 +372,10 @@ private val ALPHA_ON_EVERY_PLANE =
 private const val RGBA_PLANES = 4
 private const val RGB_PLANES = 7
 private const val FULL_SCALE = 255
+
+// A sixteen bit frame widened from gbrap holds a code at 256 to the code, so full scale sits at 255 of them.
+private const val WIDE_FORMAT = "gbrap16le"
+private const val WIDE_FULL_SCALE = 65280
 private const val LUMA_BLACK = 16
 private const val LUMA_CODES = 219
 

@@ -109,7 +109,7 @@ class FfmpegFilmSourceMediaTest {
     // most measured is 0.68 on ffmpeg 8.0.1 x86_64 and 9.0.2 arm64, where the source's own colour sits 6.1 off.
     const val SD_CODES = 1.5
     const val SD_HEAD = "colorspace=ispace"
-    const val FILM = "gblur"
+    const val FILM = "convolution"
     const val BT709_TAGS = "setparams=color_primaries=bt709"
     val PATCH = doubleArrayOf(0.875, 0.8125, 0.75)
     val GROUND = doubleArrayOf(0.15, 0.6, 0.2)

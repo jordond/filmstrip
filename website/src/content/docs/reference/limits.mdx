@@ -129,8 +129,8 @@ one, it's refused by name.
 - **Android and browser** need OpenGL ES 3 for `lut`, and a texture big enough for the table, 1170×520 for a 65 point
   table and 3096×1419 for 129.
 - **Android** refuses `vhs`, `glitch` and `nightVision` on a device below OpenGL ES 3.
-- **ffmpeg** blurs with an approximation, so a hard edge can land up to a fifth of a step off. Everywhere else it's
-  within a few code values.
+- **ffmpeg** blurs with the shared kernel, and rounds through RGB and back, so a hard edge can land a couple of codes
+  off. Everywhere else it's within a few code values.
 - **ffmpeg** works in 4:2:0, which averages out the colored stripes in `crt`'s mask. Any 4:2:0 file does the same, so
   the export matches the other backends.
 - **ffmpeg** holds `nightVision`'s grain to one of 255 steps, and writes it in 4:2:0, which averages each pixel's grain

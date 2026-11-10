@@ -21,6 +21,7 @@ import dev.jordond.filmstrip.effect.PlatformEffect
 import dev.jordond.filmstrip.effect.Sidecar
 import dev.jordond.filmstrip.effect.WINDOW_CLOCK
 import dev.jordond.filmstrip.effects.geometry.Scale
+import dev.jordond.filmstrip.effects.spatial.SpatialBlurGraph
 import dev.jordond.filmstrip.export.AudioFormat
 import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.export.OutputFormat
@@ -137,7 +138,7 @@ class GraphLoweringTest {
     val graph = graphFor(fill = fill, output = output)
 
     graph shouldContain "scale=w=${plan.width}:h=${plan.heightOf(output.height)}:flags=area"
-    graph shouldContain "gblur=sigma=${plan.sigmaPx}:sigmaV=${plan.sigmaPx}"
+    graph shouldContain "convolution=0m=${SpatialBlurGraph.kernelMatrix(plan)}"
   }
 
   @Test

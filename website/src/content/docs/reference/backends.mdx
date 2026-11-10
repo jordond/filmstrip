@@ -45,7 +45,7 @@ HDR grade also needs a float framebuffer and a VP9 Profile 2 encoder. See
 | Encode VP9                   | `libvpx-vp9`                                          |
 | Encode AAC or ALAC           | The `aac` or `alac` encoder                           |
 | Tone map                     | The `lut1d`, `geq` and `colorchannelmixer` filters    |
-| Draw `Fill.Blur`             | The `gblur` filter, and `colorchannelmixer` to dim it |
+| Draw `Fill.Blur`             | `convolution`, and `colorchannelmixer` to dim it      |
 | Draw an AVIF or HEIC picture | A decoder for it                                      |
 | Draw a JPEG XL picture       | `libjxl`                                              |
 

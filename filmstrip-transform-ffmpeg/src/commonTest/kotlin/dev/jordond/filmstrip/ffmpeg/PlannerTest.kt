@@ -107,6 +107,7 @@ import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.DurationUnit
 
+private val BLUR_FILTERS = setOf("pad", "fillborders", "convolution", "transpose")
 private val TONE_MAPPING = CATALOGUE_FILTERS + TONE_MAP_FILTERS
 private val SD_FILTERS = setOf("overlay", "concat", "amix", "pad", SD_COLOR_FILTER, "crop", "setparams")
 
@@ -508,16 +509,16 @@ class PlannerTest {
     lowering.graph!!.hdrTransfer shouldBe HdrTransfer.Hlg
   }
 
-  // Without gblur there is nothing to lower a blurred fill onto, and emitting the graph anyway
+  // Without convolution there is nothing to lower a blurred fill onto, and emitting the graph anyway
   // would hand ffmpeg a filter it does not have.
   @Test
-  fun `refuses a blurred fill on a build with no gblur`() {
+  fun `refuses a blurred fill on a build with no convolution`() {
     val composition = Composition(listOf(Track(listOf(Clip(landscape), Clip(portrait)))), fill = Fill.Blurred())
 
     val verdict = planner().lower(composition, Ask(ExportSpec(), device(), infos)).verdict
 
     val reason = verdict.shouldBeInstanceOf<Verdict.Incapable>().reasons.single()
-    reason.shouldBeInstanceOf<FilmstripError.InvalidComposition>().message shouldContain "gblur"
+    reason.shouldBeInstanceOf<FilmstripError.InvalidComposition>().message shouldContain "convolution"
   }
 
   // Each of these is a filter Vhs lowers, read one at a time so a name missing from the check fails on its own.
@@ -668,23 +669,23 @@ class PlannerTest {
   // heightPx forces a re-encode rather than the stream copy an untouched clip would take,
   // since a copy never reaches the filter graph at all.
   @Test
-  fun `lowers a blurred fill once the build has gblur`() {
+  fun `lowers a blurred fill once the build has convolution`() {
     val composition = Composition(listOf(Track(listOf(Clip(landscape), Clip(portrait)))), fill = Fill.Blurred())
 
-    val graph = capableGraph(composition, ExportSpec(heightPx = 720), toolchain(TONE_MAPPING + "gblur"))
+    val graph = capableGraph(composition, ExportSpec(heightPx = 720), toolchain(TONE_MAPPING + BLUR_FILTERS))
 
-    graph shouldContain "gblur=sigma="
+    graph shouldContain "convolution="
   }
 
   // colorchannelmixer is only reached once dim actually darkens something, so a build that has
-  // gblur but not it is refused only for the fill that would need it, not every blurred one.
+  // the blur filters but not it is refused only for the fill that would need it, not every blurred one.
   @Test
   fun `refuses a dimmed blurred fill on a build with no colorchannelmixer`() {
     val composition =
       Composition(listOf(Track(listOf(Clip(landscape), Clip(portrait)))), fill = Fill.Blurred(dim = 0.5f))
 
     val verdict =
-      planner(toolchain(CATALOGUE_FILTERS + "gblur"))
+      planner(toolchain(CATALOGUE_FILTERS + BLUR_FILTERS))
         .lower(composition, Ask(ExportSpec(), device(), infos))
         .verdict
 

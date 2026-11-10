@@ -110,8 +110,8 @@ the bars and any transparent part of the frame stay exactly as they are there to
 - Every backend draws them, on a clip, a track or the composition.
 - On Apple both run a Core Image Metal kernel, which takes an Apple6 GPU on iOS or macOS 12. A device that can't compile
   one refuses them by name.
-- The ffmpeg backend runs the blur through `gblur`, which is recursive rather than a true Gaussian, and through 8-bit RGB.
-  It lands within 2.5 codes of the shared kernel, measured at 2.2. The vignette rounds on the way through RGB and back,
+- The ffmpeg backend runs the blur through `convolution` with the shared kernel, and through 8-bit RGB. It lands within
+  2.5 codes of the shared kernel, measured at 2.2. The vignette rounds on the way through RGB and back,
   and lands within 1.5 codes of the shared gain, measured at 1.25.
 </Aside>
 
@@ -127,7 +127,7 @@ so the effect is only valid on a clip. A plan refuses it on a track, on the comp
 <Aside type="note" title="Limits">
 - The ffmpeg backend refuses `kenBurns`, since it has no per-frame crop.
 - The browser only turns a frame by whole quarter turns, and refuses any other `rotate` angle by name.
-- A blurred fill on the ffmpeg backend needs a build that carries the `gblur` filter, and is refused by name without it.
+- A blurred fill on the ffmpeg backend needs a build that carries the `convolution`, `fillborders`, `pad` and `transpose` filters, and is refused by name without it.
   Any effect is refused the same way when a build lacks a filter it runs on.
 - On a kept HDR grade, `brightness` and the color matrices read the frame the way an SDR display at reference white
   would. Highlights keep going where an SDR export would clip. See [HDR](/guides/hdr/).

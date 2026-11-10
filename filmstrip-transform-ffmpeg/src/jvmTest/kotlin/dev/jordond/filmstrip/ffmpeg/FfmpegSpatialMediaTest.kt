@@ -32,6 +32,7 @@ import dev.jordond.filmstrip.geometry.Size
 import io.kotest.assertions.withClue
 import io.kotest.matchers.doubles.shouldBeGreaterThan
 import io.kotest.matchers.doubles.shouldBeLessThanOrEqual
+import io.kotest.matchers.ints.shouldBeLessThan
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldNotContain
 import kotlinx.coroutines.runBlocking
@@ -52,11 +53,11 @@ class FfmpegSpatialMediaTest {
   private val draw = FilterFrames()
 
   @Test
-  fun `a blur at export size lands within gblurs reach of the shared plan`() =
+  fun `a blur at export size lands within the way through rgb of the shared plan`() =
     runBlocking<Unit> { assertBlurMatches(draw.clipOf(WIDTH, HEIGHT, ::edgeAt), ExportSpec(), WIDTH) }
 
   @Test
-  fun `a blur at preview size lands within gblurs reach of the shared plan`() =
+  fun `a blur at preview size lands within the way through rgb of the shared plan`() =
     runBlocking<Unit> {
       assertBlurMatches(
         draw.clipOf(WIDTH, HEIGHT, ::edgeAt),
@@ -66,7 +67,7 @@ class FfmpegSpatialMediaTest {
     }
 
   @Test
-  fun `a blur on a width the plan does not divide lands within gblurs reach of the shared plan`() =
+  fun `a blur on a width the plan does not divide lands within the way through rgb of the shared plan`() =
     runBlocking<Unit> {
       val plan = BlurPlan.of(SIGMA.toDouble(), UNEVEN_WIDTH)
       withClue("the plan boxes by ${plan.factor}, which divides $UNEVEN_WIDTH") {
@@ -76,10 +77,20 @@ class FfmpegSpatialMediaTest {
     }
 
   @Test
-  fun `a blur across a horizontal edge lands within gblurs reach of the vertical pass`() =
+  fun `a blur across a horizontal edge lands within the way through rgb of the vertical pass`() =
     runBlocking<Unit> {
       val clip = draw.clipOfPicture(WIDTH, HEIGHT, { _, y -> edgeAt(y) })
       assertBlurMatches(clip, ExportSpec(), WIDTH)
+    }
+
+  @Test
+  fun `a blur at a smaller sigma lands on the shared plan with its own taps`() =
+    runBlocking<Unit> {
+      val plan = BlurPlan.of(SMALL_SIGMA.toDouble(), WIDTH)
+      withClue("a smaller sigma has to reach fewer taps than the first one") {
+        plan.taps shouldBeLessThan BlurPlan.of(SIGMA.toDouble(), WIDTH).taps
+      }
+      assertBlurMatches(draw.clipOf(WIDTH, HEIGHT, ::edgeAt), ExportSpec(), WIDTH, SMALL_SIGMA, SMALL_SPREAD)
     }
 
   @Test
@@ -212,10 +223,10 @@ class FfmpegSpatialMediaTest {
         apart = maxOf(apart, abs(onPq[index] - expected[index]))
       }
       withClue("a blur of the PQ codes lands at most $apart codes from the sdr signal's, too close to tell apart") {
-        apart shouldBeGreaterThan 2 * KEPT_GBLUR_CODES
+        apart shouldBeGreaterThan 2 * KEPT_BLUR_CODES
       }
       withClue("the kept grade's blur is $worst ten-bit codes off the shared plan on the sdr signal") {
-        worst shouldBeLessThanOrEqual KEPT_GBLUR_CODES
+        worst shouldBeLessThanOrEqual KEPT_BLUR_CODES
       }
     }
 
@@ -267,7 +278,7 @@ class FfmpegSpatialMediaTest {
         "the kept grade's blur is $worst ten-bit codes off the shared plan on the sdr signal at $x, $y, reading " +
           "${blurred[worstAt]} for ${expected[worstAt]} from ${plain[worstAt]}",
       ) {
-        worst shouldBeLessThanOrEqual KEPT_GBLUR_CODES
+        worst shouldBeLessThanOrEqual KEPT_BLUR_CODES
       }
     }
 
@@ -319,23 +330,27 @@ class FfmpegSpatialMediaTest {
     clip: Clip,
     spec: ExportSpec,
     width: Int,
+    sigma: Float = SIGMA,
+    minSpread: Double = SHARP_SPREAD,
   ) {
-    val blurred = draw.planesAt(draw.composition(listOf(clip), listOf(GaussianBlur(SIGMA))), 0, spec)
+    val blurred = draw.planesAt(draw.composition(listOf(clip), listOf(GaussianBlur(sigma))), 0, spec)
     blurred.width shouldBe width
     val plain = draw.planesAt(draw.composition(listOf(clip)), 0, spec)
-    assertBlurred(blurred, plain, DoubleArray(plain.width * plain.height) { 1.0 })
+    assertBlurred(blurred, plain, DoubleArray(plain.width * plain.height) { 1.0 }, sigma, minSpread)
   }
 
-  // Every pixel [alpha] covers sits within gblur's reach of the shared blur of the plain frame's luma, and the
+  // Every pixel [alpha] covers sits within the way through RGB's reach of the shared blur of the plain frame's luma, and the
   // reference moves the frame far enough that a sharp read would fail.
   private fun assertBlurred(
     blurred: Yuv420Frame,
     plain: Yuv420Frame,
     alpha: DoubleArray,
+    sigma: Float = SIGMA,
+    minSpread: Double = SHARP_SPREAD,
   ) {
     val width = plain.width
     val luma = DoubleArray(width * plain.height) { plain.luma(it % width, it / width).toDouble() }
-    val expected = blurPlane(luma, alpha, width, plain.height, SIGMA.toDouble())
+    val expected = blurPlane(luma, alpha, width, plain.height, sigma.toDouble())
     var worst = 0.0
     var spread = 0.0
     for (index in expected.indices) {
@@ -344,10 +359,10 @@ class FfmpegSpatialMediaTest {
       spread = maxOf(spread, abs(expected[index] - luma[index]))
     }
     withClue("the reference blur moves the frame by $spread codes, so the read is not of a sharp frame") {
-      spread shouldBeGreaterThan SHARP_SPREAD
+      spread shouldBeGreaterThan minSpread
     }
     withClue("the drawn blur is $worst codes off the shared plan's at its worst pixel") {
-      worst shouldBeLessThanOrEqual GBLUR_CODES
+      worst shouldBeLessThanOrEqual BLUR_CODES
     }
   }
 
@@ -438,6 +453,7 @@ class FfmpegSpatialMediaTest {
     // At a sigma of 0.05 the plan boxes this down by 3, which leaves part of a box over.
     const val UNEVEN_WIDTH = 394
     const val SIGMA = 0.05f
+    const val SMALL_SIGMA = 0.025f
     const val CLIP_SECONDS = 2
     const val READ_SLOT = 12
     const val LIGHT = 0.875
@@ -453,19 +469,20 @@ class FfmpegSpatialMediaTest {
     const val DARK_LUMA = 16
     const val HOISTED = "vhoist"
 
-    // gblur's recursive filter and the way through RGB, both ffmpeg's limits, against the plan's exact kernel and box.
+    // The way through RGB, ffmpeg's limit, against the plan's exact kernel and box.
     // Measured at 2.28 on 8.0.1, the edge beside a bar and a width the plan does not divide included.
-    const val GBLUR_CODES = 2.5
+    const val BLUR_CODES = 2.5
 
     // The same on a kept grade in ten-bit codes, about one eight bit code, with the tables each way. Measured at 4 on
     // 8.0.1.
-    const val KEPT_GBLUR_CODES = 5.0
+    const val KEPT_BLUR_CODES = 5.0
 
     // The way through RGB and the sixteen bit gain round each way, ffmpeg's limit. Measured at 1.25 on 8.0.1.
     const val VIGNETTE_CODES = 1.5
 
     // A blur of an edge 137 codes tall at a sigma of 0.05 of the width moves the pixels beside it by far more.
     const val SHARP_SPREAD = 40.0
+    const val SMALL_SPREAD = 20.0
 
     // The centre, a point part way down the ramp, one near the radius on the diagonal and one near a corner.
     val VIGNETTE_POINTS = listOf(192 to 108, 58 to 108, 77 to 43, 12 to 11)
