@@ -191,21 +191,35 @@ public object SpatialBlur {
       BLUR_FRAGMENT,
       mapOf(FRAME to reads),
       { width, height -> blurredSize(sigmaFraction, width, height) },
-    ) { width, height ->
-      val plan = BlurPlan.of(sigmaFraction, width)
-      val weights = FloatArray(BlurPlan.MAX_TAPS + 1)
-      plan.weights.forEachIndexed { index, weight -> weights[index] = weight.toFloat() }
-      mapOf(
-        "uGap" to
-          if (horizontal) {
-            floatArrayOf(1f / plan.width, 0f)
-          } else {
-            floatArrayOf(0f, 1f / plan.heightOf(height))
-          },
-        "uTaps" to floatArrayOf(plan.taps.toFloat()),
-        "uWeights[0]" to weights,
-      )
-    }
+    ) { width, height -> gaussianUniforms(BlurPlan.of(sigmaFraction, width), height, horizontal) }
+
+  /**
+   * The GLSL ES 3.00 fragment shader one pass of a plan's kernel draws with, reading at the `vUv` varying.
+   *
+   * It reads the boxed frame from the `uFrame` sampler and takes its figures from [gaussianUniforms]. Every channel is
+   * blurred.
+   */
+  public val GAUSSIAN_GLSL: String get() = BLUR_FRAGMENT
+
+  /**
+   * The uniforms [GAUSSIAN_GLSL] runs [plan]'s kernel with, across the boxed frame when [horizontal] is set and up it
+   * otherwise, for a frame [heightPx] tall.
+   *
+   * A name ending in `[0]` is a float array, and any other is a float or a vec by its length.
+   */
+  public fun gaussianUniforms(
+    plan: BlurPlan,
+    heightPx: Int,
+    horizontal: Boolean,
+  ): Map<String, FloatArray> {
+    val weights = FloatArray(BlurPlan.MAX_TAPS + 1)
+    plan.weights.forEachIndexed { index, weight -> weights[index] = weight.toFloat() }
+    return mapOf(
+      "uGap" to if (horizontal) floatArrayOf(1f / plan.width, 0f) else floatArrayOf(0f, 1f / plan.heightOf(heightPx)),
+      "uTaps" to floatArrayOf(plan.taps.toFloat()),
+      "uWeights[0]" to weights,
+    )
+  }
 }
 
 private const val FRAME = "uFrame"

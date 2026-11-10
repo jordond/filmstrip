@@ -436,7 +436,7 @@ private class LinkedStep(
   val locations = mutableMapOf<String, JsAny?>()
 }
 
-private val PASS_VERTEX_SHADER =
+internal val PASS_VERTEX_SHADER =
   """
   #version 300 es
   in vec2 aPosition;
