@@ -46,7 +46,7 @@ import dev.jordond.filmstrip.transform.internal.negotiation.effectsThatRequireSd
 import dev.jordond.filmstrip.transform.internal.refusal
 import dev.jordond.filmstrip.transform.internal.refusedLowering
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
-import dev.jordond.filmstrip.transform.internal.resolve.anyClipLeavesBars
+import dev.jordond.filmstrip.transform.internal.resolve.anyClipExposesFill
 import dev.jordond.filmstrip.transform.internal.resolve.stillUnsupportedMessage
 
 /**
@@ -168,7 +168,7 @@ internal class FfmpegPlanner(
     val export = planner.negotiate(composition, ask, dropped)
     val negotiated = export.composition ?: return LoweredExport(export, null)
     val fill = negotiated.fill
-    if (fill is Fill.Blurred && negotiated.anyClipLeavesBars) {
+    if (fill is Fill.Blurred && negotiated.anyClipExposesFill) {
       BLUR_FILTERS.firstOrNull { !toolchain.hasFilter(it) }?.let { return unsupportedBlur(it) }
       // colorchannelmixer is only reached when dim actually darkens the background, so a build
       // missing it is refused only for the fills that would need it.

@@ -137,6 +137,7 @@ internal class PlannerFixture {
     fadeIn: Duration = Duration.ZERO,
     fadeOut: Duration = Duration.ZERO,
     bitrate: Bitrate? = Bitrate.mbps(12),
+    hasAlpha: Boolean = false,
   ): Clip {
     val source = MediaSource.of("/fixtures/clip-${registry.size}.mp4")
     registry[source] =
@@ -154,6 +155,7 @@ internal class PlannerFixture {
             colorSpace = ColorSpace.Bt709,
             hdrTransfer = hdr,
             bitrate = bitrate,
+            hasAlpha = hasAlpha,
           ),
         audio = audioRate?.let { AudioTrackInfo(trackCodecOf("mp4a"), it, 2, null) },
         isExportable = exportable,
