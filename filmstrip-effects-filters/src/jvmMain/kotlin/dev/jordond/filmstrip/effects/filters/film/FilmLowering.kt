@@ -99,7 +99,13 @@ private fun MutableList<FilterBranch>.addLight(
     if (flickers) listOf(FilmExpressions.light(params, weaves = false, flickers = true, wide = true)) else emptyList()
   val toCodes =
     listOf(
-      FilterNode("mix", "weights" to "1 ${params.halationGain}", "scale" to "1", "planes" to "7", "duration" to "first"),
+      FilterNode(
+        "mix",
+        "weights" to "1 ${params.halationGain}",
+        "scale" to "1",
+        "planes" to "7",
+        "duration" to "first",
+      ),
       FilterNode("lutrgb", "r" to CLIPPED_WIDE, "g" to CLIPPED_WIDE, "b" to CLIPPED_WIDE),
       FilterNode("format", "pix_fmts" to WIDE_FORMAT),
     ) +
