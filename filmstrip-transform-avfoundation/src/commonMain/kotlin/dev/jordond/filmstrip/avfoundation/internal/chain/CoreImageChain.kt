@@ -282,12 +282,16 @@ internal class CoreImageChain(
     val rect = span?.drawnRect ?: NormalizedRect.Full
     val frame = FrameInfo(state.compositionAttributes, drawnAt)
 
+    // A source with alpha blends over the fill on its stored codes, the way every backend does. A graded signal has no
+    // such codes to blend, so it keeps Core Image's own blend.
+    val blendsInCodes = span?.hasAlpha == true && state.encodedTransfer == null
+
     if (fill.derivesFromFrame) {
       // Picture, not furniture: the fill is composited in first and the composition's own effects
       // grade it along with the rest of the frame. A cover the clip hides costs a blur nothing shows.
       val hidden = span != null && !span.hasAlpha && !span.placement.showsBlurredFill(size)
       val under = if (hidden) Fill.Black else fill
-      image = image.fittedTo(size, rect, under, state.encodedTransfer)
+      image = image.fittedTo(size, rect, under, state.encodedTransfer, inCodes = blendsInCodes)
       return image.stepped(resolved.effectsUnderFill, frame).stepped(resolved.effectsOverFill, frame)
     }
 
@@ -301,7 +305,8 @@ internal class CoreImageChain(
         frame,
         layout = CGRectMake(0.0, 0.0, size.width.toDouble(), size.height.toDouble()),
       )
-    val flattened = graded.over(image.fillImage(fill, size, state.encodedTransfer), mask = laid, size = size)
+    val background = image.fillImage(fill, size, state.encodedTransfer)
+    val flattened = graded.over(background, mask = laid, size = size, inCodes = blendsInCodes)
     return flattened.stepped(resolved.effectsOverFill, frame)
   }
 

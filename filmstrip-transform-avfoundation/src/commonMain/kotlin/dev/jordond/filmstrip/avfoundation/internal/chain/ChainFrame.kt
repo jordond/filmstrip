@@ -53,10 +53,13 @@ internal fun CIImage.fittedTo(
   rect: NormalizedRect,
   fill: Fill,
   transfer: HdrTransfer?,
+  inCodes: Boolean = false,
 ): CIImage {
   val frame = CGRectMake(0.0, 0.0, size.width.toDouble(), size.height.toDouble())
   val background = fillImage(fill, size, transfer).imageByCroppingToRect(frame)
-  return laidAt(size, rect).imageByCompositingOverImage(background)
+  val laid = laidAt(size, rect)
+  if (inCodes) return laid.blendedInCodes(background) { imageByCompositingOverImage(it) }
+  return laid.imageByCompositingOverImage(background)
 }
 
 /**
@@ -165,15 +168,14 @@ internal fun CIImage.over(
   background: CIImage,
   mask: CIImage,
   size: Size,
+  inCodes: Boolean = false,
 ): CIImage {
   val rect = CGRectMake(0.0, 0.0, size.width.toDouble(), size.height.toDouble())
-  return imageByApplyingFilter(
-    "CIBlendWithAlphaMask",
-    mapOf(
-      "inputBackgroundImage" to background.imageByCroppingToRect(rect),
-      "inputMaskImage" to mask,
-    ),
-  )
+  val blend: CIImage.(CIImage) -> CIImage = {
+    imageByApplyingFilter("CIBlendWithAlphaMask", mapOf("inputBackgroundImage" to it, "inputMaskImage" to mask))
+  }
+  val cropped = background.imageByCroppingToRect(rect)
+  return if (inCodes) blendedInCodes(cropped) { imageByCompositingOverImage(it) } else blend(cropped)
 }
 
 /**
@@ -218,16 +220,16 @@ internal fun CIImage.blurredCover(
   return if (blur.dim <= 0f) blurred else blurred.dimmed(blur.dim)
 }
 
-// Divides the colour by its alpha and then sets the alpha to one, which leaves an opaque image as it was.
+// Sets the alpha to one. The filter works on the colour divided by its alpha, so a see through pixel keeps its colour.
 @OptIn(ExperimentalForeignApi::class)
 private fun CIImage.opaque(): CIImage =
-  imageByUnpremultiplyingAlpha().imageByApplyingFilter(
+  imageByApplyingFilter(
     "CIColorMatrix",
     mapOf(
       "inputAVector" to CIVector.vectorWithX(0.0, 0.0, 0.0, 0.0),
       "inputBiasVector" to CIVector.vectorWithX(0.0, 0.0, 0.0, 1.0),
     ),
-  )
+  ).imageByCroppingToRect(extent)
 
 /**
  * This frame scaled to cover [size], centred and cropped to it, or null when the frame has nothing in it.
