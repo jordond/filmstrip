@@ -20,9 +20,9 @@ internal class OpaqueTracker(
   private var barred = false
 
   /**
-   * Where the frame entering [spec] is opaque as a fraction of it. A canvas an effect reads is built before that effect,
-   * so it is the placed picture of that canvas. Null when an earlier effect already read a canvas with bars, since the
-   * clear part has moved or softened by then, and always null for a source with alpha.
+   * Where the frame entering [spec] is opaque as a fraction of it. A canvas an effect reads is built before that
+   * effect, so it is the placed picture of that canvas. Null when an earlier effect already read a canvas with bars,
+   * since the clear part has moved or softened by then, and always null for a source with alpha.
    */
   fun before(spec: EffectSpec): NormalizedRect? =
     when {

@@ -128,8 +128,8 @@ internal class VhsEdgeReads(
   }
 
   /**
-   * The `geq` that draws 255 in each pixel [read] draws and 0 in the rest, for the core that starts [origin] luma pixels
-   * into the frame.
+   * The `geq` that draws 255 in each pixel [read] draws and 0 in the rest, for the core that starts [origin] luma
+   * pixels into the frame.
    */
   private fun mask(
     origin: Int,

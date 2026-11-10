@@ -45,8 +45,8 @@ import kotlin.time.Duration
  * @property sdColor The SD colour this clip's frames decode with, or null when they decode with none.
  * @property canvasEffectIndices The index in [effects] after which each of the placement's canvases is built, in the
  * same order.
- * @property hasAlpha Whether the clip's pictures can carry transparent pixels, which show the fill behind them even where
- * the placement leaves no bar.
+ * @property hasAlpha Whether the clip's pictures can carry transparent pixels, which show the fill behind them even
+ * where the placement leaves no bar.
  * @property drawnRect Where the frame [effects] leave is drawn in the output frame, as a fraction of it.
  */
 internal class ClipSpan(

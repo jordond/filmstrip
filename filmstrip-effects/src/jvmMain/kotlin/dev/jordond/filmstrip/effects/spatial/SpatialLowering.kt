@@ -17,7 +17,8 @@ import kotlin.math.roundToInt
  * when it is null.
  *
  * The blur runs at [BlurPlan.of]'s size on planar RGB, so every plane is blurred by the same sigma, which 4:2:0 chroma
- * would not be. The frame is boxed down by `scale` with `area`, blurred by `convolution` and widened back with `bilinear`.
+ * would not be. The frame is boxed down by `scale` with `area`, blurred by `convolution` and widened back with
+ * `bilinear`.
  * A clip with non-square pixels is blurred as it is stored, with a plan for each axis so the sigma is the one [frame]
  * shows.
  *

@@ -272,8 +272,8 @@ private fun ChainSnapshot.blackFrame(): CIImage =
  *
  * This composition names no colour, so the frame carries its own tags and Core Image decodes it with its real matrix. A
  * frame of [color] then moves onto BT.709's primaries with the shared matrices. Any other frame not tagged BT.709 goes
- * through VideoToolbox's pixel transfer. A BGRA frame, which is how a source with alpha arrives, already holds RGB codes
- * and keeps its straight alpha attachment, so it is read as it is.
+ * through VideoToolbox's pixel transfer. A BGRA frame, which is how a source with alpha arrives, already holds RGB
+ * codes and keeps its straight alpha attachment, so it is read as it is.
  *
  * @param color The SD colour read off the clip when it was planned, or null when it has none.
  * @throws IllegalStateException When the pixel transfer cannot convert the frame.

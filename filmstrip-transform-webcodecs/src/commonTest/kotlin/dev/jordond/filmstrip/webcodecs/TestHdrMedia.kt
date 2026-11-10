@@ -2,13 +2,19 @@
 
 package dev.jordond.filmstrip.webcodecs
 
+import dev.jordond.filmstrip.codec.AudioCodec
 import dev.jordond.filmstrip.color.hlgDisplayNitsFromSignal
 import dev.jordond.filmstrip.color.hlgSignalFromDisplayNits
 import dev.jordond.filmstrip.color.nitsFromPqSignal
 import dev.jordond.filmstrip.color.pqSignalFromNits
 import dev.jordond.filmstrip.color.signalFromTenBitCodes
 import dev.jordond.filmstrip.color.tenBitCodesFromSignal
+import dev.jordond.filmstrip.edit.Composition
+import dev.jordond.filmstrip.export.ExportSpec
+import dev.jordond.filmstrip.export.ExportStatus
+import dev.jordond.filmstrip.export.HdrMode
 import dev.jordond.filmstrip.media.HdrTransfer
+import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.webcodecs.internal.SourceReader
 import dev.jordond.filmstrip.webcodecs.internal.interop.ArrayBuffer
@@ -23,6 +29,7 @@ import dev.jordond.filmstrip.webcodecs.internal.interop.Uint8Array
 import dev.jordond.filmstrip.webcodecs.internal.interop.VideoSample
 import dev.jordond.filmstrip.webcodecs.internal.interop.VideoSampleSource
 import dev.jordond.filmstrip.webcodecs.internal.interop.toUint8Array
+import io.kotest.assertions.withClue
 import kotlinx.coroutines.await
 import kotlin.js.ExperimentalWasmJsInterop
 import kotlin.js.get
@@ -296,3 +303,15 @@ private const val SAMPLE_BYTES = 2
 private const val BYTE_BITS = 8
 private const val BYTE_MASK = 0xFF
 private const val HDR_FIXTURE_BITRATE = 12_000_000
+
+/**
+ * Exports [composition] with its grade kept at the measuring bitrate and no audio, failing with the transfer named when
+ * it does not succeed.
+ */
+internal suspend fun hdrExportOf(
+  composition: Composition,
+  transfer: HdrTransfer,
+): ExportStatus.Success {
+  val spec = ExportSpec(bitrate = MEASURING_BITRATE, audioCodec = AudioCodec.None, hdr = HdrMode.KeepHdr)
+  return withClue("the $transfer export") { exportOf(composition = composition, to = MediaSink.Uri(""), spec = spec) }
+}

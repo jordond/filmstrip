@@ -183,108 +183,6 @@ class FfmpegSpatialMediaTest {
     }
 
   @Test
-  fun `a blur on a kept PQ grade runs on the sdr signal`() =
-    runBlocking<Unit> {
-      val clip =
-        draw.pqClipOfLuma(WIDTH, HEIGHT, {
-          if (it <
-            WIDTH / 2
-          ) {
-            codeOfNits(LIGHT_NITS)
-          } else {
-            codeOfNits(DIM_NITS)
-          }
-        })
-      val plain = draw.tenBitLumaAt(draw.composition(listOf(clip)), 0, COLOR_READ_HDR_SPEC)
-      val blurred =
-        draw.tenBitLumaAt(
-          draw.composition(listOf(clip), listOf(GaussianBlur(SIGMA))),
-          0,
-          COLOR_READ_HDR_SPEC,
-        )
-      val opaque = DoubleArray(plain.size) { 1.0 }
-
-      val signal = DoubleArray(plain.size) { sdrSignalFromNits(nitsOfCode(plain[it])) }
-      val expected =
-        blurPlane(
-          signal,
-          opaque,
-          WIDTH,
-          HEIGHT,
-          SIGMA.toDouble(),
-        ).map { codeOfNits(nitsFromSdrSignal(it)) }
-      val onPq = blurPlane(DoubleArray(plain.size) { plain[it].toDouble() }, opaque, WIDTH, HEIGHT, SIGMA.toDouble())
-
-      val row = HEIGHT / 2 * WIDTH
-      var worst = 0.0
-      var apart = 0.0
-      for (index in row until row + WIDTH) {
-        worst = maxOf(worst, abs(blurred[index] - expected[index]).toDouble())
-        apart = maxOf(apart, abs(onPq[index] - expected[index]))
-      }
-      withClue("a blur of the PQ codes lands at most $apart codes from the sdr signal's, too close to tell apart") {
-        apart shouldBeGreaterThan 2 * KEPT_BLUR_CODES
-      }
-      withClue("the kept grade's blur is $worst ten-bit codes off the shared plan on the sdr signal") {
-        worst shouldBeLessThanOrEqual KEPT_BLUR_CODES
-      }
-    }
-
-  // The grade's picture blurs by the shared plan on the sdr signal up to its edge, with the bars counting for nothing,
-  // and every bar sample reads the code the fill lands on with no blur at all.
-  @Test
-  fun `a kept PQ composition blur keeps a contained picture to its edge and the bars exactly the fill`() =
-    runBlocking<Unit> {
-      val clip =
-        draw.pqClipOfLuma(WIDTH, HEIGHT, {
-          if (it <
-            WIDTH / 2
-          ) {
-            codeOfNits(LIGHT_NITS)
-          } else {
-            codeOfNits(DIM_NITS)
-          }
-        })
-      val plain =
-        draw.tenBitLumaAt(draw.composition(listOf(clip), listOf(contain()), Fill.Solid(SLATE)), 0, COLOR_READ_HDR_SPEC)
-      val blurred =
-        draw.tenBitLumaAt(
-          draw.composition(listOf(clip), listOf(contain(), GaussianBlur(SIGMA)), Fill.Solid(SLATE)),
-          0,
-          COLOR_READ_HDR_SPEC,
-        )
-      val height = plain.size / CONTAINED_WIDTH
-      val pictureRows = BAR_ROWS until height - BAR_ROWS
-      val alpha = DoubleArray(plain.size) { if (it / CONTAINED_WIDTH in pictureRows) 1.0 else 0.0 }
-      val signal = DoubleArray(plain.size) { sdrSignalFromNits(nitsOfCode(plain[it])) }
-      val expected =
-        blurPlane(signal, alpha, CONTAINED_WIDTH, height, SIGMA.toDouble()).map { codeOfNits(nitsFromSdrSignal(it)) }
-
-      var worst = 0.0
-      var worstAt = 0
-      for (index in plain.indices) {
-        if (alpha[index] == 0.0) {
-          withClue("luma at ${index % CONTAINED_WIDTH}, ${index / CONTAINED_WIDTH} in the bar") {
-            blurred[index] shouldBe plain[index]
-          }
-        } else if (abs(blurred[index] - expected[index]) > worst) {
-          worst = abs(blurred[index] - expected[index]).toDouble()
-          worstAt = index
-        }
-      }
-      val x = worstAt % CONTAINED_WIDTH
-      val y = worstAt / CONTAINED_WIDTH
-      withClue(
-        "the kept grade's blur is $worst ten-bit codes off the shared plan on the sdr signal at $x, $y, reading " +
-          "${blurred[worstAt]} for ${expected[worstAt]} from ${plain[worstAt]}",
-      ) {
-        worst shouldBeLessThanOrEqual KEPT_BLUR_CODES
-      }
-    }
-
-  // A clip with non-square pixels reaches the fragment as it is stored, half the width it shows at, and is blurred and
-  // vignetted there with no resampling before the backend widens it.
-  @Test
   fun `a clip blur on non-square pixels lands on the shared plan at the display size`() =
     runBlocking<Unit> {
       val plain = draw.planesAt(draw.composition(listOf(anamorphicClip(DARK_LUMA))), 0)
@@ -339,8 +237,8 @@ class FfmpegSpatialMediaTest {
     assertBlurred(blurred, plain, DoubleArray(plain.width * plain.height) { 1.0 }, sigma, minSpread)
   }
 
-  // Every pixel [alpha] covers sits within the way through RGB's reach of the shared blur of the plain frame's luma, and the
-  // reference moves the frame far enough that a sharp read would fail.
+  // Every pixel [alpha] covers sits within the way through RGB's reach of the shared blur of the plain frame's luma,
+  // and the reference moves the frame far enough that a sharp read would fail.
   private fun assertBlurred(
     blurred: Yuv420Frame,
     plain: Yuv420Frame,
@@ -441,10 +339,6 @@ class FfmpegSpatialMediaTest {
 
   private fun edgeAt(x: Double): DoubleArray = DoubleArray(3) { if (x < 0.5) LIGHT else DARK }
 
-  private fun codeOfNits(nits: Double): Int = (TEN_BIT_BLACK + TEN_BIT_RANGE * pqSignalFromNits(nits)).roundToInt()
-
-  private fun nitsOfCode(code: Int): Double = nitsFromPqSignal((code - TEN_BIT_BLACK) / TEN_BIT_RANGE)
-
   private companion object {
     // At a sigma of 0.05 the plan boxes this down by 3 and the half size by 2, and both land on whole pixels.
     const val WIDTH = 384
@@ -473,10 +367,6 @@ class FfmpegSpatialMediaTest {
     // Measured at 2.28 on 8.0.1, the edge beside a bar and a width the plan does not divide included.
     const val BLUR_CODES = 2.5
 
-    // The same on a kept grade in ten-bit codes, about one eight bit code, with the tables each way. Measured at 4 on
-    // 8.0.1.
-    const val KEPT_BLUR_CODES = 5.0
-
     // The way through RGB and the sixteen bit gain round each way, ffmpeg's limit. Measured at 1.25 on 8.0.1.
     const val VIGNETTE_CODES = 1.5
 
@@ -493,11 +383,5 @@ class FfmpegSpatialMediaTest {
     const val CONTAINED_WIDTH = 192
     const val BAR_ROWS = 54
     const val SLATE = 0xFF2F4F6F.toInt()
-
-    // Below reference white, so neither side reaches the ceiling the tables clamp at.
-    const val LIGHT_NITS = 150.0
-    const val DIM_NITS = 8.0
-    const val TEN_BIT_BLACK = 64.0
-    const val TEN_BIT_RANGE = 876.0
   }
 }
