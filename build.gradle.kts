@@ -29,7 +29,7 @@ val websiteTheme: DokkaExtension.() -> Unit = {
       rootDir.resolve("website/src/styles/version.css"),
     )
     templatesDir.set(rootDir.resolve("website/dokka-templates"))
-    footerMessage.set("MIT licensed. Pre-alpha, so expect things to change.")
+    footerMessage.set("MIT licensed. Pre-1.0.0, so the API might break between releases.")
   }
 }
 
