@@ -22,7 +22,7 @@ import kotlin.time.Duration.Companion.microseconds
  *
  * The container of a copy gives its last frame the time the frame before it lasted. A source whose last frame lasts
  * another time is only copied faithfully when the muxer is told where the track ends. A copy that stops short of its
- * source ends on a frame with another frame after it, so the time before it is already the right one.
+ * source ends on the plan's grid instead, where [copiedVideoEndOf] puts it.
  */
 internal suspend fun ResolvedComposition.copiedVideoEnd(): Duration? {
   if (path != ExportPath.Copy) return null

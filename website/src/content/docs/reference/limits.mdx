@@ -29,6 +29,8 @@ couldn't, so you can see what to drop to get the copy back. See [Export](/guides
   transcodes as `SourceUntimed`.
 - A copy that ends on a B-frame also writes the few frames that B-frame depends on. A player shows them after the end,
   the preview doesn't.
+- On Android a copy only keeps the audio units that end inside its window. A window shorter than one unit, about 21 ms
+  of AAC at 48 kHz, writes no audio track and reports `AudioDropped`.
 - On ffmpeg, Apple and the browser, a source with more than 1000 packets a second, or one whose packets can't be read,
   is refused at `plan()` as `SourceUnreadable`.
 

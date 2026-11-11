@@ -7,7 +7,6 @@ import android.os.Looper
 import android.os.SystemClock
 import androidx.media3.common.C
 import androidx.media3.transformer.Composition
-import androidx.media3.transformer.DefaultMuxer
 import androidx.media3.transformer.ExportException
 import androidx.media3.transformer.ExportResult
 import androidx.media3.transformer.InAppMp4Muxer
@@ -15,6 +14,7 @@ import androidx.media3.transformer.ProgressHolder
 import androidx.media3.transformer.TransformationRequest
 import androidx.media3.transformer.Transformer
 import dev.jordond.filmstrip.FilmstripError
+import dev.jordond.filmstrip.codec.AudioCodec
 import dev.jordond.filmstrip.edit.outputSlotTime
 import dev.jordond.filmstrip.export.Adjustment
 import dev.jordond.filmstrip.export.AdjustmentKind
@@ -35,6 +35,7 @@ import dev.jordond.filmstrip.transform.internal.probe.readSources
 import dev.jordond.filmstrip.transform.internal.remainingAt
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedHdr
+import dev.jordond.filmstrip.transform.internal.videoSlots
 import dev.jordond.filmstrip.transform.internal.videoSlotsOf
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.NonCancellable
@@ -69,6 +70,16 @@ internal class TransformerRun(
    */
   @Volatile
   private var negotiated: TransformationRequest? = null
+
+  // A composition with no picture has no frame rate to lay a grid at.
+  private val copyMuxer =
+    CopyEndMuxerFactory(
+      sourceEnd = copiedVideoEnd,
+      gridEnd =
+        resolved.output.frameRate
+          .takeIf { it > 0 }
+          ?.let { outputSlotTime(resolved.videoSlots, it) },
+    )
 
   private val encoders =
     EncoderColor(
@@ -126,8 +137,8 @@ internal class TransformerRun(
               .toMimeType()
               ?.let(::setAudioMimeType)
             setMuxerFactory(videoEndingOnTheGrid())
-          } else if (copiedVideoEnd != null) {
-            setMuxerFactory(DefaultMuxer.Factory().setVideoDurationUs(copiedVideoEnd.inWholeMicroseconds))
+          } else {
+            setMuxerFactory(copyMuxer)
           }
         }.setEncoderFactory(encoders)
         .setAssetLoaderFactory(ChosenTrackAssetLoaderFactory(context))
@@ -248,10 +259,19 @@ internal class TransformerRun(
       }
       is ProbeResult.Success -> {
         val retagged = retagReport(resolved.path, encoders.retag)
-        val adjustments = resolved.adjustments + negotiatedAway() + listOfNotNull(retagged)
+        val adjustments = resolved.adjustments + negotiatedAway() + listOfNotNull(retagged, copiedSilent())
         ExportStatus.Success(sink, probe.info, adjustments)
       }
     }
+
+  // A copy too short to hold one unit of its source's audio writes no audio track, which the plan could not know.
+  private fun copiedSilent(): Adjustment? =
+    Adjustment(
+      kind = AdjustmentKind.AudioDropped,
+      requested = resolved.output.audioCodec.name,
+      resolved = AudioCodec.None.name,
+      message = COPY_AUDIO_SILENT,
+    ).takeIf { copyMuxer.leftAudioOut }
 
   /**
    * What media3 gave up on once it had the real encoders, as adjustments.

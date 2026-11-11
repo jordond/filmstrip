@@ -27,6 +27,7 @@ import dev.jordond.filmstrip.transform.internal.videoSlots
 import io.kotest.assertions.withClue
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldContain
+import io.kotest.matchers.comparables.shouldBeLessThan
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
@@ -298,6 +299,35 @@ class FfmpegCopyMediaTest {
       }
     }
 
+  // A window of a frame or two leaves a track with too few packets to time its last one from the one before, so each
+  // stream's length is read against the grid.
+  @Test
+  fun `a copy of a frame or two runs as long as its grid`() =
+    runTest(timeout = TIMEOUT) {
+      if (!fixture.available()) return@runTest
+
+      SHORT_ENDS.forEach { end ->
+        val written = copiedWindow(end)
+        val frame = outputSlotTime(1, written.rate)
+
+        withClue(
+          "the copy to $end wrote ${written.packets} packets on ${written.slots} slots, video ${written.video}, " +
+            "audio ${written.audio}, reported ${written.duration}, grid ${written.gridEnd}",
+        ) {
+          (written.packets >= written.slots).shouldBeTrue()
+          if (written.packets == written.slots) {
+            (written.video - written.gridEnd).absoluteValue shouldBeLessThan CONTAINER_TICK
+          }
+          (written.video >= written.gridEnd - CONTAINER_TICK).shouldBeTrue()
+          // The audio is bound by the window rather than the grid, and a window can end inside its last slot.
+          (written.audio >= end - CONTAINER_TICK).shouldBeTrue()
+          (written.audio < end + frame).shouldBeTrue()
+          val longest = maxOf(written.video, written.audio)
+          (written.duration - longest).absoluteValue shouldBeLessThan frame
+        }
+      }
+    }
+
   /**
    * Copies the long fixture from its start to [end] and reads back what the file holds against the plan's grid.
    */
@@ -335,6 +365,9 @@ class FfmpegCopyMediaTest {
         slotsCovered = presented.sorted().map { outputSlotOf(it, rate).toInt() },
         gridEnd = outputSlotTime(negotiated.videoSlots, rate),
         audio = audioDuration(output.absolutePath),
+        video = probed(output.absolutePath, "v:0", "stream=duration").trim().toDouble().seconds,
+        duration = finished.info.duration,
+        rate = rate,
       )
     output.delete()
     return written
@@ -348,6 +381,9 @@ class FfmpegCopyMediaTest {
    * @property slotsCovered The slot each written frame is presented on, in presentation order.
    * @property gridEnd Where the grid's last slot ends.
    * @property audio How long the audio stream runs.
+   * @property video How long the video stream runs.
+   * @property duration How long the finished export reports the file runs.
+   * @property rate The plan's frame rate.
    */
   private class CopiedWindow(
     val slots: Int,
@@ -355,6 +391,9 @@ class FfmpegCopyMediaTest {
     val slotsCovered: List<Int>,
     val gridEnd: Duration,
     val audio: Duration,
+    val video: Duration,
+    val duration: Duration,
+    val rate: Int,
   )
 
   private fun videoPacketTimes(path: String): List<Duration> =
@@ -483,6 +522,12 @@ class FfmpegCopyMediaTest {
 
     // Two copy windows from the long fixture's start. Thirty slots close on a whole reorder group, and thirty one close
     // with the frame on the last of them decoding behind two references presented past it.
+    // From under one audio access unit to two slots, the second of which decodes behind references past the grid.
+    val SHORT_ENDS = listOf(21.milliseconds, 22.milliseconds, 40.milliseconds, 67.milliseconds)
+
+    // The coarsest a container records a stream's length to.
+    val CONTAINER_TICK = 1.milliseconds
+
     val WHOLE_GROUP_END = 1_010.milliseconds
     val SPLIT_GROUP_END = 1_040.milliseconds
   }

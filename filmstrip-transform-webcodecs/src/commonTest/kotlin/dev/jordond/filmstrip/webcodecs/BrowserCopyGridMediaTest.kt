@@ -6,6 +6,7 @@ import dev.jordond.filmstrip.ComponentRegistry
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.edit.outputSlotOf
+import dev.jordond.filmstrip.edit.outputSlotTime
 import dev.jordond.filmstrip.effects.BuiltInEffectResolver
 import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.export.ExportSpec
@@ -85,6 +86,21 @@ class BrowserCopyGridMediaTest {
       }
     }
 
+  // A window of a frame or two leaves a track with too few packets to time its last one from the one before, so the
+  // file's length is read against the frames it holds.
+  @Test
+  fun aCopyOfAFrameOrTwoRunsToTheEndOfItsLastFrame() =
+    runTest {
+      SHORT_ENDS.forEach { end ->
+        val written = copiedWindow(end)
+
+        withClue("the copy to $end wrote $written") {
+          written.packets shouldBe written.prefix
+          ((written.duration - written.lastFrameEnd).absoluteValue <= written.frame) shouldBe true
+        }
+      }
+    }
+
   @Test
   fun aPacketReadPastItsCapIsRefused() =
     runTest {
@@ -130,6 +146,9 @@ class BrowserCopyGridMediaTest {
       prefix = prefix,
       packets = presented.size,
       slotsCovered = presented.sorted().map { outputSlotOf(it, rate).toInt() },
+      frame = outputSlotTime(1, rate),
+      lastFrameEnd = presented.max() + outputSlotTime(1, rate),
+      duration = success.info.duration,
     )
   }
 
@@ -140,12 +159,18 @@ class BrowserCopyGridMediaTest {
    * @property prefix How many packets the shared prefix gives over the source's packets.
    * @property packets How many video packets the file holds.
    * @property slotsCovered The slot each written frame is presented on, in presentation order.
+   * @property frame How long one slot of the plan's grid lasts.
+   * @property lastFrameEnd Where the last frame the file presents ends, one slot after it starts.
+   * @property duration How long the finished export reports the file runs.
    */
   private data class CopiedWindow(
     val slots: Int,
     val prefix: Int,
     val packets: Int,
     val slotsCovered: List<Int>,
+    val frame: Duration,
+    val lastFrameEnd: Duration,
+    val duration: Duration,
   )
 
   // A plain clip's packets muxed again in DECODE_ORDER, each one presented on its frame of the order and typed a key
@@ -223,6 +248,9 @@ class BrowserCopyGridMediaTest {
 
     // Thirty slots close on a whole reorder group, and thirty one close with the frame on the last of them decoding
     // behind two references presented past it.
+    // From under one audio access unit to two slots, the second of which decodes behind references past the grid.
+    val SHORT_ENDS = listOf(21.milliseconds, 22.milliseconds, 40.milliseconds, 67.milliseconds)
+
     val WHOLE_GROUP_END = 1_010.milliseconds
     val SPLIT_GROUP_END = 1_040.milliseconds
   }

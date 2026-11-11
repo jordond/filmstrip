@@ -300,6 +300,37 @@ class AppleFastTrimMediaTest {
       NSFileManager.defaultManager.removeItemAtPath(output, error = null)
     }
 
+  // A window of a frame or two leaves a track with too few samples to time its last one from the one before, so the
+  // file's length is read against the frames the shared prefix keeps.
+  @Test
+  fun `a copy of a frame or two runs to the end of its last frame`() =
+    runTest(timeout = TIMEOUT) {
+      val long = fixture(LONG)
+      val packets = readerPacketsOf(sourceTrack(long, AVMediaTypeVideo))
+
+      SHORT_ENDS.forEach { end ->
+        val composition = compositionOf { clip(MediaSource.of(long)) { trim(Duration.ZERO, end) } }
+        withClue("an untouched window from the source's start is meant to copy") {
+          plan(composition).path shouldBe ExportPath.Copy
+        }
+        val resolved = resolved(composition)
+        val kept = packets.take(resolved.copyPrefixOf(packets).shouldBeInstanceOf<CopyPrefix.Packets>().count)
+        val runs = kept.maxOf { it.pts } + 1.seconds / resolved.output.frameRate
+        val output = NSTemporaryDirectory() + "filmstrip-apple-short-copy.mp4"
+
+        val written =
+          withContext(Dispatchers.Default) {
+            filmstrip.export(composition, ExportSpec(), MediaSink.of(output)).toList().last()
+          }
+
+        val length = written.shouldBeInstanceOf<ExportStatus.Success>().info.duration
+        withClue("the copy to $end runs $length, and its ${kept.size} frames should run $runs") {
+          ((length - runs).absoluteValue <= FRAME).shouldBeTrue()
+        }
+        NSFileManager.defaultManager.removeItemAtPath(output, error = null)
+      }
+    }
+
   /**
    * The trimmed edit every copy claim reads, which lets the cut move far enough back to reach the
    * fixture's sync samples.
@@ -372,6 +403,9 @@ class AppleFastTrimMediaTest {
 
     // A frame of the fixture, which is what the written duration can honestly differ by.
     val FRAME = 34.milliseconds
+
+    // From under one audio access unit to two slots, the second of which decodes behind references past the grid.
+    val SHORT_ENDS = listOf(21.milliseconds, 22.milliseconds, 40.milliseconds, 67.milliseconds)
   }
 }
 

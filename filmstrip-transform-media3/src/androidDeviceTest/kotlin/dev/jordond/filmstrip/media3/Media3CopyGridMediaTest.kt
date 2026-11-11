@@ -10,9 +10,12 @@ import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.outputSlotOf
+import dev.jordond.filmstrip.edit.outputSlotTime
 import dev.jordond.filmstrip.effects.BuiltInEffectResolver
+import dev.jordond.filmstrip.export.AdjustmentKind
 import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.export.ExportSpec
+import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.TIMEOUT
 import dev.jordond.filmstrip.transform.internal.ResolveResult
@@ -22,6 +25,8 @@ import dev.jordond.filmstrip.transform.internal.copy.copyPrefixOf
 import dev.jordond.filmstrip.transform.internal.videoSlots
 import io.kotest.assertions.withClue
 import io.kotest.matchers.collections.shouldNotBeEmpty
+import io.kotest.matchers.comparables.shouldBeLessThan
+import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
@@ -82,7 +87,7 @@ class Media3CopyGridMediaTest {
         val written = copiedWindow(end)
 
         withClue("the copy to $end wrote $written, against a $unit access unit") {
-          ((written.audio - end).absoluteValue < unit) shouldBe true
+          ((written.audio.shouldNotBeNull() - end).absoluteValue < unit) shouldBe true
         }
       }
     }
@@ -133,6 +138,39 @@ class Media3CopyGridMediaTest {
       }
     }
 
+  // A window of a frame or two leaves a track with too few samples for a muxer to time its last one from, so each
+  // track's end is read against the plan's grid and the units the copy holds.
+  @Test
+  fun aCopyOfAFrameOrTwoEndsItsTracksWhereItsSamplesDo() =
+    runTest(timeout = TIMEOUT) {
+      val unit = accessUnit()
+      val wroteAudio = mutableSetOf<Boolean>()
+      SHORT_ENDS.forEach { end ->
+        val written = copiedWindow(end)
+        // media3 copies the units that end inside the window, and the source's first heard unit opens on zero.
+        val units = (end / unit).toInt()
+        wroteAudio += units > 0
+
+        withClue("the copy to $end wrote $written, where $units units of $unit end inside the window") {
+          written.packets shouldBe written.prefix
+          if (written.prefix == written.slots) written.video shouldBe written.gridEnd
+          (written.video >= written.gridEnd) shouldBe true
+          if (units == 0) {
+            written.audio.shouldBeNull()
+            written.adjusted shouldBe listOf(AdjustmentKind.AudioDropped)
+          } else {
+            (written.audio.shouldNotBeNull() - unit * units).absoluteValue shouldBeLessThan CONTAINER_TICK
+            written.adjusted shouldBe emptyList()
+          }
+          val longest = maxOf(written.video, written.audio ?: Duration.ZERO)
+          (written.duration - longest).absoluteValue shouldBeLessThan CONTAINER_TICK
+        }
+      }
+      withClue("the windows were meant to reach a copy with audio to hear and one without") {
+        wroteAudio shouldBe setOf(true, false)
+      }
+    }
+
   // How far before the first video sample the first audio sample is presented.
   private fun Map<String, List<Sample>>.audioLead(): Duration =
     getValue(VIDEO).minOf { it.time } - getValue(AUDIO).minOf { it.time }
@@ -162,7 +200,8 @@ class Media3CopyGridMediaTest {
     val plan = probe.plan(composition, ExportSpec())
     withClue("an untouched window is meant to copy") { plan.path shouldBe ExportPath.Copy }
 
-    val file = probe.export(plan)
+    val finished = probe.finish(plan)
+    val file = File(finished.output.shouldBeInstanceOf<MediaSink.Path>().path)
     val rate = negotiated.output.frameRate
     val presented = videoSampleTimes(file)
     return CopiedWindow(
@@ -175,9 +214,13 @@ class Media3CopyGridMediaTest {
       slots = negotiated.videoSlots.toInt(),
       prefix = negotiated.copyPrefixOf(packetsInDecodeOrder(sourceFile)).shouldBeInstanceOf<CopyPrefix.Packets>().count,
       packets = presented.size,
-      audio = audioTrackLength(file),
+      gridEnd = outputSlotTime(negotiated.videoSlots, rate),
+      video = videoTrackLength(file),
+      audio = if (file.holds(AUDIO)) audioTrackLength(file) else null,
+      duration = finished.info.duration,
+      adjusted = finished.adjustments.map { it.kind },
       slotsCovered = presented.map { outputSlotOf(it, rate).toInt() },
-      samples = listOf(VIDEO, AUDIO).associateWith { samplesInDecodeOrder(file, it) },
+      samples = listOf(VIDEO, AUDIO).filter { file.holds(it) }.associateWith { samplesInDecodeOrder(file, it) },
     ).also { file.delete() }
   }
 
@@ -188,7 +231,11 @@ class Media3CopyGridMediaTest {
    * @property slots How many slots the plan's grid holds.
    * @property prefix How many packets the shared prefix gives over the source's packets.
    * @property packets How many video samples the file holds.
-   * @property audio How long the audio track runs.
+   * @property gridEnd Where the plan's grid ends.
+   * @property video How long the video track runs.
+   * @property audio How long the audio track runs, or null when the file holds none.
+   * @property duration How long the finished export reports the file runs.
+   * @property adjusted The kind of every adjustment the finished export reports.
    * @property slotsCovered The slot each written frame is presented on, in presentation order.
    * @property samples Every sample the file holds by track kind, in decode order.
    */
@@ -197,12 +244,17 @@ class Media3CopyGridMediaTest {
     val slots: Int,
     val prefix: Int,
     val packets: Int,
-    val audio: Duration,
+    val gridEnd: Duration,
+    val video: Duration,
+    val audio: Duration?,
+    val duration: Duration,
+    val adjusted: List<AdjustmentKind>,
     val slotsCovered: List<Int>,
     val samples: Map<String, List<Sample>>,
   ) {
     override fun toString(): String =
-      "CopiedWindow(start=$start, slots=$slots, prefix=$prefix, packets=$packets, audio=$audio, " +
+      "CopiedWindow(start=$start, slots=$slots, prefix=$prefix, packets=$packets, gridEnd=$gridEnd, video=$video, " +
+        "audio=$audio, duration=$duration, adjusted=$adjusted, " +
         "slotsCovered=$slotsCovered, " +
         samples.entries.joinToString { (kind, it) -> "$kind${it.size}" } + ")"
   }
@@ -265,6 +317,18 @@ class Media3CopyGridMediaTest {
     }
   }
 
+  private fun File.holds(kind: String): Boolean {
+    val extractor = MediaExtractorCompat()
+    try {
+      extractor.setDataSource(Uri.fromFile(this), 0L)
+      return (0 until extractor.trackCount).any {
+        extractor.getTrackFormat(it).getString(MediaFormat.KEY_MIME)?.startsWith(kind) == true
+      }
+    } finally {
+      extractor.release()
+    }
+  }
+
   private fun ByteArray.sha256(): String =
     MessageDigest.getInstance("SHA-256").digest(this).joinToString("") { "%02x".format(it) }
 
@@ -287,6 +351,13 @@ class Media3CopyGridMediaTest {
     // behind two references presented past it.
     val WHOLE_GROUP_END = 1_010.milliseconds
     val SPLIT_GROUP_END = 1_040.milliseconds
+
+    // From under one audio access unit, where the copy holds only priming, to two slots, where its last frame decodes
+    // behind references presented past the grid. The two in the middle sit on one slot with one unit to hear.
+    val SHORT_ENDS = listOf(21.milliseconds, 22.milliseconds, 40.milliseconds, 67.milliseconds)
+
+    // The coarsest a container records a track's length to, since a movie's own timescale can be 10 kHz.
+    val CONTAINER_TICK = 1.milliseconds
 
     // Half a second past one of CLIP_LONG's once a second sync samples, so the cut snaps back to it, and ending before
     // the source does.
