@@ -1,0 +1,72 @@
+name: Snapshot
+
+# Publishes the snapshot version in gradle.properties to the Maven Central snapshot repository once the fast lane has
+# passed on a push to main. A release goes through publish.yml instead.
+
+on:
+  workflow_run:
+    workflows: [ CI ]
+    types: [ completed ]
+    branches:
+      - main
+
+concurrency:
+  group: snapshot
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  snapshot:
+    name: Publish snapshot
+    # A pull request from a fork's own main branch also matches the branch filter, so the event and the repository
+    # are checked here.
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: macos-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Read the version
+        id: version
+        run: |
+          version=$(sed -n 's/^VERSION_NAME=//p' gradle.properties)
+          echo "name=$version" >> "$GITHUB_OUTPUT"
+          case "$version" in
+            *-SNAPSHOT) echo "snapshot=true" >> "$GITHUB_OUTPUT" ;;
+            *) echo "snapshot=false" >> "$GITHUB_OUTPUT"; echo "::notice::$version is not a snapshot, nothing published" ;;
+          esac
+
+      - name: Copy CI gradle.properties
+        if: steps.version.outputs.snapshot == 'true'
+        run: mkdir -p ~/.gradle ; cp .github/ci-gradle.properties ~/.gradle/gradle.properties
+
+      - name: setup-java
+        if: steps.version.outputs.snapshot == 'true'
+        uses: actions/setup-java@v6
+        with:
+          java-version: 17
+          distribution: temurin
+
+      - name: Setup Gradle
+        if: steps.version.outputs.snapshot == 'true'
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
+
+      - name: Deploy ${{ steps.version.outputs.name }} to the snapshot repository
+        if: steps.version.outputs.snapshot == 'true'
+        run: ./gradlew publishAllPublicationsToMavenCentral --no-configuration-cache --stacktrace
+        env:
+          ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+          ORG_GRADLE_PROJECT_signingInMemoryKeyId: ${{ secrets.SIGNING_KEY_ID }}
+          ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.SIGNING_KEY }}
+          ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.SIGNING_PASSWORD }}
