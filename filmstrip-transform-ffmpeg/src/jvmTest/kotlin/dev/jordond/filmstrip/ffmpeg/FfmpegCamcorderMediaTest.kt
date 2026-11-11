@@ -108,7 +108,7 @@ class FfmpegCamcorderMediaTest {
       val seek = slotTime(SEEK_SLOT)
 
       val windowed = draw.frames(composition, at = seek, count = 1).single()
-      val fromStart = draw.frames(composition, at = Duration.ZERO, count = SEEK_SLOT + 1).last()
+      val fromStart = draw.frameAt(composition, at = Duration.ZERO, slot = SEEK_SLOT)
 
       withClue("the display has to differ from the first frame's for this to tell") {
         differing(OSD.rasterAt(seek, WIDTH, HEIGHT), OSD.rasterAt(Duration.ZERO, WIDTH, HEIGHT)) shouldBeGreaterThan 0

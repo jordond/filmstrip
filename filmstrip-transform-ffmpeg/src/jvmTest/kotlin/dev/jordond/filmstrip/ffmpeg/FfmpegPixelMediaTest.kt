@@ -57,7 +57,7 @@ class FfmpegPixelMediaTest {
         draw.composition(listOf(draw.clipOf(WIDTH, HEIGHT, ::rampAt)), listOf(Pixel(cells = CELLS, levels = 6)))
       val at = (READ_SLOT.toDouble() / FILTER_RATE).seconds
 
-      val fromStart = draw.frames(composition, Duration.ZERO, READ_SLOT + 1).last()
+      val fromStart = draw.frameAt(composition, Duration.ZERO, READ_SLOT)
       val fromWindow = draw.frames(composition, at, 1).single()
 
       fromWindow.contentEquals(fromStart) shouldBe true

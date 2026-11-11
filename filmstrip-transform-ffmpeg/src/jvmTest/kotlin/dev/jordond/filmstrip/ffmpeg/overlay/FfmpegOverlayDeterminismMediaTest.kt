@@ -60,7 +60,7 @@ class FfmpegOverlayDeterminismMediaTest {
       }
 
     val runs =
-      List(RUNS) { busy { frames.frames(composition, Duration.ZERO, FRAMES, spec) }.map { it.contentHashCode() } }
+      List(RUNS) { busy { frames.framesAs(composition, Duration.ZERO, FRAMES, spec) { it.contentHashCode() } } }
 
     runs.first().shouldNotBeEmpty()
     runs.drop(1).forEachIndexed { run, hashes ->

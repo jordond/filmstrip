@@ -152,7 +152,7 @@ class FfmpegFilmMediaTest {
       val composition = draw.composition(listOf(draw.clipOf(WIDTH, HEIGHT, ::edgeAt)), listOf(film))
       val at = slotTime(FILM_READ_SLOT)
 
-      val fromStart = draw.frames(composition, Duration.ZERO, FILM_READ_SLOT + 1).last()
+      val fromStart = draw.frameAt(composition, Duration.ZERO, FILM_READ_SLOT)
       val fromWindow = draw.frames(composition, at, 1).single()
 
       fromWindow.contentEquals(fromStart) shouldBe true
@@ -255,7 +255,7 @@ class FfmpegFilmMediaTest {
   private suspend fun frameOf(
     composition: Composition,
     spec: ExportSpec = ExportSpec(),
-  ): ByteArray = draw.frames(composition, Duration.ZERO, FILM_READ_SLOT + 1, spec).last()
+  ): ByteArray = draw.frameAt(composition, Duration.ZERO, FILM_READ_SLOT, spec)
 
   private fun slotTime(slot: Int): Duration = (slot.toDouble() / FILTER_RATE).seconds
 

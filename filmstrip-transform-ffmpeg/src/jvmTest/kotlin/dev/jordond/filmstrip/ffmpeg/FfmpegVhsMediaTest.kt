@@ -141,7 +141,7 @@ class FfmpegVhsMediaTest {
       val vhs = Vhs(intensity = 0.5f)
       val crop = Crop(WIDE_CANVAS, fit = Fit.Contain)
       val clip = draw.clipOf(RAMP_WIDTH, RAMP_HEIGHT, ::rampAt, listOf(crop, vhs))
-      val frame = draw.frames(whole(clip, fill = Fill.Solid(BAR_FILL)), Duration.ZERO, READ_SLOT + 1).last()
+      val frame = draw.frameAt(whole(clip, fill = Fill.Solid(BAR_FILL)), Duration.ZERO, READ_SLOT)
       withClue("the canvas is as wide as this test reads it") {
         frame.size shouldBe WIDE_WIDTH * RAMP_HEIGHT * RGBA
       }
@@ -195,7 +195,7 @@ class FfmpegVhsMediaTest {
       val vhs = Vhs(intensity = 0.5f)
       val crop = Crop(WIDE_CANVAS, fit = Fit.Contain)
       val clip = draw.clipOf(RAMP_WIDTH, RAMP_HEIGHT, ::rampAt, listOf(crop, vhs))
-      val frame = draw.frames(whole(clip, fill = Fill.Blurred()), Duration.ZERO, READ_SLOT + 1).last()
+      val frame = draw.frameAt(whole(clip, fill = Fill.Blurred()), Duration.ZERO, READ_SLOT)
       withClue("the canvas is as wide as this test reads it") {
         frame.size shouldBe WIDE_WIDTH * RAMP_HEIGHT * RGBA
       }

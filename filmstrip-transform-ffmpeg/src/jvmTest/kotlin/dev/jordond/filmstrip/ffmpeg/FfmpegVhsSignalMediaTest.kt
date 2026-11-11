@@ -47,7 +47,7 @@ class FfmpegVhsSignalMediaTest {
     runBlocking<Unit> {
       val vhs = Vhs(intensity = 0.5f)
       val clip = draw.clipOf(WIDTH, HEIGHT, ::rampAt)
-      val frame = draw.frames(draw.composition(listOf(clip), listOf(vhs)), Duration.ZERO, READ_SLOT + 1).last()
+      val frame = draw.frameAt(draw.composition(listOf(clip), listOf(vhs)), Duration.ZERO, READ_SLOT)
 
       assertReadsSignal(frame, vhs, WIDTH, HEIGHT, READ_SLOT, ::rampAt)
     }
@@ -60,7 +60,7 @@ class FfmpegVhsSignalMediaTest {
       val height = HEIGHT / 2
       val width = WIDTH / 2
       val composition = draw.composition(listOf(clip), listOf(vhs))
-      val frame = draw.frames(composition, Duration.ZERO, READ_SLOT + 1, ExportSpec(heightPx = height)).last()
+      val frame = draw.frameAt(composition, Duration.ZERO, READ_SLOT, ExportSpec(heightPx = height))
 
       assertReadsSignal(frame, vhs, width, height, READ_SLOT, ::rampAt)
     }
@@ -72,7 +72,7 @@ class FfmpegVhsSignalMediaTest {
       val plain = draw.clipOf(WIDTH, HEIGHT, ::rampAt)
       val taped = draw.clipOf(WIDTH, HEIGHT, ::rampAt, listOf(vhs))
       val composition = draw.composition(listOf(plain, taped))
-      val frame = draw.frames(composition, Duration.ZERO, LATER_SLOT + 1).last()
+      val frame = draw.frameAt(composition, Duration.ZERO, LATER_SLOT)
 
       assertReadsSignal(frame, vhs, WIDTH, HEIGHT, LATER_SLOT, ::rampAt)
     }

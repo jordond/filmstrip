@@ -204,7 +204,7 @@ class FfmpegGlitchMediaTest {
     runBlocking<Unit> {
       val composition = draw.composition(listOf(draw.clipOf(WIDTH, HEIGHT, sawtooth(TEETH))), listOf(BURSTING))
 
-      val fromStart = draw.frames(composition, Duration.ZERO, READ_SLOT + 1).last()
+      val fromStart = draw.frameAt(composition, Duration.ZERO, READ_SLOT)
       val fromWindow = draw.frames(composition, READ_TIME, 1).single()
       val elsewhere = draw.frames(composition, Duration.ZERO, 1).single()
 

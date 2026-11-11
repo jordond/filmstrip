@@ -117,7 +117,7 @@ class FfmpegVhsSourceMediaTest {
         params.lumaSigma * NARROW_WIDTH shouldBeBelow GBLUR_FLOOR
       }
       val clip = draw.clipOf(NARROW_WIDTH, NARROW_HEIGHT, ::rampAt)
-      val frame = draw.frames(draw.composition(listOf(clip), listOf(vhs)), Duration.ZERO, READ_SLOT + 1).last()
+      val frame = draw.frameAt(draw.composition(listOf(clip), listOf(vhs)), Duration.ZERO, READ_SLOT)
       val tick = tickOf(READ_SLOT)
 
       (0 until NARROW_HEIGHT step 4).forEach { y ->
@@ -143,7 +143,7 @@ class FfmpegVhsSourceMediaTest {
   ) {
     val vhs = Vhs(intensity = 0.5f)
     val clip = draw.clipOf(WIDTH, HEIGHT, ::rampAt, listOf(vhs), pixelFormat, range)
-    val frame = draw.frames(draw.composition(listOf(clip)), Duration.ZERO, READ_SLOT + 1).last()
+    val frame = draw.frameAt(draw.composition(listOf(clip)), Duration.ZERO, READ_SLOT)
 
     assertReadsSignal(frame, vhs, WIDTH, HEIGHT, READ_SLOT, ::rampAt, lumaCodes)
   }
@@ -162,7 +162,7 @@ class FfmpegVhsSourceMediaTest {
           }
         }
     val clip = draw.clipOf(WIDTH, HEIGHT, ::rampAt, listOf(vhs), pixelFormat, range)
-    val frame = draw.frames(draw.composition(listOf(clip)), Duration.ZERO, slot + 1).last()
+    val frame = draw.frameAt(draw.composition(listOf(clip)), Duration.ZERO, slot)
     val column = (x * WIDTH).toInt()
 
     val wanted = yccOf(lumaSampleSignal(vhs, tickOf(slot), column, y, WIDTH, HEIGHT, ::rampAt))[0]

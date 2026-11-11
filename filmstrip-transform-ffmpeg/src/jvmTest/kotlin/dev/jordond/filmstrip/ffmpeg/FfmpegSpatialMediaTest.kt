@@ -208,7 +208,7 @@ class FfmpegSpatialMediaTest {
     runBlocking<Unit> {
       listOf(GaussianBlur(SIGMA), Vignette()).forEach { spatial ->
         val composition = draw.composition(listOf(draw.clipOf(WIDTH, HEIGHT, ::edgeAt)), listOf(spatial))
-        val fromStart = draw.frames(composition, Duration.ZERO, READ_SLOT + 1).last()
+        val fromStart = draw.frameAt(composition, Duration.ZERO, READ_SLOT)
         val fromWindow = draw.frames(composition, (READ_SLOT.toDouble() / FILTER_RATE).seconds, 1).single()
 
         withClue(spatial) { fromWindow.contentEquals(fromStart) shouldBe true }

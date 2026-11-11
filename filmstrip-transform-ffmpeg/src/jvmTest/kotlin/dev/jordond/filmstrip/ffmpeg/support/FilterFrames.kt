@@ -95,7 +95,20 @@ internal class FilterFrames(
     count: Int,
     spec: ExportSpec = ExportSpec(),
     grade: ResolvedHdr? = null,
-  ): List<ByteArray> {
+  ): List<ByteArray> = framesAs(composition, at, count, spec, grade) { it }
+
+  /**
+   * What [read] makes of each of the first [count] frames the preview draws from [at]. Only the frame being read is
+   * held, so a long run of large frames costs one frame of heap.
+   */
+  suspend fun <T> framesAs(
+    composition: Composition,
+    at: Duration,
+    count: Int,
+    spec: ExportSpec = ExportSpec(),
+    grade: ResolvedHdr? = null,
+    read: (ByteArray) -> T,
+  ): List<T> {
     val opened =
       engine
         .openPreview(composition, spec, at = at, grade = grade)
@@ -103,10 +116,26 @@ internal class FilterFrames(
         .stream
         .shouldBeInstanceOf<FfmpegPreviewStream>()
     return try {
-      List(count) { opened.next().shouldNotBeNull() }
+      List(count) { read(opened.next().shouldNotBeNull()) }
     } finally {
       opened.close()
     }
+  }
+
+  /**
+   * The frame [slot] frames after the first one the preview draws from [at]. The frames before it are read and
+   * dropped one at a time.
+   */
+  suspend fun frameAt(
+    composition: Composition,
+    at: Duration,
+    slot: Int,
+    spec: ExportSpec = ExportSpec(),
+    grade: ResolvedHdr? = null,
+  ): ByteArray {
+    var last: ByteArray? = null
+    framesAs(composition, at, slot + 1, spec, grade) { last = it }
+    return last.shouldNotBeNull()
   }
 
   /**
@@ -212,10 +241,14 @@ internal class FilterFrames(
       val size = invocation.output.size
       val bytes = size.width * size.height * PLANES_BYTES_PER_TWO_PIXELS / 2 * bytesPerSample
       val process = ProcessBuilder(command).redirectError(ProcessBuilder.Redirect.DISCARD).start()
-      val read = process.inputStream.readNBytes(bytes * (slot + 1))
+      val read =
+        process.inputStream.run {
+          skipNBytes(bytes.toLong() * slot)
+          readNBytes(bytes)
+        }
       process.destroy()
-      read.size shouldBe bytes * (slot + 1)
-      return frameOf(size.width, size.height, read.copyOfRange(bytes * slot, bytes * (slot + 1)))
+      read.size shouldBe bytes
+      return frameOf(size.width, size.height, read)
     } finally {
       scratch.delete()
     }
@@ -411,39 +444,6 @@ internal class FilterFrames(
       ).start()
     return process.inputStream.readNBytes(bytes).also { process.waitFor() }
   }
-}
-
-/**
- * One frame's planes, 8 bit limited range 4:2:0.
- */
-internal class Yuv420Frame(
-  val width: Int,
-  val height: Int,
-  private val bytes: ByteArray,
-) {
-  /**
-   * The luma code at [x] and [y].
-   */
-  fun luma(
-    x: Int,
-    y: Int,
-  ): Int = bytes[y * width + x].toInt() and BYTE
-
-  /**
-   * The Cb code of chroma sample [column] on chroma row [row].
-   */
-  fun cb(
-    column: Int,
-    row: Int,
-  ): Int = bytes[width * height + row * (width / 2) + column].toInt() and BYTE
-
-  /**
-   * The Cr code of chroma sample [column] on chroma row [row].
-   */
-  fun cr(
-    column: Int,
-    row: Int,
-  ): Int = bytes[width * height + (width / 2) * (height / 2) + row * (width / 2) + column].toInt() and BYTE
 }
 
 // How far a frame drawn under a Pixel reads from its reference after rounding through gbrap and back.

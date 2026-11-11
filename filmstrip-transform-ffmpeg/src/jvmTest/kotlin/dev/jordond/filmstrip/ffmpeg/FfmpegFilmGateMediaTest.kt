@@ -101,7 +101,7 @@ class FfmpegFilmGateMediaTest {
       val composition = draw.composition(listOf(draw.clipOf(WIDTH, HEIGHT, ::edgeAt)), listOf(Film.Super8))
       val at = (FILM_READ_SLOT.toDouble() / FILTER_RATE).seconds
 
-      val fromStart = draw.frames(composition, Duration.ZERO, FILM_READ_SLOT + 1).last()
+      val fromStart = draw.frameAt(composition, Duration.ZERO, FILM_READ_SLOT)
       val fromWindow = draw.frames(composition, at, 1).single()
 
       fromWindow.contentEquals(fromStart) shouldBe true
@@ -112,7 +112,7 @@ class FfmpegFilmGateMediaTest {
     runBlocking<Unit> {
       val crop = Crop(AspectRatio.Square, fit = Fit.Contain)
       val clip = draw.clipOf(WIDTH, HEIGHT, { BRIGHT }, listOf(crop, Film.Super8))
-      val frame = draw.frames(draw.composition(listOf(clip), fill = Fill.Solid(SLATE)), Duration.ZERO, 1).last()
+      val frame = draw.frameAt(draw.composition(listOf(clip), fill = Fill.Solid(SLATE)), Duration.ZERO, 0)
 
       val barRow = HEIGHT / SQUARE_BAR_READ
       (0 until 3).forEach { channel ->

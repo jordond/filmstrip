@@ -45,7 +45,7 @@ class FfmpegVhsSdMediaTest {
       val plain = draw.clipOf(VHS_WIDTH, VHS_HEIGHT, ::rampAt)
       val sd = draw.clipOf(VHS_WIDTH, VHS_HEIGHT, ::sdRampAt, listOf(vhs), onSmpteC = true)
       val composition = draw.composition(listOf(plain, sd))
-      val frame = draw.frames(composition, Duration.ZERO, SECOND_CLIP_SLOT + 1).last()
+      val frame = draw.frameAt(composition, Duration.ZERO, SECOND_CLIP_SLOT)
 
       assertReadsSignal(frame, vhs, VHS_WIDTH, VHS_HEIGHT, SECOND_CLIP_SLOT, ::displayedAt)
       assertHeadBeforeTape(draw.graphOf(composition))
@@ -58,7 +58,7 @@ class FfmpegVhsSdMediaTest {
       val plain = draw.clipOf(VHS_WIDTH, VHS_HEIGHT, ::rampAt)
       val sd = draw.clipOf(VHS_WIDTH, VHS_HEIGHT, ::sdRampAt, onSmpteC = true)
       val composition = draw.composition(listOf(sd, plain), listOf(vhs))
-      val frame = draw.frames(composition, Duration.ZERO, READ_SLOT + 1).last()
+      val frame = draw.frameAt(composition, Duration.ZERO, READ_SLOT)
 
       assertReadsSignal(frame, vhs, VHS_WIDTH, VHS_HEIGHT, READ_SLOT, ::displayedAt)
       assertHeadBeforeTape(draw.graphOf(composition))
@@ -77,7 +77,7 @@ class FfmpegVhsSdMediaTest {
           draw.composition(listOf(draw.clipOf(VHS_WIDTH, VHS_HEIGHT, ::sdRampAt, onSmpteC = true)), listOf(vhs)),
       ).forEach { (scope, composition) ->
         withClue("$scope scope") {
-          val frame = draw.frames(composition, Duration.ZERO, READ_SLOT + 1).last()
+          val frame = draw.frameAt(composition, Duration.ZERO, READ_SLOT)
 
           assertReadsSignal(frame, vhs, VHS_WIDTH, VHS_HEIGHT, READ_SLOT, ::displayedAt)
           assertHeadBeforeTape(draw.graphOf(composition))

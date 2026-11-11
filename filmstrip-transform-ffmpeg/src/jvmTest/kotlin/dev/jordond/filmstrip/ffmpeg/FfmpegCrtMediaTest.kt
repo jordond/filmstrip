@@ -282,7 +282,7 @@ class FfmpegCrtMediaTest {
     runBlocking<Unit> {
       val composition = draw.composition(listOf(draw.clipOf(WIDTH, HEIGHT, ::rampAt)), listOf(Crt(MID)))
 
-      val fromStart = draw.frames(composition, Duration.ZERO, READ_SLOT + 1).last()
+      val fromStart = draw.frameAt(composition, Duration.ZERO, READ_SLOT)
       val fromWindow = draw.frames(composition, slotTime(READ_SLOT), 1).single()
 
       fromWindow.contentEquals(fromStart) shouldBe true
