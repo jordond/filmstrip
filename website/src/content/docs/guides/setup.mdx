@@ -55,8 +55,21 @@ before it.
 
 ## Android context
 
-filmstrip picks up the application context through App Startup. If your app turns App Startup off, or a test runs
-outside it, pass a context yourself.
+filmstrip picks up the application context through App Startup. `filmstrip-core` ships this entry in its manifest
+and the build merges it into your app's, next to any other library's initializer.
+
+```xml title="Merged AndroidManifest.xml"
+<provider
+    android:name="androidx.startup.InitializationProvider"
+    android:authorities="${applicationId}.androidx-startup"
+    android:exported="false">
+    <meta-data
+        android:name="dev.jordond.filmstrip.FilmstripInitializer"
+        android:value="androidx.startup" />
+</provider>
+```
+
+If your app turns App Startup off, or a test runs outside it, pass a context yourself.
 
 <Snippet
   file="androidMain/kotlin/dev/jordond/filmstrip/docs/guides/Setup.android.kt"
@@ -67,3 +80,50 @@ outside it, pass a context yourself.
 Any context works. filmstrip keeps its application context for the whole process, so every instance built
 afterwards sees it too.
 </Aside>
+
+### Remove the initializer
+
+An app that passes the context by hand can drop filmstrip's initializer from the merged manifest. This removes
+only filmstrip's entry and leaves every other library's in place.
+
+```xml title="AndroidManifest.xml"
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <application>
+        <provider
+            android:name="androidx.startup.InitializationProvider"
+            android:authorities="${applicationId}.androidx-startup"
+            android:exported="false"
+            tools:node="merge">
+            <meta-data
+                android:name="dev.jordond.filmstrip.FilmstripInitializer"
+                tools:node="remove" />
+        </provider>
+    </application>
+</manifest>
+```
+
+An app that runs no App Startup initializers at all removes the provider instead.
+
+```xml title="AndroidManifest.xml"
+<provider
+    android:name="androidx.startup.InitializationProvider"
+    android:authorities="${applicationId}.androidx-startup"
+    tools:node="remove" />
+```
+
+Either way the app still builds, and `Filmstrip(context) { }` is then the only thing that hands filmstrip a
+context.
+
+### Without a context
+
+Nothing throws when the context is missing. The operation that needed it fails with a typed error whose message
+says so.
+
+```text
+filmstrip could not reach an Application Context. Either keep androidx.startup's InitializationProvider in the
+merged manifest, or build with Filmstrip(context).
+```
+
+Previewing, rendering a frame and exporting always need a context. Probing and planning need one only for a uri or
+an in-memory video, and writing a still only for a `content://` uri.

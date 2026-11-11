@@ -23,6 +23,18 @@ import { MIN_IOS, MIN_MACOS, TESTED_BROWSERS, versions } from '../../../lib/vers
 | Desktop (JVM) | ffmpeg {versions.ffmpeg} | The `ffmpeg` and `ffprobe` on the machine |
 | Browser | WebCodecs `VideoDecoder`, and `VideoEncoder` to export | WebCodecs, drawn to a canvas |
 
+## What you add yourself
+
+filmstrip needs no Gradle plugin on any target. Past the dependency, this is what each one asks of your build or
+the machine.
+
+| Target | You add |
+| --- | --- |
+| Android | Nothing. Or a context through `Filmstrip(context)` when the app [removes the initializer](/guides/setup/#remove-the-initializer) |
+| iOS and macOS | Nothing |
+| Desktop (JVM) | `ffmpeg` and `ffprobe` {versions.ffmpeg} or later on the machine that runs the app |
+| Browser | Nothing. Gradle installs mediabunny {versions.mediabunny} for `js` and `wasmJs` |
+
 ## Browsers
 
 filmstrip is tested on {TESTED_BROWSERS}. Edge, Firefox and Safari have WebCodecs too, but filmstrip isn't tested on

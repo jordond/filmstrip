@@ -12,6 +12,7 @@ export const MIN_MACOS = '12'
 export const TESTED_BROWSERS = 'Chrome'
 
 const catalogPath = 'gradle/libs.versions.toml'
+const webcodecsBuildPath = 'filmstrip-transform-webcodecs/build.gradle.kts'
 const toolchainPath =
   'filmstrip-transform-ffmpeg/src/commonMain/kotlin/dev/jordond/filmstrip/ffmpeg/internal/process/ToolchainReport.kt'
 
@@ -40,6 +41,15 @@ export function ffmpegFloor(source: string): string {
 }
 
 /**
+ * Reads the mediabunny version out of the `npm("mediabunny", "...")` line of the WebCodecs backend's build script.
+ */
+export function mediabunnyVersion(build: string): string {
+  const match = build.match(/npm\("mediabunny",\s*"([^"]+)"\)/)
+  if (!match) throw new Error('No npm("mediabunny", ...) in the WebCodecs build script')
+  return match[1]
+}
+
+/**
  * The library's version: [override] when a release sets one, the way `ORG_GRADLE_PROJECT_VERSION_NAME` overrides the
  * build, and otherwise `VERSION_NAME` out of gradle.properties.
  */
@@ -59,6 +69,7 @@ export interface Versions {
   minSdk: string
   jdk: string
   ffmpeg: string
+  mediabunny: string
 }
 
 /**
@@ -77,6 +88,7 @@ export function readVersions(root: string = repoRoot): Versions {
     minSdk: catalogVersion(toml, 'sdk-min'),
     jdk: catalogVersion(toml, 'jvmTarget'),
     ffmpeg: ffmpegFloor(readFileSync(join(root, toolchainPath), 'utf8')),
+    mediabunny: mediabunnyVersion(readFileSync(join(root, webcodecsBuildPath), 'utf8')),
   }
 }
 

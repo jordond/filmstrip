@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { repoRoot } from './snippets'
-import { catalogVersion, ffmpegFloor, libraryVersion, readVersions } from './versions'
+import { catalogVersion, ffmpegFloor, libraryVersion, mediabunnyVersion, readVersions } from './versions'
 
 const toml = readFileSync(join(repoRoot, 'gradle/libs.versions.toml'), 'utf8')
 const catalog = Bun.TOML.parse(toml) as { versions: Record<string, string> }
@@ -56,6 +56,16 @@ describe('catalogVersion', () => {
 describe('ffmpegFloor', () => {
   test('throws naming a missing constant', () => {
     expect(() => ffmpegFloor('const val MINIMUM_MAJOR: Int = 8')).toThrow(/MINIMUM_MINOR/)
+  })
+})
+
+describe('mediabunnyVersion', () => {
+  test('reads the version out of the npm dependency', () => {
+    expect(mediabunnyVersion('      implementation(npm("mediabunny", "1.2.3"))\n')).toBe('1.2.3')
+  })
+
+  test('throws when the build script has no mediabunny dependency', () => {
+    expect(() => mediabunnyVersion('implementation(npm("other", "1.0.0"))')).toThrow(/mediabunny/)
   })
 })
 
