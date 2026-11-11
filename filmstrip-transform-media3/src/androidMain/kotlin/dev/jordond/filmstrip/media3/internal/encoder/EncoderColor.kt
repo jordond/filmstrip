@@ -174,6 +174,10 @@ internal fun pinnedEncoderFactory(
  *
  * media3's [VideoEncoderSettings.Builder.setBitrate] takes the rate as an Int, so a rate past [Int.MAX_VALUE] is held
  * there. That is media3's limit, not the plan's.
+ *
+ * `OMX.google.h264.encoder` writes an I frame every [keyFrameSeconds] and an IDR only every 1000 frames, so a file
+ * from it holds a key frame every 1000 frames whatever is asked for. That is the encoder's limit, and it is the only
+ * H.264 encoder on an API 30 emulator.
  */
 internal fun videoEncoderSettings(
   bitrate: Bitrate?,
