@@ -25,8 +25,8 @@ internal class AudioLowering(
   private val branchPad: (trackIndex: Int, clipIndex: Int) -> String,
 ) {
   private val tracks = negotiated.tracks
-  private val mixEffects = negotiated.mixAudioEffects.flatMap { it.effect.filters }
   private val format = checkNotNull(negotiated.output.audioFormat) { "AudioLowering needs an audio format" }
+  private val mixEffects = negotiated.mixAudioEffects.flatMap { it.effect.newFilters(format) }
   private val duration = negotiated.duration
 
   fun build(): String {
@@ -180,7 +180,7 @@ internal class AudioLowering(
       add(ASETPTS)
       add(aformat())
       if (clip.hasAudio && clip.speed != 1.0) addAll(stretchedNodes(clip))
-      addAll(pinned(clip.audioEffects.flatMap { it.effect.filters }, clip.span.start, clip.outputDuration))
+      addAll(pinned(clip.audioEffects.flatMap { it.effect.newFilters(format) }, clip.span.start, clip.outputDuration))
       // Every scope's level is already multiplied into this, the composition's included, so the mix
       // carries no gain node of its own.
       val constant = clip.gain.constant

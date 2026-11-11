@@ -1,6 +1,6 @@
 ---
 title: Filters
-description: Add an opt-in look like VHS, with its own module and its own resolver.
+description: Add an opt-in look or sound like VHS, with its own module and its own resolver.
 playground:
   sample: filters
   label: VHS, a camcorder display, CRT, glitch, pixel, night vision and a LUT on real footage
@@ -51,6 +51,41 @@ needs tracking. Both take a block that shapes the band.
 A `vhs` on the composition covers the whole frame, bars included. One on a clip or a track doesn't grade the bars, and
 picture it moves into a bar lands over the fill. It runs under any overlay at its own scope, so a caption next to it stays
 clean. A clip overlay under a composition `vhs` is part of the clip's frame by then, and is burned in with it.
+
+## Tape audio
+
+`tapeAudio` makes a clip sound like the linear track of a VHS tape. It narrows the band, lays hiss under the sound, and
+bends the pitch with a slow wow and a fast flutter. It's an [audio effect](/guides/audio-effects/), so it goes in
+`audioEffects` on a clip, a track or the composition. The hiss and the bend follow the composition time, so a seek, a
+second export and every clip on a track play the same tape.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Filters.kt" region="tape-audio" />
+
+| Setting     | What it does                                                                                     |
+| ----------- | ------------------------------------------------------------------------------------------------ |
+| `intensity` | How strong the sound is. `0f` leaves the audio alone and is listed as an inert notice            |
+| `tape`      | `TapeSpeed.SP`, `LP` or `EP`, from cleanest to roughest. Defaults to `EP`                        |
+| `seed`      | Picks the hiss and where the wow and flutter start. Equal seeds play the same tape               |
+| `bandLimit` | How far the band narrows toward the tape's own, from `0f` for the full band to `1f`              |
+| `hiss`      | How loud the hiss is against the tape's own, from `0f` for none to `1f`                          |
+| `wow`       | The slow bend in pitch, a `Wobble(depth, rateHz)`                                                |
+| `flutter`   | The fast bend in pitch, a `Wobble(depth, rateHz)`                                                |
+| `mono`      | Folds the channels to one sound, as a linear track holds on nearly every deck. Defaults to `true` |
+
+Each tape speed has its own figures, and a setting scales the figure rather than replacing it.
+
+| Speed | Band             | Hiss under full scale | Wow              | Flutter        |
+| ----- | ---------------- | --------------------- | ---------------- | -------------- |
+| `SP`  | 100 Hz to 10 kHz | 43 dB                 | 0.15 % at 0.8 Hz | 0.10 % at 9 Hz |
+| `LP`  | 100 Hz to 7 kHz  | 41 dB                 | 0.25 % at 0.8 Hz | 0.15 % at 9 Hz |
+| `EP`  | 100 Hz to 5 kHz  | 39 dB                 | 0.35 % at 0.8 Hz | 0.20 % at 9 Hz |
+
+A `Wobble` takes a `depth` from `0f` to `1f` of the tape's figure, and a `rateHz` from 0.1 to 100, or `null` for the
+tape's own rate. `intensity` multiplies every setting, and at half way a corner sits half way between the full band and
+the tape's on a logarithmic scale.
+
+There is no helper that adds a `vhs` and a `tapeAudio` together. Declare both, and give them the same `tape` and `seed`
+so they read as one recording. The defaults already match.
 
 ## Film
 
@@ -241,5 +276,11 @@ overlay under a composition `nightVision` is part of the clip's frame by then, a
 - ffmpeg lays `camcorder` from an animated PNG it writes ahead of the export, so it refuses one whose frames have no
   known end by name. It carries the display in 4:2:0, so luma lands within a code of the other backends and the record
   dot blends a little with the pixels next to it.
+- ffmpeg bends `tapeAudio`'s pitch with its `vibrato` filter, so a tape with any wow or flutter is reported as an
+  approximation there. A tape with neither is exact.
+- `tapeAudio` holds the sound back by a few milliseconds to bend it, which every export takes out again. An Apple
+  preview plays the track late by that much, see [Audio effects](/guides/audio-effects/#backends).
+- `tapeAudio` starts with no history after a seek and after a change to its own settings, so its filters settle
+  again over the first few milliseconds after either.
 - See [Limits](/reference/limits/#filters) for the ffmpeg speed and memory figures, when the socket fallback runs, and
   how close each backend lands.

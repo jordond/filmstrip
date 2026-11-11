@@ -18,6 +18,15 @@ internal class HashExpression(
     pass: Int,
     tick: String,
     cell: String,
+  ): String = hash("$pass", tick, cell)
+
+  /**
+   * [FilterNoise.hash24] of a pass the expression [pass] works out, [tick] and [cell], leaving it in register 0.
+   */
+  fun hash(
+    pass: String,
+    tick: String,
+    cell: String,
   ): String = "${absorbed(pass, tick)};${finished(cell)}"
 
   /**
@@ -26,7 +35,7 @@ internal class HashExpression(
   fun state(
     pass: Int,
     tick: String,
-  ): String = "${absorbed(pass, tick)};ld(0)"
+  ): String = "${absorbed("$pass", tick)};ld(0)"
 
   /**
    * The hash of [cell] from a [state] held in [state], leaving it in register 0.
@@ -37,9 +46,9 @@ internal class HashExpression(
   ): String = "st(0,$state);${finished(cell)}"
 
   private fun absorbed(
-    pass: Int,
+    pass: String,
     tick: String,
-  ): String = listOf("st(0,$seedBits)", absorb("$pass"), absorb(tick)).joinToString(";")
+  ): String = listOf("st(0,$seedBits)", absorb(pass), absorb(tick)).joinToString(";")
 
   private fun finished(cell: String): String =
     listOf(

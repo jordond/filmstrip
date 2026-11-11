@@ -27,6 +27,7 @@ import dev.jordond.filmstrip.effects.filters.film.film
 import dev.jordond.filmstrip.effects.filters.lut.CubeLut
 import dev.jordond.filmstrip.effects.filters.lut.lut
 import dev.jordond.filmstrip.effects.filters.pixel.pixel
+import dev.jordond.filmstrip.effects.filters.tape.tapeAudio
 import dev.jordond.filmstrip.effects.filters.vhs.TapeSpeed
 import dev.jordond.filmstrip.effects.filters.vhs.Tracking
 import dev.jordond.filmstrip.effects.filters.vhs.vhs
@@ -145,6 +146,8 @@ public class EditState {
   var vhsTape: TapeSpeed by mutableStateOf(TapeSpeed.EP)
   var vhsTracking: VhsTrackingMode by mutableStateOf(VhsTrackingMode.Events)
   var vhsSnow: Float by mutableStateOf(Tracking.DEFAULT_SNOW)
+  var tapeAudioEnabled: Boolean by mutableStateOf(false)
+  var tapeAudioTape: TapeSpeed by mutableStateOf(TapeSpeed.EP)
   var filmEnabled: Boolean by mutableStateOf(false)
   var filmGrain: Float by mutableStateOf(0.5f)
   var filmHalation: Float by mutableStateOf(0.5f)
@@ -348,6 +351,8 @@ public class EditState {
         snapWithin(snapWithinSeconds.toDouble().seconds)
       }
 
+      if (tapeAudioEnabled) audioEffects { tapeAudio { tape = tapeAudioTape } }
+
       effects {
         if (rotationDegrees != 0) rotate(rotationDegrees)
         if (flipHorizontal) flip(FlipAxis.Horizontal)
@@ -447,6 +452,8 @@ public class EditState {
     vhsTape = TapeSpeed.EP
     vhsTracking = VhsTrackingMode.Events
     vhsSnow = Tracking.DEFAULT_SNOW
+    tapeAudioEnabled = false
+    tapeAudioTape = TapeSpeed.EP
     filmEnabled = false
     filmGrain = 0.5f
     filmHalation = 0.5f

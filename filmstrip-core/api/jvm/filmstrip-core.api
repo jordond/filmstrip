@@ -310,10 +310,8 @@ public abstract class dev/jordond/filmstrip/audio/AudioKernel {
 
 public final class dev/jordond/filmstrip/audio/PlatformAudioEffect {
 	public fun <init> (Ljava/util/List;)V
-	public fun equals (Ljava/lang/Object;)Z
-	public final fun getFilters ()Ljava/util/List;
-	public fun hashCode ()I
-	public fun toString ()Ljava/lang/String;
+	public fun <init> (Lkotlin/jvm/functions/Function1;)V
+	public final fun getNewFilters ()Lkotlin/jvm/functions/Function1;
 }
 
 public final class dev/jordond/filmstrip/capability/AudioEncoderCapability {

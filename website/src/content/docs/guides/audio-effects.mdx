@@ -61,7 +61,8 @@ sample rate and channel count.
 ### The resolver
 
 An `AudioEffectResolver` turns the spec into what the platform runs. On Android, Apple and the browser that's a factory
-for the kernel. On the JVM it's a list of ffmpeg filters.
+for the kernel. On the JVM it's a list of ffmpeg filters, or a factory for one when the filters depend on the stream's
+sample rate or channel count.
 
 <Tabs syncKey="platform">
   <TabItem label="Android">

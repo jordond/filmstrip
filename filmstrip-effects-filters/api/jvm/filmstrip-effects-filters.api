@@ -1,3 +1,8 @@
+public final class dev/jordond/filmstrip/effects/filters/FilterAudioEffectResolver : dev/jordond/filmstrip/audio/AudioEffectResolver {
+	public fun <init> ()V
+	public fun resolve (Ldev/jordond/filmstrip/audio/AudioEffectSpec;Ldev/jordond/filmstrip/audio/AudioAttributes;)Ldev/jordond/filmstrip/audio/AudioEffectResolution;
+}
+
 public final class dev/jordond/filmstrip/effects/filters/FilterEffectResolver : dev/jordond/filmstrip/effect/EffectResolver {
 	public fun <init> ()V
 	public fun prepare (Ldev/jordond/filmstrip/edit/Composition;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
@@ -415,6 +420,71 @@ public final class dev/jordond/filmstrip/effects/filters/pixel/PixelPalette {
 public final class dev/jordond/filmstrip/effects/filters/pixel/PixelPalette$Companion {
 	public final fun getCga ()Ldev/jordond/filmstrip/effects/filters/pixel/PixelPalette;
 	public final fun getGameBoy ()Ldev/jordond/filmstrip/effects/filters/pixel/PixelPalette;
+}
+
+public final class dev/jordond/filmstrip/effects/filters/tape/TapeAudio : dev/jordond/filmstrip/audio/AudioEffectSpec {
+	public static final field Companion Ldev/jordond/filmstrip/effects/filters/tape/TapeAudio$Companion;
+	public static final field ID Ljava/lang/String;
+	public fun <init> ()V
+	public fun <init> (FLdev/jordond/filmstrip/effects/filters/vhs/TapeSpeed;IFFLdev/jordond/filmstrip/effects/filters/tape/Wobble;Ldev/jordond/filmstrip/effects/filters/tape/Wobble;Z)V
+	public synthetic fun <init> (FLdev/jordond/filmstrip/effects/filters/vhs/TapeSpeed;IFFLdev/jordond/filmstrip/effects/filters/tape/Wobble;Ldev/jordond/filmstrip/effects/filters/tape/Wobble;ZILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getBandLimit ()F
+	public final fun getFlutter ()Ldev/jordond/filmstrip/effects/filters/tape/Wobble;
+	public final fun getHiss ()F
+	public fun getId ()Ljava/lang/String;
+	public final fun getIntensity ()F
+	public final fun getMono ()Z
+	public final fun getSeed ()I
+	public final fun getTape ()Ldev/jordond/filmstrip/effects/filters/vhs/TapeSpeed;
+	public final fun getWow ()Ldev/jordond/filmstrip/effects/filters/tape/Wobble;
+	public fun hashCode ()I
+	public fun isInert ()Z
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/jordond/filmstrip/effects/filters/tape/TapeAudio$Companion {
+}
+
+public final class dev/jordond/filmstrip/effects/filters/tape/TapeAudioBuilder {
+	public final fun getBandLimit ()F
+	public final fun getFlutter ()Ldev/jordond/filmstrip/effects/filters/tape/Wobble;
+	public final fun getHiss ()F
+	public final fun getIntensity ()F
+	public final fun getMono ()Z
+	public final fun getSeed ()I
+	public final fun getTape ()Ldev/jordond/filmstrip/effects/filters/vhs/TapeSpeed;
+	public final fun getWow ()Ldev/jordond/filmstrip/effects/filters/tape/Wobble;
+	public final fun setBandLimit (F)V
+	public final fun setFlutter (Ldev/jordond/filmstrip/effects/filters/tape/Wobble;)V
+	public final fun setHiss (F)V
+	public final fun setIntensity (F)V
+	public final fun setMono (Z)V
+	public final fun setSeed (I)V
+	public final fun setTape (Ldev/jordond/filmstrip/effects/filters/vhs/TapeSpeed;)V
+	public final fun setWow (Ldev/jordond/filmstrip/effects/filters/tape/Wobble;)V
+}
+
+public final class dev/jordond/filmstrip/effects/filters/tape/TapeAudioBuilderKt {
+	public static final fun tapeAudio (Ldev/jordond/filmstrip/edit/AudioEffectsBuilder;Lkotlin/jvm/functions/Function1;)Ldev/jordond/filmstrip/edit/AudioEffectsBuilder;
+	public static synthetic fun tapeAudio$default (Ldev/jordond/filmstrip/edit/AudioEffectsBuilder;Lkotlin/jvm/functions/Function1;ILjava/lang/Object;)Ldev/jordond/filmstrip/edit/AudioEffectsBuilder;
+}
+
+public final class dev/jordond/filmstrip/effects/filters/tape/Wobble {
+	public static final field Companion Ldev/jordond/filmstrip/effects/filters/tape/Wobble$Companion;
+	public static final field MAX_RATE_HZ F
+	public static final field MIN_RATE_HZ F
+	public fun <init> ()V
+	public fun <init> (FLjava/lang/Float;)V
+	public synthetic fun <init> (FLjava/lang/Float;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getDepth ()F
+	public final fun getRateHz ()Ljava/lang/Float;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/jordond/filmstrip/effects/filters/tape/Wobble$Companion {
 }
 
 public final class dev/jordond/filmstrip/effects/filters/vhs/TapeSpeed : java/lang/Enum {

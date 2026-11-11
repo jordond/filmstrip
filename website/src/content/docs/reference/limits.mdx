@@ -217,6 +217,13 @@ one, it's refused by name.
 - **ffmpeg** reads a `vhs` beside a clear canvas bar tap by tap where its blur lands across the bar's edge, which runs
   about 0.9 fps at 1080p on the same server where a frame with no bar runs 5.2 fps. A source with its own alpha can be
   clear anywhere, so it is read tap by tap over the whole frame, which is slower still.
+- **ffmpeg** plays `tapeAudio`'s band and hiss with the same arithmetic as the other backends, and bends the pitch
+  with `vibrato`. That filter reads between two samples where the others read four, rounds a rate to a whole number
+  of samples, starts each bend at the head of the stream instead of where the seed puts it, and swings by 2.5 ms at
+  most, so a deep bend slower than about 0.2 Hz is played shallower. The depth of the default wow and flutter lands
+  within a tenth of the other backends'.
+- **Apple** decodes two exports of one edit a few parts in ten million apart, with or without `tapeAudio`. Every
+  other backend writes the same tape sample for sample.
 - **Every backend** draws `vhs` tracking snow from the same signal. Apple and Android land within 1e-4, the browser
   within one code, and ffmpeg within 1.74 codes of luma and 1.14 of chroma, since it mixes into 8-bit planes.
 - **Every backend** draws `camcorder` from the same raster. Apple and Android land within 1e-4 and the browser within

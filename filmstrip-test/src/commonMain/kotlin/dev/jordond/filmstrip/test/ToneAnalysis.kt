@@ -78,6 +78,47 @@ public object ToneAnalysis {
   }
 
   /**
+   * The amplitude of [frequencyHz] over the [length] samples from [from], read a short window at a time and averaged.
+   *
+   * A tone whose pitch wanders reads low over one long window, since its phase drifts against the frequency it is
+   * measured at. Over [windowSamples] at a time the drift is too small to matter.
+   */
+  public fun levelOver(
+    samples: FloatArray,
+    from: Int,
+    length: Int,
+    frequencyHz: Int,
+    sampleRate: Int,
+    windowSamples: Int = sampleRate / LEVEL_WINDOWS_PER_SECOND,
+  ): Float {
+    val windows = length / windowSamples
+    if (windows == 0) return 0f
+    var total = 0f
+    for (window in 0 until windows) {
+      total += amplitudeOver(samples, from + window * windowSamples, windowSamples, frequencyHz, sampleRate)
+    }
+    return total / windows
+  }
+
+  /**
+   * The root mean square of the [length] samples of [samples] from [from].
+   */
+  public fun rmsOver(
+    samples: FloatArray,
+    from: Int,
+    length: Int,
+  ): Float {
+    val start = from.coerceIn(0, samples.size)
+    val end = (from + length).coerceIn(start, samples.size)
+    if (end == start) return 0f
+    var squares = 0.0
+    for (frame in start until end) squares += samples[frame].toDouble() * samples[frame]
+    return sqrt(squares / (end - start)).toFloat()
+  }
+
+  private const val LEVEL_WINDOWS_PER_SECOND = 100
+
+  /**
    * Interleaved [channels] samples reduced to mono by averaging.
    *
    * A backend hands back whatever layout its decoder produced, and the measurement wants one

@@ -20,10 +20,71 @@ public final class dev/jordond/filmstrip/test/FrameComparisonKt {
 	public static final fun compareFrames (Ldev/jordond/filmstrip/test/TestFrame;Ldev/jordond/filmstrip/test/TestFrame;)Ldev/jordond/filmstrip/test/FrameComparison;
 }
 
+public final class dev/jordond/filmstrip/test/PitchBend {
+	public static final field Companion Ldev/jordond/filmstrip/test/PitchBend$Companion;
+	public static final field DEFAULT_WINDOW_SECONDS D
+	public fun <init> ([DD)V
+	public final fun depthAt (D)D
+	public final fun getPitch ()[D
+	public final fun getSteepest ()D
+	public final fun getStepSeconds ()D
+}
+
+public final class dev/jordond/filmstrip/test/PitchBend$Companion {
+	public final fun of ([FIIIID)Ldev/jordond/filmstrip/test/PitchBend;
+	public static synthetic fun of$default (Ldev/jordond/filmstrip/test/PitchBend$Companion;[FIIIIDILjava/lang/Object;)Ldev/jordond/filmstrip/test/PitchBend;
+}
+
 public final class dev/jordond/filmstrip/test/TestFrame {
 	public fun <init> ([BLdev/jordond/filmstrip/geometry/Size;)V
 	public final fun getPixels ()[B
 	public final fun getSize ()Ldev/jordond/filmstrip/geometry/Size;
+}
+
+public final class dev/jordond/filmstrip/test/TestTones : dev/jordond/filmstrip/audio/AudioEffectSpec {
+	public static final field Companion Ldev/jordond/filmstrip/test/TestTones$Companion;
+	public static final field ID Ljava/lang/String;
+	public synthetic fun <init> (Ljava/util/List;FJLkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/util/List;
+	public final fun component2 ()F
+	public final fun component3-UwyO8pc ()J
+	public final fun copy-SxA4cEA (Ljava/util/List;FJ)Ldev/jordond/filmstrip/test/TestTones;
+	public static synthetic fun copy-SxA4cEA$default (Ldev/jordond/filmstrip/test/TestTones;Ljava/util/List;FJILjava/lang/Object;)Ldev/jordond/filmstrip/test/TestTones;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAmplitude ()F
+	public final fun getFrequenciesHz ()Ljava/util/List;
+	public fun getId ()Ljava/lang/String;
+	public final fun getLength-UwyO8pc ()J
+	public fun hashCode ()I
+	public fun isInert ()Z
+	public final fun newKernel (Ldev/jordond/filmstrip/export/AudioFormat;)Ldev/jordond/filmstrip/audio/AudioKernel;
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/jordond/filmstrip/test/TestTones$Companion {
+}
+
+public final class dev/jordond/filmstrip/test/TimelineBursts : dev/jordond/filmstrip/audio/AudioEffectSpec {
+	public static final field Companion Ldev/jordond/filmstrip/test/TimelineBursts$Companion;
+	public static final field ID Ljava/lang/String;
+	public static final field TONE_HZ I
+	public fun <init> (F)V
+	public final fun component1 ()F
+	public final fun copy (F)Ldev/jordond/filmstrip/test/TimelineBursts;
+	public static synthetic fun copy$default (Ldev/jordond/filmstrip/test/TimelineBursts;FILjava/lang/Object;)Ldev/jordond/filmstrip/test/TimelineBursts;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAmplitude ()F
+	public fun getId ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun isInert ()Z
+	public final fun newKernel (Ldev/jordond/filmstrip/export/AudioFormat;)Ldev/jordond/filmstrip/audio/AudioKernel;
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/jordond/filmstrip/test/TimelineBursts$Companion {
+	public final fun burstStart-5sfh64U (I)J
+	public final fun getLENGTH-UwyO8pc ()J
+	public final fun getPERIOD-UwyO8pc ()J
 }
 
 public final class dev/jordond/filmstrip/test/ToneAnalysis {
@@ -31,6 +92,9 @@ public final class dev/jordond/filmstrip/test/ToneAnalysis {
 	public static final field MEASURED_GAIN_TOLERANCE F
 	public final fun amplitudeOf ([FII)F
 	public final fun amplitudeOver ([FIIII)F
+	public final fun levelOver ([FIIIII)F
+	public static synthetic fun levelOver$default (Ldev/jordond/filmstrip/test/ToneAnalysis;[FIIIIIILjava/lang/Object;)F
+	public final fun rmsOver ([FII)F
 	public final fun toMono ([FI)[F
 }
 

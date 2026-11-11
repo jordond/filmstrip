@@ -618,6 +618,24 @@ private fun AdjustPanel(state: SampleAppState) {
         }
       }
     }
+    SwitchRow(
+      label = "Tape audio",
+      checked = edit.tapeAudioEnabled,
+      onCheckedChange = {
+        edit.tapeAudioEnabled = it
+        state.onEditChanged()
+      },
+    )
+    if (edit.tapeAudioEnabled) {
+      ChipGroup(
+        options = TapeSpeed.entries.map { it.name to it },
+        selected = edit.tapeAudioTape,
+        onSelect = {
+          edit.tapeAudioTape = it
+          state.onEditChanged()
+        },
+      )
+    }
   }
 
   ToolSection("Camcorder") {

@@ -24,8 +24,9 @@ public expect class FilterEffectResolver() : EffectResolver {
 }
 
 /**
- * Registers the filter catalogue.
+ * Registers the filter catalogue, the looks and the sounds.
  *
  * Without this call a filter resolves to nothing and `plan` refuses it by name.
  */
-public fun FilmstripBuilder.filters(): FilmstripBuilder = addEffectResolver(FilterEffectResolver())
+public fun FilmstripBuilder.filters(): FilmstripBuilder =
+  addEffectResolver(FilterEffectResolver()).addAudioEffectResolver(FilterAudioEffectResolver())

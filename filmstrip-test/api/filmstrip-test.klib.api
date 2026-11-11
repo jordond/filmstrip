@@ -19,6 +19,26 @@ final class dev.jordond.filmstrip.test/FrameComparison { // dev.jordond.filmstri
     final fun toString(): kotlin/String // dev.jordond.filmstrip.test/FrameComparison.toString|toString(){}[0]
 }
 
+final class dev.jordond.filmstrip.test/PitchBend { // dev.jordond.filmstrip.test/PitchBend|null[0]
+    constructor <init>(kotlin/DoubleArray, kotlin/Double) // dev.jordond.filmstrip.test/PitchBend.<init>|<init>(kotlin.DoubleArray;kotlin.Double){}[0]
+
+    final val pitch // dev.jordond.filmstrip.test/PitchBend.pitch|{}pitch[0]
+        final fun <get-pitch>(): kotlin/DoubleArray // dev.jordond.filmstrip.test/PitchBend.pitch.<get-pitch>|<get-pitch>(){}[0]
+    final val steepest // dev.jordond.filmstrip.test/PitchBend.steepest|{}steepest[0]
+        final fun <get-steepest>(): kotlin/Double // dev.jordond.filmstrip.test/PitchBend.steepest.<get-steepest>|<get-steepest>(){}[0]
+    final val stepSeconds // dev.jordond.filmstrip.test/PitchBend.stepSeconds|{}stepSeconds[0]
+        final fun <get-stepSeconds>(): kotlin/Double // dev.jordond.filmstrip.test/PitchBend.stepSeconds.<get-stepSeconds>|<get-stepSeconds>(){}[0]
+
+    final fun depthAt(kotlin/Double): kotlin/Double // dev.jordond.filmstrip.test/PitchBend.depthAt|depthAt(kotlin.Double){}[0]
+
+    final object Companion { // dev.jordond.filmstrip.test/PitchBend.Companion|null[0]
+        final const val DEFAULT_WINDOW_SECONDS // dev.jordond.filmstrip.test/PitchBend.Companion.DEFAULT_WINDOW_SECONDS|{}DEFAULT_WINDOW_SECONDS[0]
+            final fun <get-DEFAULT_WINDOW_SECONDS>(): kotlin/Double // dev.jordond.filmstrip.test/PitchBend.Companion.DEFAULT_WINDOW_SECONDS.<get-DEFAULT_WINDOW_SECONDS>|<get-DEFAULT_WINDOW_SECONDS>(){}[0]
+
+        final fun of(kotlin/FloatArray, kotlin/Int, kotlin/Int, kotlin/Int, kotlin/Int, kotlin/Double = ...): dev.jordond.filmstrip.test/PitchBend // dev.jordond.filmstrip.test/PitchBend.Companion.of|of(kotlin.FloatArray;kotlin.Int;kotlin.Int;kotlin.Int;kotlin.Int;kotlin.Double){}[0]
+    }
+}
+
 final class dev.jordond.filmstrip.test/TestFrame { // dev.jordond.filmstrip.test/TestFrame|null[0]
     constructor <init>(kotlin/ByteArray, dev.jordond.filmstrip.geometry/Size) // dev.jordond.filmstrip.test/TestFrame.<init>|<init>(kotlin.ByteArray;dev.jordond.filmstrip.geometry.Size){}[0]
 
@@ -28,12 +48,71 @@ final class dev.jordond.filmstrip.test/TestFrame { // dev.jordond.filmstrip.test
         final fun <get-size>(): dev.jordond.filmstrip.geometry/Size // dev.jordond.filmstrip.test/TestFrame.size.<get-size>|<get-size>(){}[0]
 }
 
+final class dev.jordond.filmstrip.test/TestTones : dev.jordond.filmstrip.audio/AudioEffectSpec { // dev.jordond.filmstrip.test/TestTones|null[0]
+    constructor <init>(kotlin.collections/List<kotlin/Int>, kotlin/Float, kotlin.time/Duration) // dev.jordond.filmstrip.test/TestTones.<init>|<init>(kotlin.collections.List<kotlin.Int>;kotlin.Float;kotlin.time.Duration){}[0]
+
+    final val amplitude // dev.jordond.filmstrip.test/TestTones.amplitude|{}amplitude[0]
+        final fun <get-amplitude>(): kotlin/Float // dev.jordond.filmstrip.test/TestTones.amplitude.<get-amplitude>|<get-amplitude>(){}[0]
+    final val frequenciesHz // dev.jordond.filmstrip.test/TestTones.frequenciesHz|{}frequenciesHz[0]
+        final fun <get-frequenciesHz>(): kotlin.collections/List<kotlin/Int> // dev.jordond.filmstrip.test/TestTones.frequenciesHz.<get-frequenciesHz>|<get-frequenciesHz>(){}[0]
+    final val id // dev.jordond.filmstrip.test/TestTones.id|{}id[0]
+        final fun <get-id>(): kotlin/String // dev.jordond.filmstrip.test/TestTones.id.<get-id>|<get-id>(){}[0]
+    final val length // dev.jordond.filmstrip.test/TestTones.length|{}length[0]
+        final fun <get-length>(): kotlin.time/Duration // dev.jordond.filmstrip.test/TestTones.length.<get-length>|<get-length>(){}[0]
+
+    final fun component1(): kotlin.collections/List<kotlin/Int> // dev.jordond.filmstrip.test/TestTones.component1|component1(){}[0]
+    final fun component2(): kotlin/Float // dev.jordond.filmstrip.test/TestTones.component2|component2(){}[0]
+    final fun component3(): kotlin.time/Duration // dev.jordond.filmstrip.test/TestTones.component3|component3(){}[0]
+    final fun copy(kotlin.collections/List<kotlin/Int> = ..., kotlin/Float = ..., kotlin.time/Duration = ...): dev.jordond.filmstrip.test/TestTones // dev.jordond.filmstrip.test/TestTones.copy|copy(kotlin.collections.List<kotlin.Int>;kotlin.Float;kotlin.time.Duration){}[0]
+    final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.test/TestTones.equals|equals(kotlin.Any?){}[0]
+    final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.test/TestTones.hashCode|hashCode(){}[0]
+    final fun newKernel(dev.jordond.filmstrip.export/AudioFormat): dev.jordond.filmstrip.audio/AudioKernel // dev.jordond.filmstrip.test/TestTones.newKernel|newKernel(dev.jordond.filmstrip.export.AudioFormat){}[0]
+    final fun toString(): kotlin/String // dev.jordond.filmstrip.test/TestTones.toString|toString(){}[0]
+
+    final object Companion { // dev.jordond.filmstrip.test/TestTones.Companion|null[0]
+        final const val ID // dev.jordond.filmstrip.test/TestTones.Companion.ID|{}ID[0]
+            final fun <get-ID>(): kotlin/String // dev.jordond.filmstrip.test/TestTones.Companion.ID.<get-ID>|<get-ID>(){}[0]
+    }
+}
+
+final class dev.jordond.filmstrip.test/TimelineBursts : dev.jordond.filmstrip.audio/AudioEffectSpec { // dev.jordond.filmstrip.test/TimelineBursts|null[0]
+    constructor <init>(kotlin/Float) // dev.jordond.filmstrip.test/TimelineBursts.<init>|<init>(kotlin.Float){}[0]
+
+    final val amplitude // dev.jordond.filmstrip.test/TimelineBursts.amplitude|{}amplitude[0]
+        final fun <get-amplitude>(): kotlin/Float // dev.jordond.filmstrip.test/TimelineBursts.amplitude.<get-amplitude>|<get-amplitude>(){}[0]
+    final val id // dev.jordond.filmstrip.test/TimelineBursts.id|{}id[0]
+        final fun <get-id>(): kotlin/String // dev.jordond.filmstrip.test/TimelineBursts.id.<get-id>|<get-id>(){}[0]
+
+    final fun component1(): kotlin/Float // dev.jordond.filmstrip.test/TimelineBursts.component1|component1(){}[0]
+    final fun copy(kotlin/Float = ...): dev.jordond.filmstrip.test/TimelineBursts // dev.jordond.filmstrip.test/TimelineBursts.copy|copy(kotlin.Float){}[0]
+    final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.test/TimelineBursts.equals|equals(kotlin.Any?){}[0]
+    final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.test/TimelineBursts.hashCode|hashCode(){}[0]
+    final fun newKernel(dev.jordond.filmstrip.export/AudioFormat): dev.jordond.filmstrip.audio/AudioKernel // dev.jordond.filmstrip.test/TimelineBursts.newKernel|newKernel(dev.jordond.filmstrip.export.AudioFormat){}[0]
+    final fun toString(): kotlin/String // dev.jordond.filmstrip.test/TimelineBursts.toString|toString(){}[0]
+
+    final object Companion { // dev.jordond.filmstrip.test/TimelineBursts.Companion|null[0]
+        final const val ID // dev.jordond.filmstrip.test/TimelineBursts.Companion.ID|{}ID[0]
+            final fun <get-ID>(): kotlin/String // dev.jordond.filmstrip.test/TimelineBursts.Companion.ID.<get-ID>|<get-ID>(){}[0]
+        final const val TONE_HZ // dev.jordond.filmstrip.test/TimelineBursts.Companion.TONE_HZ|{}TONE_HZ[0]
+            final fun <get-TONE_HZ>(): kotlin/Int // dev.jordond.filmstrip.test/TimelineBursts.Companion.TONE_HZ.<get-TONE_HZ>|<get-TONE_HZ>(){}[0]
+
+        final val LENGTH // dev.jordond.filmstrip.test/TimelineBursts.Companion.LENGTH|{}LENGTH[0]
+            final fun <get-LENGTH>(): kotlin.time/Duration // dev.jordond.filmstrip.test/TimelineBursts.Companion.LENGTH.<get-LENGTH>|<get-LENGTH>(){}[0]
+        final val PERIOD // dev.jordond.filmstrip.test/TimelineBursts.Companion.PERIOD|{}PERIOD[0]
+            final fun <get-PERIOD>(): kotlin.time/Duration // dev.jordond.filmstrip.test/TimelineBursts.Companion.PERIOD.<get-PERIOD>|<get-PERIOD>(){}[0]
+
+        final fun burstStart(kotlin/Int): kotlin.time/Duration // dev.jordond.filmstrip.test/TimelineBursts.Companion.burstStart|burstStart(kotlin.Int){}[0]
+    }
+}
+
 final object dev.jordond.filmstrip.test/ToneAnalysis { // dev.jordond.filmstrip.test/ToneAnalysis|null[0]
     final const val MEASURED_GAIN_TOLERANCE // dev.jordond.filmstrip.test/ToneAnalysis.MEASURED_GAIN_TOLERANCE|{}MEASURED_GAIN_TOLERANCE[0]
         final fun <get-MEASURED_GAIN_TOLERANCE>(): kotlin/Float // dev.jordond.filmstrip.test/ToneAnalysis.MEASURED_GAIN_TOLERANCE.<get-MEASURED_GAIN_TOLERANCE>|<get-MEASURED_GAIN_TOLERANCE>(){}[0]
 
     final fun amplitudeOf(kotlin/FloatArray, kotlin/Int, kotlin/Int): kotlin/Float // dev.jordond.filmstrip.test/ToneAnalysis.amplitudeOf|amplitudeOf(kotlin.FloatArray;kotlin.Int;kotlin.Int){}[0]
     final fun amplitudeOver(kotlin/FloatArray, kotlin/Int, kotlin/Int, kotlin/Int, kotlin/Int): kotlin/Float // dev.jordond.filmstrip.test/ToneAnalysis.amplitudeOver|amplitudeOver(kotlin.FloatArray;kotlin.Int;kotlin.Int;kotlin.Int;kotlin.Int){}[0]
+    final fun levelOver(kotlin/FloatArray, kotlin/Int, kotlin/Int, kotlin/Int, kotlin/Int, kotlin/Int = ...): kotlin/Float // dev.jordond.filmstrip.test/ToneAnalysis.levelOver|levelOver(kotlin.FloatArray;kotlin.Int;kotlin.Int;kotlin.Int;kotlin.Int;kotlin.Int){}[0]
+    final fun rmsOver(kotlin/FloatArray, kotlin/Int, kotlin/Int): kotlin/Float // dev.jordond.filmstrip.test/ToneAnalysis.rmsOver|rmsOver(kotlin.FloatArray;kotlin.Int;kotlin.Int){}[0]
     final fun toMono(kotlin/FloatArray, kotlin/Int): kotlin/FloatArray // dev.jordond.filmstrip.test/ToneAnalysis.toMono|toMono(kotlin.FloatArray;kotlin.Int){}[0]
 }
 

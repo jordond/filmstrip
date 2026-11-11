@@ -18,6 +18,8 @@ import dev.jordond.filmstrip.effects.filters.lut.lut
 import dev.jordond.filmstrip.effects.filters.nightvision.nightVision
 import dev.jordond.filmstrip.effects.filters.pixel.PixelPalette
 import dev.jordond.filmstrip.effects.filters.pixel.pixel
+import dev.jordond.filmstrip.effects.filters.tape.Wobble
+import dev.jordond.filmstrip.effects.filters.tape.tapeAudio
 import dev.jordond.filmstrip.effects.filters.vhs.TapeSpeed
 import dev.jordond.filmstrip.effects.filters.vhs.vhs
 import dev.jordond.filmstrip.media.MediaSource
@@ -116,6 +118,24 @@ internal fun vhsLook(): Composition {
           intensity = 0.6f
           tape = TapeSpeed.LP
           tracking = rolling(period = 6.seconds) { snow = 0.5f }
+        }
+      }
+    }
+  // endregion
+  return composition
+}
+
+internal fun tapeSound(): Composition {
+  // region tape-audio
+  val composition =
+    compositionOf {
+      clip(MediaSource.of("/path/to/home-movie.mp4"))
+      effects { vhs { tape = TapeSpeed.LP } }
+      audioEffects {
+        tapeAudio {
+          tape = TapeSpeed.LP
+          hiss = 0.5f
+          wow = Wobble(depth = 0.8f, rateHz = 0.5f)
         }
       }
     }
