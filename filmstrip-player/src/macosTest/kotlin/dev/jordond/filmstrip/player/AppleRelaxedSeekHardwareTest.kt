@@ -13,6 +13,7 @@ import dev.jordond.filmstrip.player.contract.awaitContract
 import dev.jordond.filmstrip.player.contract.contractTest
 import dev.jordond.filmstrip.player.contract.withEngine
 import dev.jordond.filmstrip.player.internal.NEAREST_SEEK_TOLERANCE
+import dev.jordond.filmstrip.player.internal.bgraVideoOutput
 import dev.jordond.filmstrip.player.internal.frameRate
 import dev.jordond.filmstrip.test.TestFrame
 import io.kotest.assertions.withClue
@@ -33,13 +34,6 @@ import platform.AVFoundation.currentItem
 import platform.AVFoundation.currentTime
 import platform.CoreMedia.CMTime
 import platform.CoreVideo.CVPixelBufferRelease
-import platform.CoreVideo.kCVPixelFormatType_32BGRA
-import platform.Foundation.NSDictionary
-import platform.Foundation.NSNumber
-import platform.Foundation.NSString
-import platform.Foundation.create
-import platform.Foundation.dictionaryWithObject
-import platform.Foundation.numberWithUnsignedInt
 import kotlin.test.Test
 import kotlin.test.fail
 import kotlin.time.Duration
@@ -70,7 +64,7 @@ class AppleRelaxedSeekHardwareTest {
         engine.awaitComposition(edit).shouldBeInstanceOf<SetCompositionResult.Success>()
         awaitContract("the engine to become seekable") { recorder.lastState.hasComposition }
         val item = engine.platformPlayer.currentItem ?: fail("the player holds no item")
-        val output = bgraOutput()
+        val output = bgraVideoOutput()
         item.addOutput(output as AVPlayerItemOutput)
 
         for (at in RELAXED_POSITIONS) {
@@ -115,15 +109,6 @@ class AppleRelaxedSeekHardwareTest {
     Composition(
       tracks =
         listOf(Track(listOf(Clip(MediaSource.of(appleFixture(LONG)), TimeRange.of(Duration.ZERO, LONG_LENGTH))))),
-    )
-
-  private fun bgraOutput(): AVPlayerItemVideoOutput =
-    AVPlayerItemVideoOutput(
-      pixelBufferAttributes =
-        NSDictionary.dictionaryWithObject(
-          NSNumber.numberWithUnsignedInt(kCVPixelFormatType_32BGRA),
-          forKey = NSString.create(string = PIXEL_FORMAT_KEY),
-        ),
     )
 
   private companion object {

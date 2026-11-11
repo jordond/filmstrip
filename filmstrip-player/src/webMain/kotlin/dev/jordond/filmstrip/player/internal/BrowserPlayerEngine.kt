@@ -14,6 +14,7 @@ import dev.jordond.filmstrip.player.SeekAccuracy
 import dev.jordond.filmstrip.player.SetCompositionRequest
 import dev.jordond.filmstrip.webcodecs.internal.preview.BrowserAudioPreview
 import dev.jordond.filmstrip.webcodecs.internal.preview.BrowserPreview
+import dev.jordond.filmstrip.webcodecs.internal.preview.PreviewFrame
 import dev.jordond.filmstrip.webcodecs.internal.preview.browserCanComposite
 import dev.jordond.filmstrip.webcodecs.internal.preview.browserCanMonitorAudio
 import dev.jordond.filmstrip.webcodecs.internal.preview.toBrowserPreview
@@ -47,6 +48,7 @@ import kotlin.time.Duration
  *   one it can hold open.
  * @param readSyncSample Reads the sync sample a relaxed seek lands on, at or before a position. A test swaps in one it
  *   can hold open.
+ * @param drawShuttleFrame Draws the frame a shuttle shows at a position. A test swaps in one it can read back.
  */
 internal class BrowserPlayerEngine(
   parent: CoroutineScope,
@@ -61,6 +63,9 @@ internal class BrowserPlayerEngine(
   readSyncSample: suspend (preview: BrowserPreview, position: Duration) -> Duration = { preview, position ->
     preview.syncSampleAt(position)
   },
+  private val drawShuttleFrame: suspend (preview: BrowserPreview, at: Duration) -> PreviewFrame? = { preview, at ->
+    preview.frameAt(at)
+  },
 ) : PlannedPlayerEngine<BrowserPreviewPlan>(parent, config.qualityPolicy, config.exportSpec, planner) {
   private var preview: BrowserPreview? = null
   private var audio: BrowserAudioPreview? = null
@@ -72,6 +77,13 @@ internal class BrowserPlayerEngine(
 
   private val guard = WrapGuard()
   private var firstFrameOwed = false
+  private var shuttling = false
+
+  // The frame the shuttle drew last and the slot it sits on, which the surface reads back instead of drawing again.
+  private var shuttleFrame: Pair<Duration, PreviewFrame>? = null
+
+  // Counts the loads applied, so a frame drawn before one is never kept after it.
+  private var appliedLoads = 0
 
   private val onVisibilityChanged: () -> Unit = { if (document.hidden) onPageHidden() }
 
@@ -151,6 +163,7 @@ internal class BrowserPlayerEngine(
           add(PlayerFeature.FrameReadback)
           add(PlayerFeature.LiveParameterRedraw)
           add(PlayerFeature.FrameStepping)
+          add(PlayerFeature.Shuttle)
         }
         // Unconditional wherever the API is there. GainNode.gain is legal on a suspended context
         // and applies when it resumes, so monitor volume is never actually unavailable, and a
@@ -165,6 +178,7 @@ internal class BrowserPlayerEngine(
       scope = scope,
       preview = { preview },
       renderScale = { plan?.info?.renderScale ?: 1f },
+      held = ::heldShuttleFrame,
     )
 
   // A page has no player object to attach to. The compositor renders into an OffscreenCanvas that
@@ -200,6 +214,36 @@ internal class BrowserPlayerEngine(
     seeks.seek(position, accuracy, onComplete)
   }
 
+  override val shuttleRange: TimeRange? get() = playbackRange
+
+  // Drawn here and not by the surface, so the pump is paced by the frames the page can draw. The surface asks for
+  // each one on its own tick and a frame slower than that tick would be cancelled before it showed.
+  override fun presentFrame(
+    position: Duration,
+    onPresented: (landed: Duration) -> Unit,
+  ) {
+    val drawnFor = appliedLoads
+    seeks.present(position, drawShuttleFrame) { landed, frame ->
+      shuttleFrame = frame?.takeIf { drawnFor == appliedLoads && shuttling }?.let { landed to it }
+      onPresented(landed)
+    }
+  }
+
+  override fun onShuttleChanged(shuttling: Boolean) {
+    this.shuttling = shuttling
+    shuttleFrame = null
+    // The look-ahead holds frames for a playhead a shuttle leaves behind.
+    if (shuttling) preview?.flush()
+    audio?.setVolume(audibleVolume())
+  }
+
+  private fun heldShuttleFrame(position: Duration): PreviewFrame? {
+    val (landing, frame) = shuttleFrame ?: return null
+    return frame.takeIf { plan?.resolved?.seekLandingOf(position) == landing }
+  }
+
+  private fun audibleVolume(): Float = if (shuttling) 0f else volume
+
   /**
    * Suspends until every seek landing and transport start this engine launched has finished.
    *
@@ -228,7 +272,7 @@ internal class BrowserPlayerEngine(
     preview = null
   }
 
-  override fun stepFrames(frames: Int) {
+  override fun onStepFrames(frames: Int) {
     if (frames == 0) return
     val landing = plan?.resolved?.frameStepLanding(reportedPosition, frames) ?: return
     seekTo(landing, SeekAccuracy.Exact)
@@ -236,7 +280,7 @@ internal class BrowserPlayerEngine(
 
   override fun setVolume(volume: Float) {
     this.volume = volume.coerceIn(0f, 1f)
-    audio?.setVolume(this.volume)
+    audio?.setVolume(audibleVolume())
   }
 
   override fun setLoopRange(range: TimeRange?) {
@@ -278,6 +322,8 @@ internal class BrowserPlayerEngine(
   ): PlaybackError? {
     val current = reportedPosition
     guard.reset()
+    shuttleFrame = null
+    appliedLoads++
     val standing = preview
     val swapped =
       change == CompositionDiff.ParametersOnly &&
@@ -342,7 +388,7 @@ internal class BrowserPlayerEngine(
     firstFrameOwed = true
     audio =
       built.audio()?.also { graph ->
-        graph.setVolume(volume)
+        graph.setVolume(audibleVolume())
         // Closing the graph this replaces reports a change too, which says nothing about this one.
         graph.onStateChanged { scope.launch { if (audio === graph) transport.onAudioStateChanged() } }
       }

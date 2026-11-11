@@ -64,7 +64,10 @@ internal class Media3StatusTracker(
     private set
 
   private var presentable = false
-  private var surfaceRendered = false
+
+  // Whether the surface attached now has drawn a frame, which is when the frames media3 draws start reaching it.
+  var surfaceRendered = false
+    private set
   private var ended = false
   private var endReported = false
   private var firstFrameEmitted = false

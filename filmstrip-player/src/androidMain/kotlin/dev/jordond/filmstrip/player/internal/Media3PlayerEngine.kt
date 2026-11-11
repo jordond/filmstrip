@@ -65,6 +65,8 @@ internal class Media3PlayerEngine(
 
   private var preview: Media3Preview? = null
   private var volume = 1f
+  private var scrubbing = false
+  private var shuttling = false
 
   private val guard = WrapGuard()
 
@@ -94,7 +96,7 @@ internal class Media3PlayerEngine(
       player = { player },
       rendered = { plan?.resolved?.output?.size },
       graphUp = { status.graphUp },
-      onDetached = status::onSurfaceDetached,
+      onDetached = ::onSurfaceDetached,
     )
 
   private val seeks: Media3SeekCoordinator =
@@ -102,10 +104,12 @@ internal class Media3PlayerEngine(
       scope = scope,
       handler = handler,
       player = { player },
+      playbackLooper = { player?.playbackLooper },
       resolved = { plan?.resolved },
       guard = guard,
       platformPositionMs = { status.platformPositionMs },
       loopWrap = { loops.wrap() },
+      showsFrames = { status.surfaceRendered && preview?.let { it.videoSequences > 0 } == true },
       onIssued = status::clearEnd,
       onRedirected = ::movePlayhead,
     )
@@ -215,6 +219,7 @@ internal class Media3PlayerEngine(
           add(PlayerFeature.FrameReadback)
           add(PlayerFeature.FrameStepping)
           add(PlayerFeature.LiveParameterRedraw)
+          add(PlayerFeature.Shuttle)
           if (built.isCommandAvailable(Player.COMMAND_SET_VOLUME)) add(PlayerFeature.AudioMonitoring)
           if (displayShowsHdr(context)) add(PlayerFeature.HdrPreview)
         },
@@ -256,10 +261,29 @@ internal class Media3PlayerEngine(
     handler.post { player?.playWhenReady = false }
   }
 
+  override val shuttleRange: TimeRange? get() = loops.playbackRange
+
   override fun onScrubbingChanged(scrubbing: Boolean) {
+    this.scrubbing = scrubbing
+    applyScrubbingMode()
+  }
+
+  // A shuttle is a run of exact seeks like a scrub is, and scrubbing mode drops the audio it has to mute.
+  override fun onShuttleChanged(shuttling: Boolean) {
+    this.shuttling = shuttling
+    applyScrubbingMode()
+  }
+
+  private fun applyScrubbingMode() {
     // Orthogonal to accuracy and free: it drops audio, raises the codec operating rate and skips
     // the flush a seek would otherwise cost, which is what makes a burst of exact seeks affordable.
-    handler.post { player?.setScrubbingModeEnabled(scrubbing) }
+    val enabled = scrubbing || shuttling
+    handler.post { player?.setScrubbingModeEnabled(enabled) }
+  }
+
+  private fun onSurfaceDetached() {
+    status.onSurfaceDetached()
+    seeks.framesStopped()
   }
 
   /**
@@ -302,7 +326,7 @@ internal class Media3PlayerEngine(
     }
   }
 
-  override fun stepFrames(frames: Int) {
+  override fun onStepFrames(frames: Int) {
     if (frames == 0) return
     val current = plan ?: return
 
@@ -377,6 +401,7 @@ internal class Media3PlayerEngine(
       }
 
     platformLoads++
+    seeks.framesStopped()
     // Before the status moves and before the new output size is reported, both of which resize the
     // surface under a graph that cannot fill it yet.
     // Under the cover the shutter just closed, and after it has read the surface, since fixing the

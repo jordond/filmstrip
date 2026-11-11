@@ -122,6 +122,11 @@ public enum class PlayerFeature {
   PlaybackSpeed,
 
   /**
+   * The transport can run a picture search at a signed rate. See [PlayerTransport.beginShuttle].
+   */
+  Shuttle,
+
+  /**
    * Rendered preview frames can be read back. See [PreviewFrameReadback].
    */
   FrameReadback,

@@ -522,6 +522,24 @@ public class SampleAppState(
     livePlayer()?.endScrub()
   }
 
+  /**
+   * Whether the player open now can shuttle, which is what the shuttle keys are shown for.
+   */
+  val canShuttle: Boolean
+    get() = livePlayer()?.features?.supports(PlayerFeature.Shuttle) == true
+
+  fun beginShuttle(rate: Float) {
+    val open = livePlayer() ?: return
+    recorder.record("player.beginShuttle", "rate" to rate.toString())
+    open.beginShuttle(rate)
+  }
+
+  fun endShuttle() {
+    val open = livePlayer() ?: return
+    recorder.record("player.endShuttle")
+    open.endShuttle()
+  }
+
   fun stepFrames(frames: Int) {
     val open = livePlayer()
     if (open != null && open.features.supports(PlayerFeature.FrameStepping)) {
@@ -796,6 +814,7 @@ private fun PlaybackEvent.label(): String =
     is PlaybackEvent.SeekCompleted -> "player.seeked"
     PlaybackEvent.FirstFrameRendered -> "player.firstFrame"
     is PlaybackEvent.RangeLooped -> "player.looped"
+    is PlaybackEvent.ShuttleReachedEdge -> "player.shuttleEdge"
     is PlaybackEvent.Failed -> "player.failed"
     is PlaybackEvent.ExternalPlayWhenReadyChanged -> "player.external"
     is PlaybackEvent.EffectsDegraded -> "player.effectsDegraded"
@@ -818,6 +837,9 @@ private fun PlaybackEvent.detail(): Map<String, String> =
     }
     is PlaybackEvent.RangeLooped -> {
       mapOf("range" to range.toString())
+    }
+    is PlaybackEvent.ShuttleReachedEdge -> {
+      mapOf("edge" to edge.name, "at" to position.toString())
     }
     is PlaybackEvent.Failed -> {
       mapOf("error" to (error::class.simpleName ?: "unknown"), "message" to error.message)

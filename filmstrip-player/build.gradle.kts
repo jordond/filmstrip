@@ -55,6 +55,7 @@ kotlin {
       dependencies {
         implementation(kotlin("test"))
         implementation(projects.filmstripTest)
+        implementation(projects.filmstripEffectsFilters)
         implementation(libs.kotest.assertions)
         implementation(libs.kotlinx.coroutines.test)
         implementation(libs.androidx.test.runner)

@@ -1700,6 +1700,15 @@ public final class dev/jordond/filmstrip/player/PlaybackEvent$SeekCompleted : de
 	public fun toString ()Ljava/lang/String;
 }
 
+public final class dev/jordond/filmstrip/player/PlaybackEvent$ShuttleReachedEdge : dev/jordond/filmstrip/player/PlaybackEvent {
+	public synthetic fun <init> (Ldev/jordond/filmstrip/player/ShuttleEdge;JLkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getEdge ()Ldev/jordond/filmstrip/player/ShuttleEdge;
+	public final fun getPosition-UwyO8pc ()J
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
 public abstract interface class dev/jordond/filmstrip/player/PlaybackEventListener {
 	public abstract fun onEvent (Ldev/jordond/filmstrip/player/PlaybackEvent;)V
 }
@@ -1782,6 +1791,7 @@ public final class dev/jordond/filmstrip/player/PlayerFeature : java/lang/Enum {
 	public static final field HdrPreview Ldev/jordond/filmstrip/player/PlayerFeature;
 	public static final field LiveParameterRedraw Ldev/jordond/filmstrip/player/PlayerFeature;
 	public static final field PlaybackSpeed Ldev/jordond/filmstrip/player/PlayerFeature;
+	public static final field Shuttle Ldev/jordond/filmstrip/player/PlayerFeature;
 	public static fun getEntries ()Lkotlin/enums/EnumEntries;
 	public static fun valueOf (Ljava/lang/String;)Ldev/jordond/filmstrip/player/PlayerFeature;
 	public static fun values ()[Ldev/jordond/filmstrip/player/PlayerFeature;
@@ -1799,10 +1809,12 @@ public abstract interface class dev/jordond/filmstrip/player/PlayerPositionListe
 
 public final class dev/jordond/filmstrip/player/PlayerState {
 	public static final field Companion Ldev/jordond/filmstrip/player/PlayerState$Companion;
+	public synthetic fun <init> (Ldev/jordond/filmstrip/player/PlaybackStatus;ZZZLkotlin/time/Duration;Ljava/lang/Float;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getDuration-FghU774 ()Lkotlin/time/Duration;
 	public final fun getHasComposition ()Z
 	public final fun getPlayWhenReady ()Z
+	public final fun getShuttleRate ()Ljava/lang/Float;
 	public final fun getStatus ()Ldev/jordond/filmstrip/player/PlaybackStatus;
 	public fun hashCode ()I
 	public final fun isBusy ()Z
@@ -1822,7 +1834,9 @@ public abstract interface class dev/jordond/filmstrip/player/PlayerStateListener
 
 public abstract interface class dev/jordond/filmstrip/player/PlayerTransport {
 	public abstract fun beginScrub ()V
+	public abstract fun beginShuttle (F)V
 	public abstract fun endScrub ()V
+	public abstract fun endShuttle ()V
 	public abstract fun pause ()V
 	public abstract fun play ()V
 	public abstract fun seekTo-VtjQ1oo (JLdev/jordond/filmstrip/player/SeekAccuracy;)V
@@ -1969,6 +1983,14 @@ public final class dev/jordond/filmstrip/player/SetCompositionResult$Superseded 
 	public fun equals (Ljava/lang/Object;)Z
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/jordond/filmstrip/player/ShuttleEdge : java/lang/Enum {
+	public static final field End Ldev/jordond/filmstrip/player/ShuttleEdge;
+	public static final field Start Ldev/jordond/filmstrip/player/ShuttleEdge;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Ldev/jordond/filmstrip/player/ShuttleEdge;
+	public static fun values ()[Ldev/jordond/filmstrip/player/ShuttleEdge;
 }
 
 public abstract interface class dev/jordond/filmstrip/player/VideoPlayer : dev/jordond/filmstrip/player/PlayerTransport, java/lang/AutoCloseable {

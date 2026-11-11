@@ -56,6 +56,36 @@ public interface PlayerTransport {
   public fun endScrub()
 
   /**
+   * Starts a picture search, moving the playhead [rate] seconds of composition each second with no sound.
+   *
+   * A negative [rate] runs backwards. Requires [PlayerFeature.Shuttle], and an engine without it ignores the call, as
+   * does a player with no composition loaded. Works from playing or paused. The player shows frames as fast as it can
+   * produce them, each one the frame a paused seek to that position shows, so a slow device shows fewer frames and
+   * never falls behind the rate. The playhead reports each frame as it is shown. [PlayerState.shuttleRate] carries the
+   * rate and [PlayerState.playWhenReady] reads false for as long as the shuttle runs.
+   *
+   * The shuttle stays inside the playback range when one is set, or the composition, and a loop range does not wrap
+   * it. Reaching either end holds the frame there and reports [PlaybackEvent.ShuttleReachedEdge] once. The shuttle
+   * stays on until it is ended.
+   *
+   * Calling this again while shuttling changes the rate and carries on from the frame on screen. [seekTo] moves the
+   * shuttle to the seek's target. [play] and [pause] end it into that state, and [beginScrub] and [stepFrames] end it
+   * as [endShuttle] does. A shuttle is preview only and never reaches an export.
+   *
+   * @param rate Composition seconds per second. Finite, not zero, and at most 32 in either direction.
+   * @throws IllegalArgumentException when [rate] is zero, not finite, or past 32 in either direction.
+   */
+  public fun beginShuttle(rate: Float)
+
+  /**
+   * Ends a picture search and resumes from the frame on screen.
+   *
+   * Playback goes back to playing or paused, whichever it was when the shuttle began. Does nothing when no shuttle
+   * is running.
+   */
+  public fun endShuttle()
+
+  /**
    * Sets monitor volume in `0f..1f`.
    *
    * Requires [PlayerFeature.AudioMonitoring]. Monitor volume only, it does not reach the exported

@@ -224,6 +224,8 @@ class Media3RebuildGuardTest {
         every { it.currentPosition } returns READING_MS
         every { it.duration } returns C.TIME_UNSET
         every { it.playWhenReady } returns true
+        every { it.playbackState } returns Player.STATE_READY
+        every { it.isPlaying } returns true
         every { it.seekTo(any<Long>()) } returns Unit
       }
     private val loaded =
@@ -253,10 +255,12 @@ class Media3RebuildGuardTest {
         scope = scope,
         handler = handler,
         player = { player },
+        playbackLooper = { null },
         resolved = { loaded },
         guard = guard,
         platformPositionMs = { status.platformPositionMs },
         loopWrap = { null },
+        showsFrames = { false },
         onIssued = { },
         onRedirected = { },
       )

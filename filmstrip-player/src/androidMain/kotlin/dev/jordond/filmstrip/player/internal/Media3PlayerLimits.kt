@@ -17,6 +17,9 @@ import kotlin.time.Duration
  * So a relaxed request is clamped up, never down: a caller asking for [SeekAccuracy.Nearest] gets
  * the frame [SeekAccuracy.Exact] would have landed on, which costs more and is never further from
  * what was asked for.
+ *
+ * A shuttle is a run of these seeks, so every frame it shows is decoded from the sync frame before it. That is what
+ * holds a shuttle through 4K footage to a few frames a second, most of all in reverse.
  */
 @Suppress("SameReturnValue")
 internal fun clampedAccuracy(requested: SeekAccuracy): SeekAccuracy =

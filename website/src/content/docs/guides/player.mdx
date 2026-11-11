@@ -63,6 +63,27 @@ without coroutines.
 - On Apple, `play` after a failure starts nothing and the status stays `PlaybackStatus.Error` until you load again.
   Playback that stops before the end reports `PlaybackEvent.Failed` once per play or seek, with the platform's error.
 
+## Shuttle
+
+A shuttle is picture search: the picture runs at a signed rate, forwards or backwards, with every effect still
+applied. It's preview only and never reaches an export.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Player.kt" region="shuttle" />
+
+- The rate is composition seconds per second, negative for backwards, anything but zero up to 32 either way. Any
+  other rate throws `IllegalArgumentException`.
+- The player shows as many frames as the device can draw and skips the rest, so the playhead keeps to the rate on a
+  slow device. `positionFlow` and `currentPosition` report each frame as it's shown.
+- Audio is muted until the shuttle ends.
+- `state.shuttleRate` holds the rate, and `playWhenReady` reads false while a shuttle runs.
+- `beginShuttle` on a running shuttle changes the rate and carries on from the frame showing.
+- `endShuttle` carries on from the frame showing, playing if it was playing before and paused if it wasn't. `play`
+  and `pause` end a shuttle into that state. `beginScrub` and `stepFrames` end it too, and `seekTo` moves it.
+- A shuttle stays inside the playback range when one is set. A loop range doesn't wrap it.
+- At either end the picture holds and `ShuttleReachedEdge` is reported once. The shuttle stays on until you end it.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Player.kt" region="shuttle-edge" />
+
 ## Features
 
 `features` says what this backend can do on this device. Check it before you show a control, so you don't show one
@@ -76,6 +97,7 @@ that does nothing.
 | `AudioMonitoring`     | Depends on device    | ✗     | Needs Web Audio and `AudioDecoder` | ✗   |
 | `HdrPreview`          | When the display can | ✗     | ✗                                  | ✗   |
 | `PlaybackSpeed`       | ✗                    | ✗     | ✗                                  | ✗   |
+| `Shuttle`             | ✓                    | ✓     | Needs WebGL2                       | ✗   |
 
 `readback` hands you a rendered preview frame, after effects and before encoding.
 
@@ -102,6 +124,8 @@ the same ones the export's plan lists.
 - On Android a `Nearest` seek is no faster than an exact one.
 - The ffmpeg preview waits for a scrub to settle instead of landing on a nearby frame.
 - On ffmpeg a changed effect parameter restarts the preview, so it reports no `LiveParameterRedraw`.
+- On Android a shuttle lands every frame exactly, so reverse and 4K run at fewer frames a second than on Apple.
+- The ffmpeg preview has no shuttle. `beginShuttle` and `endShuttle` do nothing there.
 - A preview doesn't encode, so it won't show compression artifacts. Late frames are dropped, so playback can be less
   smooth than the export.
 </Aside>

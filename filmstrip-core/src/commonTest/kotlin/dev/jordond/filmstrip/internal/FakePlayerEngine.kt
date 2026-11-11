@@ -88,6 +88,14 @@ internal class FakePlayerEngine : PlayerEngine {
     calls += "end scrub"
   }
 
+  override fun beginShuttle(rate: Float) {
+    calls += "shuttle $rate"
+  }
+
+  override fun endShuttle() {
+    calls += "endShuttle"
+  }
+
   override fun setVolume(volume: Float) {
     calls += "volume $volume"
   }

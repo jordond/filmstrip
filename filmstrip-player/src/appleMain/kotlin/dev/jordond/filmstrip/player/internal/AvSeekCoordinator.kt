@@ -92,6 +92,26 @@ internal class AvSeekCoordinator(
   }
 
   /**
+   * Shows the frame for [position] on the item loaded now, landing anywhere [tolerance] allows.
+   *
+   * [onComplete] carries the slot of the frame AVFoundation settled on, which a tolerance moves off the slot of
+   * [position]. Lands straight away where nothing is loaded yet.
+   */
+  fun present(
+    position: Duration,
+    tolerance: SeekTolerance,
+    onComplete: (landed: Duration) -> Unit,
+  ) {
+    val target = item()
+    val loaded = resolved()
+    if (target == null || loaded == null) {
+      finish(position, onComplete)
+      return
+    }
+    begin(target, loaded, position, tolerance, wrap = false, onComplete)
+  }
+
+  /**
    * Puts a fresh seek in flight and issues it, telling [guard] so no wrap fires until it lands.
    *
    * @param wrap Whether the seek is a loop wrap.
@@ -104,10 +124,21 @@ internal class AvSeekCoordinator(
     wrap: Boolean,
     onComplete: (landed: Duration) -> Unit,
   ) {
+    begin(target, resolved, position, accuracy.tolerance(), wrap, onComplete)
+  }
+
+  private fun begin(
+    target: AVPlayerItem,
+    resolved: ResolvedComposition,
+    position: Duration,
+    tolerance: SeekTolerance,
+    wrap: Boolean,
+    onComplete: (landed: Duration) -> Unit,
+  ) {
     onIssued()
     inFlight = true
     guard.seekIssued(wrap)
-    issue(target, resolved, position, accuracy, counted(onComplete))
+    issue(target, resolved, position, tolerance, counted(onComplete))
   }
 
   /**
@@ -154,17 +185,16 @@ internal class AvSeekCoordinator(
     target: AVPlayerItem,
     resolved: ResolvedComposition,
     position: Duration,
-    accuracy: SeekAccuracy,
+    tolerance: SeekTolerance,
     onComplete: (landed: Duration) -> Unit,
   ) {
     val seek = ++latestSeek
-    val exact = accuracy == SeekAccuracy.Exact
+    val exact = tolerance.isExact
     val landing = resolved.seekLandingOf(position)
-    val tolerance = if (exact) Duration.ZERO else NEAREST_SEEK_TOLERANCE
     target.seekToTime(
       time = (if (exact) landing else position).toCMTime(),
-      toleranceBefore = tolerance.toCMTime(),
-      toleranceAfter = tolerance.toCMTime(),
+      toleranceBefore = tolerance.before.toCMTime(),
+      toleranceAfter = tolerance.after.toCMTime(),
     ) { finished ->
       // Completed either way. AVFoundation answers a superseded seek immediately with false, and a
       // caller counting completions against requests must not be left waiting on the one it threw
@@ -210,7 +240,7 @@ internal class AvSeekCoordinator(
       val target = item()
       val loaded = resolved()
       if (target != null && loaded != null) {
-        issue(target, loaded, outputSlotTime(redirect, loaded.frameRate), SeekAccuracy.Exact, onComplete)
+        issue(target, loaded, outputSlotTime(redirect, loaded.frameRate), SeekTolerance.Exact, onComplete)
         return
       }
       guard.reset()
@@ -227,6 +257,67 @@ internal class AvSeekCoordinator(
     onComplete(landed)
   }
 }
+
+/**
+ * How far from its target AVFoundation may land a seek.
+ *
+ * @property before How far ahead of the target the landing may sit.
+ * @property after How far past the target the landing may sit.
+ */
+internal data class SeekTolerance(
+  val before: Duration,
+  val after: Duration,
+) {
+  /**
+   * Whether the seek lands on the slot of its target and nowhere else.
+   */
+  val isExact: Boolean get() = before == Duration.ZERO && after == Duration.ZERO
+
+  companion object {
+    /**
+     * Lands on the slot of the target.
+     */
+    val Exact: SeekTolerance = SeekTolerance(Duration.ZERO, Duration.ZERO)
+  }
+}
+
+private fun SeekAccuracy.tolerance(): SeekTolerance =
+  when (this) {
+    SeekAccuracy.Exact -> SeekTolerance.Exact
+    SeekAccuracy.Nearest -> SeekTolerance(NEAREST_SEEK_TOLERANCE, NEAREST_SEEK_TOLERANCE)
+  }
+
+/**
+ * Where a shuttle frame asked for at [position] may land, with the frame at [showing] on screen.
+ *
+ * The landing may sit anywhere between the frame after the one showing and [position], up to
+ * [SHUTTLE_SEEK_TOLERANCE] short of it, so AVFoundation settles on a sync frame in that span when there is one. It
+ * never lands on the frame showing or behind it, and never past [position]. A position on either of [bounds] lands
+ * exactly, so an edge holds on the first or last frame.
+ *
+ * @param position The shuttle's playhead, where the frame is asked for.
+ * @param showing The slot time of the frame on screen.
+ * @param frame How long one output frame lasts.
+ * @param bounds The times of the first and last frames the shuttle may show.
+ */
+internal fun shuttleToleranceOf(
+  position: Duration,
+  showing: Duration,
+  frame: Duration,
+  bounds: ClosedRange<Duration>,
+): SeekTolerance {
+  if (position <= bounds.start || position >= bounds.endInclusive) return SeekTolerance.Exact
+  val room = ((position - showing).absoluteValue - frame).coerceIn(Duration.ZERO, SHUTTLE_SEEK_TOLERANCE)
+  return if (position > showing) SeekTolerance(room, Duration.ZERO) else SeekTolerance(Duration.ZERO, room)
+}
+
+/**
+ * How far short of the playhead AVFoundation may land a shuttle frame.
+ *
+ * Wide enough to reach a sync frame at the rates a shuttle runs at, and small enough that the picture stays within a
+ * quarter of a second of the playhead.
+ */
+internal val SHUTTLE_SEEK_TOLERANCE: Duration = 250.milliseconds
 
 /**
  * How far either side of its target AVFoundation may land a [SeekAccuracy.Nearest] seek.

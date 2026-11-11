@@ -338,6 +338,10 @@ private class StageEngine(
 
   override fun endScrub(): Unit = Unit
 
+  override fun beginShuttle(rate: Float): Unit = Unit
+
+  override fun endShuttle(): Unit = Unit
+
   override fun setVolume(volume: Float): Unit = Unit
 
   override fun setLoopRange(range: TimeRange?): Unit = Unit

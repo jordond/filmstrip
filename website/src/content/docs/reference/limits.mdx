@@ -98,6 +98,20 @@ A `SeekAccuracy.Nearest` seek lands on a nearby frame, and its `SeekCompleted` s
 | Android | The exact frame, so it's no faster than an exact seek |
 | ffmpeg  | The exact frame, once a scrub settles                 |
 
+## Shuttle
+
+A shuttle shows as many frames as the backend can land, so how a frame lands sets how smooth it looks.
+
+| Backend | Where a shuttle frame lands                                                                         |
+| ------- | --------------------------------------------------------------------------------------------------- |
+| Apple   | A keyframe between the frame showing and the playhead, up to 250 ms short of it, or the exact frame |
+| Browser | The exact frame                                                                                     |
+| Android | The exact frame                                                                                     |
+| ffmpeg  | Nowhere, it has no shuttle                                                                          |
+
+On Android every frame is decoded from the keyframe before it. Measured on a flagship phone with the VHS filter on,
+1080p shows 24 to 31 frames a second forwards and 20 to 22 in reverse. 4K shows about 10 forwards and 7 in reverse.
+
 ## HDR text and pictures
 
 On an HDR grade an overlay keeps the brightness its colors have elsewhere in the frame, and fades and soft edges blend
@@ -286,7 +300,7 @@ The demo on this site checks the same things, and says so in place of the LOAD b
 
 The rest are next to the feature they limit.
 
-- [Player](/guides/player/): seeking, scrubbing and redraw per backend.
+- [Player](/guides/player/): seeking, scrubbing, shuttle and redraw per backend.
 - [Overlays](/guides/overlays/): file paths in the browser, texture sizes, off-frame animation, the ffmpeg
   even pixel snap and line breaking.
 - [Effects](/guides/effects/#limits): `kenBurns`, `rotate`, `blur`, `vignette`, `Fill.Blur` and color effects on a kept

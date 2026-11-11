@@ -24,7 +24,7 @@ import kotlinx.coroutines.launch
  * @param scope The engine's scope, on the dispatcher everything a listener sees is confined to.
  * @param loads Drops what a graph reports once a rebuild has replaced it.
  * @param status Hears the player's state, first frames and failures.
- * @param seeks Hears where each seek landed.
+ * @param seeks Hears each seek media3 accepted.
  * @param loops Mirrors the playhead while the player moves pixels.
  */
 @ExperimentalApi
@@ -69,7 +69,7 @@ internal class Media3PlayerListener(
     val landed = newPosition.positionMs
     val serial = seeks.playerSerial
     report { status.platformPositionMs = landed }
-    dispatch { seeks.complete(serial) }
+    dispatch { seeks.accepted(serial) }
   }
 
   override fun onRenderedFirstFrame() {
@@ -79,6 +79,7 @@ internal class Media3PlayerListener(
   override fun onPlayerError(error: PlaybackException) {
     val reported = error.toPlaybackError()
     report { status.onPlayerError(reported) }
+    dispatch { seeks.framesStopped() }
   }
 
   private fun dispatch(block: () -> Unit) {

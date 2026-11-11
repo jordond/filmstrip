@@ -7,6 +7,7 @@ import dev.jordond.filmstrip.player.EngineListener
 import dev.jordond.filmstrip.player.PlaybackError
 import dev.jordond.filmstrip.player.PlaybackEvent
 import dev.jordond.filmstrip.player.PlaybackStatus
+import dev.jordond.filmstrip.player.PlayerFeature
 import dev.jordond.filmstrip.player.PlayerFeatures
 import dev.jordond.filmstrip.player.PlayerState
 import dev.jordond.filmstrip.player.PreviewFrameReadback
@@ -21,15 +22,26 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.TimeSource
 
 // A backend with no platform under it. Everything the base calls down into is recorded, and the
 // protected axis pushes are re-exposed so a test can drive them the way a real engine would.
 internal class FakePlayerEngine(
   parent: CoroutineScope,
   positionTick: Duration = 16.milliseconds,
-) : BasePlayerEngine(parent, positionTick) {
+  timeSource: TimeSource = TimeSource.Monotonic,
+  claimed: Set<PlayerFeature> = emptySet(),
+) : BasePlayerEngine(parent, positionTick, timeSource) {
   val platform: FakePlatformSeek = FakePlatformSeek()
   val scrubbing: MutableList<Boolean> = mutableListOf()
+  val shuttling: MutableList<Boolean> = mutableListOf()
+  val steps: MutableList<Int> = mutableListOf()
+
+  // The span a shuttle may show, which a real engine reads off its plan.
+  var shuttleSpan: ClosedRange<Duration>? = null
+
+  // The frame grid a landing snaps to, or null to land where asked.
+  var slot: Duration? = null
 
   var position: Duration = Duration.ZERO
 
@@ -47,7 +59,7 @@ internal class FakePlayerEngine(
 
   override val id: String = "filmstrip.fake"
 
-  override val features: PlayerFeatures = PlayerFeatures(emptySet())
+  override val features: PlayerFeatures = PlayerFeatures(claimed)
 
   override val readback: PreviewFrameReadback = PreviewFrameReadback { _, _ -> Cancellable { } }
 
@@ -85,6 +97,17 @@ internal class FakePlayerEngine(
     this.scrubbing += scrubbing
   }
 
+  override fun onShuttleChanged(shuttling: Boolean) {
+    this.shuttling += shuttling
+  }
+
+  override fun shuttleBounds(): ClosedRange<Duration>? = shuttleSpan
+
+  override fun landingOf(target: Duration): Duration {
+    val slot = slot ?: return target
+    return slot * (target / slot).toInt()
+  }
+
   override fun setComposition(
     request: SetCompositionRequest,
     callback: SetCompositionCallback,
@@ -93,7 +116,9 @@ internal class FakePlayerEngine(
     return Cancellable { }
   }
 
-  override fun stepFrames(frames: Int): Unit = Unit
+  override fun onStepFrames(frames: Int) {
+    steps += frames
+  }
 
   override fun setVolume(volume: Float): Unit = Unit
 

@@ -5,8 +5,10 @@ import dev.jordond.filmstrip.edit.outputSlotTime
 import dev.jordond.filmstrip.player.SeekAccuracy
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
 import dev.jordond.filmstrip.webcodecs.internal.preview.BrowserPreview
+import dev.jordond.filmstrip.webcodecs.internal.preview.PreviewFrame
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
+import kotlin.coroutines.cancellation.CancellationException
 import kotlin.time.Duration
 
 /**
@@ -92,6 +94,57 @@ internal class BrowserSeeks(
         clock().moveTo(landing)
         if (transport.wantsPlayback) transport.launchStart { landing }
         onComplete(landing)
+      },
+    )
+  }
+
+  /**
+   * Draws the frame on the slot [position] rounds to, then moves the playhead onto it.
+   *
+   * The frame is drawn before the playhead moves, so [onComplete] is called once the picture for the landing exists.
+   * It carries the landing and the frame drawn there, or null when the composition draws nothing on that slot. A
+   * landing a newer seek, a rebuild, a failure or a release made stale moves nothing and answers with where the
+   * playhead stands and no frame.
+   *
+   * @param draw Draws the frame of a preview at a position.
+   */
+  fun present(
+    position: Duration,
+    draw: suspend (preview: BrowserPreview, at: Duration) -> PreviewFrame?,
+    onComplete: (landed: Duration, frame: PreviewFrame?) -> Unit,
+  ) {
+    val target = preview()
+    val composition = resolved()
+    if (target == null || composition == null) {
+      onComplete(position, null)
+      return
+    }
+
+    guard.seekIssued()
+    val seek = ++serial
+    transport.fence(
+      scope.launch {
+        val landing = composition.seekLandingOf(position.coerceIn(Duration.ZERO, composition.duration))
+        val frame =
+          try {
+            draw(target, landing)
+          } catch (cancelled: CancellationException) {
+            throw cancelled
+          } catch (
+            @Suppress("TooGenericExceptionCaught") broken: Throwable,
+          ) {
+            null
+          }
+        if (seek != serial) {
+          onComplete(clock().position.coerceIn(Duration.ZERO, composition.duration), null)
+          return@launch
+        }
+        guard.seekLanded(null)
+        transport.clearEnd()
+        clock().moveTo(landing)
+        // A frame asked for before the shuttle ended lands after playback started again, which carries on from it.
+        if (transport.wantsPlayback) transport.launchStart { landing }
+        onComplete(landing, frame)
       },
     )
   }

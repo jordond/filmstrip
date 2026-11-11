@@ -48,7 +48,8 @@ internal class Media3LoopRangeController(
   var loopRange: TimeRange? = null
     private set
 
-  private var playbackRange: TimeRange? = null
+  var playbackRange: TimeRange? = null
+    private set
 
   private var mirroring = false
   private val mirrorTick = Runnable { mirrorPlayhead() }

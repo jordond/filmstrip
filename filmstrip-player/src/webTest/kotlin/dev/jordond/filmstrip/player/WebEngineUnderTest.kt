@@ -6,6 +6,7 @@ import dev.jordond.filmstrip.player.contract.Interruption
 import dev.jordond.filmstrip.player.internal.BrowserPlayerEngine
 import dev.jordond.filmstrip.player.internal.BrowserPreviewPlanner
 import dev.jordond.filmstrip.webcodecs.internal.preview.BrowserPreview
+import dev.jordond.filmstrip.webcodecs.internal.preview.PreviewFrame
 import kotlinx.coroutines.CoroutineScope
 import kotlin.time.Duration
 
@@ -21,6 +22,7 @@ import kotlin.time.Duration
  * @param readDevice Reads what the engine's planner takes this device's encoders to be. The page's own by default.
  * @param drawFirstFrame Draws the frame a new graph owes at a position, answering whether it drew one.
  * @param readSyncSample Reads the sync sample a relaxed seek lands on, at or before a position.
+ * @param drawShuttleFrame Draws the frame a shuttle shows at a position.
  */
 internal class WebEngineUnderTest(
   scope: CoroutineScope,
@@ -31,6 +33,9 @@ internal class WebEngineUnderTest(
   readSyncSample: suspend (preview: BrowserPreview, position: Duration) -> Duration = { preview, position ->
     preview.syncSampleAt(position)
   },
+  drawShuttleFrame: suspend (preview: BrowserPreview, at: Duration) -> PreviewFrame? = { preview, at ->
+    preview.frameAt(at)
+  },
 ) : EngineUnderTest {
   override val engine: BrowserPlayerEngine =
     BrowserPlayerEngine(
@@ -39,6 +44,7 @@ internal class WebEngineUnderTest(
       config = PlayerConfig(),
       drawFirstFrame = drawFirstFrame,
       readSyncSample = readSyncSample,
+      drawShuttleFrame = drawShuttleFrame,
     )
 
   override val platformLoads: Int get() = engine.platformLoads

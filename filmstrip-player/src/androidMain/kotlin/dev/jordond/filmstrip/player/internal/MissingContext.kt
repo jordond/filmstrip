@@ -75,7 +75,7 @@ internal class MissingContextPlayerEngine(
 
   override fun onRelease(): Unit = Unit
 
-  override fun stepFrames(frames: Int): Unit = Unit
+  override fun onStepFrames(frames: Int): Unit = Unit
 
   override fun setVolume(volume: Float): Unit = Unit
 

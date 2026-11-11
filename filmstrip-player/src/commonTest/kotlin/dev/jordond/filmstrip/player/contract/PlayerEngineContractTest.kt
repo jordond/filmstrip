@@ -300,6 +300,18 @@ abstract class PlayerEngineContractTest {
     }
 
   @Test
+  fun aShuttleRunsToEachEdgeAndHolds() = shuttles.runsToEachEdgeAndHolds()
+
+  @Test
+  fun aPausedShuttleEndsPausedOnTheFrameShowing() = shuttles.aPausedShuttleEndsPausedOnTheFrameShowing()
+
+  @Test
+  fun aPlayingShuttleEndsPlayingFromTheFrameShowing() = shuttles.aPlayingShuttleEndsPlayingFromTheFrameShowing()
+
+  @Test
+  fun anInvalidShuttleRateThrows() = shuttles.anInvalidRateThrows()
+
+  @Test
   fun aPausedRelaxedSeekHoldsTheRequestedSlotThenStaysWhereItLanded() =
     relaxedSeeks.holdsThenStaysWhereItLanded(ROUNDS_UP_AT)
 
@@ -445,6 +457,8 @@ abstract class PlayerEngineContractTest {
   private val rebuilds: RebuildContract get() = RebuildContract(::createEngine, fixture, fixtureFrameRate)
 
   private val relaxedSeeks: RelaxedSeekContract get() = RelaxedSeekContract(::createEngine, fixture, fixtureFrameRate)
+
+  private val shuttles: ShuttleContract get() = ShuttleContract(::createEngine, fixture, fixtureFrameRate)
 
   private val loopEnds: LoopEndContract get() = LoopEndContract(::createEngine, fixture, fixtureFrameRate)
 

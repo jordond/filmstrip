@@ -85,6 +85,26 @@ internal fun transport(player: VideoPlayer) {
   // endregion
 }
 
+internal fun shuttle(player: VideoPlayer) {
+  // region shuttle
+  if (player.features.supports(PlayerFeature.Shuttle)) {
+    player.beginShuttle(-3f)
+    // Later, when the key is let go.
+    player.endShuttle()
+  }
+  // endregion
+}
+
+internal suspend fun observeShuttleEdge(player: VideoPlayer) {
+  // region shuttle-edge
+  player.events.collect { event ->
+    if (event is PlaybackEvent.ShuttleReachedEdge) {
+      println("Holding on the ${event.edge} at ${event.position}")
+    }
+  }
+  // endregion
+}
+
 internal suspend fun swapComposition(
   player: VideoPlayer,
   edited: Composition,

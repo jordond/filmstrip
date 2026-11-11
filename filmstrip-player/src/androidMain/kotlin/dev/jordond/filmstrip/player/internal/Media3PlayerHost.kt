@@ -30,7 +30,7 @@ import kotlin.concurrent.Volatile
  * @param thread The thread the player is built on and confined to. Quit on [release].
  * @param loads Drops what a graph reports once a rebuild has replaced it.
  * @param status Hears the player's state, first frames and failures.
- * @param seeks Hears where each seek landed.
+ * @param seeks Hears each seek media3 accepted and each frame it draws.
  * @param loops Mirrors the playhead while the player moves pixels.
  * @param surfaces Holds the view a fresh player draws into.
  * @param onBuilt Called on the player's thread with each player as it is built.
@@ -80,7 +80,7 @@ internal class Media3PlayerHost(
       outcome =
         runCatching {
           val built = buildPlayer(multipleInputs = false)
-          built.addListener(listenerFor(epoch))
+          built.listenTo(epoch)
           player = built
           onBuilt(built)
           describe(built)
@@ -120,7 +120,7 @@ internal class Media3PlayerHost(
     epoch++
     takesMultipleInputs = multipleInputs
     return buildPlayer(multipleInputs).also {
-      it.addListener(listenerFor(epoch))
+      it.listenTo(epoch)
       surfaces.attached?.let(it::setVideoSurfaceView)
       player = it
       onBuilt(it)
@@ -143,6 +143,12 @@ internal class Media3PlayerHost(
     previewPlayerBuilder(context, thread.looper)
       .apply { if (multipleInputs) setVideoGraphFactory(MultipleInputVideoGraph.Factory()) }
       .build()
+
+  // The frame listener is called on media3's playback thread, once for each frame the video graph hands the surface.
+  private fun CompositionPlayer.listenTo(generation: Int) {
+    addListener(listenerFor(generation))
+    setVideoFrameMetadataListener { _, _, _, _ -> if (generation == epoch) seeks.frameDrawn() }
+  }
 
   private fun listenerFor(generation: Int): Media3PlayerListener =
     Media3PlayerListener(

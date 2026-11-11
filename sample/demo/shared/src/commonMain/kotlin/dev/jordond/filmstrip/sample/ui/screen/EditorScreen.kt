@@ -44,6 +44,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.jordond.filmstrip.sample.SampleAppState
 import dev.jordond.filmstrip.sample.ui.EditorLayout
+import dev.jordond.filmstrip.sample.ui.HoldKey
 import dev.jordond.filmstrip.sample.ui.IconKey
 import dev.jordond.filmstrip.sample.ui.Key
 import dev.jordond.filmstrip.sample.ui.LocalScreenInsets
@@ -56,6 +57,8 @@ import dev.jordond.filmstrip.sample.ui.excludeBackGesture
 import dev.jordond.filmstrip.sample.ui.focusRing
 import dev.jordond.filmstrip.sample.ui.isCompactWidth
 import dev.jordond.filmstrip.sample.ui.scanlinesFaint
+import kotlin.math.absoluteValue
+import kotlin.math.roundToInt
 import kotlin.time.Duration.Companion.seconds
 
 /**
@@ -280,11 +283,39 @@ private fun PlaybackControls(
   Surface(color = MaterialTheme.colorScheme.surface, modifier = modifier.fillMaxWidth()) {
     Column {
       Transport(state)
+      if (state.canShuttle) ShuttleKeys(state)
       Timeline(state, Modifier.excludeBackGesture().padding(horizontal = 12.dp))
       Spacer(Modifier.height(10.dp))
     }
   }
 }
+
+/**
+ * Picture search, both ways at two speeds. Each key shuttles for as long as it is held.
+ */
+@Composable
+private fun ShuttleKeys(
+  state: SampleAppState,
+  modifier: Modifier = Modifier,
+) {
+  Row(
+    modifier = modifier.fillMaxWidth().padding(horizontal = 12.dp),
+    verticalAlignment = Alignment.CenterVertically,
+    horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
+  ) {
+    for (rate in SHUTTLE_RATES) {
+      val speed = rate.absoluteValue.roundToInt()
+      HoldKey(
+        label = if (rate < 0f) "◀◀ ${speed}x" else "${speed}x ▶▶",
+        onHold = { state.beginShuttle(rate) },
+        onRelease = state::endShuttle,
+        enabled = state.canPlay,
+      )
+    }
+  }
+}
+
+private val SHUTTLE_RATES = listOf(-7f, -3f, 3f, 7f)
 
 @Composable
 private fun Transport(

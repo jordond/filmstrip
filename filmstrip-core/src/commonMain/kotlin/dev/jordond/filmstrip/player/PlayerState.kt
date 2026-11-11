@@ -20,6 +20,8 @@ import kotlin.time.Duration
  *   what a spinner reads.
  * @property isSeeking True when a seek has been issued and its frame has not been presented.
  * @property duration The loaded composition's duration, or null when none is loaded.
+ * @property shuttleRate The rate of the shuttle that is running, or null when none is. See
+ * [PlayerTransport.beginShuttle].
  */
 @Immutable
 @Poko
@@ -31,6 +33,7 @@ public class PlayerState
     public val isStalled: Boolean,
     public val isSeeking: Boolean,
     public val duration: Duration?,
+    public val shuttleRate: Float? = null,
   ) {
     /**
      * Strictly playing: ready, wanted, and not stalled.
@@ -55,7 +58,7 @@ public class PlayerState
 
     public companion object {
       /**
-       * Idle, not wanted, not stalled, not seeking, no duration.
+       * Idle, not wanted, not stalled, not seeking, no duration, no shuttle.
        */
       public val Initial: PlayerState = PlayerState(PlaybackStatus.Idle, false, false, false, null)
     }

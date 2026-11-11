@@ -404,6 +404,7 @@ final enum class dev.jordond.filmstrip.player/PlayerFeature : kotlin/Enum<dev.jo
     enum entry HdrPreview // dev.jordond.filmstrip.player/PlayerFeature.HdrPreview|null[0]
     enum entry LiveParameterRedraw // dev.jordond.filmstrip.player/PlayerFeature.LiveParameterRedraw|null[0]
     enum entry PlaybackSpeed // dev.jordond.filmstrip.player/PlayerFeature.PlaybackSpeed|null[0]
+    enum entry Shuttle // dev.jordond.filmstrip.player/PlayerFeature.Shuttle|null[0]
 
     final val entries // dev.jordond.filmstrip.player/PlayerFeature.entries|#static{}entries[0]
         final fun <get-entries>(): kotlin.enums/EnumEntries<dev.jordond.filmstrip.player/PlayerFeature> // dev.jordond.filmstrip.player/PlayerFeature.entries.<get-entries>|<get-entries>#static(){}[0]
@@ -421,6 +422,17 @@ final enum class dev.jordond.filmstrip.player/SeekAccuracy : kotlin/Enum<dev.jor
 
     final fun valueOf(kotlin/String): dev.jordond.filmstrip.player/SeekAccuracy // dev.jordond.filmstrip.player/SeekAccuracy.valueOf|valueOf#static(kotlin.String){}[0]
     final fun values(): kotlin/Array<dev.jordond.filmstrip.player/SeekAccuracy> // dev.jordond.filmstrip.player/SeekAccuracy.values|values#static(){}[0]
+}
+
+final enum class dev.jordond.filmstrip.player/ShuttleEdge : kotlin/Enum<dev.jordond.filmstrip.player/ShuttleEdge> { // dev.jordond.filmstrip.player/ShuttleEdge|null[0]
+    enum entry End // dev.jordond.filmstrip.player/ShuttleEdge.End|null[0]
+    enum entry Start // dev.jordond.filmstrip.player/ShuttleEdge.Start|null[0]
+
+    final val entries // dev.jordond.filmstrip.player/ShuttleEdge.entries|#static{}entries[0]
+        final fun <get-entries>(): kotlin.enums/EnumEntries<dev.jordond.filmstrip.player/ShuttleEdge> // dev.jordond.filmstrip.player/ShuttleEdge.entries.<get-entries>|<get-entries>#static(){}[0]
+
+    final fun valueOf(kotlin/String): dev.jordond.filmstrip.player/ShuttleEdge // dev.jordond.filmstrip.player/ShuttleEdge.valueOf|valueOf#static(kotlin.String){}[0]
+    final fun values(): kotlin/Array<dev.jordond.filmstrip.player/ShuttleEdge> // dev.jordond.filmstrip.player/ShuttleEdge.values|values#static(){}[0]
 }
 
 final enum class dev.jordond.filmstrip.still/StillFormat : kotlin/Enum<dev.jordond.filmstrip.still/StillFormat> { // dev.jordond.filmstrip.still/StillFormat|null[0]
@@ -556,7 +568,9 @@ abstract interface dev.jordond.filmstrip.player/PlayerEngine : dev.jordond.films
 
 abstract interface dev.jordond.filmstrip.player/PlayerTransport { // dev.jordond.filmstrip.player/PlayerTransport|null[0]
     abstract fun beginScrub() // dev.jordond.filmstrip.player/PlayerTransport.beginScrub|beginScrub(){}[0]
+    abstract fun beginShuttle(kotlin/Float) // dev.jordond.filmstrip.player/PlayerTransport.beginShuttle|beginShuttle(kotlin.Float){}[0]
     abstract fun endScrub() // dev.jordond.filmstrip.player/PlayerTransport.endScrub|endScrub(){}[0]
+    abstract fun endShuttle() // dev.jordond.filmstrip.player/PlayerTransport.endShuttle|endShuttle(){}[0]
     abstract fun pause() // dev.jordond.filmstrip.player/PlayerTransport.pause|pause(){}[0]
     abstract fun play() // dev.jordond.filmstrip.player/PlayerTransport.play|play(){}[0]
     abstract fun seekTo(kotlin.time/Duration, dev.jordond.filmstrip.player/SeekAccuracy = ...) // dev.jordond.filmstrip.player/PlayerTransport.seekTo|seekTo(kotlin.time.Duration;dev.jordond.filmstrip.player.SeekAccuracy){}[0]
@@ -1221,6 +1235,19 @@ sealed interface dev.jordond.filmstrip.player/PlaybackEvent { // dev.jordond.fil
         final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.player/PlaybackEvent.SeekCompleted.equals|equals(kotlin.Any?){}[0]
         final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.player/PlaybackEvent.SeekCompleted.hashCode|hashCode(){}[0]
         final fun toString(): kotlin/String // dev.jordond.filmstrip.player/PlaybackEvent.SeekCompleted.toString|toString(){}[0]
+    }
+
+    final class ShuttleReachedEdge : dev.jordond.filmstrip.player/PlaybackEvent { // dev.jordond.filmstrip.player/PlaybackEvent.ShuttleReachedEdge|null[0]
+        constructor <init>(dev.jordond.filmstrip.player/ShuttleEdge, kotlin.time/Duration) // dev.jordond.filmstrip.player/PlaybackEvent.ShuttleReachedEdge.<init>|<init>(dev.jordond.filmstrip.player.ShuttleEdge;kotlin.time.Duration){}[0]
+
+        final val edge // dev.jordond.filmstrip.player/PlaybackEvent.ShuttleReachedEdge.edge|{}edge[0]
+            final fun <get-edge>(): dev.jordond.filmstrip.player/ShuttleEdge // dev.jordond.filmstrip.player/PlaybackEvent.ShuttleReachedEdge.edge.<get-edge>|<get-edge>(){}[0]
+        final val position // dev.jordond.filmstrip.player/PlaybackEvent.ShuttleReachedEdge.position|{}position[0]
+            final fun <get-position>(): kotlin.time/Duration // dev.jordond.filmstrip.player/PlaybackEvent.ShuttleReachedEdge.position.<get-position>|<get-position>(){}[0]
+
+        final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.player/PlaybackEvent.ShuttleReachedEdge.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.player/PlaybackEvent.ShuttleReachedEdge.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // dev.jordond.filmstrip.player/PlaybackEvent.ShuttleReachedEdge.toString|toString(){}[0]
     }
 
     final object FirstFrameRendered : dev.jordond.filmstrip.player/PlaybackEvent { // dev.jordond.filmstrip.player/PlaybackEvent.FirstFrameRendered|null[0]
@@ -2510,6 +2537,8 @@ final class dev.jordond.filmstrip.player/PlayerState { // dev.jordond.filmstrip.
         final fun <get-isStalled>(): kotlin/Boolean // dev.jordond.filmstrip.player/PlayerState.isStalled.<get-isStalled>|<get-isStalled>(){}[0]
     final val playWhenReady // dev.jordond.filmstrip.player/PlayerState.playWhenReady|{}playWhenReady[0]
         final fun <get-playWhenReady>(): kotlin/Boolean // dev.jordond.filmstrip.player/PlayerState.playWhenReady.<get-playWhenReady>|<get-playWhenReady>(){}[0]
+    final val shuttleRate // dev.jordond.filmstrip.player/PlayerState.shuttleRate|{}shuttleRate[0]
+        final fun <get-shuttleRate>(): kotlin/Float? // dev.jordond.filmstrip.player/PlayerState.shuttleRate.<get-shuttleRate>|<get-shuttleRate>(){}[0]
     final val status // dev.jordond.filmstrip.player/PlayerState.status|{}status[0]
         final fun <get-status>(): dev.jordond.filmstrip.player/PlaybackStatus // dev.jordond.filmstrip.player/PlayerState.status.<get-status>|<get-status>(){}[0]
 

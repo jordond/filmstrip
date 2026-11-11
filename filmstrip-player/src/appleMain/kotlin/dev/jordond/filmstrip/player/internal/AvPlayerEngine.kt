@@ -8,6 +8,7 @@ import dev.jordond.filmstrip.avfoundation.internal.time.toCMTime
 import dev.jordond.filmstrip.avfoundation.internal.time.toDuration
 import dev.jordond.filmstrip.edit.CompositionDiff
 import dev.jordond.filmstrip.edit.TimeRange
+import dev.jordond.filmstrip.edit.outputSlotTime
 import dev.jordond.filmstrip.media.MediaBytesFileFailure
 import dev.jordond.filmstrip.player.PlaybackError
 import dev.jordond.filmstrip.player.PlaybackEvent
@@ -73,7 +74,7 @@ internal class AvPlayerEngine(
   parent: CoroutineScope,
   planner: AvPreviewPlanner,
   config: PlayerConfig,
-  muted: Boolean = false,
+  private val muted: Boolean = false,
   private val lower: suspend (PreviewPlan) -> AvComposition = { it.resolved.toAvComposition() },
   private val itemOf: (AvComposition) -> AVPlayerItem = ::previewItem,
 ) : PlannedPlayerEngine<PreviewPlan>(parent, config.qualityPolicy, config.exportSpec, planner) {
@@ -104,6 +105,7 @@ internal class AvPlayerEngine(
   private var lowered: AvComposition? = null
   private var item: AVPlayerItem? = null
   private var reachedEnd = false
+  private var playbackRange: TimeRange? = null
 
   // The load refused since the last one applied. The status reports it over anything the platform does until then.
   private var refusal: PlaybackError? = null
@@ -214,6 +216,7 @@ internal class AvPlayerEngine(
         PlayerFeature.FrameReadback,
         PlayerFeature.LiveParameterRedraw,
         PlayerFeature.FrameStepping,
+        PlayerFeature.Shuttle,
       ),
     )
 
@@ -247,6 +250,28 @@ internal class AvPlayerEngine(
     seeks.seek(position, accuracy, isWrapSeek, onComplete)
   }
 
+  override val shuttleRange: TimeRange? get() = playbackRange
+
+  // Lands between the frame showing and the playhead, so the playhead reported is the frame AVFoundation settled on.
+  override fun presentFrame(
+    position: Duration,
+    onPresented: (landed: Duration) -> Unit,
+  ) {
+    val bounds = shuttleBounds()
+    val rate = plan?.resolved?.frameRate
+    val tolerance =
+      if (bounds == null || rate == null) {
+        SeekTolerance.Exact
+      } else {
+        shuttleToleranceOf(position, reportedPosition, outputSlotTime(1, rate), bounds)
+      }
+    seeks.present(position, tolerance, onPresented)
+  }
+
+  override fun onShuttleChanged(shuttling: Boolean) {
+    player.setMuted(shuttling || muted)
+  }
+
   override fun onPlay() {
     // A failed status is terminal for the item, so only a new load can play. The status read reports it if that read
     // hasn't landed yet.
@@ -274,7 +299,7 @@ internal class AvPlayerEngine(
     player.replaceCurrentItemWithPlayerItem(null)
   }
 
-  override fun stepFrames(frames: Int) {
+  override fun onStepFrames(frames: Int) {
     if (frames == 0 || item == null) return
     val landing = plan?.resolved?.frameStepLanding(reportedPosition, frames) ?: return
     // Not stepByCount. Measured on the macOS host, one step from 300 ms at 30 fps put the item at 550 ms rather than on
@@ -291,6 +316,7 @@ internal class AvPlayerEngine(
   }
 
   override fun setPlaybackRange(range: TimeRange?) {
+    playbackRange = range
     val target = item ?: return
     target.setForwardPlaybackEndTime((range?.endExclusive ?: Duration.ZERO).toCMTime())
     range?.start?.takeIf { readPosition() < it }?.let { seekTo(it, SeekAccuracy.Exact) }

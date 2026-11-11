@@ -60,6 +60,21 @@ public sealed interface PlaybackEvent {
   ) : PlaybackEvent
 
   /**
+   * A shuttle ran into an end of what it may show and is holding the frame there.
+   *
+   * Sent once each time the shuttle arrives, and straight away when it begins at the edge it is heading for. The
+   * shuttle is still on. See [PlayerTransport.beginShuttle].
+   *
+   * @property edge Which end it reached.
+   * @property position The position of the frame it is holding.
+   */
+  @Poko
+  public class ShuttleReachedEdge(
+    public val edge: ShuttleEdge,
+    public val position: Duration,
+  ) : PlaybackEvent
+
+  /**
    * Playback failed.
    *
    * @property error Why it failed.
@@ -103,4 +118,21 @@ public sealed interface PlaybackEvent {
     public val policy: PreviewQualityPolicy,
     public val message: String,
   ) : PlaybackEvent
+}
+
+/**
+ * An end of the span a shuttle may show.
+ *
+ * The span is the playback range when one is set, or the whole composition.
+ */
+public enum class ShuttleEdge {
+  /**
+   * The first frame of the span, reached by a shuttle running backwards.
+   */
+  Start,
+
+  /**
+   * The last frame of the span, reached by a shuttle running forwards.
+   */
+  End,
 }

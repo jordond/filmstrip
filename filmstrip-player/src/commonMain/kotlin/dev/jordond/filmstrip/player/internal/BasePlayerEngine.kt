@@ -5,6 +5,7 @@ import dev.jordond.filmstrip.player.EngineListener
 import dev.jordond.filmstrip.player.PlaybackEvent
 import dev.jordond.filmstrip.player.PlaybackStatus
 import dev.jordond.filmstrip.player.PlayerEngine
+import dev.jordond.filmstrip.player.PlayerFeature
 import dev.jordond.filmstrip.player.PlayerState
 import dev.jordond.filmstrip.player.PreviewInfo
 import dev.jordond.filmstrip.player.SeekAccuracy
@@ -14,17 +15,18 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.TimeSource
 
 /**
  * The half of a [PlayerEngine] that has nothing to do with a platform.
  *
  * A backend subclasses this and answers for decoding, rendering and transport. Everything a
  * listener sees is assembled here: the listener list, the [PlayerState] snapshot, the seek chase,
- * the scrub policy and the position ticker.
+ * the scrub policy, the shuttle and the position ticker.
  *
  * No backend assembles a snapshot. A subclass moves one axis at a time through [setStatus],
  * [setStalled], [setSeeking], [setPlayWhenReady] and [setDuration], and the snapshot is rebuilt
- * here from all five, so the "never torn" promise holds by construction. [PlayerState]'s
+ * here from all of them, so the "never torn" promise holds by construction. [PlayerState]'s
  * constructor is marked internal, so a backend cannot route around this even by accident.
  *
  * Not thread safe. Confine every call, including platform callbacks, to [scope]'s dispatcher.
@@ -32,10 +34,12 @@ import kotlin.time.Duration.Companion.milliseconds
  * @param parent The scope this engine's own is a child of. Its dispatcher is where the position
  *   ticker runs, and where every call must arrive.
  * @param positionTick How often the playhead is read while playing.
+ * @param timeSource The clock a shuttle's playhead is measured on.
  */
 internal abstract class BasePlayerEngine(
   parent: CoroutineScope,
   positionTick: Duration = DEFAULT_POSITION_TICK,
+  timeSource: TimeSource = TimeSource.Monotonic,
 ) : PlayerEngine {
   /**
    * Whether playback is wanted right now, which is [PlayerState.playWhenReady] on the snapshot.
@@ -60,6 +64,7 @@ internal abstract class BasePlayerEngine(
   private var isStalled = false
   private var isSeeking = false
   private var duration: Duration? = null
+  private var shuttleRate: Float? = null
 
   private var snapshot: PlayerState = PlayerState.Initial
   private var previewInfo: PreviewInfo? = null
@@ -97,6 +102,32 @@ internal abstract class BasePlayerEngine(
       isReady = { isSeekReady() },
       onResolved = ::onSeekResolved,
     )
+
+  private val pump =
+    ShuttlePump(
+      scope = scope,
+      pollInterval = positionTick,
+      timeSource = timeSource,
+      bounds = { shuttleBounds() },
+      landingOf = { landingOf(it) },
+      canPresent = { isSeekReady() && !chase.isSeeking },
+      present = { position, onPresented ->
+        ridingSeeks = ridingSeeks + waitingSeeks
+        waitingSeeks = emptyList()
+        presentFrame(position, onPresented)
+      },
+      onFrame = ::onShuttleFrame,
+      onEdge = { edge, position -> emitEvent(PlaybackEvent.ShuttleReachedEdge(edge, position)) },
+      onLateFrame = { landed -> if (!chase.isSeeking) emitPosition(landed) },
+    )
+
+  // Whether the shuttle running interrupted playback, which ending it starts again.
+  private var resumeAfterShuttle = false
+
+  // Seeks taken during a shuttle. One waits for the next frame to be asked for, then rides on it and completes when
+  // it shows, so a frame asked for before the seek never completes it.
+  private var waitingSeeks: List<Duration> = emptyList()
+  private var ridingSeeks: List<Duration> = emptyList()
 
   /**
    * Whether the seek [performSeek] is issuing right now was asked for through [seekToWrap].
@@ -171,6 +202,36 @@ internal abstract class BasePlayerEngine(
    */
   protected open fun onScrubbingChanged(scrubbing: Boolean): Unit = Unit
 
+  /**
+   * The times of the first and last frames a shuttle may show, as [shuttleBoundsOf] gives them, or null when nothing
+   * is loaded.
+   */
+  protected open fun shuttleBounds(): ClosedRange<Duration>? = null
+
+  /**
+   * Shows the frame for [position] during a shuttle and calls [onPresented] once it is on screen.
+   *
+   * [onPresented] carries the slot time of the frame shown, the way [performSeek] reports a landing. Called at most
+   * once at a time and never while a seek from [performSeek] is in flight. Goes through [performSeek] as an exact
+   * seek unless a backend has a cheaper way to show a frame.
+   */
+  protected open fun presentFrame(
+    position: Duration,
+    onPresented: (landed: Duration) -> Unit,
+  ): Unit = performSeek(position, SeekAccuracy.Exact, onPresented)
+
+  /**
+   * Reacts to a shuttle starting or stopping, for whatever makes a backend's frames cheap to show and for muting.
+   *
+   * The transport is already paused when a shuttle starts, and is started again after it stops when it was playing.
+   */
+  protected open fun onShuttleChanged(shuttling: Boolean): Unit = Unit
+
+  /**
+   * Steps by whole frames. A shuttle has already ended.
+   */
+  protected abstract fun onStepFrames(frames: Int)
+
   final override fun addListener(listener: EngineListener): Cancellable {
     listeners = listeners + listener
     listener.onStateChanged(snapshot)
@@ -179,19 +240,36 @@ internal abstract class BasePlayerEngine(
   }
 
   final override fun play() {
+    if (shuttleRate != null) {
+      finishShuttle(resume = true)
+      return
+    }
     setPlayWhenReady(true)
     onPlay()
   }
 
   final override fun pause() {
+    if (shuttleRate != null) {
+      finishShuttle(resume = false)
+      return
+    }
     setPlayWhenReady(false)
     onPause()
+  }
+
+  final override fun stepFrames(frames: Int) {
+    endShuttle()
+    onStepFrames(frames)
   }
 
   final override fun seekTo(
     position: Duration,
     accuracy: SeekAccuracy,
   ) {
+    if (shuttleRate != null) {
+      seekShuttle(position)
+      return
+    }
     heldPlayhead = landingOf(position)
     if (isScrubbing) scrubTarget = position
     chase.request(position, if (isScrubbing) SeekAccuracy.Nearest else accuracy)
@@ -215,6 +293,7 @@ internal abstract class BasePlayerEngine(
 
   final override fun beginScrub() {
     if (isScrubbing) return
+    endShuttle()
     isScrubbing = true
     scrubTarget = null
     onScrubbingChanged(true)
@@ -235,9 +314,80 @@ internal abstract class BasePlayerEngine(
     setSeeking(chase.isSeeking)
   }
 
+  final override fun beginShuttle(rate: Float) {
+    requireShuttleRate(rate)
+    if (isReleased || !features.supports(PlayerFeature.Shuttle)) return
+    if (status != PlaybackStatus.Ready && status != PlaybackStatus.Ended) return
+    if (shuttleBounds() == null) return
+
+    if (shuttleRate == null) endScrub()
+    val origin = reportedPosition
+    if (shuttleRate == null) {
+      resumeAfterShuttle = playWhenReady
+      if (playWhenReady) {
+        setPlayWhenReady(false)
+        onPause()
+      }
+      onShuttleChanged(true)
+      heldPlayhead = landingOf(origin)
+    }
+    shuttleRate = rate
+    publish()
+    pump.begin(rate, origin)
+  }
+
+  final override fun endShuttle() {
+    if (shuttleRate == null) return
+    finishShuttle(resume = resumeAfterShuttle)
+  }
+
+  // Leaves the shuttle with the frame on screen as the playhead, then starts the transport when asked to.
+  private fun finishShuttle(resume: Boolean) {
+    pump.end()
+    shuttleRate = null
+    resumeAfterShuttle = false
+    ridingSeeks = ridingSeeks + waitingSeeks
+    waitingSeeks = emptyList()
+    completeShuttleSeeks()
+    if (!chase.isSeeking) heldPlayhead = null
+    onShuttleChanged(false)
+    publish()
+    if (resume) {
+      setPlayWhenReady(true)
+      onPlay()
+    }
+  }
+
+  // A seek taken while shuttling moves the shuttle and never reaches the chase. It completes on the next frame asked
+  // for, or straight away when the frame it asks for is the one showing.
+  private fun seekShuttle(position: Duration) {
+    val landing = landingOf(position)
+    waitingSeeks = waitingSeeks + landing
+    heldPlayhead = landing
+    pump.moveTo(position)
+    if (waitingSeeks.isNotEmpty() && !pump.isInFlight && pump.shown == landing) {
+      ridingSeeks = ridingSeeks + waitingSeeks
+      waitingSeeks = emptyList()
+      completeShuttleSeeks()
+    }
+  }
+
+  private fun onShuttleFrame(landed: Duration) {
+    heldPlayhead = landed
+    emitPosition(landed)
+    completeShuttleSeeks()
+  }
+
+  private fun completeShuttleSeeks() {
+    val completed = ridingSeeks
+    ridingSeeks = emptyList()
+    completed.forEach { emitEvent(PlaybackEvent.SeekCompleted(it)) }
+  }
+
   final override fun dispose() {
     if (isReleased) return
     ticker.stop()
+    pump.end()
     chase.release()
     setSeeking(false)
     setStatus(PlaybackStatus.Released)
@@ -268,7 +418,9 @@ internal abstract class BasePlayerEngine(
 
     if (status == PlaybackStatus.Ready) {
       chase.onReady()
+      pump.kick()
     } else if (status != PlaybackStatus.Ended) {
+      endShuttle()
       chase.release()
       setSeeking(false)
     }
@@ -384,6 +536,7 @@ internal abstract class BasePlayerEngine(
    */
   protected fun onSeekReady() {
     chase.onReady()
+    pump.kick()
   }
 
   private fun onSeekResolved(
@@ -397,11 +550,12 @@ internal abstract class BasePlayerEngine(
     if (resolution == SeekResolution.Landed) emitPosition(position)
     emitEvent(PlaybackEvent.SeekCompleted(position))
     setSeeking(chase.isSeeking)
+    pump.kick()
   }
 
   private fun publish() {
     if (isReleased) return
-    val next = PlayerState(status, playWhenReady, isStalled, isSeeking, duration)
+    val next = PlayerState(status, playWhenReady, isStalled, isSeeking, duration, shuttleRate)
     if (next == snapshot) return
     snapshot = next
     if (next.isPlaying) ticker.start() else ticker.stop()

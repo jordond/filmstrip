@@ -31,6 +31,7 @@ import dev.jordond.filmstrip.player.SetCompositionResult
 import dev.jordond.filmstrip.player.internal.BasePlayerEngine
 import dev.jordond.filmstrip.player.internal.heldPosition
 import dev.jordond.filmstrip.player.internal.loopWrapOf
+import dev.jordond.filmstrip.player.internal.shuttleBoundsOf
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -68,13 +69,14 @@ internal class ContractFakeEngine(
   private var loaded: Composition? = null
   private var playhead: Duration = Duration.ZERO
   private var loopRange: TimeRange? = null
+  private var playbackRange: TimeRange? = null
   private var transport: Job? = null
   private var isLanding = false
 
   override val id: String = "filmstrip.contract-fake"
 
   override val features: PlayerFeatures =
-    PlayerFeatures(setOf(PlayerFeature.FrameReadback, PlayerFeature.LiveParameterRedraw))
+    PlayerFeatures(setOf(PlayerFeature.FrameReadback, PlayerFeature.LiveParameterRedraw, PlayerFeature.Shuttle))
 
   override val readback: PreviewFrameReadback =
     PreviewFrameReadback { position, callback ->
@@ -173,7 +175,7 @@ internal class ContractFakeEngine(
 
   override fun onRelease(): Unit = Unit
 
-  override fun stepFrames(frames: Int): Unit = Unit
+  override fun onStepFrames(frames: Int): Unit = Unit
 
   override fun setVolume(volume: Float): Unit = Unit
 
@@ -181,7 +183,12 @@ internal class ContractFakeEngine(
     loopRange = range
   }
 
-  override fun setPlaybackRange(range: TimeRange?): Unit = Unit
+  override fun setPlaybackRange(range: TimeRange?) {
+    playbackRange = range
+  }
+
+  override fun shuttleBounds(): ClosedRange<Duration>? =
+    platformDuration?.let { shuttleBoundsOf(it, FAKE_FRAME_RATE, playbackRange) }
 
   override fun setQualityPolicy(policy: PreviewQualityPolicy): Unit = Unit
 

@@ -3,6 +3,7 @@ package dev.jordond.filmstrip.sample.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -17,8 +18,12 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
@@ -26,7 +31,10 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -250,6 +258,58 @@ public fun TextKey(
     contentAlignment = Alignment.Center,
   ) {
     Text(label, style = MaterialTheme.typography.labelLarge, color = color)
+  }
+}
+
+/**
+ * A word that acts for as long as it is held down, with no frame around it.
+ *
+ * [onHold] runs when the press starts and [onRelease] when it ends, however it ends.
+ */
+@Composable
+public fun HoldKey(
+  label: String,
+  onHold: () -> Unit,
+  onRelease: () -> Unit,
+  modifier: Modifier = Modifier,
+  enabled: Boolean = true,
+) {
+  val hold by rememberUpdatedState(onHold)
+  val release by rememberUpdatedState(onRelease)
+  var held by remember { mutableStateOf(false) }
+  DisposableEffect(Unit) {
+    onDispose { if (held) release() }
+  }
+
+  Box(
+    modifier =
+      modifier
+        .defaultMinSize(minWidth = Tokens.sizeTouch, minHeight = Tokens.sizeTouch)
+        .semantics { role = Role.Button }
+        .pointerInput(enabled) {
+          if (!enabled) return@pointerInput
+          detectTapGestures(
+            onPress = {
+              held = true
+              hold()
+              tryAwaitRelease()
+              held = false
+              release()
+            },
+          )
+        }.padding(horizontal = 4.dp),
+    contentAlignment = Alignment.Center,
+  ) {
+    Text(
+      text = label,
+      style = MaterialTheme.typography.labelLarge,
+      color =
+        when {
+          !enabled -> MaterialTheme.colorScheme.outline
+          held -> MaterialTheme.colorScheme.primary
+          else -> MaterialTheme.colorScheme.onSurfaceVariant
+        },
+    )
   }
 }
 

@@ -3,6 +3,7 @@ package dev.jordond.filmstrip.player.internal
 import dev.jordond.filmstrip.Cancellable
 import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.CompositionDiff
+import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.diff
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.player.PlaybackError
@@ -84,6 +85,14 @@ internal abstract class PlannedPlayerEngine<P : PlannedPreview>(
   protected abstract val isGraphStanding: Boolean
 
   final override fun landingOf(target: Duration): Duration = plan?.resolved?.seekLandingOf(target) ?: target
+
+  /**
+   * The playback range in force, which a shuttle stays inside, or null when the whole composition plays.
+   */
+  protected open val shuttleRange: TimeRange? get() = null
+
+  final override fun shuttleBounds(): ClosedRange<Duration>? =
+    plan?.resolved?.let { shuttleBoundsOf(it.duration, it.frameRate, shuttleRange) }
 
   final override fun setComposition(
     request: SetCompositionRequest,

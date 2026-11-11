@@ -9,6 +9,7 @@ import dev.jordond.filmstrip.player.ReadbackCallback
 import dev.jordond.filmstrip.player.ReadbackFrame
 import dev.jordond.filmstrip.player.ReadbackResult
 import dev.jordond.filmstrip.webcodecs.internal.preview.BrowserPreview
+import dev.jordond.filmstrip.webcodecs.internal.preview.PreviewFrame
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import kotlin.coroutines.cancellation.CancellationException
@@ -27,11 +28,13 @@ import kotlin.time.Duration
  * @param scope The engine's dispatcher, which every callback is delivered on.
  * @param preview The graph the player is showing, or null before one is loaded.
  * @param renderScale The preview-only downscale in force.
+ * @param held The frame already drawn for a position, or null when that position has to be drawn.
  */
 internal class BrowserFrameReadback(
   private val scope: CoroutineScope,
   private val preview: () -> BrowserPreview?,
   private val renderScale: () -> Float,
+  private val held: (position: Duration) -> PreviewFrame? = { null },
 ) : PreviewFrameReadback {
   override fun requestFrame(
     position: Duration,
@@ -45,7 +48,7 @@ internal class BrowserFrameReadback(
       scope.launch {
         val outcome =
           try {
-            when (val frame = target.frameAt(position)) {
+            when (val frame = held(position) ?: target.frameAt(position)) {
               null -> {
                 ReadbackResult.Failure(FilmstripError.InvalidComposition(NO_READBACK_FRAME).toPlaybackError())
               }

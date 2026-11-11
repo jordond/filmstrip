@@ -214,7 +214,7 @@ internal class FfmpegPlayerEngine(
     pump.awaitRetired()
   }
 
-  override fun stepFrames(frames: Int) {
+  override fun onStepFrames(frames: Int) {
     if (frames == 0) return
     val target = plan?.resolved?.frameStepLanding(position, frames) ?: return
     // A step is a seek on this backend, and an expensive one: the process cannot move, so it is
