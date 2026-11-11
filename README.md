@@ -3,11 +3,12 @@
 [![Maven Central](https://img.shields.io/maven-central/v/dev.jordond.filmstrip/filmstrip?color=blue)](https://central.sonatype.com/artifact/dev.jordond.filmstrip/filmstrip)
 [![CI](https://github.com/jordond/filmstrip/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/jordond/filmstrip/actions/workflows/ci.yml)
 [![Docs](https://img.shields.io/badge/docs-filmstrip.jordond.dev-0A7EA4)](https://filmstrip.jordond.dev)
+[![Licence](https://img.shields.io/github/license/jordond/filmstrip)](LICENSE)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/jordond/filmstrip/badge)](https://scorecard.dev/viewer/?uri=github.com/jordond/filmstrip)
+
 [![Kotlin](https://img.shields.io/badge/dynamic/toml?url=https%3A%2F%2Fraw.githubusercontent.com%2Fjordond%2Ffilmstrip%2Fmain%2Fgradle%2Flibs.versions.toml&query=%24.versions.kotlin&label=Kotlin&color=7F52FF&logo=kotlin&logoColor=white)](https://kotlinlang.org)
 [![Compose Multiplatform](https://img.shields.io/badge/dynamic/toml?url=https%3A%2F%2Fraw.githubusercontent.com%2Fjordond%2Ffilmstrip%2Fmain%2Fgradle%2Flibs.versions.toml&query=%24.versions.compose-multiplatform&label=Compose%20Multiplatform&color=4285F4&logo=jetpackcompose&logoColor=white)](https://www.jetbrains.com/compose-multiplatform/)
 [![Media3](https://img.shields.io/badge/dynamic/toml?url=https%3A%2F%2Fraw.githubusercontent.com%2Fjordond%2Ffilmstrip%2Fmain%2Fgradle%2Flibs.versions.toml&query=%24.versions.media3&label=Media3&color=3DDC84&logo=android&logoColor=white)](https://developer.android.com/media/media3)
-[![Licence](https://img.shields.io/github/license/jordond/filmstrip)](LICENSE)
-[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/jordond/filmstrip/badge)](https://scorecard.dev/viewer/?uri=github.com/jordond/filmstrip)
 
 ![Android](https://img.shields.io/badge/Android-3DDC84?logo=android&logoColor=white)
 ![iOS](https://img.shields.io/badge/iOS-000000?logo=apple&logoColor=white)
