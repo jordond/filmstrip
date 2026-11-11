@@ -3,6 +3,7 @@
   "extends": [
     "config:recommended",
     ":configMigration",
+    "helpers:pinGitHubActionDigests",
     "abandonments:recommended"
   ],
   "enabledManagers": ["gradle", "gradle-wrapper", "github-actions"],
