@@ -33,6 +33,7 @@ import kotlin.concurrent.Volatile
  * @param seeks Hears each seek media3 accepted and each frame it draws.
  * @param loops Mirrors the playhead while the player moves pixels.
  * @param surfaces Holds the view a fresh player draws into.
+ * @param onFrame Called on media3's playback thread for each frame the video graph hands the surface.
  * @param onBuilt Called on the player's thread with each player as it is built.
  * @param onReleased Called on the player's thread with each player just before it is released.
  */
@@ -46,6 +47,7 @@ internal class Media3PlayerHost(
   private val seeks: Media3SeekCoordinator,
   private val loops: Media3LoopRangeController,
   private val surfaces: Media3SurfaceManager,
+  private val onFrame: () -> Unit,
   private val onBuilt: (CompositionPlayer) -> Unit,
   private val onReleased: (CompositionPlayer) -> Unit,
 ) {
@@ -147,7 +149,12 @@ internal class Media3PlayerHost(
   // The frame listener is called on media3's playback thread, once for each frame the video graph hands the surface.
   private fun CompositionPlayer.listenTo(generation: Int) {
     addListener(listenerFor(generation))
-    setVideoFrameMetadataListener { _, _, _, _ -> if (generation == epoch) seeks.frameDrawn() }
+    setVideoFrameMetadataListener { _, _, _, _ ->
+      if (generation == epoch) {
+        seeks.frameDrawn()
+        onFrame()
+      }
+    }
   }
 
   private fun listenerFor(generation: Int): Media3PlayerListener =

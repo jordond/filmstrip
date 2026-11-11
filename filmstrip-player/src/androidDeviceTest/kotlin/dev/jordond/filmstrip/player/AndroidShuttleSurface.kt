@@ -54,7 +54,11 @@ internal class ShuttleSurface(
    * A hash of what the surface shows now, scaled down to a patch small enough to copy many times a second.
    */
   suspend fun picture(): Int {
-    val status = copy()
+    // The compositor times a copy out while the surface is taking a buffer, which an emulator's can be for a while.
+    var status = copy()
+    awaitOrFail("a copy off the surface to stop timing out") {
+      status != PixelCopy.ERROR_TIMEOUT || copy().also { status = it } != PixelCopy.ERROR_TIMEOUT
+    }
     if (status != PixelCopy.SUCCESS) fail("PixelCopy off the surface answered $status")
     bitmap.getPixels(pixels, 0, PATCH_WIDTH, 0, 0, PATCH_WIDTH, PATCH_HEIGHT)
     return pixels.contentHashCode()

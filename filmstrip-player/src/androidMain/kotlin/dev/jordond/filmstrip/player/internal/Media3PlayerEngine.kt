@@ -31,6 +31,7 @@ import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 
@@ -75,6 +76,10 @@ internal class Media3PlayerEngine(
 
   private val guard = WrapGuard()
 
+  // Whether a redraw media3 was asked for has yet to hand its frame to the surface. Set on the engine's dispatcher
+  // and cleared on media3's playback thread.
+  private val redrawPending = AtomicBoolean(false)
+
   private val shutter = PreviewShutter(scope)
 
   private val loads = Media3GraphLoads(scope)
@@ -116,7 +121,7 @@ internal class Media3PlayerEngine(
       guard = guard,
       platformPositionMs = { status.platformPositionMs },
       loopWrap = { loops.wrap() },
-      showsFrames = { status.surfaceRendered && preview?.let { it.videoSequences > 0 } == true },
+      showsFrames = ::showsFrames,
       scrubbing = { scrubbing || shuttling },
       onIssued = status::clearEnd,
       onRedirected = ::movePlayhead,
@@ -148,6 +153,7 @@ internal class Media3PlayerEngine(
       seeks = seeks,
       loops = loops,
       surfaces = surfaces,
+      onFrame = { redrawPending.set(false) },
       onBuilt = { engines[it] = this },
       onReleased = { engines.remove(it) },
     )
@@ -243,6 +249,7 @@ internal class Media3PlayerEngine(
     accuracy: SeekAccuracy,
     onComplete: (landed: Duration) -> Unit,
   ) {
+    redrawPending.set(false)
     seeks.seek(position, accuracy, wrap = isWrapSeek, onComplete)
   }
 
@@ -260,10 +267,15 @@ internal class Media3PlayerEngine(
   override val redrawsHeldFrames: Boolean get() = true
 
   // The replayable cache draws the frame on the surface again at the presentation time it already has, so an effect
-  // on the preview clock is the only thing that moves.
+  // on the preview clock is the only thing that moves. media3's limit: a redraw flushes the one before it, so asking
+  // again before a frame has come out leaves a device slower than the interval showing none. A redraw is skipped
+  // until the last one's frame is handed over.
   override fun redrawHeld() {
+    if (!showsFrames() || !redrawPending.compareAndSet(false, true)) return
     handler.post { player?.experimentalRedrawLastFrame() }
   }
+
+  private fun showsFrames(): Boolean = status.surfaceRendered && preview?.let { it.videoSequences > 0 } == true
 
   override fun onScrubbingChanged(scrubbing: Boolean) {
     this.scrubbing = scrubbing
@@ -291,6 +303,7 @@ internal class Media3PlayerEngine(
   }
 
   private fun onSurfaceDetached() {
+    redrawPending.set(false)
     status.onSurfaceDetached()
     seeks.framesStopped()
   }

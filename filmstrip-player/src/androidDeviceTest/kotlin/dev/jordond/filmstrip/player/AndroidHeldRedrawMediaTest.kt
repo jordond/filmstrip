@@ -77,6 +77,8 @@ class AndroidHeldRedrawMediaTest {
 
     // Long enough for the seek's frame to be on the surface on a phone and on an emulator, before stillness is read.
     val SETTLE: Duration = 500.milliseconds
-    const val MIN_PICTURES = 4
+
+    // An emulator's software renderer takes about half a second to put a redraw on the surface.
+    const val MIN_PICTURES = 2
   }
 }

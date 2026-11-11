@@ -176,6 +176,7 @@ class Media3PlayerHostTest {
             drawnOnto = { false },
             represent = { },
           ),
+        onFrame = { },
         onBuilt = { built += it },
         onReleased = { released += it },
       )
