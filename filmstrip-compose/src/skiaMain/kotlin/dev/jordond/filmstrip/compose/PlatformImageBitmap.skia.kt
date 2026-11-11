@@ -10,7 +10,7 @@ import org.jetbrains.skia.ImageInfo
 
 // PlatformImage hands out tightly packed RGBA_8888 with no row padding, which is what Skia's raster
 // of the same type wants, so this is one copy and no reformatting.
-internal actual fun PlatformImage.toImageBitmap(): ImageBitmap? {
+public actual fun PlatformImage.toImageBitmap(): ImageBitmap? {
   if (widthPx <= 0 || heightPx <= 0) return null
   val info = ImageInfo(widthPx, heightPx, ColorType.RGBA_8888, ColorAlphaType.UNPREMUL)
   return Image.makeRaster(info, toRgba8888(), widthPx * BYTES_PER_PIXEL).toComposeImageBitmap()

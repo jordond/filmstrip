@@ -70,6 +70,12 @@ A frame read from a strip is only valid while its index is inside the reported w
 frame itself, so drawing a bitmap you kept after scrolling away draws released pixels.
 </Aside>
 
+A frame you fetched yourself with `filmstrip.frame` or `filmstrip.frames` draws through `toImageBitmap`. It returns null
+once the image is closed. Keep the image open while the bitmap is on screen and close it after, since Android draws the
+image's own pixels and the other platforms copy them.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/compose/Bindings.kt" region="own-frame" />
+
 <Aside type="note" title="Limits">
 The Compose artifacts target Android, iOS, the JVM and the browser. They have no macOS target.
 </Aside>

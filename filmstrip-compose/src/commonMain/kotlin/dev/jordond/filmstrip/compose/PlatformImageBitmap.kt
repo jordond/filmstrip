@@ -4,11 +4,11 @@ import androidx.compose.ui.graphics.ImageBitmap
 import dev.jordond.filmstrip.media.PlatformImage
 
 /**
- * Converts a rendered frame into a Compose [ImageBitmap] ready to draw.
+ * Converts a frame into a Compose [ImageBitmap] ready to draw.
  *
- * The frame still belongs to the [PlatformImage]. Where the platform can share the pixels rather
- * than copy them, closing the image leaves the bitmap unusable.
+ * The pixels still belong to the [PlatformImage]. Android hands back the image's own bitmap and every other platform
+ * copies it, so keep the image open for as long as the bitmap is drawn and close it after.
  *
- * Returns null once the image has been closed.
+ * @return The bitmap, or null once the image is closed or when it has no pixels.
  */
-internal expect fun PlatformImage.toImageBitmap(): ImageBitmap?
+public expect fun PlatformImage.toImageBitmap(): ImageBitmap?

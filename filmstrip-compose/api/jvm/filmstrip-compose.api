@@ -25,6 +25,10 @@ public final class dev/jordond/filmstrip/compose/FilmstripPlayerKt {
 	public static final fun rememberFilmstripPlayer (Ldev/jordond/filmstrip/player/PreviewFactory;Ldev/jordond/filmstrip/edit/Composition;Ldev/jordond/filmstrip/player/PlayerConfig;Landroidx/compose/runtime/Composer;II)Ldev/jordond/filmstrip/player/VideoPlayer;
 }
 
+public final class dev/jordond/filmstrip/compose/PlatformImageBitmap_skiaKt {
+	public static final fun toImageBitmap (Ldev/jordond/filmstrip/media/PlatformImage;)Landroidx/compose/ui/graphics/ImageBitmap;
+}
+
 public final class dev/jordond/filmstrip/compose/PlaybackEventEffectKt {
 	public static final fun PlaybackEventEffect (Ldev/jordond/filmstrip/player/VideoPlayer;Lkotlin/jvm/functions/Function1;Landroidx/compose/runtime/Composer;I)V
 }

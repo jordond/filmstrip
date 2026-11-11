@@ -9,6 +9,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -21,8 +22,10 @@ import dev.jordond.filmstrip.compose.rememberFilmstripFrames
 import dev.jordond.filmstrip.compose.rememberFilmstripPlayer
 import dev.jordond.filmstrip.compose.rememberPlayheadState
 import dev.jordond.filmstrip.compose.rememberVideoSurfaceState
+import dev.jordond.filmstrip.compose.toImageBitmap
 import dev.jordond.filmstrip.compose.videoAspect
 import dev.jordond.filmstrip.edit.Composition
+import dev.jordond.filmstrip.media.PlatformImage
 import dev.jordond.filmstrip.player.PlaybackEvent
 import kotlin.time.Duration
 
@@ -80,6 +83,17 @@ internal fun PosterFrame(
 
   if (poster != null) {
     Image(poster, contentDescription = null)
+  }
+  // endregion
+}
+
+@Composable
+internal fun OwnFrame(image: PlatformImage) {
+  // region own-frame
+  val bitmap = remember(image) { image.toImageBitmap() }
+
+  if (bitmap != null) {
+    Image(bitmap, contentDescription = null)
   }
   // endregion
 }

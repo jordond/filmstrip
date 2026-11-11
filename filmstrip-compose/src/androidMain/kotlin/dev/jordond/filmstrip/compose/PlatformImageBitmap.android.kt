@@ -6,4 +6,4 @@ import dev.jordond.filmstrip.media.PlatformImage
 
 // The result shares the image's bitmap. Closing the image recycles it, so nothing may draw the
 // result afterwards.
-internal actual fun PlatformImage.toImageBitmap(): ImageBitmap? = asBitmap()?.asImageBitmap()
+public actual fun PlatformImage.toImageBitmap(): ImageBitmap? = asBitmap()?.asImageBitmap()
