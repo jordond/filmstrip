@@ -19,6 +19,7 @@ import dev.jordond.filmstrip.effects.BuiltInEffectResolver
 import dev.jordond.filmstrip.effects.geometry.KenBurns
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.ExportStatus
+import dev.jordond.filmstrip.export.HdrMode
 import dev.jordond.filmstrip.export.Verdict
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.NormalizedRect
@@ -182,10 +183,21 @@ internal suspend fun androidExportFrameCovering(
 internal suspend fun androidExportedFile(composition: Composition): File =
   exports.getOrPut(composition) { export(composition) }
 
-internal suspend fun export(composition: Composition): File {
+/**
+ * The frame [composition] exports at [position] with its HDR grade tone mapped to SDR.
+ */
+internal suspend fun androidToneMappedExportFrame(
+  composition: Composition,
+  position: Duration,
+): TestFrame = eightBitFrameAt(export(composition, HdrMode.ToneMapToSdr), position).toTestFrame()
+
+internal suspend fun export(
+  composition: Composition,
+  hdr: HdrMode = ExportSpec().hdr,
+): File {
   val engine = media3ExportEngine(CONTRACT_COMPONENTS)
   val plan =
-    when (val verdict = engine.plan(composition, ExportSpec(bitrate = PREVIEW_PARITY_EXPORT_BITRATE))) {
+    when (val verdict = engine.plan(composition, ExportSpec(bitrate = PREVIEW_PARITY_EXPORT_BITRATE, hdr = hdr))) {
       is Verdict.Capable -> verdict.plan
       is Verdict.Degraded -> verdict.plan
       is Verdict.Incapable -> fail("the export refused the fixture: ${verdict.reasons.map { it.message }}")
@@ -207,7 +219,7 @@ internal suspend fun export(composition: Composition): File {
  * rows and the packed form must carry none of that. The alpha channel is written full: an exported
  * frame is opaque, and the decoder can hand back whatever it likes there.
  */
-private fun Bitmap.toTestFrame(): TestFrame {
+internal fun Bitmap.toTestFrame(): TestFrame {
   val colors = IntArray(width * height)
   getPixels(colors, 0, width, 0, 0, width, height)
 

@@ -1,7 +1,6 @@
 package dev.jordond.filmstrip.player.internal
 
 import android.graphics.Bitmap
-import android.view.SurfaceView
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe
 import io.mockk.mockk
@@ -23,7 +22,7 @@ import kotlin.time.Duration.Companion.milliseconds
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class PreviewShutterTest {
-  private val view = mockk<SurfaceView>()
+  private val view = mockk<PreviewTarget>()
   private val frame = mockk<Bitmap>()
   private val later = mockk<Bitmap>()
 
@@ -217,7 +216,7 @@ class PreviewShutterTest {
       private set
 
     override fun capture(
-      view: SurfaceView,
+      target: PreviewTarget,
       onFrame: (Bitmap?) -> Unit,
     ) {
       requests++

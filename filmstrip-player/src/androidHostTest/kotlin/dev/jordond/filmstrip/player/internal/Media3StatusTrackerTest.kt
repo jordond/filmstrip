@@ -1,7 +1,6 @@
 package dev.jordond.filmstrip.player.internal
 
 import android.graphics.Bitmap
-import android.view.SurfaceView
 import androidx.media3.common.C
 import androidx.media3.common.Player
 import dev.jordond.filmstrip.player.PlaybackError
@@ -22,7 +21,7 @@ import kotlin.time.Duration.Companion.milliseconds
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class Media3StatusTrackerTest {
-  private val view = mockk<SurfaceView>()
+  private val view = mockk<PreviewTarget>()
   private val frame = mockk<Bitmap>()
 
   @Test

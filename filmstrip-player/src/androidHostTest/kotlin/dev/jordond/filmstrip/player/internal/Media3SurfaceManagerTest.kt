@@ -30,17 +30,18 @@ class Media3SurfaceManagerTest {
       every { it.holder } returns holder
       every { holder.addCallback(capture(resizes)) } returns Unit
     }
+  private val target = SurfaceViewTarget(view)
 
   @Test
   fun `attaching takes the view up and fixes its buffer to the rendered frame`() =
     runTest {
       val rig = Rig(this, rendered = FRAME)
 
-      rig.manager.attach(view)
+      rig.manager.attach(target)
       runCurrent()
 
-      rig.manager.attached shouldBe view
-      rig.manager.previewView shouldBe view
+      rig.manager.attached shouldBe target
+      rig.manager.previewTarget shouldBe target
       rig.manager.applications shouldBe 1
       verify(exactly = 1) { holder.setFixedSize(FRAME.width, FRAME.height) }
     }
@@ -50,7 +51,7 @@ class Media3SurfaceManagerTest {
     runTest {
       val rig = Rig(this, rendered = null)
 
-      rig.manager.attach(view)
+      rig.manager.attach(target)
       runCurrent()
 
       verify(exactly = 0) { holder.setFixedSize(any(), any()) }
@@ -61,9 +62,9 @@ class Media3SurfaceManagerTest {
     runTest {
       val rig = Rig(this, rendered = null)
 
-      rig.manager.fixBuffer(view, FRAME)
-      rig.manager.fixBuffer(view, FRAME)
-      rig.manager.fixBuffer(view, PORTRAIT)
+      rig.manager.fixBuffer(target, FRAME)
+      rig.manager.fixBuffer(target, FRAME)
+      rig.manager.fixBuffer(target, PORTRAIT)
       rig.manager.fixBuffer(null, FRAME)
 
       verify(exactly = 1) { holder.setFixedSize(FRAME.width, FRAME.height) }
@@ -74,7 +75,7 @@ class Media3SurfaceManagerTest {
   fun `detaching lets the view go and says so on the engine's dispatcher`() =
     runTest {
       val rig = Rig(this, rendered = FRAME)
-      rig.manager.attach(view)
+      rig.manager.attach(target)
       runCurrent()
 
       rig.manager.detach(view)
@@ -83,7 +84,7 @@ class Media3SurfaceManagerTest {
 
       rig.detaches shouldBe 1
       rig.manager.attached shouldBe null
-      rig.manager.previewView shouldBe null
+      rig.manager.previewTarget shouldBe null
       verify(exactly = 1) { holder.removeCallback(resizes.captured) }
     }
 
@@ -92,27 +93,27 @@ class Media3SurfaceManagerTest {
     runTest {
       val rig = Rig(this, rendered = FRAME)
       val other = mockk<SurfaceView>().also { every { it.holder } returns mockk(relaxed = true) }
-      rig.manager.attach(view)
+      rig.manager.attach(target)
       runCurrent()
 
       rig.manager.detach(other)
       runCurrent()
 
       rig.detaches shouldBe 0
-      rig.manager.attached shouldBe view
-      rig.manager.previewView shouldBe view
+      rig.manager.attached shouldBe target
+      rig.manager.previewTarget shouldBe target
     }
 
   @Test
   fun `a view taken up again has its buffer fixed again`() =
     runTest {
       val rig = Rig(this, rendered = FRAME)
-      rig.manager.attach(view)
+      rig.manager.attach(target)
       runCurrent()
       rig.manager.detach(view)
       runCurrent()
 
-      rig.manager.attach(view)
+      rig.manager.attach(target)
       runCurrent()
 
       verify(exactly = 2) { holder.setFixedSize(FRAME.width, FRAME.height) }
@@ -122,7 +123,7 @@ class Media3SurfaceManagerTest {
   fun `a resize with no player standing touches nothing`() =
     runTest {
       val rig = Rig(this, rendered = FRAME, graphUp = true)
-      rig.manager.attach(view)
+      rig.manager.attach(target)
       runCurrent()
 
       resizes.captured.surfaceChanged(holder, 0, PORTRAIT.width, PORTRAIT.height)
@@ -135,7 +136,7 @@ class Media3SurfaceManagerTest {
   fun `releasing forgets the view the player drew into`() =
     runTest {
       val rig = Rig(this, rendered = FRAME)
-      rig.manager.attach(view)
+      rig.manager.attach(target)
       runCurrent()
 
       rig.manager.release()

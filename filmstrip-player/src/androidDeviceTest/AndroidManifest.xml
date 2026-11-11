@@ -5,5 +5,8 @@
         <activity
             android:name="dev.jordond.filmstrip.player.SurfaceHostActivity"
             android:exported="false" />
+        <activity
+            android:name="dev.jordond.filmstrip.player.TextureHostActivity"
+            android:exported="false" />
     </application>
 </manifest>

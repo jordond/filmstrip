@@ -19,13 +19,36 @@ import dev.jordond.filmstrip.player.VideoPlayer
  * Size the surface to the composition's output aspect rather than the source's. With effects
  * attached the surface letterboxes instead of stretching, so a container with the wrong ratio turns
  * mostly black. The output size is on the player's preview info.
+ *
+ * [type] picks the kind of view the video is drawn into on Android, and changes nothing anywhere else.
  */
 @Composable
 public expect fun VideoSurface(
   player: VideoPlayer,
   modifier: Modifier = Modifier,
   contentScale: VideoContentScale = VideoContentScale.Fit,
+  type: VideoSurfaceType = VideoSurfaceType.Default,
 )
+
+/**
+ * The kind of view [VideoSurface] draws the video into.
+ *
+ * Only Android has more than one. iOS, the JVM and the browser draw the same way for either.
+ */
+public enum class VideoSurfaceType {
+  /**
+   * The platform's own video surface. On Android a `SurfaceView`, which shows HDR and costs no extra copy, and which
+   * the UI layer cannot clip, fade or transform.
+   */
+  Default,
+
+  /**
+   * A view inside the UI layer. On Android a `TextureView`, so the video clips, fades, transforms and blends with
+   * what is drawn over it like any other composable. It shows SDR only, so an HDR edit is previewed tone mapped, and
+   * every frame is copied once more on its way to the screen.
+   */
+  Texture,
+}
 
 /**
  * How the video rectangle fills the space [VideoSurface] is given.

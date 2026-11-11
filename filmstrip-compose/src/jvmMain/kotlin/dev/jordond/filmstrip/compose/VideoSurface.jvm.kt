@@ -15,6 +15,7 @@ public actual fun VideoSurface(
   player: VideoPlayer,
   modifier: Modifier,
   contentScale: VideoContentScale,
+  type: VideoSurfaceType,
 ) {
   ReadbackSurface(player, modifier, contentScale)
 }

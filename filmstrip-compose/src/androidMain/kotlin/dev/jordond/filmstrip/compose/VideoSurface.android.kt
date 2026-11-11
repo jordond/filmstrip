@@ -2,6 +2,8 @@ package dev.jordond.filmstrip.compose
 
 import android.graphics.Bitmap
 import android.view.SurfaceView
+import android.view.TextureView
+import android.view.View
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -24,6 +26,7 @@ import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.Player
+import dev.jordond.filmstrip.Cancellable
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.player.VideoPlayer
 import dev.jordond.filmstrip.player.attachPreviewSurface
@@ -32,7 +35,7 @@ import kotlin.math.roundToInt
 import androidx.compose.ui.geometry.Size as ComposeSize
 
 /**
- * Android renders into a `SurfaceView`.
+ * Android renders into a `SurfaceView`, or into a `TextureView` when [type] asks for one.
  *
  * The view is handed to the engine behind [VideoPlayer.nativePlayer], which points its player at it
  * and reports back when it has pixels, which is what closes the shutter on [VideoSurfaceState]. A
@@ -45,12 +48,16 @@ import androidx.compose.ui.geometry.Size as ComposeSize
  * while the view stays where it is: a `SurfaceView` that changes bounds re-punches its hole, and for
  * a frame or two the surface composites over whatever Compose had drawn on top. So the view is sized
  * from the frame on screen rather than the one being loaded, and moves when the still is dropped.
+ *
+ * A `TextureView` is drawn by the UI layer, so it clips, fades and blends like any other view. It shows SDR only and
+ * copies every frame once more, and it is sized and covered by the still the same way.
  */
 @Composable
 public actual fun VideoSurface(
   player: VideoPlayer,
   modifier: Modifier,
   contentScale: VideoContentScale,
+  type: VideoSurfaceType,
 ) {
   if (player.nativePlayer !is Player) {
     Box(modifier)
@@ -58,12 +65,23 @@ public actual fun VideoSurface(
   }
 
   val context = LocalContext.current
-  val view = remember(context) { SurfaceView(context) }
+  val view: View =
+    remember(context, type) {
+      when (type) {
+        VideoSurfaceType.Default -> SurfaceView(context)
+        VideoSurfaceType.Texture -> TextureView(context)
+      }
+    }
   val surface = rememberVideoSurfaceState(player)
   val still = previewStill(player)
 
   DisposableEffect(player, view) {
-    val handle = player.attachPreviewSurface(view)
+    val handle =
+      when (view) {
+        is TextureView -> player.attachPreviewSurface(view)
+        is SurfaceView -> player.attachPreviewSurface(view)
+        else -> Cancellable { }
+      }
     onDispose { handle.cancel() }
   }
 

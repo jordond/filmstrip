@@ -121,7 +121,7 @@ internal class Media3PlayerHost(
     takesMultipleInputs = multipleInputs
     return buildPlayer(multipleInputs).also {
       it.listenTo(epoch)
-      surfaces.attached?.let(it::setVideoSurfaceView)
+      surfaces.attached?.applyTo(it)
       player = it
       onBuilt(it)
     }

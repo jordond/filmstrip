@@ -18,6 +18,7 @@ import androidx.compose.ui.unit.dp
 import dev.jordond.filmstrip.compose.VideoContentScale
 import dev.jordond.filmstrip.compose.VideoSurface
 import dev.jordond.filmstrip.compose.VideoSurfaceState
+import dev.jordond.filmstrip.compose.VideoSurfaceType
 import dev.jordond.filmstrip.compose.rememberVideoSurfaceState
 import dev.jordond.filmstrip.compose.ui.component.CropOverlay
 import dev.jordond.filmstrip.compose.ui.component.PreviewSurface
@@ -74,6 +75,7 @@ import androidx.compose.ui.geometry.Size as ComposeSize
  * @param contentScale How the video fills the stage.
  * @param surface The holder the presented size is read from, for a host that already keeps one over [player]. Null
  * leaves the stage keeping its own.
+ * @param surfaceType The kind of view the video is drawn into, which only Android reads.
  * @param fallback Drawn at the stage's size when [player] is null.
  * @param content Drawn over the video or the fallback, for overlays that address the frame.
  */
@@ -84,6 +86,7 @@ public fun VideoStage(
   modifier: Modifier = Modifier,
   contentScale: VideoContentScale = VideoContentScale.Fit,
   surface: VideoSurfaceState? = null,
+  surfaceType: VideoSurfaceType = VideoSurfaceType.Default,
   fallback: @Composable BoxScope.() -> Unit = { },
   content: @Composable VideoStageScope.() -> Unit = { },
 ) {
@@ -100,7 +103,7 @@ public fun VideoStage(
         CropFrame(videoContentRect(aspect, available, contentScale))
       }
 
-    if (player == null) fallback() else VideoSurface(player, Modifier.fillMaxSize(), contentScale)
+    if (player == null) fallback() else VideoSurface(player, Modifier.fillMaxSize(), contentScale, surfaceType)
 
     val boxScope = this
     remember(boxScope, frame, aspect) { VideoStageContent(boxScope, frame, aspect) }.content()

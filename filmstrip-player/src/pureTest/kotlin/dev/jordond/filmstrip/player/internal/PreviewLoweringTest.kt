@@ -16,6 +16,7 @@ import dev.jordond.filmstrip.export.OutputFormat
 import dev.jordond.filmstrip.export.Verdict
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.player.PlaybackError
 import dev.jordond.filmstrip.player.PreviewQualityPolicy
@@ -73,7 +74,7 @@ class PreviewLoweringTest {
           0,
           ExportSpec(),
           resolver.grade,
-          resolver.resolve,
+          resolve = resolver.resolve,
         ).shouldBeInstanceOf<PlanResult.Ready<HeightLowering>>().plan
 
       resolver.calls shouldBe listOf(ExportSpec() to null)
@@ -89,7 +90,7 @@ class PreviewLoweringTest {
       val resolver = RecordingResolve()
 
       val lowering =
-        lowerAtHeight(EDIT, MID_HEIGHT, ExportSpec(), resolver.grade, resolver.resolve)
+        lowerAtHeight(EDIT, MID_HEIGHT, ExportSpec(), resolver.grade, resolve = resolver.resolve)
           .shouldBeInstanceOf<PlanResult.Ready<HeightLowering>>()
           .plan
 
@@ -107,7 +108,7 @@ class PreviewLoweringTest {
       val resolver = RecordingResolve(answer = ExportGrade.Settled(ResolvedHdr.ToneMap))
       val export = ExportSpec(hdr = HdrMode.ToneMapToSdr, bitrate = Bitrate.mbps(8))
 
-      lowerAtHeight(EDIT, MID_HEIGHT, export, resolver.grade, resolver.resolve)
+      lowerAtHeight(EDIT, MID_HEIGHT, export, resolver.grade, resolve = resolver.resolve)
         .shouldBeInstanceOf<PlanResult.Ready<HeightLowering>>()
 
       resolver.graded shouldBe listOf(export)
@@ -120,8 +121,14 @@ class PreviewLoweringTest {
     runTest {
       val resolver = RecordingResolve(answer = ExportGrade.Refused(FilmstripError.InvalidComposition(MESSAGE)))
 
-      planPreview(EDIT, PreviewQualityPolicy.Full, ExportSpec(), emptyList(), resolver.grade, resolver.resolve)
-        .shouldBeInstanceOf<PlanResult.Refused<PlaybackError>>()
+      planPreview(
+        EDIT,
+        PreviewQualityPolicy.Full,
+        ExportSpec(),
+        emptyList(),
+        resolver.grade,
+        resolve = resolver.resolve,
+      ).shouldBeInstanceOf<PlanResult.Refused<PlaybackError>>()
         .error shouldBe PlaybackError.UnsupportedFormat(MESSAGE)
 
       resolver.calls.shouldBeEmpty()
@@ -133,11 +140,11 @@ class PreviewLoweringTest {
       val refusal = FilmstripError.SourceUnreadable("a.mp4", "unreadable")
 
       RecordingResolve(refuseAt = 0)
-        .let { lowerAtHeight(EDIT, MID_HEIGHT, ExportSpec(), it.grade, it.resolve) }
+        .let { lowerAtHeight(EDIT, MID_HEIGHT, ExportSpec(), it.grade, resolve = it.resolve) }
         .shouldBeInstanceOf<PlanResult.Refused<FilmstripError>>()
         .error shouldBe refusal
       RecordingResolve(refuseAt = 1)
-        .let { lowerAtHeight(EDIT, MID_HEIGHT, ExportSpec(), it.grade, it.resolve) }
+        .let { lowerAtHeight(EDIT, MID_HEIGHT, ExportSpec(), it.grade, resolve = it.resolve) }
         .shouldBeInstanceOf<PlanResult.Refused<FilmstripError>>()
         .error shouldBe refusal
     }
@@ -154,7 +161,7 @@ class PreviewLoweringTest {
               ExportSpec(),
               emptyList(),
               it.grade,
-              it.resolve,
+              resolve = it.resolve,
             )
           }.shouldBeInstanceOf<PlanResult.Ready<PreviewPlan>>()
           .plan
@@ -172,8 +179,16 @@ class PreviewLoweringTest {
     runTest {
       val plan =
         RecordingResolve()
-          .let { planPreview(EDIT, PreviewQualityPolicy.Full, ExportSpec(), emptyList(), it.grade, it.resolve) }
-          .shouldBeInstanceOf<PlanResult.Ready<PreviewPlan>>()
+          .let {
+            planPreview(
+              EDIT,
+              PreviewQualityPolicy.Full,
+              ExportSpec(),
+              emptyList(),
+              it.grade,
+              resolve = it.resolve,
+            )
+          }.shouldBeInstanceOf<PlanResult.Ready<PreviewPlan>>()
           .plan
 
       plan.info.renderScale shouldBe 1f
@@ -187,10 +202,10 @@ class PreviewLoweringTest {
       val kept = RecordingResolve()
       val mapped = RecordingResolve(resolvedHdr = ResolvedHdr.ToneMap)
 
-      planPreview(EDIT, PreviewQualityPolicy.Full, ExportSpec(), fidelity, kept.grade, kept.resolve)
+      planPreview(EDIT, PreviewQualityPolicy.Full, ExportSpec(), fidelity, kept.grade, resolve = kept.resolve)
         .shouldBeInstanceOf<PlanResult.Ready<PreviewPlan>>()
         .plan.info.fidelity shouldBe fidelity
-      planPreview(EDIT, PreviewQualityPolicy.Full, ExportSpec(), fidelity, mapped.grade, mapped.resolve)
+      planPreview(EDIT, PreviewQualityPolicy.Full, ExportSpec(), fidelity, mapped.grade, resolve = mapped.resolve)
         .shouldBeInstanceOf<PlanResult.Ready<PreviewPlan>>()
         .plan.info.fidelity shouldBe listOf(NO_ENCODER_PREVIEW)
     }
@@ -199,7 +214,7 @@ class PreviewLoweringTest {
   fun `a refused preview reads the refusal as a playback error`() =
     runTest {
       RecordingResolve(refuseAt = 0)
-        .let { planPreview(EDIT, PreviewQualityPolicy.Full, ExportSpec(), emptyList(), it.grade, it.resolve) }
+        .let { planPreview(EDIT, PreviewQualityPolicy.Full, ExportSpec(), emptyList(), it.grade, resolve = it.resolve) }
         .shouldBeInstanceOf<PlanResult.Refused<PlaybackError>>()
         .error shouldBe PlaybackError.SourceUnreadable("unreadable")
     }
@@ -235,12 +250,104 @@ class PreviewLoweringTest {
     for (error in unsupported) error.toPlaybackError() shouldBe PlaybackError.UnsupportedFormat(MESSAGE)
   }
 
+  @Test
+  fun `an HDR grade the export keeps is lowered again as a tone map on a surface that shows SDR only`() =
+    runTest {
+      val fidelity = listOf(NO_ENCODER_PREVIEW, DISPLAY_DECIDES_HDR)
+      val kept = RecordingResolve(transfer = HdrTransfer.Pq)
+
+      val plan =
+        planPreview(
+          EDIT,
+          PreviewQualityPolicy.Full,
+          ExportSpec(),
+          fidelity,
+          kept.grade,
+          sdrOnlySurface = true,
+          kept.resolve,
+        ).shouldBeInstanceOf<PlanResult.Ready<PreviewPlan>>()
+          .plan
+
+      kept.grades shouldBe listOf(ResolvedHdr.Keep, ResolvedHdr.ToneMap)
+      plan.resolved.hdr shouldBe ResolvedHdr.ToneMap
+      plan.info.fidelity shouldBe listOf(NO_ENCODER_PREVIEW, SDR_SURFACE_MAPS_HDR)
+    }
+
+  @Test
+  fun `an HDR grade the export keeps is kept on a surface that shows it`() =
+    runTest {
+      val fidelity = listOf(NO_ENCODER_PREVIEW, DISPLAY_DECIDES_HDR)
+      val kept = RecordingResolve(transfer = HdrTransfer.Pq)
+
+      val plan =
+        planPreview(EDIT, PreviewQualityPolicy.Full, ExportSpec(), fidelity, kept.grade, resolve = kept.resolve)
+          .shouldBeInstanceOf<PlanResult.Ready<PreviewPlan>>()
+          .plan
+
+      kept.grades shouldBe listOf(ResolvedHdr.Keep)
+      plan.resolved.hdr shouldBe ResolvedHdr.Keep
+      plan.info.fidelity shouldBe fidelity
+    }
+
+  @Test
+  fun `an SDR edit lowers once and reads the same on a surface that shows SDR only`() =
+    runTest {
+      val fidelity = listOf(NO_ENCODER_PREVIEW, DISPLAY_DECIDES_HDR)
+      val sdr = RecordingResolve()
+
+      val plan =
+        planPreview(
+          EDIT,
+          PreviewQualityPolicy.Full,
+          ExportSpec(),
+          fidelity,
+          sdr.grade,
+          sdrOnlySurface = true,
+          sdr.resolve,
+        ).shouldBeInstanceOf<PlanResult.Ready<PreviewPlan>>()
+          .plan
+
+      sdr.grades shouldBe listOf(ResolvedHdr.Keep)
+      plan.resolved.hdr shouldBe ResolvedHdr.Keep
+      plan.info.fidelity shouldBe fidelity
+    }
+
+  @Test
+  fun `a grade that is already a tone map plans the same on either surface`() =
+    runTest {
+      val fidelity = listOf(NO_ENCODER_PREVIEW, DISPLAY_DECIDES_HDR)
+      val plans =
+        listOf(false, true).map { sdrOnly ->
+          val mapped =
+            RecordingResolve(answer = ExportGrade.Settled(ResolvedHdr.ToneMap), resolvedHdr = ResolvedHdr.ToneMap)
+          val plan =
+            planPreview(EDIT, PreviewQualityPolicy.Full, ExportSpec(), fidelity, mapped.grade, sdrOnly, mapped.resolve)
+              .shouldBeInstanceOf<PlanResult.Ready<PreviewPlan>>()
+              .plan
+          mapped.grades to plan.info.fidelity
+        }
+
+      plans.first() shouldBe plans.last()
+      plans.first() shouldBe (listOf(ResolvedHdr.ToneMap) to listOf(NO_ENCODER_PREVIEW))
+    }
+
+  @Test
+  fun `a refused grade is refused on a surface that shows SDR only too`() =
+    runTest {
+      val resolver = RecordingResolve(answer = ExportGrade.Refused(FilmstripError.InvalidComposition(MESSAGE)))
+
+      planPreview(EDIT, PreviewQualityPolicy.Full, ExportSpec(), emptyList(), resolver.grade, true, resolver.resolve)
+        .shouldBeInstanceOf<PlanResult.Refused<PlaybackError>>()
+      resolver.calls shouldBe emptyList()
+    }
+
   // Answers the natural frame for an uncapped spec and the capped height for a capped one, refusing the call at
   // [refuseAt] when there is one.
   private class RecordingResolve(
     private val refuseAt: Int? = null,
     private val answer: ExportGrade = ExportGrade.Settled(ResolvedHdr.Keep),
     private val resolvedHdr: ResolvedHdr = ResolvedHdr.Keep,
+    private val transfer: HdrTransfer? = null,
   ) {
     val calls = mutableListOf<Pair<ExportSpec, Size?>>()
     val grades = mutableListOf<ResolvedHdr?>()
@@ -260,7 +367,18 @@ class PreviewLoweringTest {
       } else {
         val height = spec.heightPx ?: NATURAL.height
         ResolveResult.Resolved(
-          resolvedAt(Size(NATURAL.width * height / NATURAL.height, height), resolvedHdr),
+          // An edit with a transfer is HDR and lowers to the grade it is asked for. One without is whatever it was
+          // built to answer.
+          if (transfer == null) {
+            resolvedAt(Size(NATURAL.width * height / NATURAL.height, height), resolvedHdr, null)
+          } else {
+            val asked = hdr ?: ResolvedHdr.Keep
+            resolvedAt(
+              Size(NATURAL.width * height / NATURAL.height, height),
+              asked,
+              transfer.takeIf { asked == ResolvedHdr.Keep },
+            )
+          },
           Verdict.Incapable(emptyList(), null),
         )
       }
@@ -281,6 +399,7 @@ class PreviewLoweringTest {
     fun resolvedAt(
       size: Size,
       hdr: ResolvedHdr,
+      hdrTransfer: HdrTransfer? = null,
     ): ResolvedComposition =
       ResolvedComposition(
         tracks = emptyList(),
@@ -298,7 +417,7 @@ class PreviewLoweringTest {
         fill = Fill.Black,
         duration = 2.seconds,
         hdr = hdr,
-        hdrTransfer = null,
+        hdrTransfer = hdrTransfer,
         path = ExportPath.Transcode,
         audio = AudioSpec.Keep,
         adjustments = emptyList(),

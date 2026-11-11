@@ -68,3 +68,14 @@ internal val DISPLAY_DECIDES_HDR: FidelityNote =
     fidelity = PreviewFidelity.NotPreviewable,
     message = "How an HDR grade looks is decided by the display, not by the composition.",
   )
+
+/**
+ * What a preview says about an HDR export when the surface it draws into shows SDR only, so the grade it would have
+ * kept is tone mapped on the way.
+ */
+internal val SDR_SURFACE_MAPS_HDR: FidelityNote =
+  FidelityNote(
+    property = OutputProperty.HdrAppearance,
+    fidelity = PreviewFidelity.NotPreviewable,
+    message = "This preview surface shows SDR only, so the preview tone maps an HDR grade the export keeps.",
+  )

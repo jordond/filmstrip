@@ -39,6 +39,7 @@ public actual fun VideoSurface(
   player: VideoPlayer,
   modifier: Modifier,
   contentScale: VideoContentScale,
+  type: VideoSurfaceType,
 ) {
   val native = player.nativePlayer as? AVPlayer
   if (native == null) {

@@ -103,6 +103,13 @@ than the file.
 - Fading a large picture overlay on ffmpeg is slow while the opacity moves, about 27 ms a frame for a 1080p picture.
   Frames where it holds are fast.
 
+## Texture surface on Android
+
+`VideoSurfaceType.Texture` draws the Android preview into a `TextureView`. The view is composited by the app's own SDR
+layer, so an edit whose export keeps HDR is previewed tone mapped, and the preview's fidelity notes say so. Below API 29
+media3 has no tone map, so an HDR edit on a texture is refused the way a tone mapped export is. The default surface
+shows the kept grade.
+
 ## Relaxed seek
 
 A `SeekAccuracy.Nearest` seek lands on a nearby frame, and its `SeekCompleted` says which one.

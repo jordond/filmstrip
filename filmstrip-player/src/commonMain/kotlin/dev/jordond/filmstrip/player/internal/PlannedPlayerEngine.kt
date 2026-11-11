@@ -64,10 +64,26 @@ internal abstract class PlannedPlayerEngine<P : PlannedPreview>(
 
   private var exportSpec: ExportSpec = exportSpec
 
-  private val wanted: PlanInputs get() = PlanInputs(policy, exportSpec)
+  private val wanted: PlanInputs get() = PlanInputs(policy, exportSpec, planBasis)
+
+  /**
+   * Whatever the backend's planner reads besides the edit, the policy and the spec, or null when there is nothing.
+   *
+   * A plan made against one value does not stand for another, so a backend calls [planBasisChanged] when it moves.
+   */
+  protected open val planBasis: Any? get() = null
+
+  /**
+   * Plans the requested edit again when [planBasis] is no longer what the standing plan was made against.
+   *
+   * A load already running picks the change up when it is done.
+   */
+  protected fun planBasisChanged() {
+    if (planned != wanted && !pending.isOutstanding) replan()
+  }
 
   // What the plan in place was last checked against.
-  private var planned: PlanInputs = PlanInputs(qualityPolicy, exportSpec)
+  private var planned: PlanInputs = PlanInputs(qualityPolicy, exportSpec, null)
 
   // Whether a refusal is what the status reports over any graph still standing, which only a plan applied can clear.
   private var standingRefused: Boolean = false
@@ -265,5 +281,6 @@ internal abstract class PlannedPlayerEngine<P : PlannedPreview>(
   private data class PlanInputs(
     val policy: PreviewQualityPolicy,
     val spec: ExportSpec,
+    val basis: Any?,
   )
 }

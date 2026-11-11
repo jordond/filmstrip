@@ -1,18 +1,28 @@
 package dev.jordond.filmstrip.compose
 
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.Rect
+import android.os.Handler
 import android.os.Looper
+import android.view.PixelCopy
 import android.view.SurfaceView
+import android.view.TextureView
 import android.view.View
 import android.view.ViewGroup
 import androidx.activity.ComponentActivity
+import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.AndroidComposeUiTest
@@ -20,6 +30,7 @@ import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.v2.runAndroidComposeUiTest
 import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.media3.common.SimpleBasePlayer
 import androidx.test.platform.app.InstrumentationRegistry
@@ -37,11 +48,17 @@ import dev.jordond.filmstrip.player.PlaybackStatus
 import dev.jordond.filmstrip.player.VideoPlayer
 import dev.jordond.filmstrip.player.playerBackend
 import dev.jordond.filmstrip.test.writeAtomically
+import io.kotest.assertions.withClue
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldHaveSize
+import io.kotest.matchers.doubles.shouldBeLessThan
 import io.kotest.matchers.floats.plusOrMinus
+import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
 import java.io.File
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlin.test.Test
 import kotlin.test.fail
@@ -169,6 +186,123 @@ class VideoSurfaceAndroidTest {
       surfaceViews() shouldHaveSize 1
     }
 
+  @Test
+  fun aTextureLaysOutTheRectanglesTheDefaultDoes() =
+    runAndroidComposeUiTest<ComponentActivity> {
+      val engine = RecordingEngine(nativePlayer = IdlePlayer())
+      val filmstrip = filmstripWith(engine)
+      var scale by mutableStateOf(VideoContentScale.Fit)
+      setContent {
+        val player = rememberFilmstripPlayer(filmstrip, testComposition("surface.mp4"))
+        VideoSurface(player, Modifier.pixelSize(BOX).testTag(SURFACE), scale, VideoSurfaceType.Texture)
+      }
+      engine.reportPreviewInfo(previewInfo(OUTPUT))
+
+      for (each in listOf(VideoContentScale.Fit, VideoContentScale.Crop)) {
+        scale = each
+        waitForIdle()
+
+        val view = textureViews().single()
+        view.size() shouldBe expectedSize(each)
+        offsetFromBox(view).shouldBeCentred(expectedSize(each))
+      }
+      scale = VideoContentScale.Stretch
+      waitForIdle()
+
+      textureViews().single().size() shouldBe BOX
+      surfaceViews().shouldBeEmpty()
+    }
+
+  /**
+   * The reason to ask for a texture: the video is part of the window's own picture, so what is drawn over it blends.
+   *
+   * A copy of the window sees the video under a texture and only a hole under a `SurfaceView`. The frame is read once
+   * bare and once under a half white cover, and every pixel under the cover sits halfway to white.
+   */
+  @Test
+  fun aComposableOverATextureBlendsWithTheVideo() =
+    runAndroidComposeUiTest<ComponentActivity> {
+      val filmstrip = Filmstrip(context) { playerBackend() }
+      val composition = fixtureComposition()
+      var covered by mutableStateOf(false)
+      lateinit var player: VideoPlayer
+      lateinit var state: VideoSurfaceState
+      setContent {
+        player = rememberFilmstripPlayer(filmstrip, composition)
+        state = rememberVideoSurfaceState(player)
+        // Clear of the host activity's action bar, which lies over the top of the window's own picture.
+        Box(Modifier.fillMaxSize()) {
+          Box(Modifier.offset { IntOffset(0, BELOW_THE_BAR) }.pixelSize(BOX).testTag(SURFACE)) {
+            VideoSurface(player, Modifier.fillMaxSize(), type = VideoSurfaceType.Texture)
+            if (covered) Box(Modifier.fillMaxSize().background(Color.White.copy(alpha = HALF)))
+          }
+        }
+      }
+      waitUntil("the preview to become ready", BUDGET_MILLIS) { player.state.value.status == PlaybackStatus.Ready }
+      runOnUiThread { player.play() }
+      waitUntil("a first frame to lift the shutter", BUDGET_MILLIS) { !state.coverSurface }
+      runOnUiThread { player.pause() }
+      Thread.sleep(COMPOSITED_MILLIS)
+
+      val bare = videoPixels()
+      withClue("the window's own picture holds no video, only a flat hole") {
+        (bare.maxOf(::luma) - bare.minOf(::luma)) shouldBeGreaterThan FLAT_SPREAD
+      }
+
+      covered = true
+      waitForIdle()
+      Thread.sleep(COMPOSITED_MILLIS)
+      val blended = videoPixels()
+
+      val error =
+        bare.indices.sumOf { index ->
+          CHANNEL_SHIFTS.sumOf { shift ->
+            val video = (bare[index] shr shift) and BYTE
+            val shown = (blended[index] shr shift) and BYTE
+            abs(shown - (video + BYTE) / 2)
+          }
+        } / (bare.size * CHANNEL_SHIFTS.size).toDouble()
+      withClue(
+        "the cover did not blend with the video under it, bare luma ${bare.map(::luma).average()} " +
+          "under the cover ${blended.map(::luma).average()}",
+      ) { error shouldBeLessThan BLEND_TOLERANCE }
+    }
+
+  // The pixels of the window's own picture inside the rectangle the video is fitted to, a few pixels in from its edge.
+  private fun AndroidComposeUiTest<ComponentActivity>.videoPixels(): IntArray {
+    val window = activity?.window ?: fail("the host activity never started")
+    val box = onNodeWithTag(SURFACE).fetchSemanticsNode().boundsInWindow
+    val video = videoRect(FIXTURE_FRAME, BOX.toCompose(), VideoContentScale.Fit).rounded()
+    val left = box.left.roundToInt() + (BOX.width - video.width) / 2 + INSET
+    val top = box.top.roundToInt() + (BOX.height - video.height) / 2 + INSET
+    val area = Rect(left, top, left + video.width - 2 * INSET, top + video.height - 2 * INSET)
+    val bitmap = Bitmap.createBitmap(area.width(), area.height(), Bitmap.Config.ARGB_8888)
+    val answered = CountDownLatch(1)
+    var status = PixelCopy.ERROR_UNKNOWN
+    PixelCopy.request(
+      window,
+      area,
+      bitmap,
+      { result ->
+        status = result
+        answered.countDown()
+      },
+      Handler(Looper.getMainLooper()),
+    )
+    if (!answered.await(BUDGET_MILLIS, TimeUnit.MILLISECONDS)) fail("PixelCopy off the window never answered")
+    if (status != PixelCopy.SUCCESS) fail("PixelCopy off the window answered $status")
+    return IntArray(bitmap.width * bitmap.height).also {
+      bitmap.getPixels(it, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
+    }
+  }
+
+  private fun luma(color: Int): Int = CHANNEL_SHIFTS.sumOf { (color shr it) and BYTE } / CHANNEL_SHIFTS.size
+
+  private fun AndroidComposeUiTest<ComponentActivity>.textureViews(): List<TextureView> {
+    val root = activity?.window?.decorView ?: fail("the host activity never started")
+    return root.descendants().filterIsInstance<TextureView>().toList()
+  }
+
   private fun AndroidComposeUiTest<ComponentActivity>.showFakeSurface(contentScale: VideoContentScale) {
     val engine = RecordingEngine(nativePlayer = IdlePlayer())
     val filmstrip = filmstripWith(engine)
@@ -185,7 +319,7 @@ class VideoSurfaceAndroidTest {
     return root.descendants().filterIsInstance<SurfaceView>().toList()
   }
 
-  private fun AndroidComposeUiTest<ComponentActivity>.offsetFromBox(view: SurfaceView): IntSize {
+  private fun AndroidComposeUiTest<ComponentActivity>.offsetFromBox(view: View): IntSize {
     val box = onNodeWithTag(SURFACE).fetchSemanticsNode().boundsInWindow
     val location = IntArray(2).also { view.getLocationInWindow(it) }
     return IntSize(location[0] - box.left.roundToInt(), location[1] - box.top.roundToInt())
@@ -251,6 +385,21 @@ class VideoSurfaceAndroidTest {
     const val FIXTURE = "android_export_a.mp4"
     const val BUDGET_MILLIS = 30_000L
     const val HALF_PIXEL = 0.5f
+
+    const val HALF = 0.5f
+    const val BYTE = 0xFF
+    val CHANNEL_SHIFTS = listOf(16, 8, 0)
+    const val INSET = 4
+    const val BELOW_THE_BAR = 600
+
+    // Past the 250 ms an emulator takes to composite what was drawn.
+    const val COMPOSITED_MILLIS = 700L
+
+    // A hole reads one flat colour. The fixture's frame runs from dark to bright many times this.
+    const val FLAT_SPREAD = 32
+
+    // A mean of a few codes covers the blend's rounding and the texture's filtering.
+    const val BLEND_TOLERANCE = 6.0
 
     // Square, so the 16:9 output letterboxes under a fit and overflows sideways under a crop.
     val BOX = IntSize(300, 300)

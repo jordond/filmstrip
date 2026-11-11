@@ -93,7 +93,15 @@ public final class dev/jordond/filmstrip/compose/VideoSurfaceStateKt {
 	public static final fun videoAspect (Landroidx/compose/ui/Modifier;Ldev/jordond/filmstrip/compose/VideoSurfaceState;Ldev/jordond/filmstrip/compose/VideoContentScale;)Landroidx/compose/ui/Modifier;
 }
 
+public final class dev/jordond/filmstrip/compose/VideoSurfaceType : java/lang/Enum {
+	public static final field Default Ldev/jordond/filmstrip/compose/VideoSurfaceType;
+	public static final field Texture Ldev/jordond/filmstrip/compose/VideoSurfaceType;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Ldev/jordond/filmstrip/compose/VideoSurfaceType;
+	public static fun values ()[Ldev/jordond/filmstrip/compose/VideoSurfaceType;
+}
+
 public final class dev/jordond/filmstrip/compose/VideoSurface_androidKt {
-	public static final fun VideoSurface (Ldev/jordond/filmstrip/player/VideoPlayer;Landroidx/compose/ui/Modifier;Ldev/jordond/filmstrip/compose/VideoContentScale;Landroidx/compose/runtime/Composer;II)V
+	public static final fun VideoSurface (Ldev/jordond/filmstrip/player/VideoPlayer;Landroidx/compose/ui/Modifier;Ldev/jordond/filmstrip/compose/VideoContentScale;Ldev/jordond/filmstrip/compose/VideoSurfaceType;Landroidx/compose/runtime/Composer;II)V
 }
 

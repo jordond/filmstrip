@@ -23,6 +23,13 @@ Size the surface to the composition's output aspect, not the source's. `videoAsp
 `contentScale` is a fit in the view. `VideoContentScale.Fit` shows bars in the view that never reach the file, unlike
 letterboxing in the composition, which writes real pixels.
 
+On Android the video is drawn into a `SurfaceView`, which shows HDR but sits outside the UI layer, so it can't be
+faded, clipped to a shape or transformed. Pass `type = VideoSurfaceType.Texture` to draw into a `TextureView` instead,
+which behaves like any other composable. It shows SDR only, so an HDR edit is previewed tone mapped, and it copies every
+frame once more. iOS, the JVM and the browser draw the same way for either.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/compose/Bindings.kt" region="texture" />
+
 <Aside type="caution">
 `remember` survives recomposition but not a configuration change, so a rotation tears the player down and builds a new
 one. For anything longer-lived than a throwaway preview, hoist the player somewhere that outlives the screen and pass it to

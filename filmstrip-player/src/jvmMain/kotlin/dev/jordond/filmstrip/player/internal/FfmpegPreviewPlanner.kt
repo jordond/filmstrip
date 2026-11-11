@@ -48,7 +48,7 @@ internal open class FfmpegPreviewPlanner(
           exportSpec,
           emptyList(),
           engine::exportGrade,
-          engine::resolve,
+          resolve = engine::resolve,
         )
     ) {
       is PlanResult.Refused -> {

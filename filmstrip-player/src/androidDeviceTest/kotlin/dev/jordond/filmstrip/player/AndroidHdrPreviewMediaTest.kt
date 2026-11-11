@@ -29,6 +29,7 @@ import dev.jordond.filmstrip.player.internal.DISPLAY_DECIDES_HDR
 import dev.jordond.filmstrip.player.internal.Media3PreviewPlan
 import dev.jordond.filmstrip.player.internal.Media3PreviewPlanner
 import dev.jordond.filmstrip.player.internal.PlanResult
+import dev.jordond.filmstrip.player.internal.SDR_SURFACE_MAPS_HDR
 import dev.jordond.filmstrip.test.OverlayPixels.pngOf
 import dev.jordond.filmstrip.test.assumeDecodesTenBitHevc
 import dev.jordond.filmstrip.test.assumeEncodesHdr
@@ -36,6 +37,7 @@ import dev.jordond.filmstrip.test.writeAtomically
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedHdr
 import io.kotest.assertions.withClue
 import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
@@ -113,6 +115,37 @@ class AndroidHdrPreviewMediaTest {
 
         plan.resolved.hdr shouldBe ResolvedHdr.ToneMap
         plan.info.fidelity shouldNotContain DISPLAY_DECIDES_HDR
+        plan.resolved
+          .toMedia3Preview(plan.bounds)
+          .composition.hdrMode shouldBe Media3Composition.HDR_MODE_TONE_MAP_HDR_TO_SDR_USING_OPEN_GL
+      }
+    }
+
+  // A TextureView shows SDR only, so the planner behind one lowers the grade an export keeps to the tone map and says
+  // so. Read off the lowering here, the way the test above is, and off the texture on a phone with a ten-bit decoder.
+  @Test
+  fun aSurfaceThatShowsSdrOnlyLowersAKeptGradeToTheOpenGlToneMap() =
+    runTest(timeout = TIMEOUT) {
+      realTime {
+        val planner = Media3PreviewPlanner(CONTRACT_COMPONENTS)
+        val kept = planner.plan(hdrComposition(), PreviewQualityPolicy.Full, ExportSpec())
+        assumeTrue(
+          "this device does not keep the grade, so there is nothing for the surface to clamp",
+          (kept as? PlanResult.Ready<Media3PreviewPlan>)?.plan?.resolved?.hdr == ResolvedHdr.Keep,
+        )
+
+        planner.sdrOnlySurface = true
+        val planned = planner.plan(hdrComposition(), PreviewQualityPolicy.Full, ExportSpec())
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+          val refused = planned.shouldBeInstanceOf<PlanResult.Refused<PlaybackError>>()
+          refused.error.message shouldContain "below API 29"
+          return@realTime
+        }
+        val plan = planned.shouldBeInstanceOf<PlanResult.Ready<Media3PreviewPlan>>().plan
+
+        plan.resolved.hdr shouldBe ResolvedHdr.ToneMap
+        plan.info.fidelity shouldNotContain DISPLAY_DECIDES_HDR
+        plan.info.fidelity shouldContain SDR_SURFACE_MAPS_HDR
         plan.resolved
           .toMedia3Preview(plan.bounds)
           .composition.hdrMode shouldBe Media3Composition.HDR_MODE_TONE_MAP_HDR_TO_SDR_USING_OPEN_GL

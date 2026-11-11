@@ -1,11 +1,6 @@
 package dev.jordond.filmstrip.player.internal
 
 import android.graphics.Bitmap
-import android.os.Handler
-import android.os.Looper
-import android.view.PixelCopy
-import android.view.SurfaceView
-import androidx.core.graphics.createBitmap
 import dev.jordond.filmstrip.Cancellable
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -35,7 +30,7 @@ import kotlin.time.Duration.Companion.seconds
 internal class PreviewShutter(
   private val scope: CoroutineScope,
   private val timeout: Duration = FALLBACK_REVEAL,
-  private val capture: SurfaceCapture = PixelCopyCapture,
+  private val capture: SurfaceCapture = SurfaceCapture { target, onFrame -> target.capture(onFrame) },
 ) {
   private var listeners: List<(Bitmap?) -> Unit> = emptyList()
   private var fallback: Job? = null
@@ -52,9 +47,9 @@ internal class PreviewShutter(
     private set
 
   /**
-   * Freezes what [view] is showing until [reveal], or until [timeout] elapses.
+   * Freezes what [target] is showing until [reveal], or until [timeout] elapses.
    *
-   * A null [view] means nothing is on screen to freeze, so the hold is skipped rather than left to
+   * A null [target] means nothing is on screen to freeze, so the hold is skipped rather than left to
    * time out.
    *
    * @param onCaptured Runs once the surface has been read, whatever came back, and only while
@@ -65,11 +60,11 @@ internal class PreviewShutter(
    * shutter no longer speaks for.
    */
   fun close(
-    view: SurfaceView?,
+    target: PreviewTarget?,
     onCaptured: () -> Unit = {},
   ) {
     reveal()
-    if (view == null) {
+    if (target == null) {
       // Nothing was asked of the platform, so this hold is still the standing one and nothing can
       // have superseded it between the call and here.
       onCaptured()
@@ -77,7 +72,7 @@ internal class PreviewShutter(
     }
 
     val taken = pass
-    capture.capture(view) { frame ->
+    capture.capture(target) { frame ->
       scope.launch {
         if (taken != pass) return@launch
         frame?.let(::publish)
@@ -136,54 +131,18 @@ internal class PreviewShutter(
 }
 
 /**
- * Reads the pixels a surface is showing.
+ * Reads the pixels a preview's view is showing.
  *
  * The frame is handed back on whatever thread the platform answers on, so a caller that needs it
  * somewhere else moves it there itself.
  */
 internal fun interface SurfaceCapture {
   /**
-   * Copies [view]'s current contents, calling [onFrame] with the copy or with null where there was
+   * Copies [target]'s current contents, calling [onFrame] with the copy or with null where there was
    * nothing to read.
    */
   fun capture(
-    view: SurfaceView,
+    target: PreviewTarget,
     onFrame: (Bitmap?) -> Unit,
   )
-}
-
-/**
- * Copies a surface through `PixelCopy`, which reads the buffer the compositor is showing.
- *
- * A `SurfaceView` draws nothing into the view hierarchy, so asking it to draw itself onto a canvas
- * produces the hole it punches rather than the video in it.
- */
-private object PixelCopyCapture : SurfaceCapture {
-  private val handler = Handler(Looper.getMainLooper())
-
-  override fun capture(
-    view: SurfaceView,
-    onFrame: (Bitmap?) -> Unit,
-  ) {
-    val width = view.width
-    val height = view.height
-    if (width <= 0 || height <= 0 || !view.holder.surface.isValid) {
-      onFrame(null)
-      return
-    }
-
-    val frame = createBitmap(width, height)
-    try {
-      PixelCopy.request(
-        view,
-        frame,
-        { result -> onFrame(frame.takeIf { result == PixelCopy.SUCCESS }) },
-        handler,
-      )
-    } catch (_: IllegalArgumentException) {
-      // The surface can go away between the validity check and the request, which the request
-      // itself reports by throwing rather than by failing its listener.
-      onFrame(null)
-    }
-  }
 }

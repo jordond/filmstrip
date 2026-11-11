@@ -12,11 +12,13 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
 import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.compose.PlaybackEventEffect
 import dev.jordond.filmstrip.compose.VideoContentScale
 import dev.jordond.filmstrip.compose.VideoSurface
+import dev.jordond.filmstrip.compose.VideoSurfaceType
 import dev.jordond.filmstrip.compose.rememberFilmstripFrame
 import dev.jordond.filmstrip.compose.rememberFilmstripFrames
 import dev.jordond.filmstrip.compose.rememberFilmstripPlayer
@@ -27,6 +29,7 @@ import dev.jordond.filmstrip.compose.videoAspect
 import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.media.PlatformImage
 import dev.jordond.filmstrip.player.PlaybackEvent
+import dev.jordond.filmstrip.player.VideoPlayer
 import kotlin.time.Duration
 
 @Composable
@@ -84,6 +87,20 @@ internal fun PosterFrame(
   if (poster != null) {
     Image(poster, contentDescription = null)
   }
+  // endregion
+}
+
+@Composable
+internal fun FadedSurface(
+  player: VideoPlayer,
+  alpha: Float,
+) {
+  // region texture
+  VideoSurface(
+    player = player,
+    modifier = Modifier.fillMaxWidth().graphicsLayer { this.alpha = alpha },
+    type = VideoSurfaceType.Texture,
+  )
   // endregion
 }
 

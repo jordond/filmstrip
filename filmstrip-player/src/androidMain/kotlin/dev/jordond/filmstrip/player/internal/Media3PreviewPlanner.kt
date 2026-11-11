@@ -14,6 +14,7 @@ import dev.jordond.filmstrip.player.PlaybackError
 import dev.jordond.filmstrip.player.PreviewInfo
 import dev.jordond.filmstrip.player.PreviewQualityPolicy
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
+import kotlin.concurrent.Volatile
 
 /**
  * An edit lowered for the preview, together with what the preview reports about it.
@@ -48,6 +49,12 @@ internal open class Media3PreviewPlanner(
 ) : PreviewPlanner<Media3PreviewPlan> {
   private val engine = media3ExportEngine(components)
 
+  /**
+   * Whether the surface the preview draws into shows SDR only. Set by the engine as a surface is attached and let go.
+   */
+  @Volatile
+  var sdrOnlySurface: Boolean = false
+
   override suspend fun plan(
     composition: Composition,
     policy: PreviewQualityPolicy,
@@ -61,6 +68,7 @@ internal open class Media3PreviewPlanner(
           exportSpec,
           MEDIA3_FIDELITY,
           engine::exportGrade,
+          sdrOnlySurface,
         ) { edit, spec, layoutSize, grade -> engine.resolve(edit, spec, layoutSize, grade, previewClock) }
     ) {
       is PlanResult.Refused -> {

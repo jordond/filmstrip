@@ -2,6 +2,7 @@ package dev.jordond.filmstrip.player
 
 import android.graphics.Bitmap
 import android.view.SurfaceView
+import android.view.TextureView
 import androidx.annotation.OptIn
 import androidx.media3.common.util.ExperimentalApi
 import androidx.media3.transformer.CompositionPlayer
@@ -29,6 +30,27 @@ public fun VideoPlayer.attachPreviewSurface(view: SurfaceView): Cancellable {
   val engine = (nativePlayer as? CompositionPlayer)?.let(::engineFor) ?: return Cancellable { }
   engine.attachSurfaceView(view)
   return Cancellable { engine.detachSurfaceView(view) }
+}
+
+/**
+ * Hands the texture a preview surface draws into to the engine behind this player.
+ *
+ * The same contract as the [SurfaceView] overload, for a host that needs the video inside the view hierarchy, where
+ * it can be faded, clipped and drawn over like any other view. The engine owns a surface over the view's texture
+ * from the moment the texture exists until it is destroyed or the handle is cancelled, and takes the view's
+ * `surfaceTextureListener` for as long. A texture shows SDR only, and costs a copy of every frame.
+ *
+ * Callable from any thread. Cancel the handle before the view goes away.
+ *
+ * @param view The view showing this player's output.
+ * @return a handle that stops the engine drawing into [view].
+ */
+@OptIn(ExperimentalApi::class)
+@InternalFilmstripApi
+public fun VideoPlayer.attachPreviewSurface(view: TextureView): Cancellable {
+  val engine = (nativePlayer as? CompositionPlayer)?.let(::engineFor) ?: return Cancellable { }
+  engine.attachTextureView(view)
+  return Cancellable { engine.detachTextureView(view) }
 }
 
 /**

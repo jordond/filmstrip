@@ -154,8 +154,11 @@ internal class PreviewPlan(
  * how far its preview speaks for the exported file, less [DISPLAY_DECIDES_HDR] on a tone mapped plan, where no HDR
  * grade reaches the display.
  *
- * The grade is the one an export of [composition] at [exportSpec] resolves to, as [lowerAtHeight] reads it.
+ * The grade is the one an export of [composition] at [exportSpec] resolves to, as [lowerAtHeight] reads it. On a
+ * surface that shows SDR only an HDR grade the export keeps is lowered again as a tone map, which is that surface's
+ * limit, and [SDR_SURFACE_MAPS_HDR] stands in [fidelity] where [DISPLAY_DECIDES_HDR] was.
  *
+ * @param sdrOnlySurface Whether the surface the preview draws into cannot show HDR.
  * @return The plan, or why the edit cannot be previewed.
  */
 internal suspend fun planPreview(
@@ -164,12 +167,26 @@ internal suspend fun planPreview(
   exportSpec: ExportSpec,
   fidelity: List<FidelityNote>,
   grade: CompositionGrade,
+  sdrOnlySurface: Boolean = false,
   resolve: CompositionResolve,
 ): PlanResult<PreviewPlan, PlaybackError> {
-  val lowering =
+  val asked =
     when (val result = lowerAtHeight(composition, policy.heightCap, exportSpec, grade, resolve)) {
       is PlanResult.Refused -> return PlanResult.Refused(result.error.toPlaybackError())
       is PlanResult.Ready -> result.plan
+    }
+  // An SDR edit reads as a kept grade too, with no transfer to keep, and is left as it is.
+  val mapsForSurface =
+    sdrOnlySurface && asked.resolved.hdr == ResolvedHdr.Keep && asked.resolved.hdrTransfer != null
+  val lowering =
+    if (!mapsForSurface) {
+      asked
+    } else {
+      val mapped: CompositionGrade = { _, _ -> ExportGrade.Settled(ResolvedHdr.ToneMap) }
+      when (val result = lowerAtHeight(composition, policy.heightCap, exportSpec, mapped, resolve)) {
+        is PlanResult.Refused -> return PlanResult.Refused(result.error.toPlaybackError())
+        is PlanResult.Ready -> result.plan
+      }
     }
 
   return PlanResult.Ready(
@@ -183,7 +200,12 @@ internal suspend fun planPreview(
               .toFloat() / lowering.naturalSize.height,
           parity = lowering.verdict.parity(),
           parityNotes = lowering.verdict.parityNotes(),
-          fidelity = if (lowering.resolved.hdr == ResolvedHdr.ToneMap) fidelity - DISPLAY_DECIDES_HDR else fidelity,
+          fidelity =
+            when {
+              lowering.resolved.hdr != ResolvedHdr.ToneMap -> fidelity
+              mapsForSurface -> fidelity - DISPLAY_DECIDES_HDR + SDR_SURFACE_MAPS_HDR
+              else -> fidelity - DISPLAY_DECIDES_HDR
+            },
           inertNotices = lowering.verdict.inertNotices(),
         ),
       spec = lowering.spec,

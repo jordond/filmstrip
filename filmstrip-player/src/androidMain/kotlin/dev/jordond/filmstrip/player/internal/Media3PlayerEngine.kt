@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import android.os.Handler
 import android.os.HandlerThread
 import android.view.SurfaceView
+import android.view.TextureView
 import androidx.media3.common.C
 import androidx.media3.common.Player
 import androidx.media3.common.util.ExperimentalApi
@@ -56,7 +57,7 @@ import kotlin.time.Duration.Companion.milliseconds
 internal class Media3PlayerEngine(
   parent: CoroutineScope,
   private val context: Context,
-  planner: Media3PreviewPlanner,
+  private val planner: Media3PreviewPlanner,
   config: PlayerConfig,
   private val lower: (Media3PreviewPlan) -> Media3Preview = { it.resolved.toMedia3Preview(it.bounds) },
 ) : PlannedPlayerEngine<Media3PreviewPlan>(parent, config.qualityPolicy, config.exportSpec, planner) {
@@ -300,7 +301,8 @@ internal class Media3PlayerEngine(
    * A player rebuilt for a different video graph takes the same view with it.
    */
   fun attachSurfaceView(view: SurfaceView) {
-    surfaces.attach(view)
+    surfaces.attach(SurfaceViewTarget(view))
+    scope.launch { surfaceLimitMoved() }
   }
 
   /**
@@ -311,6 +313,35 @@ internal class Media3PlayerEngine(
    */
   fun detachSurfaceView(view: SurfaceView) {
     surfaces.detach(view)
+    scope.launch { surfaceLimitMoved() }
+  }
+
+  /**
+   * Draws into [view] from now on, through a surface the engine owns over the view's texture.
+   *
+   * A texture shows SDR only, so an HDR edit is planned again as a tone map, and every frame is copied once more on
+   * its way to the screen.
+   */
+  fun attachTextureView(view: TextureView) {
+    surfaces.attach(TextureViewTarget(view, handler))
+    scope.launch { surfaceLimitMoved() }
+  }
+
+  /**
+   * Stops drawing into [view] and releases the surface over its texture, leaving a view attached since alone.
+   */
+  fun detachTextureView(view: TextureView) {
+    surfaces.detach(view)
+    scope.launch { surfaceLimitMoved() }
+  }
+
+  override val planBasis: Any? get() = true.takeIf { planner.sdrOnlySurface }
+
+  // A surface that shows SDR only has a kept grade planned as a tone map, so a loaded edit is planned again as one is
+  // attached or let go. An SDR edit plans the same either way and its graph is left standing.
+  private fun surfaceLimitMoved() {
+    planner.sdrOnlySurface = surfaces.previewTarget?.showsSdrOnly == true
+    planBasisChanged()
   }
 
   /**
@@ -414,7 +445,7 @@ internal class Media3PlayerEngine(
     // surface under a graph that cannot fill it yet.
     // Under the cover the shutter just closed, and after it has read the surface, since fixing the
     // buffer reallocates it.
-    shutter.close(surfaces.previewView) { surfaces.fixBuffer(surfaces.previewView, next.resolved.output.size) }
+    shutter.close(surfaces.previewTarget) { surfaces.fixBuffer(surfaces.previewTarget, next.resolved.output.size) }
     val load = loads.issue()
     status.reset()
     preview = lowered

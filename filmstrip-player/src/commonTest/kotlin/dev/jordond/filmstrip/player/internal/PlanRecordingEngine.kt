@@ -53,6 +53,13 @@ internal class PlanRecordingEngine(
     heldRedraws++
   }
 
+  // What the planner reads besides the edit, the policy and the spec, which a real backend says for itself.
+  var basis: Any? = null
+
+  override val planBasis: Any? get() = basis
+
+  fun basisMoved(): Unit = planBasisChanged()
+
   fun becomeReady(): Unit = setStatus(PlaybackStatus.Ready)
 
   fun failItem(error: PlaybackError) {
