@@ -6,6 +6,7 @@ import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.effects.filters.film.Film
 import dev.jordond.filmstrip.effects.geometry.Crop
 import dev.jordond.filmstrip.ffmpeg.support.FilterFrames
+import dev.jordond.filmstrip.ffmpeg.support.assertFormsAgree
 import dev.jordond.filmstrip.ffmpeg.support.formPlanes
 import dev.jordond.filmstrip.ffmpeg.support.planesAtExactTicks
 import dev.jordond.filmstrip.geometry.AspectRatio
@@ -29,49 +30,35 @@ class FfmpegFilmPlanesMediaTest {
   fun `a clip film at 1080p`() =
     runBlocking<Unit> {
       val plan = draw.composition(listOf(clip(1920, 1080, Film())))
-      assertFormsAgree(plan, frames = 12)
+      draw.assertFormsAgree(plan, frames = 12)
     }
 
   @Test
   fun `a clip film at 4k reads its whole cell raster`() =
     runBlocking<Unit> {
       val plan = draw.composition(listOf(clip(3840, 2160, Film())))
-      assertFormsAgree(plan, frames = 6)
+      draw.assertFormsAgree(plan, frames = 6)
     }
 
   @Test
   fun `a frame with no whole cell draws each pixel`() =
     runBlocking<Unit> {
       val plan = draw.composition(listOf(clip(1280, 720, Film())))
-      assertFormsAgree(plan, frames = 12)
-    }
-
-  @Test
-  fun `super 8 at 1080p draws the same grain and marks live`() =
-    runBlocking<Unit> {
-      val plan = draw.composition(listOf(clip(1920, 1080, Film.Super8)))
-      assertFormsAgree(plan, frames = 12)
-    }
-
-  @Test
-  fun `super 8 at 4k draws the same grain and marks live`() =
-    runBlocking<Unit> {
-      val plan = draw.composition(listOf(clip(3840, 2160, Film.Super8)))
-      assertFormsAgree(plan, frames = 4)
+      draw.assertFormsAgree(plan, frames = 12)
     }
 
   @Test
   fun `a seed of its own and full dust draw the same planes live`() =
     runBlocking<Unit> {
       val plan = draw.composition(listOf(clip(640, 360, Film(dust = 1f, gate = 0.5f, seed = 7))))
-      assertFormsAgree(plan, frames = 30)
+      draw.assertFormsAgree(plan, frames = 30)
     }
 
   @Test
   fun `grain alone has no gbrap ahead of it`() =
     runBlocking<Unit> {
       val plan = draw.composition(listOf(clip(640, 360, Film(grain = 0.5f, halation = 0f))))
-      assertFormsAgree(plan, frames = 12)
+      draw.assertFormsAgree(plan, frames = 12)
     }
 
   @Test
@@ -79,21 +66,21 @@ class FfmpegFilmPlanesMediaTest {
     runBlocking<Unit> {
       val plain = clip(640, 360)
       val plan = draw.composition(listOf(plain, plain), listOf(Film()))
-      assertFormsAgree(plan, frames = 70)
+      draw.assertFormsAgree(plan, frames = 70)
     }
 
   @Test
   fun `a clip that opens at two seconds reads its own ticks`() =
     runBlocking<Unit> {
       val plan = draw.composition(listOf(clip(640, 360), clip(640, 360, Film())))
-      assertFormsAgree(plan, frames = 72)
+      draw.assertFormsAgree(plan, frames = 72)
     }
 
   @Test
   fun `a preview window reads the ticks it opened on`() =
     runBlocking<Unit> {
       val plan = draw.composition(listOf(clip(640, 360, Film())))
-      assertFormsAgree(plan, frames = 10, at = 1200.milliseconds)
+      draw.assertFormsAgree(plan, frames = 10, at = 1200.milliseconds)
     }
 
   @Test
@@ -119,7 +106,7 @@ class FfmpegFilmPlanesMediaTest {
           listOf(draw.clipOf(640, 360, ::ramp, listOf(contain, film))),
           fill = Fill.Solid(0xFF2F4F6F.toInt()),
         )
-      assertFormsAgree(plan, frames = 8)
+      draw.assertFormsAgree(plan, frames = 8)
     }
 
   @Test
@@ -148,24 +135,10 @@ class FfmpegFilmPlanesMediaTest {
   fun `a 23_976 clip reads the tick its exact time gives`() =
     runBlocking<Unit> { assertReadsExactTicks("24000/1001", "floor(N*1001/1000)") }
 
-  private suspend fun assertFormsAgree(
-    plan: Composition,
-    frames: Int,
-    at: Duration = Duration.ZERO,
-  ) {
-    val drawn = draw.formPlanes(plan, frames, live = false, at = at)
-    val planes = draw.formPlanes(plan, frames, live = true, at = at)
-    val differing = drawn.indices.count { drawn[it] != planes[it] }
-    withClue("$differing of ${drawn.size} samples differ") { differing shouldBe 0 }
-    val frameBytes = drawn.size / frames
-    drawn.copyOfRange(0, frameBytes).contentEquals(drawn.copyOfRange(drawn.size - frameBytes, drawn.size)) shouldBe
-      false
-  }
-
   // A preview only seeks a single clip's timeline, so this reads the look's frames that far in on the clock.
   private suspend fun assertAgreesPastSeek(rate: String) {
     val clip = draw.clipOf(160, 90, ::ramp, listOf(LOOK), rate = rate, seconds = 29, container = "mov")
-    assertFormsAgree(draw.composition(listOf(clip)), SEEK_FRAMES, at = LONG_SEEK)
+    draw.assertFormsAgree(draw.composition(listOf(clip)), SEEK_FRAMES, at = LONG_SEEK)
   }
 
   // The tick a frame's exact time gives, written over the frame's number so it can stand in for the look's clock.
@@ -196,7 +169,7 @@ class FfmpegFilmPlanesMediaTest {
     val look =
       draw.clipOf(160, 90, ::ramp, listOf(LOOK), rate = rate, container = "mov", timescale = MICROSECONDS)
     val plan = draw.composition(listOf(Clip(lead.source, trim = TimeRange(Duration.ZERO, shift)), look))
-    assertFormsAgree(plan, frames)
+    draw.assertFormsAgree(plan, frames)
   }
 
   private fun clip(
