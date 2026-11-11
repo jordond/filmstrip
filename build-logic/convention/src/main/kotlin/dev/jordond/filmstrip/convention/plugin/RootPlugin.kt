@@ -10,6 +10,7 @@ import dev.jordond.filmstrip.convention.configureModuleGraph
 import dev.jordond.filmstrip.convention.configureNoMatchingTestsCheck
 import dev.jordond.filmstrip.convention.configureSpotless
 import dev.jordond.filmstrip.convention.configureTestLanes
+import dev.jordond.filmstrip.convention.configureYarnResolutions
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 
@@ -18,6 +19,7 @@ class RootPlugin : Plugin<Project> {
     target.configureSpotless()
     target.configureBuildLogicSpotless()
     target.configureArchitectureGuards()
+    target.configureYarnResolutions()
 
     // Registered by the Compose plugin, which the sample modules apply directly rather than
     // through a convention of their own.
