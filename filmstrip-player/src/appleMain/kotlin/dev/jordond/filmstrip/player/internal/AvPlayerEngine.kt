@@ -368,7 +368,6 @@ internal class AvPlayerEngine(
     next: PreviewPlan,
     request: SetCompositionRequest,
   ): PlaybackError? {
-    val current = reportedPosition
     wrapGuard.reset()
     drawFailure.clear()
     // A failed status is terminal for the item, so an edit over one rebuilds whatever it changed.
@@ -385,9 +384,11 @@ internal class AvPlayerEngine(
       // Standing taps took the new gains and audio effects in place. Without taps the gains are ramps in a new mix.
       if (lowered?.audioMix != mix) item?.audioMix = lowered?.audioMix
       failures.resumed()
-    } else {
-      rebuild(next)?.let { return it }
     }
+    // Lowering suspends while the item it replaces plays on, so the playhead is read once the new one is ready.
+    val fresh = if (swappable) null else lowerOrError(next).let { (av, error) -> av ?: return error }
+    val current = reportedPosition
+    if (fresh != null) attach(fresh)
 
     refusal = null
     loaded = request.composition
@@ -412,24 +413,26 @@ internal class AvPlayerEngine(
   }
 
   /**
-   * Builds a fresh item over a fresh composition and hands it to the player.
+   * Lowers [next] to a fresh composition off the main thread, leaving the item already attached where it was.
+   *
+   * @return the composition, or why AVFoundation could not build it.
+   */
+  private suspend fun lowerOrError(next: PreviewPlan): Pair<AvComposition?, PlaybackError?> =
+    try {
+      withContext(Dispatchers.IO) { lower(next) } to null
+    } catch (refused: AvLoweringFailure) {
+      null to FilmstripError.InvalidComposition(refused.reason).toPlaybackError()
+    } catch (failure: MediaBytesFileFailure) {
+      null to FilmstripError.SourceUnreadable(failure.source, failure.message).toPlaybackError()
+    }
+
+  /**
+   * Builds a fresh item over [av] and hands it to the player.
    *
    * Never a mutation of the `AVMutableComposition` the player is already holding. Inserting a time
-   * range into one under a live item is undefined. A composition AVFoundation cannot build leaves the
-   * item already attached where it was.
-   *
-   * @return null when the item was built, or why it could not be.
+   * range into one under a live item is undefined.
    */
-  private suspend fun rebuild(next: PreviewPlan): PlaybackError? {
-    val av =
-      try {
-        withContext(Dispatchers.IO) { lower(next) }
-      } catch (refused: AvLoweringFailure) {
-        return FilmstripError.InvalidComposition(refused.reason).toPlaybackError()
-      } catch (failure: MediaBytesFileFailure) {
-        return FilmstripError.SourceUnreadable(failure.source, failure.message).toPlaybackError()
-      }
-
+  private fun attach(av: AvComposition) {
     platformLoads++
     setStatus(PlaybackStatus.Preparing)
     val replaced = lowered
@@ -444,7 +447,6 @@ internal class AvPlayerEngine(
     observers.observeItem(fresh)
     player.replaceCurrentItemWithPlayerItem(fresh)
     replaced?.discard()
-    return null
   }
 
   /**
