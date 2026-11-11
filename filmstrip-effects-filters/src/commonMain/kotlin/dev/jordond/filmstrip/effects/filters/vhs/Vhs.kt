@@ -9,7 +9,8 @@ import dev.jordond.filmstrip.effect.EffectStage
  *
  * Softens luma and smears chroma along each line, wobbles the lines, bends the bottom of the frame like a head switch,
  * and adds streaky noise, dropouts and a [Tracking] band. The pattern is a function of the frame's composition time
- * and its height as a fraction, so a seek or a smaller preview shows the same tape.
+ * and its height as a fraction, so a seek or a smaller preview shows the same tape. With [TapeClock.Wall] a preview
+ * draws the pattern from its own clock instead, so the tape keeps moving while the preview is paused.
  *
  * The effect runs over the fill and under any overlay at the same scope, so a caption added next to it stays clean. A
  * clip overlay under a composition [Vhs] is part of the clip's frame by then, and is burned in with it.
@@ -25,6 +26,7 @@ import dev.jordond.filmstrip.effect.EffectStage
  * @property tape The tape speed, which sets how soft the picture is.
  * @property seed Picks the pattern of noise and events. Equal seeds draw the same tape.
  * @property tracking The band of mistracked tape that runs through the picture.
+ * @property clock What the pattern moves with in a preview. An export draws the same tape for either.
  * @throws IllegalArgumentException when [intensity] is outside `0f..1f`.
  */
 @Poko
@@ -33,6 +35,7 @@ public class Vhs(
   public val tape: TapeSpeed = TapeSpeed.EP,
   public val seed: Int = DEFAULT_SEED,
   public val tracking: Tracking = Tracking.Events(),
+  public val clock: TapeClock = TapeClock.Composition,
 ) : EffectSpec {
   init {
     require(intensity in 0f..1f) { "A VHS intensity has to be within 0 to 1, not $intensity." }
@@ -48,6 +51,8 @@ public class Vhs(
 
   override val isInert: Boolean get() = intensity == 0f
 
+  override val redrawsWhileHeld: Boolean get() = clock == TapeClock.Wall
+
   public companion object {
     /**
      * The id every plan and notice names this effect by.
@@ -59,6 +64,28 @@ public class Vhs(
      */
     public const val DEFAULT_SEED: Int = 1984
   }
+}
+
+/**
+ * What a [Vhs] pattern moves with.
+ *
+ * An export always draws from composition time, so two exports of one edit match whichever is chosen. Thumbnails and
+ * frames read out of an edit do the same.
+ */
+public enum class TapeClock {
+  /**
+   * The frame's composition time. A paused preview holds still, and a seek shows the pattern an export draws there.
+   */
+  Composition,
+
+  /**
+   * The preview's own clock. The noise, dropouts and tracking band keep moving while the preview is paused, the way a
+   * paused tape does, and no longer match the export frame for frame.
+   *
+   * The JVM desktop preview draws through ffmpeg, which has no such clock, so it draws from composition time and
+   * holds still when paused.
+   */
+  Wall,
 }
 
 /**

@@ -358,6 +358,7 @@ public class ExportPlanner(
         encoderName = encoding.encoder?.encoderName,
         copyPrefix = copyPrefix,
         mixAudioEffects = mix.mapNotNull { it.resolvedEffect },
+        previewClock = ask.previewClock,
       )
     val verdict = if (adjustments.isEmpty()) Verdict.Capable(plan) else Verdict.Degraded(plan, adjustments)
     return Settlement.Settled(NegotiatedExport(verdict, resolved))

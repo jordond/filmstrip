@@ -38,7 +38,7 @@ public actual class FilterEffectResolver actual constructor() : EffectResolver {
         EffectResolution.Resolved(PlatformEffect(CamcorderEffect(CamcorderOsd(spec, attributes.frameRate))))
       }
       is Vhs -> {
-        EffectResolution.Resolved(PlatformEffect(VhsEffect(spec)))
+        EffectResolution.Resolved(PlatformEffect(VhsEffect(spec, attributes.previewClock)))
       }
       is Film -> {
         EffectResolution.Resolved(PlatformEffect(FilmEffect(spec)))

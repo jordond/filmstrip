@@ -217,6 +217,10 @@ internal class BrowserPlayerEngine(
 
   override val shuttleRange: TimeRange? get() = playbackRange
 
+  // The surface pulls each frame through the readback and every pull composites again, so the report the base sends
+  // after a held redraw is the whole of one here.
+  override val redrawsHeldFrames: Boolean get() = true
+
   // Drawn here and not by the surface, so the pump is paced by the frames the page can draw. The surface asks for
   // each one on its own tick and a frame slower than that tick would be cancelled before it showed.
   override fun presentFrame(

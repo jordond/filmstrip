@@ -53,5 +53,6 @@ internal class ChainSnapshot(
       hdrTransfer = encodedTransfer,
       frameRate = output.frameRate.toFloat(),
       span = compositionSpan,
+      previewClock = resolved.previewClock,
     )
 }

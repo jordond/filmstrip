@@ -39,6 +39,9 @@ import dev.jordond.filmstrip.media.HdrTransfer
  *   letterboxed clip entering an effect after its crop holds clear bars either side of its picture, and this is the
  *   picture. It is the whole frame when nothing is clear, and null when the clear part is not known, which a
  *   resolver reads as clear anywhere.
+ * @property previewClock The clock of the preview this effect is resolved for, when that preview can draw a held
+ *   frame again. Null in an export, a thumbnail and a frame grid, and in a preview that cannot. An effect that says
+ *   [EffectSpec.redrawsWhileHeld] draws from it when it is there and from the frame's own time when it is not.
  */
 public class Attributes
   @InternalFilmstripApi
@@ -52,6 +55,7 @@ public class Attributes
     public val span: TimeRange,
     public val storedSize: Size = inputSize,
     @property:InternalFilmstripApi public val opaque: NormalizedRect? = NormalizedRect.Full,
+    public val previewClock: PreviewClock? = null,
   ) {
     override fun toString(): String = "Attributes($inputSize -> $outputSize)"
   }

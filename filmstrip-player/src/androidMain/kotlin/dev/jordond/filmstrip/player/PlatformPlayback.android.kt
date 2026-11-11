@@ -6,6 +6,7 @@ import dev.jordond.filmstrip.player.internal.Media3PlayerEngine
 import dev.jordond.filmstrip.player.internal.Media3PreviewPlanner
 import dev.jordond.filmstrip.player.internal.MissingContextPlayerEngine
 import dev.jordond.filmstrip.player.internal.MissingContextThumbnailSource
+import dev.jordond.filmstrip.player.internal.MonotonicPreviewClock
 import dev.jordond.filmstrip.player.internal.thumbnail.Media3ThumbnailPlanner
 import dev.jordond.filmstrip.player.internal.thumbnail.Media3ThumbnailSource
 import dev.jordond.filmstrip.thumbnail.ThumbnailRequest
@@ -28,7 +29,7 @@ internal actual fun createPlayerEngine(
   return Media3PlayerEngine(
     parent = parent,
     context = context,
-    planner = Media3PreviewPlanner(components),
+    planner = Media3PreviewPlanner(components, MonotonicPreviewClock()),
     config = config,
   )
 }

@@ -7,6 +7,7 @@ import dev.jordond.filmstrip.capability.EffectParity
 import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.effect.EffectResolver
+import dev.jordond.filmstrip.effect.PreviewClock
 import dev.jordond.filmstrip.export.CopyBlocker
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.geometry.Size
@@ -76,13 +77,14 @@ public class PlannedExportEngine(
     spec: ExportSpec,
     layoutSize: Size?,
     grade: ResolvedHdr?,
+    previewClock: PreviewClock?,
   ): LoweredExport<ResolvedComposition> {
     val read =
       when (val result = reads.read(composition)) {
         is PlanningReadResult.Failed -> return refusedLowering(result.error)
         is PlanningReadResult.Read -> result
       }
-    val asked = Ask(spec, read.device, read.infos, read.openings, layoutSize, grade)
+    val asked = Ask(spec, read.device, read.infos, read.openings, layoutSize, grade, previewClock = previewClock)
     return when (val withPackets = askedWithPackets(composition, asked)) {
       is CopyAsk.Refused -> {
         refusedLowering(withPackets.error)

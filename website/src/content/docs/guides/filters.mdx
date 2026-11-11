@@ -35,6 +35,7 @@ same picture.
 | `tape`      | `TapeSpeed.SP`, `LP` or `EP`, from sharpest to softest. Defaults to `EP`                     |
 | `seed`      | Picks the pattern of noise and events. Equal seeds draw the same tape                        |
 | `tracking`  | The band of mistracked tape, `events()`, `rolling()` or `Tracking.Off`. Defaults to `events()` |
+| `clock`     | `TapeClock.Composition` or `TapeClock.Wall`, what the pattern moves with in a preview         |
 
 `events(chance)` runs a band now and then, each one drifting down the frame and fading out over four seconds.
 `rolling(period)` runs one band that is always there, rolling from top to bottom every `period`, the look of a tape that
@@ -47,6 +48,13 @@ needs tracking. Both take a block that shapes the band.
 | `snow`       | How far the band mixes toward black and white snow, from `0f` to `1f`. Defaults to `0.6f`    |
 
 `intensity` scales the slide, the noise and the snow, and the chance of an event band by its square.
+
+The pattern follows the frame's composition time, so a paused preview holds still and a seek shows the tape an export
+draws there. Set `clock = TapeClock.Wall` and a preview draws the pattern from its own clock instead. The noise,
+dropouts and tracking band keep moving while the preview is paused, the way a paused tape does, and the preview stops
+matching the export frame for frame. An export always draws from composition time, whichever clock is set, so two
+exports of one edit match. So do thumbnails and frames read out of the edit. The JVM desktop preview has no such
+clock, see [limits](/reference/limits/#filters).
 
 A `vhs` on the composition covers the whole frame, bars included. One on a clip or a track doesn't grade the bars, and
 picture it moves into a bar lands over the fill. It runs under any overlay at its own scope, so a caption next to it stays

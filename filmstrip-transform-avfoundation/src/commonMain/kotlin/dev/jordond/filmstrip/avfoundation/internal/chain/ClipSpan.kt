@@ -8,6 +8,7 @@ import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.edit.outputSlotTime
 import dev.jordond.filmstrip.edit.outputSlotsOf
 import dev.jordond.filmstrip.effect.Attributes
+import dev.jordond.filmstrip.effect.PreviewClock
 import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.geometry.Size
@@ -105,6 +106,7 @@ internal fun List<ClipSpan>.respannedOnto(resolved: ResolvedComposition): List<C
       hdrTransfer = resolved.hdrTransfer,
       heldFrom = span.heldFrom,
       sdColor = span.sdColor,
+      previewClock = resolved.previewClock,
     )
   }
 }
@@ -124,6 +126,7 @@ internal fun ResolvedClip.spanning(
   hdrTransfer: HdrTransfer?,
   heldFrom: Duration?,
   sdColor: SdSourceColor?,
+  previewClock: PreviewClock? = null,
 ): ClipSpan {
   val video = info.video
   return ClipSpan(
@@ -141,6 +144,7 @@ internal fun ResolvedClip.spanning(
         // The planner's slot, not this lay-down's, so a clip effect is measured against the same
         // run media3 measures against.
         span = span,
+        previewClock = previewClock,
       ),
     effects = effects,
     still = (source as? MediaSource.Image)?.image,

@@ -276,7 +276,7 @@ internal suspend fun ResolvedComposition.toAvComposition(
       null
     }
 
-  val spans = placements.toSpans(composition.duration.toDuration(), output.size, layoutSize, hdrTransfer)
+  val spans = placements.toSpans(composition.duration.toDuration(), output.size, layoutSize, hdrTransfer, previewClock)
   val chain = if (keepVideo) CoreImageChain(this, spans, encodesHdr) else null
   val timedByGrid = laysVideoOnGrid && placements.isNotEmpty()
   // An audio-only clip can bring a grade into the plan that no laid video carries, which leaves nothing to tone map.

@@ -19,6 +19,7 @@ import dev.jordond.filmstrip.edit.outputLengthOf
 import dev.jordond.filmstrip.edit.outputSlotTime
 import dev.jordond.filmstrip.edit.outputSlotsOf
 import dev.jordond.filmstrip.edit.sourceLengthOf
+import dev.jordond.filmstrip.effect.PreviewClock
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.internal.AppleScratch
 import dev.jordond.filmstrip.media.HdrTransfer
@@ -436,6 +437,7 @@ internal fun List<Placement>.toSpans(
   outputSize: Size,
   layoutSize: Size,
   hdrTransfer: HdrTransfer?,
+  previewClock: PreviewClock? = null,
 ): List<ClipSpan> =
   mapIndexed { index, placement ->
     val video = placement.clip.info.video
@@ -448,6 +450,7 @@ internal fun List<Placement>.toSpans(
       hdrTransfer = hdrTransfer,
       heldFrom = placement.heldFrom,
       sdColor = placement.sdColor,
+      previewClock = previewClock,
     )
   }
 

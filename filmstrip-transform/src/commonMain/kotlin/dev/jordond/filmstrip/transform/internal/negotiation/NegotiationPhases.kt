@@ -9,6 +9,7 @@ import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.effect.EffectSpec
+import dev.jordond.filmstrip.effect.PreviewClock
 import dev.jordond.filmstrip.export.Adjustment
 import dev.jordond.filmstrip.export.CopyBlocker
 import dev.jordond.filmstrip.export.ExportPath
@@ -62,6 +63,8 @@ internal class CodecChoice<C>(
  * @property copyPackets The copied clip's video packets in decode order over the window
  * [ExportPlanner.copyPacketWindowOf] names, for an engine that counts a copy ending before its source does by them.
  * Packets with no presentation times block the copy with [CopyBlocker.SourceUntimed]. Null blocks nothing.
+ * @property previewClock The clock of the preview this negotiation lowers for, handed to every effect it resolves.
+ * Null for an export, a thumbnail and a preview that cannot draw a held frame again.
  */
 @InternalFilmstripApi
 public class Ask(
@@ -72,6 +75,7 @@ public class Ask(
   public val layoutSize: Size? = null,
   public val grade: ResolvedHdr? = null,
   public val copyPackets: List<CopyPacket>? = null,
+  public val previewClock: PreviewClock? = null,
 ) {
   /**
    * Whether this negotiation writes no file, which is what being handed its [grade] means.

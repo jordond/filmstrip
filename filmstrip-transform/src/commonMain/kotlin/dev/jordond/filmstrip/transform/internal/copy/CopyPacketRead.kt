@@ -86,7 +86,7 @@ public suspend fun Ask.withCopyPackets(
       CopyAsk.Refused(FilmstripError.TimedOut(listed.operation, listed.deadline, listed.reason))
     }
     is CopyPacketRead.Read -> {
-      CopyAsk.Asked(Ask(spec, device, infos, openings, layoutSize, grade, listed.packets))
+      CopyAsk.Asked(Ask(spec, device, infos, openings, layoutSize, grade, listed.packets, previewClock))
     }
   }
 }

@@ -3,6 +3,7 @@ package dev.jordond.filmstrip.player
 import dev.jordond.filmstrip.FilmstripComponents
 import dev.jordond.filmstrip.player.internal.AvPlayerEngine
 import dev.jordond.filmstrip.player.internal.AvPreviewPlanner
+import dev.jordond.filmstrip.player.internal.MonotonicPreviewClock
 import dev.jordond.filmstrip.player.internal.thumbnail.AvThumbnailPlanner
 import dev.jordond.filmstrip.player.internal.thumbnail.AvThumbnailSource
 import dev.jordond.filmstrip.thumbnail.ThumbnailRequest
@@ -19,7 +20,7 @@ internal actual fun createPlayerEngine(
 ): PlayerEngine? =
   AvPlayerEngine(
     parent = CoroutineScope(Dispatchers.Main + SupervisorJob()),
-    planner = AvPreviewPlanner(components),
+    planner = AvPreviewPlanner(components, MonotonicPreviewClock()),
     config = config,
   )
 

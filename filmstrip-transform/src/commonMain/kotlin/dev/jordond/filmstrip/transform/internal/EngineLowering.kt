@@ -4,6 +4,7 @@ import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.effect.EffectResolver
+import dev.jordond.filmstrip.effect.PreviewClock
 import dev.jordond.filmstrip.export.ExportEngine
 import dev.jordond.filmstrip.export.ExportPlan
 import dev.jordond.filmstrip.export.ExportSpec
@@ -38,6 +39,8 @@ public interface ExportResolver : ExportEngine {
    *   on, which is what an export does.
    * @param grade The grade to lower at, for a caller rendering the grade of an export it is not lowering, as
    *   [exportGrade] answers it. Null settles the grade from [spec], which is what an export does.
+   * @param previewClock The clock of the preview lowering through this, handed to every effect it resolves. Null for
+   *   an export, a thumbnail and a preview that cannot draw a held frame again.
    * @return The lowered composition and the verdict it came with, or why it cannot run here.
    */
   public suspend fun resolve(
@@ -45,6 +48,7 @@ public interface ExportResolver : ExportEngine {
     spec: ExportSpec,
     layoutSize: Size? = null,
     grade: ResolvedHdr? = null,
+    previewClock: PreviewClock? = null,
   ): ResolveResult
 
   /**
@@ -115,7 +119,8 @@ public abstract class LoweringExportEngine : ExportResolver {
     spec: ExportSpec,
     layoutSize: Size?,
     grade: ResolvedHdr?,
-  ): ResolveResult = lowering.resolve(composition, spec, layoutSize, grade)
+    previewClock: PreviewClock?,
+  ): ResolveResult = lowering.resolve(composition, spec, layoutSize, grade, previewClock)
 
   final override suspend fun exportGrade(
     composition: Composition,
@@ -173,7 +178,7 @@ public fun refusedLowering(error: FilmstripError): LoweredExport<Nothing> =
 public class EngineLowering<G : Any>(
   private val resolvers: List<EffectResolver>,
   private val grade: suspend (Composition, ExportSpec) -> ExportGrade,
-  private val lower: suspend (Composition, ExportSpec, Size?, ResolvedHdr?) -> LoweredExport<G>,
+  private val lower: suspend (Composition, ExportSpec, Size?, ResolvedHdr?, PreviewClock?) -> LoweredExport<G>,
   private val run: (G, ExportPlan, MediaSink) -> Flow<ExportStatus>,
 ) {
   private val oneAtATime = Mutex()
@@ -186,10 +191,11 @@ public class EngineLowering<G : Any>(
     spec: ExportSpec,
     layoutSize: Size? = null,
     grade: ResolvedHdr? = null,
+    previewClock: PreviewClock? = null,
   ): LoweredExport<G> =
     oneAtATime.withLock {
       resolvers.forEach { it.prepare(composition) }
-      lower(composition, spec, layoutSize, grade)
+      lower(composition, spec, layoutSize, grade, previewClock)
     }
 
   /**
@@ -216,7 +222,8 @@ public class EngineLowering<G : Any>(
     spec: ExportSpec,
     layoutSize: Size?,
     grade: ResolvedHdr?,
-  ): ResolveResult = lowered(composition, spec, layoutSize, grade).export.toResolveResult()
+    previewClock: PreviewClock? = null,
+  ): ResolveResult = lowered(composition, spec, layoutSize, grade, previewClock).export.toResolveResult()
 
   /**
    * What [ExportEngine.export] answers, failing with the first refusal when the plan no longer

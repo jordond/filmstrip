@@ -83,6 +83,19 @@ class VhsCoverageTest {
     names.count { it == "geq" } shouldBeGreaterThan 2
   }
 
+  // ffmpeg's limit: a filter graph has no wall clock, so a wall tape is the composition tape there.
+  @Test
+  fun `a wall tape lowers to the graph its composition tape lowers to`() {
+    listOf(NormalizedRect.Full, NormalizedRect(0.25f, 0f, 0.75f, 1f)).forEach { opaque ->
+      val wall = vhsFragment(Vhs(clock = TapeClock.Wall), Size(WIDTH, HEIGHT), opaque)
+      val composition = vhsFragment(Vhs(), Size(WIDTH, HEIGHT), opaque)
+
+      // A live input holds the callback that feeds it, so the graphs are compared and the feeds are not.
+      wall.branches shouldBe composition.branches
+      wall.live?.branches shouldBe composition.live?.branches
+    }
+  }
+
   private fun names(fragment: dev.jordond.filmstrip.effect.FilterFragment) =
     fragment.branches.flatMap { branch -> branch.nodes.map { it.name } }
 

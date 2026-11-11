@@ -42,6 +42,19 @@ internal class PlanRecordingEngine(
 
   fun policyOf(): PreviewQualityPolicy = policy
 
+  // Whether this backend can draw a held frame again, which a real one says for itself.
+  var redrawsHeld = false
+  var heldRedraws = 0
+    private set
+
+  override val redrawsHeldFrames: Boolean get() = redrawsHeld
+
+  override fun redrawHeld() {
+    heldRedraws++
+  }
+
+  fun becomeReady(): Unit = setStatus(PlaybackStatus.Ready)
+
   fun failItem(error: PlaybackError) {
     setStatus(PlaybackStatus.Error(error))
   }

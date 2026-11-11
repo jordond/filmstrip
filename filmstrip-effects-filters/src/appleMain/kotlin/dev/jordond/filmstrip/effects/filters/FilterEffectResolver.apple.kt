@@ -46,7 +46,7 @@ public actual class FilterEffectResolver actual constructor() : EffectResolver {
         EffectResolution.Resolved(camcorderEffect(spec, attributes.frameRate))
       }
       is Vhs -> {
-        vhsResolution(spec, vhsKernelLimit())
+        vhsResolution(spec, vhsKernelLimit(), attributes.previewClock)
       }
       is Film -> {
         filmResolution(spec, filmKernelLimit())

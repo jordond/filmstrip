@@ -17,6 +17,7 @@ import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.launch
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.seconds
 
 /**
  * A [BasePlayerEngine] that lowers each edit it is handed into a preview plan against a [PreviewQualityPolicy].
@@ -84,6 +85,21 @@ internal abstract class PlannedPlayerEngine<P : PlannedPreview>(
    */
   protected abstract val isGraphStanding: Boolean
 
+  /**
+   * Whether this backend can draw the frame it is holding again, which [redrawHeld] then does. Without it an effect
+   * that asks for held redraws stands still while paused.
+   */
+  protected open val redrawsHeldFrames: Boolean get() = false
+
+  final override fun heldRedrawInterval(): Duration? {
+    if (!redrawsHeldFrames || loaded?.redrawsWhileHeld() != true) return null
+    return plan
+      ?.resolved
+      ?.output
+      ?.frameRate
+      ?.let { 1.seconds / it }
+  }
+
   final override fun landingOf(target: Duration): Duration = plan?.resolved?.seekLandingOf(target) ?: target
 
   /**
@@ -141,6 +157,7 @@ internal abstract class PlannedPlayerEngine<P : PlannedPreview>(
       null -> {
         planned = inputs
         standingRefused = false
+        syncHeldRedraw()
         pending.settle(SetCompositionResult.Success(next.resolved.duration))
       }
       else -> {

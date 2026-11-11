@@ -7,6 +7,7 @@ import dev.jordond.filmstrip.effect.EffectResolution
 import dev.jordond.filmstrip.effect.EffectResolver
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effect.PlatformEffect
+import dev.jordond.filmstrip.effect.PreviewClock
 import dev.jordond.filmstrip.effect.RenderCapabilities
 import dev.jordond.filmstrip.effect.inCanonicalOrder
 import dev.jordond.filmstrip.effects.BuiltInEffectResolver
@@ -27,12 +28,14 @@ import dev.jordond.filmstrip.transform.internal.resolve.ResolvedEffect
  * @property outputSize The frame the whole composition lands on, which every normalized parameter
  *   is measured against.
  * @property hdrTransfer The transfer the encoder is handed, or null when the output is SDR.
+ * @property previewClock The clock of the preview being lowered for, or null when there is none.
  */
 internal class LoweringTarget(
   val outputSize: Size,
   val capabilities: RenderCapabilities,
   val frameRate: Int,
   val hdrTransfer: HdrTransfer?,
+  val previewClock: PreviewClock? = null,
 )
 
 /**
@@ -94,6 +97,7 @@ internal class StageLowering(
         span,
         held,
         opaque,
+        target.previewClock,
       )
     }
     val ordered = stages.flatMap { it.inCanonicalOrder() }

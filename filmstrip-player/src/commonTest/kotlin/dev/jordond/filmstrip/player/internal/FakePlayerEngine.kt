@@ -103,6 +103,19 @@ internal class FakePlayerEngine(
 
   override fun shuttleBounds(): ClosedRange<Duration>? = shuttleSpan
 
+  // How often a held frame is redrawn, which a real engine reads off its plan. Call resync after moving it.
+  var heldInterval: Duration? = null
+  var heldRedraws: Int = 0
+    private set
+
+  override fun heldRedrawInterval(): Duration? = heldInterval
+
+  override fun redrawHeld() {
+    heldRedraws++
+  }
+
+  fun resync(): Unit = syncHeldRedraw()
+
   override fun landingOf(target: Duration): Duration {
     val slot = slot ?: return target
     return slot * (target / slot).toInt()
@@ -182,5 +195,12 @@ internal class RecordingListener : EngineListener {
 
   override fun onPreviewInfo(info: PreviewInfo) {
     previewInfo += info
+  }
+
+  var frameRedraws: Int = 0
+    private set
+
+  override fun onFrameRedrawn() {
+    frameRedraws++
   }
 }

@@ -3,6 +3,7 @@ package dev.jordond.filmstrip.effects.filters.vhs
 import dev.jordond.filmstrip.effect.CoreImageEffect
 import dev.jordond.filmstrip.effect.EffectResolution
 import dev.jordond.filmstrip.effect.PlatformEffect
+import dev.jordond.filmstrip.effect.PreviewClock
 import dev.jordond.filmstrip.effects.color.inCodesOf
 import dev.jordond.filmstrip.effects.filters.internal.HASH_MASK
 import kotlinx.cinterop.BetaInteropApi
@@ -31,24 +32,29 @@ private val KERNEL: CIKernel? by lazy { compiledKernel() }
 internal fun vhsResolution(
   vhs: Vhs,
   limit: String?,
+  previewClock: PreviewClock? = null,
 ): EffectResolution =
   if (limit != null) {
     EffectResolution.Unsupported(vhs.id, limit)
   } else {
-    EffectResolution.Resolved(PlatformEffect(vhsStep(vhs)))
+    EffectResolution.Resolved(PlatformEffect(vhsStep(vhs, previewClock)))
   }
 
 /**
  * The Core Image step that draws [vhs], on the frame's own codes.
  *
- * A frame's pattern comes from its composition time and its extent alone, so a seek or a smaller render shows the same
- * tape. The kernel reads only as far along its row as [VhsParams.widestReach] goes, and the frame is held at its last
- * column past that edge, where [vhsMetal] paints black.
+ * A frame's pattern comes from [VhsSignal.tapeSeconds] of its composition time, under [previewClock], and its extent
+ * alone, so without a clock a seek or a smaller render shows the same tape. The kernel reads only as far along its row
+ * as [VhsParams.widestReach] goes, and the frame is held at its last column past that edge, where [vhsMetal] paints
+ * black.
  *
  * @throws IllegalStateException When the kernel will not run, which [vhsKernelLimit] refused at plan time.
  */
 @OptIn(ExperimentalForeignApi::class)
-internal fun vhsStep(vhs: Vhs): CoreImageEffect {
+internal fun vhsStep(
+  vhs: Vhs,
+  previewClock: PreviewClock? = null,
+): CoreImageEffect {
   val params = VhsParams.of(vhs)
   val blur = CIVector.vectorWithX(params.lumaSigma, Y = params.chromaSigma, Z = params.wideSigma, W = params.haloGain)
   val shifts = CIVector.vectorWithX(params.jitter, Y = params.wave, Z = params.headShift, W = params.chromaShift)
@@ -62,7 +68,8 @@ internal fun vhsStep(vhs: Vhs): CoreImageEffect {
     val extent = image.extent
     val (x, y, width, height) = extent.useContents { listOf(origin.x, origin.y, size.width, size.height) }
     val reach = params.widestReach * width + SAMPLE_MARGIN
-    val exactTick = VhsSignal.tickAt(frame.compositionTime.toDouble(DurationUnit.SECONDS))
+    val seconds = VhsSignal.tapeSeconds(vhs, frame.compositionTime.toDouble(DurationUnit.SECONDS), previewClock)
+    val exactTick = VhsSignal.tickAt(seconds)
     val tick = exactTick and HASH_MASK
     val place = VhsSignal.trackingBand(vhs.seed, exactTick, params)
     val track =

@@ -32,14 +32,17 @@ import platform.AVFoundation.AVPlayerItemStatusReadyToPlay
 import platform.AVFoundation.AVPlayerLayer
 import platform.AVFoundation.AVPlayerRateDidChangeNotification
 import platform.AVFoundation.AVPlayerRateDidChangeReasonKey
+import platform.AVFoundation.AVVideoComposition
 import platform.AVFoundation.audioMix
 import platform.AVFoundation.currentTime
 import platform.AVFoundation.pause
 import platform.AVFoundation.rate
 import platform.AVFoundation.replaceCurrentItemWithPlayerItem
+import platform.AVFoundation.seekToTime
 import platform.AVFoundation.setForwardPlaybackEndTime
 import platform.AVFoundation.setMuted
 import platform.AVFoundation.setVolume
+import platform.AVFoundation.videoComposition
 import platform.darwin.dispatch_queue_create
 import platform.darwin.dispatch_queue_t
 import kotlin.time.Duration
@@ -252,6 +255,20 @@ internal class AvPlayerEngine(
   }
 
   override val shuttleRange: TimeRange? get() = playbackRange
+
+  override val redrawsHeldFrames: Boolean get() = true
+
+  // AVFoundation draws a paused frame once and keeps it, and has no call that draws it again. Handing the item a copy
+  // of the composition it already holds does, once for each copy, with the playhead where it was. A seek to the time
+  // the item rests on draws nothing, and neither does handing it the same composition object. The copy carries the
+  // same instructions, so the same chain draws it. A player that is running is left alone, since a new composition
+  // under one stalls its render.
+  override fun redrawHeld() {
+    if (player.rate != 0f) return
+    val held = item?.takeIf { it.status != AVPlayerItemStatusFailed } ?: return
+    val copy = held.videoComposition?.mutableCopy() as? AVVideoComposition ?: return
+    held.videoComposition = copy
+  }
 
   // Lands between the frame showing and the playhead, so the playhead reported is the frame AVFoundation settled on.
   override fun presentFrame(

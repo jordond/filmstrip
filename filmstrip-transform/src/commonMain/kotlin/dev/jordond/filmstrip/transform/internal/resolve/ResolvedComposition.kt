@@ -8,6 +8,7 @@ import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.edit.sourceOffsetAt
 import dev.jordond.filmstrip.effect.EffectStage
 import dev.jordond.filmstrip.effect.PlatformEffect
+import dev.jordond.filmstrip.effect.PreviewClock
 import dev.jordond.filmstrip.export.Adjustment
 import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.export.OutputFormat
@@ -52,6 +53,8 @@ import kotlin.time.Duration
  *   every other plan, which writes every packet its window holds.
  * @property mixAudioEffects The composition's audio effects, in the order they run on the finished mix, after every
  *   clip's [ResolvedClip.gain].
+ * @property previewClock The clock of the preview this was lowered for, for a backend that resolves an effect again
+ *   as it draws. Null for an export, a thumbnail and a preview that cannot draw a held frame again.
  */
 @InternalFilmstripApi
 public class ResolvedComposition(
@@ -70,6 +73,7 @@ public class ResolvedComposition(
   public val naturalSize: Size = output.size,
   public val copyPrefix: CopyPrefix.Packets? = null,
   public val mixAudioEffects: List<ResolvedAudioEffect> = emptyList(),
+  public val previewClock: PreviewClock? = null,
 )
 
 /**

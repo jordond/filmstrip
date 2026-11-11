@@ -5,6 +5,7 @@ import dev.jordond.filmstrip.capability.FidelityNote
 import dev.jordond.filmstrip.capability.OutputProperty
 import dev.jordond.filmstrip.capability.PreviewFidelity
 import dev.jordond.filmstrip.edit.Composition
+import dev.jordond.filmstrip.effect.PreviewClock
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.media3.internal.bounds.Media3ClipReads
 import dev.jordond.filmstrip.media3.internal.bounds.readClips
@@ -38,9 +39,12 @@ internal class Media3PreviewPlan(
  * registered for its exports lowers the preview too.
  *
  * @param components The components the owning `Filmstrip` was built with.
+ * @param previewClock The clock handed to every effect the preview resolves, or null when the engine this planner
+ * lowers for does not draw a held frame again.
  */
 internal open class Media3PreviewPlanner(
   components: FilmstripComponents,
+  private val previewClock: PreviewClock? = null,
 ) : PreviewPlanner<Media3PreviewPlan> {
   private val engine = media3ExportEngine(components)
 
@@ -57,8 +61,7 @@ internal open class Media3PreviewPlanner(
           exportSpec,
           MEDIA3_FIDELITY,
           engine::exportGrade,
-          engine::resolve,
-        )
+        ) { edit, spec, layoutSize, grade -> engine.resolve(edit, spec, layoutSize, grade, previewClock) }
     ) {
       is PlanResult.Refused -> {
         result

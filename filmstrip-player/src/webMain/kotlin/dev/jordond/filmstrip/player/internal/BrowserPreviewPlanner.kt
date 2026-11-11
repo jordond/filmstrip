@@ -8,6 +8,7 @@ import dev.jordond.filmstrip.capability.OutputProperty
 import dev.jordond.filmstrip.capability.PreviewFidelity
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.Composition
+import dev.jordond.filmstrip.effect.PreviewClock
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.player.PlaybackError
 import dev.jordond.filmstrip.player.PreviewInfo
@@ -44,10 +45,13 @@ internal class BrowserPreviewPlan(
  * @param components The components the owning `Filmstrip` was built with.
  * @param readDevice Reads what this device's encoders can do, which decides what the preview negotiates for. The
  * browser's own encoders by default.
+ * @param previewClock The clock handed to every effect the preview resolves, or null when the engine this planner
+ * lowers for does not draw a held frame again.
  */
 internal open class BrowserPreviewPlanner(
   components: FilmstripComponents,
   readDevice: (suspend () -> DeviceCapabilities)? = null,
+  private val previewClock: PreviewClock? = null,
 ) : PreviewPlanner<BrowserPreviewPlan> {
   private val engine = webCodecsExportEngine(components, readDevice = readDevice)
 
@@ -71,8 +75,7 @@ internal open class BrowserPreviewPlanner(
           exportSpec,
           emptyList(),
           engine::exportGrade,
-          engine::resolve,
-        )
+        ) { edit, spec, layoutSize, grade -> engine.resolve(edit, spec, layoutSize, grade, previewClock) }
     ) {
       is PlanResult.Refused -> {
         result

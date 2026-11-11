@@ -263,6 +263,14 @@ internal class Media3PlayerEngine(
 
   override val shuttleRange: TimeRange? get() = loops.playbackRange
 
+  override val redrawsHeldFrames: Boolean get() = true
+
+  // The replayable cache draws the frame on the surface again at the presentation time it already has, so an effect
+  // on the preview clock is the only thing that moves.
+  override fun redrawHeld() {
+    handler.post { player?.experimentalRedrawLastFrame() }
+  }
+
   override fun onScrubbingChanged(scrubbing: Boolean) {
     this.scrubbing = scrubbing
     applyScrubbingMode()

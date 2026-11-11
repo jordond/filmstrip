@@ -33,6 +33,7 @@ public fun EffectsBuilder.vhs(block: VhsBuilder.() -> Unit = {}): EffectsBuilder
  * @property tape The tape speed, which sets how soft the picture is.
  * @property seed Picks the pattern of noise and events. Equal seeds draw the same tape.
  * @property tracking The band of mistracked tape, built with [events] or [rolling], or [Tracking.Off].
+ * @property clock What the pattern moves with in a preview. [TapeClock.Wall] keeps it moving while paused.
  */
 @FilmstripDsl
 public class VhsBuilder internal constructor() {
@@ -40,6 +41,7 @@ public class VhsBuilder internal constructor() {
   public var tape: TapeSpeed = TapeSpeed.EP
   public var seed: Int = Vhs.DEFAULT_SEED
   public var tracking: Tracking = Tracking.Events()
+  public var clock: TapeClock = TapeClock.Composition
   internal var camcorder: Camcorder? = null
     private set
 
@@ -75,7 +77,7 @@ public class VhsBuilder internal constructor() {
     return Tracking.Rolling(period, band.height, band.shift, band.snow)
   }
 
-  internal fun build(): Vhs = Vhs(intensity, tape, seed, tracking)
+  internal fun build(): Vhs = Vhs(intensity, tape, seed, tracking, clock)
 }
 
 /**

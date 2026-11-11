@@ -1,6 +1,7 @@
 package dev.jordond.filmstrip.effects.filters.vhs
 
 import dev.jordond.filmstrip.InternalFilmstripApi
+import dev.jordond.filmstrip.effect.PreviewClock
 import dev.jordond.filmstrip.effects.filters.internal.FilterNoise
 import dev.jordond.filmstrip.effects.filters.internal.FilterNoise.hash24
 import dev.jordond.filmstrip.effects.filters.internal.FilterNoise.snorm
@@ -17,6 +18,7 @@ import kotlin.math.floor
 import kotlin.math.min
 import kotlin.math.pow
 import kotlin.math.sin
+import kotlin.time.DurationUnit
 
 // The clock and the raster.
 internal const val TICK_RATE = 59.94
@@ -98,6 +100,19 @@ private const val TAU = 2.0 * PI
  */
 @InternalFilmstripApi
 public object VhsSignal {
+  /**
+   * The time [vhs] draws its pattern at on a frame at [frameSeconds] of composition time, in seconds.
+   *
+   * It is [clock]'s reading for a [TapeClock.Wall] tape resolved for a preview that has one, and the frame's own time
+   * everywhere else, which is every export. Each renderer hands this to [tickAt].
+   */
+  public fun tapeSeconds(
+    vhs: Vhs,
+    frameSeconds: Double,
+    clock: PreviewClock?,
+  ): Double =
+    if (vhs.clock == TapeClock.Wall && clock != null) clock.now().toDouble(DurationUnit.SECONDS) else frameSeconds
+
   /**
    * The tick a frame at [seconds] of composition time sits on, rounded to the nearest.
    *

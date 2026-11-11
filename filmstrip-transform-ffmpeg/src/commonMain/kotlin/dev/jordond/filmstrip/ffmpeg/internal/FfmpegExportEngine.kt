@@ -8,6 +8,7 @@ import dev.jordond.filmstrip.diagnostics.DiagnosticEvent
 import dev.jordond.filmstrip.diagnostics.DiagnosticEvent.Detail
 import dev.jordond.filmstrip.diagnostics.report
 import dev.jordond.filmstrip.edit.Composition
+import dev.jordond.filmstrip.effect.PreviewClock
 import dev.jordond.filmstrip.export.Adjustment
 import dev.jordond.filmstrip.export.EngineComponents
 import dev.jordond.filmstrip.export.ExportPlan
@@ -187,6 +188,7 @@ public class FfmpegExportEngine internal constructor(
     spec: ExportSpec,
     layoutSize: Size?,
     grade: ResolvedHdr?,
+    previewClock: PreviewClock?,
   ): LoweredExport<FfmpegRun> {
     val toolchain =
       when (val result = toolchain()) {
@@ -206,7 +208,7 @@ public class FfmpegExportEngine internal constructor(
       }
     val planner =
       FfmpegPlanner(toolchain, components.effectResolvers, runtime.bytesRoot, components.audioEffectResolvers)
-    val asked = Ask(spec, read.device, read.infos, read.openings, layoutSize, grade)
+    val asked = Ask(spec, read.device, read.infos, read.openings, layoutSize, grade, previewClock = previewClock)
     val ask =
       when (val withPackets = askWithCopyPackets(toolchain, planner, composition, asked)) {
         is CopyAsk.Refused -> return refusedLowering(withPackets.error)

@@ -9,6 +9,7 @@ import androidx.media3.common.util.Size
 import androidx.media3.effect.BaseGlShaderProgram
 import androidx.media3.effect.GlEffect
 import androidx.media3.effect.GlShaderProgram
+import dev.jordond.filmstrip.effect.PreviewClock
 import dev.jordond.filmstrip.effects.filters.internal.FULL_FRAME_VERTEX_SHADER
 import dev.jordond.filmstrip.effects.filters.internal.requireGles3
 
@@ -18,9 +19,12 @@ import dev.jordond.filmstrip.effects.filters.internal.requireGles3
  * The planner tone maps an HDR source for a [Vhs], so a frame processor in HDR here is a bug and is refused by name.
  * [VhsShader] is GLSL ES 3.00, which media3 can only link on an OpenGL ES 3 context. That is the device's limit, and a
  * context below it is refused by name too.
+ *
+ * @param previewClock The clock of the preview this is drawn in, or null in an export.
  */
 internal class VhsEffect(
   private val vhs: Vhs,
+  private val previewClock: PreviewClock? = null,
 ) : GlEffect {
   override fun toGlShaderProgram(
     context: Context,
@@ -32,11 +36,12 @@ internal class VhsEffect(
     } catch (e: GlUtil.GlException) {
       throw VideoFrameProcessingException(e)
     }
-    return VhsShaderProgram(vhs)
+    return VhsShaderProgram(vhs, previewClock)
   }
 
   // Compared by value so a preview can tell a re-lowering that changed this pass from one that produced it again.
-  override fun equals(other: Any?): Boolean = this === other || (other is VhsEffect && vhs == other.vhs)
+  override fun equals(other: Any?): Boolean =
+    this === other || (other is VhsEffect && vhs == other.vhs && previewClock === other.previewClock)
 
   override fun hashCode(): Int = vhs.hashCode()
 }
@@ -44,10 +49,12 @@ internal class VhsEffect(
 /**
  * Runs [VhsShader] over a frame the same size as the input.
  *
- * A frame's uniforms come from its presentation time alone, so a seek lands on the pattern an export draws there.
+ * A frame's uniforms come from [VhsSignal.tapeSeconds] of its presentation time, so without a preview clock a seek
+ * lands on the pattern an export draws there.
  */
 internal class VhsShaderProgram(
   private val vhs: Vhs,
+  private val previewClock: PreviewClock? = null,
 ) : BaseGlShaderProgram(false, TEXTURE_POOL_CAPACITY) {
   private var width = 1
   private var height = 1
@@ -84,7 +91,8 @@ internal class VhsShaderProgram(
       program.setFloatsUniform(VhsShader.RESOLUTION, floatArrayOf(width.toFloat(), height.toFloat()))
       // A GL texture runs from the bottom left.
       program.setFloatUniform(VhsShader.FLIP_V, 1f)
-      VhsShader.uniforms(vhs, presentationTimeUs / MICROS_PER_SECOND).forEach { (name, value) ->
+      val seconds = VhsSignal.tapeSeconds(vhs, presentationTimeUs / MICROS_PER_SECOND, previewClock)
+      VhsShader.uniforms(vhs, seconds).forEach { (name, value) ->
         program.setFloatUniform(name, value)
       }
       program.bindAttributesAndUniforms()

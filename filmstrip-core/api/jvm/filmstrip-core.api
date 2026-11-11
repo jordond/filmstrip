@@ -780,6 +780,7 @@ public final class dev/jordond/filmstrip/effect/Attributes {
 	public final fun getInputSize ()Ldev/jordond/filmstrip/geometry/Size;
 	public final fun getLayoutSize ()Ldev/jordond/filmstrip/geometry/Size;
 	public final fun getOutputSize ()Ldev/jordond/filmstrip/geometry/Size;
+	public final fun getPreviewClock ()Ldev/jordond/filmstrip/effect/PreviewClock;
 	public final fun getSpan ()Ldev/jordond/filmstrip/edit/TimeRange;
 	public final fun getStoredSize ()Ldev/jordond/filmstrip/geometry/Size;
 	public fun toString ()Ljava/lang/String;
@@ -906,6 +907,7 @@ public final class dev/jordond/filmstrip/effect/EffectScope : java/lang/Enum {
 public abstract interface class dev/jordond/filmstrip/effect/EffectSpec {
 	public fun getBeneathOverlays ()Z
 	public abstract fun getId ()Ljava/lang/String;
+	public fun getRedrawsWhileHeld ()Z
 	public fun getRequiresSdr ()Z
 	public fun getScope ()Ldev/jordond/filmstrip/effect/EffectScope;
 	public fun getStage ()Ldev/jordond/filmstrip/effect/EffectStage;
@@ -914,6 +916,7 @@ public abstract interface class dev/jordond/filmstrip/effect/EffectSpec {
 
 public final class dev/jordond/filmstrip/effect/EffectSpec$DefaultImpls {
 	public static fun getBeneathOverlays (Ldev/jordond/filmstrip/effect/EffectSpec;)Z
+	public static fun getRedrawsWhileHeld (Ldev/jordond/filmstrip/effect/EffectSpec;)Z
 	public static fun getRequiresSdr (Ldev/jordond/filmstrip/effect/EffectSpec;)Z
 	public static fun getScope (Ldev/jordond/filmstrip/effect/EffectSpec;)Ldev/jordond/filmstrip/effect/EffectScope;
 	public static fun getStage (Ldev/jordond/filmstrip/effect/EffectSpec;)Ldev/jordond/filmstrip/effect/EffectStage;
@@ -1004,6 +1007,10 @@ public final class dev/jordond/filmstrip/effect/PlatformEffect {
 	public final fun getFragment ()Ldev/jordond/filmstrip/effect/FilterFragment;
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class dev/jordond/filmstrip/effect/PreviewClock {
+	public abstract fun now-UwyO8pc ()J
 }
 
 public final class dev/jordond/filmstrip/effect/RenderApi : java/lang/Enum {

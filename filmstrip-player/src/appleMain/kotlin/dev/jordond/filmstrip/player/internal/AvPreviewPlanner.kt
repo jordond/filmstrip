@@ -6,6 +6,7 @@ import dev.jordond.filmstrip.capability.FidelityNote
 import dev.jordond.filmstrip.capability.OutputProperty
 import dev.jordond.filmstrip.capability.PreviewFidelity
 import dev.jordond.filmstrip.edit.Composition
+import dev.jordond.filmstrip.effect.PreviewClock
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.player.PlaybackError
 import dev.jordond.filmstrip.player.PreviewQualityPolicy
@@ -17,9 +18,12 @@ import dev.jordond.filmstrip.player.PreviewQualityPolicy
  * registered for its exports lowers the preview too.
  *
  * @param components The components the owning `Filmstrip` was built with.
+ * @param previewClock The clock handed to every effect the preview resolves, or null when the engine this planner
+ * lowers for does not draw a held frame again.
  */
 internal class AvPreviewPlanner(
   components: FilmstripComponents,
+  private val previewClock: PreviewClock? = null,
 ) : PreviewPlanner<PreviewPlan> {
   private val engine = avFoundationExportEngine(components)
 
@@ -28,7 +32,9 @@ internal class AvPreviewPlanner(
     policy: PreviewQualityPolicy,
     exportSpec: ExportSpec,
   ): PlanResult<PreviewPlan, PlaybackError> =
-    planPreview(composition, policy, exportSpec, AV_FIDELITY, engine::exportGrade, engine::resolve)
+    planPreview(composition, policy, exportSpec, AV_FIDELITY, engine::exportGrade) { edit, spec, layoutSize, grade ->
+      engine.resolve(edit, spec, layoutSize, grade, previewClock)
+    }
 }
 
 /**

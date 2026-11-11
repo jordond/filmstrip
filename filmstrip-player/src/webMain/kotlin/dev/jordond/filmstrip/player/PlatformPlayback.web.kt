@@ -3,6 +3,7 @@ package dev.jordond.filmstrip.player
 import dev.jordond.filmstrip.FilmstripComponents
 import dev.jordond.filmstrip.player.internal.BrowserPlayerEngine
 import dev.jordond.filmstrip.player.internal.BrowserPreviewPlanner
+import dev.jordond.filmstrip.player.internal.MonotonicPreviewClock
 import dev.jordond.filmstrip.player.internal.thumbnail.BrowserThumbnailPlanner
 import dev.jordond.filmstrip.player.internal.thumbnail.BrowserThumbnailSource
 import dev.jordond.filmstrip.thumbnail.ThumbnailRequest
@@ -19,7 +20,7 @@ internal actual fun createPlayerEngine(
 ): PlayerEngine? =
   BrowserPlayerEngine(
     parent = CoroutineScope(Dispatchers.Main + SupervisorJob()),
-    planner = BrowserPreviewPlanner(components),
+    planner = BrowserPreviewPlanner(components, previewClock = MonotonicPreviewClock()),
     config = config,
   )
 

@@ -87,6 +87,7 @@ internal fun encodingOf(
           capabilities = renderCapabilities(outputSize, grade.encodesHdr),
           frameRate = frameRate,
           hdrTransfer = grade.hdrTransfer.takeIf { grade.encodesHdr },
+          previewClock = ask.previewClock,
         ),
     ),
   )

@@ -330,6 +330,7 @@ internal fun FrameInfo.measuring(
       hdrTransfer = attributes.hdrTransfer,
       frameRate = attributes.frameRate,
       span = attributes.span,
+      previewClock = attributes.previewClock,
     )
   return FrameInfo(measured, compositionTime)
 }

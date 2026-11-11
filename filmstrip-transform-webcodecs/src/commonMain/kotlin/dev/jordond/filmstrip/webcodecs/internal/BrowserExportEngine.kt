@@ -7,6 +7,7 @@ import dev.jordond.filmstrip.capability.DeviceCapabilities
 import dev.jordond.filmstrip.capability.EffectParity
 import dev.jordond.filmstrip.codec.Bitrate
 import dev.jordond.filmstrip.edit.Composition
+import dev.jordond.filmstrip.effect.PreviewClock
 import dev.jordond.filmstrip.export.EngineComponents
 import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.export.ExportPlan
@@ -84,6 +85,7 @@ public class BrowserExportEngine(
     spec: ExportSpec,
     layoutSize: Size?,
     grade: ResolvedHdr?,
+    previewClock: PreviewClock?,
   ): LoweredExport<BrowserRender> {
     val read =
       when (val result = reads.read(composition)) {
@@ -94,7 +96,7 @@ public class BrowserExportEngine(
     // whatever the device can encode.
     val opaque = opaqueGrades(read.infos)
     val device = if (opaque.isEmpty()) read.device else read.device.withoutHdrEncoding()
-    val asked = Ask(spec, device, read.infos, read.openings, layoutSize, grade)
+    val asked = Ask(spec, device, read.infos, read.openings, layoutSize, grade, previewClock = previewClock)
     return when (val withPackets = askedWithPackets(composition, asked)) {
       is CopyAsk.Refused -> {
         refusedLowering(withPackets.error)

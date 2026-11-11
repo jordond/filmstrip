@@ -488,6 +488,10 @@ abstract fun interface dev.jordond.filmstrip.effect/EffectResolver { // dev.jord
     open suspend fun prepare(dev.jordond.filmstrip.edit/Composition) // dev.jordond.filmstrip.effect/EffectResolver.prepare|prepare(dev.jordond.filmstrip.edit.Composition){}[0]
 }
 
+abstract fun interface dev.jordond.filmstrip.effect/PreviewClock { // dev.jordond.filmstrip.effect/PreviewClock|null[0]
+    abstract fun now(): kotlin.time/Duration // dev.jordond.filmstrip.effect/PreviewClock.now|now(){}[0]
+}
+
 abstract fun interface dev.jordond.filmstrip.player/PlaybackEventListener { // dev.jordond.filmstrip.player/PlaybackEventListener|null[0]
     abstract fun onEvent(dev.jordond.filmstrip.player/PlaybackEvent) // dev.jordond.filmstrip.player/PlaybackEventListener.onEvent|onEvent(dev.jordond.filmstrip.player.PlaybackEvent){}[0]
 }
@@ -551,6 +555,8 @@ abstract interface dev.jordond.filmstrip.effect/EffectSpec { // dev.jordond.film
         open fun <get-beneathOverlays>(): kotlin/Boolean // dev.jordond.filmstrip.effect/EffectSpec.beneathOverlays.<get-beneathOverlays>|<get-beneathOverlays>(){}[0]
     open val isInert // dev.jordond.filmstrip.effect/EffectSpec.isInert|{}isInert[0]
         open fun <get-isInert>(): kotlin/Boolean // dev.jordond.filmstrip.effect/EffectSpec.isInert.<get-isInert>|<get-isInert>(){}[0]
+    open val redrawsWhileHeld // dev.jordond.filmstrip.effect/EffectSpec.redrawsWhileHeld|{}redrawsWhileHeld[0]
+        open fun <get-redrawsWhileHeld>(): kotlin/Boolean // dev.jordond.filmstrip.effect/EffectSpec.redrawsWhileHeld.<get-redrawsWhileHeld>|<get-redrawsWhileHeld>(){}[0]
     open val requiresSdr // dev.jordond.filmstrip.effect/EffectSpec.requiresSdr|{}requiresSdr[0]
         open fun <get-requiresSdr>(): kotlin/Boolean // dev.jordond.filmstrip.effect/EffectSpec.requiresSdr.<get-requiresSdr>|<get-requiresSdr>(){}[0]
     open val scope // dev.jordond.filmstrip.effect/EffectSpec.scope|{}scope[0]
@@ -2193,6 +2199,8 @@ final class dev.jordond.filmstrip.effect/Attributes { // dev.jordond.filmstrip.e
         final fun <get-layoutSize>(): dev.jordond.filmstrip.geometry/Size // dev.jordond.filmstrip.effect/Attributes.layoutSize.<get-layoutSize>|<get-layoutSize>(){}[0]
     final val outputSize // dev.jordond.filmstrip.effect/Attributes.outputSize|{}outputSize[0]
         final fun <get-outputSize>(): dev.jordond.filmstrip.geometry/Size // dev.jordond.filmstrip.effect/Attributes.outputSize.<get-outputSize>|<get-outputSize>(){}[0]
+    final val previewClock // dev.jordond.filmstrip.effect/Attributes.previewClock|{}previewClock[0]
+        final fun <get-previewClock>(): dev.jordond.filmstrip.effect/PreviewClock? // dev.jordond.filmstrip.effect/Attributes.previewClock.<get-previewClock>|<get-previewClock>(){}[0]
     final val span // dev.jordond.filmstrip.effect/Attributes.span|{}span[0]
         final fun <get-span>(): dev.jordond.filmstrip.edit/TimeRange // dev.jordond.filmstrip.effect/Attributes.span.<get-span>|<get-span>(){}[0]
     final val storedSize // dev.jordond.filmstrip.effect/Attributes.storedSize|{}storedSize[0]

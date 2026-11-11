@@ -42,7 +42,7 @@ class EngineLoweringTest {
       val resolver = PreparingResolver { steps += "prepare" }
       var lowerings = 0
       val lowering =
-        EngineLowering<Any>(listOf(resolver), NO_GRADE, { _, _, _, _ ->
+        EngineLowering<Any>(listOf(resolver), NO_GRADE, { _, _, _, _, _ ->
           val index = lowerings++
           steps += "lower $index"
           if (index == 0) gate.await()
@@ -68,7 +68,7 @@ class EngineLoweringTest {
       val never = CompletableDeferred<Unit>()
       var lowerings = 0
       val lowering =
-        EngineLowering<Any>(emptyList(), NO_GRADE, { _, _, _, _ ->
+        EngineLowering<Any>(emptyList(), NO_GRADE, { _, _, _, _, _ ->
           if (lowerings++ == 0) never.await()
           refused()
         }, { _, _, _ -> emptyFlow<ExportStatus>() })
@@ -86,7 +86,7 @@ class EngineLoweringTest {
       val gate = CompletableDeferred<Unit>()
       var lowerings = 0
       val lowering =
-        EngineLowering<Any>(emptyList(), NO_GRADE, { _, _, _, _ ->
+        EngineLowering<Any>(emptyList(), NO_GRADE, { _, _, _, _, _ ->
           lowerings++
           gate.await()
           refused()
@@ -118,7 +118,7 @@ class EngineLoweringTest {
           }
         }
       val lowering =
-        EngineLowering<Any>(listOf(resolver), NO_GRADE, { _, _, _, _ ->
+        EngineLowering<Any>(listOf(resolver), NO_GRADE, { _, _, _, _, _ ->
           steps += "lower"
           refused()
         }, { _, _, _ -> emptyFlow<ExportStatus>() })
@@ -149,7 +149,7 @@ class EngineLoweringTest {
           if (refusals.size == 1) gate.await()
         }
       val lowering =
-        EngineLowering<Any>(listOf(resolver), NO_GRADE, { _, _, _, _ ->
+        EngineLowering<Any>(listOf(resolver), NO_GRADE, { _, _, _, _, _ ->
           steps += "lower"
           refusedLowering(FilmstripError.InvalidComposition(refusal))
         }, { _, _, _ -> emptyFlow<ExportStatus>() })

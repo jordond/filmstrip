@@ -72,6 +72,16 @@ public interface EffectSpec {
    */
   public val beneathOverlays: Boolean
     get() = false
+
+  /**
+   * Whether a preview keeps drawing this effect while its picture stands still.
+   *
+   * Defaults to `false`. When `true` a preview that can draw a held frame again does so at the composition's frame
+   * rate while it is paused, and hands this effect's resolver an [Attributes.previewClock] to draw from. An export
+   * is never affected.
+   */
+  public val redrawsWhileHeld: Boolean
+    get() = false
 }
 
 /**

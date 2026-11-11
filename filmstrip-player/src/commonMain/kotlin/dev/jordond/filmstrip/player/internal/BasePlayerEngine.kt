@@ -202,6 +202,40 @@ internal abstract class BasePlayerEngine(
    */
   protected open fun onScrubbingChanged(scrubbing: Boolean): Unit = Unit
 
+  private val heldRedraw =
+    HeldRedraw(scope) {
+      redrawHeld()
+      emitFrameRedrawn()
+    }
+
+  /**
+   * How often the frame this engine is holding has to be drawn again, or null when it stands as it is.
+   *
+   * Asked whenever the state moves and whenever [syncHeldRedraw] is called. The default never redraws.
+   */
+  protected open fun heldRedrawInterval(): Duration? = null
+
+  /**
+   * Draws the frame on screen again, where it is, without moving the playhead or the state.
+   *
+   * Only called while the engine is ready or ended and is neither playing, seeking nor shuttling. The base reports the
+   * frame as redrawn afterwards, which is what makes a surface that pulls its frames read the new one, so a backend
+   * with such a surface has nothing to do here.
+   */
+  protected open fun redrawHeld() {}
+
+  /**
+   * Starts or stops the held frame's redraws to match the state and [heldRedrawInterval] as they stand now.
+   *
+   * The state moving calls this already. A backend calls it when what [heldRedrawInterval] reads changes with the
+   * state standing still, which a plan applied under a paused preview does.
+   */
+  protected fun syncHeldRedraw() {
+    val showsAFrame = status == PlaybackStatus.Ready || status == PlaybackStatus.Ended
+    val held = !isReleased && showsAFrame && !snapshot.isPlaying && !isSeeking && shuttleRate == null
+    heldRedraw.sync(if (held) heldRedrawInterval() else null)
+  }
+
   /**
    * The times of the first and last frames a shuttle may show, as [shuttleBoundsOf] gives them, or null when nothing
    * is loaded.
@@ -559,6 +593,7 @@ internal abstract class BasePlayerEngine(
     if (next == snapshot) return
     snapshot = next
     if (next.isPlaying) ticker.start() else ticker.stop()
+    syncHeldRedraw()
 
     // A listener that changes an axis from inside onStateChanged re-enters here. The nested call
     // records the newer snapshot and returns, and this loop delivers it, so no listener is left

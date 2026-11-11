@@ -219,6 +219,8 @@ one, it's refused by name.
   frame larger than the output.
 - **Android and browser** need OpenGL ES 3 for every filter, and a texture big enough for a `lut` table, 1170×520 for a
   65 point table and 3096×1419 for 129.
+- **ffmpeg** has no wall clock in a filter graph, so the JVM desktop preview draws a `vhs` set to `TapeClock.Wall` from
+  composition time, and it holds still when paused. Android, Apple and the browser keep it moving.
 - **ffmpeg** blurs with the shared kernel, and rounds through RGB and back, so a hard edge can land a couple of codes
   off. Everywhere else it's within a few code values.
 - **ffmpeg** works in 4:2:0, which averages out the colored stripes in `crt`'s mask. Any 4:2:0 file does the same, so

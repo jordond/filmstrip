@@ -24,6 +24,7 @@ public final class dev/jordond/filmstrip/effects/filters/camcorder/Camcorder : d
 	public final fun getElements ()Ljava/util/List;
 	public fun getId ()Ljava/lang/String;
 	public final fun getRecordedAt ()Ldev/jordond/filmstrip/effects/filters/camcorder/RecordedAt;
+	public fun getRedrawsWhileHeld ()Z
 	public fun getRequiresSdr ()Z
 	public fun getScope ()Ldev/jordond/filmstrip/effect/EffectScope;
 	public fun getStage ()Ldev/jordond/filmstrip/effect/EffectStage;
@@ -219,6 +220,7 @@ public final class dev/jordond/filmstrip/effects/filters/crt/Crt : dev/jordond/f
 	public fun getBeneathOverlays ()Z
 	public fun getId ()Ljava/lang/String;
 	public final fun getIntensity ()F
+	public fun getRedrawsWhileHeld ()Z
 	public fun getRequiresSdr ()Z
 	public fun getScope ()Ldev/jordond/filmstrip/effect/EffectScope;
 	public fun getStage ()Ldev/jordond/filmstrip/effect/EffectStage;
@@ -250,6 +252,7 @@ public final class dev/jordond/filmstrip/effects/filters/film/Film : dev/jordond
 	public final fun getGrain ()F
 	public final fun getHalation ()F
 	public fun getId ()Ljava/lang/String;
+	public fun getRedrawsWhileHeld ()Z
 	public fun getRequiresSdr ()Z
 	public fun getScope ()Ldev/jordond/filmstrip/effect/EffectScope;
 	public final fun getSeed ()I
@@ -280,6 +283,7 @@ public final class dev/jordond/filmstrip/effects/filters/glitch/Glitch : dev/jor
 	public fun getBeneathOverlays ()Z
 	public fun getId ()Ljava/lang/String;
 	public final fun getIntensity ()F
+	public fun getRedrawsWhileHeld ()Z
 	public fun getRequiresSdr ()Z
 	public fun getScope ()Ldev/jordond/filmstrip/effect/EffectScope;
 	public final fun getSeed ()I
@@ -327,6 +331,7 @@ public final class dev/jordond/filmstrip/effects/filters/lut/Lut : dev/jordond/f
 	public fun getBeneathOverlays ()Z
 	public fun getId ()Ljava/lang/String;
 	public final fun getIntensity ()F
+	public fun getRedrawsWhileHeld ()Z
 	public fun getRequiresSdr ()Z
 	public fun getScope ()Ldev/jordond/filmstrip/effect/EffectScope;
 	public fun getStage ()Ldev/jordond/filmstrip/effect/EffectStage;
@@ -355,6 +360,7 @@ public final class dev/jordond/filmstrip/effects/filters/nightvision/NightVision
 	public fun getBeneathOverlays ()Z
 	public fun getId ()Ljava/lang/String;
 	public final fun getIntensity ()F
+	public fun getRedrawsWhileHeld ()Z
 	public fun getRequiresSdr ()Z
 	public fun getScope ()Ldev/jordond/filmstrip/effect/EffectScope;
 	public final fun getSeed ()I
@@ -390,6 +396,7 @@ public final class dev/jordond/filmstrip/effects/filters/pixel/Pixel : dev/jordo
 	public fun getId ()Ljava/lang/String;
 	public final fun getLevels ()I
 	public final fun getPalette ()Ldev/jordond/filmstrip/effects/filters/pixel/PixelPalette;
+	public fun getRedrawsWhileHeld ()Z
 	public fun getRequiresSdr ()Z
 	public fun getScope ()Ldev/jordond/filmstrip/effect/EffectScope;
 	public fun getStage ()Ldev/jordond/filmstrip/effect/EffectStage;
@@ -487,6 +494,14 @@ public final class dev/jordond/filmstrip/effects/filters/tape/Wobble {
 public final class dev/jordond/filmstrip/effects/filters/tape/Wobble$Companion {
 }
 
+public final class dev/jordond/filmstrip/effects/filters/vhs/TapeClock : java/lang/Enum {
+	public static final field Composition Ldev/jordond/filmstrip/effects/filters/vhs/TapeClock;
+	public static final field Wall Ldev/jordond/filmstrip/effects/filters/vhs/TapeClock;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Ldev/jordond/filmstrip/effects/filters/vhs/TapeClock;
+	public static fun values ()[Ldev/jordond/filmstrip/effects/filters/vhs/TapeClock;
+}
+
 public final class dev/jordond/filmstrip/effects/filters/vhs/TapeSpeed : java/lang/Enum {
 	public static final field EP Ldev/jordond/filmstrip/effects/filters/vhs/TapeSpeed;
 	public static final field LP Ldev/jordond/filmstrip/effects/filters/vhs/TapeSpeed;
@@ -561,12 +576,14 @@ public final class dev/jordond/filmstrip/effects/filters/vhs/Vhs : dev/jordond/f
 	public static final field DEFAULT_SEED I
 	public static final field ID Ljava/lang/String;
 	public fun <init> ()V
-	public fun <init> (FLdev/jordond/filmstrip/effects/filters/vhs/TapeSpeed;ILdev/jordond/filmstrip/effects/filters/vhs/Tracking;)V
-	public synthetic fun <init> (FLdev/jordond/filmstrip/effects/filters/vhs/TapeSpeed;ILdev/jordond/filmstrip/effects/filters/vhs/Tracking;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (FLdev/jordond/filmstrip/effects/filters/vhs/TapeSpeed;ILdev/jordond/filmstrip/effects/filters/vhs/Tracking;Ldev/jordond/filmstrip/effects/filters/vhs/TapeClock;)V
+	public synthetic fun <init> (FLdev/jordond/filmstrip/effects/filters/vhs/TapeSpeed;ILdev/jordond/filmstrip/effects/filters/vhs/Tracking;Ldev/jordond/filmstrip/effects/filters/vhs/TapeClock;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun equals (Ljava/lang/Object;)Z
 	public fun getBeneathOverlays ()Z
+	public final fun getClock ()Ldev/jordond/filmstrip/effects/filters/vhs/TapeClock;
 	public fun getId ()Ljava/lang/String;
 	public final fun getIntensity ()F
+	public fun getRedrawsWhileHeld ()Z
 	public fun getRequiresSdr ()Z
 	public fun getScope ()Ldev/jordond/filmstrip/effect/EffectScope;
 	public final fun getSeed ()I
@@ -585,12 +602,14 @@ public final class dev/jordond/filmstrip/effects/filters/vhs/VhsBuilder {
 	public final fun camcorder (Lkotlin/jvm/functions/Function1;)V
 	public final fun events (FLkotlin/jvm/functions/Function1;)Ldev/jordond/filmstrip/effects/filters/vhs/Tracking$Events;
 	public static synthetic fun events$default (Ldev/jordond/filmstrip/effects/filters/vhs/VhsBuilder;FLkotlin/jvm/functions/Function1;ILjava/lang/Object;)Ldev/jordond/filmstrip/effects/filters/vhs/Tracking$Events;
+	public final fun getClock ()Ldev/jordond/filmstrip/effects/filters/vhs/TapeClock;
 	public final fun getIntensity ()F
 	public final fun getSeed ()I
 	public final fun getTape ()Ldev/jordond/filmstrip/effects/filters/vhs/TapeSpeed;
 	public final fun getTracking ()Ldev/jordond/filmstrip/effects/filters/vhs/Tracking;
 	public final fun rolling-VtjQ1oo (JLkotlin/jvm/functions/Function1;)Ldev/jordond/filmstrip/effects/filters/vhs/Tracking$Rolling;
 	public static synthetic fun rolling-VtjQ1oo$default (Ldev/jordond/filmstrip/effects/filters/vhs/VhsBuilder;JLkotlin/jvm/functions/Function1;ILjava/lang/Object;)Ldev/jordond/filmstrip/effects/filters/vhs/Tracking$Rolling;
+	public final fun setClock (Ldev/jordond/filmstrip/effects/filters/vhs/TapeClock;)V
 	public final fun setIntensity (F)V
 	public final fun setSeed (I)V
 	public final fun setTape (Ldev/jordond/filmstrip/effects/filters/vhs/TapeSpeed;)V
