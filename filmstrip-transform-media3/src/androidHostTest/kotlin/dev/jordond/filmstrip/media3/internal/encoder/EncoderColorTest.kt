@@ -54,6 +54,27 @@ class EncoderColorTest {
   }
 
   @Test
+  fun `the encoder is configured at the export's frame rate and keeps it through a retag`() {
+    val factory = FakeFactory(names = listOf(SOFTWARE, SOFTWARE))
+    val color =
+      EncoderColor(factory, { factory }, probe(BT601_LIMITED), logs::add, frameRate = EXPORT_RATE)
+
+    color.createForVideoEncoding(sdrFormat().buildUpon().setFrameRate(SOURCE_RATE).build(), null)
+
+    factory.formats.map { it.frameRate } shouldBe listOf(EXPORT_RATE.toFloat(), EXPORT_RATE.toFloat())
+  }
+
+  @Test
+  fun `an encoder made with no export rate keeps the rate it was asked for`() {
+    val factory = FakeFactory(names = listOf(SOFTWARE))
+
+    color(factory, probe(ColorInfo.SDR_BT709_LIMITED))
+      .createForVideoEncoding(sdrFormat().buildUpon().setFrameRate(SOURCE_RATE).build(), null)
+
+    factory.formats.single().frameRate shouldBe SOURCE_RATE
+  }
+
+  @Test
   fun `the probe is asked about the encoder at the size tier it was configured at`() {
     val asked = mutableListOf<EncoderColorRequest>()
     val factory = FakeFactory(names = listOf(SOFTWARE), configuredSize = CONFIGURED_WIDTH to CONFIGURED_HEIGHT)
@@ -394,6 +415,8 @@ class EncoderColorTest {
     const val SOURCES = "/sdcard/clip.mp4"
     const val SINK = "/sdcard/out.mp4"
     const val SOFTWARE = "c2.android.avc.encoder"
+    const val SOURCE_RATE = 30f
+    const val EXPORT_RATE = 25
     const val OTHER = "c2.vendor.avc.encoder"
     const val SOFTWARE_AAC = "c2.android.aac.encoder"
     const val OTHER_AAC = "c2.vendor.aac.encoder"

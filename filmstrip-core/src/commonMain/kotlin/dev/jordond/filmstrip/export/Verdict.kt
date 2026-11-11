@@ -379,6 +379,9 @@ public class ExportPlan
  * the source or a default, so it is always above zero.
  * @property audioFormat The audio format the whole composition is normalised to, or null when there
  *   is no audio.
+ * @property keyFrameSpacing How many frames apart the encoder is asked to place key frames, resolved from
+ * [ExportSpec.keyFrameInterval] and [frameRate]. Null on a copy, which keeps the source's own key frames, and on an
+ * audio-only export, which writes no video.
  */
 @Poko
 public class OutputFormat(
@@ -388,9 +391,13 @@ public class OutputFormat(
   public val bitrate: Bitrate?,
   public val frameRate: Int,
   public val audioFormat: AudioFormat?,
+  public val keyFrameSpacing: Int? = null,
 ) {
   init {
     require(frameRate > 0) { "An output frame rate must be above zero, got $frameRate." }
+    require(keyFrameSpacing == null || keyFrameSpacing > 0) {
+      "Key frames must be at least one frame apart, got $keyFrameSpacing."
+    }
   }
 }
 

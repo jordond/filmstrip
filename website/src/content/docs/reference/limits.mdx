@@ -22,7 +22,7 @@ couldn't, so you can see what to drop to get the copy back. See [Export](/guides
 | The source       | `TrimNotOnSyncSample`, `SourceUntimed`, `MuxerRefusesSource`, `SourceCodecUnnameable`, `GradeMustToneMap` |
 | The backend      | `BackendCannotCopy`, `NonSquarePixels`                                                                    |
 
-- Setting `quality` blocks as `BitrateSet`. `MatchSource` doesn't block.
+- Setting `quality` blocks as `BitrateSet`. `MatchSource` doesn't block. Neither does `keyFrameInterval`.
 - The `Upload`, `Share` and `Archive` [presets](/guides/export/#presets) name a codec, so they never copy. `Original`
   can.
 - On Android a source with non-square pixels always transcodes, as `NonSquarePixels`.
@@ -34,6 +34,21 @@ couldn't, so you can see what to drop to get the copy back. See [Export](/guides
   of AAC at 48 kHz, writes no audio track and reports `AudioDropped`.
 - On ffmpeg, Apple and the browser, a source with more than 1000 packets a second, or one whose packets can't be read,
   is refused at `plan()` as `SourceUnreadable`.
+
+## Key frames
+
+`ExportSpec.keyFrameInterval` sets the longest run between two key frames, and the plan's `output.keyFrameSpacing` is
+that run in frames. See [Export](/guides/export/#key-frames).
+
+| Backend      | What the file holds                                                                           |
+| ------------ | --------------------------------------------------------------------------------------------- |
+| Media3       | A key frame every `keyFrameSpacing` frames.                                                   |
+| AVFoundation | A key frame at most every `keyFrameSpacing` frames. VideoToolbox adds more where it chooses.  |
+| WebCodecs    | A key frame every `keyFrameSpacing` frames.                                                   |
+| ffmpeg       | A key frame every `keyFrameSpacing` frames. Its VideoToolbox encoders behave as AVFoundation. |
+
+- A stream copy keeps the source's key frames wherever they are. Name a codec or a bitrate to get a transcode and
+  the spacing with it.
 
 ## Probe deadline
 

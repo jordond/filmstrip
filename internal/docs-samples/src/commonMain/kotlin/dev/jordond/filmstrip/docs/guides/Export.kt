@@ -15,6 +15,7 @@ import dev.jordond.filmstrip.export.Verdict
 import dev.jordond.filmstrip.export.VideoQuality
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
+import kotlin.time.Duration.Companion.milliseconds
 
 internal fun spec(): ExportSpec {
   // region spec
@@ -35,6 +36,13 @@ internal fun quality(): ExportSpec {
   val draft = ExportSpec(heightPx = 480, quality = VideoQuality.Low)
   // endregion
   return draft
+}
+
+internal fun keyFrames(): ExportSpec {
+  // region key-frames
+  val scrubbable = ExportSpec(heightPx = 1080, keyFrameInterval = 500.milliseconds)
+  // endregion
+  return scrubbable
 }
 
 internal fun exactHeight(): Composition {

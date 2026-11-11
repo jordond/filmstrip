@@ -357,8 +357,32 @@ private fun Invocation.videoArguments(): List<String> =
     add((bitrate * MAXRATE_NUMERATOR / MAXRATE_DENOMINATOR).toString())
     add("-bufsize")
     add((bitrate * BUFSIZE_FACTOR).toString())
+    output.keyFrameSpacing?.let { addAll(keyFrameArguments(name, it)) }
     // No -r and no rotation metadata: the graph's own fps filter already pins the rate, and
     // filmstrip bakes rotation into the pixels rather than asking a player to apply it.
+  }
+
+/**
+ * The arguments that hold [encoder] to a key frame every [spacing] frames.
+ *
+ * `-g` is the longest run between two key frames and `-keyint_min` the shortest, so the two together fix the spacing.
+ * x264 also starts a key frame at a scene cut unless `-sc_threshold` is zero, and x265 takes the same switch through
+ * its own params. The VideoToolbox encoders read `-g` as a ceiling and add key frames of their own, which is
+ * VideoToolbox's limit.
+ */
+internal fun keyFrameArguments(
+  encoder: String,
+  spacing: Int,
+): List<String> =
+  buildList {
+    add("-g")
+    add(spacing.toString())
+    add("-keyint_min")
+    add(spacing.toString())
+    if (encoder == "libx264") {
+      add("-sc_threshold")
+      add("0")
+    }
   }
 
 private fun Invocation.x265Params(): List<String> =
@@ -373,6 +397,7 @@ private fun Invocation.x265Params(): List<String> =
       add("repeat-headers=1")
     }
     if (output.size.width in X265_CUTREE_CRASH_WIDTHS) add("cutree=0")
+    if (output.keyFrameSpacing != null) add("scenecut=0")
   }
 
 private fun Invocation.audioArguments(): List<String> =

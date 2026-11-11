@@ -211,6 +211,7 @@ internal fun outputFormatOf(
     bitrate = encoding.bitrate,
     frameRate = encoding.target.frameRate,
     audioFormat = if (audio.codec == AudioCodec.None) null else audioFormat(tracks, audioEncoder),
+    keyFrameSpacing = encoding.keyFrameSpacing,
   )
 }
 

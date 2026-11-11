@@ -416,6 +416,11 @@ internal external class VideoSampleSource(
   encodingConfig: JsAny,
 ) : JsAny {
   fun add(videoSample: VideoSample): Promise<JsAny?>
+
+  fun add(
+    videoSample: VideoSample,
+    encodeOptions: JsAny,
+  ): Promise<JsAny?>
 }
 
 /**

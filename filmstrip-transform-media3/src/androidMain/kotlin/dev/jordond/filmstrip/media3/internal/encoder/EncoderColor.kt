@@ -19,6 +19,7 @@ import dev.jordond.filmstrip.codec.Bitrate
 import dev.jordond.filmstrip.export.Adjustment
 import dev.jordond.filmstrip.export.AdjustmentKind
 import dev.jordond.filmstrip.export.ExportPath
+import dev.jordond.filmstrip.export.OutputFormat
 import dev.jordond.filmstrip.media.ColorSpace
 
 /**
@@ -49,6 +50,9 @@ import dev.jordond.filmstrip.media.ColorSpace
  * @param probe What tells the color an encoder writes.
  * @param log Where a kept request is explained.
  * @param sdkInt The API level the encoders run on.
+ * @param frameRate The rate the export writes its frames at. The video encoder is configured at it in place of the
+ * rate media3 passes, which is the source's own, since an encoder counts its key frame interval and spreads its
+ * bitrate in frames of the rate it was configured at. Null leaves media3's.
  */
 internal class EncoderColor(
   private val delegate: Codec.EncoderFactory,
@@ -56,6 +60,7 @@ internal class EncoderColor(
   private val probe: EncoderColorProbe,
   private val log: (String) -> Unit = { Log.w(TAG, it) },
   private val sdkInt: Int = Build.VERSION.SDK_INT,
+  private val frameRate: Int? = null,
 ) : Codec.EncoderFactory {
   /**
    * The encoder whose output was tagged with another color than media3 asked for, or null while none was.
@@ -75,11 +80,12 @@ internal class EncoderColor(
     format: Format,
     logSessionId: LogSessionId?,
   ): Codec {
+    val paced = if (frameRate == null) format else format.buildUpon().setFrameRate(frameRate.toFloat()).build()
     val made =
-      if (format.colorInfo?.isSdrBt601() == true) {
-        format.buildUpon().setColorInfo(ColorInfo.SDR_BT709_LIMITED).build()
+      if (paced.colorInfo?.isSdrBt601() == true) {
+        paced.buildUpon().setColorInfo(ColorInfo.SDR_BT709_LIMITED).build()
       } else {
-        format
+        paced
       }
     val encoder = delegate.createForVideoEncoding(made, logSessionId)
     val requested = made.colorInfo?.takeIf { it.isSdrBt709Limited() } ?: return encoder
@@ -131,17 +137,19 @@ internal class EncoderColor(
 }
 
 /**
- * The [DefaultEncoderFactory] an export on [context] picks its encoders with, asking the video encoder for [bitrate].
+ * The [DefaultEncoderFactory] an export on [context] picks its encoders with, asking the video encoder for [bitrate]
+ * and a key frame every [keyFrameSeconds].
  *
- * [bitrate] is the plan's own. The planner holds it at or under the encoder's ceiling, and media3 still clamps it to
- * the encoder's range, which can raise a rate below the encoder's floor. A copy carries none and leaves media3's
- * settings alone.
+ * Both are the plan's own. The planner holds the bitrate at or under the encoder's ceiling, and media3 still clamps
+ * it to the encoder's range, which can raise a rate below the encoder's floor. A copy carries neither and leaves
+ * media3's settings alone.
  * [pinnedEncoderFactory] builds from the same settings, so an encoder made again by name is set up as the first was.
  */
 internal fun encoderFactory(
   context: Context,
   bitrate: Bitrate?,
-): Codec.EncoderFactory = encoderFactoryBuilder(context, bitrate).build()
+  keyFrameSeconds: Float?,
+): Codec.EncoderFactory = encoderFactoryBuilder(context, bitrate, keyFrameSeconds).build()
 
 /**
  * A [DefaultEncoderFactory] for [context] whose video encoder selector offers only the encoder named [encoder], built
@@ -153,35 +161,46 @@ internal fun pinnedEncoderFactory(
   context: Context,
   encoder: String,
   bitrate: Bitrate?,
+  keyFrameSeconds: Float?,
 ): Codec.EncoderFactory =
-  encoderFactoryBuilder(context, bitrate)
+  encoderFactoryBuilder(context, bitrate, keyFrameSeconds)
     .setVideoEncoderSelector { mimeType ->
       ImmutableList.copyOf(EncoderSelector.DEFAULT.selectEncoderInfos(mimeType).filter { it.name == encoder })
     }.build()
 
 /**
- * The video encoder settings that ask for [bitrate], or media3's defaults when there is none.
+ * The video encoder settings that ask for [bitrate] and a key frame every [keyFrameSeconds], or media3's defaults
+ * for the one that is null.
  *
  * media3's [VideoEncoderSettings.Builder.setBitrate] takes the rate as an Int, so a rate past [Int.MAX_VALUE] is held
  * there. That is media3's limit, not the plan's.
  */
-internal fun videoEncoderSettings(bitrate: Bitrate?): VideoEncoderSettings =
-  if (bitrate == null) {
-    VideoEncoderSettings.DEFAULT
-  } else {
-    VideoEncoderSettings
-      .Builder()
-      .setBitrate(bitrate.bitsPerSecond.coerceAtMost(Int.MAX_VALUE.toLong()).toInt())
-      .build()
-  }
+internal fun videoEncoderSettings(
+  bitrate: Bitrate?,
+  keyFrameSeconds: Float?,
+): VideoEncoderSettings {
+  if (bitrate == null && keyFrameSeconds == null) return VideoEncoderSettings.DEFAULT
+  val settings = VideoEncoderSettings.Builder()
+  bitrate?.let { settings.setBitrate(it.bitsPerSecond.coerceAtMost(Int.MAX_VALUE.toLong()).toInt()) }
+  keyFrameSeconds?.let { settings.setiFrameIntervalSeconds(it) }
+  return settings.build()
+}
+
+/**
+ * The plan's key frame spacing in seconds of [output]'s frame rate, which is the unit media3's encoder settings take
+ * it in. Null when the plan settled none.
+ */
+internal fun keyFrameSecondsOf(output: OutputFormat): Float? =
+  output.keyFrameSpacing?.let { it.toFloat() / output.frameRate }
 
 private fun encoderFactoryBuilder(
   context: Context,
   bitrate: Bitrate?,
+  keyFrameSeconds: Float?,
 ): DefaultEncoderFactory.Builder =
   DefaultEncoderFactory
     .Builder(context)
-    .setRequestedVideoEncoderSettings(videoEncoderSettings(bitrate))
+    .setRequestedVideoEncoderSettings(videoEncoderSettings(bitrate, keyFrameSeconds))
 
 /**
  * An encoder [EncoderColor] tagged with the color it writes in place of the one media3 asked for.

@@ -11,6 +11,7 @@ import dev.jordond.filmstrip.geometry.MAX_STILL_FRAME
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.videoCodecOf
 import dev.jordond.filmstrip.transform.internal.encode.DEFAULT_QUALITY
+import dev.jordond.filmstrip.transform.internal.encode.keyFrameIntervalOf
 import dev.jordond.filmstrip.transform.internal.encode.resolveVideoBitrate
 
 /**
@@ -27,6 +28,7 @@ import dev.jordond.filmstrip.transform.internal.encode.resolveVideoBitrate
  * A transcode that writes video always settles on a bitrate, the one the spec names or else the one its quality tier
  * resolves to through [resolveVideoBitrate], with [DEFAULT_QUALITY] standing in for no tier. One above the encoder's
  * own ceiling is held to it and reported the same way the frame is. A copy and an audio-only export settle none.
+ * The same goes for the key frame spacing, which [keyFrameIntervalOf] counts in frames of the resolved rate.
  *
  * A negotiation that writes no file never refuses for a missing encoder. With nothing to encode what it would pick, it
  * reads as the first rung of [hdrLadder] when the grade reaches the encoder and of [ladder] otherwise, with no encoder
@@ -75,6 +77,7 @@ internal fun encodingOf(
       outputSize = outputSize,
       bitrate = maxBitrate ?: asked,
       bitrateClamp = asked?.let { requested -> maxBitrate?.let { bitrateClamp(requested, it) } },
+      keyFrameSpacing = if (copies || !streams.keepVideo) null else keyFrameIntervalOf(spec, frameRate),
       layoutFrame = ask.layoutSize ?: outputSize,
       // A copy runs no effect chain and a tone-mapped export is SDR by the time one
       // runs, so the transfer an effect is lowered against is the one the encoder is handed.

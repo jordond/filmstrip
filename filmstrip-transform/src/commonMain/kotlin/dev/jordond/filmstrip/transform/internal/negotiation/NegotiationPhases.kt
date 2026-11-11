@@ -131,6 +131,7 @@ internal class Grade(
  *   encoder's alignment.
  * @property bitrate The video bitrate the encoder is handed, or null on a copy.
  * @property bitrateClamp The concession made when the bitrate sat above the encoder's ceiling.
+ * @property keyFrameSpacing How many frames apart the encoder places key frames, or null on a copy.
  */
 internal class Encoding(
   val video: CodecChoice<VideoCodec>,
@@ -142,6 +143,7 @@ internal class Encoding(
   val target: LoweringTarget,
   val bitrate: Bitrate?,
   val bitrateClamp: Concession?,
+  val keyFrameSpacing: Int? = null,
 )
 
 /**

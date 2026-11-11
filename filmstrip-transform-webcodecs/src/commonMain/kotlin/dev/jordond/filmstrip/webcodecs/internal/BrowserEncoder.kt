@@ -30,6 +30,10 @@ import kotlin.js.JsAny
  * resolves [add] only once the encoder and the writer are ready for another frame. That is the
  * backpressure: a pipeline that awaits every add cannot outrun the encoder, however fast the
  * demuxer yields.
+ *
+ * Every frame is added with its own key frame flag, counted off [keyFrameSpacing] from the first frame. mediabunny's
+ * own interval is measured in seconds against each frame's timestamp, which lands a key frame one frame off where a
+ * timestamp rounds, so it is never left to decide.
  */
 internal class BrowserEncoder private constructor(
   private val output: Output,
@@ -37,9 +41,15 @@ internal class BrowserEncoder private constructor(
   private val audioSource: AudioBufferSource?,
   private val target: BufferTarget,
   private val mimeType: String,
+  private val keyFrameSpacing: Int,
 ) {
+  private var added = 0L
+
   suspend fun add(frame: VideoSample) {
-    checkNotNull(videoSource) { NO_VIDEO_TRACK }.add(frame).await()
+    val source = checkNotNull(videoSource) { NO_VIDEO_TRACK }
+    val keyFrame = added % keyFrameSpacing == 0L
+    added++
+    source.add(frame, JsOptions().put("keyFrame", keyFrame).build()).await()
   }
 
   /**
@@ -90,9 +100,6 @@ internal class BrowserEncoder private constructor(
                 .put("codec", video.muxCodec)
                 .put("fullCodecString", video.encoderCodec)
                 .put("quality", Quality(JsOptions().put("bitrate", render.bitrate).build()))
-                // In seconds, so the key frame spacing follows the real output rate instead of a
-                // hardcoded frame count that means something different at every rate.
-                .put("keyFrameInterval", KEY_FRAME_SECONDS)
                 .put("hardwareAcceleration", "no-preference")
                 .build(),
             )
@@ -117,10 +124,9 @@ internal class BrowserEncoder private constructor(
 
       output.start().await()
       val mimeType = if (video != null) "video/$container" else "audio/$container"
-      return BrowserEncoder(output, videoSource, audioSource, target, mimeType)
+      return BrowserEncoder(output, videoSource, audioSource, target, mimeType, render.keyFrameSpacing)
     }
 
-    private const val KEY_FRAME_SECONDS = 1.0
     private const val AUDIO_BITRATE = 128_000
     private const val NO_BUFFER = "The muxer finalized without producing a buffer."
     private const val NO_VIDEO_TRACK = "This output writes no video track, so it takes no frames."

@@ -29,6 +29,7 @@ import dev.jordond.filmstrip.media3.internal.bounds.ChosenTrackAssetLoaderFactor
 import dev.jordond.filmstrip.media3.internal.encoder.EncoderColor
 import dev.jordond.filmstrip.media3.internal.encoder.MeasuredEncoderColor
 import dev.jordond.filmstrip.media3.internal.encoder.encoderFactory
+import dev.jordond.filmstrip.media3.internal.encoder.keyFrameSecondsOf
 import dev.jordond.filmstrip.media3.internal.encoder.pinnedEncoderFactory
 import dev.jordond.filmstrip.media3.internal.encoder.retagReport
 import dev.jordond.filmstrip.transform.internal.probe.readSources
@@ -83,9 +84,12 @@ internal class TransformerRun(
 
   private val encoders =
     EncoderColor(
-      encoderFactory(context, resolved.output.bitrate),
-      { encoder -> pinnedEncoderFactory(context, encoder, resolved.output.bitrate) },
+      encoderFactory(context, resolved.output.bitrate, keyFrameSecondsOf(resolved.output)),
+      { encoder ->
+        pinnedEncoderFactory(context, encoder, resolved.output.bitrate, keyFrameSecondsOf(resolved.output))
+      },
       MeasuredEncoderColor.Device,
+      frameRate = resolved.output.frameRate.takeIf { it > 0 },
     )
 
   fun run(): Flow<ExportStatus> =

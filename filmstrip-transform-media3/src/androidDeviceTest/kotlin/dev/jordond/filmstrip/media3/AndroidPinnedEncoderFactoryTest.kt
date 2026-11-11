@@ -43,7 +43,13 @@ class AndroidPinnedEncoderFactoryTest {
 
     names.forEach { (name, mimeType) ->
       withClue("the factory pinned to $name") {
-        val codec = pinnedEncoderFactory(context, name, bitrate = null).createForVideoEncoding(format(mimeType), null)
+        val codec =
+          pinnedEncoderFactory(
+            context,
+            name,
+            bitrate = null,
+            keyFrameSeconds = null,
+          ).createForVideoEncoding(format(mimeType), null)
         try {
           codec.name shouldBe name
         } finally {
@@ -61,6 +67,7 @@ class AndroidPinnedEncoderFactoryTest {
           context,
           UNLISTED,
           bitrate = null,
+          keyFrameSeconds = null,
         ).createForVideoEncoding(format(MimeTypes.VIDEO_H264), null)
       }
 

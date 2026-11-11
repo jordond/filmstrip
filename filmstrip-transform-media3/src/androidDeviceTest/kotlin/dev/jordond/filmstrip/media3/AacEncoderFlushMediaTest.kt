@@ -48,7 +48,7 @@ class AacEncoderFlushMediaTest {
     val sdkInt = Build.VERSION.SDK_INT
     assertSoftly {
       STREAMS.forEach { stream ->
-        val units = encode(stream, encoderFactory(context, null))
+        val units = encode(stream, encoderFactory(context, null, null))
         val flushed = (stream.frames + aacTailPadFrames(stream.frames.toLong())) / AAC_UNIT_FRAMES
         val filled = stream.frames / AAC_UNIT_FRAMES
         withClue("$stream made ${units.access.size} access units on ${units.name} unpadded on API $sdkInt") {
@@ -60,8 +60,8 @@ class AacEncoderFlushMediaTest {
 
   private fun exportFactory(): Codec.EncoderFactory =
     EncoderColor(
-      encoderFactory(context, null),
-      { encoder -> pinnedEncoderFactory(context, encoder, null) },
+      encoderFactory(context, null, null),
+      { encoder -> pinnedEncoderFactory(context, encoder, null, null) },
       MeasuredEncoderColor.Device,
     )
 

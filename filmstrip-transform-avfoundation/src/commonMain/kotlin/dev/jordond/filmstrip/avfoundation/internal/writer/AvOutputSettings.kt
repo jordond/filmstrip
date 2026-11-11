@@ -34,6 +34,7 @@ import platform.AVFoundation.AVVideoColorPropertiesKey
 import platform.AVFoundation.AVVideoCompressionPropertiesKey
 import platform.AVFoundation.AVVideoExpectedSourceFrameRateKey
 import platform.AVFoundation.AVVideoHeightKey
+import platform.AVFoundation.AVVideoMaxKeyFrameIntervalKey
 import platform.AVFoundation.AVVideoProfileLevelKey
 import platform.AVFoundation.AVVideoTransferFunctionKey
 import platform.AVFoundation.AVVideoTransferFunction_ITU_R_2100_HLG
@@ -54,8 +55,8 @@ import platform.CoreVideo.kCVPixelFormatType_420YpCbCr10BiPlanarVideoRange
  * The settings the video writer input is opened with.
  *
  * Seeded from [AVOutputSettingsAssistant], which is where Apple publishes a sane profile level for
- * a given frame. Everything the plan settles then overwrites the seed, the average bitrate included,
- * so what is left of it is only ever the parts filmstrip has no opinion about.
+ * a given frame. Everything the plan settles then overwrites the seed, the average bitrate and the
+ * key frame spacing included, so what is left of it is only ever the parts filmstrip has no opinion about.
  *
  * @param sourceFormat The first clip's video format, when there is one. It lets the assistant seed
  *   against the real source, not the preset's nominal one.
@@ -79,6 +80,9 @@ internal fun videoWriterSettings(
           checkNotNull(output.bitrate) { "The planner settles a bitrate on every transcode." }.bitsPerSecond,
         )
         put(AVVideoExpectedSourceFrameRateKey, output.frameRate)
+        // VideoToolbox reads this as the longest run between two key frames and adds key frames of its own inside
+        // it, which is VideoToolbox's limit. The file never goes longer than the plan's spacing without one.
+        output.keyFrameSpacing?.let { put(AVVideoMaxKeyFrameIntervalKey, it) }
         // Ten-bit needs a profile that can carry it, and VideoToolbox's constants are CFStringRef,
         // which does not bridge into a Kotlin dictionary. The literal is the documented value of
         // kVTProfileLevel_HEVC_Main10_AutoLevel.

@@ -5,6 +5,7 @@ import dev.jordond.filmstrip.codec.Bitrate
 import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.effect.Sidecar
 import dev.jordond.filmstrip.export.AudioFormat
+import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.OutputFormat
 import dev.jordond.filmstrip.export.VideoQuality
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.InputSource
@@ -16,6 +17,7 @@ import dev.jordond.filmstrip.ffmpeg.internal.process.FfmpegVersion
 import dev.jordond.filmstrip.ffmpeg.internal.process.Toolchain
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.HdrTransfer
+import dev.jordond.filmstrip.transform.internal.encode.keyFrameIntervalOf
 import dev.jordond.filmstrip.transform.internal.encode.resolveVideoBitrate
 import io.kotest.assertions.withClue
 import io.kotest.matchers.collections.shouldContain
@@ -24,6 +26,7 @@ import io.kotest.matchers.ints.shouldBeLessThan
 import io.kotest.matchers.shouldBe
 import kotlin.test.Test
 import kotlin.test.assertFailsWith
+import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
 /**
@@ -187,6 +190,47 @@ class InvocationTest {
   }
 
   @Test
+  fun `every encoder is held to the plan's key frame spacing`() {
+    val spacing = keyFrameIntervalOf(ExportSpec(keyFrameInterval = 500.milliseconds), 30)
+    val encoders =
+      listOf(
+        VideoCodec.H264 to "libx264",
+        VideoCodec.H264 to "h264_videotoolbox",
+        VideoCodec.Hevc to "libx265",
+        VideoCodec.Vp9 to "libvpx-vp9",
+      )
+
+    for ((codec, encoder) in encoders) {
+      val arguments = argumentsFor(codec, encoder, keyFrameSpacing = spacing)
+
+      withClue(encoder) {
+        arguments.after("-g") shouldBe spacing.toString()
+        arguments.after("-keyint_min") shouldBe spacing.toString()
+      }
+    }
+  }
+
+  @Test
+  fun `x264 and x265 start no key frame of their own at a scene cut`() {
+    val x264 = argumentsFor(VideoCodec.H264, "libx264", keyFrameSpacing = 15)
+    val x265 = argumentsFor(VideoCodec.Hevc, "libx265", keyFrameSpacing = 15)
+    val hardware = argumentsFor(VideoCodec.H264, "h264_videotoolbox", keyFrameSpacing = 15)
+
+    x264.after("-sc_threshold") shouldBe "0"
+    x265.after("-x265-params").split(":") shouldContain "scenecut=0"
+    hardware.shouldNotContain("-sc_threshold")
+  }
+
+  @Test
+  fun `a plan with no key frame spacing leaves the encoder's own`() {
+    val arguments = argumentsFor(VideoCodec.H264, "libx264")
+
+    arguments.shouldNotContain("-g")
+    arguments.shouldNotContain("-keyint_min")
+    arguments.shouldNotContain("-sc_threshold")
+  }
+
+  @Test
   fun `a transcode with no bitrate is refused rather than left to the encoder's default`() {
     assertFailsWith<IllegalStateException> { argumentsFor(VideoCodec.H264, "libx264", bitrate = null) }
   }
@@ -338,6 +382,7 @@ class InvocationTest {
     hdrTransfer: HdrTransfer? = null,
     bitrate: Bitrate? = PLANNED_BITRATE,
     size: Size = Size(1280, 720),
+    keyFrameSpacing: Int? = null,
   ): List<String> =
     Invocation(
       inputs = listOf(InputSpec(InputSource.OfPath("/fixtures/a.mp4"))),
@@ -352,6 +397,7 @@ class InvocationTest {
           bitrate = bitrate,
           frameRate = 30,
           audioFormat = null,
+          keyFrameSpacing = keyFrameSpacing,
         ),
       videoEncoder = encoder,
       duration = 2.seconds,

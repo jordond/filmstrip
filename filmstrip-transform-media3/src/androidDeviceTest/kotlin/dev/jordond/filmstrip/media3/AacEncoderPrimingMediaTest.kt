@@ -28,7 +28,7 @@ class AacEncoderPrimingMediaTest {
     val sdkInt = Build.VERSION.SDK_INT
     assertSoftly {
       STREAMS.forEach { stream ->
-        val encoded = encodeAac(stream, encoderFactory(context, null), ::clickAt)
+        val encoded = encodeAac(stream, encoderFactory(context, null, null), ::clickAt)
         val priming = primingOf(stream, encoded)
         withClue(
           "$stream on ${encoded.name} on API $sdkInt primed $priming frames, its output named ${encoded.encoderDelay}",
@@ -54,8 +54,8 @@ class AacEncoderPrimingMediaTest {
 
   private fun exportFactory() =
     EncoderColor(
-      encoderFactory(context, null),
-      { encoder -> pinnedEncoderFactory(context, encoder, null) },
+      encoderFactory(context, null, null),
+      { encoder -> pinnedEncoderFactory(context, encoder, null, null) },
       MeasuredEncoderColor.Device,
     )
 

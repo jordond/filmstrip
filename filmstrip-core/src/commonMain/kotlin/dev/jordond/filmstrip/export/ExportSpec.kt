@@ -5,6 +5,7 @@ import dev.jordond.filmstrip.codec.AudioCodec
 import dev.jordond.filmstrip.codec.Bitrate
 import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.edit.Composition
+import kotlin.time.Duration
 
 /**
  * What the output should look like.
@@ -29,6 +30,10 @@ import dev.jordond.filmstrip.edit.Composition
  * [HdrMode.ToneMapToSdr] asked for. Only what the plan can see is refused. Some adjustments only show once the export
  * runs, such as media3 picking an encoder that writes another color space. Those reach
  * [ExportStatus.Success.adjustments] after a plan that said [Verdict.Capable], and strict cannot refuse them.
+ * @property keyFrameInterval The longest the encoder goes between two key frames, or null for one second. A shorter
+ * interval makes seeking in the written file cheaper and the file larger. It rounds to a whole number of frames, and
+ * [OutputFormat.keyFrameSpacing] says how many. A stream copy keeps the source's own key frames, so the interval
+ * neither applies to one nor blocks it. An interval of zero or less is refused.
  */
 @Poko
 public class ExportSpec(
@@ -40,6 +45,7 @@ public class ExportSpec(
   public val frameRate: Int? = null,
   public val hdr: HdrMode = HdrMode.Auto,
   public val strict: Boolean = false,
+  public val keyFrameInterval: Duration? = null,
 ) {
   public companion object {
     /**

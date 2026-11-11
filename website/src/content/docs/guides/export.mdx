@@ -62,6 +62,20 @@ Set `bitrate` or `quality`, not both, since a spec that names both is refused. E
 When an encoder publishes a ceiling, a rate above it is held there and reported as a `BitrateClamped` adjustment.
 The plan's `output.bitrate` is the rate the encoder is handed.
 
+### Key frames
+
+A player can only start decoding at a key frame, so the closer together they are, the less it decodes to land a seek.
+`keyFrameInterval` is the longest the encoder goes between two. Leave it unset and filmstrip writes one every second
+on every platform. A shorter interval makes scrubbing and shuttling through the file cheaper and the file a little
+larger at the same quality.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Export.kt" region="key-frames" />
+
+The interval rounds to a whole number of frames at the output frame rate, never fewer than one, and the plan's
+`output.keyFrameSpacing` is that count. An interval of zero or less is refused. A stream copy keeps the source's own
+key frames, so the interval doesn't apply to one and doesn't rule it out either, and `output.keyFrameSpacing` is null.
+See [Limits](/reference/limits/#key-frames) for the encoders that add key frames of their own.
+
 ## Plan
 
 `plan` returns a `Verdict`. It's cheap, has no side effects and never throws.

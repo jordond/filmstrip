@@ -48,6 +48,7 @@ import kotlin.time.DurationUnit
  * export, where [clips] is empty, [videoEncoding] is null, and the frame geometry, the bitrate and
  * [estimatedFrames] all read zero because nothing is drawn.
  * @property bitrate The video bitrate the plan settled on, or zero when no encoder is opened.
+ * @property keyFrameSpacing How many frames apart the plan places key frames, or zero when no encoder is opened.
  * @property videoEncoding The video encoder [BrowserEncoder] opens, or null on an audio-only render and on a
  * [dev.jordond.filmstrip.export.ExportPath.Copy] render, which never opens one. [BrowserStreamCopy] always writes mp4
  * regardless of what a copy's source codec would map to.
@@ -84,6 +85,7 @@ internal class BrowserRender(
   val container: String,
   val audioCodec: AudioCodec,
   val bitrate: Int,
+  val keyFrameSpacing: Int,
   val leadFrames: Long,
   val estimatedFrames: Long,
   val adjustments: List<Adjustment>,
@@ -192,6 +194,14 @@ internal fun browserRenderOf(
           .bitsPerSecond
           .coerceAtMost(Int.MAX_VALUE.toLong())
           .toInt()
+      } else {
+        0
+      },
+    keyFrameSpacing =
+      if (encodes) {
+        checkNotNull(
+          plan.output.keyFrameSpacing,
+        ) { "The planner settles key frames on every transcode." }
       } else {
         0
       },
@@ -310,6 +320,7 @@ private fun audioOnlyRender(plan: ResolvedComposition): BrowserRender =
     container = containerFor(null, plan.output.audioCodec),
     audioCodec = plan.output.audioCodec,
     bitrate = 0,
+    keyFrameSpacing = 0,
     leadFrames = 0,
     estimatedFrames = 0,
     adjustments = plan.adjustments,
