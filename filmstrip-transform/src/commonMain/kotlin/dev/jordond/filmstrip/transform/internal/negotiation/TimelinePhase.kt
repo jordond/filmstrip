@@ -26,6 +26,7 @@ internal fun timelineOf(
   encoding: Encoding,
   streams: Streams,
   lowering: StageLowering,
+  audioLowering: AudioEffectLowering,
   naturalSize: Size,
 ): Phase<Timeline> {
   // The structural refusals already turned away an edit where every track loops, so at least one
@@ -48,6 +49,8 @@ internal fun timelineOf(
       naturalSize = naturalSize,
       compositionGain = edit.audio.flatGain(),
       startsAtKeyFrame = grade.path == ExportPath.Copy,
+      audioLowering = audioLowering,
+      isHeard = { track, clip -> !clipIsSilent(edit, streams, track, clip, ask) },
     )
   val laid =
     edit.tracks.mapIndexed { index, track ->
@@ -76,7 +79,9 @@ internal fun timelineOf(
     return Phase.Refused(invalid(primaryCoversNoFrame(checkNotNull(primaryRun.duration), frameRate)))
   }
 
-  return Phase.Next(Timeline(duration, laid.map { it.track }, laid.flatMap { it.lowered }))
+  return Phase.Next(
+    Timeline(duration, laid.map { it.track }, laid.flatMap { it.lowered }, laid.flatMap { it.loweredAudio }),
+  )
 }
 
 private const val PRIMARY_LAYS_NOTHING = "The primary track starts at or after the composition ends."

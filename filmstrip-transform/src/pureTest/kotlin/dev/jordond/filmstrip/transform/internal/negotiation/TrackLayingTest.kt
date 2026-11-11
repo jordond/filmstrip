@@ -202,6 +202,8 @@ class TrackLayingTest {
         naturalSize = Size(1920, 1080),
         compositionGain = 1f,
         startsAtKeyFrame = false,
+        audioLowering = AudioEffectLowering(emptyList()),
+        isHeard = { _, _ -> true },
       )
 
     val laid = layer.lay(track, windows(clip), 2.seconds)
@@ -312,6 +314,8 @@ class TrackLayingTest {
     naturalSize = Size(1920, 1080),
     compositionGain = compositionGain,
     startsAtKeyFrame = startsAtKeyFrame,
+    audioLowering = AudioEffectLowering(emptyList()),
+    isHeard = { _, _ -> true },
   )
 
   private fun assertNear(

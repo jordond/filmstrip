@@ -65,7 +65,15 @@ internal fun ResolvedClip.clipVideoEffects(
 }
 
 /**
- * The processors an audio-carrying clip runs through.
+ * The processors a clip's sound runs through once it is the right length: its audio effects, then its level.
+ *
+ * The effects come first, so a fade takes whatever an effect adds down with the clip.
+ */
+internal fun ResolvedClip.clipAudioProcessors(mixes: Boolean): List<AudioProcessor> =
+  kernelProcessors(audioEffects, span.start) + audioProcessors(gain, mixes)
+
+/**
+ * The processors that bring an audio-carrying clip to its level and to the format its sequence outputs.
  *
  * Every item in a sequence has to reach the same output format, and a constant gain is applied by
  * scaling the mixing matrix that gets it there. Pinning 16-bit PCM and a channel count is what
@@ -99,9 +107,9 @@ internal fun audioProcessors(
  * [SonicAudioProcessor] plays what is left at [speed] with its pitch kept, and [AudioLengthPin] holds the result to
  * [length], which is also the length media3 lays the next item after. At a speed of one there is nothing to stretch.
  *
- * [then] reads the clip's output clock, like a gain ramp. media3 seeds each processor's position with what the ones
- * ahead of it report for the position it started from, and the pin reports [length] whatever it is asked, so [then]
- * runs ahead of the pin.
+ * [then] reads the clip's output clock, like a gain ramp or an audio effect. It runs after the pin, so it is handed
+ * the silence a short clip is padded with as well. media3 seeds each processor's position with what the ones ahead of
+ * it report for the position it started from, and each of these reports the start of the item as the start.
  */
 internal fun clipAudioSpeed(
   lead: Duration,
@@ -112,7 +120,7 @@ internal fun clipAudioSpeed(
   listOfNotNull(
     AudioStartDrop(lead),
     if (speed == 1.0) null else SonicAudioProcessor().apply { setSpeed(speed.toFloat()) },
-  ) + then + AudioLengthPin(length, reportsLength = true)
+  ) + AudioLengthPin(length, reportsLength = true) + then
 
 /**
  * Lowers a resolved chain, gathering the overlays in it into as few passes as they fit into.

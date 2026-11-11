@@ -16,6 +16,8 @@ import kotlin.time.Duration
  * @param length How long the item's audio runs.
  * @param reportsLength Whether media3 lays the item after this one by [length]. An item media3 changes the speed of
  * refuses any processor that reports a length of its own, so the pin on one passes the length it is given through.
+ * media3 asks the same question to place the processors after this one on a flush, and the start of the item stays
+ * the start of the item, so those count from where the item opens.
  */
 internal class AudioLengthPin(
   private val length: Duration,
@@ -61,7 +63,7 @@ internal class AudioLengthPin(
   }
 
   override fun getDurationAfterProcessorApplied(durationUs: Long): Long =
-    if (reportsLength) length.inWholeMicroseconds else durationUs
+    if (reportsLength && durationUs != 0L) length.inWholeMicroseconds else durationUs
 
   override fun isEnded(): Boolean = super.isEnded() && (!pinned || bytesLeft == 0L)
 

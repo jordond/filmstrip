@@ -204,7 +204,8 @@ public class FfmpegExportEngine internal constructor(
         is SourceColorRead.Refused -> return refusedLowering(result.error)
         is SourceColorRead.Read -> result
       }
-    val planner = FfmpegPlanner(toolchain, components.effectResolvers, runtime.bytesRoot)
+    val planner =
+      FfmpegPlanner(toolchain, components.effectResolvers, runtime.bytesRoot, components.audioEffectResolvers)
     val asked = Ask(spec, read.device, read.infos, read.openings, layoutSize, grade)
     val ask =
       when (val withPackets = askWithCopyPackets(toolchain, planner, composition, asked)) {
@@ -274,7 +275,8 @@ public class FfmpegExportEngine internal constructor(
         ExportGrade.Refused(read.error)
       }
       is PlanningReadResult.Read -> {
-        val planner = FfmpegPlanner(toolchain, components.effectResolvers, runtime.bytesRoot)
+        val planner =
+          FfmpegPlanner(toolchain, components.effectResolvers, runtime.bytesRoot, components.audioEffectResolvers)
         val asked = Ask(spec, read.device, read.infos, read.openings)
         when (val withPackets = askWithCopyPackets(toolchain, planner, composition, asked)) {
           is CopyAsk.Refused -> ExportGrade.Refused(withPackets.error)

@@ -4,6 +4,7 @@ import androidx.media3.common.C
 import androidx.media3.common.Effect
 import androidx.media3.common.MimeTypes
 import androidx.media3.transformer.Composition
+import androidx.media3.transformer.EditedMediaItemSequence
 import androidx.media3.transformer.Effects
 import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.codec.AudioCodec
@@ -21,6 +22,7 @@ import dev.jordond.filmstrip.transform.internal.resolve.ResolvedTrack
 import dev.jordond.filmstrip.transform.internal.resolve.effectsOverFill
 import dev.jordond.filmstrip.transform.internal.resolve.effectsUnderFill
 import dev.jordond.filmstrip.transform.internal.resolve.showsFill
+import kotlin.time.Duration
 
 /**
  * Builds the media3 composition this plan runs as.
@@ -32,6 +34,9 @@ import dev.jordond.filmstrip.transform.internal.resolve.showsFill
  * A track's video lands on the output frame grid and its audio lands exactly where the plan put it, so a track carrying
  * both lowers to a video sequence followed by an audio one. A copy lays each of a track's kinds as its own sequence at
  * the exact times the plan resolved, so its video can stop on the plan's grid while its audio runs to the clip's end.
+ *
+ * A clip's audio effects run on its own item ahead of its level, and the composition's run on the finished mix,
+ * which a sequence of silence holds to the length of the timeline.
  *
  * Every clip's chain is lowered before the composition's, in track and clip order, which is the order [wrapper] sees
  * them in. A clip that covers no slot of the grid lays no video, so its chain is never lowered.
@@ -81,15 +86,30 @@ internal fun ResolvedComposition.toMedia3(
   if (sequences.isEmpty()) {
     throw Media3LoweringFailure("Nothing in this composition contributes a track to encode.")
   }
+  // media3's mix ends with its last audio sequence and a composition with none has no mix, so the composition's
+  // audio effects get a sequence of silence as long as the timeline to run over.
+  val silence =
+    if (keepAudio && mixAudioEffects.isNotEmpty() && path != ExportPath.Copy) {
+      EditedMediaItemSequence
+        .Builder(setOf(C.TRACK_TYPE_AUDIO))
+        .addGap(duration.inWholeMicroseconds)
+        .build()
+    } else {
+      null
+    }
   // media3 only transmuxes more than one sequence when told to, and a copy split across two is still a copy.
   val transmuxes = path == ExportPath.Copy && sequences.size > 1
 
   return Composition
-    .Builder(sequences)
+    .Builder(sequences + listOfNotNull(silence))
     .setTransmuxVideo(transmuxes)
     .setTransmuxAudio(transmuxes)
-    .setEffects(Effects(emptyList(), if (keepVideo) compositionVideoEffects(wrapper) else emptyList()))
-    .setHdrMode(
+    .setEffects(
+      Effects(
+        if (keepAudio) kernelProcessors(mixAudioEffects, Duration.ZERO) else emptyList(),
+        if (keepVideo) compositionVideoEffects(wrapper) else emptyList(),
+      ),
+    ).setHdrMode(
       when (hdr) {
         ResolvedHdr.Keep -> Composition.HDR_MODE_KEEP_HDR
         // Google's own recommendation over the MediaCodec path.

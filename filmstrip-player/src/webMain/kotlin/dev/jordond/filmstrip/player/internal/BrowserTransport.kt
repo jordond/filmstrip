@@ -2,11 +2,13 @@ package dev.jordond.filmstrip.player.internal
 
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.outputSlotTime
+import dev.jordond.filmstrip.player.PlaybackError
 import dev.jordond.filmstrip.player.PlaybackEvent
 import dev.jordond.filmstrip.player.PlaybackStatus
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
 import dev.jordond.filmstrip.webcodecs.internal.preview.BrowserAudioPreview
 import dev.jordond.filmstrip.webcodecs.internal.preview.BrowserPreview
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
@@ -37,6 +39,7 @@ import kotlin.time.Duration.Companion.milliseconds
  * @param setPlayWhenReady Publishes whether playback is asked to run.
  * @param reportExternalPlayWhenReady Publishes a transport change something outside filmstrip made.
  * @param emitEvent Sends an event to every listener.
+ * @param fail Fails playback with an error.
  */
 internal class BrowserTransport(
   private val scope: CoroutineScope,
@@ -54,6 +57,7 @@ internal class BrowserTransport(
   private val setPlayWhenReady: (Boolean) -> Unit,
   private val reportExternalPlayWhenReady: (Boolean) -> Unit,
   private val emitEvent: (PlaybackEvent) -> Unit,
+  private val fail: (PlaybackError) -> Unit,
 ) {
   private val fenced = mutableListOf<Job>()
   private var starting: Job? = null
@@ -194,7 +198,7 @@ internal class BrowserTransport(
 
   private suspend fun start(from: Duration) {
     loops.stop()
-    startAudio(audio(), from)
+    if (!sounded { startAudio(audio(), from) }) return
     clock().start(from)
     startedAt = wallClock()
     loops.start()
@@ -214,7 +218,7 @@ internal class BrowserTransport(
       return
     }
 
-    audio()?.pump(at)
+    if (!sounded { audio()?.pump(at) }) return
 
     // A reading past the wrap point is never an ending, even while a seek in flight holds the wrap back.
     val range = loopRange()
@@ -240,6 +244,28 @@ internal class BrowserTransport(
   }
 
   /**
+   * Runs [work] on the audio graph and answers whether it finished.
+   *
+   * An audio effect's kernel runs in there and may throw. Playback stops and fails with what it threw, since an
+   * exception that left the tick would end it with nothing reported.
+   */
+  private suspend fun sounded(work: suspend () -> Unit): Boolean =
+    try {
+      work()
+      true
+    } catch (cancelled: CancellationException) {
+      throw cancelled
+    } catch (
+      @Suppress("TooGenericExceptionCaught") broken: Throwable,
+    ) {
+      wantsPlayback = false
+      stop()
+      setPlayWhenReady(false)
+      fail(PlaybackError.Underlying(PlaybackError.Underlying.NO_PLATFORM_CODE, broken.message ?: AUDIO_BROKE))
+      false
+    }
+
+  /**
    * Whether the audio graph has been asked to run and has not started within the grace period.
    *
    * The Web Audio spec parks `resume`'s promise rather than rejecting it when a page is not allowed
@@ -263,3 +289,5 @@ internal class BrowserTransport(
  * does not sit stuck for a noticeable moment.
  */
 internal val AUTOPLAY_GRACE: Duration = 250.milliseconds
+
+private const val AUDIO_BROKE = "The browser could not play this composition's audio."

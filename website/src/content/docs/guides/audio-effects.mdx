@@ -1,0 +1,126 @@
+---
+title: Audio effects
+description: Process a clip, a track or the finished mix with your own DSP, the same on every backend.
+---
+
+import { Aside, TabItem, Tabs } from '@astrojs/starlight/components'
+import Snippet from '../../../components/Snippet.astro'
+
+An audio effect is a spec on a clip, a track or the composition, and a kernel that processes samples. Android, Apple and
+the browser run the same kernel. ffmpeg can't run Kotlin, so there an effect is written as ffmpeg filters.
+
+Audio effects have their own lists and their own builder. They aren't part of `effects { }`, and changing one never
+redraws a frame or a thumbnail.
+
+## Scopes and order
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/AudioEffects.kt" region="scopes" />
+
+- A clip's effects run on that clip's audio, in the order you added them.
+- A track's effects run on each of its clips, after the clip's own.
+- Both run after the clip's [speed](/guides/edits/) and before its [level and fades](/guides/audio/), so a fade takes
+  the effect's own sound down with it.
+- The composition's effects run on the finished mix, after every level, from the start of the timeline to its end.
+  They run where no track has audio too, so an effect that makes a sound of its own, like a hiss, is heard under a
+  still or a silent clip. An edit with no audio at all still gets an audio track then.
+
+A muted clip runs no effect, and neither does a clip under a muted track or composition. The plan lists each effect it
+left out on its [inert notices](/guides/export/#inert-notices), and does the same for a spec whose `isInert` is `true`.
+A clip whose source has no audio track runs no clip or track effect either.
+
+Any audio effect blocks the [stream copy](/reference/limits/#stream-copy), and the plan says which scope held it.
+
+## Writing an effect
+
+### The spec
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/AudioEffects.kt" region="spec" />
+
+- `id` has to be stable. Namespace it like a package and never derive it from the class name.
+- `isInert` defaults to `false`. Say `true` when the spec as configured leaves every sample alone.
+- Make it a data class. Two edits are compared by value, and that's how the player tells a changed effect from an
+  unchanged one.
+
+### The kernel
+
+A kernel processes one stream of interleaved floats in place. It's built once for each stream, with that stream's
+sample rate and channel count.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/AudioEffects.kt" region="kernel" />
+
+- `position` is the index of the block's first frame on the composition timeline, counted at the stream's sample rate.
+  It's the same on every backend, in a preview and in an export, at every scope. Read your phase from it and the
+  effect lands on the same samples everywhere.
+- `process` runs on the audio thread during playback. Allocate what you need when the kernel is built, not in
+  `process`.
+- A kernel that delays its input, like a lookahead limiter, overrides `latencyFrames`. The host takes that many frames
+  off the head of the stream and hands the tail back at the end, so the audio keeps its length and stays in sync.
+- `reset(position)` is called when the stream jumps, like after a seek. Clear your state there.
+- A kernel that throws fails the export with that error. In a preview it fails playback.
+
+### The resolver
+
+An `AudioEffectResolver` turns the spec into what the platform runs. On Android, Apple and the browser that's a factory
+for the kernel. On the JVM it's a list of ffmpeg filters.
+
+<Tabs syncKey="platform">
+  <TabItem label="Android">
+    <Snippet file="androidMain/kotlin/dev/jordond/filmstrip/docs/guides/AudioEffects.android.kt" region="kernel-resolution" />
+  </TabItem>
+  <TabItem label="iOS">
+    <Snippet file="iosMain/kotlin/dev/jordond/filmstrip/docs/guides/AudioEffects.ios.kt" region="kernel-resolution" />
+  </TabItem>
+  <TabItem label="Browser">
+    <Snippet file="wasmJsMain/kotlin/dev/jordond/filmstrip/docs/guides/AudioEffects.wasmJs.kt" region="kernel-resolution" />
+  </TabItem>
+  <TabItem label="JVM">
+    <Snippet file="jvmMain/kotlin/dev/jordond/filmstrip/docs/guides/AudioEffects.jvm.kt" region="filter-resolution" />
+  </TabItem>
+</Tabs>
+
+The factory has to answer a new kernel every time it's called, since a kernel holds one stream's state.
+
+Register the resolver when you build `Filmstrip`.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/AudioEffects.kt" region="register" />
+
+A resolver returns `null` for a spec it doesn't know, and the next one is asked. A spec nobody claims is refused at
+`plan()`. Returning `Unsupported` refuses it too, and `Verdict.Incapable.withoutUnsupported` then carries a plan with the
+effect left out, which plays the audio clean.
+
+## In the player
+
+Changing, adding or removing an audio effect is a parameter change. The player keeps playing and the new kernel takes
+over at the next block of audio, starting with no state. An effect whose spec is equal to the one before keeps its
+kernel and everything the kernel has built up, so changing a level or one effect of several doesn't restart the rest.
+
+## Backends
+
+| Backend | A clip's effects                          | The composition's effects       | Preview                               |
+| ------- | ----------------------------------------- | ------------------------------- | ------------------------------------- |
+| Android | Your kernel, at the source's format       | Your kernel, on the mix         | Same kernels as the export            |
+| Apple   | Your kernel, at the source's format       | Your kernel, at the output's    | Your kernel, on each track            |
+| Browser | Your kernel, at the source's format       | Your kernel, at the output's    | Your kernel, at the page's audio rate |
+| ffmpeg  | Your filters, ahead of the clip's level   | Your filters, after the mix     | No audio                              |
+
+<Aside type="note" title="Limits">
+- ffmpeg runs filters, not your kernel, so matching the two is up to your resolver. A filter that reads `t` reads
+  composition time at both scopes. filmstrip puts the stream back to its length and format after your filters.
+- A kernel starts with no state after a seek and after a change to its own spec, so a reverb's tail or a filter's
+  history builds up again from there. That takes as long as the kernel itself remembers. filmstrip adds nothing to it.
+- A preview and an export can run a kernel at different sample rates and channel counts. The browser preview mixes at
+  the page's audio rate, and an Apple preview runs at each source track's own format. Build your kernel from the
+  `AudioFormat` it's handed.
+- On Apple, a preview of an edit with audio effects renders the audio of every clip at another speed before it plays,
+  so it takes longer to load.
+- On Apple, a preview runs a composition effect on each audio track by itself, since a player hands nobody its mix.
+  It matches the export for an effect that's linear, with or without a sound of its own added on top, like an EQ or
+  a hiss. A compressor or a limiter on the composition sounds different there than in the file.
+- On Apple, a preview plays a track late by the `latencyFrames` of the kernels it runs through, because a player
+  hands an effect no audio ahead of the block it plays. The export takes the latency out to the frame.
+- On Apple, an export reads a clip's audio ahead to take a kernel's latency out, and AVFoundation hands over a few
+  thousand frames at most, about 70 ms at 48 kHz. A clip or track effect whose kernels hold back more than that fails
+  the export. A composition effect has no such ceiling.
+- In the browser, a clip with audio effects is decoded for itself, so a looping track's passes don't share one decoded
+  buffer.
+</Aside>

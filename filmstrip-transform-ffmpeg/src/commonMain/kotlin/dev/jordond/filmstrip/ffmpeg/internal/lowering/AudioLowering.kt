@@ -14,6 +14,8 @@ import kotlin.time.Duration
  *
  * Every track carrying sound is joined clip by clip, delayed to its own start, then mixed and cut to
  * the composition's duration. A clip whose source has no audio contributes silence of its own length.
+ * A clip's audio effects are written as their own filters ahead of its level, and the composition's
+ * after the mix.
  * [branchPad] hands out the pad a laid clip reads its audio from, by track and by clip.
  */
 internal class AudioLowering(
@@ -23,6 +25,7 @@ internal class AudioLowering(
   private val branchPad: (trackIndex: Int, clipIndex: Int) -> String,
 ) {
   private val tracks = negotiated.tracks
+  private val mixEffects = negotiated.mixAudioEffects.flatMap { it.effect.filters }
   private val format = checkNotNull(negotiated.output.audioFormat) { "AudioLowering needs an audio format" }
   private val duration = negotiated.duration
 
@@ -101,7 +104,8 @@ internal class AudioLowering(
       )
     }
 
-  // The mix cut to the composition's duration, with its timestamps restarted and its format pinned.
+  // The mix cut to the composition's duration, with its timestamps restarted and its format pinned, then run through
+  // the composition's audio effects.
   private fun finish(mixed: String): String {
     val out = "aout"
     graph.chain(
@@ -111,10 +115,36 @@ internal class AudioLowering(
         ASETPTS,
         FilterNode("aresample", "async" to "1", "first_pts" to "0"),
         aformat(),
-      ),
+      ) + pinned(mixEffects, Duration.ZERO, duration),
       out,
     )
     return out
+  }
+
+  // An effect's filters over a stream that opens at [opens] on the composition timeline, then the stream put back to
+  // the length and format it had going in. The stream is stamped with composition time first, so a filter reading `t`
+  // reads the same clock at either scope. A filter is free to lengthen its input, change its layout or restamp it,
+  // and what follows reads none of that.
+  private fun pinned(
+    effects: List<FilterNode>,
+    opens: Duration,
+    length: Duration,
+  ): List<FilterNode> {
+    if (effects.isEmpty()) return emptyList()
+    val samples = audioFramesOf(length, format.sampleRate).toString()
+    val onTimeline =
+      if (opens > Duration.ZERO) {
+        listOf(FilterNode("asetpts", "expr" to "PTS-STARTPTS+${formatSeconds(opens.seconds())}/TB"))
+      } else {
+        emptyList()
+      }
+    return onTimeline + effects +
+      listOf(
+        aformat(),
+        FilterNode("apad", "whole_len" to samples),
+        FilterNode("atrim", "end_sample" to samples),
+        ASETPTS,
+      )
   }
 
   // A clip whose source carries no audio still occupies time on the track, so it contributes
@@ -150,6 +180,7 @@ internal class AudioLowering(
       add(ASETPTS)
       add(aformat())
       if (clip.hasAudio && clip.speed != 1.0) addAll(stretchedNodes(clip))
+      addAll(pinned(clip.audioEffects.flatMap { it.effect.filters }, clip.span.start, clip.outputDuration))
       // Every scope's level is already multiplied into this, the composition's included, so the mix
       // carries no gain node of its own.
       val constant = clip.gain.constant
@@ -188,7 +219,9 @@ internal class AudioLowering(
         source = InputSource.Generated("anullsrc=r=${format.sampleRate}:cl=stereo"),
         durationSeconds = duration.seconds(),
       )
-    return "aout".also { graph.chain(listOf("$index:a"), listOf(ASETPTS, aformat()), it) }
+    return "aout".also {
+      graph.chain(listOf("$index:a"), listOf(ASETPTS, aformat()) + pinned(mixEffects, Duration.ZERO, duration), it)
+    }
   }
 
   private fun atrimTo(end: Duration): FilterNode = FilterNode("atrim", "end" to formatSeconds(end.seconds()))

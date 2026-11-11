@@ -3,6 +3,9 @@ package dev.jordond.filmstrip.avfoundation.internal.composition
 import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.avfoundation.internal.AssetCache
+import dev.jordond.filmstrip.avfoundation.internal.AudioStretchFailure
+import dev.jordond.filmstrip.avfoundation.internal.AvAudioGraph
+import dev.jordond.filmstrip.avfoundation.internal.LaidAudio
 import dev.jordond.filmstrip.avfoundation.internal.StretchedAudio
 import dev.jordond.filmstrip.avfoundation.internal.chain.ClipSpan
 import dev.jordond.filmstrip.avfoundation.internal.chain.CoreImageChain
@@ -11,11 +14,13 @@ import dev.jordond.filmstrip.avfoundation.internal.chain.sdPrimariesKernelLimit
 import dev.jordond.filmstrip.avfoundation.internal.chain.videoTrack
 import dev.jordond.filmstrip.avfoundation.internal.copiedRuns
 import dev.jordond.filmstrip.avfoundation.internal.failure.AvLoweringFailure
+import dev.jordond.filmstrip.avfoundation.internal.hasAudioEffects
 import dev.jordond.filmstrip.avfoundation.internal.layOnto
+import dev.jordond.filmstrip.avfoundation.internal.laySilence
 import dev.jordond.filmstrip.avfoundation.internal.tailHeldBy
 import dev.jordond.filmstrip.avfoundation.internal.time.toDuration
-import dev.jordond.filmstrip.avfoundation.internal.toAudioMix
 import dev.jordond.filmstrip.avfoundation.internal.toSpans
+import dev.jordond.filmstrip.avfoundation.internal.writer.pcmReaderFormat
 import dev.jordond.filmstrip.codec.AudioCodec
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.TrackContent
@@ -60,7 +65,6 @@ import platform.CoreMedia.kCMTimeZero
  *
  * @property videoComposition Null when the output carries no video track, which is what
  *   [AudioSpec.AudioOnly] resolves to.
- * @property audioMix Null when nothing scales a gain, so the reader passes samples through.
  * @property encodesHdr Whether an HDR grade reaches the encoder, which is not always what was
  *   asked for.
  * @property drawnByCompositor Whether [AvCompositor] draws the frames, on the clock rather than per sample.
@@ -70,14 +74,22 @@ import platform.CoreMedia.kCMTimeZero
 public class AvComposition internal constructor(
   public val composition: AVMutableComposition,
   public val videoComposition: AVMutableVideoComposition?,
-  public val audioMix: AVMutableAudioMix?,
   public val encodesHdr: Boolean,
   public val transfer: HdrTransfer?,
   private val laidSpans: List<ClipSpan>,
   internal val chain: CoreImageChain?,
   internal val drawnByCompositor: Boolean,
   internal val timedByGrid: Boolean,
+  internal val audio: AvAudioGraph? = null,
+  private val stretched: StretchedAudio? = null,
 ) {
+  /**
+   * The mix a reader or a player item plays the audio through. Null when nothing scales a gain and nothing runs an
+   * audio effect, so samples pass through. [updateParameters] can replace it, and the caller then hands the new one
+   * to its item.
+   */
+  public val audioMix: AVMutableAudioMix? get() = audio?.mix
+
   /**
    * The size every frame is drawn at, or null when the output carries no video track.
    */
@@ -88,11 +100,12 @@ public class AvComposition internal constructor(
    * [resolved] moves something the graph was laid out against, such as whether audio was laid, which is the case for
    * [toAvComposition].
    */
-  public fun takesParametersOf(resolved: ResolvedComposition): Boolean = chain?.takesParametersOf(resolved) == true
+  public fun takesParametersOf(resolved: ResolvedComposition): Boolean =
+    chain?.takesParametersOf(resolved) == true && audio?.takes(resolved) != false
 
   /**
    * Called on AVFoundation's render queue the moment a step first throws while drawing a frame, so a preview can
-   * report it while frames are still being drawn.
+   * report it while frames are still being drawn. An audio effect that throws calls it from the audio thread.
    *
    * It is called again only after [updateParameters] clears the failure and a step throws once more. Setting it does
    * nothing when there is no video track.
@@ -101,14 +114,15 @@ public class AvComposition internal constructor(
     get() = chain?.onFailure
     set(value) {
       chain?.onFailure = value
+      audio?.taps?.forEach { it.onFailure = value }
     }
 
   /**
-   * Swaps in the effect parameters [resolved] carries for every frame drawn from here on, and clears what
-   * [chainFailure] held.
+   * Swaps in the effect parameters [resolved] carries for every frame drawn from here on, and its gains and audio
+   * effects for the audio played from here on, and clears what [chainFailure] held.
    *
    * The `AVVideoComposition` a player is showing stays the object it was handed, and nothing is laid onto
-   * [composition] again. Does nothing when there is no video track.
+   * [composition] again. With no video track only the audio changes.
    *
    * @param resolved The same timeline, planned again with different effect parameters.
    * @throws IllegalArgumentException When [takesParametersOf] says no, which needs the whole graph built again through
@@ -116,6 +130,15 @@ public class AvComposition internal constructor(
    */
   public fun updateParameters(resolved: ResolvedComposition) {
     chain?.updateParameters(resolved)
+    audio?.update(resolved)
+  }
+
+  /**
+   * Removes the files this composition's audio was rendered to, once nothing plays it any more. Safe to call when
+   * there are none, and more than once.
+   */
+  public fun discard() {
+    stretched?.discard()
   }
 
   /**
@@ -131,9 +154,9 @@ public class AvComposition internal constructor(
    *
    * The handler cannot fail an export on its own. It runs inside AVFoundation, where an exception
    * terminates the process, so it records the failure and passes the frame on. The run asks once
-   * the pumps have drained.
+   * the pumps have drained. A clip's audio effect that threw in its tap is reported here the same way.
    */
-  public fun chainFailure(): FilmstripError? = chain?.failure
+  public fun chainFailure(): FilmstripError? = chain?.failure ?: audio?.failure
 }
 
 /**
@@ -154,6 +177,41 @@ public suspend fun ResolvedComposition.toAvComposition(bytesRoot: String = Apple
   toAvComposition(sdKernelLimit = { sdPrimariesKernelLimit() }, bytesRoot = bytesRoot)
 
 /**
+ * Builds the AVFoundation composition a player plays this plan through.
+ *
+ * A plan with an audio effect has the audio of every clip at a speed rendered to a file first, the way an export
+ * does, since a player stretches a scaled track after the tap its effects run in. That takes a while for a long
+ * clip, and the files last until [AvComposition.discard]. A plan with no audio effect scales its tracks and leaves
+ * the pitch to the player.
+ *
+ * @param bytesRoot The directory an in-memory source and the rendered audio land under.
+ * @throws AvLoweringFailure when a source or a track cannot be opened, a clip's frames cannot be laid, or a clip's
+ * audio could not be rendered.
+ * @throws MediaBytesFileFailure when an in-memory source could not be written to a file.
+ */
+@InternalFilmstripApi
+public suspend fun ResolvedComposition.toPreviewComposition(
+  bytesRoot: String = AppleScratch.defaultRoot,
+): AvComposition {
+  val stretched = if (hasAudioEffects) StretchedAudio(bytesRoot) else null
+  try {
+    stretched?.renderAll(this, bytesRoot)
+    return toAvComposition(
+      sdKernelLimit = { sdPrimariesKernelLimit() },
+      bytesRoot = bytesRoot,
+      stretched = stretched,
+      plays = true,
+    )
+  } catch (failure: AudioStretchFailure) {
+    stretched?.discard()
+    throw AvLoweringFailure(failure.error.message)
+  } catch (failure: Exception) {
+    stretched?.discard()
+    throw failure
+  }
+}
+
+/**
  * Builds the AVFoundation composition this plan runs as, with [sdKernelLimit] saying why this device cannot draw an SD
  * clip's primaries. It stops when the caller is cancelled.
  *
@@ -162,6 +220,8 @@ public suspend fun ResolvedComposition.toAvComposition(bytesRoot: String = Apple
  * Null for a preview, which scales its audio tracks and leaves the pitch to its player.
  * @param writesCopy Whether an export reads a copy's packets through this composition, which picks how
  * [copiedRuns] lays its counted video.
+ * @param plays Whether a player plays the composition, which has its taps apply each clip's gain and run the
+ * composition's audio effects, and hands it [stretched] to discard.
  * @throws AvLoweringFailure when a source or a track cannot be opened, a clip's frames cannot be laid, or the plan
  * draws an SD clip's primaries and [sdKernelLimit] names a limit.
  * @throws MediaBytesFileFailure when an in-memory source could not be written to a file.
@@ -172,6 +232,7 @@ internal suspend fun ResolvedComposition.toAvComposition(
   bytesRoot: String = AppleScratch.defaultRoot,
   stretched: StretchedAudio? = null,
   writesCopy: Boolean = false,
+  plays: Boolean = false,
 ): AvComposition {
   val keepAudio = output.audioCodec != AudioCodec.None
   val keepVideo = audio != AudioSpec.AudioOnly
@@ -195,18 +256,25 @@ internal suspend fun ResolvedComposition.toAvComposition(
       }.orEmpty()
 
   val mixed =
-    tracks
-      .filter { keepAudio && it.content != TrackContent.Video }
-      .mapNotNull { track ->
-        val media =
-          composition.addMutableTrackWithMediaType(AVMediaTypeAudio, kCMPersistentTrackID_Invalid)
-            ?: return@mapNotNull null
-        media to track.layOnto(media, AVMediaTypeAudio, assets, output.frameRate, onGrid = false)
-      }
+    tracks.withIndex().mapNotNull { (index, track) ->
+      if (!keepAudio || track.content == TrackContent.Video) return@mapNotNull null
+      val media =
+        composition.addMutableTrackWithMediaType(AVMediaTypeAudio, kCMPersistentTrackID_Invalid)
+          ?: return@mapNotNull null
+      LaidAudio(media, track.layOnto(media, AVMediaTypeAudio, assets, output.frameRate, onGrid = false), index)
+    }
 
-  if (placements.isEmpty() && mixed.all { it.second.isEmpty() }) {
+  if (placements.isEmpty() && mixed.all { it.placements.isEmpty() }) {
     throw AvLoweringFailure(NOTHING_INSERTED)
   }
+  // The composition's audio effects run over the whole timeline, whatever audio the tracks lay under it. A player
+  // can be handed them later without a new composition, so one that runs any audio effect lays the silence too.
+  val silence =
+    if (keepAudio && (mixAudioEffects.isNotEmpty() || (plays && hasAudioEffects))) {
+      composition.laySilence(duration, pcmReaderFormat(output), bytesRoot)?.let { LaidAudio(it, emptyList(), null) }
+    } else {
+      null
+    }
 
   val spans = placements.toSpans(composition.duration.toDuration(), output.size, layoutSize, hdrTransfer)
   val chain = if (keepVideo) CoreImageChain(this, spans, encodesHdr) else null
@@ -229,13 +297,14 @@ internal suspend fun ResolvedComposition.toAvComposition(
   return AvComposition(
     composition = composition,
     videoComposition = videoComposition,
-    audioMix = mixed.toAudioMix(),
     encodesHdr = encodesHdr,
     transfer = hdrTransfer,
     laidSpans = spans,
     chain = chain,
     drawnByCompositor = drawnByCompositor,
     timedByGrid = timedByGrid,
+    audio = AvAudioGraph(mixed + listOfNotNull(silence), this, plays),
+    stretched = stretched.takeIf { plays },
   )
 }
 

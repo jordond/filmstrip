@@ -203,7 +203,7 @@ internal class Lowering(
             emptyList()
           } else {
             listOfNotNull(AudioLengthPin(outputDuration, reportsLength = false).takeIf { speed != 1.0 }) +
-              audioProcessors(gain, mixesAudio)
+              clipAudioProcessors(mixesAudio)
           },
           // A copy writes the source's own samples, so a clip carrying video here has no frame to place.
           if (removeVideo) emptyList() else effects.toMedia3Effects().map(wrapper::wrap),
@@ -229,7 +229,7 @@ internal class Lowering(
       .apply { sourceDuration(info) }
       .setFrameRate(plan.output.frameRate)
       .setEffects(
-        Effects(clipAudioSpeed(start - opens, speed, outputDuration, audioProcessors(gain, mixesAudio)), emptyList()),
+        Effects(clipAudioSpeed(start - opens, speed, outputDuration, clipAudioProcessors(mixesAudio)), emptyList()),
       ).build()
   }
 

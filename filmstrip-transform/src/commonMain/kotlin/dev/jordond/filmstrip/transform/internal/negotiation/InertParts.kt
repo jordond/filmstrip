@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip.transform.internal.negotiation
 
+import dev.jordond.filmstrip.audio.AudioEffectSpec
 import dev.jordond.filmstrip.edit.AudioLevel
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.Clip
@@ -48,7 +49,9 @@ internal class InertElision(
  * runs are folded with its track's, the way a backend lowers them, and a run is only taken out whole. A track or
  * composition effect has to be inert on every clip it reaches. A fill is inert when no track starts late and every
  * primary clip's own placement covers the frame. A fade is inert when there is no audio under it. A speed on a still is
- * inert, since a still shows the same pixels at any speed and its length ignores it.
+ * inert, since a still shows the same pixels at any speed and its length ignores it. An audio effect is inert when it
+ * declares [AudioEffectSpec.isInert] or when nothing under it is heard: a clip's on a silent clip, a track's when every
+ * clip on it is silent, and the composition's when the output keeps no audio or the composition is muted.
  *
  * Every run is measured from where each clip's trim was written, since only a transcode draws an effect and a copy
  * opening earlier on a sync sample draws none. An edit some track of which will be refused is handed back whole, so
@@ -85,26 +88,22 @@ internal fun withoutInert(
           val where = "clip $clipIndex of track $trackIndex"
           val effects =
             clip.effects.withoutInert(listOf(reaches[clipIndex]), identity.clips[clipIndex], where, notices)
-          val (fadeIn, fadeOut) =
-            fadesWithout(clip.fadeIn, clip.fadeOut, clipIsSilent(edit, streams, track, clip, ask), where, notices)
+          val silent = clipIsSilent(edit, streams, track, clip, ask)
+          val (fadeIn, fadeOut) = fadesWithout(clip.fadeIn, clip.fadeOut, silent, where, notices)
           clip
             .withEffects(effects)
+            .withAudioEffects(clip.audioEffects.withoutInert(silent, where, notices))
             .withFadeIn(fadeIn)
             .withFadeOut(fadeOut)
             .withSpeed(speedWithout(clip, where, notices))
         }
       val where = "track $trackIndex"
-      val (fadeIn, fadeOut) =
-        fadesWithout(
-          track.fadeIn,
-          track.fadeOut,
-          track.clips.all { clipIsSilent(edit, streams, track, it, ask) },
-          where,
-          notices,
-        )
+      val silent = track.clips.all { clipIsSilent(edit, streams, track, it, ask) }
+      val (fadeIn, fadeOut) = fadesWithout(track.fadeIn, track.fadeOut, silent, where, notices)
       track
         .withClips(clips)
         .withEffects(track.effects.withoutInert(reaches, identity.track, where, notices))
+        .withAudioEffects(track.audioEffects.withoutInert(silent, where, notices))
         .withFadeIn(fadeIn)
         .withFadeOut(fadeOut)
     }
@@ -115,6 +114,9 @@ internal fun withoutInert(
       primaryFrames.map { Reach(edit.effects, it, listOf(whole)) }
   val effects =
     edit.effects.withoutInert(compositionReaches, edit.effects.identityColorRuns(), "the composition", notices)
+
+  val mixIsSilent = !streams.keepAudio || edit.audio == AudioSpec.Mute
+  val audioEffects = edit.audioEffects.withoutInert(mixIsSilent, "the composition", notices)
 
   val fillIsInert =
     edit.fill != Fill.Black &&
@@ -138,7 +140,13 @@ internal fun withoutInert(
     }
 
   if (notices.isEmpty()) return InertElision(edit, emptyList())
-  return InertElision(edit.withTracks(tracks).withEffects(effects).withFill(fill), notices)
+  val elided =
+    edit
+      .withTracks(tracks)
+      .withEffects(effects)
+      .withFill(fill)
+      .withAudioEffects(audioEffects)
+  return InertElision(elided, notices)
 }
 
 // One run of a declared effect: the chain it sits in, the frame that chain opens on, or null when the clip carries
@@ -212,6 +220,24 @@ private fun List<EffectSpec>.withoutInert(
   }
 }
 
+// The audio effects that reach a backend: none under a silent scope, and otherwise every one that changes a sample.
+private fun List<AudioEffectSpec>.withoutInert(
+  silent: Boolean,
+  where: String,
+  notices: MutableList<InertNotice>,
+): List<AudioEffectSpec> {
+  if (isEmpty()) return this
+  return filterNot { spec ->
+    val reason =
+      when {
+        silent -> InertReason.NoStreamToApplyTo
+        spec.isInert -> InertReason.NoChangeToAudio
+        else -> null
+      }
+    reason?.also { notices += InertNotice(spec.id, it, inertMessage(spec.id, where, it)) } != null
+  }
+}
+
 private fun EffectSpec.changesNoGeometry(reaches: List<Reach>): Boolean =
   when (this) {
     is Rotate -> {
@@ -277,7 +303,11 @@ internal fun hasAudibleAudio(
   ask: Ask,
 ): Boolean = edit.tracks.any { track -> track.clips.any { !clipIsSilent(edit, streams, track, it, ask) } }
 
-private fun clipIsSilent(
+/**
+ * Whether nothing of [clip] is heard, because the output keeps no audio, a scope above it is muted or its source
+ * carries none.
+ */
+internal fun clipIsSilent(
   edit: Composition,
   streams: Streams,
   track: Track,
@@ -332,6 +362,8 @@ private fun inertMessage(
 ): String =
   when (reason) {
     InertReason.NeverVisible -> "The $id on $where is never drawn, so it was left out."
+    InertReason.NoStreamToApplyTo -> fadeMessage(id, where)
+    InertReason.NoChangeToAudio -> "The $id on $where leaves every sample as it was, so it was left out."
     else -> "The $id on $where leaves every pixel as it was, so it was left out."
   }
 

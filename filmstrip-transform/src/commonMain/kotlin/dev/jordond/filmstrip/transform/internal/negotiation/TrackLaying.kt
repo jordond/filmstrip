@@ -33,6 +33,7 @@ import kotlin.time.Duration
 internal class LaidTrack(
   val track: ResolvedTrack,
   val lowered: List<LoweredEffect>,
+  val loweredAudio: List<LoweredAudioEffect>,
 )
 
 /**
@@ -44,6 +45,7 @@ internal class LaidTrack(
  *   against.
  * @param compositionGain The composition's own level, multiplied into every pass.
  * @param startsAtKeyFrame Whether every pass opens on a sync sample, which is true only on a copy.
+ * @param isHeard Whether anything of a clip on a track is heard. A clip that is not runs no audio effect.
  */
 internal class TrackLayer(
   private val lowering: StageLowering,
@@ -54,6 +56,8 @@ internal class TrackLayer(
   private val naturalSize: Size,
   private val compositionGain: Float,
   private val startsAtKeyFrame: Boolean,
+  private val audioLowering: AudioEffectLowering,
+  private val isHeard: (Track, Clip) -> Boolean,
 ) {
   /**
    * Lays [track] over [runLength], each clip opening and closing on its window in [windows].
@@ -65,6 +69,8 @@ internal class TrackLayer(
   ): LaidTrack {
     val lengths = windows.map { it.length }
     val lowered = mutableListOf<LoweredEffect>()
+    val loweredAudio = mutableListOf<LoweredAudioEffect>()
+    val heard = track.clips.map { isHeard(track, it) }
     // The track's level times its fade, both read against the whole run the track covers.
     val trackCurve =
       track.audio.curveOver(runLength) * fadeEnvelope(track.fadeIn, track.fadeOut).curveOver(runLength)
@@ -96,6 +102,11 @@ internal class TrackLayer(
         val sourceSize = info.video?.displaySize ?: target.outputSize
         val placement = placementOf(sourceSize, listOf(clip.effects + track.effects, compositionGeometry), naturalSize)
         val resolved = effects.mapNotNull { it.resolvedEffect }
+        // A clip's own effects and then its track's, the order they run in. Each pass asks again, since each is a
+        // run of audio of its own.
+        val audioEffects =
+          if (heard[pass.index]) audioLowering.lower(clip.audioEffects + track.audioEffects, span) else emptyList()
+        loweredAudio += audioEffects
         // The clip's own curve over its whole trim, cut only where the run stopped this pass short
         // of it, so a pass that plays the trim out reaches exactly the curve it would have without
         // the loop.
@@ -122,12 +133,14 @@ internal class TrackLayer(
           canvasEffectIndices = placement.canvases.map { canvasEffectIndexOf(it.chainIndex, effects, resolved) },
           speed = window.speed,
           audioTrack = resolvedAudioTrackOf(clipAudioTrackOf(clip, info), info),
+          audioEffects = audioEffects.mapNotNull { it.resolvedEffect },
         )
       }
 
     return LaidTrack(
       track = ResolvedTrack(content = track.content, looping = track.looping, start = track.start, clips = clips),
       lowered = lowered,
+      loweredAudio = loweredAudio,
     )
   }
 }

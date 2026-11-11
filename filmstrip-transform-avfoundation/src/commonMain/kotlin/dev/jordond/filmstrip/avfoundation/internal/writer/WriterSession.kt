@@ -33,6 +33,7 @@ import kotlin.time.Duration.Companion.seconds
  *
  * @param read Takes the next sample from [output] on the pump queue, following the create rule.
  * @param append Hands a sample to [input], and says whether the input took it.
+ * @param failure What stopped [read] working on its samples, or null while nothing has. The run fails on it.
  */
 @OptIn(ExperimentalForeignApi::class)
 internal class WriterPump(
@@ -41,6 +42,7 @@ internal class WriterPump(
   val reportsProgress: Boolean,
   val read: () -> CMSampleBufferRef? = output::copyNextSampleBuffer,
   val append: (CMSampleBufferRef) -> Boolean = input::appendSampleBuffer,
+  val failure: () -> FilmstripError? = { null },
 )
 
 /**
@@ -176,7 +178,8 @@ internal class WriterSession(
   }
 
   /**
-   * Whether the run has failed on a step the chain could not run, failing it the first time one is seen.
+   * Whether the run has failed on a step the chain could not run or on a pump that could not work on its samples,
+   * failing it the first time one is seen.
    *
    * The chain sets its failure on the render queue before it hands the frame over, so the sample after the broken
    * frame is the latest this sees it. A run being stopped breaks here too, with no outcome, since [stop] owns the
@@ -184,7 +187,7 @@ internal class WriterSession(
    */
   private fun brokeEarly(): Boolean {
     if (stopping || outcome.isCompleted) return true
-    val broken = composition.chainFailure() ?: return false
+    val broken = composition.chainFailure() ?: pumps.firstNotNullOfOrNull { it.failure() } ?: return false
     if (writer.status == AVAssetWriterStatusWriting) writer.cancelWriting()
     reader.cancelReading()
     outcome.complete(WriterOutcome.Failed(broken))

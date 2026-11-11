@@ -4,7 +4,12 @@ package dev.jordond.filmstrip.webcodecs.internal.audio
 
 import dev.jordond.filmstrip.edit.audioFramesOf
 import dev.jordond.filmstrip.edit.outputLengthOf
+import dev.jordond.filmstrip.export.AudioFormat
+import dev.jordond.filmstrip.transform.internal.audio.KernelChain
+import dev.jordond.filmstrip.transform.internal.audio.timelineFrameOf
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedAudioEffect
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedClip
+import dev.jordond.filmstrip.transform.internal.resolve.runsAs
 import dev.jordond.filmstrip.webcodecs.internal.PulledStream
 import dev.jordond.filmstrip.webcodecs.internal.interop.AudioBuffer
 import dev.jordond.filmstrip.webcodecs.internal.interop.AudioBufferSink
@@ -23,7 +28,12 @@ import kotlin.time.Duration
 import kotlin.time.DurationUnit
 
 /**
- * One clip's source audio decoded and played through a [TimeStretch], asked for a stretch of the timeline at a time.
+ * One clip's source audio decoded, played through a [TimeStretch] and then through the clip's audio effects, asked for
+ * a stretch of the timeline at a time.
+ *
+ * The effects run in one [KernelChain] over the frames in the order they play, each frame once, so a kernel's state
+ * carries from one call to the next and the position it is handed is the frame's place on the composition timeline.
+ * The chain takes its kernels' latency out, so the clip keeps its length.
  *
  * Source is pulled only when the stretcher needs more, and what no grain reads is moved past uncopied, so a clip costs
  * what its stretcher holds however much source it runs through. Every frame of output is counted from where this
@@ -51,6 +61,11 @@ internal class ClipStretch private constructor(
   private var gapFrames = 0L
   private var fedFrames = 0L
   private var sawAudio = false
+
+  private val opensFrame = timelineFrameOf(opensAt, sampleRate)
+  private var adopted: List<ResolvedAudioEffect> = emptyList()
+  private var chain: KernelChain? = null
+  private var stretchedFrames = 0L
 
   private var producedFrames = 0L
   private var history = Array(channelCount) { FloatArray(0) }
@@ -89,14 +104,60 @@ internal class ClipStretch private constructor(
   }
 
   /**
+   * Runs [effects] over every frame not played yet, in place of the effects this was running.
+   *
+   * The effects it is already running change nothing. Any others start their kernels with no state at the next frame.
+   */
+  fun adopt(effects: List<ResolvedAudioEffect>) {
+    if (effects.runsAs(adopted)) return
+    adopted = effects
+    val kernels = effects.map { it.effect.newKernel(AudioFormat(sampleRate, channelCount)) }
+    val running = chain
+    when {
+      running != null -> running.swap(kernels)
+      kernels.isNotEmpty() -> chain = KernelChain(kernels, channelCount, opensFrame + producedFrames)
+    }
+  }
+
+  /**
    * Stops decoding. A call to [between] already waiting on a decode finishes against silence.
    */
   fun close() {
     stream?.close()
   }
 
+  // The next frames of output. With effects, source is run through the chain until it has handed that many back, and
+  // once the source is over the chain gives up what its kernels still hold.
   private suspend fun pullFresh(frames: Int): Array<FloatArray> {
+    val running = chain ?: return pullStretched(frames)
+    val out = Array(channelCount) { FloatArray(frames) }
+    val block = FloatArray(frames * channelCount)
+    var filled = 0
+    while (filled < frames) {
+      val wanted = frames - filled
+      val source = min(wanted.toLong(), totalFrames - stretchedFrames).toInt()
+      val written =
+        if (source > 0) {
+          val pulled = pullStretched(source)
+          for (channel in 0 until channelCount) {
+            for (index in 0 until source) block[index * channelCount + channel] = pulled[channel][index]
+          }
+          running.process(block, source)
+        } else {
+          running.drain(block, wanted)
+        }
+      if (source <= 0 && written == 0) break
+      for (channel in 0 until channelCount) {
+        for (index in 0 until written) out[channel][filled + index] = block[index * channelCount + channel]
+      }
+      filled += written
+    }
+    return out
+  }
+
+  private suspend fun pullStretched(frames: Int): Array<FloatArray> {
     while (!stretch.canPull(frames)) feed()
+    stretchedFrames += frames
     return stretch.pull(frames)
   }
 
@@ -229,7 +290,7 @@ internal class ClipStretch private constructor(
             .toInt(),
         keep = keep,
         open = open,
-      )
+      ).also { it.adopt(clip.audioEffects) }
 
     private const val KEEP_MARGIN_FRAMES = 2L
     private const val SILENCE_STEP_FRAMES = 4_096

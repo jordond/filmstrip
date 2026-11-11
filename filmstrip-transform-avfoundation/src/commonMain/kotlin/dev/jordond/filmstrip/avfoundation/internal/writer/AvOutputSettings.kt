@@ -3,6 +3,7 @@ package dev.jordond.filmstrip.avfoundation.internal.writer
 import dev.jordond.filmstrip.avfoundation.internal.interop.PIXEL_FORMAT_KEY
 import dev.jordond.filmstrip.codec.AudioCodec
 import dev.jordond.filmstrip.codec.VideoCodec
+import dev.jordond.filmstrip.export.AudioFormat
 import dev.jordond.filmstrip.export.OutputFormat
 import dev.jordond.filmstrip.media.HdrTransfer
 import kotlinx.cinterop.ExperimentalForeignApi
@@ -119,18 +120,25 @@ internal fun audioWriterSettings(output: OutputFormat): Map<Any?, Any?>? {
  * are none to apply it to while the stream is still AAC.
  */
 internal fun pcmReaderSettings(output: OutputFormat): Map<Any?, Any?> {
-  val format = output.audioFormat
+  val format = pcmReaderFormat(output)
 
   return mapOf(
     AVFormatIDKey to kAudioFormatLinearPCM,
-    AVSampleRateKey to (format?.sampleRate ?: DEFAULT_SAMPLE_RATE).toDouble(),
-    AVNumberOfChannelsKey to (format?.channelCount ?: MAX_CHANNELS),
+    AVSampleRateKey to format.sampleRate.toDouble(),
+    AVNumberOfChannelsKey to format.channelCount,
     AVLinearPCMBitDepthKey to PCM_BIT_DEPTH,
     AVLinearPCMIsFloatKey to false,
     AVLinearPCMIsBigEndianKey to false,
     AVLinearPCMIsNonInterleavedKey to false,
   )
 }
+
+/**
+ * The rate and channel count the audio reader output hands its samples over at, which is what [pcmReaderSettings]
+ * asks for and what anything working on those samples has to count in.
+ */
+internal fun pcmReaderFormat(output: OutputFormat): AudioFormat =
+  output.audioFormat ?: AudioFormat(DEFAULT_SAMPLE_RATE, MAX_CHANNELS)
 
 /**
  * The pixel format the video reader output hands the writer.

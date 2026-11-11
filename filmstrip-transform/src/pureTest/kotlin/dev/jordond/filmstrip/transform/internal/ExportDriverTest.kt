@@ -237,6 +237,7 @@ class ExportDriverTest {
     backend = driver,
     prober = MapProber(fixture.infos(composition)),
     resolvers = listOf(FakeResolver()) + extra,
+    audioResolvers = emptyList(),
     parity = mapOf(KNOWN_ID to EffectParity.Exact),
     ladder = listOf(VideoCodec.H264, VideoCodec.Hevc),
     supportsCopy = true,

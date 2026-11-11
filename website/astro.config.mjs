@@ -123,6 +123,7 @@ export default defineConfig({
             { label: 'Filters', slug: 'guides/filters' },
             { label: 'Overlays', slug: 'guides/overlays' },
             { label: 'Audio', slug: 'guides/audio' },
+            { label: 'Audio effects', slug: 'guides/audio-effects' },
             { label: 'Export', slug: 'guides/export' },
             { label: 'Probe and frames', slug: 'guides/probe-and-frames' },
             { label: 'Stills', slug: 'guides/stills' },

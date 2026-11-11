@@ -51,6 +51,7 @@ public fun media3ExportEngine(
     backend = Media3Driver(prober),
     prober = prober,
     resolvers = components.effectResolvers,
+    audioResolvers = components.audioEffectResolvers,
     parity = MEDIA3_PARITY,
     ladder = MEDIA3_LADDER,
     // Transformer names no MIME type on a copy and muxes the source's own samples across, so no

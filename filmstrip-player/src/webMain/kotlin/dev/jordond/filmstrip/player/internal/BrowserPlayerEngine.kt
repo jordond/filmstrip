@@ -104,6 +104,7 @@ internal class BrowserPlayerEngine(
       setPlayWhenReady = ::setPlayWhenReady,
       reportExternalPlayWhenReady = ::reportExternalPlayWhenReady,
       emitEvent = ::emitEvent,
+      fail = ::fail,
     )
 
   private val seeks =

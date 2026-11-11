@@ -1,6 +1,7 @@
 package dev.jordond.filmstrip.ffmpeg.internal
 
 import dev.jordond.filmstrip.FilmstripError
+import dev.jordond.filmstrip.audio.AudioEffectResolver
 import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.effect.EffectResolver
 import dev.jordond.filmstrip.effect.EffectStage
@@ -64,6 +65,7 @@ internal class FfmpegPlanner(
   private val toolchain: Toolchain,
   resolvers: List<EffectResolver>,
   private val bytesRoot: BytesRoot = DEFAULT_BYTES_ROOT,
+  audioResolvers: List<AudioEffectResolver> = emptyList(),
 ) {
   // Computed once and consumed by the negotiator's canToneMap and the capability it reports.
   private val canToneMap = canToneMap(toolchain)
@@ -71,6 +73,7 @@ internal class FfmpegPlanner(
   private val planner =
     ExportPlanner(
       resolvers = decodingOverlayPictures(resolvers, toolchain),
+      audioResolvers = audioResolvers,
       renderCapabilities = { outputSize, encodesHdr ->
         renderCapabilities(canToneMap, outputSize, encodesHdr)
       },

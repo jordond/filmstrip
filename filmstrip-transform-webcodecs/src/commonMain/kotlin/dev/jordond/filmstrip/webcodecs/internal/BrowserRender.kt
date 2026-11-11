@@ -23,6 +23,7 @@ import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.transform.internal.geometry.coverScale
 import dev.jordond.filmstrip.transform.internal.geometry.showsBlurredFill
 import dev.jordond.filmstrip.transform.internal.heldTail
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedAudioEffect
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedClip
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedEffect
@@ -55,6 +56,7 @@ import kotlin.time.DurationUnit
  * @property audioCodec The codec the plan writes audio with, [AudioCodec.None] when it writes none.
  * @property audioFormat The format the composition's audio is normalised to, or null when there is
  * none to mix.
+ * @property mixAudioEffects The composition's audio effects, run on the finished mix in this order.
  * @property audioTracks Every track of the negotiated composition, video and audio-only alike, for
  * [BrowserAudioMix] to mix. [clips] carries only the primary track's video.
  * @property leadFrames How many output slots the primary track's leading gap fills, which is the slot its start lands
@@ -92,6 +94,7 @@ internal class BrowserRender(
   val compositionOverlays: List<WebGlOverlay>,
   val compositionPasses: List<WebGlPass> = emptyList(),
   val copyVideoPackets: Int? = null,
+  val mixAudioEffects: List<ResolvedAudioEffect> = emptyList(),
 ) {
   /**
    * How long one output slot runs in microseconds at [frameRate]. Every pass that walks the output frame by frame
@@ -199,6 +202,7 @@ internal fun browserRenderOf(
     adjustments = plan.adjustments,
     audioFormat = plan.output.audioFormat,
     audioTracks = plan.tracks,
+    mixAudioEffects = plan.mixAudioEffects,
     fill = plan.fill,
     hdrTransfer = plan.hdrTransfer,
     compositionOverlays = plan.effectsOverFill.mapNotNull { it.effect.overlay },
@@ -311,6 +315,7 @@ private fun audioOnlyRender(plan: ResolvedComposition): BrowserRender =
     adjustments = plan.adjustments,
     audioFormat = plan.output.audioFormat,
     audioTracks = plan.tracks,
+    mixAudioEffects = plan.mixAudioEffects,
     fill = plan.fill,
     hdrTransfer = null,
     compositionOverlays = emptyList(),

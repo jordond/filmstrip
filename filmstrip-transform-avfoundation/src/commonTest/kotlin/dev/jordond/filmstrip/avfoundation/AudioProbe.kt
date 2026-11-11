@@ -1,5 +1,7 @@
 package dev.jordond.filmstrip.avfoundation
 
+import dev.jordond.filmstrip.avfoundation.internal.time.toDuration
+import dev.jordond.filmstrip.avfoundation.internal.writer.MixEnd
 import dev.jordond.filmstrip.test.ToneAnalysis
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.addressOf
@@ -11,17 +13,23 @@ import platform.AVFAudio.AVLinearPCMIsFloatKey
 import platform.AVFAudio.AVLinearPCMIsNonInterleavedKey
 import platform.AVFAudio.AVNumberOfChannelsKey
 import platform.AVFAudio.AVSampleRateKey
+import platform.AVFoundation.AVAsset
 import platform.AVFoundation.AVAssetReader
+import platform.AVFoundation.AVAssetReaderAudioMixOutput
+import platform.AVFoundation.AVAssetReaderOutput
 import platform.AVFoundation.AVAssetReaderTrackOutput
 import platform.AVFoundation.AVAssetTrack
+import platform.AVFoundation.AVAudioMix
 import platform.AVFoundation.AVMediaTypeAudio
 import platform.AVFoundation.AVURLAsset
+import platform.AVFoundation.duration
 import platform.AVFoundation.tracksWithMediaType
 import platform.CoreAudioTypes.kAudioFormatLinearPCM
 import platform.CoreFoundation.CFRelease
 import platform.CoreMedia.CMBlockBufferCopyDataBytes
 import platform.CoreMedia.CMBlockBufferGetDataLength
 import platform.CoreMedia.CMSampleBufferGetDataBuffer
+import platform.CoreMedia.CMSampleBufferRef
 import platform.Foundation.NSURL
 import kotlin.time.Duration
 
@@ -73,21 +81,34 @@ internal fun audioOf(path: String): AudioProbe {
     asset.tracksWithMediaType(AVMediaTypeAudio).firstOrNull() as? AVAssetTrack
       ?: error("$path carries no audio track")
 
-  val output =
-    AVAssetReaderTrackOutput(
-      track = track,
-      outputSettings =
-        mapOf(
-          AVFormatIDKey to kAudioFormatLinearPCM,
-          AVSampleRateKey to PROBE_SAMPLE_RATE.toDouble(),
-          AVNumberOfChannelsKey to PROBE_CHANNELS,
-          AVLinearPCMBitDepthKey to PROBE_BIT_DEPTH,
-          AVLinearPCMIsFloatKey to true,
-          AVLinearPCMIsBigEndianKey to false,
-          AVLinearPCMIsNonInterleavedKey to false,
-        ),
-    )
+  return decoded(asset, AVAssetReaderTrackOutput(track = track, outputSettings = PROBE_SETTINGS), path)
+}
 
+/**
+ * Decodes what [mix] makes of every audio track of [asset] to mono float samples, the way an export reads its mix.
+ */
+@OptIn(ExperimentalForeignApi::class)
+internal fun mixedAudioOf(
+  asset: AVAsset,
+  mix: AVAudioMix?,
+): AudioProbe {
+  val output =
+    AVAssetReaderAudioMixOutput(
+      audioTracks = asset.tracksWithMediaType(AVMediaTypeAudio),
+      audioSettings = PROBE_SETTINGS,
+    )
+  output.audioMix = mix
+  val bounded = MixEnd(asset.duration.toDuration(), PROBE_SAMPLE_RATE, output::copyNextSampleBuffer)
+  return decoded(asset, output, "the mix", bounded::next)
+}
+
+@OptIn(ExperimentalForeignApi::class)
+private fun decoded(
+  asset: AVAsset,
+  output: AVAssetReaderOutput,
+  path: String,
+  read: () -> CMSampleBufferRef? = output::copyNextSampleBuffer,
+): AudioProbe {
   val reader = AVAssetReader.assetReaderWithAsset(asset, error = null) ?: error("no reader for $path")
   reader.addOutput(output)
   if (!reader.startReading()) error("the audio reader refused to start: ${reader.error?.localizedDescription}")
@@ -95,7 +116,7 @@ internal fun audioOf(path: String): AudioProbe {
   val chunks = mutableListOf<FloatArray>()
   try {
     while (true) {
-      val buffer = output.copyNextSampleBuffer() ?: break
+      val buffer = read() ?: break
       try {
         val block = CMSampleBufferGetDataBuffer(buffer) ?: continue
         val bytes = CMBlockBufferGetDataLength(block).toInt()
@@ -129,6 +150,16 @@ internal fun audioOf(path: String): AudioProbe {
  */
 internal const val PROBE_SAMPLE_RATE: Int = 48_000
 
+private val PROBE_SETTINGS: Map<Any?, *> =
+  mapOf(
+    AVFormatIDKey to kAudioFormatLinearPCM,
+    AVSampleRateKey to PROBE_SAMPLE_RATE.toDouble(),
+    AVNumberOfChannelsKey to 2,
+    AVLinearPCMBitDepthKey to 32,
+    AVLinearPCMIsFloatKey to true,
+    AVLinearPCMIsBigEndianKey to false,
+    AVLinearPCMIsNonInterleavedKey to false,
+  )
+
 private const val PROBE_CHANNELS = 2
-private const val PROBE_BIT_DEPTH = 32
 private const val BYTES_PER_SAMPLE = 4

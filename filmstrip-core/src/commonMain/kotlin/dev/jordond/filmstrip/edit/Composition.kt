@@ -2,6 +2,7 @@ package dev.jordond.filmstrip.edit
 
 import androidx.compose.runtime.Immutable
 import dev.drewhamilton.poko.Poko
+import dev.jordond.filmstrip.audio.AudioEffectSpec
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.media.AudioTrackId
@@ -22,6 +23,7 @@ import kotlin.time.Duration
  * @property effects Effects applied to the composited output, after every track's own effects.
  * @property audio What to do with the composition's audio once every track has been mixed.
  * @property fill What fills the frame where no clip's pixels land.
+ * @property audioEffects Audio effects run on the finished mix, after every level, in the order given.
  */
 @Immutable
 @Poko
@@ -30,6 +32,7 @@ public class Composition(
   public val effects: List<EffectSpec> = emptyList(),
   public val audio: AudioSpec = AudioSpec.Keep,
   public val fill: Fill = Fill.Black,
+  public val audioEffects: List<AudioEffectSpec> = emptyList(),
 ) {
   /**
    * The primary track's clips, which for a single-track edit is every clip there is.
@@ -57,32 +60,38 @@ public class Composition(
    */
   public fun withClips(clips: List<Clip>): Composition {
     val primary = tracks.firstOrNull()?.withClips(clips) ?: Track(clips)
-    return Composition(listOf(primary) + tracks.drop(1), effects, audio, fill)
+    return Composition(listOf(primary) + tracks.drop(1), effects, audio, fill, audioEffects)
   }
 
   /**
    * A copy with different tracks.
    */
   public fun withTracks(tracks: List<Track>): Composition =
-    Composition(tracks = tracks, effects = effects, audio = audio, fill = fill)
+    Composition(tracks = tracks, effects = effects, audio = audio, fill = fill, audioEffects = audioEffects)
 
   /**
    * A copy with different composition-level effects.
    */
   public fun withEffects(effects: List<EffectSpec>): Composition =
-    Composition(tracks = tracks, effects = effects, audio = audio, fill = fill)
+    Composition(tracks = tracks, effects = effects, audio = audio, fill = fill, audioEffects = audioEffects)
 
   /**
    * A copy with a different audio treatment.
    */
   public fun withAudio(audio: AudioSpec): Composition =
-    Composition(tracks = tracks, effects = effects, audio = audio, fill = fill)
+    Composition(tracks = tracks, effects = effects, audio = audio, fill = fill, audioEffects = audioEffects)
 
   /**
    * A copy with a different fill.
    */
   public fun withFill(fill: Fill): Composition =
-    Composition(tracks = tracks, effects = effects, audio = audio, fill = fill)
+    Composition(tracks = tracks, effects = effects, audio = audio, fill = fill, audioEffects = audioEffects)
+
+  /**
+   * A copy with different audio effects on the finished mix.
+   */
+  public fun withAudioEffects(audioEffects: List<AudioEffectSpec>): Composition =
+    Composition(tracks = tracks, effects = effects, audio = audio, fill = fill, audioEffects = audioEffects)
 }
 
 /**
@@ -112,6 +121,8 @@ public class Composition(
  * what that asked for.
  * @property fadeOut How long the audio takes to fall to silence before the track ends, which for a
  * [looping] track is where the composition ends.
+ * @property audioEffects Audio effects run on every clip of this track, after each clip's own and before its level,
+ * in the order given.
  */
 @Poko
 public class Track(
@@ -123,6 +134,7 @@ public class Track(
   public val looping: Boolean = false,
   public val fadeIn: Duration = Duration.ZERO,
   public val fadeOut: Duration = Duration.ZERO,
+  public val audioEffects: List<AudioEffectSpec> = emptyList(),
 ) {
   /**
    * How long this track runs, counting from the start of the composition.
@@ -137,48 +149,55 @@ public class Track(
    * A copy with different clips.
    */
   public fun withClips(clips: List<Clip>): Track =
-    Track(clips, content, effects, audio, start, looping, fadeIn, fadeOut)
+    Track(clips, content, effects, audio, start, looping, fadeIn, fadeOut, audioEffects)
 
   /**
    * A copy that contributes different streams.
    */
   public fun withContent(content: TrackContent): Track =
-    Track(clips, content, effects, audio, start, looping, fadeIn, fadeOut)
+    Track(clips, content, effects, audio, start, looping, fadeIn, fadeOut, audioEffects)
 
   /**
    * A copy with different track-level effects.
    */
   public fun withEffects(effects: List<EffectSpec>): Track =
-    Track(clips, content, effects, audio, start, looping, fadeIn, fadeOut)
+    Track(clips, content, effects, audio, start, looping, fadeIn, fadeOut, audioEffects)
 
   /**
    * A copy at a different audio level.
    */
   public fun withAudio(audio: AudioLevel): Track =
-    Track(clips, content, effects, audio, start, looping, fadeIn, fadeOut)
+    Track(clips, content, effects, audio, start, looping, fadeIn, fadeOut, audioEffects)
 
   /**
    * A copy that begins at a different point in the composition.
    */
-  public fun withStart(start: Duration): Track = Track(clips, content, effects, audio, start, looping, fadeIn, fadeOut)
+  public fun withStart(start: Duration): Track =
+    Track(clips, content, effects, audio, start, looping, fadeIn, fadeOut, audioEffects)
 
   /**
    * A copy that loops, or plays its clips once.
    */
   public fun withLooping(looping: Boolean): Track =
-    Track(clips, content, effects, audio, start, looping, fadeIn, fadeOut)
+    Track(clips, content, effects, audio, start, looping, fadeIn, fadeOut, audioEffects)
 
   /**
    * A copy whose audio rises from silence over [fadeIn].
    */
   public fun withFadeIn(fadeIn: Duration): Track =
-    Track(clips, content, effects, audio, start, looping, fadeIn, fadeOut)
+    Track(clips, content, effects, audio, start, looping, fadeIn, fadeOut, audioEffects)
 
   /**
    * A copy whose audio falls to silence over [fadeOut].
    */
   public fun withFadeOut(fadeOut: Duration): Track =
-    Track(clips, content, effects, audio, start, looping, fadeIn, fadeOut)
+    Track(clips, content, effects, audio, start, looping, fadeIn, fadeOut, audioEffects)
+
+  /**
+   * A copy with different track-level audio effects.
+   */
+  public fun withAudioEffects(audioEffects: List<AudioEffectSpec>): Track =
+    Track(clips, content, effects, audio, start, looping, fadeIn, fadeOut, audioEffects)
 }
 
 /**
@@ -235,6 +254,8 @@ public enum class TrackContent {
  * for the one the container flags as the default, which is [MediaInfo.audio]. Every other audio track of the source is
  * left out, on a copy as well. An id the source does not carry is refused with
  * [dev.jordond.filmstrip.FilmstripError.InvalidComposition] when the composition is planned.
+ * @property audioEffects Audio effects run on this clip's audio after its [speed] and before its level and fades, in
+ * the order given.
  */
 @Poko
 public class Clip(
@@ -247,6 +268,7 @@ public class Clip(
   public val fadeOut: Duration = Duration.ZERO,
   public val speed: Double = 1.0,
   public val audioTrack: AudioTrackId? = null,
+  public val audioEffects: List<AudioEffectSpec> = emptyList(),
 ) {
   /**
    * How long this clip runs on the composition timeline, or null while it is untrimmed or open-ended
@@ -264,49 +286,55 @@ public class Clip(
    * A copy trimmed to [trim], or untrimmed when null.
    */
   public fun withTrim(trim: TimeRange?): Clip =
-    Clip(source, trim, effects, audio, snapWithin, fadeIn, fadeOut, speed, audioTrack)
+    Clip(source, trim, effects, audio, snapWithin, fadeIn, fadeOut, speed, audioTrack, audioEffects)
 
   /**
    * A copy with different clip-level effects.
    */
   public fun withEffects(effects: List<EffectSpec>): Clip =
-    Clip(source, trim, effects, audio, snapWithin, fadeIn, fadeOut, speed, audioTrack)
+    Clip(source, trim, effects, audio, snapWithin, fadeIn, fadeOut, speed, audioTrack, audioEffects)
 
   /**
    * A copy at a different audio level.
    */
   public fun withAudio(audio: AudioLevel): Clip =
-    Clip(source, trim, effects, audio, snapWithin, fadeIn, fadeOut, speed, audioTrack)
+    Clip(source, trim, effects, audio, snapWithin, fadeIn, fadeOut, speed, audioTrack, audioEffects)
 
   /**
    * A copy that lets the cut move back up to [snapWithin] to reach a sync sample.
    */
   public fun withSnapWithin(snapWithin: Duration): Clip =
-    Clip(source, trim, effects, audio, snapWithin, fadeIn, fadeOut, speed, audioTrack)
+    Clip(source, trim, effects, audio, snapWithin, fadeIn, fadeOut, speed, audioTrack, audioEffects)
 
   /**
    * A copy whose audio rises from silence over [fadeIn].
    */
   public fun withFadeIn(fadeIn: Duration): Clip =
-    Clip(source, trim, effects, audio, snapWithin, fadeIn, fadeOut, speed, audioTrack)
+    Clip(source, trim, effects, audio, snapWithin, fadeIn, fadeOut, speed, audioTrack, audioEffects)
 
   /**
    * A copy whose audio falls to silence over [fadeOut].
    */
   public fun withFadeOut(fadeOut: Duration): Clip =
-    Clip(source, trim, effects, audio, snapWithin, fadeIn, fadeOut, speed, audioTrack)
+    Clip(source, trim, effects, audio, snapWithin, fadeIn, fadeOut, speed, audioTrack, audioEffects)
 
   /**
    * A copy that plays its trim at [speed].
    */
   public fun withSpeed(speed: Double): Clip =
-    Clip(source, trim, effects, audio, snapWithin, fadeIn, fadeOut, speed, audioTrack)
+    Clip(source, trim, effects, audio, snapWithin, fadeIn, fadeOut, speed, audioTrack, audioEffects)
 
   /**
    * A copy that plays the source's audio track [audioTrack], or its default track when null.
    */
   public fun withAudioTrack(audioTrack: AudioTrackId?): Clip =
-    Clip(source, trim, effects, audio, snapWithin, fadeIn, fadeOut, speed, audioTrack)
+    Clip(source, trim, effects, audio, snapWithin, fadeIn, fadeOut, speed, audioTrack, audioEffects)
+
+  /**
+   * A copy with different clip-level audio effects.
+   */
+  public fun withAudioEffects(audioEffects: List<AudioEffectSpec>): Clip =
+    Clip(source, trim, effects, audio, snapWithin, fadeIn, fadeOut, speed, audioTrack, audioEffects)
 }
 
 /**

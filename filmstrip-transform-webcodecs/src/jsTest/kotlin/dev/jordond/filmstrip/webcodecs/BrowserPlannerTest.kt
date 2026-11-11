@@ -2,6 +2,9 @@ package dev.jordond.filmstrip.webcodecs
 
 import dev.jordond.filmstrip.ComponentRegistry
 import dev.jordond.filmstrip.FilmstripError
+import dev.jordond.filmstrip.audio.AudioEffectResolution
+import dev.jordond.filmstrip.audio.AudioEffectResolver
+import dev.jordond.filmstrip.audio.PlatformAudioEffect
 import dev.jordond.filmstrip.capability.AudioEncoderCapability
 import dev.jordond.filmstrip.capability.DeviceCapabilities
 import dev.jordond.filmstrip.capability.EffectParity
@@ -60,6 +63,7 @@ import dev.jordond.filmstrip.media.ProbeResult
 import dev.jordond.filmstrip.media.VideoTrackInfo
 import dev.jordond.filmstrip.media.trackCodecOf
 import dev.jordond.filmstrip.test.LoopingCases
+import dev.jordond.filmstrip.test.TimelineBursts
 import dev.jordond.filmstrip.transform.internal.LoweredExport
 import dev.jordond.filmstrip.transform.internal.encode.resolveVideoBitrate
 import dev.jordond.filmstrip.transform.internal.geometry.frameAfter
@@ -98,6 +102,31 @@ class BrowserPlannerTest {
     opaque: Set<MediaSource> = emptySet(),
     openings: Map<MediaSource, Duration> = emptyMap(),
   ): LoweredExport<BrowserRender> = planner.lower(composition, Ask(spec, device, infos, openings), opaque = opaque)
+
+  @Test
+  fun audioEffectsReachTheRenderAtBothScopes() {
+    val bursts =
+      AudioEffectResolver { spec, _ ->
+        (spec as? TimelineBursts)?.let { AudioEffectResolution.Resolved(PlatformAudioEffect(it::newKernel)) }
+      }
+    val hosting = BrowserPlanner(listOf(BuiltInEffectResolver()), listOf(bursts))
+    val clip = Clip(source("heard"), audioEffects = listOf(TimelineBursts(0.5f)))
+    val composition = Composition(listOf(Track(listOf(clip))), audioEffects = listOf(TimelineBursts(0.25f)))
+    val heard =
+      AudioTrackInfo(AudioTrackId(1), trackCodecOf("mp4a"), 48_000, 2, null, language = null, isDefault = true)
+    val spec = ExportSpec(videoCodec = VideoCodec.H264, audioCodec = AudioCodec.Aac)
+    val ask = Ask(spec, device(VideoCodec.H264, VideoCodec.Vp9), mapOf(clip.source to info(audio = heard)))
+
+    val render = hosting.lower(composition, ask).graph.shouldNotBeNull()
+
+    render.audioTracks
+      .single()
+      .clips
+      .single()
+      .audioEffects
+      .map { it.specId } shouldBe listOf(TimelineBursts.ID)
+    render.mixAudioEffects.map { it.specId } shouldBe listOf(TimelineBursts.ID)
+  }
 
   private fun infosOf(composition: Composition): Map<MediaSource, MediaInfo> =
     composition.clips.map { it.source to info() }.toMap()

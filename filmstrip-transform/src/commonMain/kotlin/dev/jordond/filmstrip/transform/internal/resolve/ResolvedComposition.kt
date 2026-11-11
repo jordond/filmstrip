@@ -50,6 +50,8 @@ import kotlin.time.Duration
  * @property copyPrefix The video packets a copy that ends before its source does writes, from [copyPrefixOf] over the
  *   packets the engine read into [dev.jordond.filmstrip.transform.internal.negotiation.Ask.copyPackets]. Null for
  *   every other plan, which writes every packet its window holds.
+ * @property mixAudioEffects The composition's audio effects, in the order they run on the finished mix, after every
+ *   clip's [ResolvedClip.gain].
  */
 @InternalFilmstripApi
 public class ResolvedComposition(
@@ -67,6 +69,7 @@ public class ResolvedComposition(
   public val encoderName: String? = null,
   public val naturalSize: Size = output.size,
   public val copyPrefix: CopyPrefix.Packets? = null,
+  public val mixAudioEffects: List<ResolvedAudioEffect> = emptyList(),
 )
 
 /**
@@ -186,6 +189,8 @@ public class ResolvedTrack(
  * it decodes and [outputDuration] for what it lays.
  * @property audioTrack The one audio track of the source this clip plays, or null when the source has none. A backend
  * reads this and leaves every other audio track of the source out. Left unset, it is the source's default track.
+ * @property audioEffects The clip's audio effects and then its track's, in the order they run on this clip's audio,
+ * after its [speed] and before its [gain]. Empty for a clip nothing of which is heard.
  */
 @InternalFilmstripApi
 public class ResolvedClip(
@@ -202,6 +207,7 @@ public class ResolvedClip(
   public val canvasEffectIndices: List<Int> = emptyList(),
   public val speed: Double = 1.0,
   public val audioTrack: ResolvedAudioTrack? = resolvedAudioTrackOf(info.audio, info),
+  public val audioEffects: List<ResolvedAudioEffect> = emptyList(),
 ) {
   init {
     require(canvasEffectIndices.size == placement.canvases.size) {

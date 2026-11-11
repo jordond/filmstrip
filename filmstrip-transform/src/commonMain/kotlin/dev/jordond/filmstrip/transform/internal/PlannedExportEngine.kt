@@ -2,6 +2,7 @@ package dev.jordond.filmstrip.transform.internal
 
 import dev.jordond.filmstrip.CapabilitiesResult
 import dev.jordond.filmstrip.InternalFilmstripApi
+import dev.jordond.filmstrip.audio.AudioEffectResolver
 import dev.jordond.filmstrip.capability.EffectParity
 import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.edit.Composition
@@ -24,6 +25,7 @@ import dev.jordond.filmstrip.transform.internal.resolve.ResolvedHdr
  * Drives an export from a platform's [ExportDriver], owning probing, caching and lowering so the
  * driver only has to answer what the platform can do.
  *
+ * @param audioResolvers The resolvers that lower each audio effect spec to something this engine's driver can host.
  * @param ladder The order this engine's driver tries video codecs in, most preferred first.
  * @param supportsCopy Whether this driver can copy a stream across without an encoder.
  * @param muxerAccepts Whether this driver's muxer will take a source's streams without re-encoding them.
@@ -34,6 +36,7 @@ public class PlannedExportEngine(
   private val backend: ExportDriver,
   prober: MediaProber,
   resolvers: List<EffectResolver>,
+  audioResolvers: List<AudioEffectResolver>,
   private val parity: Map<String, EffectParity>,
   ladder: List<VideoCodec>,
   supportsCopy: Boolean,
@@ -43,6 +46,7 @@ public class PlannedExportEngine(
   private val planner =
     ExportPlanner(
       resolvers = resolvers,
+      audioResolvers = audioResolvers,
       renderCapabilities = backend::renderCapabilities,
       parityOf = parity::get,
       unclaimedMessage = backend::unclaimed,

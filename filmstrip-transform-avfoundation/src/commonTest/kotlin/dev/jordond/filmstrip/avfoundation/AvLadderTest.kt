@@ -71,6 +71,7 @@ class AvLadderTest {
     muxerAccepts: (MediaInfo) -> Boolean = { true },
   ) = ExportPlanner(
     resolvers = emptyList<EffectResolver>(),
+    audioResolvers = emptyList(),
     renderCapabilities = { size, hdr ->
       RenderCapabilities(
         api = RenderApi.Metal,

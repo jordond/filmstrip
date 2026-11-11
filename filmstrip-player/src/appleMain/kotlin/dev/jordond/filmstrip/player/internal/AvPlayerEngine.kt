@@ -2,7 +2,7 @@ package dev.jordond.filmstrip.player.internal
 
 import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.avfoundation.internal.composition.AvComposition
-import dev.jordond.filmstrip.avfoundation.internal.composition.toAvComposition
+import dev.jordond.filmstrip.avfoundation.internal.composition.toPreviewComposition
 import dev.jordond.filmstrip.avfoundation.internal.failure.AvLoweringFailure
 import dev.jordond.filmstrip.avfoundation.internal.time.toCMTime
 import dev.jordond.filmstrip.avfoundation.internal.time.toDuration
@@ -32,6 +32,7 @@ import platform.AVFoundation.AVPlayerItemStatusReadyToPlay
 import platform.AVFoundation.AVPlayerLayer
 import platform.AVFoundation.AVPlayerRateDidChangeNotification
 import platform.AVFoundation.AVPlayerRateDidChangeReasonKey
+import platform.AVFoundation.audioMix
 import platform.AVFoundation.currentTime
 import platform.AVFoundation.pause
 import platform.AVFoundation.rate
@@ -48,7 +49,7 @@ import kotlin.time.Duration.Companion.milliseconds
  * The AVFoundation preview engine.
  *
  * Everything a frame goes through is the object an export of the same edit would run: one
- * `ResolvedComposition` lowered by [toAvComposition] into one `AVMutableComposition`, one
+ * `ResolvedComposition` lowered by [toPreviewComposition] into one `AVMutableComposition`, one
  * `AVVideoComposition` carrying one `CoreImageChain`, and an `AVPlayerItem` over both. Preview and export are not two
  * pipelines that agree, they are the same one.
  *
@@ -75,7 +76,7 @@ internal class AvPlayerEngine(
   planner: AvPreviewPlanner,
   config: PlayerConfig,
   private val muted: Boolean = false,
-  private val lower: suspend (PreviewPlan) -> AvComposition = { it.resolved.toAvComposition() },
+  private val lower: suspend (PreviewPlan) -> AvComposition = { it.resolved.toPreviewComposition() },
   private val itemOf: (AvComposition) -> AVPlayerItem = ::previewItem,
 ) : PlannedPlayerEngine<PreviewPlan>(parent, config.qualityPolicy, config.exportSpec, planner) {
   private val player = AVPlayer().apply { setMuted(muted) }
@@ -293,10 +294,12 @@ internal class AvPlayerEngine(
     loop.dispose()
     interruptions.dispose()
     rateChanges.dispose()
+    val released = lowered
     detachItem()
     observers.dispose()
     player.pause()
     player.replaceCurrentItemWithPlayerItem(null)
+    released?.discard()
   }
 
   override fun onStepFrames(frames: Int) {
@@ -360,7 +363,10 @@ internal class AvPlayerEngine(
       // Reassigning videoComposition on a playing item stalls the render, so the parameters reach
       // the frames through the chain the item already holds. An edit leaving the copy path can still
       // move the frame, since a transcode holds it to the encoder's size, and that takes a rebuild.
+      val mix = lowered?.audioMix
       lowered?.updateParameters(next.resolved)
+      // Standing taps took the new gains and audio effects in place. Without taps the gains are ramps in a new mix.
+      if (lowered?.audioMix != mix) item?.audioMix = lowered?.audioMix
       failures.resumed()
     } else {
       rebuild(next)?.let { return it }
@@ -409,6 +415,7 @@ internal class AvPlayerEngine(
 
     platformLoads++
     setStatus(PlaybackStatus.Preparing)
+    val replaced = lowered
     detachItem()
 
     val fresh = itemOf(av)
@@ -419,6 +426,7 @@ internal class AvPlayerEngine(
     reachedEnd = false
     observers.observeItem(fresh)
     player.replaceCurrentItemWithPlayerItem(fresh)
+    replaced?.discard()
     return null
   }
 

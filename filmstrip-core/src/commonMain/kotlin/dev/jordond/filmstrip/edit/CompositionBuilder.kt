@@ -1,6 +1,7 @@
 package dev.jordond.filmstrip.edit
 
 import dev.jordond.filmstrip.ExperimentalFilmstripApi
+import dev.jordond.filmstrip.audio.AudioEffectSpec
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.media.AudioTrackId
@@ -40,6 +41,7 @@ public class CompositionBuilder public constructor() {
   private val primary = mutableListOf<Clip>()
   private val extraTracks = mutableListOf<Track>()
   private val effects = mutableListOf<EffectSpec>()
+  private val audioEffects = mutableListOf<AudioEffectSpec>()
   private var audio: AudioSpec = AudioSpec.Keep
   private var fill: Fill = Fill.Black
 
@@ -97,6 +99,18 @@ public class CompositionBuilder public constructor() {
   public fun addEffects(effects: List<EffectSpec>): CompositionBuilder = apply { this.effects += effects }
 
   /**
+   * Adds audio effects that run on the finished mix, after any already added.
+   */
+  public fun audioEffects(block: AudioEffectsBuilder.() -> Unit): CompositionBuilder =
+    apply { audioEffects += AudioEffectsBuilder().apply(block).build() }
+
+  /**
+   * Adds already-built composition-level audio effects.
+   */
+  public fun addAudioEffects(audioEffects: List<AudioEffectSpec>): CompositionBuilder =
+    apply { this.audioEffects += audioEffects }
+
+  /**
    * Sets what happens to the composition's audio once every track has been mixed.
    */
   public fun audio(spec: AudioSpec): CompositionBuilder = apply { audio = spec }
@@ -119,7 +133,13 @@ public class CompositionBuilder public constructor() {
         listOf(Track(primary.toList())) + extraTracks
       }
 
-    return Composition(tracks = tracks, effects = effects.toList(), audio = audio, fill = fill)
+    return Composition(
+      tracks = tracks,
+      effects = effects.toList(),
+      audio = audio,
+      fill = fill,
+      audioEffects = audioEffects.toList(),
+    )
   }
 }
 
@@ -134,6 +154,7 @@ public class TrackBuilder public constructor(
 ) {
   private val clips = mutableListOf<Clip>()
   private val effects = mutableListOf<EffectSpec>()
+  private val audioEffects = mutableListOf<AudioEffectSpec>()
   private var audio: AudioLevel = AudioLevel.Inherit
   private var fadeIn: Duration = Duration.ZERO
   private var fadeOut: Duration = Duration.ZERO
@@ -173,6 +194,18 @@ public class TrackBuilder public constructor(
    * Adds already-built track effects.
    */
   public fun addEffects(effects: List<EffectSpec>): TrackBuilder = apply { this.effects += effects }
+
+  /**
+   * Adds audio effects that run on every clip on this track, after each clip's own, after any already added.
+   */
+  public fun audioEffects(block: AudioEffectsBuilder.() -> Unit): TrackBuilder =
+    apply { audioEffects += AudioEffectsBuilder().apply(block).build() }
+
+  /**
+   * Adds already-built track audio effects.
+   */
+  public fun addAudioEffects(audioEffects: List<AudioEffectSpec>): TrackBuilder =
+    apply { this.audioEffects += audioEffects }
 
   /**
    * Sets what happens to this track's audio before it is mixed.
@@ -221,6 +254,7 @@ public class TrackBuilder public constructor(
       looping = looping,
       fadeIn = fadeIn,
       fadeOut = fadeOut,
+      audioEffects = audioEffects.toList(),
     )
 }
 
@@ -233,6 +267,7 @@ public class ClipBuilder public constructor(
 ) {
   private var trim: TimeRange? = null
   private val effects = mutableListOf<EffectSpec>()
+  private val audioEffects = mutableListOf<AudioEffectSpec>()
   private var audio: AudioLevel = AudioLevel.Inherit
   private var fadeIn: Duration = Duration.ZERO
   private var fadeOut: Duration = Duration.ZERO
@@ -276,6 +311,18 @@ public class ClipBuilder public constructor(
    * Adds already-built clip effects.
    */
   public fun addEffects(effects: List<EffectSpec>): ClipBuilder = apply { this.effects += effects }
+
+  /**
+   * Adds audio effects that run on this clip's audio only, before its level and fades, after any already added.
+   */
+  public fun audioEffects(block: AudioEffectsBuilder.() -> Unit): ClipBuilder =
+    apply { audioEffects += AudioEffectsBuilder().apply(block).build() }
+
+  /**
+   * Adds already-built clip audio effects.
+   */
+  public fun addAudioEffects(audioEffects: List<AudioEffectSpec>): ClipBuilder =
+    apply { this.audioEffects += audioEffects }
 
   /**
    * Sets what happens to this clip's audio.
@@ -327,6 +374,7 @@ public class ClipBuilder public constructor(
       fadeOut = fadeOut,
       speed = speed,
       audioTrack = audioTrack,
+      audioEffects = audioEffects.toList(),
     )
 }
 
@@ -354,4 +402,29 @@ public class EffectsBuilder public constructor() {
    * Freezes what has been declared, in declaration order. Canonical ordering happens at plan time.
    */
   public fun build(): List<EffectSpec> = effects.toList()
+}
+
+/**
+ * Collects audio effect declarations.
+ *
+ * The order you add effects in is the order they run in.
+ */
+@FilmstripDsl
+public class AudioEffectsBuilder public constructor() {
+  private val effects = mutableListOf<AudioEffectSpec>()
+
+  /**
+   * Adds one audio effect.
+   */
+  public fun add(effect: AudioEffectSpec): AudioEffectsBuilder = apply { effects += effect }
+
+  /**
+   * Adds several audio effects.
+   */
+  public fun addAll(effects: List<AudioEffectSpec>): AudioEffectsBuilder = apply { this.effects += effects }
+
+  /**
+   * Freezes what has been declared, in declaration order.
+   */
+  public fun build(): List<AudioEffectSpec> = effects.toList()
 }

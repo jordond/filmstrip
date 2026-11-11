@@ -102,7 +102,10 @@ public class BrowserPreview internal constructor(
     get() =
       browserCanDecodeAudio() &&
         render.audioFormat != null &&
-        render.audioTracks.any { track -> track.clips.any { it.gain.peak > 0f && it.audioTrack != null } }
+        (
+          render.mixAudioEffects.isNotEmpty() ||
+            render.audioTracks.any { track -> track.clips.any { it.gain.peak > 0f && it.audioTrack != null } }
+        )
 
   /**
    * The live audio graph for this composition, built on first use, or null when nothing here is
@@ -113,7 +116,12 @@ public class BrowserPreview internal constructor(
    */
   public fun audio(): BrowserAudioPreview? {
     if (released || !carriesAudio) return null
-    return audio ?: BrowserAudioPreview({ render.audioTracks }, sources).also { audio = it }
+    return audio ?: BrowserAudioPreview(
+      tracks = { render.audioTracks },
+      sources = sources,
+      mixEffects = { render.mixAudioEffects },
+      channelCount = render.audioFormat?.channelCount ?: STEREO_CHANNELS,
+    ).also { audio = it }
   }
 
   /**
@@ -485,3 +493,5 @@ public fun ResolvedComposition.toBrowserPreview(edit: Composition): BrowserPrevi
  * decoded frames does not swamp the tab.
  */
 internal const val PREVIEW_LOOK_AHEAD: Int = 12
+
+private const val STEREO_CHANNELS = 2

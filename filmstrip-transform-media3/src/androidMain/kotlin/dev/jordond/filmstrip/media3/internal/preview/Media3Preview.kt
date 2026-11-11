@@ -18,6 +18,7 @@ import dev.jordond.filmstrip.media3.internal.UnwrappedEffects
 import dev.jordond.filmstrip.media3.internal.bounds.Media3ClipReads
 import dev.jordond.filmstrip.media3.internal.failure.Media3LoweringFailure
 import dev.jordond.filmstrip.media3.internal.isGap
+import dev.jordond.filmstrip.media3.internal.kernelProcessors
 import dev.jordond.filmstrip.media3.internal.liveSlotFor
 import dev.jordond.filmstrip.media3.internal.toMedia3
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
@@ -213,7 +214,7 @@ public class Media3Preview internal constructor(
    * The plan is lowered again and matched position for position against the standing chain. A
    * color or geometry matrix is re-read by media3 on every draw, so those positions take the new
    * value. Anything else, an overlay or a fill pass, is fixed for the life of the graph and only
-   * matches an identical re-lowering.
+   * matches an identical re-lowering. A stream's audio effects are swapped in at the next block it plays.
    *
    * @param bounds The samples [next]'s clips decode, which frames read from here on are laid by.
    * @return true when the standing graph now draws [next], false when it has to be rebuilt.
@@ -230,18 +231,26 @@ public class Media3Preview internal constructor(
     if (next.path != resolved.path) return false
 
     val incoming = mutableListOf<Effect>()
-    try {
-      next.toMedia3(EffectWrapper { effect -> effect.also(incoming::add) }, bounds, ownsAudioSpeed = false)
-    } catch (refused: Media3LoweringFailure) {
-      // A plan this lowering refuses is not one the standing graph can take either. The caller
-      // rebuilds and hears the same refusal there, where it has somewhere to report it.
-      return false
-    }
+    val lowered =
+      try {
+        next.toMedia3(EffectWrapper { effect -> effect.also(incoming::add) }, bounds, ownsAudioSpeed = false)
+      } catch (refused: Media3LoweringFailure) {
+        // A plan this lowering refuses is not one the standing graph can take either. The caller
+        // rebuilds and hears the same refusal there, where it has somewhere to report it.
+        return false
+      }
 
     if (incoming.size != slots.size) return false
     // Validated whole before anything moves, so a refusal leaves the graph drawing what it was.
     val swaps = slots.indices.map { slots[it].swapTo(incoming[it]) ?: return false }
+    val kernels = composition.kernelProcessors()
+    val incomingKernels = lowered.kernelProcessors()
+    // A standing graph keeps the processors it was built with, so a stream that gains its first audio effect or loses
+    // its last one rebuilds.
+    if (kernels.keys != incomingKernels.keys) return false
+    if (kernels.any { (stream, standing) -> standing.start != incomingKernels.getValue(stream).start }) return false
     swaps.forEach(SlotSwap::install)
+    kernels.forEach { (stream, standing) -> standing.swap(incomingKernels.getValue(stream).effects) }
     resolved = next
     this.bounds = bounds
     return true

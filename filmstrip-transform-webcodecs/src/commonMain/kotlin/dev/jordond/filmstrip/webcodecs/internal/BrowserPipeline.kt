@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip.webcodecs.internal
 
+import dev.jordond.filmstrip.export.AudioFormat
 import dev.jordond.filmstrip.webcodecs.internal.audio.BrowserAudioMix
 import dev.jordond.filmstrip.webcodecs.internal.interop.VideoSample
 import dev.jordond.filmstrip.webcodecs.internal.render.BrowserCompositor
@@ -46,7 +47,7 @@ internal class BrowserPipeline(
           emitted = encodeClip(clip, compositor, encoder, emitted, onProgress)
         }
         render.audioFormat?.let { format ->
-          BrowserAudioMix.mixInto(render.audioTracks, format, render.duration, sources) { encoder.addAudio(it) }
+          mixAudio(format, encoder)
         }
         val file = encoder.finish()
         finished = true
@@ -70,7 +71,7 @@ internal class BrowserPipeline(
     var finished = false
     try {
       render.audioFormat?.let { format ->
-        BrowserAudioMix.mixInto(render.audioTracks, format, render.duration, sources) { encoder.addAudio(it) }
+        mixAudio(format, encoder)
       }
       val file = encoder.finish()
       finished = true
@@ -78,6 +79,19 @@ internal class BrowserPipeline(
     } finally {
       if (!finished) encoder.cancel()
     }
+  }
+
+  private suspend fun mixAudio(
+    format: AudioFormat,
+    encoder: BrowserEncoder,
+  ) {
+    BrowserAudioMix.mixInto(
+      tracks = render.audioTracks,
+      format = format,
+      duration = render.duration,
+      sources = sources,
+      mixEffects = render.mixAudioEffects,
+    ) { encoder.addAudio(it) }
   }
 
   /**

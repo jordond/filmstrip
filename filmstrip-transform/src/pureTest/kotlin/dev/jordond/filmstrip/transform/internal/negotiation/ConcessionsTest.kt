@@ -57,7 +57,7 @@ class ConcessionsTest {
         grade = gradeOf(sourceIsHdr = true, hdr = ResolvedHdr.ToneMap),
         encoding = encodingOf(Size(1920, 1080), video = video, frameRate = 60),
         audio = audio,
-        lowered = listOf(degraded),
+        degraded = degraded.degraded,
         dropped = setOf(EffectIds.BRIGHTNESS),
       ).map { it.adjustment.kind }
 
@@ -171,7 +171,7 @@ class ConcessionsTest {
     encoding: Encoding = encodingOf(SIZE),
     lowered: List<LoweredEffect> = emptyList(),
     dropped: Set<String> = emptySet(),
-  ): List<Concession> = concessionsOf(spec, framing, grade, encoding, aac, lowered, dropped)
+  ): List<Concession> = concessionsOf(spec, framing, grade, encoding, aac, lowered.flatMap { it.degraded }, dropped)
 
   private companion object {
     val SIZE = Size(1920, 1080)

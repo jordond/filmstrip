@@ -17,6 +17,7 @@ couldn't, so you can see what to drop to get the copy back. See [Export](/guides
 | The edit's shape | `MultipleTracks`, `MultipleClips`, `TrackStartsLate`, `TrackDropsAStream`, `FrameResized`                 |
 | Effects          | `CompositionHasEffects`, `TrackHasEffects`, `ClipHasEffects`                                              |
 | Audio            | `AudioSpecChanged`, `CompositionGainChanged`, `TrackGainChanged`, `ClipGainChanged`                       |
+| Audio effects    | `CompositionHasAudioEffects`, `TrackHasAudioEffects`, `ClipHasAudioEffects`                               |
 | Timing           | `ClipSpeedChanged`                                                                                        |
 | The source       | `TrimNotOnSyncSample`, `SourceUntimed`, `MuxerRefusesSource`, `SourceCodecUnnameable`, `GradeMustToneMap` |
 | The backend      | `BackendCannotCopy`, `NonSquarePixels`                                                                    |
@@ -306,5 +307,7 @@ The rest are next to the feature they limit.
 - [Effects](/guides/effects/#limits): `kenBurns`, `rotate`, `blur`, `vignette`, `Fill.Blur` and color effects on a kept
   grade.
 - [Audio](/guides/audio/): the Android AAC tail, the browser preview's fades and which backends play a chosen track.
+- [Audio effects](/guides/audio-effects/#backends): filters in place of a kernel on ffmpeg, state after a seek, sample
+  rates in a preview, and latency and composition effects in an Apple preview.
 - [HDR](/guides/hdr/): what each backend can tone map and read.
 - [Stills](/guides/stills/): which backends put a still on the timeline.

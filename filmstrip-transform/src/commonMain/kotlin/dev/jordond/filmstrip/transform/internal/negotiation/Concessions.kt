@@ -12,6 +12,7 @@ import dev.jordond.filmstrip.transform.internal.resolve.ResolvedHdr
 /**
  * Everything an export gave up against what [spec] asked for, in the order a caller reads it.
  *
+ * @param degraded Each effect id paired with each thing a resolver gave up realizing it, in chain order.
  * @param dropped The effect ids the negotiation left out because the device cannot run them.
  */
 internal fun concessionsOf(
@@ -20,7 +21,7 @@ internal fun concessionsOf(
   grade: Grade,
   encoding: Encoding,
   audio: CodecChoice<AudioCodec>,
-  lowered: List<LoweredEffect>,
+  degraded: List<Pair<String, String>>,
   dropped: Set<String>,
 ): List<Concession> =
   buildList {
@@ -60,7 +61,7 @@ internal fun concessionsOf(
         ),
       )
     }
-    lowered.flatMap { it.degraded }.distinct().forEach { (id, message) ->
+    degraded.distinct().forEach { (id, message) ->
       add(concession(AdjustmentKind.EffectApproximated, id, "approximated", message))
     }
     dropped.forEach { id ->

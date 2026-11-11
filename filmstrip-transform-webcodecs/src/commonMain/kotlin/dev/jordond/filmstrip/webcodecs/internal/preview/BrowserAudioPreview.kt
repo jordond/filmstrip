@@ -3,13 +3,17 @@
 package dev.jordond.filmstrip.webcodecs.internal.preview
 
 import dev.jordond.filmstrip.InternalFilmstripApi
+import dev.jordond.filmstrip.edit.audioFramesOf
+import dev.jordond.filmstrip.export.AudioFormat
 import dev.jordond.filmstrip.media.MediaSource
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedAudioEffect
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedClip
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedGain
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedTrack
 import dev.jordond.filmstrip.webcodecs.internal.SourceCache
 import dev.jordond.filmstrip.webcodecs.internal.audio.BrowserAudioMix
 import dev.jordond.filmstrip.webcodecs.internal.audio.ClipStretch
+import dev.jordond.filmstrip.webcodecs.internal.audio.MixWindows
 import dev.jordond.filmstrip.webcodecs.internal.audio.StretchedAudio
 import dev.jordond.filmstrip.webcodecs.internal.interop.AudioBuffer
 import dev.jordond.filmstrip.webcodecs.internal.interop.AudioBufferSourceNode
@@ -34,17 +38,27 @@ import kotlin.time.DurationUnit
  * next with no click and a decoder carries on instead of starting again. Asking for a new start throws
  * those away, and the clip opens again where the new start lands.
  *
+ * A composition with an audio effect anywhere is not wired clip by clip. Each window of it is rendered by the export
+ * mixer at the context's own rate, effects and gain curves included, and the finished window is what gets scheduled.
+ * So a clip's effect runs over its audio in one unbroken stream ahead of its gain, the composition's effects run on
+ * the mix, and both carry their state from one window to the next. A new start opens them again with none.
+ *
  * A context starts suspended until the page has had a user gesture. [resume] is issued and never
  * waited on, because the Web Audio spec parks its promise rather than rejecting it when a page is
  * not allowed to start, and a caller that waited would hang for as long as the user did not click.
  * [isRunning] and [onStateChanged] are the signals worth reading instead.
  *
- * @param onScheduled Told about each stretch of audio a clip at a speed other than 1 schedules.
+ * @param mixEffects The composition's audio effects, read again for every window.
+ * @param channelCount How many channels a window of a composition with audio effects is mixed to.
+ * @param onScheduled Told about each stretch of audio a clip at a speed other than 1 schedules, and each window of a
+ * composition with audio effects.
  */
 @InternalFilmstripApi
 public class BrowserAudioPreview internal constructor(
   private val tracks: () -> List<ResolvedTrack>,
   private val sources: SourceCache,
+  private val mixEffects: () -> List<ResolvedAudioEffect> = { emptyList() },
+  private val channelCount: Int = 2,
   private val onScheduled: (StretchedAudio) -> Unit = {},
 ) {
   private val context = AudioContext()
@@ -157,7 +171,14 @@ public class BrowserAudioPreview internal constructor(
     to: Duration,
     current: PlaybackRun,
   ) {
-    BrowserAudioMix.placed(tracks()).forEach { placed ->
+    val laid = tracks()
+    val onMix = mixEffects()
+    if (onMix.isNotEmpty() || laid.any { track -> track.clips.any { it.audioEffects.isNotEmpty() } }) {
+      scheduleMixed(from, to, laid, onMix, current)
+      return
+    }
+    current.closeMix()
+    BrowserAudioMix.placed(laid).forEach { placed ->
       val clip = placed.clip
       val period = clip.outputDuration
       if (clip.gain.peak <= 0f || period <= Duration.ZERO) return@forEach
@@ -194,6 +215,47 @@ public class BrowserAudioPreview internal constructor(
           into = master,
         )
     }
+  }
+
+  // One window of the finished mix, rendered the way an export renders it and scheduled where the frames it came to
+  // sit on the timeline. Effects with latency hand a window back short, and the frames they hold open the next one.
+  private suspend fun scheduleMixed(
+    from: Duration,
+    to: Duration,
+    laid: List<ResolvedTrack>,
+    onMix: List<ResolvedAudioEffect>,
+    current: PlaybackRun,
+  ) {
+    val rate = context.sampleRate.toInt()
+    val start = audioFramesOf(from, rate).toInt()
+    val length = audioFramesOf(to, rate).toInt() - start
+    if (length <= 0) return
+
+    val mixed = current.mixFrom(start) { MixWindows(AudioFormat(rate, channelCount), sources, origin = start) }
+    val buffer = mixed.windows.render(laid, onMix, start, length)
+    mixed.rendered = start + length
+    if (current !== run || buffer == null) return
+
+    val opensAtSeconds = mixed.scheduled.toDouble() / rate
+    mixed.scheduled += buffer.length
+    onScheduled(buffer.asStretch(opensAtSeconds))
+    sounding +=
+      BrowserAudioMix.schedule(
+        context = context,
+        buffer = buffer,
+        gain = ResolvedGain.constant(1f, Duration.ZERO, to - from),
+        offsetSeconds = contextTimeFor(opensAtSeconds),
+        into = master,
+      )
+  }
+
+  private fun AudioBuffer.asStretch(opensAtSeconds: Double): StretchedAudio {
+    val channels =
+      Array(numberOfChannels) { channel ->
+        val data = getChannelData(channel)
+        FloatArray(length) { data.at(it) }
+      }
+    return StretchedAudio(channels, length, sampleRate.toInt(), opensAtSeconds)
   }
 
   // The clip's stretcher carries on from the last slice, and goes once the clip has played to where it closes.
@@ -241,11 +303,51 @@ public class BrowserAudioPreview internal constructor(
   private class PlaybackRun {
     val stretches = mutableMapOf<PlayedPass, ClipStretch>()
     var pumping = false
+    private var mix: MixedRun? = null
+
+    /**
+     * The run of mixed windows that carries on at frame [start], opened with [open] when none does. The clips'
+     * own stretchers go, since the mixer reads every clip for itself.
+     */
+    fun mixFrom(
+      start: Int,
+      open: () -> MixWindows,
+    ): MixedRun {
+      val running = mix
+      if (running != null && running.rendered == start) return running
+      closeMix()
+      closeStretches()
+      return MixedRun(open(), start).also { mix = it }
+    }
+
+    fun closeMix() {
+      mix?.windows?.close()
+      mix = null
+    }
 
     fun close() {
+      closeStretches()
+      closeMix()
+    }
+
+    private fun closeStretches() {
       stretches.values.forEach { it.close() }
       stretches.clear()
     }
+  }
+
+  /**
+   * The export mixer rendering one stretch of playback a window at a time.
+   *
+   * @property rendered The frame the next window opens at.
+   * @property scheduled The frame of the timeline the next frames the mixer hands back belong at.
+   */
+  private class MixedRun(
+    val windows: MixWindows,
+    start: Int,
+  ) {
+    var rendered = start
+    var scheduled = start.toLong()
   }
 
   /**

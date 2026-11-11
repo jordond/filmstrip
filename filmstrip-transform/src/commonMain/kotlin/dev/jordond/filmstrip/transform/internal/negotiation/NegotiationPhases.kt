@@ -145,12 +145,13 @@ internal class Encoding(
 )
 
 /**
- * Every track laid onto the composition timeline, with every effect its passes lowered.
+ * Every track laid onto the composition timeline, with every effect and audio effect its passes lowered.
  */
 internal class Timeline(
   val duration: Duration,
   val tracks: List<ResolvedTrack>,
   val lowered: List<LoweredEffect>,
+  val loweredAudio: List<LoweredAudioEffect>,
 ) {
   val span: TimeRange = TimeRange.of(Duration.ZERO, duration)
 }

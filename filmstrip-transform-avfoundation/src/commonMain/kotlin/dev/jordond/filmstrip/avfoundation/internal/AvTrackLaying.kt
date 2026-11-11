@@ -54,17 +54,6 @@ import kotlin.time.Duration
 import platform.CoreMedia.kCMTimeRoundingMethod_RoundTowardZero as RoundTowardZero
 
 /**
- * One clip, once it has a slot on the composition timeline.
- */
-internal class Placement(
-  val clip: ResolvedClip,
-  val start: Duration,
-  val end: Duration,
-  val heldFrom: Duration? = null,
-  val sdColor: SdSourceColor? = null,
-)
-
-/**
  * Opens each source once, however many clips read from it and however many tracks each is laid
  * onto.
  *

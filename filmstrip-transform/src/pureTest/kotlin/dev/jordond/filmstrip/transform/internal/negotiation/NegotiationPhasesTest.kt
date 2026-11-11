@@ -33,7 +33,7 @@ class NegotiationPhasesTest {
 
   @Test
   fun `a timeline spans from the start of the composition to its duration`() {
-    Timeline(2_500.milliseconds, emptyList(), emptyList()).span shouldBe
+    Timeline(2_500.milliseconds, emptyList(), emptyList(), emptyList()).span shouldBe
       TimeRange.of(Duration.ZERO, 2_500.milliseconds)
   }
 

@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip.ffmpeg
 
+import dev.jordond.filmstrip.audio.PlatformAudioEffect
 import dev.jordond.filmstrip.codec.AudioCodec
 import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.edit.AudioSpec
@@ -27,6 +28,7 @@ import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.trackCodecOf
 import dev.jordond.filmstrip.transform.internal.resolve.GainSegment
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedAudioEffect
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedClip
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedGain
@@ -47,6 +49,66 @@ import kotlin.time.DurationUnit
 // AudioLowering on its own, over a hand-built plan, so each join, delay and mix is read off the
 // chains it writes rather than through a whole export graph.
 class AudioLoweringTest {
+  @Test
+  fun `a clip's audio effect is written after its stretch and ahead of its level`() {
+    val lowered =
+      lower(
+        track(TrackContent.AudioAndVideo, clip(2.seconds, gain = 0.5f, speed = 2.0, effects = listOf(ECHO))),
+        duration = 1.seconds,
+      )
+
+    val chain = lowered.graph.substringBefore("[a0c0]")
+    chain shouldContain "atempo=tempo=2.0"
+    chain.substringAfter("atempo=") shouldContain "aecho=in_gain=0.8"
+    chain.substringAfter("aecho=") shouldContain "volume=volume=0.5"
+    chain.substringBefore("aecho=") shouldNotContain "volume="
+  }
+
+  @Test
+  fun `a clip's audio effect is put back to the clip's own length and format`() {
+    val lowered =
+      lower(track(TrackContent.AudioAndVideo, clip(2.seconds, effects = listOf(ECHO))), duration = 2.seconds)
+
+    lowered.graph shouldContain
+      "aecho=in_gain=0.8,$STEREO_FORMAT,apad=whole_len=96000,atrim=end_sample=96000,asetpts=expr=PTS-STARTPTS[a0c0]"
+  }
+
+  @Test
+  fun `a later clip's audio effect reads composition time`() {
+    val lowered =
+      lower(
+        track(TrackContent.AudioAndVideo, clip(1500.milliseconds), clip(2.seconds, effects = listOf(ECHO))),
+        duration = 3500.milliseconds,
+      )
+
+    lowered.graph shouldContain "asetpts=expr=PTS-STARTPTS+${formatSeconds(1.5)}/TB,aecho=in_gain=0.8"
+    lowered.graph.substringBefore("[a0c0]") shouldNotContain "aecho"
+  }
+
+  @Test
+  fun `the composition's audio effects are written after the mix is cut and pinned`() {
+    val lowered =
+      lower(
+        track(TrackContent.AudioAndVideo, clip(2.seconds, gain = 0.5f)),
+        track(TrackContent.Audio, clip(2.seconds)),
+        duration = 2.seconds,
+        mixEffects = listOf(ECHO),
+      )
+
+    val finish = lowered.graph.substringAfter("[amixed]")
+    finish shouldContain
+      "$STEREO_FORMAT,aecho=in_gain=0.8,$STEREO_FORMAT,apad=whole_len=96000,atrim=end_sample=96000," +
+      "asetpts=expr=PTS-STARTPTS[aout]"
+    lowered.graph.substringBefore("amix=") shouldNotContain "aecho"
+  }
+
+  @Test
+  fun `the composition's audio effects run over silence when no track carries sound`() {
+    val lowered = lower(track(TrackContent.Video, clip(2.seconds)), duration = 2.seconds, mixEffects = listOf(ECHO))
+
+    lowered.graph shouldContain "$STEREO_FORMAT,aecho=in_gain=0.8,$STEREO_FORMAT,apad=whole_len=96000"
+  }
+
   @Test
   fun `a plan with no track carrying sound writes silence for the whole composition`() {
     val lowered = lower(track(TrackContent.Video, clip(2.seconds)), duration = 2.seconds)
@@ -228,13 +290,15 @@ class AudioLoweringTest {
     vararg tracks: ResolvedTrack,
     duration: Duration,
     channels: Int = 2,
+    mixEffects: List<FilterNode> = emptyList(),
   ): Lowered {
     val graph = FilterGraphBuilder()
     val inputs = mutableListOf<InputSpec>()
     val format = AudioFormat(sampleRate = 48_000, channelCount = channels)
     val output =
-      AudioLowering(composition(tracks.toList(), duration, format), graph, inputs) { track, clip -> "t${track}c$clip" }
-        .build()
+      AudioLowering(composition(tracks.toList(), duration, format, mixEffects), graph, inputs) { track, clip ->
+        "t${track}c$clip"
+      }.build()
     return Lowered(output, graph.build(output), inputs)
   }
 
@@ -261,8 +325,10 @@ class AudioLoweringTest {
     gain: Float = 1f,
     curve: ResolvedGain = ResolvedGain.constant(gain, Duration.ZERO, length),
     speed: Double = 1.0,
+    effects: List<FilterNode> = emptyList(),
   ): ResolvedClip =
     ResolvedClip(
+      audioEffects = effects.asAudioEffects(),
       source = MediaSource.of("/clips/sound.m4a"),
       info =
         MediaInfo(
@@ -308,14 +374,20 @@ class AudioLoweringTest {
       span = TimeRange.of(at, at + outputDuration),
       sourceIndex = sourceIndex,
       speed = speed,
+      audioEffects = audioEffects,
     )
+
+  private fun List<FilterNode>.asAudioEffects(): List<ResolvedAudioEffect> =
+    if (isEmpty()) emptyList() else listOf(ResolvedAudioEffect("test.filters", PlatformAudioEffect(this)))
 
   private fun composition(
     tracks: List<ResolvedTrack>,
     duration: Duration,
     format: AudioFormat?,
+    mixEffects: List<FilterNode> = emptyList(),
   ): ResolvedComposition =
     ResolvedComposition(
+      mixAudioEffects = mixEffects.asAudioEffects(),
       tracks = tracks,
       compositionEffects = emptyList(),
       output =
@@ -339,6 +411,7 @@ class AudioLoweringTest {
 
   private companion object {
     val OUTPUT = Size(1280, 720)
+    val ECHO = FilterNode("aecho", "in_gain" to "0.8")
     const val STEREO_FORMAT = "aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo"
   }
 }

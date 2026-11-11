@@ -7,7 +7,7 @@ import { Aside } from '@astrojs/starlight/components'
 import Snippet from '../../../components/Snippet.astro'
 
 filmstrip folds every level in an edit into one gain curve per clip before a backend sees it, so all four backends land
-on the same gain.
+on the same gain. To process the samples themselves, see [Audio effects](/guides/audio-effects/).
 
 ## Levels
 
@@ -108,6 +108,7 @@ laying more than 2000 passes.
 - A media3 preview opens a slowed clip's audio late, up to two AAC access units of source scaled by the speed. An export
   opens on the trim start. See [Clip speed](/reference/limits/#clip-speed).
 - The browser preview samples a clip's gain where each slice opens and holds it flat across, so a fade can't be auditioned
-  there yet. The browser's export follows the curve.
+  there yet. The browser's export follows the curve, and so does the preview of an edit with an
+  [audio effect](/guides/audio-effects/).
 - The ffmpeg preview opens no audio device, so `setVolume` does nothing and it reports no `AudioMonitoring`.
 </Aside>

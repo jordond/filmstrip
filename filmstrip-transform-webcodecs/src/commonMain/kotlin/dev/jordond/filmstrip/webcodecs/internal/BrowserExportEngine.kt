@@ -66,7 +66,7 @@ public class BrowserExportEngine(
 ) : LoweringExportEngine() {
   private val backend = BrowserCapabilities()
   private val sources = SourceCache()
-  private val planner = BrowserPlanner(components.effectResolvers)
+  private val planner = BrowserPlanner(components.effectResolvers, components.audioEffectResolvers)
   private val reads =
     PlanningReads(
       prober,

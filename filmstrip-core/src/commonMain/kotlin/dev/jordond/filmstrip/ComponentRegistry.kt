@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip
 
+import dev.jordond.filmstrip.audio.AudioEffectResolver
 import dev.jordond.filmstrip.diagnostics.BackendInfo
 import dev.jordond.filmstrip.diagnostics.DiagnosticListener
 import dev.jordond.filmstrip.edit.FilmstripDsl
@@ -16,6 +17,7 @@ import dev.jordond.filmstrip.thumbnail.ThumbnailSourceFactory
  * so one registered after a built-in overrides it. Backend infos and diagnostic listeners keep registration order.
  *
  * @property effectResolvers Resolvers that lower an effect spec to something an engine can run.
+ * @property audioEffectResolvers Resolvers that lower an audio effect spec to something an engine can run.
  * @property playerEngineFactories Factories that build a preview player.
  * @property thumbnailSourceFactories Factories that build a thumbnail source.
  * @property exportEngineFactories Factories that build an export engine.
@@ -27,6 +29,7 @@ import dev.jordond.filmstrip.thumbnail.ThumbnailSourceFactory
  */
 public class ComponentRegistry internal constructor(
   override val effectResolvers: List<EffectResolver>,
+  override val audioEffectResolvers: List<AudioEffectResolver>,
   public val playerEngineFactories: List<PlayerEngineFactory>,
   public val thumbnailSourceFactories: List<ThumbnailSourceFactory>,
   @property:InternalFilmstripApi override val exportEngineFactories: List<ExportEngineFactory>,
@@ -48,6 +51,7 @@ public class ComponentRegistry internal constructor(
   @FilmstripDsl
   public class Builder {
     private val effectResolvers = mutableListOf<EffectResolver>()
+    private val audioEffectResolvers = mutableListOf<AudioEffectResolver>()
     private val playerEngineFactories = mutableListOf<PlayerEngineFactory>()
     private val thumbnailSourceFactories = mutableListOf<ThumbnailSourceFactory>()
     private val exportEngineFactories = mutableListOf<ExportEngineFactory>()
@@ -65,6 +69,7 @@ public class ComponentRegistry internal constructor(
      */
     public constructor(registry: ComponentRegistry) {
       effectResolvers += registry.effectResolvers
+      audioEffectResolvers += registry.audioEffectResolvers
       backends += registry.backends
       diagnosticListeners += registry.diagnosticListeners
       playerEngineFactories += registry.playerEngineFactories
@@ -77,6 +82,12 @@ public class ComponentRegistry internal constructor(
      * Registers an effect resolver, ahead of everything already registered.
      */
     public fun addEffectResolver(resolver: EffectResolver): Builder = apply { effectResolvers.add(0, resolver) }
+
+    /**
+     * Registers an audio effect resolver, ahead of everything already registered.
+     */
+    public fun addAudioEffectResolver(resolver: AudioEffectResolver): Builder =
+      apply { audioEffectResolvers.add(0, resolver) }
 
     /**
      * Registers a player engine factory, ahead of everything already registered.
@@ -121,6 +132,7 @@ public class ComponentRegistry internal constructor(
     public fun build(): ComponentRegistry =
       ComponentRegistry(
         effectResolvers = effectResolvers.toList(),
+        audioEffectResolvers = audioEffectResolvers.toList(),
         playerEngineFactories = playerEngineFactories.toList(),
         thumbnailSourceFactories = thumbnailSourceFactories.toList(),
         exportEngineFactories = exportEngineFactories.toList(),

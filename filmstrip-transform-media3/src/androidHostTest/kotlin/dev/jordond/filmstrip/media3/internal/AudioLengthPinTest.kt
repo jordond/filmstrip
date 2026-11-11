@@ -99,6 +99,11 @@ class AudioLengthPinTest {
   }
 
   @Test
+  fun `a pin that reports its length leaves the start of the item where it is`() {
+    AudioLengthPin(LENGTH, reportsLength = true).getDurationAfterProcessorApplied(0L) shouldBe 0L
+  }
+
+  @Test
   fun `a pin on an item media3 changes the speed of reports the length it is given`() {
     AudioLengthPin(LENGTH, reportsLength = false).getDurationAfterProcessorApplied(INPUT_US) shouldBe INPUT_US
   }

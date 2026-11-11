@@ -2,6 +2,7 @@ package dev.jordond.filmstrip.export
 
 import dev.jordond.filmstrip.CapabilitiesResult
 import dev.jordond.filmstrip.InternalFilmstripApi
+import dev.jordond.filmstrip.audio.AudioEffectResolver
 import dev.jordond.filmstrip.capability.EffectParity
 import dev.jordond.filmstrip.diagnostics.DiagnosticListener
 import dev.jordond.filmstrip.edit.Composition
@@ -85,9 +86,9 @@ public fun interface ExportEngineFactory {
 /**
  * The parts of a [dev.jordond.filmstrip.Filmstrip]'s registry an engine is built against.
  *
- * An engine lowers effects through [effectResolvers], reads its sources through [mediaProberFactories] and reports what
- * it learns to [diagnosticListeners]. Only filmstrip builds one, and [dev.jordond.filmstrip.ComponentRegistry] is the
- * one every factory is handed.
+ * An engine lowers effects through [effectResolvers] and [audioEffectResolvers], reads its sources through
+ * [mediaProberFactories] and reports what it learns to [diagnosticListeners]. Only filmstrip builds one, and
+ * [dev.jordond.filmstrip.ComponentRegistry] is the one every factory is handed.
  */
 public abstract class EngineComponents internal constructor() {
   /**
@@ -96,6 +97,13 @@ public abstract class EngineComponents internal constructor() {
    * Asked newest registration first.
    */
   public abstract val effectResolvers: List<EffectResolver>
+
+  /**
+   * Resolvers that lower an audio effect spec to something an engine can run.
+   *
+   * Asked newest registration first.
+   */
+  public abstract val audioEffectResolvers: List<AudioEffectResolver>
 
   /**
    * Factories that build a media prober.

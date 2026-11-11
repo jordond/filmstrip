@@ -83,6 +83,7 @@ internal fun copyBlockers(
     if (spec.bitrate != null || spec.quality != null) add(CopyBlocker.BitrateSet)
     if (sourceSize != requestedSize) add(CopyBlocker.FrameResized)
     if (edit.effects.isNotEmpty()) add(CopyBlocker.CompositionHasEffects)
+    if (edit.audioEffects.isNotEmpty()) add(CopyBlocker.CompositionHasAudioEffects)
     if (edit.audio.dropsAStream) add(CopyBlocker.AudioSpecChanged)
     if (edit.audio.scalesSamples) add(CopyBlocker.CompositionGainChanged)
 
@@ -92,6 +93,7 @@ internal fun copyBlockers(
       return@buildList
     }
     if (track.effects.isNotEmpty()) add(CopyBlocker.TrackHasEffects)
+    if (track.audioEffects.isNotEmpty()) add(CopyBlocker.TrackHasAudioEffects)
     if (track.start > Duration.ZERO) add(CopyBlocker.TrackStartsLate)
     if (track.content != TrackContent.AudioAndVideo) add(CopyBlocker.TrackDropsAStream)
     if (track.altersGain) add(CopyBlocker.TrackGainChanged)
@@ -102,6 +104,7 @@ internal fun copyBlockers(
       return@buildList
     }
     if (clip.effects.isNotEmpty()) add(CopyBlocker.ClipHasEffects)
+    if (clip.audioEffects.isNotEmpty()) add(CopyBlocker.ClipHasAudioEffects)
     if (clip.altersGain) add(CopyBlocker.ClipGainChanged)
     if (clip.speed != 1.0 && clip.source !is MediaSource.Image) add(CopyBlocker.ClipSpeedChanged)
     if (copyOpening == null) add(CopyBlocker.TrimNotOnSyncSample)

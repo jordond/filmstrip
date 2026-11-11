@@ -2,13 +2,13 @@ package dev.jordond.filmstrip.transform.internal
 
 import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.InternalFilmstripApi
+import dev.jordond.filmstrip.audio.AudioEffectResolver
 import dev.jordond.filmstrip.capability.EffectParity
 import dev.jordond.filmstrip.capability.ParityNote
 import dev.jordond.filmstrip.codec.AudioCodec
 import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.Composition
-import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.effect.EffectResolver
 import dev.jordond.filmstrip.effect.EffectStage
 import dev.jordond.filmstrip.effect.RenderCapabilities
@@ -30,6 +30,7 @@ import dev.jordond.filmstrip.transform.internal.copy.CopyPacketWindow
 import dev.jordond.filmstrip.transform.internal.copy.CopySupport
 import dev.jordond.filmstrip.transform.internal.copy.copyPrefixPhaseOf
 import dev.jordond.filmstrip.transform.internal.negotiation.Ask
+import dev.jordond.filmstrip.transform.internal.negotiation.AudioEffectLowering
 import dev.jordond.filmstrip.transform.internal.negotiation.Framing
 import dev.jordond.filmstrip.transform.internal.negotiation.Grade
 import dev.jordond.filmstrip.transform.internal.negotiation.NO_AUDIO_TO_WRITE
@@ -71,7 +72,8 @@ public val DEFAULT_HDR_LADDER: List<VideoCodec> = listOf(VideoCodec.Hevc)
  *
  * Everything it needs to know about the sources arrives in `infos`, so the whole negotiation can be
  * asserted on without a device. What it cannot decide alone is handed in. The resolvers lower an
- * effect to a platform object, [renderCapabilities] says what that platform can render, [ladder] is
+ * effect to a platform object, `audioResolvers` do the same for an audio effect, [renderCapabilities]
+ * says what that platform can render, [ladder] is
  * the order this engine tries video codecs in, most preferred first, [hdrLadder] is the same but for
  * an export that keeps HDR, [noteOf] is what to tell a caller about an effect this engine only
  * approximates, `supportsCopy` says whether it can copy a stream across without an encoder at
@@ -85,6 +87,7 @@ public val DEFAULT_HDR_LADDER: List<VideoCodec> = listOf(VideoCodec.Hevc)
 @InternalFilmstripApi
 public class ExportPlanner(
   resolvers: List<EffectResolver>,
+  audioResolvers: List<AudioEffectResolver>,
   private val renderCapabilities: (Size, Boolean) -> RenderCapabilities,
   private val parityOf: (String) -> EffectParity?,
   unclaimedMessage: (String) -> String,
@@ -101,6 +104,7 @@ public class ExportPlanner(
   private val containerName: (VideoCodec?, Boolean) -> String? = { _, _ -> null },
 ) {
   private val lowering = StageLowering(resolvers, unclaimedMessage)
+  private val audioLowering = AudioEffectLowering(audioResolvers)
   private val copySupport = CopySupport(supportsCopy, muxerAccepts, copyLimit)
 
   /**
@@ -252,6 +256,7 @@ public class ExportPlanner(
         encoding,
         streams,
         lowering,
+        audioLowering,
         framing.naturalSize,
       ).orElse { return refused(it) }
 
@@ -264,25 +269,34 @@ public class ExportPlanner(
         target = encoding.target,
       )
     val lowered = timeline.lowered + rest
+    val mix = audioLowering.lower(edit.audioEffects, timeline.span)
+    val loweredAudio = timeline.loweredAudio + mix
 
     val unsupported = linkedMapOf<String, FilmstripError>()
     val reasons = mutableListOf<FilmstripError>()
     var failed = false
-    // A refused run is reported against every effect the caller wrote into it, so the retry that
-    // drops the refused ids drops the run rather than a name the fold made up.
-    lowered.forEach { effect ->
-      effect.failed?.let {
+
+    fun report(
+      ids: List<String>,
+      refusal: String?,
+      failure: FilmstripError?,
+    ) {
+      failure?.let {
         failed = true
         reasons += it
       }
-      effect.unsupported?.let { message ->
-        effect.sources.forEach {
-          val error = FilmstripError.UnsupportedEffect(it.id, message)
-          unsupported[it.id] = error
+      refusal?.let { message ->
+        ids.forEach { id ->
+          val error = FilmstripError.UnsupportedEffect(id, message)
+          unsupported[id] = error
           reasons += error
         }
       }
     }
+    // A refused run is reported against every effect the caller wrote into it, so the retry that
+    // drops the refused ids drops the run rather than a name the fold made up.
+    lowered.forEach { effect -> report(effect.sources.map { it.id }, effect.unsupported, effect.failed) }
+    loweredAudio.forEach { effect -> report(listOf(effect.spec.id), effect.unsupported, effect.failed) }
     if (failed) return Settlement.Failed(reasons)
     if (unsupported.isNotEmpty()) return Settlement.Unsupported(unsupported)
 
@@ -295,12 +309,14 @@ public class ExportPlanner(
         silent = !streams.keepAudio,
         graded = ask.writesNoFile,
         copied = grade.path == ExportPath.Copy,
-        audible = hasAudibleAudio(edit, streams, ask),
+        // A mix effect can put sound into a mix nothing else is heard in.
+        audible = hasAudibleAudio(edit, streams, ask) || edit.audioEffects.isNotEmpty(),
         container = containerLabel(video, hdr),
       ) { codec -> containerCarries(video, codec, hdr) }
     val output = outputFormatOf(ask, framing, grade, encoding, audio, timeline.tracks)
     if (!streams.keepVideo && output.audioCodec == AudioCodec.None) return refused(invalid(NO_AUDIO_TO_WRITE))
-    val concessions = concessionsOf(ask.spec, framing, grade, encoding, audio, lowered, dropped)
+    val degraded = lowered.flatMap { it.degraded } + loweredAudio.flatMap { it.degraded }
+    val concessions = concessionsOf(ask.spec, framing, grade, encoding, audio, degraded, dropped)
     if (ask.spec.strict && concessions.isNotEmpty()) {
       val refusal = Verdict.Incapable(concessions.map { it.strictRefusal }, withoutUnsupported = null)
       return Settlement.Settled(NegotiatedExport(refusal, null))
@@ -341,6 +357,7 @@ public class ExportPlanner(
         adjustments = adjustments,
         encoderName = encoding.encoder?.encoderName,
         copyPrefix = copyPrefix,
+        mixAudioEffects = mix.mapNotNull { it.resolvedEffect },
       )
     val verdict = if (adjustments.isEmpty()) Verdict.Capable(plan) else Verdict.Degraded(plan, adjustments)
     return Settlement.Settled(NegotiatedExport(verdict, resolved))
@@ -430,16 +447,17 @@ private fun Composition.withoutEffectIds(ids: Set<String>): Composition {
   if (ids.isEmpty()) return this
   val stripped =
     tracks.map { track ->
-      Track(
-        clips = track.clips.map { clip -> clip.withEffects(clip.effects.filterNot { it.id in ids }) },
-        content = track.content,
-        effects = track.effects.filterNot { it.id in ids },
-        audio = track.audio,
-        start = track.start,
-        looping = track.looping,
-        fadeIn = track.fadeIn,
-        fadeOut = track.fadeOut,
-      )
+      track
+        .withClips(
+          track.clips.map { clip ->
+            clip
+              .withEffects(clip.effects.filterNot { it.id in ids })
+              .withAudioEffects(clip.audioEffects.filterNot { it.id in ids })
+          },
+        ).withEffects(track.effects.filterNot { it.id in ids })
+        .withAudioEffects(track.audioEffects.filterNot { it.id in ids })
     }
-  return Composition(stripped, effects.filterNot { it.id in ids }, audio, fill)
+  return withTracks(stripped)
+    .withEffects(effects.filterNot { it.id in ids })
+    .withAudioEffects(audioEffects.filterNot { it.id in ids })
 }

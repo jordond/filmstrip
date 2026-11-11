@@ -34,7 +34,7 @@ public fun FilmstripBuilder.avFoundationBackend(): FilmstripBuilder =
  * codec ladder, the same parity table and the same copy rules.
  *
  * @param components The components the owning `Filmstrip` was built with, whose resolvers lower each
- *   effect spec to something Core Image can run.
+ *   effect spec to something Core Image can run and each audio effect spec to a kernel.
  * @param prober Reads what each source is. The probers in [components] by default.
  * @return An engine that plans, resolves and exports on AVFoundation.
  */
@@ -56,6 +56,7 @@ internal fun avFoundationExportEngine(
     backend = backend,
     prober = prober,
     resolvers = components.effectResolvers,
+    audioResolvers = components.audioEffectResolvers,
     parity = AV_PARITY,
     ladder = AV_LADDER,
     // AVAssetWriter takes a source track by format hint instead of output settings, so a copy

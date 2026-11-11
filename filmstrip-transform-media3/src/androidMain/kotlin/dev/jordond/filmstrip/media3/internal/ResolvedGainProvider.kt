@@ -74,9 +74,8 @@ internal fun rampProcessorFor(gain: ResolvedGain): GainProcessor? =
 
 // The clip time a frame position sits at, split at the second so a long stream cannot overflow the
 // nanosecond conversion. media3 seeds its frame counter from StreamMetadata.positionOffsetUs on
-// every flush, and whether that offset is clip-relative once an item carries a trim is not
-// something the media3 sources settle. A resolved curve is in the clip's own time, so that is what
-// is read here.
+// every flush, which for a clip is the time since its trim start at the speed it plays at. A
+// resolved curve is in the clip's own time, so that is what is read here.
 private fun timeOf(
   frames: Long,
   sampleRate: Int,

@@ -1,6 +1,7 @@
 package dev.jordond.filmstrip.edit
 
 import dev.jordond.filmstrip.InternalFilmstripApi
+import dev.jordond.filmstrip.audio.AudioEffectSpec
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effect.inCanonicalOrder
 import dev.jordond.filmstrip.geometry.Fill
@@ -22,7 +23,7 @@ public enum class CompositionDiff {
   Equal,
 
   /**
-   * The timeline is unchanged, but an effect, the fill or the audio mix differs.
+   * The timeline is unchanged, but an effect, an audio effect, the fill or the audio mix differs.
    */
   ParametersOnly,
 
@@ -38,10 +39,10 @@ public enum class CompositionDiff {
  * A null [previous] is always [CompositionDiff.Structural], since there is nothing yet to reuse.
  * Otherwise the timeline is checked first: every track's clips, their sources, their trims, the audio track each
  * plays and their timing. Any difference there is structural no matter what else changed. With the timeline
- * unchanged, a difference in an effect, the fill or the audio mix is
+ * unchanged, a difference in an effect, an audio effect, the fill or the audio mix is
  * [CompositionDiff.ParametersOnly]. Effects are compared in their canonical pipeline order, so
  * declaring the same effects in a different order that resolves to the same pipeline reports no
- * difference at all.
+ * difference at all. Audio effects run in the order declared, so reordering them is a difference.
  */
 @InternalFilmstripApi
 public fun diff(
@@ -102,6 +103,7 @@ private fun Composition.rendering(): Rendering =
     compositionEffects = effects.inCanonicalOrder(),
     fill = fill,
     audio = audio,
+    audioEffects = audioEffects,
     tracks =
       tracks.map { track ->
         TrackRendering(
@@ -109,9 +111,10 @@ private fun Composition.rendering(): Rendering =
           audio = track.audio,
           fadeIn = track.fadeIn,
           fadeOut = track.fadeOut,
+          audioEffects = track.audioEffects,
           clips =
             track.clips.map {
-              ClipRendering(it.effects.inCanonicalOrder(), it.audio, it.fadeIn, it.fadeOut)
+              ClipRendering(it.effects.inCanonicalOrder(), it.audio, it.fadeIn, it.fadeOut, it.audioEffects)
             },
         )
       },
@@ -138,6 +141,7 @@ private data class Rendering(
   val compositionEffects: List<EffectSpec>,
   val fill: Fill,
   val audio: AudioSpec,
+  val audioEffects: List<AudioEffectSpec>,
   val tracks: List<TrackRendering>,
 )
 
@@ -146,6 +150,7 @@ private data class TrackRendering(
   val audio: AudioLevel,
   val fadeIn: Duration,
   val fadeOut: Duration,
+  val audioEffects: List<AudioEffectSpec>,
   val clips: List<ClipRendering>,
 )
 
@@ -154,6 +159,7 @@ private data class ClipRendering(
   val audio: AudioLevel,
   val fadeIn: Duration,
   val fadeOut: Duration,
+  val audioEffects: List<AudioEffectSpec>,
 )
 
 // A 64-bit multiplicative accumulator over each part's hashCode, so the revision has more headroom

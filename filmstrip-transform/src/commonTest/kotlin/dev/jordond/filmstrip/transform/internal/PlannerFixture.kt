@@ -1,5 +1,10 @@
 package dev.jordond.filmstrip.transform.internal
 
+import dev.jordond.filmstrip.FilmstripError
+import dev.jordond.filmstrip.audio.AudioAttributes
+import dev.jordond.filmstrip.audio.AudioEffectResolution
+import dev.jordond.filmstrip.audio.AudioEffectResolver
+import dev.jordond.filmstrip.audio.AudioEffectSpec
 import dev.jordond.filmstrip.capability.AudioEncoderCapability
 import dev.jordond.filmstrip.capability.DeviceCapabilities
 import dev.jordond.filmstrip.capability.EffectParity
@@ -58,8 +63,10 @@ internal class PlannerFixture {
     copyLimit: (MediaInfo) -> CopyBlocker? = { null },
     containerCarries: (VideoCodec?, AudioCodec, Boolean) -> Boolean = { _, _, _ -> true },
     containerName: (VideoCodec?, Boolean) -> String? = { _, _ -> null },
+    audioResolvers: List<AudioEffectResolver> = listOf(FakeAudioResolver()),
   ) = ExportPlanner(
     resolvers = resolvers,
+    audioResolvers = audioResolvers,
     renderCapabilities = { size, hdr ->
       RenderCapabilities(
         api = renderApi,
@@ -103,8 +110,14 @@ internal class PlannerFixture {
     openings: Map<MediaSource, Duration> = emptyMap(),
     layoutSize: Size? = null,
     copyLimit: (MediaInfo) -> CopyBlocker? = { null },
-  ) = planner(resolvers, canToneMap = canToneMap, muxerAccepts = muxerAccepts, copyLimit = copyLimit)
-    .negotiate(composition, Ask(spec, device, infos(composition), openings, layoutSize))
+    audioResolvers: List<AudioEffectResolver> = listOf(FakeAudioResolver()),
+  ) = planner(
+    resolvers,
+    canToneMap = canToneMap,
+    muxerAccepts = muxerAccepts,
+    copyLimit = copyLimit,
+    audioResolvers = audioResolvers,
+  ).negotiate(composition, Ask(spec, device, infos(composition), openings, layoutSize))
     .verdict
 
   /**
@@ -119,8 +132,14 @@ internal class PlannerFixture {
     muxerAccepts: (MediaInfo) -> Boolean = { true },
     openings: Map<MediaSource, Duration> = emptyMap(),
     renderApi: RenderApi = RenderApi.OpenGlEs,
-  ) = planner(resolvers, canToneMap = canToneMap, muxerAccepts = muxerAccepts, renderApi = renderApi)
-    .negotiate(composition, Ask(spec, device, infos(composition), openings))
+    audioResolvers: List<AudioEffectResolver> = listOf(FakeAudioResolver()),
+  ) = planner(
+    resolvers,
+    canToneMap = canToneMap,
+    muxerAccepts = muxerAccepts,
+    renderApi = renderApi,
+    audioResolvers = audioResolvers,
+  ).negotiate(composition, Ask(spec, device, infos(composition), openings))
     .composition
     .shouldNotBeNull()
 
@@ -139,6 +158,7 @@ internal class PlannerFixture {
     fadeOut: Duration = Duration.ZERO,
     bitrate: Bitrate? = Bitrate.mbps(12),
     hasAlpha: Boolean = false,
+    audioEffects: List<AudioEffectSpec> = emptyList(),
   ): Clip {
     val source = MediaSource.of("/fixtures/clip-${registry.size}.mp4")
     registry[source] =
@@ -166,7 +186,15 @@ internal class PlannerFixture {
           ),
         isExportable = exportable,
       )
-    return Clip(source, trim, effects, snapWithin = snapWithin, fadeIn = fadeIn, fadeOut = fadeOut)
+    return Clip(
+      source,
+      trim,
+      effects,
+      snapWithin = snapWithin,
+      fadeIn = fadeIn,
+      fadeOut = fadeOut,
+      audioEffects = audioEffects,
+    )
   }
 
   /**
@@ -303,6 +331,39 @@ internal class FakeResolver(
       }
     }
 }
+
+/**
+ * Hands back opaque audio handles and records the span each effect was asked over.
+ *
+ * An id in [degrade] resolves degraded for [ROUNDS_IT], and one in [fail] fails with [AUDIO_READ_FAILED].
+ */
+internal class FakeAudioResolver(
+  private val refuse: Set<String> = emptySet(),
+  private val degrade: Set<String> = emptySet(),
+  private val declines: Set<String> = emptySet(),
+  private val fail: Set<String> = emptySet(),
+) : AudioEffectResolver {
+  val asked = mutableListOf<Pair<String, TimeRange>>()
+
+  override fun resolve(
+    spec: AudioEffectSpec,
+    attributes: AudioAttributes,
+  ): AudioEffectResolution? {
+    asked += spec.id to attributes.span
+    return when (spec.id) {
+      in declines -> null
+      in refuse -> AudioEffectResolution.Unsupported(spec.id, "this resolver owns it and cannot run it")
+      in degrade -> AudioEffectResolution.Degraded(fakePlatformAudioEffect(), listOf(ROUNDS_IT))
+      in fail -> AudioEffectResolution.Failed(AUDIO_READ_FAILED)
+      else -> AudioEffectResolution.Resolved(fakePlatformAudioEffect())
+    }
+  }
+}
+
+/**
+ * The error [FakeAudioResolver] fails an effect with.
+ */
+internal val AUDIO_READ_FAILED: FilmstripError = FilmstripError.InvalidComposition("the impulse response did not load")
 
 /**
  * The cause [FakeResolver] gives for an effect it degrades, unless a test hands it others.

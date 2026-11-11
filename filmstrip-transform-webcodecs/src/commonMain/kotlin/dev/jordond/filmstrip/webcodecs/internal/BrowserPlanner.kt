@@ -1,6 +1,7 @@
 package dev.jordond.filmstrip.webcodecs.internal
 
 import dev.jordond.filmstrip.FilmstripError
+import dev.jordond.filmstrip.audio.AudioEffectResolver
 import dev.jordond.filmstrip.capability.EffectParity
 import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.edit.AudioSpec
@@ -48,10 +49,12 @@ import dev.jordond.filmstrip.webcodecs.internal.render.MAX_CANVASES
  */
 internal class BrowserPlanner(
   resolvers: List<EffectResolver>,
+  audioResolvers: List<AudioEffectResolver> = emptyList(),
 ) {
   private val planner =
     ExportPlanner(
       resolvers = resolvers,
+      audioResolvers = audioResolvers,
       renderCapabilities = { _, encodesHdr -> renderCapabilities(encodesHdr) },
       parityOf = ::browserParityOf,
       unclaimedMessage = { specId ->

@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip
 
+import dev.jordond.filmstrip.audio.AudioEffectResolver
 import dev.jordond.filmstrip.diagnostics.BackendInfo
 import dev.jordond.filmstrip.diagnostics.DiagnosticListener
 import dev.jordond.filmstrip.edit.FilmstripDsl
@@ -50,6 +51,15 @@ public class FilmstripBuilder {
    */
   public fun addEffectResolver(resolver: EffectResolver): FilmstripBuilder =
     apply { registry.addEffectResolver(resolver) }
+
+  /**
+   * Registers one audio effect resolver.
+   *
+   * @param resolver The resolver to register.
+   * @return This builder.
+   */
+  public fun addAudioEffectResolver(resolver: AudioEffectResolver): FilmstripBuilder =
+    apply { registry.addAudioEffectResolver(resolver) }
 
   /**
    * Registers one player engine factory.
