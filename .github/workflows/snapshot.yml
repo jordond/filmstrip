@@ -29,13 +29,26 @@ jobs:
     runs-on: macos-latest
     timeout-minutes: 60
     steps:
+      # The default ref is the head of main, so no ref from the triggering run is checked out. When main has moved
+      # past the commit the fast lane passed on, nothing is published and that later commit's own run publishes.
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Check that main is still the tested commit
+        id: head
+        env:
+          TESTED_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          if [ "$(git rev-parse HEAD)" = "$TESTED_SHA" ]; then
+            echo "tested=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "tested=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::main has moved past $TESTED_SHA, nothing published"
+          fi
 
       - name: Read the version
         id: version
+        if: steps.head.outputs.tested == 'true'
         run: |
           version=$(sed -n 's/^VERSION_NAME=//p' gradle.properties)
           echo "name=$version" >> "$GITHUB_OUTPUT"
