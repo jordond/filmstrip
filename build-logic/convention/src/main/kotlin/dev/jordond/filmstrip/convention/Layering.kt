@@ -24,7 +24,11 @@ internal enum class Layer(
   Transform(setOf(Core, Effects), mayTestWith = setOf(Filters)),
   Backend(setOf(Core, Effects, Transform), mayTestWith = setOf(Filters)),
   Player(setOf(Core, Effects, Transform, Backend), mayTestWith = setOf(Filters)),
-  Compose(setOf(Core, Effects, Transform, Backend, Player)),
+
+  // Fakes a consumer's tests run against. It reaches the player for the half of an engine with no platform in it.
+  // Declared above the layers that test with it, since an enum entry cannot name one that comes later.
+  Testing(setOf(Core, Effects, Transform, Backend, Player)),
+  Compose(setOf(Core, Effects, Transform, Backend, Player), mayTestWith = setOf(Testing)),
   ComposeUi(setOf(Core, Effects, Transform, Backend, Player, Compose)),
   Umbrella(setOf(Core, Effects, Transform, Backend, Player)),
 
@@ -58,6 +62,7 @@ private val LAYERS: Map<String, Layer> =
     ":filmstrip-io-kotlinx" to Layer.Io,
     ":filmstrip-io-okio" to Layer.Io,
     ":filmstrip-test" to Layer.Fixtures,
+    ":filmstrip-testing" to Layer.Testing,
   )
 
 private val COMPOSE = setOf("org.jetbrains.compose", "androidx.compose")
@@ -107,6 +112,7 @@ private val FORBIDDEN_EXTERNALS: Map<Layer, Set<String>> =
     Layer.Io to COMPOSE + "androidx.media3",
     Layer.IoCompose to setOf("androidx.media3"),
     Layer.Fixtures to COMPOSE,
+    Layer.Testing to COMPOSE,
   )
 
 /**

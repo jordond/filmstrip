@@ -129,6 +129,7 @@ export default defineConfig({
             { label: 'Stills', slug: 'guides/stills' },
             { label: 'HDR', slug: 'guides/hdr' },
             { label: 'Player', slug: 'guides/player' },
+            { label: 'Testing', slug: 'guides/testing' },
           ],
         },
         {

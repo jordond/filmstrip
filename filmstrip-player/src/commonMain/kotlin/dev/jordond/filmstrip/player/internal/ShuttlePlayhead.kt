@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip.player.internal
 
+import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.outputSlotTime
 import dev.jordond.filmstrip.player.ShuttleEdge
@@ -66,7 +67,8 @@ internal fun shuttlePlayheadAt(
  * That is the slots [playbackRange] plays, counted the way [loopWrapOf] counts a range's, or every slot of the
  * composition when there is no range or the range starts past the last one.
  */
-internal fun shuttleBoundsOf(
+@InternalFilmstripApi
+public fun shuttleBoundsOf(
   duration: Duration,
   frameRate: Int,
   playbackRange: TimeRange?,

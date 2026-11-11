@@ -1,0 +1,155 @@
+---
+title: Testing
+description: Test code that uses filmstrip with fakes that need no backend, no media and no wall clock.
+---
+
+import { Aside, Code } from '@astrojs/starlight/components'
+import Snippet from '../../../components/Snippet.astro'
+import { versions } from '../../../lib/versions'
+
+export const catalog = `[libraries]
+filmstrip-testing = { module = "${versions.group}:filmstrip-testing", version.ref = "filmstrip" }`
+
+export const build = `kotlin {
+  sourceSets {
+    commonTest.dependencies {
+      implementation(libs.filmstrip.testing)
+    }
+  }
+}`
+
+`filmstrip-testing` has a fake `VideoPlayer`, a fake `Filmstrip` and builders for the values they hand back. They run in
+common tests on every target, with no backend registered, no file read and no real time passing.
+
+<Code code={catalog} lang="toml" title="gradle/libs.versions.toml" />
+
+<Code code={build} lang="kotlin" title="build.gradle.kts" />
+
+The module brings `kotlinx-coroutines-test` with it. Every fake takes the test's `TestScope`, and the scope's scheduler
+is the only clock there is. The examples below are test bodies, with `check` standing in for your assertion library.
+
+## A player
+
+`FakeVideoPlayer` is a `VideoPlayer` with a clock where the decoder would be. Everything else is the player filmstrip
+ships: state snapshots, seeking, scrubbing, the shuttle and the listeners. It's ready as soon as it's made.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Testing.kt" region="player" />
+
+- The playhead moves at normal speed while the player is playing, ready and not stalled. Move it with `advanceTimeBy`.
+- The position is published on a 16 ms tick, so read it as a range rather than an exact value while playing.
+- Reaching the duration reports `PlaybackEvent.Ended` once and stops the player.
+- `calls` holds every call your code made, oldest first, as `PlayerCall` values. It starts with the composition the
+  player was made with.
+- Close the player when the test is done, as you would a real one.
+
+### Seeking
+
+A seek lands on the frame grid in a coroutine of its own, so call `runCurrent` before reading where it landed. Set
+`holdSeeks` to keep a seek in flight, which holds `isSeeking` true until `landSeek`.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Testing.kt" region="seek" />
+
+### Shuttle
+
+The shuttle is the real one. Reaching either end holds the frame there and reports `ShuttleReachedEdge` once, and the
+shuttle stays on until `endShuttle`. Nothing pauses it for you.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Testing.kt" region="shuttle" />
+
+A rate of zero, one that isn't finite or one past 32 throws, the way it does on a real player. A player made without
+`PlayerFeature.Shuttle` in its `features` ignores the call.
+
+### Playing the backend
+
+The test stands in for the backend. `setStatus`, `setStalled`, `setDuration`, `fail` and `emit` report what a backend
+would, and `onSetComposition` answers each `setComposition` with a `Success`, a `Failure` or `Superseded`.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Testing.kt" region="backend" />
+
+<Aside>
+  Whether a composition swap redrew the frame in place or rebuilt the player isn't part of the public result, so the
+  fake can't script it. Assert on the composition your code handed over, which `compositions` and `calls` keep.
+</Aside>
+
+The fake doesn't loop a loop range, decode, draw or play sound, and its `readback` never answers. A playback range
+bounds a shuttle but normal playback still runs to the duration. Assert on the ranges your code set, which `calls`
+keeps.
+
+## A Filmstrip
+
+`FakeFilmstrip` implements `Filmstrip`. Each operation answers from a script, one of the `on` properties, and is handed
+what was asked so it can answer one source or one spec differently from the rest. Left alone, every script answers the
+way a capable device would for a ten second 1080p file.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Testing.kt" region="scripts" />
+
+| Script | Answers | Default |
+| --- | --- | --- |
+| `onProbe` | `probe` | A ten second 1080p H.264 file with one AAC track. |
+| `onCapabilities` | `capabilities` | One H.264 encoder up to 4K, one AAC encoder, no HDR. |
+| `onPlan` | `plan`, and how an export of a composition goes | `Capable`, with a plan for what was asked. |
+| `onParityOf` | `parityOf` | `Exact`. |
+| `onFrame` | `frame`, and each position of `frames` | A black picture landing where it was asked for. |
+| `onPreview` | `preview` | A new `FakeVideoPlayer` over the composition. |
+
+`calls` holds every call as a `FilmstripCall`, with its arguments. A `heightPx` of zero or less is refused with
+`InvalidComposition` before `onFrame` is asked, the same as the real renderer.
+
+<Aside type="caution" title="Frames on the Android host">
+  A rendered frame holds a real `Bitmap` on Android, which the stubbed framework of a plain host test can't make. There
+  the default `onFrame` has no picture to hand back, so answer with a `FrameResult.Failure` or run under Robolectric.
+  Every other target makes the picture itself.
+</Aside>
+
+### Exports
+
+An export's flow emits nothing by itself. Each `export` call adds a `FakeExport` to `exports`, and the test sends
+statuses down the flow through it. This is the kind of code it's for:
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Testing.kt" region="subject" />
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Testing.kt" region="export" />
+
+- `start` sends `Started`. `progress` and `succeed` start the export first when it hasn't been.
+- `fail` doesn't start it, since a real export can fail before its turn comes. Call `start` first for a failure part
+  way through.
+- A status sent before anything collects waits for the collector.
+- Exporting a composition asks `onPlan` first. `Degraded` sends its adjustments before anything else, and `Incapable`
+  fails straight away with every reason and adds no handle.
+
+Exports take turns, the way real ones do. A second export of the same `FakeFilmstrip` gets nothing, not even `Started`,
+until the first finishes or its collector goes away. `wasCancelled` says the collector left before the end, which is
+how a real export is cancelled.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Testing.kt" region="export-queue" />
+
+Real exports queue across the whole process. The fake queues per `FakeFilmstrip`, so tests running side by side don't
+wait on each other.
+
+### Previews
+
+`preview` hands out a `FakeVideoPlayer` and keeps it in `players`. Return a player you already hold from `onPreview`,
+or call `fail` on one before returning it to open a preview that's broken from the start.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Testing.kt" region="preview" />
+
+## Builders
+
+Some values only filmstrip can make outside a test, like an `ExportPlan`. The `test` builders make each with defaults
+you override one field at a time.
+
+| Builder | Makes |
+| --- | --- |
+| `testMediaInfo`, `testVideoTrack`, `testAudioTrack` | What a probe reports. Pass `audioTracks = emptyList()` for a silent file, or a `displaySize` of `Size(3840, 2160)` for 4K. |
+| `testExportPlan`, `testOutputFormat` | A plan and the format it writes. |
+| `testCapableVerdict`, `testDegradedVerdict`, `testIncapableVerdict`, `testAdjustment` | Each kind of `Verdict`. |
+| `testDeviceCapabilities`, `testVideoEncoder` | What `capabilities` reports. |
+| `testFrame`, `testPlatformImage` | A rendered frame and its picture. |
+| `testMediaSource`, `testMediaSink` | A source or sink that's equal to another made with the same name. Nothing is read or written. |
+
+## Compose
+
+A `FakeVideoPlayer` has no platform player under it, so `VideoSurface` composes over it without drawing video. On
+Android and iOS it lays out an empty box of the size it was given. On desktop and in a browser it draws nothing, since
+the fake's `readback` never answers. `rememberVideoSurfaceState` and the other bindings read the player's state, so they
+follow the fake like any other player.

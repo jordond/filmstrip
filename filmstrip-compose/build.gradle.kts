@@ -29,6 +29,7 @@ kotlin {
 
     jvmTest.dependencies {
       implementation(compose.desktop.currentOs)
+      implementation(projects.filmstripTesting)
       implementation(libs.compose.ui.test)
     }
 

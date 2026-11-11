@@ -1,6 +1,7 @@
 package dev.jordond.filmstrip.player.internal
 
 import dev.jordond.filmstrip.Cancellable
+import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.player.EngineListener
 import dev.jordond.filmstrip.player.PlaybackEvent
 import dev.jordond.filmstrip.player.PlaybackStatus
@@ -36,7 +37,8 @@ import kotlin.time.TimeSource
  * @param positionTick How often the playhead is read while playing.
  * @param timeSource The clock a shuttle's playhead is measured on.
  */
-internal abstract class BasePlayerEngine(
+@InternalFilmstripApi
+public abstract class BasePlayerEngine(
   parent: CoroutineScope,
   positionTick: Duration = DEFAULT_POSITION_TICK,
   timeSource: TimeSource = TimeSource.Monotonic,

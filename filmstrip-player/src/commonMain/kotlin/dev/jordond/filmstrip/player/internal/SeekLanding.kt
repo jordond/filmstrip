@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip.player.internal
 
+import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.edit.outputSlotOf
 import dev.jordond.filmstrip.edit.outputSlotTime
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
@@ -25,7 +26,8 @@ internal fun ResolvedComposition.seekLandingOf(at: Duration): Duration = seekLan
  * Where an exact seek to [at] lands in a composition [duration] long at [frameRate], which is the time of the output
  * slot [at] rounds to, clamped the way [ResolvedComposition.seekLandingOf] clamps it.
  */
-internal fun seekLandingOf(
+@InternalFilmstripApi
+public fun seekLandingOf(
   at: Duration,
   duration: Duration,
   frameRate: Int,
@@ -43,8 +45,19 @@ internal fun seekLandingOf(
 internal fun ResolvedComposition.frameStepLanding(
   from: Duration,
   frames: Int,
+): Duration? = frameStepLanding(from, frames, duration, frameRate)
+
+/**
+ * Where a step of [frames] taken from [from] lands in an edit [duration] long at [frameRate], or null when it would
+ * leave the edit.
+ */
+@InternalFilmstripApi
+public fun frameStepLanding(
+  from: Duration,
+  frames: Int,
+  duration: Duration,
+  frameRate: Int,
 ): Duration? {
-  val rate = frameRate
-  val landing = outputSlotTime(outputSlotOf(from, rate) + frames, rate)
+  val landing = outputSlotTime(outputSlotOf(from, frameRate) + frames, frameRate)
   return landing.takeIf { it >= Duration.ZERO && it <= duration }
 }

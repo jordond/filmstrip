@@ -1,0 +1,336 @@
+public final class dev/jordond/filmstrip/testing/ExportBuildersKt {
+	public static final fun testAdjustment (Ldev/jordond/filmstrip/export/AdjustmentKind;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Ldev/jordond/filmstrip/export/Adjustment;
+	public static synthetic fun testAdjustment$default (Ldev/jordond/filmstrip/export/AdjustmentKind;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Ldev/jordond/filmstrip/export/Adjustment;
+	public static final fun testCapableVerdict (Ldev/jordond/filmstrip/export/ExportPlan;)Ldev/jordond/filmstrip/export/Verdict$Capable;
+	public static synthetic fun testCapableVerdict$default (Ldev/jordond/filmstrip/export/ExportPlan;ILjava/lang/Object;)Ldev/jordond/filmstrip/export/Verdict$Capable;
+	public static final fun testDegradedVerdict (Ldev/jordond/filmstrip/export/ExportPlan;Ljava/util/List;)Ldev/jordond/filmstrip/export/Verdict$Degraded;
+	public static synthetic fun testDegradedVerdict$default (Ldev/jordond/filmstrip/export/ExportPlan;Ljava/util/List;ILjava/lang/Object;)Ldev/jordond/filmstrip/export/Verdict$Degraded;
+	public static final fun testDeviceCapabilities (Ljava/util/List;Ljava/util/List;ZLjava/lang/Integer;)Ldev/jordond/filmstrip/capability/DeviceCapabilities;
+	public static synthetic fun testDeviceCapabilities$default (Ljava/util/List;Ljava/util/List;ZLjava/lang/Integer;ILjava/lang/Object;)Ldev/jordond/filmstrip/capability/DeviceCapabilities;
+	public static final fun testExportPlan-u4uj9nY (Ldev/jordond/filmstrip/edit/Composition;Ldev/jordond/filmstrip/export/ExportSpec;Ldev/jordond/filmstrip/export/ExportPath;Ldev/jordond/filmstrip/export/OutputFormat;Ljava/util/List;Ldev/jordond/filmstrip/export/ExportEstimate;Ldev/jordond/filmstrip/capability/EffectParity;JLjava/util/List;Ljava/util/List;)Ldev/jordond/filmstrip/export/ExportPlan;
+	public static synthetic fun testExportPlan-u4uj9nY$default (Ldev/jordond/filmstrip/edit/Composition;Ldev/jordond/filmstrip/export/ExportSpec;Ldev/jordond/filmstrip/export/ExportPath;Ldev/jordond/filmstrip/export/OutputFormat;Ljava/util/List;Ldev/jordond/filmstrip/export/ExportEstimate;Ldev/jordond/filmstrip/capability/EffectParity;JLjava/util/List;Ljava/util/List;ILjava/lang/Object;)Ldev/jordond/filmstrip/export/ExportPlan;
+	public static final fun testIncapableVerdict (Ljava/util/List;Ldev/jordond/filmstrip/export/Verdict$Degraded;)Ldev/jordond/filmstrip/export/Verdict$Incapable;
+	public static synthetic fun testIncapableVerdict$default (Ljava/util/List;Ldev/jordond/filmstrip/export/Verdict$Degraded;ILjava/lang/Object;)Ldev/jordond/filmstrip/export/Verdict$Incapable;
+	public static final fun testOutputFormat (Ldev/jordond/filmstrip/geometry/Size;Ldev/jordond/filmstrip/codec/VideoCodec;Ldev/jordond/filmstrip/codec/AudioCodec;Ldev/jordond/filmstrip/codec/Bitrate;ILdev/jordond/filmstrip/export/AudioFormat;Ljava/lang/Integer;)Ldev/jordond/filmstrip/export/OutputFormat;
+	public static synthetic fun testOutputFormat$default (Ldev/jordond/filmstrip/geometry/Size;Ldev/jordond/filmstrip/codec/VideoCodec;Ldev/jordond/filmstrip/codec/AudioCodec;Ldev/jordond/filmstrip/codec/Bitrate;ILdev/jordond/filmstrip/export/AudioFormat;Ljava/lang/Integer;ILjava/lang/Object;)Ldev/jordond/filmstrip/export/OutputFormat;
+	public static final fun testVideoEncoder (Ldev/jordond/filmstrip/codec/VideoCodec;Ljava/lang/String;Ldev/jordond/filmstrip/geometry/Size;Ljava/lang/Integer;Ldev/jordond/filmstrip/codec/Bitrate;Ljava/lang/Boolean;I)Ldev/jordond/filmstrip/capability/VideoEncoderCapability;
+	public static synthetic fun testVideoEncoder$default (Ldev/jordond/filmstrip/codec/VideoCodec;Ljava/lang/String;Ldev/jordond/filmstrip/geometry/Size;Ljava/lang/Integer;Ldev/jordond/filmstrip/codec/Bitrate;Ljava/lang/Boolean;IILjava/lang/Object;)Ldev/jordond/filmstrip/capability/VideoEncoderCapability;
+}
+
+public final class dev/jordond/filmstrip/testing/FakeExport {
+	public final fun adjusted (Ljava/util/List;)V
+	public final fun fail (Ldev/jordond/filmstrip/FilmstripError;)V
+	public final fun getPlan ()Ldev/jordond/filmstrip/export/ExportPlan;
+	public final fun getSink ()Ldev/jordond/filmstrip/media/MediaSink;
+	public final fun getWasCancelled ()Z
+	public final fun isFinished ()Z
+	public final fun isRunning ()Z
+	public final fun progress-9GogCrw (FLkotlin/time/Duration;Lkotlin/time/Duration;)V
+	public static synthetic fun progress-9GogCrw$default (Ldev/jordond/filmstrip/testing/FakeExport;FLkotlin/time/Duration;Lkotlin/time/Duration;ILjava/lang/Object;)V
+	public final fun start ()V
+	public final fun succeed (Ldev/jordond/filmstrip/media/MediaInfo;Ljava/util/List;Ldev/jordond/filmstrip/media/MediaSink;)V
+	public static synthetic fun succeed$default (Ldev/jordond/filmstrip/testing/FakeExport;Ldev/jordond/filmstrip/media/MediaInfo;Ljava/util/List;Ldev/jordond/filmstrip/media/MediaSink;ILjava/lang/Object;)V
+}
+
+public final class dev/jordond/filmstrip/testing/FakeFilmstrip : dev/jordond/filmstrip/Filmstrip {
+	public fun <init> (Lkotlinx/coroutines/test/TestScope;)V
+	public fun capabilities (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public fun export (Ldev/jordond/filmstrip/edit/Composition;Ldev/jordond/filmstrip/export/ExportSpec;Ldev/jordond/filmstrip/media/MediaSink;)Lkotlinx/coroutines/flow/Flow;
+	public fun export (Ldev/jordond/filmstrip/export/ExportPlan;Ldev/jordond/filmstrip/media/MediaSink;)Lkotlinx/coroutines/flow/Flow;
+	public fun frame-WPwdCS8 (Ldev/jordond/filmstrip/edit/Composition;JLjava/lang/Integer;Ldev/jordond/filmstrip/export/ExportSpec;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public fun frames (Ldev/jordond/filmstrip/edit/Composition;Ljava/util/List;Ljava/lang/Integer;Ldev/jordond/filmstrip/export/ExportSpec;)Lkotlinx/coroutines/flow/Flow;
+	public final fun getCalls ()Ljava/util/List;
+	public fun getComponents ()Ldev/jordond/filmstrip/ComponentRegistry;
+	public final fun getExports ()Ljava/util/List;
+	public final fun getOnCapabilities ()Lkotlin/jvm/functions/Function0;
+	public final fun getOnFrame ()Lkotlin/jvm/functions/Function2;
+	public final fun getOnParityOf ()Lkotlin/jvm/functions/Function1;
+	public final fun getOnPlan ()Lkotlin/jvm/functions/Function2;
+	public final fun getOnPreview ()Lkotlin/jvm/functions/Function2;
+	public final fun getOnProbe ()Lkotlin/jvm/functions/Function1;
+	public final fun getPlayers ()Ljava/util/List;
+	public fun parityOf (Ljava/lang/String;)Ldev/jordond/filmstrip/capability/EffectParity;
+	public fun plan (Ldev/jordond/filmstrip/edit/Composition;Ldev/jordond/filmstrip/export/ExportSpec;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public fun preview (Ldev/jordond/filmstrip/edit/Composition;Ldev/jordond/filmstrip/player/PlayerConfig;)Ldev/jordond/filmstrip/player/VideoPlayer;
+	public fun probe (Ldev/jordond/filmstrip/media/MediaSource;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun setOnCapabilities (Lkotlin/jvm/functions/Function0;)V
+	public final fun setOnFrame (Lkotlin/jvm/functions/Function2;)V
+	public final fun setOnParityOf (Lkotlin/jvm/functions/Function1;)V
+	public final fun setOnPlan (Lkotlin/jvm/functions/Function2;)V
+	public final fun setOnPreview (Lkotlin/jvm/functions/Function2;)V
+	public final fun setOnProbe (Lkotlin/jvm/functions/Function1;)V
+}
+
+public final class dev/jordond/filmstrip/testing/FakeVideoPlayer : dev/jordond/filmstrip/player/VideoPlayer {
+	public synthetic fun <init> (Lkotlinx/coroutines/test/TestScope;Ldev/jordond/filmstrip/edit/Composition;JILjava/util/Set;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (Lkotlinx/coroutines/test/TestScope;Ldev/jordond/filmstrip/edit/Composition;JILjava/util/Set;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun addEventListener (Ldev/jordond/filmstrip/player/PlaybackEventListener;)Ldev/jordond/filmstrip/Cancellable;
+	public fun addPositionListener-VtjQ1oo (JLdev/jordond/filmstrip/player/PlayerPositionListener;)Ldev/jordond/filmstrip/Cancellable;
+	public fun addStateListener (Ldev/jordond/filmstrip/player/PlayerStateListener;)Ldev/jordond/filmstrip/Cancellable;
+	public fun beginScrub ()V
+	public fun beginShuttle (F)V
+	public fun close ()V
+	public fun currentPosition-UwyO8pc ()J
+	public final fun emit (Ldev/jordond/filmstrip/player/PlaybackEvent;)V
+	public fun endScrub ()V
+	public fun endShuttle ()V
+	public final fun fail (Ldev/jordond/filmstrip/player/PlaybackError;)V
+	public final fun getCalls ()Ljava/util/List;
+	public final fun getCompositions ()Ljava/util/List;
+	public fun getEvents ()Lkotlinx/coroutines/flow/SharedFlow;
+	public fun getFeatures ()Ldev/jordond/filmstrip/player/PlayerFeatures;
+	public final fun getHoldSeeks ()Z
+	public fun getNativePlayer ()Ljava/lang/Object;
+	public final fun getOnSetComposition ()Lkotlin/jvm/functions/Function1;
+	public fun getPreviewInfo ()Lkotlinx/coroutines/flow/StateFlow;
+	public fun getReadback ()Ldev/jordond/filmstrip/player/PreviewFrameReadback;
+	public fun getState ()Lkotlinx/coroutines/flow/StateFlow;
+	public final fun isClosed ()Z
+	public final fun landSeek ()V
+	public fun pause ()V
+	public fun play ()V
+	public fun positionFlow-LRDsOJo (J)Lkotlinx/coroutines/flow/Flow;
+	public fun seekTo-VtjQ1oo (JLdev/jordond/filmstrip/player/SeekAccuracy;)V
+	public fun setComposition (Ldev/jordond/filmstrip/player/SetCompositionRequest;Ldev/jordond/filmstrip/player/SetCompositionCallback;)Ldev/jordond/filmstrip/Cancellable;
+	public fun setComposition-hhJSO8g (Ldev/jordond/filmstrip/edit/Composition;Lkotlin/time/Duration;ZLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun setDuration-LRDsOJo (J)V
+	public fun setExportSpec (Ldev/jordond/filmstrip/export/ExportSpec;)V
+	public final fun setHoldSeeks (Z)V
+	public fun setLoopRange (Ldev/jordond/filmstrip/edit/TimeRange;)V
+	public final fun setOnSetComposition (Lkotlin/jvm/functions/Function1;)V
+	public fun setPlaybackRange (Ldev/jordond/filmstrip/edit/TimeRange;)V
+	public fun setQualityPolicy (Ldev/jordond/filmstrip/player/PreviewQualityPolicy;)V
+	public final fun setStalled (Z)V
+	public final fun setStatus (Ldev/jordond/filmstrip/player/PlaybackStatus;)V
+	public fun setVolume (F)V
+	public fun stepFrames (I)V
+}
+
+public abstract interface class dev/jordond/filmstrip/testing/FilmstripCall {
+}
+
+public final class dev/jordond/filmstrip/testing/FilmstripCall$Capabilities : dev/jordond/filmstrip/testing/FilmstripCall {
+	public static final field INSTANCE Ldev/jordond/filmstrip/testing/FilmstripCall$Capabilities;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/jordond/filmstrip/testing/FilmstripCall$ExportOfComposition : dev/jordond/filmstrip/testing/FilmstripCall {
+	public fun <init> (Ldev/jordond/filmstrip/edit/Composition;Ldev/jordond/filmstrip/export/ExportSpec;Ldev/jordond/filmstrip/media/MediaSink;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getComposition ()Ldev/jordond/filmstrip/edit/Composition;
+	public final fun getSink ()Ldev/jordond/filmstrip/media/MediaSink;
+	public final fun getSpec ()Ldev/jordond/filmstrip/export/ExportSpec;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/jordond/filmstrip/testing/FilmstripCall$ExportOfPlan : dev/jordond/filmstrip/testing/FilmstripCall {
+	public fun <init> (Ldev/jordond/filmstrip/export/ExportPlan;Ldev/jordond/filmstrip/media/MediaSink;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getPlan ()Ldev/jordond/filmstrip/export/ExportPlan;
+	public final fun getSink ()Ldev/jordond/filmstrip/media/MediaSink;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/jordond/filmstrip/testing/FilmstripCall$Frame : dev/jordond/filmstrip/testing/FilmstripCall {
+	public synthetic fun <init> (Ldev/jordond/filmstrip/edit/Composition;JLjava/lang/Integer;Ldev/jordond/filmstrip/export/ExportSpec;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAt-UwyO8pc ()J
+	public final fun getComposition ()Ldev/jordond/filmstrip/edit/Composition;
+	public final fun getExportSpec ()Ldev/jordond/filmstrip/export/ExportSpec;
+	public final fun getHeightPx ()Ljava/lang/Integer;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/jordond/filmstrip/testing/FilmstripCall$Frames : dev/jordond/filmstrip/testing/FilmstripCall {
+	public fun <init> (Ldev/jordond/filmstrip/edit/Composition;Ljava/util/List;Ljava/lang/Integer;Ldev/jordond/filmstrip/export/ExportSpec;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAt ()Ljava/util/List;
+	public final fun getComposition ()Ldev/jordond/filmstrip/edit/Composition;
+	public final fun getExportSpec ()Ldev/jordond/filmstrip/export/ExportSpec;
+	public final fun getHeightPx ()Ljava/lang/Integer;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/jordond/filmstrip/testing/FilmstripCall$ParityOf : dev/jordond/filmstrip/testing/FilmstripCall {
+	public fun <init> (Ljava/lang/String;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getSpecId ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/jordond/filmstrip/testing/FilmstripCall$Plan : dev/jordond/filmstrip/testing/FilmstripCall {
+	public fun <init> (Ldev/jordond/filmstrip/edit/Composition;Ldev/jordond/filmstrip/export/ExportSpec;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getComposition ()Ldev/jordond/filmstrip/edit/Composition;
+	public final fun getSpec ()Ldev/jordond/filmstrip/export/ExportSpec;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/jordond/filmstrip/testing/FilmstripCall$Preview : dev/jordond/filmstrip/testing/FilmstripCall {
+	public fun <init> (Ldev/jordond/filmstrip/edit/Composition;Ldev/jordond/filmstrip/player/PlayerConfig;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getComposition ()Ldev/jordond/filmstrip/edit/Composition;
+	public final fun getConfig ()Ldev/jordond/filmstrip/player/PlayerConfig;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/jordond/filmstrip/testing/FilmstripCall$Probe : dev/jordond/filmstrip/testing/FilmstripCall {
+	public fun <init> (Ldev/jordond/filmstrip/media/MediaSource;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getSource ()Ldev/jordond/filmstrip/media/MediaSource;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/jordond/filmstrip/testing/FrameBuildersKt {
+	public static final fun testFrame-rnQQ1Ag (JIILdev/jordond/filmstrip/media/ColorSpace;)Ldev/jordond/filmstrip/media/FrameResult$Success;
+	public static synthetic fun testFrame-rnQQ1Ag$default (JIILdev/jordond/filmstrip/media/ColorSpace;ILjava/lang/Object;)Ldev/jordond/filmstrip/media/FrameResult$Success;
+}
+
+public final class dev/jordond/filmstrip/testing/FrameBuilders_jvmKt {
+	public static final fun testPlatformImage (II)Ldev/jordond/filmstrip/media/PlatformImage;
+	public static synthetic fun testPlatformImage$default (IIILjava/lang/Object;)Ldev/jordond/filmstrip/media/PlatformImage;
+}
+
+public final class dev/jordond/filmstrip/testing/MediaBuildersKt {
+	public static final fun testAudioTrack-ah_a8P8 (JLdev/jordond/filmstrip/media/TrackCodec;IILdev/jordond/filmstrip/codec/Bitrate;Ljava/lang/String;Z)Ldev/jordond/filmstrip/media/AudioTrackInfo;
+	public static synthetic fun testAudioTrack-ah_a8P8$default (JLdev/jordond/filmstrip/media/TrackCodec;IILdev/jordond/filmstrip/codec/Bitrate;Ljava/lang/String;ZILjava/lang/Object;)Ldev/jordond/filmstrip/media/AudioTrackInfo;
+	public static final fun testMediaInfo-rnQQ1Ag (JLdev/jordond/filmstrip/media/VideoTrackInfo;Ljava/util/List;Z)Ldev/jordond/filmstrip/media/MediaInfo;
+	public static synthetic fun testMediaInfo-rnQQ1Ag$default (JLdev/jordond/filmstrip/media/VideoTrackInfo;Ljava/util/List;ZILjava/lang/Object;)Ldev/jordond/filmstrip/media/MediaInfo;
+	public static final fun testMediaSink (Ljava/lang/String;)Ldev/jordond/filmstrip/media/MediaSink;
+	public static synthetic fun testMediaSink$default (Ljava/lang/String;ILjava/lang/Object;)Ldev/jordond/filmstrip/media/MediaSink;
+	public static final fun testMediaSource (Ljava/lang/String;)Ldev/jordond/filmstrip/media/MediaSource;
+	public static synthetic fun testMediaSource$default (Ljava/lang/String;ILjava/lang/Object;)Ldev/jordond/filmstrip/media/MediaSource;
+	public static final fun testVideoTrack (Ldev/jordond/filmstrip/geometry/Size;ILdev/jordond/filmstrip/geometry/Size;FLjava/lang/Float;Ldev/jordond/filmstrip/media/TrackCodec;Ljava/lang/Integer;Ldev/jordond/filmstrip/media/ColorSpace;Ldev/jordond/filmstrip/media/HdrTransfer;Ldev/jordond/filmstrip/codec/Bitrate;Z)Ldev/jordond/filmstrip/media/VideoTrackInfo;
+	public static synthetic fun testVideoTrack$default (Ldev/jordond/filmstrip/geometry/Size;ILdev/jordond/filmstrip/geometry/Size;FLjava/lang/Float;Ldev/jordond/filmstrip/media/TrackCodec;Ljava/lang/Integer;Ldev/jordond/filmstrip/media/ColorSpace;Ldev/jordond/filmstrip/media/HdrTransfer;Ldev/jordond/filmstrip/codec/Bitrate;ZILjava/lang/Object;)Ldev/jordond/filmstrip/media/VideoTrackInfo;
+}
+
+public abstract interface class dev/jordond/filmstrip/testing/PlayerCall {
+}
+
+public final class dev/jordond/filmstrip/testing/PlayerCall$BeginScrub : dev/jordond/filmstrip/testing/PlayerCall {
+	public static final field INSTANCE Ldev/jordond/filmstrip/testing/PlayerCall$BeginScrub;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/jordond/filmstrip/testing/PlayerCall$BeginShuttle : dev/jordond/filmstrip/testing/PlayerCall {
+	public fun <init> (F)V
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getRate ()F
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/jordond/filmstrip/testing/PlayerCall$Close : dev/jordond/filmstrip/testing/PlayerCall {
+	public static final field INSTANCE Ldev/jordond/filmstrip/testing/PlayerCall$Close;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/jordond/filmstrip/testing/PlayerCall$EndScrub : dev/jordond/filmstrip/testing/PlayerCall {
+	public static final field INSTANCE Ldev/jordond/filmstrip/testing/PlayerCall$EndScrub;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/jordond/filmstrip/testing/PlayerCall$EndShuttle : dev/jordond/filmstrip/testing/PlayerCall {
+	public static final field INSTANCE Ldev/jordond/filmstrip/testing/PlayerCall$EndShuttle;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/jordond/filmstrip/testing/PlayerCall$Pause : dev/jordond/filmstrip/testing/PlayerCall {
+	public static final field INSTANCE Ldev/jordond/filmstrip/testing/PlayerCall$Pause;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/jordond/filmstrip/testing/PlayerCall$Play : dev/jordond/filmstrip/testing/PlayerCall {
+	public static final field INSTANCE Ldev/jordond/filmstrip/testing/PlayerCall$Play;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/jordond/filmstrip/testing/PlayerCall$SeekTo : dev/jordond/filmstrip/testing/PlayerCall {
+	public synthetic fun <init> (JLdev/jordond/filmstrip/player/SeekAccuracy;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAccuracy ()Ldev/jordond/filmstrip/player/SeekAccuracy;
+	public final fun getPosition-UwyO8pc ()J
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/jordond/filmstrip/testing/PlayerCall$SetComposition : dev/jordond/filmstrip/testing/PlayerCall {
+	public synthetic fun <init> (Ldev/jordond/filmstrip/edit/Composition;Lkotlin/time/Duration;ZLkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getComposition ()Ldev/jordond/filmstrip/edit/Composition;
+	public final fun getPlayWhenReady ()Z
+	public final fun getStartAt-FghU774 ()Lkotlin/time/Duration;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/jordond/filmstrip/testing/PlayerCall$SetExportSpec : dev/jordond/filmstrip/testing/PlayerCall {
+	public fun <init> (Ldev/jordond/filmstrip/export/ExportSpec;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getSpec ()Ldev/jordond/filmstrip/export/ExportSpec;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/jordond/filmstrip/testing/PlayerCall$SetLoopRange : dev/jordond/filmstrip/testing/PlayerCall {
+	public fun <init> (Ldev/jordond/filmstrip/edit/TimeRange;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getRange ()Ldev/jordond/filmstrip/edit/TimeRange;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/jordond/filmstrip/testing/PlayerCall$SetPlaybackRange : dev/jordond/filmstrip/testing/PlayerCall {
+	public fun <init> (Ldev/jordond/filmstrip/edit/TimeRange;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getRange ()Ldev/jordond/filmstrip/edit/TimeRange;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/jordond/filmstrip/testing/PlayerCall$SetQualityPolicy : dev/jordond/filmstrip/testing/PlayerCall {
+	public fun <init> (Ldev/jordond/filmstrip/player/PreviewQualityPolicy;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getPolicy ()Ldev/jordond/filmstrip/player/PreviewQualityPolicy;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/jordond/filmstrip/testing/PlayerCall$SetVolume : dev/jordond/filmstrip/testing/PlayerCall {
+	public fun <init> (F)V
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getVolume ()F
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/jordond/filmstrip/testing/PlayerCall$StepFrames : dev/jordond/filmstrip/testing/PlayerCall {
+	public fun <init> (I)V
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getFrames ()I
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+

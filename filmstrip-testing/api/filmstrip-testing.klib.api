@@ -1,0 +1,404 @@
+// Klib ABI Dump
+// Targets: [iosArm64, iosSimulatorArm64, js, macosArm64, wasmJs]
+// Rendering settings:
+// - Signature version: 2
+// - Show manifest properties: true
+// - Show declarations: true
+
+// Library unique name: <filmstrip-root:filmstrip-testing>
+sealed interface dev.jordond.filmstrip.testing/FilmstripCall { // dev.jordond.filmstrip.testing/FilmstripCall|null[0]
+    final class ExportOfComposition : dev.jordond.filmstrip.testing/FilmstripCall { // dev.jordond.filmstrip.testing/FilmstripCall.ExportOfComposition|null[0]
+        constructor <init>(dev.jordond.filmstrip.edit/Composition, dev.jordond.filmstrip.export/ExportSpec, dev.jordond.filmstrip.media/MediaSink) // dev.jordond.filmstrip.testing/FilmstripCall.ExportOfComposition.<init>|<init>(dev.jordond.filmstrip.edit.Composition;dev.jordond.filmstrip.export.ExportSpec;dev.jordond.filmstrip.media.MediaSink){}[0]
+
+        final val composition // dev.jordond.filmstrip.testing/FilmstripCall.ExportOfComposition.composition|{}composition[0]
+            final fun <get-composition>(): dev.jordond.filmstrip.edit/Composition // dev.jordond.filmstrip.testing/FilmstripCall.ExportOfComposition.composition.<get-composition>|<get-composition>(){}[0]
+        final val sink // dev.jordond.filmstrip.testing/FilmstripCall.ExportOfComposition.sink|{}sink[0]
+            final fun <get-sink>(): dev.jordond.filmstrip.media/MediaSink // dev.jordond.filmstrip.testing/FilmstripCall.ExportOfComposition.sink.<get-sink>|<get-sink>(){}[0]
+        final val spec // dev.jordond.filmstrip.testing/FilmstripCall.ExportOfComposition.spec|{}spec[0]
+            final fun <get-spec>(): dev.jordond.filmstrip.export/ExportSpec // dev.jordond.filmstrip.testing/FilmstripCall.ExportOfComposition.spec.<get-spec>|<get-spec>(){}[0]
+
+        final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.testing/FilmstripCall.ExportOfComposition.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.testing/FilmstripCall.ExportOfComposition.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // dev.jordond.filmstrip.testing/FilmstripCall.ExportOfComposition.toString|toString(){}[0]
+    }
+
+    final class ExportOfPlan : dev.jordond.filmstrip.testing/FilmstripCall { // dev.jordond.filmstrip.testing/FilmstripCall.ExportOfPlan|null[0]
+        constructor <init>(dev.jordond.filmstrip.export/ExportPlan, dev.jordond.filmstrip.media/MediaSink) // dev.jordond.filmstrip.testing/FilmstripCall.ExportOfPlan.<init>|<init>(dev.jordond.filmstrip.export.ExportPlan;dev.jordond.filmstrip.media.MediaSink){}[0]
+
+        final val plan // dev.jordond.filmstrip.testing/FilmstripCall.ExportOfPlan.plan|{}plan[0]
+            final fun <get-plan>(): dev.jordond.filmstrip.export/ExportPlan // dev.jordond.filmstrip.testing/FilmstripCall.ExportOfPlan.plan.<get-plan>|<get-plan>(){}[0]
+        final val sink // dev.jordond.filmstrip.testing/FilmstripCall.ExportOfPlan.sink|{}sink[0]
+            final fun <get-sink>(): dev.jordond.filmstrip.media/MediaSink // dev.jordond.filmstrip.testing/FilmstripCall.ExportOfPlan.sink.<get-sink>|<get-sink>(){}[0]
+
+        final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.testing/FilmstripCall.ExportOfPlan.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.testing/FilmstripCall.ExportOfPlan.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // dev.jordond.filmstrip.testing/FilmstripCall.ExportOfPlan.toString|toString(){}[0]
+    }
+
+    final class Frame : dev.jordond.filmstrip.testing/FilmstripCall { // dev.jordond.filmstrip.testing/FilmstripCall.Frame|null[0]
+        constructor <init>(dev.jordond.filmstrip.edit/Composition, kotlin.time/Duration, kotlin/Int?, dev.jordond.filmstrip.export/ExportSpec) // dev.jordond.filmstrip.testing/FilmstripCall.Frame.<init>|<init>(dev.jordond.filmstrip.edit.Composition;kotlin.time.Duration;kotlin.Int?;dev.jordond.filmstrip.export.ExportSpec){}[0]
+
+        final val at // dev.jordond.filmstrip.testing/FilmstripCall.Frame.at|{}at[0]
+            final fun <get-at>(): kotlin.time/Duration // dev.jordond.filmstrip.testing/FilmstripCall.Frame.at.<get-at>|<get-at>(){}[0]
+        final val composition // dev.jordond.filmstrip.testing/FilmstripCall.Frame.composition|{}composition[0]
+            final fun <get-composition>(): dev.jordond.filmstrip.edit/Composition // dev.jordond.filmstrip.testing/FilmstripCall.Frame.composition.<get-composition>|<get-composition>(){}[0]
+        final val exportSpec // dev.jordond.filmstrip.testing/FilmstripCall.Frame.exportSpec|{}exportSpec[0]
+            final fun <get-exportSpec>(): dev.jordond.filmstrip.export/ExportSpec // dev.jordond.filmstrip.testing/FilmstripCall.Frame.exportSpec.<get-exportSpec>|<get-exportSpec>(){}[0]
+        final val heightPx // dev.jordond.filmstrip.testing/FilmstripCall.Frame.heightPx|{}heightPx[0]
+            final fun <get-heightPx>(): kotlin/Int? // dev.jordond.filmstrip.testing/FilmstripCall.Frame.heightPx.<get-heightPx>|<get-heightPx>(){}[0]
+
+        final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.testing/FilmstripCall.Frame.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.testing/FilmstripCall.Frame.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // dev.jordond.filmstrip.testing/FilmstripCall.Frame.toString|toString(){}[0]
+    }
+
+    final class Frames : dev.jordond.filmstrip.testing/FilmstripCall { // dev.jordond.filmstrip.testing/FilmstripCall.Frames|null[0]
+        constructor <init>(dev.jordond.filmstrip.edit/Composition, kotlin.collections/List<kotlin.time/Duration>, kotlin/Int?, dev.jordond.filmstrip.export/ExportSpec) // dev.jordond.filmstrip.testing/FilmstripCall.Frames.<init>|<init>(dev.jordond.filmstrip.edit.Composition;kotlin.collections.List<kotlin.time.Duration>;kotlin.Int?;dev.jordond.filmstrip.export.ExportSpec){}[0]
+
+        final val at // dev.jordond.filmstrip.testing/FilmstripCall.Frames.at|{}at[0]
+            final fun <get-at>(): kotlin.collections/List<kotlin.time/Duration> // dev.jordond.filmstrip.testing/FilmstripCall.Frames.at.<get-at>|<get-at>(){}[0]
+        final val composition // dev.jordond.filmstrip.testing/FilmstripCall.Frames.composition|{}composition[0]
+            final fun <get-composition>(): dev.jordond.filmstrip.edit/Composition // dev.jordond.filmstrip.testing/FilmstripCall.Frames.composition.<get-composition>|<get-composition>(){}[0]
+        final val exportSpec // dev.jordond.filmstrip.testing/FilmstripCall.Frames.exportSpec|{}exportSpec[0]
+            final fun <get-exportSpec>(): dev.jordond.filmstrip.export/ExportSpec // dev.jordond.filmstrip.testing/FilmstripCall.Frames.exportSpec.<get-exportSpec>|<get-exportSpec>(){}[0]
+        final val heightPx // dev.jordond.filmstrip.testing/FilmstripCall.Frames.heightPx|{}heightPx[0]
+            final fun <get-heightPx>(): kotlin/Int? // dev.jordond.filmstrip.testing/FilmstripCall.Frames.heightPx.<get-heightPx>|<get-heightPx>(){}[0]
+
+        final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.testing/FilmstripCall.Frames.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.testing/FilmstripCall.Frames.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // dev.jordond.filmstrip.testing/FilmstripCall.Frames.toString|toString(){}[0]
+    }
+
+    final class ParityOf : dev.jordond.filmstrip.testing/FilmstripCall { // dev.jordond.filmstrip.testing/FilmstripCall.ParityOf|null[0]
+        constructor <init>(kotlin/String) // dev.jordond.filmstrip.testing/FilmstripCall.ParityOf.<init>|<init>(kotlin.String){}[0]
+
+        final val specId // dev.jordond.filmstrip.testing/FilmstripCall.ParityOf.specId|{}specId[0]
+            final fun <get-specId>(): kotlin/String // dev.jordond.filmstrip.testing/FilmstripCall.ParityOf.specId.<get-specId>|<get-specId>(){}[0]
+
+        final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.testing/FilmstripCall.ParityOf.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.testing/FilmstripCall.ParityOf.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // dev.jordond.filmstrip.testing/FilmstripCall.ParityOf.toString|toString(){}[0]
+    }
+
+    final class Plan : dev.jordond.filmstrip.testing/FilmstripCall { // dev.jordond.filmstrip.testing/FilmstripCall.Plan|null[0]
+        constructor <init>(dev.jordond.filmstrip.edit/Composition, dev.jordond.filmstrip.export/ExportSpec) // dev.jordond.filmstrip.testing/FilmstripCall.Plan.<init>|<init>(dev.jordond.filmstrip.edit.Composition;dev.jordond.filmstrip.export.ExportSpec){}[0]
+
+        final val composition // dev.jordond.filmstrip.testing/FilmstripCall.Plan.composition|{}composition[0]
+            final fun <get-composition>(): dev.jordond.filmstrip.edit/Composition // dev.jordond.filmstrip.testing/FilmstripCall.Plan.composition.<get-composition>|<get-composition>(){}[0]
+        final val spec // dev.jordond.filmstrip.testing/FilmstripCall.Plan.spec|{}spec[0]
+            final fun <get-spec>(): dev.jordond.filmstrip.export/ExportSpec // dev.jordond.filmstrip.testing/FilmstripCall.Plan.spec.<get-spec>|<get-spec>(){}[0]
+
+        final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.testing/FilmstripCall.Plan.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.testing/FilmstripCall.Plan.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // dev.jordond.filmstrip.testing/FilmstripCall.Plan.toString|toString(){}[0]
+    }
+
+    final class Preview : dev.jordond.filmstrip.testing/FilmstripCall { // dev.jordond.filmstrip.testing/FilmstripCall.Preview|null[0]
+        constructor <init>(dev.jordond.filmstrip.edit/Composition, dev.jordond.filmstrip.player/PlayerConfig) // dev.jordond.filmstrip.testing/FilmstripCall.Preview.<init>|<init>(dev.jordond.filmstrip.edit.Composition;dev.jordond.filmstrip.player.PlayerConfig){}[0]
+
+        final val composition // dev.jordond.filmstrip.testing/FilmstripCall.Preview.composition|{}composition[0]
+            final fun <get-composition>(): dev.jordond.filmstrip.edit/Composition // dev.jordond.filmstrip.testing/FilmstripCall.Preview.composition.<get-composition>|<get-composition>(){}[0]
+        final val config // dev.jordond.filmstrip.testing/FilmstripCall.Preview.config|{}config[0]
+            final fun <get-config>(): dev.jordond.filmstrip.player/PlayerConfig // dev.jordond.filmstrip.testing/FilmstripCall.Preview.config.<get-config>|<get-config>(){}[0]
+
+        final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.testing/FilmstripCall.Preview.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.testing/FilmstripCall.Preview.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // dev.jordond.filmstrip.testing/FilmstripCall.Preview.toString|toString(){}[0]
+    }
+
+    final class Probe : dev.jordond.filmstrip.testing/FilmstripCall { // dev.jordond.filmstrip.testing/FilmstripCall.Probe|null[0]
+        constructor <init>(dev.jordond.filmstrip.media/MediaSource) // dev.jordond.filmstrip.testing/FilmstripCall.Probe.<init>|<init>(dev.jordond.filmstrip.media.MediaSource){}[0]
+
+        final val source // dev.jordond.filmstrip.testing/FilmstripCall.Probe.source|{}source[0]
+            final fun <get-source>(): dev.jordond.filmstrip.media/MediaSource // dev.jordond.filmstrip.testing/FilmstripCall.Probe.source.<get-source>|<get-source>(){}[0]
+
+        final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.testing/FilmstripCall.Probe.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.testing/FilmstripCall.Probe.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // dev.jordond.filmstrip.testing/FilmstripCall.Probe.toString|toString(){}[0]
+    }
+
+    final object Capabilities : dev.jordond.filmstrip.testing/FilmstripCall { // dev.jordond.filmstrip.testing/FilmstripCall.Capabilities|null[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.testing/FilmstripCall.Capabilities.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.testing/FilmstripCall.Capabilities.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // dev.jordond.filmstrip.testing/FilmstripCall.Capabilities.toString|toString(){}[0]
+    }
+}
+
+sealed interface dev.jordond.filmstrip.testing/PlayerCall { // dev.jordond.filmstrip.testing/PlayerCall|null[0]
+    final class BeginShuttle : dev.jordond.filmstrip.testing/PlayerCall { // dev.jordond.filmstrip.testing/PlayerCall.BeginShuttle|null[0]
+        constructor <init>(kotlin/Float) // dev.jordond.filmstrip.testing/PlayerCall.BeginShuttle.<init>|<init>(kotlin.Float){}[0]
+
+        final val rate // dev.jordond.filmstrip.testing/PlayerCall.BeginShuttle.rate|{}rate[0]
+            final fun <get-rate>(): kotlin/Float // dev.jordond.filmstrip.testing/PlayerCall.BeginShuttle.rate.<get-rate>|<get-rate>(){}[0]
+
+        final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.testing/PlayerCall.BeginShuttle.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.testing/PlayerCall.BeginShuttle.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // dev.jordond.filmstrip.testing/PlayerCall.BeginShuttle.toString|toString(){}[0]
+    }
+
+    final class SeekTo : dev.jordond.filmstrip.testing/PlayerCall { // dev.jordond.filmstrip.testing/PlayerCall.SeekTo|null[0]
+        constructor <init>(kotlin.time/Duration, dev.jordond.filmstrip.player/SeekAccuracy) // dev.jordond.filmstrip.testing/PlayerCall.SeekTo.<init>|<init>(kotlin.time.Duration;dev.jordond.filmstrip.player.SeekAccuracy){}[0]
+
+        final val accuracy // dev.jordond.filmstrip.testing/PlayerCall.SeekTo.accuracy|{}accuracy[0]
+            final fun <get-accuracy>(): dev.jordond.filmstrip.player/SeekAccuracy // dev.jordond.filmstrip.testing/PlayerCall.SeekTo.accuracy.<get-accuracy>|<get-accuracy>(){}[0]
+        final val position // dev.jordond.filmstrip.testing/PlayerCall.SeekTo.position|{}position[0]
+            final fun <get-position>(): kotlin.time/Duration // dev.jordond.filmstrip.testing/PlayerCall.SeekTo.position.<get-position>|<get-position>(){}[0]
+
+        final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.testing/PlayerCall.SeekTo.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.testing/PlayerCall.SeekTo.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // dev.jordond.filmstrip.testing/PlayerCall.SeekTo.toString|toString(){}[0]
+    }
+
+    final class SetComposition : dev.jordond.filmstrip.testing/PlayerCall { // dev.jordond.filmstrip.testing/PlayerCall.SetComposition|null[0]
+        constructor <init>(dev.jordond.filmstrip.edit/Composition, kotlin.time/Duration?, kotlin/Boolean) // dev.jordond.filmstrip.testing/PlayerCall.SetComposition.<init>|<init>(dev.jordond.filmstrip.edit.Composition;kotlin.time.Duration?;kotlin.Boolean){}[0]
+
+        final val composition // dev.jordond.filmstrip.testing/PlayerCall.SetComposition.composition|{}composition[0]
+            final fun <get-composition>(): dev.jordond.filmstrip.edit/Composition // dev.jordond.filmstrip.testing/PlayerCall.SetComposition.composition.<get-composition>|<get-composition>(){}[0]
+        final val playWhenReady // dev.jordond.filmstrip.testing/PlayerCall.SetComposition.playWhenReady|{}playWhenReady[0]
+            final fun <get-playWhenReady>(): kotlin/Boolean // dev.jordond.filmstrip.testing/PlayerCall.SetComposition.playWhenReady.<get-playWhenReady>|<get-playWhenReady>(){}[0]
+        final val startAt // dev.jordond.filmstrip.testing/PlayerCall.SetComposition.startAt|{}startAt[0]
+            final fun <get-startAt>(): kotlin.time/Duration? // dev.jordond.filmstrip.testing/PlayerCall.SetComposition.startAt.<get-startAt>|<get-startAt>(){}[0]
+
+        final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.testing/PlayerCall.SetComposition.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.testing/PlayerCall.SetComposition.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // dev.jordond.filmstrip.testing/PlayerCall.SetComposition.toString|toString(){}[0]
+    }
+
+    final class SetExportSpec : dev.jordond.filmstrip.testing/PlayerCall { // dev.jordond.filmstrip.testing/PlayerCall.SetExportSpec|null[0]
+        constructor <init>(dev.jordond.filmstrip.export/ExportSpec) // dev.jordond.filmstrip.testing/PlayerCall.SetExportSpec.<init>|<init>(dev.jordond.filmstrip.export.ExportSpec){}[0]
+
+        final val spec // dev.jordond.filmstrip.testing/PlayerCall.SetExportSpec.spec|{}spec[0]
+            final fun <get-spec>(): dev.jordond.filmstrip.export/ExportSpec // dev.jordond.filmstrip.testing/PlayerCall.SetExportSpec.spec.<get-spec>|<get-spec>(){}[0]
+
+        final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.testing/PlayerCall.SetExportSpec.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.testing/PlayerCall.SetExportSpec.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // dev.jordond.filmstrip.testing/PlayerCall.SetExportSpec.toString|toString(){}[0]
+    }
+
+    final class SetLoopRange : dev.jordond.filmstrip.testing/PlayerCall { // dev.jordond.filmstrip.testing/PlayerCall.SetLoopRange|null[0]
+        constructor <init>(dev.jordond.filmstrip.edit/TimeRange?) // dev.jordond.filmstrip.testing/PlayerCall.SetLoopRange.<init>|<init>(dev.jordond.filmstrip.edit.TimeRange?){}[0]
+
+        final val range // dev.jordond.filmstrip.testing/PlayerCall.SetLoopRange.range|{}range[0]
+            final fun <get-range>(): dev.jordond.filmstrip.edit/TimeRange? // dev.jordond.filmstrip.testing/PlayerCall.SetLoopRange.range.<get-range>|<get-range>(){}[0]
+
+        final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.testing/PlayerCall.SetLoopRange.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.testing/PlayerCall.SetLoopRange.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // dev.jordond.filmstrip.testing/PlayerCall.SetLoopRange.toString|toString(){}[0]
+    }
+
+    final class SetPlaybackRange : dev.jordond.filmstrip.testing/PlayerCall { // dev.jordond.filmstrip.testing/PlayerCall.SetPlaybackRange|null[0]
+        constructor <init>(dev.jordond.filmstrip.edit/TimeRange?) // dev.jordond.filmstrip.testing/PlayerCall.SetPlaybackRange.<init>|<init>(dev.jordond.filmstrip.edit.TimeRange?){}[0]
+
+        final val range // dev.jordond.filmstrip.testing/PlayerCall.SetPlaybackRange.range|{}range[0]
+            final fun <get-range>(): dev.jordond.filmstrip.edit/TimeRange? // dev.jordond.filmstrip.testing/PlayerCall.SetPlaybackRange.range.<get-range>|<get-range>(){}[0]
+
+        final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.testing/PlayerCall.SetPlaybackRange.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.testing/PlayerCall.SetPlaybackRange.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // dev.jordond.filmstrip.testing/PlayerCall.SetPlaybackRange.toString|toString(){}[0]
+    }
+
+    final class SetQualityPolicy : dev.jordond.filmstrip.testing/PlayerCall { // dev.jordond.filmstrip.testing/PlayerCall.SetQualityPolicy|null[0]
+        constructor <init>(dev.jordond.filmstrip.player/PreviewQualityPolicy) // dev.jordond.filmstrip.testing/PlayerCall.SetQualityPolicy.<init>|<init>(dev.jordond.filmstrip.player.PreviewQualityPolicy){}[0]
+
+        final val policy // dev.jordond.filmstrip.testing/PlayerCall.SetQualityPolicy.policy|{}policy[0]
+            final fun <get-policy>(): dev.jordond.filmstrip.player/PreviewQualityPolicy // dev.jordond.filmstrip.testing/PlayerCall.SetQualityPolicy.policy.<get-policy>|<get-policy>(){}[0]
+
+        final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.testing/PlayerCall.SetQualityPolicy.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.testing/PlayerCall.SetQualityPolicy.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // dev.jordond.filmstrip.testing/PlayerCall.SetQualityPolicy.toString|toString(){}[0]
+    }
+
+    final class SetVolume : dev.jordond.filmstrip.testing/PlayerCall { // dev.jordond.filmstrip.testing/PlayerCall.SetVolume|null[0]
+        constructor <init>(kotlin/Float) // dev.jordond.filmstrip.testing/PlayerCall.SetVolume.<init>|<init>(kotlin.Float){}[0]
+
+        final val volume // dev.jordond.filmstrip.testing/PlayerCall.SetVolume.volume|{}volume[0]
+            final fun <get-volume>(): kotlin/Float // dev.jordond.filmstrip.testing/PlayerCall.SetVolume.volume.<get-volume>|<get-volume>(){}[0]
+
+        final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.testing/PlayerCall.SetVolume.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.testing/PlayerCall.SetVolume.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // dev.jordond.filmstrip.testing/PlayerCall.SetVolume.toString|toString(){}[0]
+    }
+
+    final class StepFrames : dev.jordond.filmstrip.testing/PlayerCall { // dev.jordond.filmstrip.testing/PlayerCall.StepFrames|null[0]
+        constructor <init>(kotlin/Int) // dev.jordond.filmstrip.testing/PlayerCall.StepFrames.<init>|<init>(kotlin.Int){}[0]
+
+        final val frames // dev.jordond.filmstrip.testing/PlayerCall.StepFrames.frames|{}frames[0]
+            final fun <get-frames>(): kotlin/Int // dev.jordond.filmstrip.testing/PlayerCall.StepFrames.frames.<get-frames>|<get-frames>(){}[0]
+
+        final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.testing/PlayerCall.StepFrames.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.testing/PlayerCall.StepFrames.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // dev.jordond.filmstrip.testing/PlayerCall.StepFrames.toString|toString(){}[0]
+    }
+
+    final object BeginScrub : dev.jordond.filmstrip.testing/PlayerCall { // dev.jordond.filmstrip.testing/PlayerCall.BeginScrub|null[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.testing/PlayerCall.BeginScrub.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.testing/PlayerCall.BeginScrub.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // dev.jordond.filmstrip.testing/PlayerCall.BeginScrub.toString|toString(){}[0]
+    }
+
+    final object Close : dev.jordond.filmstrip.testing/PlayerCall { // dev.jordond.filmstrip.testing/PlayerCall.Close|null[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.testing/PlayerCall.Close.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.testing/PlayerCall.Close.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // dev.jordond.filmstrip.testing/PlayerCall.Close.toString|toString(){}[0]
+    }
+
+    final object EndScrub : dev.jordond.filmstrip.testing/PlayerCall { // dev.jordond.filmstrip.testing/PlayerCall.EndScrub|null[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.testing/PlayerCall.EndScrub.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.testing/PlayerCall.EndScrub.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // dev.jordond.filmstrip.testing/PlayerCall.EndScrub.toString|toString(){}[0]
+    }
+
+    final object EndShuttle : dev.jordond.filmstrip.testing/PlayerCall { // dev.jordond.filmstrip.testing/PlayerCall.EndShuttle|null[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.testing/PlayerCall.EndShuttle.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.testing/PlayerCall.EndShuttle.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // dev.jordond.filmstrip.testing/PlayerCall.EndShuttle.toString|toString(){}[0]
+    }
+
+    final object Pause : dev.jordond.filmstrip.testing/PlayerCall { // dev.jordond.filmstrip.testing/PlayerCall.Pause|null[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.testing/PlayerCall.Pause.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.testing/PlayerCall.Pause.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // dev.jordond.filmstrip.testing/PlayerCall.Pause.toString|toString(){}[0]
+    }
+
+    final object Play : dev.jordond.filmstrip.testing/PlayerCall { // dev.jordond.filmstrip.testing/PlayerCall.Play|null[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.testing/PlayerCall.Play.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.testing/PlayerCall.Play.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // dev.jordond.filmstrip.testing/PlayerCall.Play.toString|toString(){}[0]
+    }
+}
+
+final class dev.jordond.filmstrip.testing/FakeExport { // dev.jordond.filmstrip.testing/FakeExport|null[0]
+    final val plan // dev.jordond.filmstrip.testing/FakeExport.plan|{}plan[0]
+        final fun <get-plan>(): dev.jordond.filmstrip.export/ExportPlan // dev.jordond.filmstrip.testing/FakeExport.plan.<get-plan>|<get-plan>(){}[0]
+    final val sink // dev.jordond.filmstrip.testing/FakeExport.sink|{}sink[0]
+        final fun <get-sink>(): dev.jordond.filmstrip.media/MediaSink // dev.jordond.filmstrip.testing/FakeExport.sink.<get-sink>|<get-sink>(){}[0]
+
+    final var isFinished // dev.jordond.filmstrip.testing/FakeExport.isFinished|{}isFinished[0]
+        final fun <get-isFinished>(): kotlin/Boolean // dev.jordond.filmstrip.testing/FakeExport.isFinished.<get-isFinished>|<get-isFinished>(){}[0]
+    final var isRunning // dev.jordond.filmstrip.testing/FakeExport.isRunning|{}isRunning[0]
+        final fun <get-isRunning>(): kotlin/Boolean // dev.jordond.filmstrip.testing/FakeExport.isRunning.<get-isRunning>|<get-isRunning>(){}[0]
+    final var wasCancelled // dev.jordond.filmstrip.testing/FakeExport.wasCancelled|{}wasCancelled[0]
+        final fun <get-wasCancelled>(): kotlin/Boolean // dev.jordond.filmstrip.testing/FakeExport.wasCancelled.<get-wasCancelled>|<get-wasCancelled>(){}[0]
+
+    final fun adjusted(kotlin.collections/List<dev.jordond.filmstrip.export/Adjustment>) // dev.jordond.filmstrip.testing/FakeExport.adjusted|adjusted(kotlin.collections.List<dev.jordond.filmstrip.export.Adjustment>){}[0]
+    final fun fail(dev.jordond.filmstrip/FilmstripError) // dev.jordond.filmstrip.testing/FakeExport.fail|fail(dev.jordond.filmstrip.FilmstripError){}[0]
+    final fun progress(kotlin/Float, kotlin.time/Duration? = ..., kotlin.time/Duration? = ...) // dev.jordond.filmstrip.testing/FakeExport.progress|progress(kotlin.Float;kotlin.time.Duration?;kotlin.time.Duration?){}[0]
+    final fun start() // dev.jordond.filmstrip.testing/FakeExport.start|start(){}[0]
+    final fun succeed(dev.jordond.filmstrip.media/MediaInfo = ..., kotlin.collections/List<dev.jordond.filmstrip.export/Adjustment> = ..., dev.jordond.filmstrip.media/MediaSink = ...) // dev.jordond.filmstrip.testing/FakeExport.succeed|succeed(dev.jordond.filmstrip.media.MediaInfo;kotlin.collections.List<dev.jordond.filmstrip.export.Adjustment>;dev.jordond.filmstrip.media.MediaSink){}[0]
+}
+
+final class dev.jordond.filmstrip.testing/FakeFilmstrip : dev.jordond.filmstrip/Filmstrip { // dev.jordond.filmstrip.testing/FakeFilmstrip|null[0]
+    constructor <init>(kotlinx.coroutines.test/TestScope) // dev.jordond.filmstrip.testing/FakeFilmstrip.<init>|<init>(kotlinx.coroutines.test.TestScope){}[0]
+
+    final val calls // dev.jordond.filmstrip.testing/FakeFilmstrip.calls|{}calls[0]
+        final fun <get-calls>(): kotlin.collections/List<dev.jordond.filmstrip.testing/FilmstripCall> // dev.jordond.filmstrip.testing/FakeFilmstrip.calls.<get-calls>|<get-calls>(){}[0]
+    final val components // dev.jordond.filmstrip.testing/FakeFilmstrip.components|{}components[0]
+        final fun <get-components>(): dev.jordond.filmstrip/ComponentRegistry // dev.jordond.filmstrip.testing/FakeFilmstrip.components.<get-components>|<get-components>(){}[0]
+    final val exports // dev.jordond.filmstrip.testing/FakeFilmstrip.exports|{}exports[0]
+        final fun <get-exports>(): kotlin.collections/List<dev.jordond.filmstrip.testing/FakeExport> // dev.jordond.filmstrip.testing/FakeFilmstrip.exports.<get-exports>|<get-exports>(){}[0]
+    final val players // dev.jordond.filmstrip.testing/FakeFilmstrip.players|{}players[0]
+        final fun <get-players>(): kotlin.collections/List<dev.jordond.filmstrip.testing/FakeVideoPlayer> // dev.jordond.filmstrip.testing/FakeFilmstrip.players.<get-players>|<get-players>(){}[0]
+
+    final var onCapabilities // dev.jordond.filmstrip.testing/FakeFilmstrip.onCapabilities|{}onCapabilities[0]
+        final fun <get-onCapabilities>(): kotlin/Function0<dev.jordond.filmstrip/CapabilitiesResult> // dev.jordond.filmstrip.testing/FakeFilmstrip.onCapabilities.<get-onCapabilities>|<get-onCapabilities>(){}[0]
+        final fun <set-onCapabilities>(kotlin/Function0<dev.jordond.filmstrip/CapabilitiesResult>) // dev.jordond.filmstrip.testing/FakeFilmstrip.onCapabilities.<set-onCapabilities>|<set-onCapabilities>(kotlin.Function0<dev.jordond.filmstrip.CapabilitiesResult>){}[0]
+    final var onFrame // dev.jordond.filmstrip.testing/FakeFilmstrip.onFrame|{}onFrame[0]
+        final fun <get-onFrame>(): kotlin/Function2<dev.jordond.filmstrip.edit/Composition, kotlin.time/Duration, dev.jordond.filmstrip.media/FrameResult> // dev.jordond.filmstrip.testing/FakeFilmstrip.onFrame.<get-onFrame>|<get-onFrame>(){}[0]
+        final fun <set-onFrame>(kotlin/Function2<dev.jordond.filmstrip.edit/Composition, kotlin.time/Duration, dev.jordond.filmstrip.media/FrameResult>) // dev.jordond.filmstrip.testing/FakeFilmstrip.onFrame.<set-onFrame>|<set-onFrame>(kotlin.Function2<dev.jordond.filmstrip.edit.Composition,kotlin.time.Duration,dev.jordond.filmstrip.media.FrameResult>){}[0]
+    final var onParityOf // dev.jordond.filmstrip.testing/FakeFilmstrip.onParityOf|{}onParityOf[0]
+        final fun <get-onParityOf>(): kotlin/Function1<kotlin/String, dev.jordond.filmstrip.capability/EffectParity?> // dev.jordond.filmstrip.testing/FakeFilmstrip.onParityOf.<get-onParityOf>|<get-onParityOf>(){}[0]
+        final fun <set-onParityOf>(kotlin/Function1<kotlin/String, dev.jordond.filmstrip.capability/EffectParity?>) // dev.jordond.filmstrip.testing/FakeFilmstrip.onParityOf.<set-onParityOf>|<set-onParityOf>(kotlin.Function1<kotlin.String,dev.jordond.filmstrip.capability.EffectParity?>){}[0]
+    final var onPlan // dev.jordond.filmstrip.testing/FakeFilmstrip.onPlan|{}onPlan[0]
+        final fun <get-onPlan>(): kotlin/Function2<dev.jordond.filmstrip.edit/Composition, dev.jordond.filmstrip.export/ExportSpec, dev.jordond.filmstrip.export/Verdict> // dev.jordond.filmstrip.testing/FakeFilmstrip.onPlan.<get-onPlan>|<get-onPlan>(){}[0]
+        final fun <set-onPlan>(kotlin/Function2<dev.jordond.filmstrip.edit/Composition, dev.jordond.filmstrip.export/ExportSpec, dev.jordond.filmstrip.export/Verdict>) // dev.jordond.filmstrip.testing/FakeFilmstrip.onPlan.<set-onPlan>|<set-onPlan>(kotlin.Function2<dev.jordond.filmstrip.edit.Composition,dev.jordond.filmstrip.export.ExportSpec,dev.jordond.filmstrip.export.Verdict>){}[0]
+    final var onPreview // dev.jordond.filmstrip.testing/FakeFilmstrip.onPreview|{}onPreview[0]
+        final fun <get-onPreview>(): kotlin/Function2<dev.jordond.filmstrip.edit/Composition, dev.jordond.filmstrip.player/PlayerConfig, dev.jordond.filmstrip.testing/FakeVideoPlayer> // dev.jordond.filmstrip.testing/FakeFilmstrip.onPreview.<get-onPreview>|<get-onPreview>(){}[0]
+        final fun <set-onPreview>(kotlin/Function2<dev.jordond.filmstrip.edit/Composition, dev.jordond.filmstrip.player/PlayerConfig, dev.jordond.filmstrip.testing/FakeVideoPlayer>) // dev.jordond.filmstrip.testing/FakeFilmstrip.onPreview.<set-onPreview>|<set-onPreview>(kotlin.Function2<dev.jordond.filmstrip.edit.Composition,dev.jordond.filmstrip.player.PlayerConfig,dev.jordond.filmstrip.testing.FakeVideoPlayer>){}[0]
+    final var onProbe // dev.jordond.filmstrip.testing/FakeFilmstrip.onProbe|{}onProbe[0]
+        final fun <get-onProbe>(): kotlin/Function1<dev.jordond.filmstrip.media/MediaSource, dev.jordond.filmstrip.media/ProbeResult> // dev.jordond.filmstrip.testing/FakeFilmstrip.onProbe.<get-onProbe>|<get-onProbe>(){}[0]
+        final fun <set-onProbe>(kotlin/Function1<dev.jordond.filmstrip.media/MediaSource, dev.jordond.filmstrip.media/ProbeResult>) // dev.jordond.filmstrip.testing/FakeFilmstrip.onProbe.<set-onProbe>|<set-onProbe>(kotlin.Function1<dev.jordond.filmstrip.media.MediaSource,dev.jordond.filmstrip.media.ProbeResult>){}[0]
+
+    final fun export(dev.jordond.filmstrip.edit/Composition, dev.jordond.filmstrip.export/ExportSpec, dev.jordond.filmstrip.media/MediaSink): kotlinx.coroutines.flow/Flow<dev.jordond.filmstrip.export/ExportStatus> // dev.jordond.filmstrip.testing/FakeFilmstrip.export|export(dev.jordond.filmstrip.edit.Composition;dev.jordond.filmstrip.export.ExportSpec;dev.jordond.filmstrip.media.MediaSink){}[0]
+    final fun export(dev.jordond.filmstrip.export/ExportPlan, dev.jordond.filmstrip.media/MediaSink): kotlinx.coroutines.flow/Flow<dev.jordond.filmstrip.export/ExportStatus> // dev.jordond.filmstrip.testing/FakeFilmstrip.export|export(dev.jordond.filmstrip.export.ExportPlan;dev.jordond.filmstrip.media.MediaSink){}[0]
+    final fun frames(dev.jordond.filmstrip.edit/Composition, kotlin.collections/List<kotlin.time/Duration>, kotlin/Int?, dev.jordond.filmstrip.export/ExportSpec): kotlinx.coroutines.flow/Flow<dev.jordond.filmstrip.media/FrameResult> // dev.jordond.filmstrip.testing/FakeFilmstrip.frames|frames(dev.jordond.filmstrip.edit.Composition;kotlin.collections.List<kotlin.time.Duration>;kotlin.Int?;dev.jordond.filmstrip.export.ExportSpec){}[0]
+    final fun parityOf(kotlin/String): dev.jordond.filmstrip.capability/EffectParity? // dev.jordond.filmstrip.testing/FakeFilmstrip.parityOf|parityOf(kotlin.String){}[0]
+    final fun preview(dev.jordond.filmstrip.edit/Composition, dev.jordond.filmstrip.player/PlayerConfig): dev.jordond.filmstrip.player/VideoPlayer // dev.jordond.filmstrip.testing/FakeFilmstrip.preview|preview(dev.jordond.filmstrip.edit.Composition;dev.jordond.filmstrip.player.PlayerConfig){}[0]
+    final suspend fun capabilities(): dev.jordond.filmstrip/CapabilitiesResult // dev.jordond.filmstrip.testing/FakeFilmstrip.capabilities|capabilities(){}[0]
+    final suspend fun frame(dev.jordond.filmstrip.edit/Composition, kotlin.time/Duration, kotlin/Int?, dev.jordond.filmstrip.export/ExportSpec): dev.jordond.filmstrip.media/FrameResult // dev.jordond.filmstrip.testing/FakeFilmstrip.frame|frame(dev.jordond.filmstrip.edit.Composition;kotlin.time.Duration;kotlin.Int?;dev.jordond.filmstrip.export.ExportSpec){}[0]
+    final suspend fun plan(dev.jordond.filmstrip.edit/Composition, dev.jordond.filmstrip.export/ExportSpec): dev.jordond.filmstrip.export/Verdict // dev.jordond.filmstrip.testing/FakeFilmstrip.plan|plan(dev.jordond.filmstrip.edit.Composition;dev.jordond.filmstrip.export.ExportSpec){}[0]
+    final suspend fun probe(dev.jordond.filmstrip.media/MediaSource): dev.jordond.filmstrip.media/ProbeResult // dev.jordond.filmstrip.testing/FakeFilmstrip.probe|probe(dev.jordond.filmstrip.media.MediaSource){}[0]
+}
+
+final class dev.jordond.filmstrip.testing/FakeVideoPlayer : dev.jordond.filmstrip.player/VideoPlayer { // dev.jordond.filmstrip.testing/FakeVideoPlayer|null[0]
+    constructor <init>(kotlinx.coroutines.test/TestScope, dev.jordond.filmstrip.edit/Composition = ..., kotlin.time/Duration = ..., kotlin/Int = ..., kotlin.collections/Set<dev.jordond.filmstrip.player/PlayerFeature> = ...) // dev.jordond.filmstrip.testing/FakeVideoPlayer.<init>|<init>(kotlinx.coroutines.test.TestScope;dev.jordond.filmstrip.edit.Composition;kotlin.time.Duration;kotlin.Int;kotlin.collections.Set<dev.jordond.filmstrip.player.PlayerFeature>){}[0]
+
+    final val calls // dev.jordond.filmstrip.testing/FakeVideoPlayer.calls|{}calls[0]
+        final fun <get-calls>(): kotlin.collections/List<dev.jordond.filmstrip.testing/PlayerCall> // dev.jordond.filmstrip.testing/FakeVideoPlayer.calls.<get-calls>|<get-calls>(){}[0]
+    final val compositions // dev.jordond.filmstrip.testing/FakeVideoPlayer.compositions|{}compositions[0]
+        final fun <get-compositions>(): kotlin.collections/List<dev.jordond.filmstrip.edit/Composition> // dev.jordond.filmstrip.testing/FakeVideoPlayer.compositions.<get-compositions>|<get-compositions>(){}[0]
+    final val events // dev.jordond.filmstrip.testing/FakeVideoPlayer.events|{}events[0]
+        final fun <get-events>(): kotlinx.coroutines.flow/SharedFlow<dev.jordond.filmstrip.player/PlaybackEvent> // dev.jordond.filmstrip.testing/FakeVideoPlayer.events.<get-events>|<get-events>(){}[0]
+    final val features // dev.jordond.filmstrip.testing/FakeVideoPlayer.features|{}features[0]
+        final fun <get-features>(): dev.jordond.filmstrip.player/PlayerFeatures // dev.jordond.filmstrip.testing/FakeVideoPlayer.features.<get-features>|<get-features>(){}[0]
+    final val nativePlayer // dev.jordond.filmstrip.testing/FakeVideoPlayer.nativePlayer|{}nativePlayer[0]
+        final fun <get-nativePlayer>(): kotlin/Any? // dev.jordond.filmstrip.testing/FakeVideoPlayer.nativePlayer.<get-nativePlayer>|<get-nativePlayer>(){}[0]
+    final val previewInfo // dev.jordond.filmstrip.testing/FakeVideoPlayer.previewInfo|{}previewInfo[0]
+        final fun <get-previewInfo>(): kotlinx.coroutines.flow/StateFlow<dev.jordond.filmstrip.player/PreviewInfo> // dev.jordond.filmstrip.testing/FakeVideoPlayer.previewInfo.<get-previewInfo>|<get-previewInfo>(){}[0]
+    final val readback // dev.jordond.filmstrip.testing/FakeVideoPlayer.readback|{}readback[0]
+        final fun <get-readback>(): dev.jordond.filmstrip.player/PreviewFrameReadback // dev.jordond.filmstrip.testing/FakeVideoPlayer.readback.<get-readback>|<get-readback>(){}[0]
+    final val state // dev.jordond.filmstrip.testing/FakeVideoPlayer.state|{}state[0]
+        final fun <get-state>(): kotlinx.coroutines.flow/StateFlow<dev.jordond.filmstrip.player/PlayerState> // dev.jordond.filmstrip.testing/FakeVideoPlayer.state.<get-state>|<get-state>(){}[0]
+
+    final var holdSeeks // dev.jordond.filmstrip.testing/FakeVideoPlayer.holdSeeks|{}holdSeeks[0]
+        final fun <get-holdSeeks>(): kotlin/Boolean // dev.jordond.filmstrip.testing/FakeVideoPlayer.holdSeeks.<get-holdSeeks>|<get-holdSeeks>(){}[0]
+        final fun <set-holdSeeks>(kotlin/Boolean) // dev.jordond.filmstrip.testing/FakeVideoPlayer.holdSeeks.<set-holdSeeks>|<set-holdSeeks>(kotlin.Boolean){}[0]
+    final var isClosed // dev.jordond.filmstrip.testing/FakeVideoPlayer.isClosed|{}isClosed[0]
+        final fun <get-isClosed>(): kotlin/Boolean // dev.jordond.filmstrip.testing/FakeVideoPlayer.isClosed.<get-isClosed>|<get-isClosed>(){}[0]
+    final var onSetComposition // dev.jordond.filmstrip.testing/FakeVideoPlayer.onSetComposition|{}onSetComposition[0]
+        final fun <get-onSetComposition>(): kotlin/Function1<dev.jordond.filmstrip.player/SetCompositionRequest, dev.jordond.filmstrip.player/SetCompositionResult>? // dev.jordond.filmstrip.testing/FakeVideoPlayer.onSetComposition.<get-onSetComposition>|<get-onSetComposition>(){}[0]
+        final fun <set-onSetComposition>(kotlin/Function1<dev.jordond.filmstrip.player/SetCompositionRequest, dev.jordond.filmstrip.player/SetCompositionResult>?) // dev.jordond.filmstrip.testing/FakeVideoPlayer.onSetComposition.<set-onSetComposition>|<set-onSetComposition>(kotlin.Function1<dev.jordond.filmstrip.player.SetCompositionRequest,dev.jordond.filmstrip.player.SetCompositionResult>?){}[0]
+
+    final fun addEventListener(dev.jordond.filmstrip.player/PlaybackEventListener): dev.jordond.filmstrip/Cancellable // dev.jordond.filmstrip.testing/FakeVideoPlayer.addEventListener|addEventListener(dev.jordond.filmstrip.player.PlaybackEventListener){}[0]
+    final fun addPositionListener(kotlin.time/Duration, dev.jordond.filmstrip.player/PlayerPositionListener): dev.jordond.filmstrip/Cancellable // dev.jordond.filmstrip.testing/FakeVideoPlayer.addPositionListener|addPositionListener(kotlin.time.Duration;dev.jordond.filmstrip.player.PlayerPositionListener){}[0]
+    final fun addStateListener(dev.jordond.filmstrip.player/PlayerStateListener): dev.jordond.filmstrip/Cancellable // dev.jordond.filmstrip.testing/FakeVideoPlayer.addStateListener|addStateListener(dev.jordond.filmstrip.player.PlayerStateListener){}[0]
+    final fun beginScrub() // dev.jordond.filmstrip.testing/FakeVideoPlayer.beginScrub|beginScrub(){}[0]
+    final fun beginShuttle(kotlin/Float) // dev.jordond.filmstrip.testing/FakeVideoPlayer.beginShuttle|beginShuttle(kotlin.Float){}[0]
+    final fun close() // dev.jordond.filmstrip.testing/FakeVideoPlayer.close|close(){}[0]
+    final fun currentPosition(): kotlin.time/Duration // dev.jordond.filmstrip.testing/FakeVideoPlayer.currentPosition|currentPosition(){}[0]
+    final fun emit(dev.jordond.filmstrip.player/PlaybackEvent) // dev.jordond.filmstrip.testing/FakeVideoPlayer.emit|emit(dev.jordond.filmstrip.player.PlaybackEvent){}[0]
+    final fun endScrub() // dev.jordond.filmstrip.testing/FakeVideoPlayer.endScrub|endScrub(){}[0]
+    final fun endShuttle() // dev.jordond.filmstrip.testing/FakeVideoPlayer.endShuttle|endShuttle(){}[0]
+    final fun fail(dev.jordond.filmstrip.player/PlaybackError) // dev.jordond.filmstrip.testing/FakeVideoPlayer.fail|fail(dev.jordond.filmstrip.player.PlaybackError){}[0]
+    final fun landSeek() // dev.jordond.filmstrip.testing/FakeVideoPlayer.landSeek|landSeek(){}[0]
+    final fun pause() // dev.jordond.filmstrip.testing/FakeVideoPlayer.pause|pause(){}[0]
+    final fun play() // dev.jordond.filmstrip.testing/FakeVideoPlayer.play|play(){}[0]
+    final fun positionFlow(kotlin.time/Duration): kotlinx.coroutines.flow/Flow<kotlin.time/Duration> // dev.jordond.filmstrip.testing/FakeVideoPlayer.positionFlow|positionFlow(kotlin.time.Duration){}[0]
+    final fun seekTo(kotlin.time/Duration, dev.jordond.filmstrip.player/SeekAccuracy) // dev.jordond.filmstrip.testing/FakeVideoPlayer.seekTo|seekTo(kotlin.time.Duration;dev.jordond.filmstrip.player.SeekAccuracy){}[0]
+    final fun setComposition(dev.jordond.filmstrip.player/SetCompositionRequest, dev.jordond.filmstrip.player/SetCompositionCallback): dev.jordond.filmstrip/Cancellable // dev.jordond.filmstrip.testing/FakeVideoPlayer.setComposition|setComposition(dev.jordond.filmstrip.player.SetCompositionRequest;dev.jordond.filmstrip.player.SetCompositionCallback){}[0]
+    final fun setDuration(kotlin.time/Duration) // dev.jordond.filmstrip.testing/FakeVideoPlayer.setDuration|setDuration(kotlin.time.Duration){}[0]
+    final fun setExportSpec(dev.jordond.filmstrip.export/ExportSpec) // dev.jordond.filmstrip.testing/FakeVideoPlayer.setExportSpec|setExportSpec(dev.jordond.filmstrip.export.ExportSpec){}[0]
+    final fun setLoopRange(dev.jordond.filmstrip.edit/TimeRange?) // dev.jordond.filmstrip.testing/FakeVideoPlayer.setLoopRange|setLoopRange(dev.jordond.filmstrip.edit.TimeRange?){}[0]
+    final fun setPlaybackRange(dev.jordond.filmstrip.edit/TimeRange?) // dev.jordond.filmstrip.testing/FakeVideoPlayer.setPlaybackRange|setPlaybackRange(dev.jordond.filmstrip.edit.TimeRange?){}[0]
+    final fun setQualityPolicy(dev.jordond.filmstrip.player/PreviewQualityPolicy) // dev.jordond.filmstrip.testing/FakeVideoPlayer.setQualityPolicy|setQualityPolicy(dev.jordond.filmstrip.player.PreviewQualityPolicy){}[0]
+    final fun setStalled(kotlin/Boolean) // dev.jordond.filmstrip.testing/FakeVideoPlayer.setStalled|setStalled(kotlin.Boolean){}[0]
+    final fun setStatus(dev.jordond.filmstrip.player/PlaybackStatus) // dev.jordond.filmstrip.testing/FakeVideoPlayer.setStatus|setStatus(dev.jordond.filmstrip.player.PlaybackStatus){}[0]
+    final fun setVolume(kotlin/Float) // dev.jordond.filmstrip.testing/FakeVideoPlayer.setVolume|setVolume(kotlin.Float){}[0]
+    final fun stepFrames(kotlin/Int) // dev.jordond.filmstrip.testing/FakeVideoPlayer.stepFrames|stepFrames(kotlin.Int){}[0]
+    final suspend fun setComposition(dev.jordond.filmstrip.edit/Composition, kotlin.time/Duration?, kotlin/Boolean): dev.jordond.filmstrip.player/SetCompositionResult // dev.jordond.filmstrip.testing/FakeVideoPlayer.setComposition|setComposition(dev.jordond.filmstrip.edit.Composition;kotlin.time.Duration?;kotlin.Boolean){}[0]
+}
+
+final fun dev.jordond.filmstrip.testing/testAdjustment(dev.jordond.filmstrip.export/AdjustmentKind = ..., kotlin/String = ..., kotlin/String = ..., kotlin/String = ...): dev.jordond.filmstrip.export/Adjustment // dev.jordond.filmstrip.testing/testAdjustment|testAdjustment(dev.jordond.filmstrip.export.AdjustmentKind;kotlin.String;kotlin.String;kotlin.String){}[0]
+final fun dev.jordond.filmstrip.testing/testAudioTrack(dev.jordond.filmstrip.media/AudioTrackId = ..., dev.jordond.filmstrip.media/TrackCodec = ..., kotlin/Int = ..., kotlin/Int = ..., dev.jordond.filmstrip.codec/Bitrate? = ..., kotlin/String? = ..., kotlin/Boolean = ...): dev.jordond.filmstrip.media/AudioTrackInfo // dev.jordond.filmstrip.testing/testAudioTrack|testAudioTrack(dev.jordond.filmstrip.media.AudioTrackId;dev.jordond.filmstrip.media.TrackCodec;kotlin.Int;kotlin.Int;dev.jordond.filmstrip.codec.Bitrate?;kotlin.String?;kotlin.Boolean){}[0]
+final fun dev.jordond.filmstrip.testing/testCapableVerdict(dev.jordond.filmstrip.export/ExportPlan = ...): dev.jordond.filmstrip.export/Verdict.Capable // dev.jordond.filmstrip.testing/testCapableVerdict|testCapableVerdict(dev.jordond.filmstrip.export.ExportPlan){}[0]
+final fun dev.jordond.filmstrip.testing/testDegradedVerdict(dev.jordond.filmstrip.export/ExportPlan = ..., kotlin.collections/List<dev.jordond.filmstrip.export/Adjustment> = ...): dev.jordond.filmstrip.export/Verdict.Degraded // dev.jordond.filmstrip.testing/testDegradedVerdict|testDegradedVerdict(dev.jordond.filmstrip.export.ExportPlan;kotlin.collections.List<dev.jordond.filmstrip.export.Adjustment>){}[0]
+final fun dev.jordond.filmstrip.testing/testDeviceCapabilities(kotlin.collections/List<dev.jordond.filmstrip.capability/VideoEncoderCapability> = ..., kotlin.collections/List<dev.jordond.filmstrip.capability/AudioEncoderCapability> = ..., kotlin/Boolean = ..., kotlin/Int? = ...): dev.jordond.filmstrip.capability/DeviceCapabilities // dev.jordond.filmstrip.testing/testDeviceCapabilities|testDeviceCapabilities(kotlin.collections.List<dev.jordond.filmstrip.capability.VideoEncoderCapability>;kotlin.collections.List<dev.jordond.filmstrip.capability.AudioEncoderCapability>;kotlin.Boolean;kotlin.Int?){}[0]
+final fun dev.jordond.filmstrip.testing/testExportPlan(dev.jordond.filmstrip.edit/Composition = ..., dev.jordond.filmstrip.export/ExportSpec = ..., dev.jordond.filmstrip.export/ExportPath = ..., dev.jordond.filmstrip.export/OutputFormat = ..., kotlin.collections/List<dev.jordond.filmstrip.export/PlannedEffect> = ..., dev.jordond.filmstrip.export/ExportEstimate = ..., dev.jordond.filmstrip.capability/EffectParity = ..., kotlin.time/Duration = ..., kotlin.collections/List<dev.jordond.filmstrip.export/CopyBlocker> = ..., kotlin.collections/List<dev.jordond.filmstrip.export/InertNotice> = ...): dev.jordond.filmstrip.export/ExportPlan // dev.jordond.filmstrip.testing/testExportPlan|testExportPlan(dev.jordond.filmstrip.edit.Composition;dev.jordond.filmstrip.export.ExportSpec;dev.jordond.filmstrip.export.ExportPath;dev.jordond.filmstrip.export.OutputFormat;kotlin.collections.List<dev.jordond.filmstrip.export.PlannedEffect>;dev.jordond.filmstrip.export.ExportEstimate;dev.jordond.filmstrip.capability.EffectParity;kotlin.time.Duration;kotlin.collections.List<dev.jordond.filmstrip.export.CopyBlocker>;kotlin.collections.List<dev.jordond.filmstrip.export.InertNotice>){}[0]
+final fun dev.jordond.filmstrip.testing/testFrame(kotlin.time/Duration = ..., kotlin/Int = ..., kotlin/Int = ..., dev.jordond.filmstrip.media/ColorSpace = ...): dev.jordond.filmstrip.media/FrameResult.Success // dev.jordond.filmstrip.testing/testFrame|testFrame(kotlin.time.Duration;kotlin.Int;kotlin.Int;dev.jordond.filmstrip.media.ColorSpace){}[0]
+final fun dev.jordond.filmstrip.testing/testIncapableVerdict(kotlin.collections/List<dev.jordond.filmstrip/FilmstripError> = ..., dev.jordond.filmstrip.export/Verdict.Degraded? = ...): dev.jordond.filmstrip.export/Verdict.Incapable // dev.jordond.filmstrip.testing/testIncapableVerdict|testIncapableVerdict(kotlin.collections.List<dev.jordond.filmstrip.FilmstripError>;dev.jordond.filmstrip.export.Verdict.Degraded?){}[0]
+final fun dev.jordond.filmstrip.testing/testMediaInfo(kotlin.time/Duration = ..., dev.jordond.filmstrip.media/VideoTrackInfo? = ..., kotlin.collections/List<dev.jordond.filmstrip.media/AudioTrackInfo> = ..., kotlin/Boolean = ...): dev.jordond.filmstrip.media/MediaInfo // dev.jordond.filmstrip.testing/testMediaInfo|testMediaInfo(kotlin.time.Duration;dev.jordond.filmstrip.media.VideoTrackInfo?;kotlin.collections.List<dev.jordond.filmstrip.media.AudioTrackInfo>;kotlin.Boolean){}[0]
+final fun dev.jordond.filmstrip.testing/testMediaSink(kotlin/String = ...): dev.jordond.filmstrip.media/MediaSink // dev.jordond.filmstrip.testing/testMediaSink|testMediaSink(kotlin.String){}[0]
+final fun dev.jordond.filmstrip.testing/testMediaSource(kotlin/String = ...): dev.jordond.filmstrip.media/MediaSource // dev.jordond.filmstrip.testing/testMediaSource|testMediaSource(kotlin.String){}[0]
+final fun dev.jordond.filmstrip.testing/testOutputFormat(dev.jordond.filmstrip.geometry/Size = ..., dev.jordond.filmstrip.codec/VideoCodec = ..., dev.jordond.filmstrip.codec/AudioCodec = ..., dev.jordond.filmstrip.codec/Bitrate? = ..., kotlin/Int = ..., dev.jordond.filmstrip.export/AudioFormat? = ..., kotlin/Int? = ...): dev.jordond.filmstrip.export/OutputFormat // dev.jordond.filmstrip.testing/testOutputFormat|testOutputFormat(dev.jordond.filmstrip.geometry.Size;dev.jordond.filmstrip.codec.VideoCodec;dev.jordond.filmstrip.codec.AudioCodec;dev.jordond.filmstrip.codec.Bitrate?;kotlin.Int;dev.jordond.filmstrip.export.AudioFormat?;kotlin.Int?){}[0]
+final fun dev.jordond.filmstrip.testing/testPlatformImage(kotlin/Int = ..., kotlin/Int = ...): dev.jordond.filmstrip.media/PlatformImage // dev.jordond.filmstrip.testing/testPlatformImage|testPlatformImage(kotlin.Int;kotlin.Int){}[0]
+final fun dev.jordond.filmstrip.testing/testVideoEncoder(dev.jordond.filmstrip.codec/VideoCodec = ..., kotlin/String? = ..., dev.jordond.filmstrip.geometry/Size = ..., kotlin/Int? = ..., dev.jordond.filmstrip.codec/Bitrate? = ..., kotlin/Boolean? = ..., kotlin/Int = ...): dev.jordond.filmstrip.capability/VideoEncoderCapability // dev.jordond.filmstrip.testing/testVideoEncoder|testVideoEncoder(dev.jordond.filmstrip.codec.VideoCodec;kotlin.String?;dev.jordond.filmstrip.geometry.Size;kotlin.Int?;dev.jordond.filmstrip.codec.Bitrate?;kotlin.Boolean?;kotlin.Int){}[0]
+final fun dev.jordond.filmstrip.testing/testVideoTrack(dev.jordond.filmstrip.geometry/Size = ..., kotlin/Int = ..., dev.jordond.filmstrip.geometry/Size = ..., kotlin/Float = ..., kotlin/Float? = ..., dev.jordond.filmstrip.media/TrackCodec = ..., kotlin/Int? = ..., dev.jordond.filmstrip.media/ColorSpace = ..., dev.jordond.filmstrip.media/HdrTransfer? = ..., dev.jordond.filmstrip.codec/Bitrate? = ..., kotlin/Boolean = ...): dev.jordond.filmstrip.media/VideoTrackInfo // dev.jordond.filmstrip.testing/testVideoTrack|testVideoTrack(dev.jordond.filmstrip.geometry.Size;kotlin.Int;dev.jordond.filmstrip.geometry.Size;kotlin.Float;kotlin.Float?;dev.jordond.filmstrip.media.TrackCodec;kotlin.Int?;dev.jordond.filmstrip.media.ColorSpace;dev.jordond.filmstrip.media.HdrTransfer?;dev.jordond.filmstrip.codec.Bitrate?;kotlin.Boolean){}[0]

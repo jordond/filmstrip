@@ -48,6 +48,7 @@ kotlin {
       implementation(projects.filmstripIoFilekitCompose)
       implementation(projects.filmstripIoOkio)
       implementation(projects.filmstripIoKotlinx)
+      implementation(projects.filmstripTesting)
       implementation(libs.compose.runtime)
     }
   }
