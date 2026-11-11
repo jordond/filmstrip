@@ -1,5 +1,6 @@
 ---
-import { DOCS_ENTRY, REPO_URL } from '../../lib/site'
+import VersionMenu from '../VersionMenu.astro'
+import { API_ENTRY, DOCS_ENTRY, REPO_URL } from '../../lib/site'
 ---
 
 <header class="header">
@@ -8,9 +9,10 @@ import { DOCS_ENTRY, REPO_URL } from '../../lib/site'
     <span>PLAY</span>
     <span class="speed">SP</span>
   </div>
+  <VersionMenu />
   <nav aria-label="Main" class="osd nav">
     <a href={DOCS_ENTRY}>DOCS</a>
-    <a href="/api/">API</a>
+    <a href={API_ENTRY}>API</a>
     <a href={REPO_URL}>GITHUB</a>
   </nav>
 </header>
@@ -31,8 +33,11 @@ import { DOCS_ENTRY, REPO_URL } from '../../lib/site'
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    justify-content: space-between;
-    gap: 16px;
+    gap: 16px 24px;
+  }
+
+  .nav {
+    margin-inline-start: auto;
   }
 
   .deck {

@@ -3,14 +3,21 @@ import { extname, join, normalize, resolve } from 'node:path'
 import type { Plugin } from 'vite'
 
 /**
- * The Gradle outputs that scripts/assemble.sh copies into dist after a build, keyed by the path the site serves them
- * at. The dev server reads them in place, so each one has to be built before it shows up there.
+ * What scripts/assemble.sh copies into a built site, keyed by the path a version of the site serves it at. The dev
+ * server reads each in place, so a Gradle output has to be built before it shows up there. A longer path wins over a
+ * shorter one it sits inside.
  */
 export const BUILT_MOUNTS: Record<string, string> = {
+  '/api/fonts/': 'website/src/fonts',
   '/api/': 'dokka',
   '/demo/app/': 'sample/demo/webApp/build/dist/wasmJs/productionExecutable',
   '/demo/try/': 'sample/tryIt/build/dist/wasmJs/productionExecutable',
   '/demo/playground/': 'sample/playground/build/dist/wasmJs/productionExecutable',
+}
+
+/** Files scripts/assemble.sh builds from the site's own sources, which the dev server compiles on request. */
+export const SOURCE_MOUNTS: Record<string, string> = {
+  '/api/version-menu.js': '/src/lib/versionMenu.client.ts',
 }
 
 const TYPES: Record<string, string> = {
@@ -32,21 +39,28 @@ const TYPES: Record<string, string> = {
 }
 
 /**
- * A Vite plugin for `astro dev` that serves each of [BUILT_MOUNTS] straight from its Gradle output under [repoRoot].
- * A request for a directory gets its index.html, and a mount that hasn't been built answers 404 with the path it
- * looked in.
+ * A Vite plugin for `astro dev` that serves each of [BUILT_MOUNTS] straight from its directory under [repoRoot], at
+ * its path under [base], and sends each of [SOURCE_MOUNTS] to its source. A request for a directory gets its
+ * index.html, and a mount that hasn't been built answers 404 with the path it looked in.
  */
-export function builtMounts(repoRoot: string): Plugin {
+export function builtMounts(repoRoot: string, base: string): Plugin {
+  const mounts = Object.keys(BUILT_MOUNTS).sort((a, b) => b.length - a.length)
   return {
     name: 'filmstrip-built-mounts',
     apply: 'serve',
     configureServer(server) {
       server.middlewares.use((req, res, next) => {
-        const path = decodeURIComponent((req.url ?? '').split('?')[0])
-        const mount = Object.keys(BUILT_MOUNTS).find((prefix) => path === prefix.slice(0, -1) || path.startsWith(prefix))
+        const asked = decodeURIComponent((req.url ?? '').split('?')[0])
+        // The dev server has taken the base off by the time a request gets here, and a build preview has not.
+        const path = asked.startsWith(`${base}/`) ? asked.slice(base.length) : asked
+        if (path in SOURCE_MOUNTS) {
+          res.writeHead(302, { Location: `${base}${SOURCE_MOUNTS[path]}` })
+          return res.end()
+        }
+        const mount = mounts.find((prefix) => path === prefix.slice(0, -1) || path.startsWith(prefix))
         if (!mount) return next()
         if (path === mount.slice(0, -1)) {
-          res.writeHead(301, { Location: mount })
+          res.writeHead(301, { Location: `${base}${mount}` })
           return res.end()
         }
         const root = resolve(repoRoot, BUILT_MOUNTS[mount])

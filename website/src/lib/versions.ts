@@ -40,9 +40,11 @@ export function ffmpegFloor(source: string): string {
 }
 
 /**
- * Reads `VERSION_NAME` out of gradle.properties.
+ * The library's version: [override] when a release sets one, the way `ORG_GRADLE_PROJECT_VERSION_NAME` overrides the
+ * build, and otherwise `VERSION_NAME` out of gradle.properties.
  */
-export function libraryVersion(properties: string): string {
+export function libraryVersion(properties: string, override?: string): string {
+  if (override) return override
   const match = properties.match(/^VERSION_NAME=(.+)$/m)
   if (!match) throw new Error('No VERSION_NAME in gradle.properties')
   return match[1].trim()
@@ -66,7 +68,10 @@ export function readVersions(root: string = repoRoot): Versions {
   const toml = readFileSync(join(root, catalogPath), 'utf8')
   return {
     group: catalogVersion(toml, 'group'),
-    library: libraryVersion(readFileSync(join(root, 'gradle.properties'), 'utf8')),
+    library: libraryVersion(
+      readFileSync(join(root, 'gradle.properties'), 'utf8'),
+      process.env.ORG_GRADLE_PROJECT_VERSION_NAME,
+    ),
     kotlin: catalogVersion(toml, 'kotlin'),
     composeMultiplatform: catalogVersion(toml, 'compose-multiplatform'),
     minSdk: catalogVersion(toml, 'sdk-min'),

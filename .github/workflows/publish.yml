@@ -48,3 +48,16 @@ jobs:
           ORG_GRADLE_PROJECT_signingInMemoryKeyId: ${{ secrets.SIGNING_KEY_ID }}
           ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.SIGNING_KEY }}
           ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.SIGNING_PASSWORD }}
+
+  # A release's version of the docs site goes up only once the release itself is on Maven Central.
+  docs:
+    name: Docs site
+    needs: release
+    if: github.event_name == 'release' && !github.event.release.prerelease
+    uses: ./.github/workflows/docs.yml
+    with:
+      release_tag: ${{ github.event.release.tag_name }}
+    secrets: inherit
+    permissions:
+      contents: write
+      pull-requests: write

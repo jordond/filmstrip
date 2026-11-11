@@ -1,5 +1,5 @@
 ---
-import { DOCS_ENTRY, MAVEN_CENTRAL_URL, REPO_URL } from '../../lib/site'
+import { API_ENTRY, DOCS_ENTRY, MAVEN_CENTRAL_URL, REPO_URL } from '../../lib/site'
 
 interface Props {
   /** The smaller sign-off under a docs page. */
@@ -14,7 +14,7 @@ const { compact = false } = Astro.props
     <p class="disp rgb sign-off">Be kind, rewind</p>
     <nav aria-label="Footer" class="osd links">
       <a href={DOCS_ENTRY}>DOCS</a>
-      <a href="/api/">API REFERENCE</a>
+      <a href={API_ENTRY}>API REFERENCE</a>
       <a href={REPO_URL}>GITHUB</a>
       <a href={MAVEN_CENTRAL_URL}>MAVEN CENTRAL</a>
     </nav>

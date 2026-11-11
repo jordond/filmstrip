@@ -1,0 +1,23 @@
+---
+// The warning across the top of every page of the development version. Other versions render nothing.
+import '../styles/version.css'
+import { DEV, LATEST, swapVersion } from '../lib/docsVersions'
+import { DOCS_VERSION } from '../lib/site'
+
+const latest = swapVersion(Astro.url.pathname, LATEST)
+---
+
+{
+  DOCS_VERSION === DEV && (
+    <div class="dev-banner" data-dev-banner data-pagefind-ignore>
+      You're reading the docs of the development version, which may describe features that are not released yet.{' '}
+      <span data-latest>
+        Switch to the <a href={latest} data-latest-link>latest stable version</a>.
+      </span>
+    </div>
+  )
+}
+
+<script>
+  import '../lib/versionMenu.client.ts'
+</script>

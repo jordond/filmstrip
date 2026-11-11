@@ -1,0 +1,45 @@
+/* The version menu and the development version's banner, on the site and on the API reference alike. */
+
+.version-menu {
+  padding: 2px 8px;
+  border: 1px solid var(--line-strong);
+  border-radius: 0;
+  background-color: var(--ground);
+  color: var(--muted-strong);
+  font-family: var(--font-osd);
+  font-size: 22px;
+  line-height: 1;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+}
+
+.version-menu:hover,
+.version-menu:focus-visible {
+  border-color: var(--amber);
+  color: var(--amber);
+}
+
+.version-menu:focus-visible {
+  outline: 2px solid var(--cyan);
+  outline-offset: 2px;
+}
+
+.dev-banner {
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--amber);
+  background-color: var(--panel-raised);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 14px;
+  line-height: 1.5;
+  text-align: center;
+  text-wrap: balance;
+}
+
+.dev-banner a {
+  color: var(--amber);
+}
+
+.dev-banner a:hover {
+  color: var(--amber-hover);
+}

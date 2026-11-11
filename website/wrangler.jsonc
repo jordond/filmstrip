@@ -6,8 +6,7 @@
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS",
-    // Only the root needs the worker, to send the demo host to the full screen demo.
-    "run_worker_first": ["/"],
+    // The worker answers what no asset matches: the root, /latest and paths from before the site had versions.
     "not_found_handling": "404-page",
   },
   "workers_dev": false,

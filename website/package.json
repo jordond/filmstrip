@@ -9,7 +9,7 @@
     "preview": "astro preview",
     "check": "astro check",
     "assemble": "bash scripts/assemble.sh",
-    "deploy": "bash scripts/assemble.sh && bun x wrangler deploy"
+    "assemble:site": "bun scripts/assemble-versions.ts"
   },
   "dependencies": {
     "@astrojs/markdown-satteri": "0.4.6",

@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { repoRoot } from './snippets'
-import { catalogVersion, ffmpegFloor, readVersions } from './versions'
+import { catalogVersion, ffmpegFloor, libraryVersion, readVersions } from './versions'
 
 const toml = readFileSync(join(repoRoot, 'gradle/libs.versions.toml'), 'utf8')
 const catalog = Bun.TOML.parse(toml) as { versions: Record<string, string> }
@@ -56,5 +56,16 @@ describe('catalogVersion', () => {
 describe('ffmpegFloor', () => {
   test('throws naming a missing constant', () => {
     expect(() => ffmpegFloor('const val MINIMUM_MAJOR: Int = 8')).toThrow(/MINIMUM_MINOR/)
+  })
+})
+
+describe('libraryVersion', () => {
+  test('reads VERSION_NAME out of gradle.properties', () => {
+    expect(libraryVersion('GROUP=x\nVERSION_NAME=0.2.0-SNAPSHOT\n')).toBe('0.2.0-SNAPSHOT')
+  })
+
+  test('a release version replaces it', () => {
+    expect(libraryVersion('VERSION_NAME=0.2.0-SNAPSHOT\n', '0.1.3')).toBe('0.1.3')
+    expect(libraryVersion('VERSION_NAME=0.2.0-SNAPSHOT\n', '')).toBe('0.2.0-SNAPSHOT')
   })
 })

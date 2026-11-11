@@ -1,5 +1,7 @@
 # build output
 dist/
+dist-version/
+stored-versions/
 # generated types
 .astro/
 

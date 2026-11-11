@@ -1,0 +1,13 @@
+---
+// The version menu. It is built showing this version alone, and the page fills in the rest from the site's manifest.
+import '../styles/version.css'
+import { DOCS_VERSION } from '../lib/site'
+---
+
+<select class="version-menu" data-version-menu aria-label="Docs version">
+  <option selected>{DOCS_VERSION}</option>
+</select>
+
+<script>
+  import '../lib/versionMenu.client.ts'
+</script>

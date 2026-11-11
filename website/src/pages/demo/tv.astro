@@ -6,7 +6,7 @@ import '../../styles/tokens.css'
 import '../../styles/crt.css'
 import tokensCss from '../../styles/tokens.css?raw'
 import DemoFrame from '../../components/DemoFrame.astro'
-import { DEMO_HOST, DOCS_ENTRY, isPreviewBuild, SITE_URL } from '../../lib/site'
+import { DEMO_HOST, DOCS_ENTRY, FAVICON, isPreviewBuild, SITE_URL } from '../../lib/site'
 import { tokenValue } from '../../lib/tokens'
 
 const title = 'filmstrip demo'
@@ -21,7 +21,7 @@ const description = 'The filmstrip sample app, editing and exporting video live 
     <title>{title}</title>
     <meta name="description" content={description} />
     <link rel="canonical" href={DEMO_HOST} />
-    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href={FAVICON} type="image/svg+xml" />
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
     <meta property="og:url" content={DEMO_HOST} />

@@ -26,6 +26,7 @@ val websiteTheme: DokkaExtension.() -> Unit = {
       rootDir.resolve("website/src/styles/fonts.css"),
       rootDir.resolve("website/src/styles/tokens.css"),
       rootDir.resolve("website/src/styles/dokka.css"),
+      rootDir.resolve("website/src/styles/version.css"),
     )
     templatesDir.set(rootDir.resolve("website/dokka-templates"))
     footerMessage.set("MIT licensed. Pre-alpha, so expect things to change.")

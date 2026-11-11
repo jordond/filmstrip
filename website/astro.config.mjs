@@ -7,20 +7,26 @@ import { defineConfig } from 'astro/config'
 import starlightImageZoom from 'starlight-image-zoom'
 import starlightLinksValidator from 'starlight-links-validator'
 import starlightLlmsTxt from 'starlight-llms-txt'
+import { baseLinks } from './src/lib/baseLinks.ts'
 import { builtMounts } from './src/lib/devMounts.ts'
 import { tableMarks } from './src/lib/tableMarks.ts'
-import { isPreviewBuild as preview, REPO_URL as repo, SITE_URL } from './src/lib/site.ts'
+import { DOCS_VERSION, isPreviewBuild as preview, REPO_URL as repo, SITE_URL } from './src/lib/site.ts'
 import { tokenValue } from './src/lib/tokens.ts'
 import { vhsTheme } from './src/lib/vhsTheme.ts'
 
+// Every version of the site is served under its own prefix, /dev for the main branch and /0.1 for a release.
+const base = `/${DOCS_VERSION}`
 const tokensCss = readFileSync(new URL('./src/styles/tokens.css', import.meta.url), 'utf8')
 
 export default defineConfig({
   site: SITE_URL,
+  base,
+  // One version of the site. scripts/assemble-versions.ts puts every version together in dist.
+  outDir: './dist-version',
   output: 'static',
   trailingSlash: 'ignore',
-  markdown: { processor: satteri({ hastPlugins: [tableMarks] }) },
-  vite: { plugins: [builtMounts(fileURLToPath(new URL('..', import.meta.url)))] },
+  markdown: { processor: satteri({ hastPlugins: [tableMarks, baseLinks(base)] }) },
+  vite: { plugins: [builtMounts(fileURLToPath(new URL('..', import.meta.url)), base)] },
   integrations: [
     starlight({
       title: 'filmstrip',
@@ -33,6 +39,7 @@ export default defineConfig({
       ],
       customCss: ['./src/styles/fonts.css', './src/styles/tokens.css', './src/styles/crt.css', './src/styles/docs.css'],
       components: {
+        Banner: './src/components/docs/Banner.astro',
         Footer: './src/components/docs/Footer.astro',
         PageSidebar: './src/components/docs/PageSidebar.astro',
         Pagination: './src/components/docs/Pagination.astro',

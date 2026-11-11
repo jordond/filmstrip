@@ -1,14 +1,16 @@
+import { withBase } from './base.ts'
+
 /** Where the wasm sample's index.html is served from. */
-export const DEMO_SRC = '/demo/app/'
+export const DEMO_SRC = withBase('/demo/app/')
 
 /** The sample's download size, shown before the reader chooses to load it. */
 export const DEMO_SIZE = 'about 16 MB'
 
 /** Where the Try it app's index.html is served from. */
-export const TRY_SRC = '/demo/try/'
+export const TRY_SRC = withBase('/demo/try/')
 
 /** Where the docs playground's index.html is served from. A page picks its sample with `?sample=`. */
-export const PLAYGROUND_SRC = '/demo/playground/'
+export const PLAYGROUND_SRC = withBase('/demo/playground/')
 
 /** The address of the playground running [sample]. */
 export function playgroundUrl(sample: string): string {

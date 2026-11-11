@@ -5,13 +5,14 @@ import '../styles/tokens.css'
 import '../styles/crt.css'
 import '../styles/landing.css'
 import tokensCss from '../styles/tokens.css?raw'
+import DevBanner from '../components/DevBanner.astro'
 import Footer from '../components/landing/Footer.astro'
 import Header from '../components/landing/Header.astro'
 import Hero from '../components/landing/Hero.astro'
 import Platforms from '../components/landing/Platforms.astro'
 import QuickStart from '../components/landing/QuickStart.astro'
 import TryIt from '../components/landing/TryIt.astro'
-import { isPreviewBuild } from '../lib/site'
+import { FAVICON, isPreviewBuild } from '../lib/site'
 import { tokenValue } from '../lib/tokens'
 
 const title = 'filmstrip, video for every Kotlin target'
@@ -28,7 +29,7 @@ const canonical = new URL(Astro.url.pathname, Astro.site)
     <title>{title}</title>
     <meta name="description" content={description} />
     <link rel="canonical" href={canonical} />
-    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href={FAVICON} type="image/svg+xml" />
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
     <meta property="og:url" content={canonical} />
@@ -36,6 +37,7 @@ const canonical = new URL(Astro.url.pathname, Astro.site)
     {isPreviewBuild && <meta name="robots" content="noindex, nofollow" />}
   </head>
   <body>
+    <DevBanner />
     <div class="crt-page">
       <Header />
       <main>

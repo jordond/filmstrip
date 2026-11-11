@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 # Usage: assemble.sh [--skip-api] [--skip-demo]
-# Builds the site into website/dist, then copies in the Dokka HTML as /api, the wasm sample as /demo/app, the Try it
+# Builds one version of the site into website/dist-version, the one FILMSTRIP_DOCS_VERSION names or the development
+# version, then copies in the Dokka HTML as /api, the wasm sample as /demo/app, the Try it
 # app as /demo/try and the docs playground as /demo/playground. All must be built first, with `./gradlew dokkaGenerate`,
 # `./gradlew :sample:demo:webApp:wasmJsBrowserDistribution`, `./gradlew :sample:tryIt:wasmJsBrowserDistribution` and
 # `./gradlew :sample:playground:wasmJsBrowserDistribution`.
 # The skip flags are for a local preview without one of them, never for a deploy.
+# scripts/assemble-versions.ts then puts the versions together in website/dist, which is what gets deployed.
 set -euo pipefail
 
 website=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
@@ -48,15 +50,19 @@ cd "$website"
 bun x astro build
 
 if ! $skip_api; then
-  rm -rf dist/api
-  cp -R "$api" dist/api
+  rm -rf dist-version/api
+  cp -R "$api" dist-version/api
+  # The reference's fonts.css is the site's own, which reads its fonts from beside the styles directory.
+  cp -R src/fonts dist-version/api/fonts
+  # The reference's templates load the site's version menu, which Astro only bundles into its own pages.
+  bun build src/lib/versionMenu.client.ts --minify --outfile dist-version/api/version-menu.js
 fi
 if ! $skip_demo; then
-  rm -rf dist/demo/app
-  mkdir -p dist/demo
-  cp -R "$demo" dist/demo/app
-  rm -rf dist/demo/try
-  cp -R "$try" dist/demo/try
-  rm -rf dist/demo/playground
-  cp -R "$playground" dist/demo/playground
+  rm -rf dist-version/demo/app
+  mkdir -p dist-version/demo
+  cp -R "$demo" dist-version/demo/app
+  rm -rf dist-version/demo/try
+  cp -R "$try" dist-version/demo/try
+  rm -rf dist-version/demo/playground
+  cp -R "$playground" dist-version/demo/playground
 fi

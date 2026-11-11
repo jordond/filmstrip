@@ -1,5 +1,6 @@
 ---
-// The landing page's OSD mark in place of Starlight's logo and title.
+// The landing page's OSD mark in place of Starlight's logo and title, with the version menu beside it.
+import VersionMenu from '../VersionMenu.astro'
 const { siteTitle, siteTitleHref } = Astro.locals.starlightRoute
 ---
 
@@ -11,6 +12,7 @@ const { siteTitle, siteTitleHref } = Astro.locals.starlightRoute
   <span aria-hidden="true">PLAY</span>
   <span class="speed" aria-hidden="true">SP</span>
 </a>
+<VersionMenu />
 
 <style>
   .deck {
@@ -22,6 +24,7 @@ const { siteTitle, siteTitleHref } = Astro.locals.starlightRoute
     color: var(--amber);
     text-decoration: none;
     white-space: nowrap;
+    margin-inline-end: 16px;
   }
 
   .deck:hover {

@@ -1,7 +1,8 @@
 <#import "includes/page_metadata.ftl" as page_metadata>
 <#import "includes/header.ftl" as header>
 <#import "includes/footer.ftl" as footer>
-<#-- Dokka's own base template, dark from the first paint and without the script that reads a stored theme. -->
+<#-- Dokka's own base template, dark from the first paint and without the script that reads a stored theme. The
+site's version-menu.js fills the header's version menu and shows the banner on the development version. -->
 <!DOCTYPE html>
 <html class="no-js theme-dark" lang="en">
 <head>
@@ -11,6 +12,8 @@
         <script>var pathToRoot = "${pathToRoot}";</script></@template_cmd>
     <script>document.documentElement.classList.replace("no-js", "js");</script>
     <@resources/>
+    <@template_cmd name="pathToRoot">
+        <script src="${pathToRoot}version-menu.js" type="module"></script></@template_cmd>
 </head>
 <body>
 <div class="root">
@@ -38,6 +41,11 @@
         </nav>
         <div id="resizer" class="resizer" data-item-type="BAR"></div>
         <div id="main" data-item-type="SECTION" role="main">
+            <div class="dev-banner" data-dev-banner hidden>
+                You're reading the docs of the development version, which may describe features that are not released
+                yet.
+                <span data-latest>Switch to the <a href="/latest/api/" data-latest-link>latest stable version</a>.</span>
+            </div>
             <@content/>
             <@footer.display/>
         </div>

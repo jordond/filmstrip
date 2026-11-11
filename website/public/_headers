@@ -1,14 +1,14 @@
-/_astro/*
+/:version/_astro/*
   Cache-Control: public, max-age=31536000, immutable
 
-/api/*
+/:version/api/*
   Cache-Control: public, max-age=86400
 
-/demo/app/*.wasm
+/:version/demo/app/*.wasm
   Cache-Control: public, max-age=31536000, immutable
 
-/demo/try/*.wasm
+/:version/demo/try/*.wasm
   Cache-Control: public, max-age=31536000, immutable
 
-/demo/playground/*.wasm
+/:version/demo/playground/*.wasm
   Cache-Control: public, max-age=31536000, immutable

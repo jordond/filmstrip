@@ -1,11 +1,11 @@
 ---
 // The landing page's text nav in place of Starlight's social icons, in the header and the mobile menu.
-import { DOCS_ENTRY, REPO_URL } from '../../lib/site'
+import { API_ENTRY, DOCS_ENTRY, REPO_URL } from '../../lib/site'
 ---
 
 <nav aria-label="Site" class="osd nav">
   <a href={DOCS_ENTRY}>DOCS</a>
-  <a href="/api/">API</a>
+  <a href={API_ENTRY}>API</a>
   <a href={REPO_URL} rel="me">GITHUB</a>
 </nav>
 
