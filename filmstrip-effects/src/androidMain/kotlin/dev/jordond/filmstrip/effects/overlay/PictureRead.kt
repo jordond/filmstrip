@@ -176,7 +176,7 @@ private fun decoded(bytes: ByteArray): PictureRead {
   val prepared = input.bytes
   val options = BitmapFactory.Options().apply { inPremultiplied = false }
   val shape = options.readShape(prepared)
-  options.keepWideSamples(shape)
+  options.keepWideSamples(shape, input.readOnlyIntoHalfFloats(sdk))
   val bitmap =
     BitmapFactory.decodeByteArray(prepared, 0, prepared.size, options)
       ?: return RefusedPicture(noFrameRefusal(input.coding, sdk).message)
@@ -203,6 +203,16 @@ internal class DecoderInput(
   val conversion: DecoderConversion?,
   val refusal: String? = conversion?.refusal,
 )
+
+/**
+ * Whether Android's decoder on API level [sdk] lands this picture through the matrix its [DecoderInput.conversion]
+ * names only when it decodes into half floats, as [avifReadsOnlyIntoHalfFloats] says of an AVIF. False for a picture
+ * that is not an AVIF or whose landing is left to the decoder.
+ */
+internal fun DecoderInput.readOnlyIntoHalfFloats(sdk: Int): Boolean {
+  val matrix = conversion?.matrix ?: return false
+  return coding?.avif == true && avifReadsOnlyIntoHalfFloats(matrix, sdk)
+}
 
 /**
  * This picture as Android's decoder on API level [sdk] is handed it, with every color description hidden by
@@ -274,9 +284,13 @@ private fun BitmapFactory.Options.readShape(picture: ByteArray): PictureShape {
 }
 
 // A sixteen-bit picture decodes to half floats. A ten-bit picture decodes to RGBA_1010102 from API 33, which the raster
-// reads only as eight-bit codes, so it is asked for half floats as well, which hold its ten bits.
-private fun BitmapFactory.Options.keepWideSamples(shape: PictureShape) {
-  if (shape.halfFloat || shape.packedTenBit) preferHalfFloats()
+// reads only as eight-bit codes, so it is asked for half floats as well, which hold its ten bits. So is a picture whose
+// matrix the decoder reads only into half floats.
+private fun BitmapFactory.Options.keepWideSamples(
+  shape: PictureShape,
+  matrixNeedsHalfFloats: Boolean,
+) {
+  if (shape.halfFloat || shape.packedTenBit || matrixNeedsHalfFloats) preferHalfFloats()
 }
 
 /**

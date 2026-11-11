@@ -3,9 +3,13 @@ package dev.jordond.filmstrip.media3
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Color
+import dev.jordond.filmstrip.color.authoredHdrNits
+import dev.jordond.filmstrip.color.signalFromNits
+import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.test.writeAtomically
 import java.io.File
 import kotlin.math.abs
+import kotlin.math.roundToInt
 
 /**
  * A rectangle of the frame to measure, as fractions.
@@ -43,6 +47,43 @@ internal fun Bitmap.gainedOver(
   plain: Bitmap,
   region: Region,
 ): Float = badgeFraction(region) - plain.badgeFraction(region)
+
+/**
+ * How much more of [region] reads as the badge color here than in [plain], on frames holding the signal of a grade
+ * kept on [transfer], as `hdrSignalFrameAt` reads them.
+ *
+ * A cell counts when every channel of its patch sits within [HDR_BADGE_CODES] of [hdrBadgeSignal].
+ */
+internal fun Bitmap.gainedOver(
+  plain: Bitmap,
+  region: Region,
+  transfer: HdrTransfer,
+): Float = hdrBadgeFraction(region, transfer) - plain.hdrBadgeFraction(region, transfer)
+
+/**
+ * The eight-bit red, green and blue the badge color lands on in the signal of a grade kept on [transfer].
+ *
+ * The badge's [authoredHdrNits] encoded through [signalFromNits].
+ */
+internal fun hdrBadgeSignal(transfer: HdrTransfer): List<Int> =
+  transfer.signalFromNits(authoredHdrNits(BADGE_COLOR)).map { (it * MAX_CHANNEL).roundToInt() }
+
+private fun Bitmap.hdrBadgeFraction(
+  region: Region,
+  transfer: HdrTransfer,
+): Float {
+  val badge = hdrBadgeSignal(transfer)
+  var hits = 0
+  for (row in 0 until CELLS) {
+    for (column in 0 until CELLS) {
+      val x = region.left + (region.right - region.left) * (column + 0.5f) / CELLS
+      val y = region.top + (region.bottom - region.top) * (row + 0.5f) / CELLS
+      val read = averageAt(x, y).toList()
+      if (read.indices.all { abs(read[it] - badge[it]) <= HDR_BADGE_CODES }) hits++
+    }
+  }
+  return hits.toFloat() / (CELLS * CELLS)
+}
 
 /**
  * How much of [region] reads as the badge color, as a fraction of the cells sampled.
@@ -193,6 +234,11 @@ internal const val BADGE_SCALE = 0.3f
 // The badge is opaque and covers its region, so a real hit turns most cells orange. A region it
 // never touched moves by a cell or two as the encoder rounds, and no more.
 internal const val COVERED = 0.6f
+
+// How far a channel of a kept grade's badge may sit from its signal. A ten-bit encode moves it by a code or two of
+// 255, and the fill or the picture around it sits tens of codes away.
+internal const val HDR_BADGE_CODES = 8
+private const val MAX_CHANNEL = 255
 internal const val UNTOUCHED = 0.1f
 
 internal val CHANNEL_GAP = 40..190

@@ -205,7 +205,9 @@ class AndroidFilmMediaTest {
     return read
   }
 
-  // Reads a bar just off a bright picture under a clip Film against the same crop over [plainFill] with no Film.
+  // Reads a bar under a clip Film against the same crop over [plainFill] with no Film. A glow left in the bar is read
+  // just off the bright picture and before the encoder, which rings into the blocks beside that edge. The file is
+  // read at the bar's middle, clear of them.
   private suspend fun assertBarClean(
     fill: Fill,
     plainFill: Fill,
@@ -216,22 +218,31 @@ class AndroidFilmMediaTest {
       Composition(listOf(Track(listOf(Clip(source, effects = effects)))), fill = over)
     }
     val spec = ExportSpec()
-    val plan = probe.plan(edit(listOf(crop, Film(grain = 1f, halation = 1f)), fill), spec)
+    val filmed = edit(listOf(crop, Film(grain = 1f, halation = 1f)), fill)
+    val bare = edit(listOf(crop), plainFill)
+    val plan = probe.plan(filmed, spec)
     val written = probe.writtenBy(probe.finish(plan))
-    val plain = probe.writtenBy(probe.finish(probe.plan(edit(listOf(crop), plainFill), spec)))
+    val plain = probe.writtenBy(probe.finish(probe.plan(bare, spec)))
     val rect = placementOf(SOURCE, listOf(listOf(crop)), plan.output.size).drawnRect
 
     // One sigma off the picture, where a glow left in the bar is at its widest clear of the picture's own edge.
     val blur = FilmSignal.halationBlurPlan(plan.output.size.width)
     val fx = rect.right + (blur.sigmaPx * blur.factor / plan.output.size.width).toFloat()
-    val read = written.rgbAt(fx, 0.5f)
-    val wanted = plain.rgbAt(fx, 0.5f)
+    val drawn = rendered.frameAt(filmed, spec).rgbAt(fx, 0.5f)
+    val drawnPlain = rendered.frameAt(bare, spec).rgbAt(fx, 0.5f)
+    withClue("the chain drew the bar $drawn against $drawnPlain a sigma off the picture") {
+      drawn.widestGapTo(drawnPlain).toDouble() shouldBeLessThan RENDER_CODES
+    }
+    val middle = (rect.right + 1f) / 2
+    val read = written.rgbAt(middle, 0.5f)
+    val wanted = plain.rgbAt(middle, 0.5f)
     withClue("the bar read $read against $wanted") {
-      abs(read.first - wanted.first).toDouble() shouldBeLessThan BAR_CODES
-      abs(read.second - wanted.second).toDouble() shouldBeLessThan BAR_CODES
-      abs(read.third - wanted.third).toDouble() shouldBeLessThan BAR_CODES
+      read.widestGapTo(wanted).toDouble() shouldBeLessThan BAR_CODES
     }
   }
+
+  private fun Triple<Int, Int, Int>.widestGapTo(other: Triple<Int, Int, Int>): Int =
+    maxOf(abs(first - other.first), abs(second - other.second), abs(third - other.third))
 
   private suspend fun flatClip(
     name: String,

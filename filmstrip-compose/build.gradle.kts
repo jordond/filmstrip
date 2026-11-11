@@ -46,6 +46,9 @@ kotlin {
         implementation(libs.androidx.test.runner)
         implementation(libs.androidx.activity.compose)
         implementation(libs.compose.ui.test)
+        // Compose's ui-test brings Espresso 3.5, which reaches InputManager.getInstance by reflection. Android 17 has
+        // no such method.
+        implementation(libs.androidx.test.espresso)
       }
     }
   }

@@ -1,11 +1,13 @@
 package dev.jordond.filmstrip.media3
 
 import android.content.Context
+import android.media.MediaCodecInfo.EncoderCapabilities.BITRATE_MODE_VBR
 import android.os.Build
 import androidx.media3.common.ColorInfo
 import androidx.media3.common.Format
 import androidx.media3.common.MimeTypes
 import androidx.media3.transformer.EncoderSelector
+import androidx.media3.transformer.EncoderUtil
 import androidx.media3.transformer.ExportException
 import androidx.test.platform.app.InstrumentationRegistry
 import dev.jordond.filmstrip.media3.internal.encoder.pinnedEncoderFactory
@@ -32,16 +34,21 @@ class AndroidPinnedEncoderFactoryTest {
         EncoderSelector.DEFAULT
           .selectEncoderInfos(mimeType)
           .filter { Build.VERSION.SDK_INT < Build.VERSION_CODES.Q || !it.isAlias }
+          // An export pins the encoder media3 already made for it, and media3 makes none that cannot hold a variable
+          // bitrate. A Fold7 lists c2.qti.hevc.encoder.cq, which only encodes at constant quality.
+          .filter { EncoderUtil.isBitrateModeSupported(it, mimeType, BITRATE_MODE_VBR) }
           .map { it.name to mimeType }
       }
     assumeTrue("this device lists no H.264 or H.265 encoder", names.isNotEmpty())
 
     names.forEach { (name, mimeType) ->
-      val codec = pinnedEncoderFactory(context, name, bitrate = null).createForVideoEncoding(format(mimeType), null)
-      try {
-        withClue("the factory pinned to $name") { codec.name shouldBe name }
-      } finally {
-        codec.release()
+      withClue("the factory pinned to $name") {
+        val codec = pinnedEncoderFactory(context, name, bitrate = null).createForVideoEncoding(format(mimeType), null)
+        try {
+          codec.name shouldBe name
+        } finally {
+          codec.release()
+        }
       }
     }
   }

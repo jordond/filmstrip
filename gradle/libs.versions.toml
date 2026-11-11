@@ -19,6 +19,7 @@ androidx-core = "1.19.1"
 androidx-activityCompose = "1.13.0"
 androidx-test-runner = "1.7.0"
 androidx-test = "1.7.0"
+androidx-test-espresso = "3.7.0"
 androidx-startup = "1.2.0"
 junit = "4.13.2"
 dokka = "2.3.0"
@@ -73,6 +74,7 @@ navigation3-ui = { module = "org.jetbrains.androidx.navigation3:navigation3-ui",
 okio = { module = "com.squareup.okio:okio", version.ref = "okio" }
 androidx-test-runner = { module = "androidx.test:runner", version.ref = "androidx-test-runner" }
 androidx-test-core = { module = "androidx.test:core", version.ref = "androidx-test" }
+androidx-test-espresso = { module = "androidx.test.espresso:espresso-core", version.ref = "androidx-test-espresso" }
 androidx-startup = { module = "androidx.startup:startup-runtime", version.ref = "androidx-startup" }
 junit = { module = "junit:junit", version.ref = "junit" }
 kotest-assertions = { module = "io.kotest:kotest-assertions-core", version.ref = "kotest" }

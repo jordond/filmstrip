@@ -56,6 +56,14 @@ public class FrameCodes(
   }
 
   /**
+   * The luma sample stored at [column] and [row].
+   */
+  public fun lumaAt(
+    column: Int,
+    row: Int,
+  ): Int = luma[row * size.width + column]
+
+  /**
    * The Cb sample stored at [column] and [row] of the chroma plane, one for each aligned 2x2 block of pixels.
    */
   public fun cbAt(
@@ -85,6 +93,21 @@ public fun firstTenBitFrame(video: File): FrameCodes {
     throw AssumptionViolatedException("ten-bit decoder output needs API 29")
   }
   return decodedFrame(video, MediaCodecInfo.CodecCapabilities.COLOR_FormatYUVP010, Duration.ZERO) { it.toTenBitFrame() }
+}
+
+/**
+ * Decodes the frame of [video] nearest [at] as ten-bit samples, skipping the calling test on a device that cannot hand
+ * them back, as [firstTenBitFrame] does.
+ */
+@InternalFilmstripApi
+public fun tenBitFrameCodesAt(
+  video: File,
+  at: Duration,
+): FrameCodes {
+  if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+    throw AssumptionViolatedException("ten-bit decoder output needs API 29")
+  }
+  return decodedFrame(video, MediaCodecInfo.CodecCapabilities.COLOR_FormatYUVP010, at) { it.toTenBitFrame() }
 }
 
 /**

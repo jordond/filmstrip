@@ -31,11 +31,11 @@ internal sealed class DecoderLimit(
   )
 
   /**
-   * A twelve-bit AVIF decoded from API 36, where Android's AVIF decoder hands it back only at eight bits a sample.
+   * A twelve-bit AVIF decoded on API 36, where Android's AVIF decoder hands it back only at eight bits a sample.
    */
   data object AvifTwelveBitCut : DecoderLimit(
     DegradationReason.PrecisionReduced,
-    "Android's AVIF decoder from API 36 decodes a twelve-bit AVIF only into eight bits a sample, so this picture " +
+    "Android's AVIF decoder on API 36 decodes a twelve-bit AVIF only into eight bits a sample, so this picture " +
       "loses the steps between eight-bit codes.",
   )
 

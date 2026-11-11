@@ -25,21 +25,22 @@ internal enum class DecoderRefusal(
   ),
 
   /**
-   * A twelve-bit HEIC, which Android's HEIC decoder on API 30, 31 and 33 to 36 hands back no frame for. API 28 and 29
+   * A twelve-bit HEIC, which Android's HEIC decoder on API 30, 31 and 33 to 37 hands back no frame for. API 28 and 29
    * are given API 30's answer and API 32 is given API 31's.
    */
   HeicTwelveBitNoFrame(
-    "Android's HEIC decoder hands back no frame for a twelve-bit HEIC on API 30, 31 and 33 to 36, and API 28, 29 and " +
+    "Android's HEIC decoder hands back no frame for a twelve-bit HEIC on API 30, 31 and 33 to 37, and API 28, 29 and " +
       "32 are taken to do as those do, so this overlay picture cannot be drawn on this API level.",
   ),
 
   /**
-   * A twelve-bit AVIF below API 36. Android's AVIF decoder on API 31, 33 and 34 hands back no frame for it and on API
-   * 35 hands back the wrong colors, so it is refused before the decoder sees it. API 32 is given API 31's answer.
+   * A twelve-bit AVIF on any API level but 36. Android's AVIF decoder on API 31, 33 and 34 hands back no frame for it
+   * and on API 35 and 37 hands back the wrong colors, so it is refused before the decoder sees it. API 32 is given API
+   * 31's answer.
    */
   AvifTwelveBit(
-    "Android's AVIF decoder draws a twelve-bit AVIF only from API 36. On API 31, 33 and 34 it hands back no frame " +
-      "for one and on API 35 the wrong colors, and API 32 is taken to do as API 31 does, so this overlay picture " +
-      "cannot be drawn on this API level.",
+    "Android's AVIF decoder draws a twelve-bit AVIF only on API 36. On API 31, 33 and 34 it hands back no frame " +
+      "for one and on API 35 and 37 the wrong colors, and API 32 is taken to do as API 31 does, so this overlay " +
+      "picture cannot be drawn on this API level.",
   ),
 }

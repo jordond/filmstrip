@@ -19,7 +19,6 @@ import dev.jordond.filmstrip.effects.overlay.ImageOverlay
 import dev.jordond.filmstrip.effects.overlay.media3HdrTexels
 import dev.jordond.filmstrip.effects.overlay.placedOn
 import dev.jordond.filmstrip.export.ExportSpec
-import dev.jordond.filmstrip.export.HdrMode
 import dev.jordond.filmstrip.export.Verdict
 import dev.jordond.filmstrip.geometry.AspectRatio
 import dev.jordond.filmstrip.geometry.Corner
@@ -168,7 +167,7 @@ class AndroidOverlayIccMediaTest {
         taggedPngs().flatMap { picture ->
           val opaque = barMark(picture.png, Corner.TopStart)
           val half = barMark(picture.png, Corner.BottomStart, HALF)
-          val frame = firstTenBitFrame(probe.export(letterboxed(source, listOf(opaque, half)), HDR_SPEC))
+          val frame = firstTenBitFrame(probe.export(letterboxed(source, listOf(opaque, half)), HDR_LEVEL_SPEC))
           val light = picture.light.copyOf(RGB)
 
           listOf(opaque to 1f, half to HALF).mapNotNull { (mark, alpha) ->
@@ -289,7 +288,6 @@ class AndroidOverlayIccMediaTest {
 
   private companion object {
     const val FILL_ARGB = AuthoredColors.MID_GREY
-    val HDR_SPEC = ExportSpec(heightPx = 360, hdr = HdrMode.KeepHdr)
 
     const val HALF = 0.5f
     const val HEIC_UNDECODED = "Android's HEIC decoder hands back no frame for the ColorPictures HEIC stills"

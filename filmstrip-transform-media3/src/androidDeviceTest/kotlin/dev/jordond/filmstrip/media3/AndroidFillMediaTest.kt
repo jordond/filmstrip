@@ -2,6 +2,8 @@ package dev.jordond.filmstrip.media3
 
 import android.graphics.Bitmap
 import android.graphics.Color
+import dev.jordond.filmstrip.color.authoredHdrNits
+import dev.jordond.filmstrip.color.signalFromNits
 import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.Track
@@ -14,6 +16,7 @@ import dev.jordond.filmstrip.export.HdrMode
 import dev.jordond.filmstrip.geometry.AspectRatio
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.Fit
+import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.HDR_CLIP
 import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.TIMEOUT
@@ -21,10 +24,12 @@ import dev.jordond.filmstrip.test.assumeDecodesTenBitHevc
 import dev.jordond.filmstrip.test.assumeEncodesHdr
 import dev.jordond.filmstrip.test.encodesHdr
 import io.kotest.assertions.withClue
+import io.kotest.matchers.floats.shouldBeLessThanOrEqual
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.test.runTest
 import org.junit.Assume.assumeTrue
 import java.io.File
+import kotlin.math.abs
 import kotlin.test.Test
 
 /**
@@ -171,8 +176,9 @@ class AndroidFillMediaTest {
       withClue("the white bar reads as black, nothing to compare against") { (bright > BLACK_CEILING) shouldBe true }
 
       val ratio = mid.toFloat() / bright
-      withClue("a mid grey landed at $ratio of white, so the fill skipped its conversion") {
-        (ratio < HDR_GREY_CEILING) shouldBe true
+      val expected = signalSumOf(GREY_ARGB) / signalSumOf(WHITE_ARGB)
+      withClue("a mid grey landed at $ratio of white where its signal gives $expected") {
+        abs(ratio - expected) shouldBeLessThanOrEqual HDR_GREY_RATIO_TOLERANCE
       }
     }
 
@@ -211,6 +217,9 @@ class AndroidFillMediaTest {
         (bar.red < BLACK_CEILING && bar.green < BLACK_CEILING && bar.blue < BLACK_CEILING) shouldBe true
       }
     }
+
+  // The sum of the red, green and blue signal a kept PQ grade holds a solid fill of [color] at.
+  private fun signalSumOf(color: Int): Float = HdrTransfer.Pq.signalFromNits(authoredHdrNits(color)).sum()
 
   private fun squareCrop(): EffectSpec = Crop(AspectRatio.Square, fit = Fit.Contain)
 
@@ -304,9 +313,10 @@ class AndroidFillMediaTest {
     const val FLAT_TOLERANCE = 20
     val DIM_RATIO_RANGE = 0.35f..0.65f
 
-    // A mid grey is 43.8 nits against white's 203, and the Fold 7 measures the pair at 0.52 once
-    // the retriever has tone mapped them back. Writing sRGB straight into media3's linear space
-    // would put them at 500 and 1000 nits instead, which lands near 0.73, so the bound sits between.
-    const val HDR_GREY_CEILING = 0.62f
+    const val WHITE_ARGB = 0xFFFFFFFF.toInt()
+
+    // A mid grey is 43.8 nits against white's 203, which the PQ signal holds at 0.74 of it. Writing sRGB straight
+    // into media3's linear space would put them at 500 and 1000 nits instead, which lands at 0.90.
+    const val HDR_GREY_RATIO_TOLERANCE = 0.03f
   }
 }

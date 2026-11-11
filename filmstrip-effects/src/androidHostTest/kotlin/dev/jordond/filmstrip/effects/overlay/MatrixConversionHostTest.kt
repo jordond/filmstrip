@@ -20,8 +20,8 @@ import kotlin.test.Test
  * refused wherever the decoder reads neither. A full range AVIF before API 33 also names its range.
  */
 class MatrixConversionHostTest {
-  // Android's own decoders, as measured on API 30, 31, 33, 34, 35 and 36 for HEIC and 31, 33, 34, 35 and 36 for AVIF,
-  // so the table is pinned here as it is. API 28 and 29 are given API 30's answer and API 32 is given API 31's.
+  // Android's own decoders, as measured on API 30, 31, 33, 34, 35, 36 and 37 for HEIC and 31, 33, 34, 35, 36 and 37 for
+  // AVIF, so the table is pinned here as it is. API 28 and 29 are given API 30's answer and API 32 is given API 31's.
   @Test
   fun eachApiLevelReadsTheMatricesItsDecoderWasMeasuredReading() {
     for (tenBit in listOf(false, true)) {
@@ -240,7 +240,7 @@ class MatrixConversionHostTest {
     const val MID_Y = 110
     const val MID_CB = 140
     const val MID_CR = 150
-    val HEIC_API_LEVELS = listOf(28, 29, 30, 31, 32, 33, 34, 35, 36)
-    val AVIF_API_LEVELS = listOf(31, 32, 33, 34, 35, 36)
+    val HEIC_API_LEVELS = listOf(28, 29, 30, 31, 32, 33, 34, 35, 36, 37)
+    val AVIF_API_LEVELS = listOf(31, 32, 33, 34, 35, 36, 37)
   }
 }

@@ -97,9 +97,63 @@ class SpatialShaderProgramMediaTest {
       val read = sdrSignalFromHlgScene(frame.red(x, HEIGHT / 2, WIDTH, HEIGHT))
       worst = maxOf(worst, abs(read - expected[HEIGHT / 2 * WIDTH + x]))
     }
+    val bound = if (halfFloatTargetRoundsDown()) FLOORED_HLG_BLUR_TOLERANCE else BLUR_TOLERANCE
     withClue("the kept grade's blur is $worst off the shared plan on the sdr signal at its worst column") {
-      worst shouldBeLessThanOrEqualTo BLUR_TOLERANCE
+      worst shouldBeLessThanOrEqualTo bound
     }
+  }
+
+  @Test
+  fun aBlurOnSceneLightWouldReadOutsideEitherBound() {
+    val signal = { scene: Double -> sdrSignalFromHlgScene(scene) }
+    val onSceneLight = signal((HLG_LIGHT_SCENE + HLG_SCENE) / 2)
+    val onTheSignal = (signal(HLG_LIGHT_SCENE) + signal(HLG_SCENE.toDouble())) / 2
+
+    abs(onSceneLight - onTheSignal) shouldBeGreaterThan FLOORED_HLG_BLUR_TOLERANCE * 2
+  }
+
+  // Draws a value three quarters of the way up a half float step. A GPU that rounds to nearest reads the step above.
+  private fun halfFloatTargetRoundsDown(): Boolean {
+    val target = IntArray(1)
+    val framebuffer = IntArray(1)
+    GLES20.glGenTextures(1, target, 0)
+    GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, target[0])
+    GLES30.glTexStorage2D(GLES20.GL_TEXTURE_2D, 1, GLES30.GL_RGBA16F, 1, 1)
+    GLES20.glGenFramebuffers(1, framebuffer, 0)
+    GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, framebuffer[0])
+    GLES20.glFramebufferTexture2D(
+      GLES20.GL_FRAMEBUFFER,
+      GLES20.GL_COLOR_ATTACHMENT0,
+      GLES20.GL_TEXTURE_2D,
+      target[0],
+      0,
+    )
+    GLES20.glViewport(0, 0, 1, 1)
+    val program = GLES20.glCreateProgram()
+    val sources = listOf(GLES20.GL_VERTEX_SHADER to CONSTANT_VERTEX, GLES20.GL_FRAGMENT_SHADER to CONSTANT_FRAGMENT)
+    val shaders =
+      sources.map { (type, glsl) ->
+        GLES20.glCreateShader(type).also {
+          GLES20.glShaderSource(it, glsl)
+          GLES20.glCompileShader(it)
+          GLES20.glAttachShader(program, it)
+        }
+      }
+    GLES20.glLinkProgram(program)
+    GLES20.glUseProgram(program)
+    val value = (1.0 + HALF_FLOAT_STEP_ABOVE_ONE * 3 / 4).toFloat()
+    GLES20.glUniform1f(GLES20.glGetUniformLocation(program, "uValue"), value)
+    GLES20.glDrawArrays(GLES20.GL_TRIANGLES, 0, 3)
+
+    val bytes = ByteBuffer.allocateDirect(CHANNELS * Float.SIZE_BYTES).order(ByteOrder.nativeOrder())
+    GLES20.glReadPixels(0, 0, 1, 1, GLES20.GL_RGBA, GLES20.GL_FLOAT, bytes)
+    GlUtil.checkGlError()
+    shaders.forEach(GLES20::glDeleteShader)
+    GLES20.glDeleteProgram(program)
+    GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0)
+    GLES20.glDeleteFramebuffers(1, framebuffer, 0)
+    GLES20.glDeleteTextures(1, target, 0)
+    return bytes.asFloatBuffer().get(0) < 1.0 + HALF_FLOAT_STEP_ABOVE_ONE / 2
   }
 
   // A composition's presentation letterboxes a contained picture, and media3 clears the bars to no alpha.
@@ -360,6 +414,29 @@ class SpatialShaderProgramMediaTest {
 
     // The blurred steps sit in half float targets, which round each of the three at 2^-11 below one.
     const val BLUR_TOLERANCE = 2e-3
+
+    // A kept HLG grade's signal runs past one, where half float steps by 2^-10.
+    const val HALF_FLOAT_STEP_ABOVE_ONE = 1.0 / 1024
+
+    // A GPU's own limit: one that rounds a half float target down, as an Adreno 830 does, can drop a whole step at each
+    // of the three targets where one rounding to nearest drops half. Measured 2.74e-3 at the worst column on a Galaxy
+    // Z Fold7.
+    const val FLOORED_HLG_BLUR_TOLERANCE = 3 * HALF_FLOAT_STEP_ABOVE_ONE
+
+    const val CONSTANT_VERTEX = """#version 300 es
+      void main() {
+        vec2 corner = vec2(float((gl_VertexID << 1) & 2), float(gl_VertexID & 2));
+        gl_Position = vec4(corner * 2.0 - 1.0, 0.0, 1.0);
+      }
+    """
+    const val CONSTANT_FRAGMENT = """#version 300 es
+      precision highp float;
+      uniform float uValue;
+      out vec4 color;
+      void main() {
+        color = vec4(uValue);
+      }
+    """
 
     // A blur of a 0.625 edge at a sigma of 0.05 of the width moves the columns beside it by far more than this.
     const val SHARP_SPREAD = 0.1

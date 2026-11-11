@@ -130,3 +130,5 @@ so the effect is only valid on a clip. A plan refuses it on a track, on the comp
   reference white would. Highlights keep going where an SDR export would clip. See [HDR](/guides/hdr/).
 - On a kept HLG grade, Apple reads each pixel as the same signal the other backends do, so the color matrices and the
   blur land where they land everywhere else. That's slightly off from what Core Image's own HLG handling would give.
+- On a kept HLG grade on Android, a GPU that rounds a half float render target down, like the Adreno 830, lands a
+  `blur` up to 2 ten-bit codes dark.

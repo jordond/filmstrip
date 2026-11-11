@@ -28,7 +28,6 @@ import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.HDR_CLIP
 import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.TIMEOUT
 import dev.jordond.filmstrip.test.CODE_PATCH
-import dev.jordond.filmstrip.test.firstEightBitFrame
 import dev.jordond.filmstrip.test.writeAtomically
 import dev.jordond.filmstrip.transform.internal.geometry.placementOf
 import io.kotest.assertions.withClue
@@ -53,6 +52,7 @@ import kotlin.test.Test
  */
 class AndroidVhsMediaTest {
   private val probe = Media3ExportProbe { filters() }
+  private val rendered = RenderedFrames(probe.context)
 
   @Test
   fun aCompositionVhsReachesTheBars() =
@@ -132,7 +132,8 @@ class AndroidVhsMediaTest {
     runTest(timeout = TIMEOUT) {
       val source = File(probe.context.cacheDir, "vhs-sd.mp4")
       probe.writeBarsClip(source, SOURCE.width, SOURCE.height, SD_FLAT, MediaFormat.COLOR_STANDARD_BT601_NTSC)
-      val stored = Written(firstEightBitFrame(source), SMPTE_C_PRIMARIES, fullRange = false).rgbAt(0.5f, 0.5f).signal()
+      // Read as the sampler hands it to media3, since a decoder follows a matrix the clip's stream names over its tag.
+      val stored = sampledFirstFrame(source).rgbAt(0.5f, 0.5f).map { it / MAX_CODE }.toDoubleArray()
       val shown = sdSourceDisplayed(stored, SMPTE_C_PRIMARIES)
       withClue("the correction has to be wider than the tolerance, ${stored.toList()} to ${shown.toList()}") {
         abs(shown[0] - stored[0]) * MAX_CODE shouldBeGreaterThan SD_CODES
@@ -196,9 +197,11 @@ class AndroidVhsMediaTest {
     }
     // The frame's own height, since the head band is a few rows on a shorter one and the probe's default is shorter.
     val spec = ExportSpec()
-    val plan = probe.plan(edit(listOf(crop, vhs), fill), spec)
+    val taped = edit(listOf(crop, vhs), fill)
+    val bare = edit(listOf(crop), plainFill)
+    val plan = probe.plan(taped, spec)
     val written = probe.writtenBy(probe.finish(plan))
-    val plain = probe.writtenBy(probe.finish(probe.plan(edit(listOf(crop), plainFill), spec)))
+    val plain = probe.writtenBy(probe.finish(probe.plan(bare, spec)))
     val content = placementOf(SOURCE, listOf(listOf(crop)), plan.output.size).drawnRect
     // A read averages a small patch at the foot of the frame, and the head band's shift grows down it, so a column is
     // picked to hold for every row in it.
@@ -219,10 +222,16 @@ class AndroidVhsMediaTest {
     withClue("picture moved into the right bar read $movedIn against $movedPlain") {
       movedIn.widestGapTo(movedPlain) shouldBeGreaterThan PICTURE_APART
     }
+    // The picture leaves a wedge of fill a few pixels wide where its rect starts, which an encoder smears the picture
+    // into. That read is of the chain's own frame, before the encoder.
+    val drawn = rendered.frameAt(taped, spec).rgbAt(content.left + least / 2, y)
+    val drawnPlain = rendered.frameAt(bare, spec).rgbAt(content.right + least / 2, y)
+    withClue("the chain drew the start of the picture's own rect $drawn against $drawnPlain") {
+      drawn.widestGapTo(drawnPlain).toDouble() shouldBeLessThan RENDER_CODES
+    }
     val clear =
       mapOf(
         "past the moved picture" to Pair(content.right + most + MIN_SHIFT, y),
-        "the start of the picture's own rect" to Pair(content.left + least / 2, y),
         "a bar on a row with no head band" to Pair(content.right + least / 2, 0.5f),
       )
     clear.forEach { (what, at) ->

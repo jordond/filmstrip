@@ -37,10 +37,11 @@ internal class DecoderConversion(
  * BT.601 is read on every API level, as 5, 6 and the unspecified 2 alike, and is given here as 6. BT.2020 is read from
  * API 33. BT.709 is read from API 33 at full range and from API 34 at limited range, from API 35 in a [tenBit] AVIF.
  * From API 36 the AVIF decoder also reads FCC 4 and SMPTE 240M 7, and YCgCo 8 at full range in an eight-bit picture.
- * No API level reads the identity matrix 0.
+ * From API 37 it reads those three only into half floats, as [avifReadsOnlyIntoHalfFloats] says. No API level reads the
+ * identity matrix 0.
  *
- * The HEIC side is measured on API 28, 29, 30, 31, 33, 34, 35 and 36, and the AVIF side on API 31, 33, 34, 35 and 36.
- * API 32 is given API 31's.
+ * The HEIC side is measured on API 28, 29, 30, 31, 33, 34, 35, 36 and 37, and the AVIF side on API 31, 33, 34, 35, 36
+ * and 37. API 32 is given API 31's.
  *
  * @param avif Whether the picture is AV1 coded rather than HEVC coded.
  * @param tenBit Whether the picture's samples are ten bits deep, which moves the API levels an AVIF's BT.709 and YCgCo
@@ -62,6 +63,17 @@ internal fun readableMatrices(
       if (fullRange && !tenBit) add(YCGCO)
     }
   }
+
+/**
+ * Whether Android's AVIF decoder on API level [sdk] reads the ITU-T H.273 [matrix] only into a half float bitmap.
+ *
+ * From API 37 it reads FCC 4, SMPTE 240M 7 and YCgCo 8 that way, and lands a picture stating one of them through
+ * BT.601 into any other bitmap. On API 36 it reads them into every bitmap.
+ */
+internal fun avifReadsOnlyIntoHalfFloats(
+  matrix: Int,
+  sdk: Int,
+): Boolean = sdk >= AVIF_HALF_FLOAT_MATRICES_API && (matrix in AVIF_MORE_MATRICES || matrix == YCGCO)
 
 /**
  * The matrix, primaries and range [forAndroidDecoder] has a HEIC or AVIF state for a picture whose own samples read as
@@ -208,7 +220,7 @@ internal fun YcbcrCoding.unrestatedRefusal(
  * Whether this coding's samples are exactly ten bits deep, the depth that moves the API levels Android's AVIF decoder
  * reads BT.709 and YCgCo from.
  *
- * False for any other depth and an unknown one. A twelve-bit AVIF, which the decoder draws only from API 36, lands
+ * False for any other depth and an unknown one. A twelve-bit AVIF, which the decoder draws only on API 36, lands
  * there as an eight-bit one does.
  */
 internal val YcbcrCoding.tenBitSamples: Boolean
@@ -229,7 +241,7 @@ internal val YcbcrCoding.tenBitAvif: Boolean
 
 /**
  * Whether this coding is an [avif] picture whose samples are twelve bits deep, the one Android's AVIF decoder draws
- * only from API 36.
+ * only on API 36.
  */
 internal val YcbcrCoding.twelveBitAvif: Boolean
   get() = avif && bitDepth == TWELVE_BITS
@@ -246,8 +258,8 @@ internal val YcbcrCoding.twelveBitHeic: Boolean
  * sees it, or null when it is handed over.
  *
  * A coding with a [YcbcrCoding.refusal] is refused with it on every level. A [YcbcrCoding.twelveBitAvif] picture is
- * refused as [DecoderRefusal.AvifTwelveBit] from API 31, where Android first decodes AVIF, to API 35. Below API 31 it
- * reaches the decoder, which hands back no frame for any AVIF.
+ * refused as [DecoderRefusal.AvifTwelveBit] from API 31, where Android first decodes AVIF, on every level but API 36.
+ * Below API 31 it reaches the decoder, which hands back no frame for any AVIF.
  */
 internal fun refusalBeforeDecoder(
   coding: YcbcrCoding?,
@@ -256,7 +268,7 @@ internal fun refusalBeforeDecoder(
   when {
     coding == null -> null
     coding.refusal != null -> coding.refusal
-    coding.twelveBitAvif && sdk in AVIF_API until TWELVE_BIT_AVIF_API -> DecoderRefusal.AvifTwelveBit.message
+    coding.twelveBitAvif && sdk >= AVIF_API && sdk != TWELVE_BIT_AVIF_API -> DecoderRefusal.AvifTwelveBit.message
     else -> null
   }
 
@@ -303,3 +315,4 @@ private const val BT709_LIMITED_API = 34
 private const val TEN_BIT_BT709_LIMITED_API = 35
 private const val AVIF_MORE_MATRICES_API = 36
 private const val TWELVE_BIT_AVIF_API = 36
+private const val AVIF_HALF_FLOAT_MATRICES_API = 37

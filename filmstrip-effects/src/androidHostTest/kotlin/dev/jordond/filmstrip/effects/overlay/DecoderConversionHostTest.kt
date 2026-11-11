@@ -20,10 +20,11 @@ import kotlin.test.Test
 /**
  * How a picture's depth and codec decide what Android's decoder is handed and what it reports.
  *
- * Only a ten-bit picture takes the ten-bit answers. A twelve-bit AVIF is refused by name from API 31 to 35 and lands
- * as an eight-bit one from API 36, reporting any limit its landing names and then the cut to eight bits, or refused
- * when its landing is past the bound. A twelve-bit HEIC the decoder hands back no frame for is named from API 28,
- * where Android first decodes HEIC. Every restate states the nearest matrix in the `nclx` too.
+ * Only a ten-bit picture takes the ten-bit answers. A twelve-bit AVIF is refused by name from API 31 on every level
+ * but API 36, where it lands as an eight-bit one, reporting any limit its landing names and then the cut to eight bits,
+ * or refused when its landing is past the bound. A twelve-bit HEIC the decoder hands back no frame for is named from
+ * API 28, where Android first decodes HEIC. Every restate states the nearest matrix in the `nclx` too. From API 37 an
+ * AVIF landing through FCC, SMPTE 240M or YCgCo is one the decoder reads only into half floats.
  */
 class DecoderConversionHostTest {
   @Test
@@ -74,13 +75,13 @@ class DecoderConversionHostTest {
   }
 
   @Test
-  fun aTwelveBitAvifIsRefusedByNameBelowApi36() {
+  fun aTwelveBitAvifIsRefusedByNameOnEveryLevelThatDecodesAvifButApi36() {
     for (full in listOf(true, false)) {
       val coding = pictureYcbcrCoding(twelveBit(BT709, full))
-      for (sdk in listOf(31, 32, 33, 34, 35)) {
+      for (sdk in listOf(31, 32, 33, 34, 35, 37, 38)) {
         withClue("API $sdk") { refusalBeforeDecoder(coding, sdk) shouldBe DecoderRefusal.AvifTwelveBit.message }
       }
-      for (sdk in listOf(24, 30, 36, 37)) withClue("API $sdk") { refusalBeforeDecoder(coding, sdk).shouldBeNull() }
+      for (sdk in listOf(24, 30, 36)) withClue("API $sdk") { refusalBeforeDecoder(coding, sdk).shouldBeNull() }
       noFrameRefusal(coding, 30) shouldBe DecoderRefusal.NoFrame
     }
   }
@@ -192,6 +193,25 @@ class DecoderConversionHostTest {
     val bt709 = twelveBit(BT709, false) + box("moov", ByteArray(0))
     bt709.forAndroidDecoder(36).refusal.shouldBeNull()
     pictureYcbcrCoding(bt709).shouldNotBeNull().unrestatedRefusal(36, handedFullRange = null).shouldBeNull()
+  }
+
+  @Test
+  fun fromApi37AnAvifLandingThroughFccSmpte240OrYcgcoIsReadOnlyIntoHalfFloats() {
+    for ((matrix, full) in listOf(FCC to true, FCC to false, SMPTE_240 to true, SMPTE_240 to false, YCGCO to true)) {
+      val file = avifRecording(matrix, full)
+      withClue("matrix $matrix full $full") {
+        file.forAndroidDecoder(37).conversion?.matrix shouldBe matrix
+        file.forAndroidDecoder(37).readOnlyIntoHalfFloats(37) shouldBe true
+        file.forAndroidDecoder(38).readOnlyIntoHalfFloats(38) shouldBe true
+        file.forAndroidDecoder(36).readOnlyIntoHalfFloats(36) shouldBe false
+      }
+    }
+    for (matrix in listOf(BT709, BT601, BT2020, BT2020_CONSTANT)) {
+      val file = avifRecording(matrix, true)
+      withClue("matrix $matrix") { file.forAndroidDecoder(37).readOnlyIntoHalfFloats(37) shouldBe false }
+    }
+    avifRecording(YCGCO, false).forAndroidDecoder(37).readOnlyIntoHalfFloats(37) shouldBe false
+    heicRecording(SMPTE_240, true).forAndroidDecoder(37).readOnlyIntoHalfFloats(37) shouldBe false
   }
 
   @Test

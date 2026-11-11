@@ -76,9 +76,12 @@ class AndroidOverlayHdrMediaTest {
       val plain = probe.frame(export(source, emptyList()))
       val marked = probe.frame(export(source, listOf(probe.watermark(Corner.BottomEnd))))
 
-      withClue("no watermark on a kept PQ grade") { (marked.gainedOver(plain, BOTTOM_END) > COVERED) shouldBe true }
+      withClue("no watermark on a kept PQ grade") {
+        (marked.gainedOver(plain, BOTTOM_END, HdrTransfer.Pq) > COVERED) shouldBe
+          true
+      }
       withClue("the watermark bled into the far corner") {
-        (marked.gainedOver(plain, TOP_START) < UNTOUCHED) shouldBe true
+        (marked.gainedOver(plain, TOP_START, HdrTransfer.Pq) < UNTOUCHED) shouldBe true
       }
     }
 
@@ -93,9 +96,12 @@ class AndroidOverlayHdrMediaTest {
       val plain = probe.frame(export(source, emptyList()))
       val marked = probe.frame(export(source, listOf(probe.watermark(Corner.BottomEnd))))
 
-      withClue("no watermark on a kept HLG grade") { (marked.gainedOver(plain, BOTTOM_END) > COVERED) shouldBe true }
+      withClue("no watermark on a kept HLG grade") {
+        (marked.gainedOver(plain, BOTTOM_END, HdrTransfer.Hlg) > COVERED) shouldBe
+          true
+      }
       withClue("the watermark bled into the far corner") {
-        (marked.gainedOver(plain, TOP_START) < UNTOUCHED) shouldBe true
+        (marked.gainedOver(plain, TOP_START, HdrTransfer.Hlg) < UNTOUCHED) shouldBe true
       }
     }
 
@@ -108,9 +114,12 @@ class AndroidOverlayHdrMediaTest {
       val plain = probe.frame(export(source, emptyList()))
       val captioned = probe.frame(export(source, listOf(caption(Anchor.TopStart))))
 
-      withClue("no burned-in text on a kept grade") { (captioned.gainedOver(plain, TOP_START) > COVERED) shouldBe true }
+      withClue("no burned-in text on a kept grade") {
+        (captioned.gainedOver(plain, TOP_START, HdrTransfer.Pq) > COVERED) shouldBe
+          true
+      }
       withClue("the caption reached the opposite corner") {
-        (captioned.gainedOver(plain, BOTTOM_END) < UNTOUCHED) shouldBe true
+        (captioned.gainedOver(plain, BOTTOM_END, HdrTransfer.Pq) < UNTOUCHED) shouldBe true
       }
     }
 
@@ -126,10 +135,10 @@ class AndroidOverlayHdrMediaTest {
       val both = probe.frame(export(source, listOf(probe.watermark(Corner.BottomEnd), caption(Anchor.TopStart))))
 
       withClue("the watermark did not survive sharing a pass") {
-        (both.gainedOver(plain, BOTTOM_END) > COVERED) shouldBe true
+        (both.gainedOver(plain, BOTTOM_END, HdrTransfer.Pq) > COVERED) shouldBe true
       }
       withClue("the text did not survive sharing a pass") {
-        (both.gainedOver(plain, TOP_START) > COVERED) shouldBe true
+        (both.gainedOver(plain, TOP_START, HdrTransfer.Pq) > COVERED) shouldBe true
       }
     }
 
@@ -255,7 +264,7 @@ class AndroidOverlayHdrLevelTest(
       probe.filmstrip.assumeEncodesHdr()
 
       val cells = HdrOverlayCells.CELLS.filter { it.background == grade.fill }
-      val plain = firstTenBitFrame(probe.export(letterboxed(source, emptyList()), SPEC))
+      val plain = firstTenBitFrame(probe.export(letterboxed(source, emptyList()), HDR_LEVEL_SPEC))
       val (fx, fy) = barMark(cells.first()).centreOn(plain.size)
       val inBar =
         miss(
@@ -279,7 +288,7 @@ class AndroidOverlayHdrLevelTest(
     val what = "${cell.overlay.hex()} at ${cell.opacity} over ${cell.background.hex()} on ${grade.transfer}"
     val reading =
       try {
-        firstTenBitFrame(probe.export(letterboxed(source, listOf(barMark(cell))), SPEC)).codesAt(fx, fy)
+        firstTenBitFrame(probe.export(letterboxed(source, listOf(barMark(cell))), HDR_LEVEL_SPEC)).codesAt(fx, fy)
       } catch (e: AssumptionViolatedException) {
         throw e
       } catch (e: CancellationException) {
@@ -373,8 +382,12 @@ class AndroidOverlayHdrLevelTest(
 
 private val SPEC = ExportSpec(heightPx = 360, hdr = HdrMode.KeepHdr)
 
-// The encoder's noise on a flat patch, in ten-bit codes, unmeasured on a hardware HEVC encoder. At most
-// HdrOverlayCells.MAX_BLEND_TOLERANCE, so a wrong blend reads outside it on every blend cell.
+// The encoder's noise on a flat patch, in ten-bit codes. At most HdrOverlayCells.MAX_BLEND_TOLERANCE, so a wrong
+// blend reads outside it on every blend cell.
 internal const val PATCH_NOISE = 2
+
+// The size a level is read at. Measured on a Galaxy Z Fold7's hardware HEVC encoder over every cell on PQ and HLG:
+// the first frame lands within 1 code at 720 rows and up to 4 off at 360, where the patch is 22 pixels wide.
+internal val HDR_LEVEL_SPEC = ExportSpec(heightPx = 720, hdr = HdrMode.KeepHdr)
 
 private fun Int.hex(): String = toUInt().toString(16)

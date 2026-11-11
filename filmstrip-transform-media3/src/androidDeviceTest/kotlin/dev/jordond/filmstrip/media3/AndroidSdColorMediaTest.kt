@@ -39,8 +39,11 @@ import androidx.media3.transformer.Composition as Media3Composition
 /**
  * An SD clip through an export, held to the colour the clip displays as.
  *
- * A clip's read goes through `sdSourceDisplayed` off its own tags, and so does the file's, so a file writing true
- * BT.709 and one keeping BT.601 are held to the same answer. An encoder that writes BT.601 for BT.709 gets its file
+ * A clip is read as the sampler hands it to media3 and goes through `sdSourceDisplayed` on the primaries its container
+ * names. The clip's stream is the encoder's own, and an encoder that writes a colour description into it, as a Galaxy
+ * Z Fold7's does, has its decoder follow that matrix over the container's. The file's read goes through
+ * `sdSourceDisplayed` off its own tags, so a file writing true BT.709 and one keeping BT.601 are held to the same
+ * answer. An encoder that writes BT.601 for BT.709 gets its file
  * retagged and the export says so. Android names the primaries with the matrix, so that file's primaries are not read.
  * A clip with no tags has no colour of its own to read, so it is held to what Android draws it as. The last bar is why
  * a tagged clip can fail, since the primaries of the mid-range bars ahead of it move by little more than the tolerance.
@@ -73,7 +76,7 @@ class AndroidSdColorMediaTest {
   fun aPreviewOfATaggedClipDrawsTheSameColour() =
     runTest(timeout = TIMEOUT) {
       val source = clip("sd-preview.mp4", MediaFormat.COLOR_STANDARD_BT601_NTSC)
-      val stored = Written(firstEightBitFrame(source), SMPTE_C_PRIMARIES, fullRange = false)
+      val plays = sampledFirstFrame(source)
       val edit = Composition(listOf(Track(listOf(Clip(MediaSource.of(source.path))))))
       val engine =
         media3ExportEngine(ComponentRegistry.Builder().addEffectResolver(BuiltInEffectResolver()).build())
@@ -88,7 +91,7 @@ class AndroidSdColorMediaTest {
       val written = Written(firstEightBitFrame(output), matrix, fullRange)
 
       BAR_CENTRES.forEach { fx ->
-        val expected = sdSourceDisplayed(stored.rgbAt(fx, MIDDLE).signal(), SMPTE_C_PRIMARIES)
+        val expected = sdSourceDisplayed(plays.rgbAt(fx, MIDDLE).signal(), SMPTE_C_PRIMARIES)
         val actual = written.rgbAt(fx, MIDDLE).signal()
         withClue("the preview at bar $fx read ${actual.inCodes()} against ${expected.inCodes()}, matrix $matrix") {
           expected.indices.all { abs(expected[it] - actual[it]) * MAX_CODE <= SD_CODES } shouldBe true
@@ -130,14 +133,14 @@ class AndroidSdColorMediaTest {
     codePoint: Int,
   ) {
     val source = clip(name, colorStandard)
-    val stored = Written(firstEightBitFrame(source), codePoint, fullRange = false)
+    val plays = sampledFirstFrame(source)
 
-    val moved = stored.rgbAt(BAR_CENTRES.last(), MIDDLE).signal()
+    val moved = plays.rgbAt(BAR_CENTRES.last(), MIDDLE).signal()
     val shown = sdSourceDisplayed(moved, codePoint)
     withClue("the last bar's primaries move from ${moved.inCodes()} to ${shown.inCodes()}") {
       moved.indices.maxOf { abs(moved[it] - shown[it]) } * MAX_CODE shouldBeGreaterThan SD_CODES
     }
-    assertExportDisplays(source) { fx -> sdSourceDisplayed(stored.rgbAt(fx, MIDDLE).signal(), codePoint) }
+    assertExportDisplays(source) { fx -> sdSourceDisplayed(plays.rgbAt(fx, MIDDLE).signal(), codePoint) }
   }
 
   private suspend fun assertExportDisplays(

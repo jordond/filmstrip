@@ -33,9 +33,10 @@ import kotlin.test.Test
  * refuses, such as one naming the identity matrix on subsampled samples, is refused with core's reason, and one whose
  * nearest matrix lands it past the bound, such as one naming the identity matrix on 4:4:4 samples, is refused naming
  * core's figures. Each band of API levels has a test of its own pinning what it lands short of, and one pins that only
- * API 36 lands through the matrix the `nclx` names rather than the codestream's. Another pins that an AVIF whose
- * codestream alone names the PQ transfer lands on its stored codes. That is Android's own decoder, pinned so a platform
- * that starts reading another matrix, range or transfer shows here.
+ * from API 36 does it land through the matrix the `nclx` names rather than the codestream's. One pins that from API 37
+ * the decoder reads SMPTE 240M and YCgCo only into half floats. Another pins that an AVIF whose codestream alone names
+ * the PQ transfer lands on its stored codes. That is Android's own decoder, pinned so a platform that starts reading
+ * another matrix, range or transfer shows here.
  *
  * Skipped by name before API 31, which has no AVIF decoder.
  */
@@ -158,6 +159,25 @@ class AvifDecoderMatrixMediaTest {
       readings.mapNotNull { (matrix, full) ->
         val conversion = DecoderConversion(matrix, full, emptyList())
         arrival("matrix $matrix ${range(full)}", recording(FLAT, matrix, full), FLAT.ycbcr, conversion)
+      }
+
+    withClue(misses.joinToString("\n")) { misses.isEmpty() shouldBe true }
+  }
+
+  // Android's own AVIF decoder from API 37, pinned so a platform that reads these into every bitmap again shows here.
+  // FCC is left out, since it sits within the tolerance of BT.601 on this still.
+  @Test
+  fun fromApi37ASmpte240OrYcgcoAvifLandsThroughBt601UnlessItDecodesIntoHalfFloats() {
+    val sdk = Build.VERSION.SDK_INT
+    assumeTrue("Android's AVIF decoder reads SMPTE 240M and YCgCo into every bitmap on API 36", sdk > MORE_API)
+    val misses =
+      listOf(SMPTE_240 to true, SMPTE_240 to false, YCGCO to true).flatMap { (matrix, full) ->
+        val handed = recording(FLAT, matrix, full).forAndroidDecoder(sdk).bytes
+        val what = "matrix $matrix ${range(full)}"
+        listOfNotNull(
+          stillMiss("$what into eight bits", handed, BT601 to full),
+          stillMiss("$what into half floats", handed, matrix to full, halfFloats = true),
+        )
       }
 
     withClue(misses.joinToString("\n")) { misses.isEmpty() shouldBe true }
@@ -309,14 +329,16 @@ class AvifDecoderMatrixMediaTest {
     return restated.shouldBeInstanceOf<RestatedHeif.Restated>().bytes.withColorDescriptionsHidden()
   }
 
-  // How a straight decode of [file] misses landing through the matrix and range [lands] gives, or handing back no
-  // frame when it is null, or null.
+  // How a straight decode of [file], into half floats when [halfFloats] asks for them, misses landing through the
+  // matrix and range [lands] gives, or handing back no frame when it is null, or null.
   private fun stillMiss(
     what: String,
     file: ByteArray,
     lands: Pair<Int, Boolean>?,
+    halfFloats: Boolean = false,
   ): String? {
     val options = BitmapFactory.Options().apply { inPremultiplied = false }
+    if (halfFloats) options.preferHalfFloats()
     val bitmap = BitmapFactory.decodeByteArray(file, 0, file.size, options)
     if (lands == null) return bitmap?.let { "$what handed back a frame where it should hand back none" }
     bitmap ?: return "$what handed back no frame"

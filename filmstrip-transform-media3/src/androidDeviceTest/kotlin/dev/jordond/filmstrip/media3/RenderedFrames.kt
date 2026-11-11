@@ -2,6 +2,7 @@ package dev.jordond.filmstrip.media3
 
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.Color
 import android.os.Handler
 import android.os.HandlerThread
 import androidx.media3.inspector.frame.FrameExtractor
@@ -106,4 +107,17 @@ internal class RenderedFrames(
     const val REVISION = 0L
     val FRAME_TIMEOUT = 30.seconds
   }
+}
+
+/**
+ * The colour of the one pixel at the fractions [fx] and [fy] of a frame [RenderedFrames] drew.
+ *
+ * No patch is averaged, since nothing has smeared the frame yet and a read may sit a few pixels from an edge.
+ */
+internal fun Bitmap.rgbAt(
+  fx: Float,
+  fy: Float,
+): Triple<Int, Int, Int> {
+  val pixel = getPixel((fx * width).toInt().coerceIn(0, width - 1), (fy * height).toInt().coerceIn(0, height - 1))
+  return Triple(Color.red(pixel), Color.green(pixel), Color.blue(pixel))
 }

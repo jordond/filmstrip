@@ -20,18 +20,18 @@ import kotlin.test.Test
 /**
  * Android's AVIF decoder handed a twelve-bit AVIF the way an overlay hands it over.
  *
- * From API 31 to 35 [read] refuses it by name before the decoder sees it. From API 36 it decodes into eight bits a
- * sample, lands where [decoderConversionOf] says for an eight-bit picture, and reports the limits that names followed
- * by the cut to eight bits, unless core refuses it or it lands past the bound. Android's own decoder is pinned on each
- * band of API levels, so a platform that starts drawing the picture, or drawing it deeper, shows here.
+ * From API 31 [read] refuses it by name before the decoder sees it on every level but API 36. On API 36 it decodes into
+ * eight bits a sample, lands where [decoderConversionOf] says for an eight-bit picture, and reports the limits that
+ * names followed by the cut to eight bits, unless core refuses it or it lands past the bound. Android's own decoder is
+ * pinned on each band of API levels, so a platform that starts drawing the picture, or drawing it deeper, shows here.
  *
  * Skipped by name before API 31, which has no AVIF decoder.
  */
 class TwelveBitAvifMediaTest {
   @Test
-  fun belowApi36ATwelveBitAvifIsRefusedByName() {
+  fun offApi36ATwelveBitAvifIsRefusedByName() {
     assumeAvifDecodes()
-    assumeTrue("Android's AVIF decoder draws a twelve-bit AVIF from API 36", Build.VERSION.SDK_INT < TWELVE_BIT_API)
+    assumeTrue("Android's AVIF decoder draws a twelve-bit AVIF on API 36", Build.VERSION.SDK_INT != TWELVE_BIT_API)
 
     for (matrix in MATRICES) {
       val picture = ImageSource.Bytes(twelveBit(matrix, true)).read(context = null)
@@ -46,16 +46,16 @@ class TwelveBitAvifMediaTest {
   @Test
   fun onApi31To34TheDecoderHandsBackNoFrame() {
     assumeAvifDecodes()
-    assumeTrue("This test pins API 31 to 34's AVIF decoder", Build.VERSION.SDK_INT < WRONG_COLOR_API)
+    assumeTrue("This test pins API 31 to 34's AVIF decoder", Build.VERSION.SDK_INT < WRONG_COLOR_APIS.first())
     val file = twelveBit(BT709, true)
 
     BitmapFactory.decodeByteArray(file, 0, file.size).shouldBeNull()
   }
 
-  // Android's own AVIF decoder on API 35, pinned so a platform that starts drawing the picture right shows here.
+  // Android's own AVIF decoder on API 35 and 37, pinned so a platform that starts drawing the picture right shows here.
   @Test
-  fun onApi35TheDecoderHandsBackColorsNoMatrixGives() {
-    assumeTrue("This test pins API 35's AVIF decoder", Build.VERSION.SDK_INT == WRONG_COLOR_API)
+  fun onApi35AndApi37TheDecoderHandsBackColorsNoMatrixGives() {
+    assumeTrue("This test pins API 35 and 37's AVIF decoder", Build.VERSION.SDK_INT in WRONG_COLOR_APIS)
 
     for (matrix in listOf(BT709, BT601, BT2020)) {
       for (full in listOf(true, false)) {
@@ -74,8 +74,8 @@ class TwelveBitAvifMediaTest {
   }
 
   @Test
-  fun fromApi36ATwelveBitAvifLandsAsAnEightBitOneAndReportsTheCut() {
-    assumeTrue("Android's AVIF decoder draws a twelve-bit AVIF from API 36", Build.VERSION.SDK_INT >= TWELVE_BIT_API)
+  fun onApi36ATwelveBitAvifLandsAsAnEightBitOneAndReportsTheCut() {
+    assumeTrue("Android's AVIF decoder draws a twelve-bit AVIF on API 36", Build.VERSION.SDK_INT == TWELVE_BIT_API)
     val misses =
       MATRICES.flatMap { matrix ->
         listOf(true, false).mapNotNull { full ->
@@ -158,7 +158,7 @@ class TwelveBitAvifMediaTest {
     const val RGB = 3
     const val MAX_CODE = 255f
     const val ONE_CODE = 1f
-    const val WRONG_COLOR_API = 35
+    val WRONG_COLOR_APIS = listOf(35, 37)
     const val TWELVE_BIT_API = 36
     val MATRICES = listOf(BT709, FCC, BT601, SMPTE_240, YCGCO, BT2020, BT2020_CONSTANT)
     val LANDINGS = listOf(BT601, BT709, BT2020).flatMap { listOf(it to true, it to false) }
