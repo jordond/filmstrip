@@ -11,6 +11,7 @@ import dev.jordond.filmstrip.ffmpeg.internal.process.ChosenForm
 import dev.jordond.filmstrip.ffmpeg.internal.process.Scratch
 import dev.jordond.filmstrip.ffmpeg.internal.process.chooseForm
 import dev.jordond.filmstrip.ffmpeg.internal.process.resolve
+import io.kotest.assertions.withClue
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import kotlin.time.Duration
@@ -49,6 +50,23 @@ internal suspend fun FilterFrames.rawFrames(
   } finally {
     scratch.delete()
   }
+}
+
+/**
+ * Reads the first [frames] frames of [plan] from [at] in both forms and fails on any sample the live planes draw
+ * differently from the drawn graph. The first and last frames have to differ, so a look that never moves fails too.
+ */
+internal suspend fun FilterFrames.assertFormsAgree(
+  plan: Composition,
+  frames: Int,
+  at: Duration = Duration.ZERO,
+) {
+  val drawn = formPlanes(plan, frames, live = false, at = at)
+  val planes = formPlanes(plan, frames, live = true, at = at)
+  val differing = drawn.indices.count { drawn[it] != planes[it] }
+  withClue("$differing of ${drawn.size} samples differ") { differing shouldBe 0 }
+  val frameBytes = drawn.size / frames
+  drawn.copyOfRange(0, frameBytes).contentEquals(drawn.copyOfRange(drawn.size - frameBytes, drawn.size)) shouldBe false
 }
 
 /**
