@@ -33,10 +33,6 @@ sample/media/build/
 # wrangler scratch
 .wrangler/
 
-!/.claude/
-/.claude/*
-!/.claude/skills/
+.claude/
 .desloppify/
-
-.claude/skills/desloppify/
 scorecard.png
