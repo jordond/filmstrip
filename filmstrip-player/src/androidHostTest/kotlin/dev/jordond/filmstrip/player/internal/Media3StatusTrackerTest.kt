@@ -200,7 +200,7 @@ class Media3StatusTrackerTest {
       rig.tracker.fail(ERROR)
 
       rig.tracker.graphUp shouldBe true
-      surfaceResizeAction(rig.tracker.graphUp) shouldBe SurfaceResize.Redraw
+      surfaceChangeAction(rig.tracker.graphUp, SurfaceChange.Shape, playing = false) shouldBe SurfaceResize.Redraw
     }
 
   @Test
@@ -211,7 +211,7 @@ class Media3StatusTrackerTest {
       rig.tracker.fail(ERROR)
 
       rig.tracker.graphUp shouldBe false
-      surfaceResizeAction(rig.tracker.graphUp) shouldBe SurfaceResize.Reapply
+      surfaceChangeAction(rig.tracker.graphUp, SurfaceChange.Shape, playing = false) shouldBe SurfaceResize.Reapply
     }
 
   @Test
@@ -223,7 +223,7 @@ class Media3StatusTrackerTest {
       rig.tracker.onPlayerError(ERROR)
 
       rig.tracker.graphUp shouldBe false
-      surfaceResizeAction(rig.tracker.graphUp) shouldBe SurfaceResize.Reapply
+      surfaceChangeAction(rig.tracker.graphUp, SurfaceChange.Shape, playing = false) shouldBe SurfaceResize.Reapply
     }
 
   @Test

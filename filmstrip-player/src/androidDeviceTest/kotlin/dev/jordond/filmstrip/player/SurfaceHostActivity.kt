@@ -5,6 +5,7 @@ import android.os.Build
 import android.os.Bundle
 import android.view.SurfaceHolder
 import android.view.SurfaceView
+import android.view.View
 import android.view.WindowManager
 import android.widget.FrameLayout
 import java.util.concurrent.CountDownLatch
@@ -84,6 +85,20 @@ class SurfaceHostActivity : Activity() {
     height: Int,
   ) {
     runOnUiThread { surfaceView.holder.setFixedSize(width, height) }
+  }
+
+  /**
+   * Hides the view, which destroys its surface, the way a host that leaves the screen does.
+   */
+  fun hideSurface() {
+    runOnUiThread { surfaceView.visibility = View.GONE }
+  }
+
+  /**
+   * Shows the view again, where it is given a new surface.
+   */
+  fun showSurface() {
+    runOnUiThread { surfaceView.visibility = View.VISIBLE }
   }
 
   /**

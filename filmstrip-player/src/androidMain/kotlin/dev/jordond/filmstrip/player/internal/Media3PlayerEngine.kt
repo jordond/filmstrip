@@ -66,7 +66,11 @@ internal class Media3PlayerEngine(
 
   private var preview: Media3Preview? = null
   private var volume = 1f
+
+  @Volatile
   private var scrubbing = false
+
+  @Volatile
   private var shuttling = false
 
   private val guard = WrapGuard()
@@ -90,7 +94,7 @@ internal class Media3PlayerEngine(
       emitEvent = ::emitEvent,
     )
 
-  private val surfaces: Media3SurfaceManager =
+  internal val surfaces: Media3SurfaceManager =
     Media3SurfaceManager(
       scope = scope,
       handler = handler,
@@ -98,6 +102,8 @@ internal class Media3PlayerEngine(
       rendered = { plan?.resolved?.output?.size },
       graphUp = { status.graphUp },
       onDetached = ::onSurfaceDetached,
+      drawnOnto = { status.surfaceRendered },
+      represent = { surfaceLost -> scope.launch { seeks.represent(surfaceLost) } },
     )
 
   private val seeks: Media3SeekCoordinator =
@@ -111,8 +117,10 @@ internal class Media3PlayerEngine(
       platformPositionMs = { status.platformPositionMs },
       loopWrap = { loops.wrap() },
       showsFrames = { status.surfaceRendered && preview?.let { it.videoSequences > 0 } == true },
+      scrubbing = { scrubbing || shuttling },
       onIssued = status::clearEnd,
       onRedirected = ::movePlayhead,
+      onRepresented = ::onRepresented,
     )
 
   private val loops: Media3LoopRangeController =
@@ -154,21 +162,6 @@ internal class Media3PlayerEngine(
    */
   var platformLoads: Int = 0
     private set
-
-  /**
-   * How many times the player has been pointed at a surface.
-   *
-   * One for the attachment, and one more each time the surface changed shape under it.
-   */
-  val surfaceApplications: Int get() = surfaces.applications
-
-  /**
-   * How many times a resized surface has been asked to draw again.
-   *
-   * The cheap half of [surfaceApplications]: media3 has the new size already and only the pixels
-   * are missing.
-   */
-  val surfaceRedraws: Int get() = surfaces.redraws
 
   /**
    * The accuracy the last seek really ran at.
@@ -288,6 +281,13 @@ internal class Media3PlayerEngine(
     // the flush a seek would otherwise cost, which is what makes a burst of exact seeks affordable.
     val enabled = scrubbing || shuttling
     handler.post { player?.setScrubbingModeEnabled(enabled) }
+  }
+
+  // media3's limit: the first frame it releases onto a buffer that changed size never shows, and only a redraw
+  // reaches the buffer. The frame the seek back decoded is the one the cache replays.
+  private fun onRepresented() {
+    handler.post { player?.experimentalRedrawLastFrame() }
+    emitFrameRedrawn()
   }
 
   private fun onSurfaceDetached() {

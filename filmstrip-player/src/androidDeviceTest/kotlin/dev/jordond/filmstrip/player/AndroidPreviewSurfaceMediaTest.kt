@@ -10,6 +10,9 @@ import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.player.internal.engineFor
+import dev.jordond.filmstrip.player.internal.surfaceApplications
+import dev.jordond.filmstrip.player.internal.surfaceRedraws
+import dev.jordond.filmstrip.player.internal.surfaceRepresents
 import io.kotest.assertions.withClue
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.nulls.shouldNotBeNull
@@ -301,14 +304,14 @@ class AndroidPreviewSurfaceMediaTest {
     }
 
   /**
-   * A surface that does change shape under a live graph is redrawn, not handed over again.
+   * A surface that does change shape under a paused graph is seeked back to its slot, not handed over again.
    *
    * media3 reads a new buffer size off the holder itself once it has a graph, so all that is
    * missing is a frame drawn at the new shape. Clearing and setting the output there would cost a
    * rebuild for pixels the player already has.
    */
   @Test
-  fun aSurfaceChangedUnderALiveGraphIsRedrawnRatherThanHandedOverAgain() =
+  fun aSurfaceChangedUnderAPausedGraphIsSeekedBackRatherThanHandedOverAgain() =
     runTest(timeout = TIMEOUT) {
       realTime {
         ActivityScenario.launch(SurfaceHostActivity::class.java).use { scenario ->
@@ -340,11 +343,11 @@ class AndroidPreviewSurfaceMediaTest {
             }
             delay(SETTLE)
             val applied = engine.surfaceApplications
-            val redrawn = engine.surfaceRedraws
+            val represented = engine.surfaceRepresents
 
             activity.resizeBuffer(rendered.width / HALVED, rendered.height / HALVED)
 
-            awaitOrFail("the resized surface to be drawn again") { engine.surfaceRedraws == redrawn + 1 }
+            awaitOrFail("the resized surface to be drawn again") { engine.surfaceRepresents == represented + 1 }
             engine.surfaceApplications shouldBe applied
           } finally {
             collector.cancel()

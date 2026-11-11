@@ -22,7 +22,13 @@ import kotlin.time.Duration.Companion.milliseconds
  * media3 accepts a seek long before it draws the frame, so while frames reach a surface a seek is answered by the
  * first frame drawn after media3's playback thread has handled it. A seek to the millisecond media3 already rests on
  * is one it skips and draws nothing for, so that one is answered by the frame the seek before it is still waiting on,
- * or at once when there is none. With nothing to draw onto, a seek is answered when media3 accepts it.
+ * or at once when there is none. A paused player can rest on a millisecond other than the one it reports, so every
+ * other paused seek outside a scrub goes through the millisecond beside its target, which media3 never skips. With
+ * nothing to draw onto, a seek is answered when media3 accepts it.
+ *
+ * [represent] is the one seek nobody asked for. It goes back to the slot the preview already holds, through the
+ * millisecond beside it so media3 carries it out, and lands without a word to the chase. One made as the surface
+ * goes lands when media3 accepts it, and the frame it decoded is the first one the next surface is given.
  *
  * Everything here runs on the engine's dispatcher except [playerSerial], which the player's thread owns, and
  * [frameDrawn], which media3's playback thread calls.
@@ -36,8 +42,10 @@ import kotlin.time.Duration.Companion.milliseconds
  * @param platformPositionMs The last position media3 reported, in its own milliseconds.
  * @param loopWrap Where the loop range standing now wraps, or null when there is none.
  * @param showsFrames Whether the frames media3 draws reach a surface now.
+ * @param scrubbing Whether media3 is in its scrubbing mode. Read on the player's thread.
  * @param onIssued Called as each seek is handed over, including a redirect.
  * @param onRedirected Reports the slot time a wrap was sent on to, which the playhead holds until it lands.
+ * @param onRepresented Called once a held slot has been drawn again.
  */
 @ExperimentalApi
 internal class Media3SeekCoordinator(
@@ -50,10 +58,19 @@ internal class Media3SeekCoordinator(
   private val platformPositionMs: () -> Long,
   private val loopWrap: () -> LoopWrap?,
   private val showsFrames: () -> Boolean,
+  private val scrubbing: () -> Boolean,
   private val onIssued: () -> Unit,
   private val onRedirected: (Duration) -> Unit,
+  private val onRepresented: () -> Unit,
 ) {
   private var completion: ((Duration) -> Unit)? = null
+
+  // Whether the seek in flight is a held slot being seeked back to, which a second request for the same has nothing
+  // to add to.
+  private var representing = false
+
+  // Whether the seek in flight was made as the surface went, so no frame will come to answer it.
+  private var landsUnseen = false
 
   /**
    * Where the seek in flight is going, or null when none is.
@@ -115,16 +132,60 @@ internal class Media3SeekCoordinator(
 
     lastAccuracy = clampedAccuracy(accuracy)
     guard.seekIssued(wrap = wrap)
+    representing = false
+    landsUnseen = false
     completion = onComplete
     issue(loaded.seekLandingOf(position))
+  }
+
+  /**
+   * Seeks back to the slot the preview holds, so it is the frame media3 draws next.
+   *
+   * A seek in flight is handed over again and answers the chase as it would have. With none in flight the slot the
+   * player rests on is seeked to, and nothing but [onRepresented] hears it land. The player is read once the playback
+   * thread has said all it had to, since a player paused a moment ago still reports an estimate.
+   *
+   * @param surfaceLost Whether this is for a surface that just went, rather than one the player was handed.
+   */
+  fun represent(surfaceLost: Boolean) {
+    handler.post {
+      val playback = playbackLooper()?.let(::Handler)
+      playback.run {
+        handler.post {
+          val restingMs = player()?.currentPosition ?: return@post
+          scope.launch { representFrom(restingMs, surfaceLost) }
+        }
+      }
+    }
+  }
+
+  private fun representFrom(
+    restingMs: Long,
+    surfaceLost: Boolean,
+  ) {
+    val loaded = resolved() ?: return
+    if (representing) return
+    val inFlight = target
+    if (inFlight == null) {
+      guard.seekIssued(wrap = false)
+      representing = true
+      landsUnseen = surfaceLost
+      completion = { onRepresented() }
+    }
+    issue(inFlight ?: loaded.seekLandingOf(playheadOf(restingMs, landing)), fresh = true)
   }
 
   /**
    * Hands media3 a seek to [target] for the completion already waiting in [completion].
    *
    * A redirect goes through here too, so the one completion reports wherever the last seek it was handed landed.
+   *
+   * @param fresh Whether media3 has to carry the seek out even where it already rests on [target].
    */
-  private fun issue(target: Duration) {
+  private fun issue(
+    target: Duration,
+    fresh: Boolean = false,
+  ) {
     val issued = ++serial
     this.target = target
     landing = target
@@ -135,7 +196,7 @@ internal class Media3SeekCoordinator(
       // position it estimated while playing, and media3 decides whether to skip a seek from the one it really holds,
       // which the player reads once everything the playback thread had to say has arrived.
       val playback = playbackLooper()?.let(::Handler)
-      playback.run { handler.post { handOver(issued, target, playback) } }
+      playback.run { handler.post { handOver(issued, target, playback, fresh) } }
     }
   }
 
@@ -143,6 +204,7 @@ internal class Media3SeekCoordinator(
     issued: Int,
     target: Duration,
     playback: Handler?,
+    fresh: Boolean,
   ) {
     val standing = player()
     if (standing == null) {
@@ -152,11 +214,15 @@ internal class Media3SeekCoordinator(
 
     playerSerial = issued
     val positionMs = target.toMediaMs()
-    val skipped = standing.skipsSeekTo(positionMs)
+    val skipped = !fresh && standing.skipsSeekTo(positionMs)
     // A paused player draws nothing but the frame a seek lands on, and can draw it before anything queued behind the
     // seek runs, so the wait opens ahead of the seek. A playing one is still drawing frames from before it, so there
     // the wait opens once the seek was handled.
     if (!standing.isPlaying) playback.run { awaitFrame(issued) }
+    // media3's limit: it skips a seek to the millisecond it rests on. See [seekNudgeMs].
+    if (seekGoesThroughNudge(fresh, skipped, standing.isPlaying, scrubbing())) {
+      standing.seekTo(seekNudgeMs(positionMs))
+    }
     standing.seekTo(positionMs)
     playback.run { onSeekHandled(issued, skipped) }
   }
@@ -196,7 +262,7 @@ internal class Media3SeekCoordinator(
    * Answers media3 accepting the seek numbered [serial], which is as much as it says when no frame reaches a surface.
    */
   fun accepted(serial: Int) {
-    if (!showsFrames()) settle(serial)
+    if (!showsFrames() || landsUnseen) settle(serial)
   }
 
   /**
@@ -229,6 +295,8 @@ internal class Media3SeekCoordinator(
     val landed = target ?: position()
     completion = null
     target = null
+    representing = false
+    landsUnseen = false
     waiting(landed)
   }
 
@@ -238,6 +306,8 @@ internal class Media3SeekCoordinator(
   fun cancel() {
     completion = null
     target = null
+    representing = false
+    landsUnseen = false
   }
 }
 

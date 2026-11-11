@@ -1,10 +1,6 @@
 package dev.jordond.filmstrip.player
 
 import android.graphics.Bitmap
-import android.os.Handler
-import android.os.Looper
-import android.view.PixelCopy
-import android.view.SurfaceView
 import android.view.TextureView
 import androidx.test.core.app.ActivityScenario
 import dev.jordond.filmstrip.Filmstrip
@@ -32,12 +28,10 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import java.util.concurrent.CopyOnWriteArrayList
-import kotlin.coroutines.resume
 import kotlin.test.Test
 import kotlin.test.fail
 import kotlin.time.Duration
@@ -108,16 +102,17 @@ class AndroidTextureSurfaceMediaTest {
    * A view that leaves the window loses its texture and is given another when it comes back.
    *
    * The surface over the first texture has to come off the player before the texture goes, and the second has to be
-   * drawn onto without anything asking for it. media3 draws the frame after the one it was paused on when a paused
-   * player is handed a new surface, on a `SurfaceView` as well, so either of the two is the picture here.
+   * drawn onto without anything asking for it. Left alone, media3 draws the frame queued behind the one it was paused
+   * on, so the picture is held against the export of the slot the playhead reports and of the one after it.
    */
   @Test
-  fun aTextureDestroyedAndMadeAgainUnderAPausedPlayerIsDrawnOntoAgain() =
+  fun aTextureDestroyedAndMadeAgainUnderAPausedPlayerShowsTheSlotItHeld() =
     onTexture(androidPannedClipComposition()) { rig ->
       val composition = androidPannedClipComposition()
-      val paused = androidExportFrame(composition, PANNED_SLOT)
+      val held = androidExportFrame(composition, PANNED_SLOT)
       val after = androidExportFrame(composition, PANNED_SLOT + FIXTURE_FRAME_STEP)
       rig.showPausedAt(PANNED_SLOT)
+      val seeks = rig.seeksCompleted
 
       rig.activity.removeTexture()
       awaitOrFail("the texture to be destroyed") { !rig.view.isAvailable }
@@ -126,11 +121,13 @@ class AndroidTextureSurfaceMediaTest {
       delay(SETTLE)
 
       val shown = rig.view.read(FIXTURE_FRAME)
-      val showsEither =
-        listOf(paused, after).any { exported ->
-          runCatching { assertFramesSimilar(exported, shown, SEEK_MIN_PSNR_DB, SEEK_MIN_SSIM, "") }.isSuccess
-        }
-      withClue("the new texture shows neither the paused frame nor the one after it") { showsEither.shouldBeTrue() }
+      assertFramesSimilar(held, shown, SEEK_MIN_PSNR_DB, SEEK_MIN_SSIM, "the new texture does not show the held slot")
+      assertFramesDiffer(after, shown, SEEK_MIN_PSNR_DB, SEEK_MIN_SSIM, "the new texture shows the slot after")
+      withClue("the playhead moved off the slot it held") {
+        outputSlotOf(rig.player.currentPosition(), FIXTURE_FRAME_RATE) shouldBe
+          outputSlotOf(PANNED_SLOT, FIXTURE_FRAME_RATE)
+      }
+      withClue("a seek nobody asked for was reported") { rig.seeksCompleted shouldBe seeks }
     }
 
   @Test
@@ -291,16 +288,6 @@ class AndroidTextureSurfaceMediaTest {
     return captured.shouldNotBeNull()
   }
 
-  private suspend fun SurfaceView.copyPixels(size: Size): TestFrame {
-    val bitmap = Bitmap.createBitmap(size.width, size.height, Bitmap.Config.ARGB_8888)
-    val status =
-      suspendCancellableCoroutine { continuation ->
-        PixelCopy.request(this, bitmap, { result -> continuation.resume(result) }, Handler(Looper.getMainLooper()))
-      }
-    if (status != PixelCopy.SUCCESS) fail("PixelCopy off the surface answered $status")
-    return bitmap.toTestFrame()
-  }
-
   private suspend fun TextureView.read(size: Size): TestFrame {
     val bitmap: Bitmap? = withContext(Dispatchers.Main) { getBitmap(size.width, size.height) }
     return bitmap?.toTestFrame() ?: fail("the texture had nothing to read")
@@ -343,6 +330,7 @@ class AndroidTextureSurfaceMediaTest {
   ) {
     val view: TextureView get() = activity.textureView
     val firstFrames: Int get() = events.count { it is PlaybackEvent.FirstFrameRendered }
+    val seeksCompleted: Int get() = events.count { it is PlaybackEvent.SeekCompleted }
 
     /**
      * Attaches the texture, draws once, and leaves the preview paused on the frame at [at].

@@ -2,6 +2,7 @@ package dev.jordond.filmstrip.player.internal
 
 import android.os.Handler
 import android.view.View
+import androidx.media3.common.Player
 import androidx.media3.common.util.ExperimentalApi
 import androidx.media3.transformer.CompositionPlayer
 import dev.jordond.filmstrip.geometry.Size
@@ -23,6 +24,9 @@ import kotlin.concurrent.Volatile
  * @param graphUp Whether media3 has a graph to hand a size read off the holder to. Read on the player's thread.
  * @param onDetached Called on the engine's dispatcher once the player lets go of a view, so the next one earns its
  * own first frame.
+ * @param drawnOnto Whether a frame has reached the attached view. Read on the player's thread.
+ * @param represent Seeks back to the slot the preview holds, and is told whether a surface going is why. Called on
+ * the player's thread.
  */
 @ExperimentalApi
 internal class Media3SurfaceManager(
@@ -32,6 +36,8 @@ internal class Media3SurfaceManager(
   private val rendered: () -> Size?,
   private val graphUp: () -> Boolean,
   private val onDetached: () -> Unit,
+  private val drawnOnto: () -> Boolean,
+  private val represent: (surfaceLost: Boolean) -> Unit,
 ) {
   /**
    * The view the player draws into. Player thread only. The surface posts its attachment across rather than writing
@@ -68,16 +74,28 @@ internal class Media3SurfaceManager(
   var redraws: Int = 0
     private set
 
+  /**
+   * How many times a player that was not playing was seeked back to the slot it held, as its surface went or as it
+   * was handed another.
+   */
+  @Volatile
+  var represents: Int = 0
+    private set
+
   fun attach(target: PreviewTarget) {
-    target.listen { onResized(target) }
+    target.listen { change -> onChanged(target, change) }
     previewTarget = target
 
     // A view arriving after the graph takes the frame the graph is already rendering.
     scope.launch { fixBuffer(target, rendered()) }
     handler.post {
+      // A view taking over from one that was drawn onto is an output handed over with no warning.
+      val replaces = attached != null && drawnOnto()
       attached = target
-      player()?.let(target::applyTo)
+      val standing = player()
+      standing?.let(target::applyTo)
       applications++
+      if (standing != null && replaces && !standing.drawsOnItsOwn && graphUp()) seekBack(SurfaceChange.Handed)
     }
   }
 
@@ -94,8 +112,10 @@ internal class Media3SurfaceManager(
     handler.post {
       val target = attached?.takeIf { it.view === view } ?: return@post
       attached = null
-      player()?.let(target::clearFrom)
+      val standing = player()
+      standing?.let(target::clearFrom)
       scope.launch { onDetached() }
+      standing?.let { act(it, target, SurfaceChange.Lost) }
     }
   }
 
@@ -122,25 +142,70 @@ internal class Media3SurfaceManager(
     target.fixBuffer(next)
   }
 
-  // Reacts to the surface changing shape under the player. See [surfaceResizeAction].
-  private fun onResized(target: PreviewTarget) {
+  // Reacts to the surface changing under the player. See [surfaceChangeAction].
+  private fun onChanged(
+    target: PreviewTarget,
+    change: SurfaceChange,
+  ) {
     handler.post {
       val standing = player() ?: return@post
       if (attached !== target) return@post
+      act(standing, target, change)
+    }
+  }
 
-      when (surfaceResizeAction(graphUp())) {
-        SurfaceResize.Reapply -> {
-          // Clearing first is what makes it take: setting the view it already holds is a no-op,
-          // so the output has to go away before it will be built again at the shape it now has.
-          target.clearFrom(standing)
-          target.applyTo(standing)
-          applications++
-        }
-        SurfaceResize.Redraw -> {
-          standing.experimentalRedrawLastFrame()
-          redraws++
-        }
+  // Player thread only.
+  private fun act(
+    standing: CompositionPlayer,
+    target: PreviewTarget,
+    change: SurfaceChange,
+  ) {
+    when (surfaceChangeAction(graphUp(), change, standing.drawsOnItsOwn)) {
+      SurfaceResize.Leave -> {}
+      SurfaceResize.Reapply -> {
+        // Clearing first is what makes it take: setting the view it already holds is a no-op,
+        // so the output has to go away before it will be built again at the shape it now has.
+        target.clearFrom(standing)
+        target.applyTo(standing)
+        applications++
+      }
+      SurfaceResize.Redraw -> {
+        standing.experimentalRedrawLastFrame()
+        redraws++
+      }
+      SurfaceResize.Represent -> {
+        seekBack(change)
       }
     }
   }
+
+  private fun seekBack(change: SurfaceChange) {
+    represent(change == SurfaceChange.Lost)
+    represents++
+  }
 }
+
+// A player that ran to its end holds its last frame however it was left, so it counts as not drawing.
+private val CompositionPlayer.drawsOnItsOwn: Boolean
+  get() = playWhenReady && playbackState != Player.STATE_ENDED
+
+/**
+ * How many times the player has been pointed at a surface.
+ *
+ * One for the attachment, and one more each time the surface changed shape under it.
+ */
+internal val Media3PlayerEngine.surfaceApplications: Int get() = surfaces.applications
+
+/**
+ * How many times a resized surface has been asked to draw again.
+ *
+ * The cheap half of [surfaceApplications]: media3 has the new size already and only the pixels
+ * are missing.
+ */
+internal val Media3PlayerEngine.surfaceRedraws: Int get() = surfaces.redraws
+
+/**
+ * How many times a preview that was not playing was seeked back to the slot it held, as its surface went or as it
+ * was handed another.
+ */
+internal val Media3PlayerEngine.surfaceRepresents: Int get() = surfaces.represents

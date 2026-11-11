@@ -50,9 +50,11 @@ internal interface PreviewTarget {
   fun fixBuffer(size: Size)
 
   /**
-   * Starts following the view's surface, and calls [onResized] each time it changes shape, until [stopListening].
+   * Starts following the view's surface, and calls [onChanged] each time it changes, until [stopListening].
+   *
+   * [onChanged] is told what the change did to the player's output.
    */
-  fun listen(onResized: () -> Unit)
+  fun listen(onChanged: (SurfaceChange) -> Unit)
 
   /**
    * Stops following the view's surface, and lets go of anything made to draw into it.
@@ -97,7 +99,7 @@ internal class SurfaceViewTarget(
     view.holder.setFixedSize(size.width, size.height)
   }
 
-  override fun listen(onResized: () -> Unit) {
+  override fun listen(onChanged: (SurfaceChange) -> Unit) {
     stopListening()
     val callback =
       object : SurfaceHolder.Callback {
@@ -109,10 +111,14 @@ internal class SurfaceViewTarget(
           width: Int,
           height: Int,
         ) {
-          onResized()
+          // media3 follows the holder too, and takes every surface and size it reports. One follows each surface
+          // that is made, so a surface that came back is heard here as well.
+          onChanged(SurfaceChange.Handed)
         }
 
-        override fun surfaceDestroyed(holder: SurfaceHolder): Unit = Unit
+        override fun surfaceDestroyed(holder: SurfaceHolder) {
+          onChanged(SurfaceChange.Lost)
+        }
       }
     resizes = callback
     view.holder.addCallback(callback)
@@ -190,7 +196,7 @@ internal class TextureViewTarget(
   private var buffer: Size? = null
 
   @Volatile
-  private var onResized: (() -> Unit)? = null
+  private var onChanged: ((SurfaceChange) -> Unit)? = null
 
   @Volatile
   private var following = false
@@ -203,8 +209,8 @@ internal class TextureViewTarget(
         height: Int,
       ) {
         take(texture, width, height)
-        // A texture that arrives under a player is a surface that changed shape, and is drawn into the same way.
-        onResized?.invoke()
+        // A texture that arrives under a player is a new surface handed to it.
+        onChanged?.invoke(SurfaceChange.Handed)
       }
 
       override fun onSurfaceTextureSizeChanged(
@@ -218,7 +224,8 @@ internal class TextureViewTarget(
         } else {
           handler.post { outputSize = Size(width, height) }
         }
-        onResized?.invoke()
+        // The player keeps the surface it has and is told nothing, so only the buffer under it moved.
+        onChanged?.invoke(SurfaceChange.Shape)
       }
 
       // Answers false so the texture outlives this call and is released once the player has let go of the surface
@@ -229,6 +236,7 @@ internal class TextureViewTarget(
             drop()
             texture.release()
           }
+        if (posted) onChanged?.invoke(SurfaceChange.Lost)
         return !posted
       }
 
@@ -256,8 +264,8 @@ internal class TextureViewTarget(
     }
   }
 
-  override fun listen(onResized: () -> Unit) {
-    this.onResized = onResized
+  override fun listen(onChanged: (SurfaceChange) -> Unit) {
+    this.onChanged = onChanged
     following = true
     main.post {
       if (!following) return@post
@@ -284,7 +292,7 @@ internal class TextureViewTarget(
 
   private fun unfollow() {
     following = false
-    onResized = null
+    onChanged = null
     main.post { if (view.surfaceTextureListener === textures) view.surfaceTextureListener = null }
   }
 

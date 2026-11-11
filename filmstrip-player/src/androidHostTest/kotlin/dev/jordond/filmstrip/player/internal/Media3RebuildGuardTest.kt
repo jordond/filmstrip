@@ -260,9 +260,11 @@ class Media3RebuildGuardTest {
         guard = guard,
         platformPositionMs = { status.platformPositionMs },
         loopWrap = { null },
+        scrubbing = { false },
         showsFrames = { false },
         onIssued = { },
         onRedirected = { },
+        onRepresented = { },
       )
 
     val loops =

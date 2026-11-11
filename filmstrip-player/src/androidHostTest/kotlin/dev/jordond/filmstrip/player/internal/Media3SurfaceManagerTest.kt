@@ -130,6 +130,8 @@ class Media3SurfaceManagerTest {
 
       rig.manager.applications shouldBe 1
       rig.manager.redraws shouldBe 0
+      rig.manager.represents shouldBe 0
+      rig.represents shouldBe 0
     }
 
   @Test
@@ -153,6 +155,7 @@ class Media3SurfaceManagerTest {
     graphUp: Boolean = false,
   ) {
     var detaches = 0
+    var represents = 0
 
     private val handler =
       mockk<Handler>().also {
@@ -170,6 +173,8 @@ class Media3SurfaceManagerTest {
         rendered = { rendered },
         graphUp = { graphUp },
         onDetached = { detaches++ },
+        drawnOnto = { false },
+        represent = { represents++ },
       )
   }
 

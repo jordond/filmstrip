@@ -146,8 +146,10 @@ class Media3PlayerHostTest {
             platformPositionMs = { 0L },
             loopWrap = { null },
             showsFrames = { false },
+            scrubbing = { false },
             onIssued = { },
             onRedirected = { },
+            onRepresented = { },
           ),
         loops =
           Media3LoopRangeController(
@@ -171,6 +173,8 @@ class Media3PlayerHostTest {
             rendered = { null },
             graphUp = { false },
             onDetached = { },
+            drawnOnto = { false },
+            represent = { },
           ),
         onBuilt = { built += it },
         onReleased = { released += it },

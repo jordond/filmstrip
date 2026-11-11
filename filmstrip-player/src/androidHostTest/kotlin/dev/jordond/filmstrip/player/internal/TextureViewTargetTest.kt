@@ -53,17 +53,17 @@ class TextureViewTargetTest {
   }
 
   @Test
-  fun `a texture that arrives later is taken up then and reported as a resize`() {
+  fun `a texture that arrives later is taken up then and reported as an output handed to the player`() {
     available = null
-    var resizes = 0
-    target.listen { resizes++ }
+    val changes = mutableListOf<SurfaceChange>()
+    target.listen { changes += it }
     made shouldBe 0
 
     available = texture
     listener.captured.onSurfaceTextureAvailable(texture, VIEW.width, VIEW.height)
 
     made shouldBe 1
-    resizes shouldBe 1
+    changes shouldBe listOf(SurfaceChange.Handed)
   }
 
   @Test
@@ -76,15 +76,15 @@ class TextureViewTargetTest {
   }
 
   @Test
-  fun `a view laid out again has its fixed buffer fixed again`() {
-    var resizes = 0
-    target.listen { resizes++ }
+  fun `a view laid out again has its fixed buffer fixed again and the player hears of no new output`() {
+    val changes = mutableListOf<SurfaceChange>()
+    target.listen { changes += it }
     target.fixBuffer(FRAME)
 
     listener.captured.onSurfaceTextureSizeChanged(texture, TALL.width, TALL.height)
 
     verify(exactly = 2) { texture.setDefaultBufferSize(FRAME.width, FRAME.height) }
-    resizes shouldBe 1
+    changes shouldBe listOf(SurfaceChange.Shape)
   }
 
   @Test
