@@ -17,7 +17,7 @@ internal fun Project.configurePublishing(license: (MavenPomLicenseSpec.() -> Uni
 
   extensions.configure<MavenPublishBaseExtension> {
     coordinates(groupId = version("group"), artifactId = name)
-    publishToMavenCentral()
+    publishToMavenCentral(automaticRelease = true)
     signAllPublications()
 
     pom {
