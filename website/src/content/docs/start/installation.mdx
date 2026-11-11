@@ -23,6 +23,8 @@ export const build = `kotlin {
   }
 }`
 
+export const snapshot = versions.library.endsWith('-SNAPSHOT')
+
 export const repositories = `dependencyResolutionManagement {
   repositories {
     mavenCentral()
@@ -30,19 +32,27 @@ export const repositories = `dependencyResolutionManagement {
   }
 }`
 
-<Aside type="caution" title="Not released yet">
-filmstrip has no release on Maven Central. The coordinates below are the {versions.library} snapshot, published
-from `main` each time its build passes. They'll change once a first version ships.
+<Aside type="caution" title="Pre-1.0.0">
+filmstrip is pre-1.0.0, so the API might break between releases until then.
 </Aside>
 
 ## Add the dependency
 
-Snapshots live in the Maven Central snapshot repository, so add it next to `mavenCentral()` in
-`settings.gradle.kts`.
-
-<Code code={repositories} lang="kotlin" title="settings.gradle.kts" />
-
-Then add filmstrip to the version catalog and to `commonMain`.
+{snapshot ? (
+  <>
+    <p>
+      These are the docs of the development version, so the coordinates below are the {versions.library} snapshot,
+      published from <code>main</code> each time its build passes. Snapshots live in the Maven Central snapshot
+      repository, so add it next to <code>mavenCentral()</code> in <code>settings.gradle.kts</code>.
+    </p>
+    <Code code={repositories} lang="kotlin" title="settings.gradle.kts" />
+    <p>Then add filmstrip to the version catalog and to <code>commonMain</code>.</p>
+  </>
+) : (
+  <p>
+    filmstrip is on Maven Central. Add it to the version catalog and to <code>commonMain</code>.
+  </p>
+)}
 
 <Code code={catalog} lang="toml" title="gradle/libs.versions.toml" />
 

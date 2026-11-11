@@ -1,1 +1,8 @@
 blank_issues_enabled: false
+contact_links:
+  - name: Question or idea
+    url: https://github.com/jordond/filmstrip/discussions
+    about: Ask how to do something or float an idea before it becomes an issue
+  - name: Documentation
+    url: https://filmstrip.jordond.dev
+    about: Guides, the API reference and the browser demo

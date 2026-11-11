@@ -1,5 +1,29 @@
 # Contributing
 
+## Building
+
+```bash
+./gradlew build            # everything, including the Apple frameworks
+./gradlew check            # tests, formatting, ABI validation, lint, and both layering guards
+./gradlew spotlessApply    # format to .editorconfig
+./gradlew updateKotlinAbi  # regenerate the ABI dumps after a public API change
+```
+
+JDK 17 or newer, and macOS for the Apple targets.
+
+## Module layering
+
+Layering is one ladder, `core -> effects -> transform -> backends -> player -> compose -> compose-ui`, and a module
+may depend on any rung below its own. `filmstrip` sits over the player. The io adapters and `filmstrip-test` branch
+off core instead: `core -> {io-filekit -> io-filekit-compose, io-okio, io-kotlinx, test}`. The build enforces it:
+`check` runs a resolved-dependency guard on every module, plus an import guard where one is needed.
+
+Each backend lowers an edit for both export and preview. The player owns playback and drives that preview lowering
+through the backend's `@InternalFilmstripApi` declarations under a named set of its `internal` packages, since a
+backend may not take a playback runtime such as media3-exoplayer. `internal.preview` holds what only the player reads,
+and a few leaf packages hold what the backend's export reads as well. Nothing else in a backend imports
+`internal.preview`. The import guard keeps the player out of the rest of a backend's `internal` package.
+
 ## Running the tests
 
 A clean checkout runs every suite without any credentials. What each one needs on the machine:
@@ -86,3 +110,8 @@ GitHub release as `docs-site.tar.gz`. Every deploy builds `/dev/` and downloads 
 only changes when it is rebuilt. To rebuild one, run the `docs` workflow with `release_tag` set, and `source_ref` set
 to a branch when the fix is not in the tag. A patch release replaces its minor's version.
 
+## Releasing
+
+Tag the commit and publish a GitHub release. The tag is the version: the publish workflow passes it
+as `ORG_GRADLE_PROJECT_VERSION_NAME`, so no file in the repo records a released version.
+`VERSION_NAME` in `gradle.properties` only affects local builds.
