@@ -16,11 +16,11 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.layout
@@ -30,7 +30,6 @@ import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.v2.runAndroidComposeUiTest
 import androidx.compose.ui.unit.Constraints
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.media3.common.SimpleBasePlayer
 import androidx.test.platform.app.InstrumentationRegistry
@@ -49,6 +48,7 @@ import dev.jordond.filmstrip.player.VideoPlayer
 import dev.jordond.filmstrip.player.playerBackend
 import dev.jordond.filmstrip.test.writeAtomically
 import io.kotest.assertions.withClue
+import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.doubles.shouldBeLessThan
@@ -230,9 +230,10 @@ class VideoSurfaceAndroidTest {
       setContent {
         player = rememberFilmstripPlayer(filmstrip, composition)
         state = rememberVideoSurfaceState(player)
-        // Clear of the host activity's action bar, which lies over the top of the window's own picture.
-        Box(Modifier.fillMaxSize()) {
-          Box(Modifier.offset { IntOffset(0, BELOW_THE_BAR) }.pixelSize(BOX).testTag(SURFACE)) {
+        // At the foot of the window, clear of the host activity's action bar, which lies over the top of the window's
+        // own picture.
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.BottomStart) {
+          Box(Modifier.pixelSize(BOX).testTag(SURFACE)) {
             VideoSurface(player, Modifier.fillMaxSize(), type = VideoSurfaceType.Texture)
             if (covered) Box(Modifier.fillMaxSize().background(Color.White.copy(alpha = HALF)))
           }
@@ -276,6 +277,10 @@ class VideoSurfaceAndroidTest {
     val left = box.left.roundToInt() + (BOX.width - video.width) / 2 + INSET
     val top = box.top.roundToInt() + (BOX.height - video.height) / 2 + INSET
     val area = Rect(left, top, left + video.width - 2 * INSET, top + video.height - 2 * INSET)
+    val decor = window.decorView
+    withClue("the surface lies outside the window, which is ${decor.width} by ${decor.height}") {
+      Rect(0, 0, decor.width, decor.height).contains(area).shouldBeTrue()
+    }
     val bitmap = Bitmap.createBitmap(area.width(), area.height(), Bitmap.Config.ARGB_8888)
     val answered = CountDownLatch(1)
     var status = PixelCopy.ERROR_UNKNOWN
@@ -390,7 +395,6 @@ class VideoSurfaceAndroidTest {
     const val BYTE = 0xFF
     val CHANNEL_SHIFTS = listOf(16, 8, 0)
     const val INSET = 4
-    const val BELOW_THE_BAR = 600
 
     // Past the 250 ms an emulator takes to composite what was drawn.
     const val COMPOSITED_MILLIS = 700L
