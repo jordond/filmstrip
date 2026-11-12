@@ -4,6 +4,8 @@ import org.gradle.api.DefaultTask
 import org.gradle.api.GradleException
 import org.gradle.api.Project
 import org.gradle.api.provider.Property
+import org.gradle.api.services.BuildService
+import org.gradle.api.services.BuildServiceParameters
 import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.TaskAction
 import org.gradle.kotlin.dsl.named
@@ -66,14 +68,30 @@ abstract class BootSimulatorTask : DefaultTask() {
 }
 
 /**
+ * A lock every simulator test task takes, so the modules of a build run their suites in the simulator one at a time.
+ *
+ * Every module spawns into the same device. Two suites exporting side by side share its software codecs and its few
+ * cores, and on a CI machine each one then decodes a frame in seconds instead of milliseconds.
+ */
+internal abstract class SimulatorLock : BuildService<BuildServiceParameters.None>
+
+/**
  * Makes `iosSimulatorArm64Test` spawn into a booted simulator instead of running standalone.
  *
  * AVFoundation reaches mediaserverd over XPC, and a standalone spawn is given no bootstrap to reach
  * it through: every AVPlayerItem fails with -12746 and CIContext() answers nil. Spawning into a
  * booted device is what gives the test process the services a real app has, and simctl boots none
  * on its own.
+ *
+ * The task also takes the [SimulatorLock], so it waits for another module's suite to leave the device.
  */
 fun Project.bootIosSimulatorForTests() {
+  val simulator =
+    gradle.sharedServices.registerIfAbsent(
+      "simulatorLock",
+      SimulatorLock::class.java,
+    ) { maxParallelUsages.set(1) }
+
   val bootIosSimulator =
     tasks.register<BootSimulatorTask>("bootIosSimulator") {
       description = "Boots the simulator the iOS test task spawns into."
@@ -85,6 +103,7 @@ fun Project.bootIosSimulatorForTests() {
 
     standalone.set(false)
     dependsOn(bootIosSimulator)
+    usesService(simulator)
   }
 }
 
