@@ -1,14 +1,12 @@
 name: Snapshot
 
-# Publishes the snapshot version in gradle.properties to the Maven Central snapshot repository once the fast lane has
-# passed on a push to main. A release goes through publish.yml instead.
+# Publishes the snapshot version in gradle.properties to the Maven Central snapshot repository once a night, when main
+# has moved since the last snapshot and the fast lane passed on it. A release goes through publish.yml instead.
 
 on:
-  workflow_run:
-    workflows: [ CI ]
-    types: [ completed ]
-    branches:
-      - main
+  schedule:
+    - cron: '0 9 * * *'
+  workflow_dispatch:
 
 concurrency:
   group: snapshot
@@ -16,37 +14,42 @@ concurrency:
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
   snapshot:
     name: Publish snapshot
-    # A pull request from a fork's own main branch also matches the branch filter, so the event and the repository
-    # are checked here.
-    if: >-
-      github.event.workflow_run.conclusion == 'success' &&
-      github.event.workflow_run.event == 'push' &&
-      github.event.workflow_run.head_repository.full_name == github.repository
+    if: github.repository == 'jordond/filmstrip'
     runs-on: macos-latest
     # The modules upload one at a time, which is about 40 minutes of uploading on top of the build, and a run that
     # meets the repository's rate limit also sits out the waits below.
     timeout-minutes: 120
     steps:
-      # The default ref is the head of main, so no ref from the triggering run is checked out. When main has moved
-      # past the commit the fast lane passed on, nothing is published and that later commit's own run publishes.
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Check that main is still the tested commit
+      # A scheduled run publishes only a commit no snapshot was published from yet. A commit the fast lane has not
+      # passed on fails the run, so the next night tries it again instead of taking it as published.
+      - name: Check that main has an unpublished, tested commit
         id: head
         env:
-          TESTED_SHA: ${{ github.event.workflow_run.head_sha }}
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
         run: |
-          if [ "$(git rev-parse HEAD)" = "$TESTED_SHA" ]; then
-            echo "tested=true" >> "$GITHUB_OUTPUT"
-          else
+          sha=$(git rev-parse HEAD)
+          runs="repos/$GITHUB_REPOSITORY/actions/workflows"
+          published=$(gh api "$runs/snapshot.yml/runs?status=success&per_page=1" -q '.workflow_runs[0].head_sha')
+          if [ "$EVENT" = schedule ] && [ "$published" = "$sha" ]; then
             echo "tested=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::main has moved past $TESTED_SHA, nothing published"
+            echo "::notice::$sha already has a snapshot, nothing published"
+            exit 0
           fi
+          ci=$(gh api "$runs/ci.yml/runs?head_sha=$sha&event=push&per_page=1" -q '.workflow_runs[0].conclusion')
+          if [ "$ci" != success ]; then
+            echo "::error::the fast lane has not passed on $sha, it reads '$ci'"
+            exit 1
+          fi
+          echo "tested=true" >> "$GITHUB_OUTPUT"
 
       - name: Read the version
         id: version
@@ -91,6 +94,3 @@ jobs:
         env:
           ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
           ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
-          ORG_GRADLE_PROJECT_signingInMemoryKeyId: ${{ secrets.SIGNING_KEY_ID }}
-          ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.SIGNING_KEY }}
-          ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.SIGNING_PASSWORD }}

@@ -22,6 +22,9 @@ internal abstract class UploadLock : BuildService<BuildServiceParameters.None>
  * Coordinates come from the Gradle project name, so `:filmstrip-core` publishes as
  * `dev.jordond.filmstrip:filmstrip-core`. The version comes from `VERSION_NAME`, which a release
  * overrides with `ORG_GRADLE_PROJECT_VERSION_NAME`.
+ *
+ * A release is signed. A `-SNAPSHOT` version is not, since the snapshot repository validates nothing and a signature
+ * and its checksums are half of what a module uploads.
  */
 internal fun Project.configurePublishing(license: (MavenPomLicenseSpec.() -> Unit)? = null) {
   val repo = "https://github.com/jordond/filmstrip"
@@ -35,7 +38,7 @@ internal fun Project.configurePublishing(license: (MavenPomLicenseSpec.() -> Uni
   extensions.configure<MavenPublishBaseExtension> {
     coordinates(groupId = version("group"), artifactId = name)
     publishToMavenCentral(automaticRelease = true)
-    signAllPublications()
+    if (!providers.gradleProperty("VERSION_NAME").get().endsWith("-SNAPSHOT")) signAllPublications()
 
     pom {
       name.set(this@configurePublishing.name)
