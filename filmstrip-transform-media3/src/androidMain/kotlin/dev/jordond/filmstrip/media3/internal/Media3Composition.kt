@@ -53,15 +53,18 @@ public fun ResolvedComposition.toMedia3(bounds: Media3ClipReads): Composition =
  *
  * An export sets [ownsAudioSpeed] so each clip's audio opens on its trim start and runs at its speed through
  * filmstrip's own processors. A player leaves it unset, since it refuses a processor that changes an item's length.
+ *
+ * A player sets [liveGain] so the level of a clip it is already playing can be changed in place.
  */
 internal fun ResolvedComposition.toMedia3(
   wrapper: EffectWrapper,
   bounds: Media3ClipReads,
   ownsAudioSpeed: Boolean,
+  liveGain: Boolean = false,
 ): Composition {
   val keepAudio = output.audioCodec != AudioCodec.None
   val keepVideo = audio != AudioSpec.AudioOnly
-  val lowering = Lowering(this, wrapper, bounds, ownsAudioSpeed)
+  val lowering = Lowering(this, wrapper, bounds, ownsAudioSpeed, liveGain)
   val sequences =
     tracks
       .filter { it.clips.isNotEmpty() }

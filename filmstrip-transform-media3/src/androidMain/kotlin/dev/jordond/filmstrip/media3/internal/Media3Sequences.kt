@@ -30,12 +30,15 @@ import kotlin.time.Duration
  * With [ownsAudioSpeed] set, a clip's audio outside a copy opens on its trim start and runs at its speed through
  * filmstrip's own [clipAudioSpeed]. Without it media3 changes the speed, which is what a player needs, since it refuses
  * a processor that changes an item's length.
+ *
+ * With [liveGain] set, every clip's level sits on a [LiveGainProcessor] that a standing graph can hand a new curve.
  */
 internal class Lowering(
   private val plan: ResolvedComposition,
   private val wrapper: EffectWrapper,
   private val bounds: Media3ClipReads,
   private val ownsAudioSpeed: Boolean,
+  private val liveGain: Boolean,
 ) {
   /**
    * The video of [track] on the output frame grid, or null when none of its clips covers a slot.
@@ -203,7 +206,7 @@ internal class Lowering(
             emptyList()
           } else {
             listOfNotNull(AudioLengthPin(outputDuration, reportsLength = false).takeIf { speed != 1.0 }) +
-              clipAudioProcessors(mixesAudio)
+              clipAudioProcessors(mixesAudio, liveGain)
           },
           // A copy writes the source's own samples, so a clip carrying video here has no frame to place.
           if (removeVideo) emptyList() else effects.toMedia3Effects().map(wrapper::wrap),
@@ -229,7 +232,10 @@ internal class Lowering(
       .apply { sourceDuration(info) }
       .setFrameRate(plan.output.frameRate)
       .setEffects(
-        Effects(clipAudioSpeed(start - opens, speed, outputDuration, clipAudioProcessors(mixesAudio)), emptyList()),
+        Effects(
+          clipAudioSpeed(start - opens, speed, outputDuration, clipAudioProcessors(mixesAudio, liveGain)),
+          emptyList(),
+        ),
       ).build()
   }
 

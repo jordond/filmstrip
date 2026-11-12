@@ -68,9 +68,15 @@ internal fun ResolvedClip.clipVideoEffects(
  * The processors a clip's sound runs through once it is the right length: its audio effects, then its level.
  *
  * The effects come first, so a fade takes whatever an effect adds down with the clip.
+ *
+ * With [liveGain] set the level is one a standing graph can change, through [liveAudioProcessors].
  */
-internal fun ResolvedClip.clipAudioProcessors(mixes: Boolean): List<AudioProcessor> =
-  kernelProcessors(audioEffects, span.start) + audioProcessors(gain, mixes)
+internal fun ResolvedClip.clipAudioProcessors(
+  mixes: Boolean,
+  liveGain: Boolean,
+): List<AudioProcessor> =
+  kernelProcessors(audioEffects, span.start) +
+    if (liveGain) liveAudioProcessors(gain, mixes) else audioProcessors(gain, mixes)
 
 /**
  * The processors that bring an audio-carrying clip to its level and to the format its sequence outputs.
@@ -98,6 +104,23 @@ internal fun audioProcessors(
   }
 
   return listOf(ToInt16PcmAudioProcessor(), mixer) + listOfNotNull(rampProcessorFor(gain))
+}
+
+/**
+ * The processors that bring an audio-carrying clip to the format its sequence outputs and to a level that can be
+ * changed while the clip plays.
+ *
+ * The format is reached the way [audioProcessors] reaches it, with the mixing matrix left at unity. The level is
+ * carried whole by a [LiveGainProcessor] after it, which is there whatever [gain] is, since media3 keeps the processors
+ * a graph was built with.
+ */
+internal fun liveAudioProcessors(
+  gain: ResolvedGain,
+  mixes: Boolean,
+): List<AudioProcessor> {
+  val format =
+    if (mixes) audioProcessors(ResolvedGain.constant(1f, gain.start, gain.end), mixes = true) else emptyList()
+  return format + LiveGainProcessor(gain)
 }
 
 /**

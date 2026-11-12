@@ -81,7 +81,7 @@ class Media3AudioEffectLoweringTest {
 
     val items = plan.toMedia3Preview(NO_READS).composition.audioItems()
 
-    items[1].map { it::class } shouldContainExactly listOf(KernelAudioProcessor::class)
+    items[1].map { it::class } shouldContainExactly listOf(KernelAudioProcessor::class, LiveGainProcessor::class)
     items[1].filterIsInstance<KernelAudioProcessor>().single().start shouldBe CLIP_LENGTH
   }
 

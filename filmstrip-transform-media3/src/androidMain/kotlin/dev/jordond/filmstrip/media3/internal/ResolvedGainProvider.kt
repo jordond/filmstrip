@@ -31,7 +31,7 @@ internal class ResolvedGainProvider(
   override fun getGainFactorAtSamplePosition(
     samplePosition: Long,
     sampleRate: Int,
-  ): Float = gain.gainAt(timeOf(samplePosition, sampleRate))
+  ): Float = gain.gainAt(clipTimeOf(samplePosition, sampleRate))
 
   /**
    * The first frame after [samplePosition] that media3 may not copy through untouched, or
@@ -46,7 +46,7 @@ internal class ResolvedGainProvider(
     samplePosition: Long,
     sampleRate: Int,
   ): Long {
-    val from = timeOf(samplePosition, sampleRate)
+    val from = clipTimeOf(samplePosition, sampleRate)
     if (gain.gainAt(from) != UNITY) return C.TIME_UNSET
 
     val leaves = unityEndAfter(from) ?: return C.TIME_END_OF_SOURCE
@@ -76,7 +76,7 @@ internal fun rampProcessorFor(gain: ResolvedGain): GainProcessor? =
 // nanosecond conversion. media3 seeds its frame counter from StreamMetadata.positionOffsetUs on
 // every flush, which for a clip is the time since its trim start at the speed it plays at. A
 // resolved curve is in the clip's own time, so that is what is read here.
-private fun timeOf(
+internal fun clipTimeOf(
   frames: Long,
   sampleRate: Int,
 ): Duration = (frames / sampleRate).seconds + ((frames % sampleRate) * NANOS_PER_SECOND / sampleRate).nanoseconds

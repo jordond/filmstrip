@@ -19,6 +19,7 @@ import dev.jordond.filmstrip.media3.internal.bounds.Media3ClipReads
 import dev.jordond.filmstrip.media3.internal.failure.Media3LoweringFailure
 import dev.jordond.filmstrip.media3.internal.isGap
 import dev.jordond.filmstrip.media3.internal.kernelProcessors
+import dev.jordond.filmstrip.media3.internal.liveGainProcessors
 import dev.jordond.filmstrip.media3.internal.liveSlotFor
 import dev.jordond.filmstrip.media3.internal.toMedia3
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
@@ -214,7 +215,8 @@ public class Media3Preview internal constructor(
    * The plan is lowered again and matched position for position against the standing chain. A
    * color or geometry matrix is re-read by media3 on every draw, so those positions take the new
    * value. Anything else, an overlay or a fill pass, is fixed for the life of the graph and only
-   * matches an identical re-lowering. A stream's audio effects are swapped in at the next block it plays.
+   * matches an identical re-lowering. A stream's audio effects are swapped in at the next block it plays,
+   * and so is a clip's level, its fades with it.
    *
    * @param bounds The samples [next]'s clips decode, which frames read from here on are laid by.
    * @return true when the standing graph now draws [next], false when it has to be rebuilt.
@@ -233,7 +235,12 @@ public class Media3Preview internal constructor(
     val incoming = mutableListOf<Effect>()
     val lowered =
       try {
-        next.toMedia3(EffectWrapper { effect -> effect.also(incoming::add) }, bounds, ownsAudioSpeed = false)
+        next.toMedia3(
+          EffectWrapper { effect -> effect.also(incoming::add) },
+          bounds,
+          ownsAudioSpeed = false,
+          liveGain = true,
+        )
       } catch (refused: Media3LoweringFailure) {
         // A plan this lowering refuses is not one the standing graph can take either. The caller
         // rebuilds and hears the same refusal there, where it has somewhere to report it.
@@ -249,8 +256,12 @@ public class Media3Preview internal constructor(
     // its last one rebuilds.
     if (kernels.keys != incomingKernels.keys) return false
     if (kernels.any { (stream, standing) -> standing.start != incomingKernels.getValue(stream).start }) return false
+    val gains = composition.liveGainProcessors()
+    val incomingGains = lowered.liveGainProcessors()
+    if (gains.keys != incomingGains.keys) return false
     swaps.forEach(SlotSwap::install)
     kernels.forEach { (stream, standing) -> standing.swap(incomingKernels.getValue(stream).effects) }
+    gains.forEach { (stream, standing) -> standing.swap(incomingGains.getValue(stream).gain) }
     resolved = next
     this.bounds = bounds
     return true
@@ -311,7 +322,12 @@ private fun Media3Span.readbackChain(compositionEffects: List<Effect>): List<Eff
 public fun ResolvedComposition.toMedia3Preview(bounds: Media3ClipReads): Media3Preview {
   val slots = mutableListOf<LiveSlot>()
   val composition =
-    toMedia3(EffectWrapper { effect -> liveSlotFor(effect).also(slots::add).effect }, bounds, ownsAudioSpeed = false)
+    toMedia3(
+      EffectWrapper { effect -> liveSlotFor(effect).also(slots::add).effect },
+      bounds,
+      ownsAudioSpeed = false,
+      liveGain = true,
+    )
   return Media3Preview(composition, composition.videoSpans(), slots, this, bounds)
 }
 
