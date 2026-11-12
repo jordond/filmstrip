@@ -4,7 +4,6 @@ import dev.jordond.filmstrip.effects.filters.filters
 import dev.jordond.filmstrip.effects.filters.vhs.TapeClock
 import dev.jordond.filmstrip.effects.filters.vhs.Vhs
 import io.kotest.assertions.withClue
-import io.kotest.matchers.ints.shouldBeGreaterThanOrEqual
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import kotlinx.coroutines.Dispatchers
@@ -35,12 +34,13 @@ class AndroidHeldRedrawMediaTest {
       val events = surface.events.size
       val held = surface.player.currentPosition()
 
-      val first = surface.picture()
-      withClue("the tape stood still for $MOVES_WITHIN") { surface.pictureAfter(first, MOVES_WITHIN) shouldNotBe first }
-      val shown = surface.picturesDuring { delay(WINDOW) }
-
-      // How many a second depends on the device. That it keeps changing is the contract.
-      withClue("the surface changed $shown times in $WINDOW") { shown shouldBeGreaterThanOrEqual MIN_PICTURES }
+      // How often it changes depends on the device. That it keeps changing is the contract.
+      var shown = surface.picture()
+      repeat(PICTURES) { index ->
+        val next = surface.pictureAfter(shown, MOVES_WITHIN)
+        withClue("the tape stood still for $MOVES_WITHIN after $index pictures") { next shouldNotBe shown }
+        shown = next
+      }
       surface.player.currentPosition() shouldBe held
       surface.player.state.value shouldBe state
       withClue("a held redraw raised ${surface.events.drop(events)}") { surface.events.size shouldBe events }
@@ -70,15 +70,15 @@ class AndroidHeldRedrawMediaTest {
     val TIMEOUT: Duration = 3.minutes
     val HELD_AT: Duration = 6.seconds
     val WINDOW: Duration = 2.seconds
-    val MOVES_WITHIN: Duration = 2.seconds
+
+    // An emulator's software renderer takes half a second to put a redraw on the surface, and several on a busy host.
+    val MOVES_WITHIN: Duration = 10.seconds
 
     // An emulator's software compositor shows a frame some refreshes after media3 hands it over.
     val COMPOSITOR_LAG: Duration = if (runsOnEmulator) 250.milliseconds else Duration.ZERO
 
     // Long enough for the seek's frame to be on the surface on a phone and on an emulator, before stillness is read.
     val SETTLE: Duration = 500.milliseconds
-
-    // An emulator's software renderer takes about half a second to put a redraw on the surface.
-    const val MIN_PICTURES = 2
+    const val PICTURES = 3
   }
 }
