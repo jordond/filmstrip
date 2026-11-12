@@ -25,6 +25,7 @@ import kotlinx.coroutines.withContext
 import platform.Foundation.NSFileManager
 import platform.Foundation.NSTemporaryDirectory
 import platform.Foundation.NSUUID
+import kotlin.math.abs
 import kotlin.test.Test
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.minutes
@@ -72,6 +73,18 @@ class AppleAudioEffectMediaTest {
       audio.shouldHearBursts(0..2, LOUD * QUARTER)
     }
 
+  // The effect writes past full scale and the clip's level brings it back under. A render that clamped the effect's
+  // samples would hand the level a flattened tone, which reads about a fifth quieter.
+  @Test
+  fun aClipEffectPastFullScaleReachesTheClipsLevelWhole() =
+    runTest(timeout = TIMEOUT) {
+      val clip = clip(AudioLevel.Volume(QUARTER)).withAudioEffects(listOf(TimelineBursts(OVER)))
+
+      val audio = exportedAudio(Composition(listOf(Track(listOf(clip)))))
+
+      audio.shouldHearBursts(0..2, OVER * QUARTER)
+    }
+
   @Test
   fun aFadeTakesTheEffectDownWithTheClip() =
     runTest(timeout = TIMEOUT) {
@@ -110,6 +123,56 @@ class AppleAudioEffectMediaTest {
         )
 
       val audio = exportedAudio(Composition(listOf(Track(listOf(clip)))))
+
+      audio.shouldHearBursts(0..2, LOUD)
+    }
+
+  // The clip's audio is rendered with its effects run over it and their latency taken out, so each burst opens on
+  // the frame it opens on without the delay.
+  @Test
+  fun aClipEffectWithLatencyKeepsItsBurstsOnTheirFrames() =
+    runTest(timeout = TIMEOUT) {
+      val plain = Clip(source, TRIM, audioEffects = listOf(TimelineBursts(LOUD)))
+      val delayed = Clip(source, TRIM, audioEffects = listOf(TimelineBursts(LOUD), Delay(LATENCY_FRAMES)))
+
+      val expected = exportedAudio(Composition(listOf(Track(listOf(plain)))))
+      val audio = exportedAudio(Composition(listOf(Track(listOf(delayed)))))
+
+      audio.shouldHearBursts(0..2, LOUD)
+      audio.samples.size shouldBe expected.samples.size
+      audio.onsets() shouldBe expected.onsets()
+    }
+
+  // The delay hands the source's own sound on and its host takes the delay out, so the rendered clip holds what the
+  // clip lays with no effect at all, sample for sample. A render that opened off the trim would move the tone.
+  @Test
+  fun aClipWithAnEffectKeepsItsSourcesSoundOnItsFrames() =
+    runTest(timeout = TIMEOUT) {
+      val plain = Clip(source, TRIM)
+      val delayed = Clip(source, TRIM, audioEffects = listOf(Delay(LATENCY_FRAMES)))
+
+      val expected = exportedAudio(Composition(listOf(Track(listOf(plain))))).samples
+      val audio = exportedAudio(Composition(listOf(Track(listOf(delayed))))).samples
+
+      audio.size shouldBe expected.size
+      expected.indices.maxOf { abs(expected[it] - audio[it]) } shouldBeLessThan SAME_SOUND
+    }
+
+  // The bed's second pass opens between two bursts and its third on the last one. A pass rendered from the frame
+  // another pass opens on would put its bursts somewhere else.
+  @Test
+  fun aLoopingTracksEffectLaysItsBurstsOnEveryPass() =
+    runTest(timeout = TIMEOUT) {
+      val picture = Track(listOf(Clip(MediaSource.of(fixture(PICTURE)), TRIM)), content = TrackContent.Video)
+      val bed =
+        Track(
+          listOf(Clip(source, TimeRange.of(200.milliseconds, 700.milliseconds))),
+          content = TrackContent.Audio,
+          looping = true,
+          audioEffects = listOf(TimelineBursts(LOUD)),
+        )
+
+      val audio = exportedAudio(Composition(listOf(picture, bed)))
 
       audio.shouldHearBursts(0..2, LOUD)
     }
@@ -189,6 +252,21 @@ class AppleAudioEffectMediaTest {
 
   private fun clip(level: AudioLevel): Clip = Clip(source, TRIM, audio = level)
 
+  // The frame each run of sound opens on, a run being closed by a stretch of silence.
+  private fun AudioProbe.onsets(): List<Int> {
+    val onsets = mutableListOf<Int>()
+    var quiet = QUIET_RUN
+    samples.forEachIndexed { index, sample ->
+      if (abs(sample) > AUDIBLE) {
+        if (quiet >= QUIET_RUN) onsets += index
+        quiet = 0
+      } else {
+        quiet++
+      }
+    }
+    return onsets
+  }
+
   private suspend fun exportedAudio(edit: Composition): AudioProbe {
     val (finished, output) = exported(edit)
     if (finished is ExportStatus.Failure) error(finished.error.message)
@@ -208,6 +286,12 @@ class AppleAudioEffectMediaTest {
     val TRIM: TimeRange = TimeRange.of(200.milliseconds, 1_300.milliseconds)
     const val LOUD = 0.5f
     const val QUARTER = 0.25f
+    const val OVER = 1.5f
+
+    // A hundredth of what the tone moves by when it lands one frame off.
+    const val SAME_SOUND = 1e-4f
     const val LATENCY_FRAMES = 480
+    const val AUDIBLE = 0.05f
+    const val QUIET_RUN = 1_000
   }
 }

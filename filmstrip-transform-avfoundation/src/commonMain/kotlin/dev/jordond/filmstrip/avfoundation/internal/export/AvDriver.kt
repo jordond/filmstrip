@@ -130,7 +130,7 @@ internal class AvDriver(
     to: MediaSink,
   ): Flow<ExportStatus> =
     flow {
-      val stretched = StretchedAudio(bytesRoot, renderClip)
+      val stretched = StretchedAudio(bytesRoot, bakesEffects = true, render = renderClip)
       // Rendering a clip's audio is the export's own first step and can run a long while before a frame is written.
       val startsEarly = stretched.mayRender(resolved)
       if (startsEarly) emit(ExportStatus.Started)
@@ -159,8 +159,8 @@ internal class AvDriver(
 
   /**
    * Settles everything that can fail before a reader or a writer exists, so the run itself has one
-   * shape. A clip at speed has its audio rendered here, which is the slow part of this for a long clip and stops when
-   * the collector cancels.
+   * shape. A clip at a speed other than 1 or with audio effects has its audio rendered here, which is the slow part
+   * of this for a long clip and stops when the collector cancels.
    */
   private suspend fun prepare(
     resolved: ResolvedComposition,

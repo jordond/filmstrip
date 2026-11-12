@@ -216,8 +216,8 @@ public suspend fun ResolvedComposition.toPreviewComposition(
  * clip's primaries. It stops when the caller is cancelled.
  *
  * @param bytesRoot The directory an in-memory source lands under.
- * @param stretched The audio an export rendered to its clips' speeds, laid at speed 1 in place of those clips' sources.
- * Null for a preview, which scales its audio tracks and leaves the pitch to its player.
+ * @param stretched The clips whose audio was rendered to files, each laid at speed 1 in place of its clip's source.
+ * Null when every clip lays its source's audio track.
  * @param writesCopy Whether an export reads a copy's packets through this composition, which picks how
  * [copiedRuns] lays its counted video.
  * @param plays Whether a player plays the composition, which has its taps apply each clip's gain and run the

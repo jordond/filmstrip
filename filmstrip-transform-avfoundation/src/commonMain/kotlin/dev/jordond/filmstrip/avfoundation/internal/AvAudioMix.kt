@@ -4,7 +4,6 @@ import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.avfoundation.internal.failure.AvLoweringFailure
 import dev.jordond.filmstrip.avfoundation.internal.time.timeRangeOf
 import dev.jordond.filmstrip.avfoundation.internal.time.toCMTime
-import dev.jordond.filmstrip.avfoundation.internal.time.toDuration
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.transform.internal.resolve.GainSegment
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
@@ -12,26 +11,23 @@ import kotlinx.cinterop.ExperimentalForeignApi
 import platform.AVFoundation.AVMutableAudioMix
 import platform.AVFoundation.AVMutableAudioMixInputParameters
 import platform.AVFoundation.AVMutableCompositionTrack
-import platform.AVFoundation.timeRange
 import platform.CoreFoundation.CFRelease
-import platform.CoreMedia.CMTimeRangeGetEnd
 import kotlin.time.Duration
 
 /**
- * The mix that runs each clip's audio effects and applies its gain, or null when every clip is at full volume and
- * has no effect.
+ * The mix that applies each clip's gain and hands each track its tap, or null when every clip is at full volume and
+ * no track has a tap.
  *
  * AVFoundation expresses a linear ramp natively and exactly, so a clip's curve is written straight
- * across as one call per [GainSegment]. A track holding a clip with effects gets one [AvKernelTap], which runs ahead
- * of the track's ramps, so a clip's level is applied to what its effects wrote.
+ * across as one call per [GainSegment].
  *
- * @param taps The tap of each track in this list's order, or null for a track with no effect to run.
+ * @param taps The tap of each track in this list's order, or null for a track with none.
  * @param writesGain Whether each clip's gain is written as ramps. False when the taps apply it themselves.
  * @throws AvLoweringFailure when MediaToolbox refuses to build a tap.
  */
 @OptIn(ExperimentalForeignApi::class)
 internal fun List<Pair<AVMutableCompositionTrack, List<Placement>>>.toAudioMix(
-  taps: List<AvKernelTap?> = map { (media, placements) -> placements.toKernelTap(media) },
+  taps: List<AvKernelTap?> = map { null },
   writesGain: Boolean = true,
 ): AVMutableAudioMix? {
   if (taps.all { it == null } && all { (_, placements) -> placements.all { it.clip.gain.constant == 1f } }) return null
@@ -53,19 +49,6 @@ internal fun List<Pair<AVMutableCompositionTrack, List<Placement>>>.toAudioMix(
 }
 
 /**
- * The tap that runs the effects of every clip laid on one track, each over the clip's own span of the timeline, or
- * null when no clip on the track has one. It is a tap for a reader, which reads its source ahead up to where the
- * audio laid on [media] ends.
- */
-@OptIn(ExperimentalForeignApi::class)
-internal fun List<Placement>.toKernelTap(media: AVMutableCompositionTrack): AvKernelTap? {
-  val spans =
-    filter { it.clip.audioEffects.isNotEmpty() }
-      .map { TapSpan(TimeRange.of(it.start, it.end), it.clip.audioEffects) }
-  return if (spans.isEmpty()) null else AvKernelTap(spans, readsUntil = CMTimeRangeGetEnd(media.timeRange).toDuration())
-}
-
-/**
  * One audio track of a composition, once its clips are laid.
  *
  * @property media The composition track the clips were laid onto.
@@ -82,11 +65,12 @@ internal class LaidAudio(
 /**
  * The audio side of a lowered composition: the taps that run its audio effects and the mix that carries them.
  *
- * An export runs a clip's effects in a tap ahead of the volume ramps that apply its gain, and runs the composition's
- * effects itself on the mixed samples. A player hands nobody its mixed samples, so a preview whose plan has an audio
- * effect puts a tap on every track that runs the clip's effects, applies the clip's gain and then runs the
- * composition's effects, and its mix writes no ramps. A player hands a tap no source ahead of a block either, so a
- * preview plays a track late by what its kernels hold back, where an export takes that out.
+ * An export lays each clip's audio with its effects already run into it, so it has no tap. Its mix writes each clip's
+ * gain as volume ramps, and the export runs the composition's effects itself on the mixed samples. A player hands
+ * nobody its mixed samples, so a preview whose plan has an audio effect puts a tap on every track that runs the
+ * clip's effects, applies the clip's gain and then runs the composition's effects, and its mix writes no ramps. A
+ * player hands a tap no source ahead of a block either, so a preview plays a track late by what its kernels hold
+ * back.
  *
  * @param laid The audio tracks of the composition.
  * @param resolved The plan they were laid from.
@@ -118,7 +102,7 @@ internal class AvAudioGraph(
         AvKernelTap(each.placements.hostedSpans(), resolved.tapMix(index))
       }
     } else {
-      laid.map { it.placements.toKernelTap(it.media) }
+      laid.map { null }
     }
 
   /**
@@ -139,11 +123,10 @@ internal class AvAudioGraph(
 
   /**
    * Whether [update] can take [resolved], a plan of the same timeline. It cannot when the plan gains its first audio
-   * effect or loses its last, since that moves the gain between the ramps and the taps, and an export's taps are
-   * never swapped.
+   * effect or loses its last, since that moves the gain between the ramps and the taps.
    */
   fun takes(resolved: ResolvedComposition): Boolean {
-    val reachable = if (hosted) resolved.hasAudioEffects else taps.isEmpty() && !resolved.hasAudioEffects
+    val reachable = if (hosted) resolved.hasAudioEffects else !resolved.hasAudioEffects
     return reachable && clipOf.all { clips -> clips.all { it >= 0 } }
   }
 

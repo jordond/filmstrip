@@ -9,6 +9,7 @@ import dev.jordond.filmstrip.avfoundation.internal.renderClipAudio
 import dev.jordond.filmstrip.edit.CLIP_SPEED_RANGE
 import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
+import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.edit.audioFramesOf
 import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.edit.outputLengthOf
@@ -22,6 +23,7 @@ import dev.jordond.filmstrip.transform.internal.ResolveResult
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
 import io.kotest.assertions.withClue
 import io.kotest.matchers.collections.shouldBeEmpty
+import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
@@ -34,6 +36,7 @@ import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
+import platform.AVFoundation.asset
 import platform.AVFoundation.naturalTimeScale
 import platform.AVFoundation.timeRange
 import platform.Foundation.NSDate
@@ -49,8 +52,8 @@ import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 
 /**
- * The files an export renders a clip's audio to at a speed: how long they run, and what happens to them when a render
- * is cancelled or fails or a process dies before cleaning up.
+ * The files a clip's audio is rendered to: which clips get one, how long they run, and what happens to them when a
+ * render is cancelled or fails or a process dies before cleaning up.
  */
 @OptIn(ExperimentalForeignApi::class)
 class AppleStretchedAudioMediaTest {
@@ -110,6 +113,84 @@ class AppleStretchedAudioMediaTest {
         withClue("speed $speed") { frames shouldBe audioFramesOf(outputLengthOf(2.seconds, speed), sampleRate) }
         stretched.discard()
       }
+      remove(root)
+    }
+
+  @Test
+  fun `an export renders a clip with an audio effect at speed 1 and a preview lays its source`() =
+    runTest(timeout = TIMEOUT) {
+      val root = temporaryRoot()
+      val resolved =
+        resolved(
+          compositionOf {
+            clip(MediaSource.of(fixture(SHORT))) {
+              trim(TimeRange.of(Duration.ZERO, 2.seconds))
+              audioEffects { add(Delay(LATENCY_FRAMES)) }
+            }
+          },
+        )
+      val clip =
+        resolved.tracks
+          .single()
+          .clips
+          .single()
+      val sampleRate =
+        resolved.output.audioFormat
+          .shouldNotBeNull()
+          .sampleRate
+      val exported = StretchedAudio(root, bakesEffects = true)
+      val previewed = StretchedAudio(root)
+
+      withContext(Dispatchers.Default) {
+        exported.renderAll(resolved, root)
+        previewed.renderAll(resolved, root)
+      }
+
+      val track = exported.trackOf(clip).shouldNotBeNull()
+      val frames = track.timeRange.useContents { duration.value * track.naturalTimeScale / duration.timescale }
+      frames shouldBe audioFramesOf(2.seconds, sampleRate)
+      previewed.mayRender(resolved) shouldBe false
+      previewed.trackOf(clip).shouldBeNull()
+      exported.discard()
+      previewed.discard()
+      remove(root)
+    }
+
+  @Test
+  fun `every pass of a looping track with an audio effect is rendered to a file of its own`() =
+    runTest(timeout = TIMEOUT) {
+      val root = temporaryRoot()
+      val resolved =
+        resolved(
+          compositionOf {
+            track(TrackContent.Video) {
+              clip(MediaSource.of(fixture(SHORT))) { trim(TimeRange.of(Duration.ZERO, 2.seconds)) }
+            }
+            track(TrackContent.Audio) {
+              clip(MediaSource.of(fixture(SHORT))) {
+                trim(TimeRange.of(Duration.ZERO, 800.milliseconds))
+                audioEffects { add(Delay(LATENCY_FRAMES)) }
+              }
+              looping()
+            }
+          },
+        )
+      val passes = resolved.tracks.last().clips
+      val stretched = StretchedAudio(root, bakesEffects = true)
+
+      withContext(Dispatchers.Default) { stretched.renderAll(resolved, root) }
+
+      passes.size shouldBe 3
+      val files =
+        passes.map {
+          stretched
+            .trackOf(it)
+            .shouldNotBeNull()
+            .asset
+            .shouldNotBeNull()
+        }
+      files.distinct().size shouldBe passes.size
+      stretched.discard()
       remove(root)
     }
 
@@ -210,7 +291,12 @@ class AppleStretchedAudioMediaTest {
 
   private suspend fun resolved(composition: Composition): ResolvedComposition =
     withContext(Dispatchers.Default) {
-      val components = ComponentRegistry.Builder().addEffectResolver(BuiltInEffectResolver()).build()
+      val components =
+        ComponentRegistry
+          .Builder()
+          .addEffectResolver(BuiltInEffectResolver())
+          .addAudioEffectResolver(testAudioEffects)
+          .build()
       when (val result = avFoundationExportEngine(components).resolve(composition, ExportSpec(frameRate = RATE))) {
         is ResolveResult.Refused -> error(result.error.message)
         is ResolveResult.Resolved -> result.composition
@@ -226,6 +312,7 @@ class AppleStretchedAudioMediaTest {
     const val SHORT = "apple_export_a.mp4"
     const val LONG = "apple_export_long.mp4"
     const val RENDER_STATUS = -1
+    const val LATENCY_FRAMES = 480
     const val RATE = 30
     const val TWO_DAYS_SECONDS = 2.0 * 24 * 60 * 60
     val UNUSED_PROBER = MediaProber { error("No probe is expected here.") }

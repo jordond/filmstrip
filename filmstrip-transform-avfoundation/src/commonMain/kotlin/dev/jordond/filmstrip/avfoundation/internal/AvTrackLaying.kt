@@ -60,8 +60,8 @@ import platform.CoreMedia.kCMTimeRoundingMethod_RoundTowardZero as RoundTowardZe
  *
  * @param drawsSd Whether the plan draws an SD clip's colour at all, which it does not when it encodes a grade. Every
  * clip reads as having no SD colour then, and nothing decodes a frame or needs the kernel.
- * @param stretched The audio an export already rendered to its clips' speeds, or null when a clip's audio track is
- * scaled instead, which is what a preview's player does.
+ * @param stretched The clips whose audio was already rendered to files, or null when every clip lays its source's
+ * audio track.
  */
 internal class AssetCache(
   private val bytesRoot: String = AppleScratch.defaultRoot,
@@ -222,7 +222,7 @@ internal fun ResolvedComposition.copiedRuns(writesCopy: Boolean): List<CopyRun>?
  * clip can be laid there.
  *
  * A still is cut from [stillSeed] on the video track and is empty time on any other. A clip whose source has no track
- * of [mediaType] is empty time too. Audio an export already stretched goes in unscaled from the start of its own file,
+ * of [mediaType] is empty time too. Audio already rendered to a file goes in unscaled from the start of that file,
  * which already runs for the slot. Video on the grid goes through [insertShown], and a copy's counted video through
  * [insertCopied]. Off the grid the resolved span is laid as it is.
  *

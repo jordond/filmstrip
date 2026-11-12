@@ -49,7 +49,6 @@ import platform.MediaToolbox.kMTAudioProcessingTapCallbacksVersion_0
 import platform.MediaToolbox.kMTAudioProcessingTapCreationFlag_PreEffects
 import platform.MediaToolbox.kMTAudioProcessingTapFlag_EndOfStream
 import kotlin.concurrent.Volatile
-import kotlin.time.Duration
 import kotlin.time.Duration.Companion.nanoseconds
 import kotlin.time.Duration.Companion.seconds
 
@@ -90,18 +89,14 @@ internal class TapMix(
  * every span passes through untouched. A kernel is handed the timeline position AVFoundation reports for the block,
  * through [timelineFrameOf]. A span with a gain has it applied here, and [mix] then runs over the whole block.
  *
- * A reader hands a tap the source past the block it asks for, so under one the tap feeds its kernels ahead and takes
- * their latency out, and the track keeps its place to the frame. A player hands nothing ahead. That is AVFoundation's
- * limit, and under a player the track plays late by what its kernels hold back.
+ * A tap is built for a player, which hands it no source ahead of a block. That is AVFoundation's limit, and the
+ * track plays late by what its kernels hold back.
  *
- * @param mix The composition's effects to run after the spans, or null when the mix is processed somewhere else.
- * @param readsUntil The composition time the track's audio ends at, when a reader runs the tap. Null when a player
- * does.
+ * @param mix The composition's effects to run after the spans, or null when there are none.
  */
 internal class AvKernelTap(
   spans: List<TapSpan>,
   mix: TapMix? = null,
-  private val readsUntil: Duration? = null,
 ) {
   @Volatile
   private var spans: List<TapSpan> = spans.sortedBy { it.range.start }
@@ -127,7 +122,7 @@ internal class AvKernelTap(
 
   /**
    * What stopped the effects running, or null while they run. The track's audio passes through untouched from the
-   * block a kernel threw on, and an export reads this to fail.
+   * block a kernel threw on.
    */
   @Volatile
   var failure: FilmstripError? = null
@@ -138,7 +133,7 @@ internal class AvKernelTap(
    *
    * A span covering the same range as a standing one keeps its place on the timeline and swaps its kernels and its
    * gain in, and the mix swaps its kernels in. Any other change takes effect the next time AVFoundation prepares
-   * the tap, and so does every change to a tap that reads ahead once it is prepared.
+   * the tap.
    */
   fun swap(
     spans: List<TapSpan>,
@@ -154,12 +149,10 @@ internal class AvKernelTap(
     maxFrames: Int,
     format: AudioStreamBasicDescription,
   ) {
-    stage?.close()
-    stage = TapStage.of(spans, mix, maxFrames, format, readsUntil)
+    stage = TapStage.of(spans, mix, maxFrames, format)
   }
 
   internal fun unprepare() {
-    stage?.close()
     stage = null
   }
 
@@ -182,7 +175,7 @@ internal class AvKernelTap(
         running?.run(tap, frames.toInt(), buffers, scratch) ?: passedThrough(tap, frames.toInt(), buffers, scratch)
       } catch (broken: Exception) {
         // An exception leaving the callback would terminate the process, so the track plays on without its effects.
-        val error = FilmstripError.InvalidComposition("$NOT_RUN ${broken.message ?: broken.toString()}")
+        val error = FilmstripError.InvalidComposition("$CLIP_EFFECTS_NOT_RUN ${broken.message ?: broken.toString()}")
         failure = error
         onFailure?.invoke(error)
         passedThrough(tap, frames.toInt(), buffers, scratch)
@@ -299,4 +292,7 @@ private fun tapProcess(
   storage.tap.process(tap, frames, buffers, framesOut, flagsOut, storage.scratch)
 }
 
-private const val NOT_RUN = "A clip's audio effects could not run."
+/**
+ * What an error opens with when a clip's audio effect threw, ahead of what it threw with.
+ */
+internal const val CLIP_EFFECTS_NOT_RUN: String = "A clip's audio effects could not run."

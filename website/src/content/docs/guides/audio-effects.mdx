@@ -100,7 +100,7 @@ kernel and everything the kernel has built up, so changing a level or one effect
 | Backend | A clip's effects                          | The composition's effects       | Preview                               |
 | ------- | ----------------------------------------- | ------------------------------- | ------------------------------------- |
 | Android | Your kernel, at the source's format       | Your kernel, on the mix         | Same kernels as the export            |
-| Apple   | Your kernel, at the source's format       | Your kernel, at the output's    | Your kernel, on each track            |
+| Apple   | Your kernel, at the output's format       | Your kernel, at the output's    | Your kernel, on each track            |
 | Browser | Your kernel, at the source's format       | Your kernel, at the output's    | Your kernel, at the page's audio rate |
 | ffmpeg  | Your filters, ahead of the clip's level   | Your filters, after the mix     | No audio                              |
 
@@ -119,12 +119,8 @@ kernel and everything the kernel has built up, so changing a level or one effect
   a hiss. A compressor or a limiter on the composition sounds different there than in the file.
 - On Apple, a preview plays a track late by the `latencyFrames` of the kernels it runs through, because a player
   hands an effect no audio ahead of the block it plays. The export takes the latency out to the frame.
-- On Apple, an export reads a clip's audio ahead to take a kernel's latency out, and AVFoundation hands over a few
-  thousand frames at most, about 70 ms at 48 kHz. A clip or track effect whose kernels hold back more than that fails
-  the export. A composition effect has no such ceiling.
-- On Apple, an export on a machine under heavy load can, rarely, lose part of a clip or track effect's audio. A
-  stretch of the file comes out silent and the export reports no error. Exporting again gives the whole sound. A
-  composition effect isn't affected.
+- On Apple, an export runs a clip's and a track's effects before it writes anything, into a temporary file per clip,
+  so it starts later and needs the disk space for that audio uncompressed.
 - In the browser, a clip with audio effects is decoded for itself, so a looping track's passes don't share one decoded
   buffer.
 </Aside>

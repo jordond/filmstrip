@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip.avfoundation.internal
 
+import dev.jordond.filmstrip.FilmstripError
 import kotlinx.cinterop.BooleanVar
 import kotlinx.cinterop.CPointer
 import kotlinx.cinterop.ExperimentalForeignApi
@@ -29,6 +30,7 @@ import platform.AudioToolbox.kExtAudioFileProperty_ClientDataFormat
 import platform.CoreAudioTypes.AudioBufferList
 import platform.CoreAudioTypes.AudioStreamBasicDescription
 import platform.CoreAudioTypes.kAudioFormatLinearPCM
+import platform.CoreAudioTypes.kLinearPCMFormatFlagIsFloat
 import platform.CoreAudioTypes.kLinearPCMFormatFlagIsPacked
 import platform.CoreAudioTypes.kLinearPCMFormatFlagIsSignedInteger
 import platform.CoreFoundation.CFRelease
@@ -125,28 +127,34 @@ internal class DecodedFeed(
 }
 
 /**
- * A CAF of 16-bit PCM written a block at a time, closed by [close] rather than whenever the object is collected, so its
+ * A CAF of PCM written a block at a time, closed by [close] rather than whenever the object is collected, so its
  * length is on disk before an asset reads it.
+ *
+ * @param float Whether the file holds 32-bit float samples rather than 16-bit ones.
  */
 @OptIn(ExperimentalForeignApi::class)
 internal class StretchFile(
   path: String,
   client: AVAudioFormat,
   channels: Int,
+  float: Boolean,
   private val source: String,
 ) {
   private val file: ExtAudioFileRef =
     memScoped {
+      val bytes = if (float) FLOAT_BYTES_PER_SAMPLE else INT16_BYTES_PER_SAMPLE
       val fileFormat =
         alloc<AudioStreamBasicDescription> {
           mSampleRate = client.sampleRate
           mFormatID = kAudioFormatLinearPCM
-          mFormatFlags = kLinearPCMFormatFlagIsSignedInteger or kLinearPCMFormatFlagIsPacked
-          mBytesPerPacket = (channels * BYTES_PER_SAMPLE).convert()
+          mFormatFlags =
+            (if (float) kLinearPCMFormatFlagIsFloat else kLinearPCMFormatFlagIsSignedInteger) or
+            kLinearPCMFormatFlagIsPacked
+          mBytesPerPacket = (channels * bytes).convert()
           mFramesPerPacket = 1u
-          mBytesPerFrame = (channels * BYTES_PER_SAMPLE).convert()
+          mBytesPerFrame = (channels * bytes).convert()
           mChannelsPerFrame = channels.convert()
-          mBitsPerChannel = (BYTES_PER_SAMPLE * Byte.SIZE_BITS).convert()
+          mBitsPerChannel = (bytes * Byte.SIZE_BITS).convert()
         }
       val opened = alloc<ExtAudioFileRefVar>()
       val url: CFURLRef? = CFBridgingRetain(NSURL.fileURLWithPath(path))?.reinterpret()
@@ -161,7 +169,7 @@ internal class StretchFile(
         )
       url?.let { CFRelease(it) }
       val file = opened.value
-      if (created != NO_ERROR || file == null) throw AudioStretchFailure(refused(source, created))
+      if (created != NO_ERROR || file == null) throw AudioStretchFailure(unwritten(source, created))
       val described =
         ExtAudioFileSetProperty(
           file,
@@ -171,15 +179,20 @@ internal class StretchFile(
         )
       if (described != NO_ERROR) {
         ExtAudioFileDispose(file)
-        throw AudioStretchFailure(refused(source, described))
+        throw AudioStretchFailure(unwritten(source, described))
       }
       file
     }
 
   fun write(block: AVAudioPCMBuffer) {
     val status = ExtAudioFileWrite(file, block.frameLength, block.audioBufferList)
-    if (status != NO_ERROR) throw AudioStretchFailure(refused(source, status))
+    if (status != NO_ERROR) throw AudioStretchFailure(unwritten(source, status))
   }
+
+  private fun unwritten(
+    source: String,
+    code: Int,
+  ): FilmstripError = FilmstripError.Underlying(code, "The rendered audio of $source could not be written to a file.")
 
   fun close() {
     ExtAudioFileDispose(file)
@@ -192,8 +205,13 @@ internal class StretchFile(
 internal const val RENDER_BLOCK_FRAMES: UInt = 4_096u
 
 /**
- * The bytes one sample of a stretched file holds.
+ * The bytes one sample of a rendered file holds when it holds 16-bit samples.
  */
-internal const val BYTES_PER_SAMPLE: Int = 2
+internal const val INT16_BYTES_PER_SAMPLE: Int = 2
+
+/**
+ * The bytes one sample of a rendered file holds when it holds float samples.
+ */
+internal const val FLOAT_BYTES_PER_SAMPLE: Int = 4
 
 private const val NO_ERROR = 0

@@ -17,9 +17,7 @@ import dev.jordond.filmstrip.transform.internal.resolve.ResolvedAudioEffect
 import io.kotest.assertions.withClue
 import io.kotest.matchers.floats.plusOrMinus
 import io.kotest.matchers.floats.shouldBeLessThan
-import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
-import io.kotest.matchers.string.shouldContain
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.alloc
 import kotlinx.cinterop.memScoped
@@ -46,7 +44,8 @@ import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
 /**
- * What an [AvKernelTap] does to a composition track's audio when the mix is read the way an export reads it.
+ * What an [AvKernelTap] does to a composition track's audio, with the mix read through a reader so the samples can be
+ * held to the frame.
  *
  * [TimelineBursts] replaces the track's sound with bursts on the composition timeline, so where a burst is read says
  * which position the tap handed its kernels and how loud it is says what ran after the tap.
@@ -81,47 +80,10 @@ class AvKernelTapMediaTest {
     audio.shouldHearBursts(0..2, LOUD * QUARTER)
   }
 
+  // A tap is handed nothing ahead of the block, so it cannot take the latency out. Every block still comes back
+  // whole, and the track plays late by exactly what the kernels hold.
   @Test
-  fun aKernelWithLatencyKeepsItsBurstsOnTheTimeline() {
-    val plain = edit(at = Duration.ZERO).read(TapSpan(TimeRange.of(Duration.ZERO, LENGTH), bursts()))
-
-    val audio = edit(at = Duration.ZERO).read(TapSpan(TimeRange.of(Duration.ZERO, LENGTH), delayed()))
-
-    audio.shouldHearBursts(0..2, LOUD)
-    withClue("the mix read ${audio.samples.size} frames") {
-      audio.samples.size shouldBe (LENGTH.inWholeMilliseconds * PROBE_SAMPLE_RATE / 1_000).toInt()
-    }
-    withClue("the frame each burst opens on") { audio.onsets() shouldBe plain.onsets() }
-  }
-
-  // The first span's kernels still hold frames when the second opens, mid block. They come out ahead of the second
-  // span's audio, which keeps its own place.
-  @Test
-  fun aSpanWithLatencyHandsItsTailOnAheadOfTheNextSpan() {
-    val edit = edit(at = Duration.ZERO)
-    val plain = edit(at = Duration.ZERO).read(TapSpan(TimeRange.of(Duration.ZERO, LENGTH), bursts()))
-    val tap =
-      AvKernelTap(
-        listOf(
-          TapSpan(TimeRange.of(Duration.ZERO, SPLIT), delayed()),
-          TapSpan(TimeRange.of(SPLIT, LENGTH), bursts()),
-        ),
-        readsUntil = LENGTH,
-      )
-
-    val audio = edit.read(tap)
-
-    withClue("the mix read ${audio.samples.size} frames") {
-      audio.samples.size shouldBe (LENGTH.inWholeMilliseconds * PROBE_SAMPLE_RATE / 1_000).toInt()
-    }
-    audio.shouldHearBursts(0..2, LOUD)
-    withClue("the frame each burst opens on") { audio.onsets() shouldBe plain.onsets() }
-  }
-
-  // A player hands a tap nothing ahead of the block, so a tap built for one cannot take the latency out. Every block
-  // still comes back whole, and the track plays late by exactly what the kernels hold.
-  @Test
-  fun aTapWithNothingToReadAheadPlaysLateByItsKernelsLatency() {
+  fun aTapPlaysLateByItsKernelsLatency() {
     val plain = edit(at = Duration.ZERO).read(TapSpan(TimeRange.of(Duration.ZERO, LENGTH), bursts()))
 
     val audio =
@@ -133,18 +95,6 @@ class AvKernelTapMediaTest {
     audio.onsets().drop(1) shouldBe plain.onsets().drop(1).map { it + LATENCY_FRAMES }
   }
 
-  // MediaToolbox hands a tap no more source than the block it prepared it for, so a kernel that holds back more than
-  // that fails the read instead of playing late.
-  @Test
-  fun aKernelHoldingBackMoreThanATapCanReadAheadFails() {
-    val tooLate = bursts() + ResolvedAudioEffect("delay", PlatformAudioEffect { DelayKernel(it, TOO_MANY_FRAMES) })
-    val tap = AvKernelTap(listOf(TapSpan(TimeRange.of(Duration.ZERO, LENGTH), tooLate)), readsUntil = LENGTH)
-
-    edit(at = Duration.ZERO).read(tap)
-
-    tap.failure.shouldNotBeNull().message shouldContain "hold back $TOO_MANY_FRAMES frames"
-  }
-
   // The track's audio starts a second in, so the first bursts fall where the track has nothing. AVFoundation hands
   // the tap silence there, and an effect that makes sound of its own is heard through the gap.
   @Test
@@ -153,7 +103,7 @@ class AvKernelTapMediaTest {
 
     val span = TapSpan(TimeRange.of(Duration.ZERO, 1.seconds + LENGTH), bursts())
 
-    val audio = edit.read(AvKernelTap(listOf(span), readsUntil = 1.seconds + LENGTH))
+    val audio = edit.read(AvKernelTap(listOf(span)))
 
     audio.shouldHearBursts(0..4, LOUD)
   }
@@ -162,7 +112,7 @@ class AvKernelTapMediaTest {
   fun aSwapAheadOfTheReadIsWhatTheTapRuns() {
     val edit = edit(at = Duration.ZERO)
     val range = TimeRange.of(Duration.ZERO, LENGTH)
-    val tap = AvKernelTap(listOf(TapSpan(range, bursts())), readsUntil = LENGTH)
+    val tap = AvKernelTap(listOf(TapSpan(range, bursts())))
 
     tap.swap(listOf(TapSpan(range, bursts(QUARTER))))
 
@@ -218,7 +168,7 @@ class AvKernelTapMediaTest {
     fun read(
       span: TapSpan,
       volume: Float = 1f,
-    ): AudioProbe = read(AvKernelTap(listOf(span), readsUntil = LENGTH), volume)
+    ): AudioProbe = read(AvKernelTap(listOf(span)), volume)
 
     fun read(
       tap: AvKernelTap,
@@ -301,12 +251,10 @@ class AvKernelTapMediaTest {
     val TRIM_START = 200.milliseconds
     val LENGTH = 1_200.milliseconds
     val EDGE: Duration = 20.milliseconds
-    val SPLIT = 500.milliseconds
     val WINDOW: Duration = 40.milliseconds
     const val LOUD = 0.5f
     const val QUARTER = 0.25f
     const val LATENCY_FRAMES = 480
-    const val TOO_MANY_FRAMES = 5_000
     const val AUDIBLE = 0.05f
     const val QUIET_RUN = 1_000
     const val LEVEL_TOLERANCE = 0.05f

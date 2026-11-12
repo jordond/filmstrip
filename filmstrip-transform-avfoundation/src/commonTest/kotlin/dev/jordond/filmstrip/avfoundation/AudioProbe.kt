@@ -1,7 +1,5 @@
 package dev.jordond.filmstrip.avfoundation
 
-import dev.jordond.filmstrip.avfoundation.internal.time.toDuration
-import dev.jordond.filmstrip.avfoundation.internal.writer.MixEnd
 import dev.jordond.filmstrip.test.ToneAnalysis
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.addressOf
@@ -98,8 +96,7 @@ internal fun mixedAudioOf(
       audioSettings = PROBE_SETTINGS,
     )
   output.audioMix = mix
-  val bounded = MixEnd(asset.duration.toDuration(), PROBE_SAMPLE_RATE, output::copyNextSampleBuffer)
-  return decoded(asset, output, "the mix", bounded::next)
+  return decoded(asset, output, "the mix")
 }
 
 @OptIn(ExperimentalForeignApi::class)
@@ -107,7 +104,6 @@ private fun decoded(
   asset: AVAsset,
   output: AVAssetReaderOutput,
   path: String,
-  read: () -> CMSampleBufferRef? = output::copyNextSampleBuffer,
 ): AudioProbe {
   val reader = AVAssetReader.assetReaderWithAsset(asset, error = null) ?: error("no reader for $path")
   reader.addOutput(output)
@@ -116,7 +112,7 @@ private fun decoded(
   val chunks = mutableListOf<FloatArray>()
   try {
     while (true) {
-      val buffer = read() ?: break
+      val buffer = output.copyNextSampleBuffer() ?: break
       try {
         val block = CMSampleBufferGetDataBuffer(buffer) ?: continue
         val bytes = CMBlockBufferGetDataLength(block).toInt()

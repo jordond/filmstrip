@@ -210,8 +210,8 @@ picture but still plays its audio. If it's the whole primary track, it's refused
   the speed. That's 1.49 s for a 44.1 kHz clip at 1/32, and up to 685 ms was measured.
 - **Android** drops frames to fit a fast clip to the output rate. Past about 55 minutes of a clip at 30 fps, or 7 at 60,
   the frames it keeps drift off their slots.
-- **Apple** writes sped up audio to a temporary file during an export. A clip with more than 10 million frames is
-  refused by name.
+- **Apple** writes the audio of a clip at another speed, or with audio effects on it or its track, to a temporary
+  file during an export. A clip with more than 10 million frames is refused by name.
 - **ffmpeg** previews have no audio. A variable frame rate source can show the next or previous frame where a slot
   lands halfway between two.
 

@@ -247,8 +247,8 @@ internal class WriterRun(
   /**
    * The audio pump, or null when the output carries no audio and nothing is being copied.
    *
-   * An encode reads its mix through [MixEnd], which ends it where the composition does. One with composition audio
-   * effects then reads it through [MixAudioEffects], which runs them on the samples after every level.
+   * An encode with composition audio effects reads its mix through [MixAudioEffects], which runs them on the samples
+   * after every level.
    */
   private fun audioPump(
     tracks: List<*>,
@@ -267,12 +267,10 @@ internal class WriterRun(
     val output = audioOutput(tracks, copies)
     if (copies) return WriterPump(input, output, reportsProgress = false)
 
-    val format = pcmReaderFormat(resolved.output)
-    val mix = MixEnd(resolved.duration, format.sampleRate, output::copyNextSampleBuffer)
     val effects = resolved.mixAudioEffects
-    if (effects.isEmpty()) return WriterPump(input, output, reportsProgress = false, read = mix::next)
+    if (effects.isEmpty()) return WriterPump(input, output, reportsProgress = false)
 
-    val mixed = MixAudioEffects(effects, format, mix::next)
+    val mixed = MixAudioEffects(effects, pcmReaderFormat(resolved.output), output::copyNextSampleBuffer)
     return WriterPump(input, output, reportsProgress = false, read = mixed::next, failure = mixed::failure)
   }
 
