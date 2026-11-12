@@ -31,7 +31,7 @@ import kotlin.time.Duration
  * filmstrip's own [clipAudioSpeed]. Without it media3 changes the speed, which is what a player needs, since it refuses
  * a processor that changes an item's length.
  *
- * With [liveGain] set, every clip's level sits on a [LiveGainProcessor] that a standing graph can hand a new curve.
+ * With [liveGain] set, every clip's level sits on a [ClipGainProcessor] that a standing graph can hand a new curve.
  */
 internal class Lowering(
   private val plan: ResolvedComposition,

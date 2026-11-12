@@ -7,23 +7,26 @@ import androidx.media3.common.util.Util
 import androidx.media3.transformer.Composition
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedGain
 import java.nio.ByteBuffer
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.nanoseconds
+import kotlin.time.Duration.Companion.seconds
 
 /**
  * Brings a clip to its level frame by frame off its resolved curve, which can be swapped while the stream plays.
  *
- * The stream keeps its format and its length, in 16-bit or float PCM. The processor stays in the graph at any level,
- * a held one included, so a standing preview can be handed a new curve without being rebuilt.
+ * The stream keeps its format and its length, in 16-bit or float PCM. An export and a preview both scale through this
+ * processor, so a level sounds the same in each. A preview keeps it in the graph at any level, a held one included, so
+ * a standing preview can be handed a new curve without being rebuilt.
  *
  * media3 flushes a processor with how far into its stream the next frame sits, which for a clip is the time since its
  * first frame at the speed it plays at. A resolved curve is in the same time, so a swapped curve is read from the place
  * the stream has reached.
  *
- * A 16-bit sample is scaled the way media3's own `GainProcessor` scales it on an export, as `(short) (sample * gain)`.
- * That wraps rather than clipping, so a factor above one distorts a clip already near full scale here as it does there.
+ * A sample a factor above one carries past full scale is held at full scale, in both formats.
  *
  * @param gain The curve the stream opens with.
  */
-internal class LiveGainProcessor(
+internal class ClipGainProcessor(
   gain: ResolvedGain,
 ) : BaseAudioProcessor() {
   /**
@@ -68,9 +71,10 @@ internal class LiveGainProcessor(
         val factor = held ?: curve.gainAt(clipTimeOf(position + frame, format.sampleRate))
         repeat(format.channelCount) {
           if (float) {
-            output.putFloat(inputBuffer.getFloat() * factor)
+            output.putFloat((inputBuffer.getFloat() * factor).coerceIn(-FLOAT_FULL_SCALE, FLOAT_FULL_SCALE))
           } else {
-            output.putShort((inputBuffer.getShort() * factor).toInt().toShort())
+            val scaled = (inputBuffer.getShort() * factor).toInt()
+            output.putShort(scaled.coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort())
           }
         }
       }
@@ -91,6 +95,7 @@ internal class LiveGainProcessor(
 
   private companion object {
     const val UNITY = 1f
+    const val FLOAT_FULL_SCALE = 1f
   }
 }
 
@@ -100,13 +105,22 @@ internal class LiveGainProcessor(
  * A plan lowered again puts a clip's processor at the same key, which is how a standing graph finds the one to hand
  * a changed level to.
  */
-internal fun Composition.liveGainProcessors(): Map<KernelStream, LiveGainProcessor> =
+internal fun Composition.liveGainProcessors(): Map<KernelStream, ClipGainProcessor> =
   buildMap {
     sequences.forEachIndexed { sequence, items ->
       items.editedMediaItems.forEachIndexed { item, edited ->
         edited.effects.audioProcessors
-          .firstNotNullOfOrNull { it as? LiveGainProcessor }
+          .firstNotNullOfOrNull { it as? ClipGainProcessor }
           ?.let { put(KernelStream(sequence, item), it) }
       }
     }
   }
+
+// The clip time a frame position sits at, split at the second so a long stream cannot overflow the
+// nanosecond conversion.
+internal fun clipTimeOf(
+  frames: Long,
+  sampleRate: Int,
+): Duration = (frames / sampleRate).seconds + ((frames % sampleRate) * NANOS_PER_SECOND / sampleRate).nanoseconds
+
+private const val NANOS_PER_SECOND = 1_000_000_000L

@@ -4,7 +4,6 @@ import android.net.Uri
 import androidx.media3.common.C
 import androidx.media3.common.Effect
 import androidx.media3.common.audio.AudioProcessor
-import androidx.media3.common.audio.GainProcessor
 import androidx.media3.effect.AlphaScale
 import androidx.media3.effect.RgbMatrix
 import dev.jordond.filmstrip.codec.AudioCodec
@@ -155,48 +154,7 @@ class Media3CompositionTest {
   }
 
   @Test
-  fun `a ramping gain is sampled off the resolved curve frame by frame`() {
-    val fade = fadeOut()
-    val provider = ResolvedGainProvider(fade)
-
-    (0 until FRAMES_PER_SECOND).forEach { frame ->
-      provider.getGainFactorAtSamplePosition(frame.toLong(), FRAMES_PER_SECOND) shouldBe
-        fade.gainAt((frame * FRAME_MILLIS).milliseconds)
-    }
-  }
-
-  @Test
-  fun `a frame the curve is not unity at has no unity boundary`() {
-    ResolvedGainProvider(fadeOut()).isUnityUntil(FRAMES_PER_SECOND / 2L, FRAMES_PER_SECOND) shouldBe C.TIME_UNSET
-  }
-
-  // media3 throws on TIME_UNSET at a unity frame and spins forever on a boundary that does not
-  // advance, so a curve that leaves unity right away still has to name the frame after this one.
-  @Test
-  fun `a unity frame always names a boundary past itself`() {
-    ResolvedGainProvider(fadeOut()).isUnityUntil(0, FRAMES_PER_SECOND) shouldBe 1
-  }
-
-  @Test
-  fun `a hold before a fade is unity until the fade starts`() {
-    val provider = ResolvedGainProvider(heldThenFadedOut())
-
-    provider.isUnityUntil(0, FRAMES_PER_SECOND) shouldBe FRAMES_PER_SECOND.toLong()
-    provider.isUnityUntil(FRAMES_PER_SECOND / 2L, FRAMES_PER_SECOND) shouldBe FRAMES_PER_SECOND.toLong()
-  }
-
-  // A curve holds its last gain past its own end, so a fade in never leaves unity again and media3
-  // can copy the rest of the stream through untouched.
-  @Test
-  fun `a fade in is unity to the end of the source once it lands`() {
-    val faded = ResolvedGain(listOf(GainSegment(Duration.ZERO, 1.seconds, 0f, 1f)))
-
-    ResolvedGainProvider(faded).isUnityUntil(FRAMES_PER_SECOND.toLong(), FRAMES_PER_SECOND) shouldBe
-      C.TIME_END_OF_SOURCE
-  }
-
-  @Test
-  fun `media3 scales every frame by what the curve holds there`() {
+  fun `every frame is scaled by what the curve holds there`() {
     val fade = fadeOut()
 
     fade.applyTo(ShortArray(FRAMES_PER_SECOND) { SAMPLE }).toList() shouldBe
@@ -205,49 +163,55 @@ class Media3CompositionTest {
       }
   }
 
-  /**
-   * The overflow is media3's own: its 16-bit path narrows `sample * gain` straight to a short, so a
-   * boost carrying a hot sample past full scale flips its sign rather than clipping. The scaled
-   * mixing matrix a constant gain rides on does the same, which is why nothing is clamped on the
-   * way in.
-   */
   @Test
-  fun `a gain above one overflows a hot sample rather than clipping it`() {
-    val boost = ResolvedGain(listOf(GainSegment(Duration.ZERO, 1.seconds, 2f, 1f)))
+  fun `a held level scales every frame by the one factor`() {
+    val held = ResolvedGain.constant(0.4f, Duration.ZERO, 1.seconds)
 
-    ResolvedGainProvider(boost).getGainFactorAtSamplePosition(0, FRAMES_PER_SECOND) shouldBe
-      boost.gainAt(Duration.ZERO)
-    boost.applyTo(shortArrayOf(SAMPLE)).single() shouldBe (-25_536).toShort()
+    held.applyTo(ShortArray(FRAMES_PER_SECOND) { SAMPLE }).toSet() shouldBe setOf((SAMPLE * 0.4f).toInt().toShort())
   }
 
   @Test
-  fun `only a ramping gain needs a processor of its own`() {
-    rampProcessorFor(ResolvedGain.constant(0.5f, Duration.ZERO, 1.seconds)) shouldBe null
-    rampProcessorFor(fadeOut()).shouldBeInstanceOf<GainProcessor>()
+  fun `a gain above one holds a hot sample at full scale`() {
+    val boost = ResolvedGain(listOf(GainSegment(Duration.ZERO, 1.seconds, 2f, 1f)))
+
+    boost.applyTo(shortArrayOf(SAMPLE)).single() shouldBe Short.MAX_VALUE
+    boost.applyTo(shortArrayOf((-SAMPLE).toShort())).single() shouldBe Short.MIN_VALUE
+  }
+
+  @Test
+  fun `a held boost and a ramp passing the same factor land on the same sample`() {
+    val held = ResolvedGain.constant(1.5f, Duration.ZERO, 1.seconds)
+    val ramp = ResolvedGain(listOf(GainSegment(Duration.ZERO, 1.seconds, 1f, 2f)))
+    val middle = FRAMES_PER_SECOND / 2
+    ramp.gainAt((middle * FRAME_MILLIS).milliseconds) shouldBe 1.5f
+
+    listOf(SAMPLE, QUIET_SAMPLE).forEach { sample ->
+      val samples = ShortArray(FRAMES_PER_SECOND) { sample }
+      ramp.applyTo(samples)[middle] shouldBe held.applyTo(samples)[middle]
+    }
+    held.applyTo(shortArrayOf(QUIET_SAMPLE)).single() shouldBe (QUIET_SAMPLE * 1.5f).toInt().toShort()
   }
 
   // The chain a mixing clip gets cannot be built off device, since ChannelMixingAudioProcessor
-  // holds its matrices in an android.util.SparseArray. This is the one case that builds no mixer.
+  // holds its matrices in an android.util.SparseArray. These are the cases that build no mixer.
   @Test
   fun `a unity gain with nothing to mix runs through nothing`() {
     audioProcessors(ResolvedGain.constant(1f, Duration.ZERO, 1.seconds), mixes = false).shouldBeEmpty()
   }
 
+  @Test
+  fun `a standing graph carries its level processor at unity too`() {
+    audioProcessors(ResolvedGain.constant(1f, Duration.ZERO, 1.seconds), mixes = false, liveGain = true)
+      .single()
+      .shouldBeInstanceOf<ClipGainProcessor>()
+  }
+
   // A second falling from full to silence, which is the shape every fade out lowers to.
   private fun fadeOut(): ResolvedGain = ResolvedGain(listOf(GainSegment(Duration.ZERO, 1.seconds, 1f, 0f)))
 
-  private fun heldThenFadedOut(): ResolvedGain =
-    ResolvedGain(
-      listOf(
-        GainSegment(Duration.ZERO, 1.seconds, 1f, 1f),
-        GainSegment(1.seconds, 2.seconds, 1f, 0f),
-      ),
-    )
-
-  // Runs the real media3 processor over one mono 16-bit buffer. Reading the frames back out is the
-  // only way to see what the provider's unity boundaries actually made it do.
+  // Runs the level processor over one mono 16-bit buffer.
   private fun ResolvedGain.applyTo(samples: ShortArray): ShortArray {
-    val processor = GainProcessor(ResolvedGainProvider(this))
+    val processor = ClipGainProcessor(this)
     processor.configure(AudioProcessor.AudioFormat(FRAMES_PER_SECOND, 1, C.ENCODING_PCM_16BIT))
     processor.flush(AudioProcessor.StreamMetadata.DEFAULT)
 
@@ -424,6 +388,7 @@ private val PORTRAIT = Size(360, 640)
 
 // Eight frames a second, so a frame position lands on a round time and a test can name the time it
 // expects without repeating the conversion the provider does.
+private const val QUIET_SAMPLE: Short = 1_001
 private const val FRAMES_PER_SECOND = 8
 private const val FRAME_MILLIS = 125L
 

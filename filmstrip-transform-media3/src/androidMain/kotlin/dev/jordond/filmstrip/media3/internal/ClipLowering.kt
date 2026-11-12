@@ -69,58 +69,40 @@ internal fun ResolvedClip.clipVideoEffects(
  *
  * The effects come first, so a fade takes whatever an effect adds down with the clip.
  *
- * With [liveGain] set the level is one a standing graph can change, through [liveAudioProcessors].
+ * With [liveGain] set the level is one a standing graph can change.
  */
 internal fun ResolvedClip.clipAudioProcessors(
   mixes: Boolean,
   liveGain: Boolean,
-): List<AudioProcessor> =
-  kernelProcessors(audioEffects, span.start) +
-    if (liveGain) liveAudioProcessors(gain, mixes) else audioProcessors(gain, mixes)
+): List<AudioProcessor> = kernelProcessors(audioEffects, span.start) + audioProcessors(gain, mixes, liveGain)
 
 /**
- * The processors that bring an audio-carrying clip to its level and to the format its sequence outputs.
+ * The processors that bring an audio-carrying clip to the format its sequence outputs and to its level.
  *
- * Every item in a sequence has to reach the same output format, and a constant gain is applied by
- * scaling the mixing matrix that gets it there. Pinning 16-bit PCM and a channel count is what
- * makes a concatenation of a mono clip and a stereo clip mix at all, so it is done whenever a
- * sequence has more than one clip rather than only when a gain is asked for.
+ * Every item in a sequence has to reach the same output format. Pinning 16-bit PCM and a channel count is what makes a
+ * concatenation of a mono clip and a stereo clip mix at all, so it is done whenever a sequence has more than one clip
+ * rather than only when a gain is asked for. The mixing matrix stays at unity and a [ClipGainProcessor] after it
+ * carries the whole level, a held one and a ramp alike.
  *
- * A curve that ramps cannot ride on the matrix, which holds one number for the whole item, so the
- * matrix stays at unity and [rampProcessorFor] appends a processor that walks the curve after it.
+ * With [liveGain] set the level processor is there whatever [gain] is and the format is pinned only for [mixes], since
+ * media3 keeps the processors a graph was built with and a changed level must not change them.
  */
 internal fun audioProcessors(
   gain: ResolvedGain,
   mixes: Boolean,
+  liveGain: Boolean = false,
 ): List<AudioProcessor> {
-  val constant = gain.constant
-  if (!mixes && constant == 1f) return emptyList()
-
-  val mixer = ChannelMixingAudioProcessor()
-  INPUT_CHANNEL_COUNTS.forEach { inputs ->
-    mixer.putChannelMixingMatrix(
-      ChannelMixingMatrix.createForConstantGain(inputs, CHANNEL_COUNT).scaleBy(constant ?: 1f),
-    )
-  }
-
-  return listOf(ToInt16PcmAudioProcessor(), mixer) + listOfNotNull(rampProcessorFor(gain))
+  val unity = gain.constant == 1f
+  val format = if (mixes || (!liveGain && !unity)) outputFormatProcessors() else emptyList()
+  return format + listOfNotNull(ClipGainProcessor(gain).takeIf { liveGain || !unity })
 }
 
-/**
- * The processors that bring an audio-carrying clip to the format its sequence outputs and to a level that can be
- * changed while the clip plays.
- *
- * The format is reached the way [audioProcessors] reaches it, with the mixing matrix left at unity. The level is
- * carried whole by a [LiveGainProcessor] after it, which is there whatever [gain] is, since media3 keeps the processors
- * a graph was built with.
- */
-internal fun liveAudioProcessors(
-  gain: ResolvedGain,
-  mixes: Boolean,
-): List<AudioProcessor> {
-  val format =
-    if (mixes) audioProcessors(ResolvedGain.constant(1f, gain.start, gain.end), mixes = true) else emptyList()
-  return format + LiveGainProcessor(gain)
+private fun outputFormatProcessors(): List<AudioProcessor> {
+  val mixer = ChannelMixingAudioProcessor()
+  INPUT_CHANNEL_COUNTS.forEach { inputs ->
+    mixer.putChannelMixingMatrix(ChannelMixingMatrix.createForConstantGain(inputs, CHANNEL_COUNT))
+  }
+  return listOf(ToInt16PcmAudioProcessor(), mixer)
 }
 
 /**
