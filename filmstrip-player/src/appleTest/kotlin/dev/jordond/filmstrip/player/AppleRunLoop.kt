@@ -23,8 +23,11 @@ import platform.CoreFoundation.kCFRunLoopDefaultMode
 @OptIn(ExperimentalForeignApi::class)
 internal fun pumpMainRunLoopDuringContracts() {
   contractPump = { CFRunLoopRunInMode(kCFRunLoopDefaultMode, PUMP_SECONDS, true) }
-  contractWarmUp = ::warmUpAppleMediaStack
+  contractWarmUp = appleMediaWarmUp
 }
+
+// One instance, so every class that installs it shares the one run a process gives it.
+private val appleMediaWarmUp: suspend () -> Unit = ::warmUpAppleMediaStack
 
 // Short enough that the suite's own polling stays responsive, long enough that the main thread is
 // not spinning on an empty loop.

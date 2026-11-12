@@ -3,6 +3,7 @@ package dev.jordond.filmstrip.player
 import dev.jordond.filmstrip.player.contract.awaitComposition
 import dev.jordond.filmstrip.player.contract.awaitContract
 import dev.jordond.filmstrip.player.contract.contractTest
+import dev.jordond.filmstrip.player.contract.contractWarmUp
 import dev.jordond.filmstrip.player.contract.withEngine
 import dev.jordond.filmstrip.player.internal.AvPlayerEngine
 import dev.jordond.filmstrip.player.internal.AvPreviewPlanner
@@ -28,11 +29,16 @@ import kotlin.test.Test
  *
  * A simulator may either get that frame or report the failure the limits page names, so a runtime that fails it today
  * can start working without this going red. Any other failure is red, and so is that one anywhere but a simulator.
+ *
+ * The first window a process shows loads UIKit and connects its scene, which took a freshly booted simulator over a
+ * minute on a busy machine. That is paid as the class's warm-up, after the media stack's, so the body's own waits
+ * start with both loaded.
  */
 @OptIn(ExperimentalForeignApi::class)
 class IosPreviewLayerMediaTest {
   init {
     pumpMainRunLoopDuringContracts()
+    contractWarmUp = firstWindowWarmUp
   }
 
   @Test
@@ -85,5 +91,16 @@ class IosPreviewLayerMediaTest {
   private companion object {
     const val ITEM_FAILED = -11800
     const val RENDER_PIPELINE_FAILED = -12784
+  }
+}
+
+// One instance, so the process shows its first window once however many tests the class holds.
+@OptIn(ExperimentalForeignApi::class)
+private val firstWindowWarmUp: suspend () -> Unit = {
+  warmUpAppleMediaStack()
+  withContext(Dispatchers.Main) {
+    val window = UIWindow(frame = UIScreen.mainScreen.bounds)
+    window.hidden = false
+    window.hidden = true
   }
 }

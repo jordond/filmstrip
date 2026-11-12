@@ -164,9 +164,9 @@ class ContractMark(
  * from the same one its callbacks arrive on. Real time rather than virtual: a device backend
  * settles on the platform's own clock, which no test scheduler can advance.
  *
- * When [contractWarmUp] is set, the first contract test in the process runs it before its body, on the same
- * dispatcher, and gets [WARM_UP_BUDGET] on top of its own budget to pay for it. Every later test runs without it and
- * keeps its own budget, whether the warm-up succeeded, threw or ran out of time.
+ * When [contractWarmUp] is set, the first contract test in the process to find that warm-up runs it before its body,
+ * on the same dispatcher, and gets [WARM_UP_BUDGET] on top of its own budget to pay for it. Every later test with the
+ * same warm-up runs without it and keeps its own budget, whether the warm-up succeeded, threw or ran out of time.
  *
  * @param timeout How long the whole body may take. The default covers a backend that decodes on the
  *   host. A backend that has to encode something to compare against needs longer and says so.
@@ -177,8 +177,7 @@ internal fun contractTest(
   timeout: Duration = CONTRACT_BODY_TIMEOUT,
   body: suspend (CoroutineScope) -> Unit,
 ): TestResult {
-  val warmUp = contractWarmUp?.takeUnless { warmUpTaken }
-  if (warmUp != null) warmUpTaken = true
+  val warmUp = contractWarmUp?.takeIf(warmUpsTaken::add)
   val warmUpBudget = if (warmUp == null) Duration.ZERO else WARM_UP_BUDGET
   return runTest(timeout = timeout + warmUpBudget) {
     currentStep = null
@@ -251,7 +250,7 @@ private suspend fun runWarmUp(warmUp: suspend () -> Unit) {
     } catch (cancelled: CancellationException) {
       throw cancelled
     } catch (cause: Throwable) {
-      throw AssertionError("The simulator's media stack did not warm up: ${cause.message}", cause)
+      throw AssertionError("The warm-up failed: ${cause.message}", cause)
     }
   }
   currentCoroutineContext().ensureActive()
@@ -271,23 +270,22 @@ private suspend fun runWarmUp(warmUp: suspend () -> Unit) {
 internal var contractPump: (() -> Unit)? = null
 
 /**
- * Loads the platform's media stack before the first contract body in a process, or null where a backend needs no
- * warm-up.
+ * Loads what a class's contract bodies touch for the first time in a process, such as the platform's media stack, or
+ * null where a backend needs no warm-up.
  *
- * The first test to find it set runs it as the step [WARM_UP_STEP], within [WARM_UP_BUDGET]. It runs once per
- * process whatever the outcome. A warm-up that throws or runs out of time fails only the test that ran it, and no
- * later test runs it again. Like [contractPump], it is set once per test class, and a backend that leaves it null gets
- * exactly the harness it had before.
+ * The first test to find a warm-up set runs it as the step [WARM_UP_STEP], within [WARM_UP_BUDGET]. Each warm-up runs
+ * once per process whatever the outcome, and two classes that set the same one share that run. A warm-up that throws
+ * or runs out of time fails only the test that ran it, and no later test runs it again. Like [contractPump], it is set
+ * once per test class, and a backend that leaves it null gets exactly the harness it had before.
  */
 internal var contractWarmUp: (suspend () -> Unit)? = null
 
 /**
- * Whether a contract test in this process has already taken the [contractWarmUp], however it went.
+ * Every [contractWarmUp] a contract test in this process has already taken, however it went.
  *
- * [contractTest] reads and sets it on the thread that starts each test, before the warm-up runs.
+ * [contractTest] reads and adds to it on the thread that starts each test, before the warm-up runs.
  */
-@Volatile
-private var warmUpTaken: Boolean = false
+private val warmUpsTaken = mutableSetOf<suspend () -> Unit>()
 
 /**
  * The wait the running contract body started most recently, or null before it starts one.
