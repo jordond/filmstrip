@@ -122,6 +122,9 @@ kernel and everything the kernel has built up, so changing a level or one effect
 - On Apple, an export reads a clip's audio ahead to take a kernel's latency out, and AVFoundation hands over a few
   thousand frames at most, about 70 ms at 48 kHz. A clip or track effect whose kernels hold back more than that fails
   the export. A composition effect has no such ceiling.
+- On Apple, an export on a machine under heavy load can, rarely, lose part of a clip or track effect's audio. A
+  stretch of the file comes out silent and the export reports no error. Exporting again gives the whole sound. A
+  composition effect isn't affected.
 - In the browser, a clip with audio effects is decoded for itself, so a looping track's passes don't share one decoded
   buffer.
 </Aside>
