@@ -25,7 +25,11 @@ internal abstract class UploadLock : BuildService<BuildServiceParameters.None>
  */
 internal fun Project.configurePublishing(license: (MavenPomLicenseSpec.() -> Unit)? = null) {
   val repo = "https://github.com/jordond/filmstrip"
-  val uploads = gradle.sharedServices.registerIfAbsent("uploadLock", UploadLock::class.java) { maxParallelUsages.set(1) }
+  val uploads =
+    gradle.sharedServices.registerIfAbsent(
+      "uploadLock",
+      UploadLock::class.java,
+    ) { maxParallelUsages.set(1) }
   tasks.withType<PublishToMavenRepository>().configureEach { usesService(uploads) }
 
   extensions.configure<MavenPublishBaseExtension> {
