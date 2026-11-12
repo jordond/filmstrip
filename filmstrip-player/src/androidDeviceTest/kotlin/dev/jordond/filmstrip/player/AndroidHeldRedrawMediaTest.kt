@@ -10,6 +10,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.test.Test
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
@@ -50,11 +51,18 @@ class AndroidHeldRedrawMediaTest {
   fun aPausedCompositionTapeHoldsStill() =
     onSurface(Vhs()) { surface ->
       surface.seekAndAwait(HELD_AT)
-      delay(SETTLE)
 
-      val shown = surface.picturesDuring { delay(WINDOW) }
+      // The seek's own frame can reach an emulator's surface late, so the surface is read a window at a time until
+      // one passes without a picture. A tape that moves never gives one.
+      val still =
+        withTimeoutOrNull(MOVES_WITHIN) {
+          while (surface.picturesDuring { delay(WINDOW) } != 0) Unit
+          true
+        }
 
-      withClue("a tape on composition time moved under a paused preview") { shown shouldBe 0 }
+      withClue("a tape on composition time kept moving under a paused preview for $MOVES_WITHIN") {
+        still shouldBe true
+      }
     }
 
   private fun onSurface(
@@ -76,9 +84,6 @@ class AndroidHeldRedrawMediaTest {
 
     // An emulator's software compositor shows a frame some refreshes after media3 hands it over.
     val COMPOSITOR_LAG: Duration = if (runsOnEmulator) 250.milliseconds else Duration.ZERO
-
-    // Long enough for the seek's frame to be on the surface on a phone and on an emulator, before stillness is read.
-    val SETTLE: Duration = 500.milliseconds
     const val PICTURES = 3
   }
 }
