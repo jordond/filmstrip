@@ -406,9 +406,15 @@ internal class AvPlayerEngine(
       movePlayhead(start)
     }
     onPlatformChanged()
-    if (swappable) emitFrameRedrawn()
     // A failure halts the transport and leaves the play standing, so this load is what starts it again.
-    if (request.playWhenReady || (isPlayWanted && !transport.isPlaying)) play()
+    val starts = request.playWhenReady || (isPlayWanted && !transport.isPlaying)
+    if (swappable) {
+      // A running player draws its next frame through the chain. A paused one keeps the frame it drew, so it is asked
+      // for again, unless it is about to run.
+      if (!starts) redrawHeld()
+      emitFrameRedrawn()
+    }
+    if (starts) play()
     return null
   }
 
