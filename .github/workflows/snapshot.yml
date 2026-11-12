@@ -27,7 +27,9 @@ jobs:
       github.event.workflow_run.event == 'push' &&
       github.event.workflow_run.head_repository.full_name == github.repository
     runs-on: macos-latest
-    timeout-minutes: 60
+    # The modules upload one at a time, which is about 40 minutes of uploading on top of the build, and a run that
+    # meets the repository's rate limit also sits out the waits below.
+    timeout-minutes: 120
     steps:
       # The default ref is the head of main, so no ref from the triggering run is checked out. When main has moved
       # past the commit the fast lane passed on, nothing is published and that later commit's own run publishes.
@@ -76,7 +78,16 @@ jobs:
 
       - name: Deploy ${{ steps.version.outputs.name }} to the snapshot repository
         if: steps.version.outputs.snapshot == 'true'
-        run: ./gradlew publishAllPublicationsToMavenCentral --no-configuration-cache --stacktrace
+        # The snapshot repository answers 429 once a run has sent it enough requests, and every file of every target
+        # is a request of its own. Gradle retries a 429 three times over three seconds by default, which is over
+        # before the limit lifts, so a request here is retried eight times with waits doubling from 5 to 320 seconds.
+        # The SHA-256 and SHA-512 checksums are left out, since the repository only asks for MD5 and SHA-1 and they
+        # are two of every five requests.
+        run: >-
+          ./gradlew publishAllPublicationsToMavenCentral --no-configuration-cache --stacktrace
+          -Dorg.gradle.internal.network.retry.max.attempts=8
+          -Dorg.gradle.internal.network.retry.initial.backOff=5000
+          -Dorg.gradle.internal.publish.checksums.insecure=true
         env:
           ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
           ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
