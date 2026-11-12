@@ -3,7 +3,18 @@ package dev.jordond.filmstrip.convention
 import com.vanniktech.maven.publish.MavenPublishBaseExtension
 import org.gradle.api.Project
 import org.gradle.api.publish.maven.MavenPomLicenseSpec
+import org.gradle.api.publish.maven.tasks.PublishToMavenRepository
+import org.gradle.api.services.BuildService
+import org.gradle.api.services.BuildServiceParameters
 import org.gradle.kotlin.dsl.configure
+import org.gradle.kotlin.dsl.withType
+
+/**
+ * A lock every upload to a repository takes, so the modules of a build upload one at a time.
+ *
+ * The snapshot repository answers 429 to modules uploading side by side.
+ */
+internal abstract class UploadLock : BuildService<BuildServiceParameters.None>
 
 /**
  * POM metadata for every published module, in Kotlin rather than `POM_*` properties.
@@ -14,6 +25,8 @@ import org.gradle.kotlin.dsl.configure
  */
 internal fun Project.configurePublishing(license: (MavenPomLicenseSpec.() -> Unit)? = null) {
   val repo = "https://github.com/jordond/filmstrip"
+  val uploads = gradle.sharedServices.registerIfAbsent("uploadLock", UploadLock::class.java) { maxParallelUsages.set(1) }
+  tasks.withType<PublishToMavenRepository>().configureEach { usesService(uploads) }
 
   extensions.configure<MavenPublishBaseExtension> {
     coordinates(groupId = version("group"), artifactId = name)
