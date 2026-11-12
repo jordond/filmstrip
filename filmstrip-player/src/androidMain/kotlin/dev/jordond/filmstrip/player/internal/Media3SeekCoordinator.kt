@@ -91,6 +91,9 @@ internal class Media3SeekCoordinator(
   var playerSerial: Int = 0
     private set
 
+  // The millisecond the seek media3 was handed last went through first. Read and written on the player's thread only.
+  private var nudgedMs = NO_NUDGE
+
   // The serial of the last seek the playback thread has handled, and the last one a frame was reported for. Written on
   // the playback thread, where a frame drawn after a seek was handled is a frame from after it.
   @Volatile
@@ -220,11 +223,23 @@ internal class Media3SeekCoordinator(
     // the wait opens once the seek was handled.
     if (!standing.isPlaying) playback.run { awaitFrame(issued) }
     // media3's limit: it skips a seek to the millisecond it rests on. See [seekNudgeMs].
-    if (seekGoesThroughNudge(fresh, skipped, standing.isPlaying, scrubbing())) {
-      standing.seekTo(seekNudgeMs(positionMs))
-    }
+    val nudged = seekGoesThroughNudge(fresh, skipped, standing.isPlaying, scrubbing())
+    nudgedMs = if (nudged) seekNudgeMs(positionMs) else NO_NUDGE
+    if (nudged) standing.seekTo(nudgedMs)
     standing.seekTo(positionMs)
     playback.run { onSeekHandled(issued, skipped) }
+  }
+
+  /**
+   * Whether a seek media3 reports landing on [positionMs] is one to answer. Called on the player's thread.
+   *
+   * The landing on the millisecond a seek was nudged through is not, since the seek to its target comes right behind
+   * it and is the one the player rests on.
+   */
+  fun landsOn(positionMs: Long): Boolean {
+    if (positionMs == nudgedMs) return false
+    nudgedMs = NO_NUDGE
+    return true
   }
 
   private fun Handler?.run(block: () -> Unit) {
@@ -333,3 +348,5 @@ internal fun playheadOf(
   positionMs: Long,
   landing: Duration?,
 ): Duration = landing?.takeIf { it.toMediaMs() == positionMs } ?: positionMs.milliseconds
+
+private const val NO_NUDGE = Long.MIN_VALUE

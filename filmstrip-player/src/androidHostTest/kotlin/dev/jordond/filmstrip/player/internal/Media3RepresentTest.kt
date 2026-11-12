@@ -43,6 +43,20 @@ class Media3RepresentTest {
     }
 
   @Test
+  fun `the landing on the millisecond beside the held slot is not answered and the one on the slot is`() =
+    runTest {
+      val rig = Rig(this)
+
+      rig.seeks.represent(surfaceLost = false)
+      runCurrent()
+
+      runCurrent()
+      rig.seeks.landsOn(seekNudgeMs(RESTING_MS)) shouldBe false
+      rig.seeks.landsOn(RESTING_MS) shouldBe true
+      rig.seeks.landsOn(seekNudgeMs(RESTING_MS)) shouldBe true
+    }
+
+  @Test
   fun `the playhead stays on the held slot while the seek back is in flight and after it lands`() =
     runTest {
       val rig = Rig(this)

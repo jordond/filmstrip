@@ -67,6 +67,7 @@ internal class Media3PlayerListener(
       return
     }
     val landed = newPosition.positionMs
+    if (!seeks.landsOn(landed)) return
     val serial = seeks.playerSerial
     report { status.platformPositionMs = landed }
     dispatch { seeks.accepted(serial) }
