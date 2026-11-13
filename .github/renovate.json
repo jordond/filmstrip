@@ -4,9 +4,27 @@
     "config:recommended",
     ":configMigration",
     "helpers:pinGitHubActionDigests",
-    "abandonments:recommended"
+    "abandonments:recommended",
+    "customManagers:githubActionsVersions"
   ],
-  "enabledManagers": ["gradle", "gradle-wrapper", "github-actions"],
+  "enabledManagers": ["gradle", "gradle-wrapper", "github-actions", "bun", "custom.regex"],
+  "customManagers": [
+    {
+      "description": "npm packages a Kotlin build script declares with npm(\"name\", \"version\")",
+      "customType": "regex",
+      "managerFilePatterns": ["/(^|/)build\\.gradle\\.kts$/"],
+      "matchStrings": ["npm\\(\\s*\"(?<depName>[^\"]+)\"\\s*,\\s*\"(?<currentValue>[^\"]+)\"\\s*\\)"],
+      "datasourceTemplate": "npm"
+    },
+    {
+      "description": "npm packages the build pins with a yarn resolution(\"path/name\", \"version\")",
+      "customType": "regex",
+      "managerFilePatterns": ["/(^|/)YarnResolutions\\.kt$/"],
+      "matchStrings": ["resolution\\(\\s*\"(?:[^\"]*?/)?(?<depName>(?:@[^\"/]+/)?[^\"/]+)\"\\s*,\\s*\"(?<currentValue>[^\"]+)\"\\s*\\)"],
+      "datasourceTemplate": "npm"
+    }
+  ],
+  "gitIgnoredAuthors": ["41898282+github-actions[bot]@users.noreply.github.com"],
   "ignorePaths": ["**/build/**", "docs/**", "scratchpad/**", ".github/modernize/**"],
   "labels": ["dependencies"],
   "semanticCommits": "enabled",
@@ -56,6 +74,11 @@
       "groupName": "media3"
     },
     {
+      "description": "bytedeco ffmpeg and the javacpp it is built against",
+      "matchPackageNames": ["org.bytedeco:*"],
+      "groupName": "bytedeco"
+    },
+    {
       "description": "Test and assertion",
       "matchPackageNames": [
         "androidx.test:*",
@@ -95,6 +118,19 @@
       "groupName": "github actions",
       "semanticCommitType": "ci",
       "semanticCommitScope": "deps"
+    },
+    {
+      "description": "Yarn resolutions over Kotlin's browser test tooling",
+      "matchFileNames": ["**/YarnResolutions.kt"],
+      "groupName": "yarn resolutions"
+    },
+    {
+      "description": "Docs site",
+      "matchFileNames": ["website/**"],
+      "groupName": "website dependencies",
+      "semanticCommitScope": "website",
+      "labels": ["dependencies", "website"],
+      "prPriority": -1
     },
     {
       "description": "Sample app only",

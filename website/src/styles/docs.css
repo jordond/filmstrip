@@ -2,6 +2,8 @@
 
 :root,
 ::backdrop {
+  --toc-width: 15rem;
+  --sl-content-width: 67.5rem;
   --sl-font: var(--font-body);
   --sl-font-mono: var(--font-body);
 
@@ -62,9 +64,17 @@
   --sl-text-h6: 18px;
 }
 
-/* A page without a table of contents only holds a wide CRT, so it can use the room. */
-html:not([data-has-toc]) {
-  --sl-content-width: 67.5rem;
+/* Starlight grows the table of contents with the viewport. This holds it to one width and centres the page in the rest. */
+@media (min-width: 72rem) {
+  .right-sidebar-container:not(:has(.playground-rail)) {
+    width: var(--toc-width);
+  }
+
+  .right-sidebar-container:not(:has(.playground-rail)) + .main-pane {
+    --sl-content-margin-inline: auto;
+
+    width: calc(100% - var(--toc-width));
+  }
 }
 
 * {

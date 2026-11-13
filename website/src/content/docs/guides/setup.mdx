@@ -1,6 +1,6 @@
 ---
 title: Setup
-description: Create a Filmstrip instance and choose what it registers.
+description: Create a Filmstrip instance and choose what it holds.
 ---
 
 import { Aside, Code, TabItem, Tabs } from '@astrojs/starlight/components'
@@ -29,15 +29,15 @@ export const gpl = `jvmMain.dependencies {
 Everything in filmstrip goes through one `Filmstrip` instance. Create it once, keep it for as long as your app or
 your DI graph lives, and pass it to whatever needs to probe, plan, export or preview.
 
-## Register everything
+## Create an instance
 
-Every filmstrip artifact on the classpath registers itself. With the `filmstrip` bundle, `Filmstrip()` has this
-target's export backend, the player and the built-in effects, and adding `filmstrip-effects-filters` adds the filters.
+`Filmstrip()` holds everything the filmstrip artifacts on the classpath provide. With the `filmstrip` bundle that is
+this target's export backend, the player and the built-in effects, and adding `filmstrip-effects-filters` adds the
+filters.
 
 <Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Setup.kt" region="setup-all" />
 
-Anything you register in the block sits in front of what registered itself, so your own resolvers and factories are
-asked first.
+Anything you register in the block sits in front of those, so your own resolvers and factories are asked first.
 
 ## Configure ffmpeg
 
@@ -54,8 +54,8 @@ By default the JVM backend runs the ffmpeg on the machine. To ship an app that n
 
 <Code code={bundled} lang="kotlin" title="build.gradle.kts" />
 
-That's the whole setup. The artifact registers itself, and `Filmstrip()` runs the ffmpeg and ffprobe it carries. They
-are [bytedeco](https://github.com/bytedeco/javacpp-presets/tree/master/ffmpeg)'s build of ffmpeg 8.1, unpacked into
+That's the whole setup. `Filmstrip()` runs the ffmpeg and ffprobe the artifact carries. They are
+[bytedeco](https://github.com/bytedeco/javacpp-presets/tree/master/ffmpeg)'s build of ffmpeg {versions.bundledFfmpeg}, unpacked into
 `~/.javacpp/cache` the first time the instance needs ffmpeg.
 
 filmstrip looks for ffmpeg in this order and takes the first it finds:
