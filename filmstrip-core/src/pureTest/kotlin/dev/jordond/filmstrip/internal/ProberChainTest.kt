@@ -2,14 +2,23 @@ package dev.jordond.filmstrip.internal
 
 import dev.jordond.filmstrip.ComponentRegistry
 import dev.jordond.filmstrip.FilmstripError
+import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.media.AudioTrackId
+import dev.jordond.filmstrip.media.AudioTrackInfo
+import dev.jordond.filmstrip.media.EXIF_ORIENTATION_NORMAL
+import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaProber
 import dev.jordond.filmstrip.media.MediaProberFactory
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.ProbeResult
+import dev.jordond.filmstrip.media.describe
+import dev.jordond.filmstrip.media.imageMediaInfoOf
+import dev.jordond.filmstrip.media.trackCodecOf
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
+import kotlin.time.Duration.Companion.seconds
 
 class ProberChainTest {
   private val source = MediaSource.of("/fixtures/clip.mp4")
@@ -65,6 +74,39 @@ class ProberChainTest {
     }
 
   @Test
+  fun `a success that read no track is unreadable`() =
+    runTest {
+      val result = chainedProber(ComponentRegistry.Builder().build(), last = answering(TRACKLESS)).probe(source)
+
+      val error =
+        result
+          .shouldBeInstanceOf<ProbeResult.Failure>()
+          .error
+          .shouldBeInstanceOf<FilmstripError.SourceUnreadable>()
+      error.source shouldBe source.describe()
+      error.message shouldBe NO_READABLE_TRACK
+    }
+
+  @Test
+  fun `a prober that read no track does not end the chain`() =
+    runTest {
+      val components =
+        ComponentRegistry.Builder().addMediaProberFactory(MediaProberFactory { answering(TRACKLESS) }).build()
+
+      val result = chainedProber(components, last = answering(VIDEO)).probe(source)
+
+      result.shouldBeInstanceOf<ProbeResult.Success>().info shouldBe VIDEO
+    }
+
+  @Test
+  fun `one audio track is enough to read`() =
+    runTest {
+      val result = chainedProber(ComponentRegistry.Builder().build(), last = answering(AUDIO_ONLY)).probe(source)
+
+      result.shouldBeInstanceOf<ProbeResult.Success>().info shouldBe AUDIO_ONLY
+    }
+
+  @Test
   fun `every platform prober is the same one to the chain`() {
     platformProber() shouldBe platformProber()
   }
@@ -75,5 +117,38 @@ class ProberChainTest {
   ) = MediaProber {
     asked += name
     ProbeResult.Failure(FilmstripError.InvalidComposition(name))
+  }
+
+  private fun answering(info: MediaInfo) = MediaProber { ProbeResult.Success(info) }
+
+  private companion object {
+    val TRACKLESS = MediaInfo(duration = 2.seconds, video = null, audioTracks = emptyList(), isExportable = true)
+
+    val VIDEO =
+      imageMediaInfoOf(
+        codedSize = Size(64, 40),
+        exifOrientation = EXIF_ORIENTATION_NORMAL,
+        format = "png",
+        duration = 2.seconds,
+      )
+
+    val AUDIO_ONLY =
+      MediaInfo(
+        duration = 2.seconds,
+        video = null,
+        audioTracks =
+          listOf(
+            AudioTrackInfo(
+              id = AudioTrackId(1),
+              codec = trackCodecOf("mp4a.40.2"),
+              sampleRate = 48_000,
+              channelCount = 2,
+              bitrate = null,
+              language = null,
+              isDefault = true,
+            ),
+          ),
+        isExportable = true,
+      )
   }
 }

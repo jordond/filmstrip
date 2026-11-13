@@ -1,9 +1,12 @@
 package dev.jordond.filmstrip
 
+import dev.jordond.filmstrip.media.AudioTrackId
+import dev.jordond.filmstrip.media.AudioTrackInfo
 import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaProber
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.ProbeResult
+import dev.jordond.filmstrip.media.trackCodecOf
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.test.runTest
@@ -95,7 +98,17 @@ class ProberChainTest {
     ProbeResult.Failure(FilmstripError.SourceUnreadable(source = "test", message = message))
 
   private companion object {
-    val INFO = MediaInfo(duration = 1_234.milliseconds, video = null, audioTracks = emptyList(), isExportable = true)
-    val LATER = MediaInfo(duration = 9_999.milliseconds, video = null, audioTracks = emptyList(), isExportable = true)
+    val TRACK =
+      AudioTrackInfo(
+        id = AudioTrackId(1),
+        codec = trackCodecOf("mp4a.40.2"),
+        sampleRate = 48_000,
+        channelCount = 2,
+        bitrate = null,
+        language = null,
+        isDefault = true,
+      )
+    val INFO = MediaInfo(duration = 1_234.milliseconds, video = null, audioTracks = listOf(TRACK), isExportable = true)
+    val LATER = MediaInfo(duration = 9_999.milliseconds, video = null, audioTracks = listOf(TRACK), isExportable = true)
   }
 }

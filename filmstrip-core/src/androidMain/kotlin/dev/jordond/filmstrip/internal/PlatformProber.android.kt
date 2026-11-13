@@ -100,14 +100,23 @@ internal actual class PlatformProber actual constructor() {
   /**
    * Reads this source once [open] has pointed a retriever at it.
    *
-   * The retriever is built before [open] runs, so a source that fails to open is still released.
+   * The retriever is built before [open] runs, so a source that fails to open is still released. A retriever whose
+   * media server is not allowed to read the file opens it anyway and reports no tracks, so a read that found no video
+   * and no audio fails as unreadable, with the extractor's own reason when it gave one.
    */
   private suspend fun MediaSource.readContainer(open: MediaMetadataRetriever.() -> Unit): ProbeResult =
     withContext(Dispatchers.IO) {
       val retriever = MediaMetadataRetriever()
       try {
         retriever.open()
-        ProbeResult.Success(retriever.readInfo(tracks(), movieHeaders()))
+        val tracks = tracks()
+        val info = retriever.readInfo((tracks as? TrackRead.Read)?.tracks, movieHeaders())
+        if (info.video == null && info.audioTracks.isEmpty()) {
+          val reason = (tracks as? TrackRead.Failed)?.reason
+          ProbeResult.Failure(unreadable(reason?.let { "$NO_READABLE_TRACK $it" } ?: NO_READABLE_TRACK))
+        } else {
+          ProbeResult.Success(info)
+        }
       } catch (error: IllegalArgumentException) {
         ProbeResult.Failure(unreadable(error.message))
       } catch (cancelled: CancellationException) {
@@ -123,27 +132,35 @@ internal actual class PlatformProber actual constructor() {
   /**
    * Opens the source a second time and pulls out the first video and audio track formats.
    *
-   * The retriever answers at the file level, so anything track-level has to come from here. Null
-   * when it cannot be opened, not a failure. These fields refine what the retriever already read,
-   * so a source the retriever could open stays a success with less detail.
+   * The retriever answers at the file level, so anything track-level has to come from here. These
+   * fields refine what the retriever already read, so a source the retriever could open stays a
+   * success with less detail when the extractor cannot open it. The extractor's reason is kept for
+   * a source the retriever read no track from either.
    */
-  private fun MediaSource.tracks(): SourceTracks? {
+  private fun MediaSource.tracks(): TrackRead {
     val extractor = MediaExtractor()
     return try {
       when (this) {
-        is MediaSource.Path -> extractor.setDataSource(path)
-        is MediaSource.Uri -> extractor.setDataSource(FilmstripContext.get() ?: return null, Uri.parse(uri), null)
+        is MediaSource.Path -> {
+          extractor.setDataSource(path)
+        }
+        is MediaSource.Uri -> {
+          val context = FilmstripContext.get() ?: return TrackRead.Skipped
+          extractor.setDataSource(context, Uri.parse(uri), null)
+        }
         // A still names no container, and bytes reach the extractor as the path they were cached
         // to rather than as themselves.
-        is MediaSource.Bytes, is MediaSource.Image -> return null
+        is MediaSource.Bytes, is MediaSource.Image -> {
+          return TrackRead.Skipped
+        }
       }
-      extractor.readTracks()
+      TrackRead.Read(extractor.readTracks())
     } catch (unreadable: IOException) {
-      null
+      TrackRead.Failed(unreadable.message)
     } catch (unopened: RuntimeException) {
       // setDataSource can return having set no source for a content:// URI it could not open, which
       // surfaces as IllegalStateException on the first read, not as a failure to open.
-      null
+      TrackRead.Failed(unopened.message)
     } finally {
       extractor.release()
     }
@@ -299,6 +316,22 @@ internal actual class PlatformProber actual constructor() {
       COLOR_TRANSFER_ST2084 -> HdrTransfer.Pq
       else -> null
     }
+
+  /**
+   * What the extractor made of a source: its tracks, the reason it could not open it, or nothing
+   * when it was never asked.
+   */
+  private sealed interface TrackRead {
+    class Read(
+      val tracks: SourceTracks,
+    ) : TrackRead
+
+    class Failed(
+      val reason: String?,
+    ) : TrackRead
+
+    data object Skipped : TrackRead
+  }
 
   /**
    * The two track formats a probe cares about.

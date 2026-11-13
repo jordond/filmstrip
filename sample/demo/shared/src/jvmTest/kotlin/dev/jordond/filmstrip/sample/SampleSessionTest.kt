@@ -51,7 +51,13 @@ class SampleSessionTest {
       filmstrip =
         Filmstrip {
           autoRegister(false)
-          addMediaProberFactory { MediaProber { ProbeResult.Success(MediaInfo(5.seconds, null, emptyList(), true)) } }
+          addMediaProberFactory {
+            MediaProber {
+              ProbeResult.Success(
+                MediaInfo(5.seconds, SOURCE_TRACK, emptyList(), true),
+              )
+            }
+          }
         },
       scope = CoroutineScope(Dispatchers.Unconfined),
     )
@@ -144,7 +150,7 @@ class SampleSessionTest {
     state.probe.shouldBeNull()
     state.probing shouldBe true
 
-    gates.getValue(SECOND).complete(ProbeResult.Success(MediaInfo(7.seconds, null, emptyList(), true)))
+    gates.getValue(SECOND).complete(ProbeResult.Success(MediaInfo(7.seconds, SOURCE_TRACK, emptyList(), true)))
     state.info?.duration shouldBe 7.seconds
     state.probing shouldBe false
   }
@@ -173,7 +179,13 @@ class SampleSessionTest {
         filmstrip =
           Filmstrip {
             autoRegister(false)
-            addMediaProberFactory { MediaProber { ProbeResult.Success(MediaInfo(5.seconds, null, emptyList(), true)) } }
+            addMediaProberFactory {
+              MediaProber {
+                ProbeResult.Success(
+                  MediaInfo(5.seconds, SOURCE_TRACK, emptyList(), true),
+                )
+              }
+            }
           },
         scope = CoroutineScope(Dispatchers.Unconfined),
         release = { released += it },
@@ -270,7 +282,13 @@ class SampleSessionTest {
       filmstrip =
         Filmstrip {
           autoRegister(false)
-          addMediaProberFactory { MediaProber { ProbeResult.Success(MediaInfo(5.seconds, null, emptyList(), true)) } }
+          addMediaProberFactory {
+            MediaProber {
+              ProbeResult.Success(
+                MediaInfo(5.seconds, SOURCE_TRACK, emptyList(), true),
+              )
+            }
+          }
         },
       scope = CoroutineScope(Dispatchers.Unconfined),
       // Ignores its own cancellation the way a platform read past the point of no return does.
@@ -290,7 +308,7 @@ class SampleSessionTest {
       scope = CoroutineScope(Dispatchers.Unconfined),
     )
 
-  private companion object {
+  internal companion object {
     val FIRST = MediaSource.of("/tmp/first.mp4")
     val SECOND = MediaSource.of("/tmp/second.mp4")
     val PRESET = SamplePreset("First", "held", "first.mp4", 1L, 5.seconds)
