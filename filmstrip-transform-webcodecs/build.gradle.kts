@@ -24,7 +24,7 @@ kotlin {
       api(projects.filmstripCore)
       api(projects.filmstripEffects)
       api(projects.filmstripTransform)
-      implementation(npm("mediabunny", "1.55.1"))
+      implementation(npm("mediabunny", "1.66.0"))
     }
 
     commonTest {

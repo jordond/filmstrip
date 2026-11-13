@@ -3,11 +3,14 @@
 package dev.jordond.filmstrip.webcodecs
 
 import dev.jordond.filmstrip.InternalFilmstripApi
+import dev.jordond.filmstrip.codec.AudioCodec
+import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.color.blurPlane
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.Track
+import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.MediaSink
@@ -127,7 +130,8 @@ class BrowserSourceAlphaMediaTest {
         audio = AudioSpec.Remove,
         fill = fill,
       )
-    return decodeFrames(outputOf(exportOf(composition, to = MediaSink.Uri("")))).first()
+    val spec = ExportSpec(bitrate = MEASURING_BITRATE, videoCodec = VideoCodec.H264, audioCodec = AudioCodec.None)
+    return decodeFrames(outputOf(exportOf(composition, to = MediaSink.Uri(""), spec = spec))).first()
   }
 
   private suspend fun exported(alpha: Int): Rgb = exportedFrame(alphaWebm(alpha), Fill.Solid(SLATE)).at(0.5, 0.5)

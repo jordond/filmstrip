@@ -1234,10 +1234,10 @@ media-typer@0.3.0:
   resolved "https://registry.yarnpkg.com/media-typer/-/media-typer-0.3.0.tgz#8710d7af0aa626f8fffa1ce00168545263255748"
   integrity sha512-dq+qelQ9akHpcOl/gUVRTxVIOkAJ1wR3QAvb4RsVjS8oVoFjDGTc679wJYmUmknUF5HwMLOgb5O+a3KxfWapPQ==
 
-mediabunny@1.55.1:
-  version "1.55.1"
-  resolved "https://registry.yarnpkg.com/mediabunny/-/mediabunny-1.55.1.tgz#ced719da775e1db6aea46737ee84d4ae98e4f583"
-  integrity sha512-JDdTEUOw9g6Ey8eWc2Ei63GmRGtGTJoE56SE7CHikwzS8i9xpsWcve4bEiUw47d4j49L3r7MXDFsH/5oZIhjBw==
+mediabunny@1.66.0:
+  version "1.66.0"
+  resolved "https://registry.yarnpkg.com/mediabunny/-/mediabunny-1.66.0.tgz#ce77bad001c822451ab121a9d29ffd99d0cd6581"
+  integrity sha512-0Zff/qLkY1ZRyjBEt2vQjLeMigmU/dFKwJLpiPyCiskIel2f2R2kqMxaLYbeHN+rmyz4PVwwLSnU9anjUHHeJQ==
   dependencies:
     "@types/dom-mediacapture-transform" "^0.1.11"
     "@types/dom-webcodecs" "0.1.13"
