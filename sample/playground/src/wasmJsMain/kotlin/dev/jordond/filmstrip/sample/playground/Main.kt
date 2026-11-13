@@ -1,3 +1,5 @@
+@file:OptIn(ExperimentalWasmJsInterop::class)
+
 package dev.jordond.filmstrip.sample.playground
 
 import androidx.compose.material3.MaterialTheme
@@ -12,6 +14,7 @@ import kotlinx.browser.document
 import kotlinx.browser.window
 import org.w3c.dom.url.URL
 import org.w3c.dom.url.URLSearchParams
+import kotlin.js.ExperimentalWasmJsInterop
 
 /**
  * The docs playground. The page picks a sample with `?sample=`, and an unknown or missing name says so in place of a

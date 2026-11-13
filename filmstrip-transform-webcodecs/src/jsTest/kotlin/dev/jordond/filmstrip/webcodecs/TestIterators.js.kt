@@ -1,7 +1,10 @@
+@file:OptIn(ExperimentalWasmJsInterop::class)
+
 package dev.jordond.filmstrip.webcodecs
 
 import dev.jordond.filmstrip.webcodecs.internal.interop.MediabunnyIterator
 import dev.jordond.filmstrip.webcodecs.internal.interop.MediabunnyStep
+import kotlin.js.ExperimentalWasmJsInterop
 import kotlin.js.Promise
 
 internal actual fun <T : JsAny> stubIterator(

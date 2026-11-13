@@ -1,3 +1,5 @@
+@file:OptIn(BetaInteropApi::class)
+
 package dev.jordond.filmstrip.effects.filters.camcorder
 
 import dev.jordond.filmstrip.edit.TimeRange
@@ -17,6 +19,7 @@ import io.kotest.matchers.doubles.shouldBeGreaterThan
 import io.kotest.matchers.doubles.shouldBeLessThan
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
+import kotlinx.cinterop.BetaInteropApi
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.addressOf
 import kotlinx.cinterop.convert

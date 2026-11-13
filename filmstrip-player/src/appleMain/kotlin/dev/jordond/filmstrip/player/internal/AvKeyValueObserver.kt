@@ -1,5 +1,8 @@
+@file:OptIn(BetaInteropApi::class)
+
 package dev.jordond.filmstrip.player.internal
 
+import kotlinx.cinterop.BetaInteropApi
 import kotlinx.cinterop.COpaquePointer
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.objcPtr

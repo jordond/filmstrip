@@ -1,3 +1,5 @@
+@file:OptIn(BetaInteropApi::class)
+
 package dev.jordond.filmstrip.effects.filters.film
 
 import dev.jordond.filmstrip.edit.TimeRange
@@ -5,6 +7,7 @@ import dev.jordond.filmstrip.effect.Attributes
 import dev.jordond.filmstrip.effects.color.createCodeSpace
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ColorSpace
+import kotlinx.cinterop.BetaInteropApi
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.addressOf
 import kotlinx.cinterop.convert

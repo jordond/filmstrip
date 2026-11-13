@@ -1,3 +1,5 @@
+@file:OptIn(BetaInteropApi::class)
+
 package dev.jordond.filmstrip.effects.overlay
 
 import dev.jordond.filmstrip.color.PictureColor
