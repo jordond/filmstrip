@@ -9,6 +9,7 @@ import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.ProbeResult
 import dev.jordond.filmstrip.test.ThreeAudio
+import dev.jordond.filmstrip.test.ThreeAudioGapped
 import dev.jordond.filmstrip.test.ThreeAudioMatroska
 import dev.jordond.filmstrip.test.ThreeAudioTs
 import io.kotest.assertions.withClue
@@ -66,6 +67,13 @@ class AppleProbeTest {
       withClue("codec: ${audio.codec}") { audio.codec.kind shouldBe CodecKind.Aac }
       audio.channelCount shouldBe 2
       audio.sampleRate shouldBe 48_000
+    }
+
+  // The ids 5, 9 and 12 are no track's place, so they can only come off the track headers.
+  @Test
+  fun `names the tracks of a gapped fixture by their track headers`() =
+    runTest(timeout = TIMEOUT) {
+      ThreeAudioGapped.assertProbed(probe(ThreeAudioGapped.fileName))
     }
 
   @Test

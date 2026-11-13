@@ -47,6 +47,7 @@ val exportFixtures =
           audioTracks = listOf(AudioTrackSpec(toneHz = 880)),
         ),
         SharedFixtures.ThreeAudio,
+        SharedFixtures.ThreeAudioGapped,
         SharedFixtures.ThreeAudioMatroska,
         SharedFixtures.ThreeAudioTs,
         FixtureSpec("export_portrait", 480, 640, 30, 2.0, 48000, 2, bitrateKbps = 1_500, hue = 120),

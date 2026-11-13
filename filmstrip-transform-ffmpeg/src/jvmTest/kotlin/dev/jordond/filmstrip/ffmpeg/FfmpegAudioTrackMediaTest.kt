@@ -21,6 +21,7 @@ import dev.jordond.filmstrip.media.ProbeResult
 import dev.jordond.filmstrip.media.defaultAudioTrackOf
 import dev.jordond.filmstrip.test.AudioTrackFixture
 import dev.jordond.filmstrip.test.ThreeAudio
+import dev.jordond.filmstrip.test.ThreeAudioGapped
 import dev.jordond.filmstrip.test.ThreeAudioMatroska
 import dev.jordond.filmstrip.test.ThreeAudioTs
 import io.kotest.assertions.withClue
@@ -41,6 +42,15 @@ class FfmpegAudioTrackMediaTest {
   private val fixture = FfmpegExportFixture()
   private val threeAudio = File(fixture.fixtures, ThreeAudio.FILE_NAME)
   private val source = MediaSource.of(threeAudio.absolutePath)
+
+  // The ids 5, 9 and 12 are no track's place, so they can only come off the track headers.
+  @Test
+  fun `the probe names the tracks of a gapped fixture by their track headers`() =
+    runTest(timeout = TIMEOUT) {
+      val gapped = File(fixture.fixtures, ThreeAudioGapped.fileName)
+
+      ThreeAudioGapped.assertProbed(probe(MediaSource.of(gapped.absolutePath)))
+    }
 
   @Test
   fun `the probe lists every audio track with its id language and default flag`() =
