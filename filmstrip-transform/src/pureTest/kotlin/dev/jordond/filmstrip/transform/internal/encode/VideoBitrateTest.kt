@@ -3,7 +3,7 @@ package dev.jordond.filmstrip.transform.internal.encode
 import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.export.VideoQuality
 import dev.jordond.filmstrip.geometry.Size
-import io.kotest.matchers.longs.shouldBeBetween
+import io.kotest.matchers.comparables.shouldBeBetween
 import io.kotest.matchers.shouldBe
 import kotlin.math.ceil
 import kotlin.math.exp
