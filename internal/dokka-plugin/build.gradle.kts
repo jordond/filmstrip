@@ -16,8 +16,8 @@ kotlin {
   jvm {
     compilerOptions {
       // Dokka runs the plugin on its own Kotlin stdlib, which is older than the one this build compiles with.
-      apiVersion.set(KotlinVersion.KOTLIN_2_1)
-      languageVersion.set(KotlinVersion.KOTLIN_2_1)
+      apiVersion.set(KotlinVersion.KOTLIN_2_2)
+      languageVersion.set(KotlinVersion.KOTLIN_2_2)
     }
   }
 

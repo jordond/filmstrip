@@ -36,9 +36,10 @@ val gplPlatform: String? =
     }
   }
 
-val gplFfmpeg: Configuration by configurations.creating {
-  isCanBeConsumed = false
-}
+val gplFfmpeg: Configuration =
+  configurations.create("gplFfmpeg") {
+    isCanBeConsumed = false
+  }
 
 dependencies {
   gplPlatform?.let { gplFfmpeg(variantOf(libs.bytedeco.ffmpeg) { classifier("$it-gpl") }) }
