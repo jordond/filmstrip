@@ -1,8 +1,12 @@
 import { describe, expect, test } from 'bun:test'
 import {
   DEV,
+  LATEST,
   releaseTags,
   routeFor,
+  SERVED_MINORS,
+  SERVED_OLDER_MAJORS,
+  segmentOf,
   siteVersions,
   swapVersion,
   versionLabel,
@@ -47,12 +51,30 @@ describe('siteVersions', () => {
   })
 
   test('minors order as numbers', () => {
-    expect(siteVersions(['0.9.0', '0.10.0', '1.0.0']).versions.map((v) => v.version)).toEqual([
+    expect(siteVersions(['0.9.0', '0.10.0', '0.11.0']).versions.map((v) => v.version)).toEqual([
       DEV,
-      '1.0',
+      '0.11',
       '0.10',
       '0.9',
     ])
+  })
+
+  test('the newest major keeps its newest minors, the middle of the run decides which', () => {
+    const tags = ['0.1.0', '0.2.0', '0.3.0', '0.4.0', '0.5.0']
+    expect(siteVersions(tags).versions.map((v) => v.version)).toEqual([DEV, '0.5', '0.4', '0.3'])
+    expect(siteVersions(tags.slice(0, SERVED_MINORS)).versions).toHaveLength(1 + SERVED_MINORS)
+  })
+
+  test('each of the majors before the newest keeps its newest minor, and older majors are left out', () => {
+    const tags = ['0.3.0', '0.15.2', '1.0.0', '1.4.1', '2.0.0', '4.9.0', '5.0.0', '5.1.0', '5.2.0', '5.3.0']
+    const manifest = siteVersions(tags)
+    expect(manifest.versions.map((v) => v.version)).toEqual([DEV, '5.3', '5.2', '5.1', '4.9', '2.0'])
+    expect(manifest.versions.filter((v) => v.version !== DEV)).toHaveLength(SERVED_MINORS + SERVED_OLDER_MAJORS)
+    expect(manifest.latest).toBe('5.3')
+  })
+
+  test('a new major starts alone beside the majors before it', () => {
+    expect(siteVersions(['0.14.0', '0.15.0', '1.0.0']).versions.map((v) => v.version)).toEqual([DEV, '1.0', '0.15'])
   })
 
   test('releaseTags names the tag behind each stable version', () => {
@@ -67,6 +89,13 @@ describe('paths', () => {
     expect(versionOfPath('/')).toBeNull()
   })
 
+  test('segmentOf serves the latest stable version under latest and the others under their own', () => {
+    expect(segmentOf(some, '0.2')).toBe(LATEST)
+    expect(segmentOf(some, '0.1')).toBe('0.1')
+    expect(segmentOf(some, DEV)).toBe(DEV)
+    expect(segmentOf(none, DEV)).toBe(DEV)
+  })
+
   test('swapVersion keeps the page', () => {
     expect(swapVersion('/dev/guides/edits/', '0.1')).toBe('/0.1/guides/edits/')
     expect(swapVersion('/dev/', '0.1')).toBe('/0.1/')
@@ -75,40 +104,55 @@ describe('paths', () => {
 })
 
 describe('routeFor', () => {
-  test('the root goes to the latest stable version', () => {
-    expect(route('/', some)).toEqual({ redirect: '/0.2/' })
+  test('the root goes to latest', () => {
+    expect(route('/', some)).toEqual({ redirect: '/latest/' })
   })
 
   test('the root goes to dev while nothing is released', () => {
     expect(route('/', none)).toEqual({ redirect: '/dev/' })
   })
 
-  test('latest keeps the page and the query', () => {
-    expect(route('/latest/guides/edits/?a=1', some)).toEqual({ redirect: '/0.2/guides/edits/?a=1' })
-    expect(route('/latest', some)).toEqual({ redirect: '/0.2' })
-    expect(route('/latest/api/', none)).toEqual({ redirect: '/dev/api/' })
+  test('a miss inside latest is served as asked', () => {
+    expect(route('/latest/nope?a=1', some)).toEqual({ asset: '/latest/nope' })
   })
 
-  test('a path from before versions goes to the same page in the latest stable version', () => {
-    expect(route('/guides/edits/?a=1', some)).toEqual({ redirect: '/0.2/guides/edits/?a=1' })
+  test('latest goes to dev while nothing is released, with the page and the query', () => {
+    expect(route('/latest/api/?a=1', none)).toEqual({ redirect: '/dev/api/?a=1' })
+    expect(route('/latest', none)).toEqual({ redirect: '/dev' })
+  })
+
+  test('the number of the latest stable version goes to latest, with the page and the query', () => {
+    expect(route('/0.2/guides/edits/?a=1', some)).toEqual({ redirect: '/latest/guides/edits/?a=1' })
+    expect(route('/0.2', some)).toEqual({ redirect: '/latest' })
+  })
+
+  test('a path from before versions goes to the same page in latest', () => {
+    expect(route('/guides/edits/?a=1', some)).toEqual({ redirect: '/latest/guides/edits/?a=1' })
     expect(route('/api/', none)).toEqual({ redirect: '/dev/api/' })
   })
 
-  test('a miss inside a version is served as asked', () => {
+  test('a miss inside an older version or dev is served as asked', () => {
     expect(route('/0.1/nope', some)).toEqual({ asset: '/0.1/nope' })
+    expect(route('/dev/nope', some)).toEqual({ asset: '/dev/nope' })
     expect(route('/dev/nope', none)).toEqual({ asset: '/dev/nope' })
   })
 
-  test('a version that does not exist is treated as a page', () => {
-    expect(route('/0.7/guides/', some)).toEqual({ redirect: '/0.2/0.7/guides/' })
+  test('a version the site does not serve goes to the same page in latest', () => {
+    expect(route('/0.7/guides/?a=1', some)).toEqual({ redirect: '/latest/guides/?a=1' })
+    expect(route('/0.7', some)).toEqual({ redirect: '/latest' })
+    expect(route('/0.7/guides/', none)).toEqual({ redirect: '/dev/guides/' })
+  })
+
+  test('a first segment that only starts like a version is a page', () => {
+    expect(route('/0.7.1/guides/', some)).toEqual({ redirect: '/latest/0.7.1/guides/' })
   })
 
   test('the demo host root serves the full screen demo', () => {
-    expect(route('/', some, DEMO)).toEqual({ asset: '/0.2/demo/tv/' })
+    expect(route('/', some, DEMO)).toEqual({ asset: '/latest/demo/tv/' })
     expect(route('/', none, DEMO)).toEqual({ asset: '/dev/demo/tv/' })
   })
 
   test('the demo host routes everything else like the site', () => {
-    expect(route('/demo/app/', some, DEMO)).toEqual({ redirect: '/0.2/demo/app/' })
+    expect(route('/demo/app/', some, DEMO)).toEqual({ redirect: '/latest/demo/app/' })
   })
 })

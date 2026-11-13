@@ -1,7 +1,7 @@
 // Usage: bun scripts/assemble-versions.ts [stored]
 // Puts website/dist together from the development build in website/dist-version, which scripts/assemble.sh makes, and
-// the release sites in [stored], a directory of <tag>.tar.gz archives. With no [stored] the site is the development
-// version alone. FILMSTRIP_SITE_ENV=preview keeps the whole site out of search indexes.
+// the release sites in [stored], a directory of the archives scripts/served-releases.ts names.
+// With no [stored] the site is the development version alone. FILMSTRIP_SITE_ENV=preview keeps the whole site out of search indexes.
 import { join } from 'node:path'
 import { assembleSite } from './assembleVersions.ts'
 

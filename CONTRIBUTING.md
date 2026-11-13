@@ -91,7 +91,9 @@ request leaves that clip missing for everyone until it expires.
 ## Docs site
 
 The site in `website/` is served in versions, each a whole site under its own prefix: `/dev/` is built from `main`,
-and each release gets `/<major>.<minor>/`. `/latest/` and the root redirect to the newest release.
+and each release gets `/<major>.<minor>/`. The newest release is served under `/latest/` instead, and the root and its
+own `/<major>.<minor>/` redirect there. The site keeps the newest three minors of the newest major and the newest
+minor of each of the two majors before it. An older version's pages redirect to `/latest/`.
 
 To run it locally:
 
@@ -106,8 +108,8 @@ bun run assemble:site            # every version in dist, then `bun x wrangler d
 Write links in the docs from the site root, like `/guides/edits/`. The build moves them under the version.
 
 A release's version is built once, when the `Publish` workflow has put the release on Maven Central, and stored on the
-GitHub release as `docs-site.tar.gz`. Every deploy builds `/dev/` and downloads the stored versions, so an old version
-only changes when it is rebuilt. To rebuild one, run the `docs` workflow with `release_tag` set, and `source_ref` set
+GitHub release as `docs-site.tar.gz`, beside `docs-site-latest.tar.gz`, the same site built for `/latest/`. Every deploy
+builds `/dev/` and downloads the stored versions, so an old version only changes when it is rebuilt. To rebuild one, run the `docs` workflow with `release_tag` set, and `source_ref` set
 to a branch when the fix is not in the tag. A patch release replaces its minor's version.
 
 ## Releasing

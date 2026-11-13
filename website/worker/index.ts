@@ -16,9 +16,9 @@ async function readManifest(env: Env, origin: string): Promise<VersionManifest> 
 }
 
 /**
- * Answers the requests no static asset matched. The root, `/latest/` and paths from before the site had versions are
- * redirected into a version, the demo host's root is the full screen demo, and a miss inside a version gets that
- * version's 404 page.
+ * Answers the requests no static asset matched. The root, the latest version's own number and paths from before the
+ * site had versions are redirected under `/latest/`, the demo host's root is the full screen demo, and a miss inside a
+ * version gets that version's 404 page.
  */
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {

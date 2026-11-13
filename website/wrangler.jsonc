@@ -6,7 +6,7 @@
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS",
-    // The worker answers what no asset matches: the root, /latest and paths from before the site had versions.
+    // The worker answers what no asset matches: the root, the latest version's number and paths from before versions.
     "not_found_handling": "404-page",
   },
   "workers_dev": false,

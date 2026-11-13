@@ -39,6 +39,8 @@ concurrency:
 env:
   # The asset on a GitHub release that holds its version of the site.
   SITE_ASSET: docs-site.tar.gz
+  # The asset that holds the same site built to be served under /latest, which the newest release's is.
+  LATEST_SITE_ASSET: docs-site-latest.tar.gz
   # A release run starts from the tag, and everything but that release's own version is built from main.
   SITE_REF: ${{ inputs.release_tag && 'main' || '' }}
   # renovate: datasource=npm depName=bun
@@ -139,10 +141,12 @@ jobs:
           export FILMSTRIP_DOCS_VERSION
           bun run assemble
           tar -czf "$RUNNER_TEMP/$SITE_ASSET" -C dist-version .
+          FILMSTRIP_DOCS_VERSION=latest bun run assemble
+          tar -czf "$RUNNER_TEMP/$LATEST_SITE_ASSET" -C dist-version .
       - name: Store it on the release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "$TAG" "$RUNNER_TEMP/$SITE_ASSET" --clobber
+        run: gh release upload "$TAG" "$RUNNER_TEMP/$SITE_ASSET" "$RUNNER_TEMP/$LATEST_SITE_ASSET" --clobber
 
   assemble:
     name: Assemble every version
@@ -165,7 +169,8 @@ jobs:
         with:
           name: site-dev
           path: website/dist-version
-      - name: Download every release's version
+      - *bun
+      - name: Download each served release's version
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -173,10 +178,13 @@ jobs:
           gh api "repos/$GITHUB_REPOSITORY/releases" --paginate --jq "
             .[] | select(.draft or .prerelease | not)
                 | select(any(.assets[]; .name == \"$SITE_ASSET\")) | .tag_name" > "$RUNNER_TEMP/tags"
-          while read -r tag; do
-            gh release download "$tag" --repo "$GITHUB_REPOSITORY" --pattern "$SITE_ASSET" --output "stored-versions/$tag.tar.gz"
-          done < "$RUNNER_TEMP/tags"
-      - *bun
+          # The site serves a few of the releases, and the newest of them from the site built for /latest.
+          xargs bun scripts/served-releases.ts < "$RUNNER_TEMP/tags" > "$RUNNER_TEMP/served"
+          while read -r tag name; do
+            asset=$SITE_ASSET
+            if [[ $name == *.latest.tar.gz ]]; then asset=$LATEST_SITE_ASSET; fi
+            gh release download "$tag" --repo "$GITHUB_REPOSITORY" --pattern "$asset" --output "stored-versions/$name"
+          done < "$RUNNER_TEMP/served"
       - name: Assemble
         env:
           FILMSTRIP_SITE_ENV: ${{ github.event_name == 'pull_request' && 'preview' || '' }}
