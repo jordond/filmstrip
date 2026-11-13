@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { repoRoot } from './snippets'
-import { catalogVersion, ffmpegFloor, libraryVersion, mediabunnyVersion, readVersions } from './versions'
+import { bundledFfmpeg, catalogVersion, ffmpegFloor, libraryVersion, mediabunnyVersion, readVersions } from './versions'
 
 const toml = readFileSync(join(repoRoot, 'gradle/libs.versions.toml'), 'utf8')
 const catalog = Bun.TOML.parse(toml) as { versions: Record<string, string> }
@@ -30,11 +30,9 @@ describe('readVersions', () => {
     expect(versions.jdk).toBe(catalog.versions.jvmTarget)
   })
 
-  test('reads the group and the library version', () => {
-    const properties = readFileSync(join(repoRoot, 'gradle.properties'), 'utf8')
-    const line = properties.split('\n').find((it) => it.startsWith('VERSION_NAME=')) ?? ''
+  test('reads the group and a released library version', () => {
     expect(versions.group).toBe(catalog.versions.group)
-    expect(versions.library).toBe(line.slice('VERSION_NAME='.length).trim())
+    expect(versions.library).toMatch(/^\d+\.\d+\.\d+$/)
   })
 
   test('reads the ffmpeg floor out of ToolchainReport.kt', () => {
@@ -69,13 +67,23 @@ describe('mediabunnyVersion', () => {
   })
 })
 
+describe('bundledFfmpeg', () => {
+  test('reads the ffmpeg release out of a bytedeco version', () => {
+    expect(bundledFfmpeg('8.1.2-1.5.14')).toBe('8.1.2')
+  })
+})
+
 describe('libraryVersion', () => {
-  test('reads VERSION_NAME out of gradle.properties', () => {
-    expect(libraryVersion('GROUP=x\nVERSION_NAME=0.2.0-SNAPSHOT\n')).toBe('0.2.0-SNAPSHOT')
+  test('reads the newest release out of the tags', () => {
+    expect(libraryVersion(['0.2.2', '0.10.1', '0.3.0', '0.10.0', '1.0.0-rc1', 'backup/old'])).toBe('0.10.1')
   })
 
   test('a release version replaces it', () => {
-    expect(libraryVersion('VERSION_NAME=0.2.0-SNAPSHOT\n', '0.1.3')).toBe('0.1.3')
-    expect(libraryVersion('VERSION_NAME=0.2.0-SNAPSHOT\n', '')).toBe('0.2.0-SNAPSHOT')
+    expect(libraryVersion(['0.2.2'], '0.1.3')).toBe('0.1.3')
+    expect(libraryVersion(['0.2.2'], '')).toBe('0.2.2')
+  })
+
+  test('throws when no tag is a release', () => {
+    expect(() => libraryVersion(['backup/old', '1.0.0-rc1'])).toThrow(/release tag/)
   })
 })

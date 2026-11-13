@@ -5,7 +5,7 @@ description: Which backend runs on which target, what it needs at runtime and wh
 
 import { MIN_IOS, MIN_MACOS, versions } from '../../../lib/versions'
 
-Each target has one backend, and it registers itself when its artifact is on the classpath. The `filmstrip` bundle
+Each target has one backend, and `Filmstrip()` uses it when its artifact is on the classpath. The `filmstrip` bundle
 brings the right one. With `autoRegister(false)` in the block, call its own function.
 
 | Backend      | Targets           | Artifact                           | Explicit call           |

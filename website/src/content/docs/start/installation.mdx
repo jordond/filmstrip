@@ -1,6 +1,7 @@
 ---
 title: Installation
 description: Add filmstrip to a Kotlin Multiplatform project.
+tableOfContents: false
 ---
 
 import { Aside, Code, TabItem, Tabs } from '@astrojs/starlight/components'
@@ -23,46 +24,20 @@ export const build = `kotlin {
   }
 }`
 
-export const snapshot = versions.library.endsWith('-SNAPSHOT')
-
-export const repositories = `dependencyResolutionManagement {
-  repositories {
-    mavenCentral()
-    maven("https://central.sonatype.com/repository/maven-snapshots/")
-  }
-}`
-
 <Aside type="caution" title="Pre-1.0.0">
 filmstrip is pre-1.0.0, so the API might break between releases until then.
 </Aside>
 
 ## Add the dependency
 
-{snapshot ? (
-  <>
-    <p>
-      These are the docs of the development version, so the coordinates below are the {versions.library} snapshot,
-      published from <code>main</code> each night it has changed. Snapshots live in the Maven Central snapshot
-      repository, so add it next to <code>mavenCentral()</code> in <code>settings.gradle.kts</code>.
-    </p>
-    <Code code={repositories} lang="kotlin" title="settings.gradle.kts" />
-    <p>Then add filmstrip to the version catalog and to <code>commonMain</code>.</p>
-  </>
-) : (
-  <p>
-    filmstrip is on Maven Central. Add it to the version catalog and to <code>commonMain</code>.
-  </p>
-)}
+filmstrip is on Maven Central. Add it to the version catalog and to `commonMain`.
 
 <Code code={catalog} lang="toml" title="gradle/libs.versions.toml" />
 
 <Code code={build} lang="kotlin" title="build.gradle.kts" />
 
 `filmstrip` is the bundle. It brings core, the effect catalogue, the player and the right export backend for each
-target. Each of them registers itself, so `Filmstrip()` in [setup](/guides/setup/) is ready on every target.
-
-filmstrip has no Gradle plugin. A build that applies Kotlin Multiplatform and the Android plugin resolves and
-compiles it for Android, iOS, the JVM, `js` and `wasmJs` with the dependency above and nothing else.
+target.
 
 ## Per platform
 
@@ -101,10 +76,10 @@ Pick single artifacts instead of the bundle when you want less on the classpath.
 
 | Artifact | What's in it |
 | --- | --- |
-| `filmstrip` | The bundle: core, effects, player, and the right backend for each target, each registering itself. Not Compose. |
+| `filmstrip` | The bundle: core, effects, player, and the right backend for each target. Not Compose. |
 | `filmstrip-core` | Model, `MediaSource`/`MediaSink`, `probe()`, `ThumbnailSource`, the `VideoPlayer` API and `PlayerEngine` SPI, and the effect SPI. No runtime, no effect catalogue. |
 | `filmstrip-effects` | The built-in effect catalogue. GL effects on Android, Core Image on Apple, ffmpeg filter graphs on the JVM, and WebGL2 passes in the browser. |
-| `filmstrip-effects-filters` | Opt-in [filters](/guides/filters/) like VHS, on every target. Not in the bundle. Add it and its filters register themselves. |
+| `filmstrip-effects-filters` | Opt-in [filters](/guides/filters/) like VHS, on every target. Not in the bundle. |
 | `filmstrip-transform` | The export planner, shared by every backend. Add a backend artifact alongside it to actually export. |
 | `filmstrip-transform-media3` | The Media3 backend, Android. |
 | `filmstrip-transform-avfoundation` | The AVFoundation backend, iOS and macOS. |
