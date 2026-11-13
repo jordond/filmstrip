@@ -6,6 +6,7 @@ import io.kotest.matchers.string.shouldContain
 import org.gradle.testfixtures.ProjectBuilder
 import java.nio.file.Files
 import kotlin.test.Test
+import kotlin.test.assertFailsWith
 
 class GenerateTestMediaArgsTest {
   private val task =
@@ -84,6 +85,40 @@ class GenerateTestMediaArgsTest {
     args.shouldContainRun("-metadata:s:a:1", "language=fra", "-disposition:a:1", "default")
     args.shouldContainRun("-disposition:a:2", "0")
     args.none { it == "-metadata:s:a:2" } shouldBe true
+  }
+
+  @Test
+  fun `a spec with track ids writes one per stream with the video first`() {
+    val args = task.ffmpegArgs(SharedFixtures.ThreeAudioGapped, "out.mp4")
+
+    args.shouldContainRun(
+      "-streamid",
+      "0:1",
+      "-streamid",
+      "1:5",
+      "-streamid",
+      "2:9",
+      "-streamid",
+      "3:12",
+      "-use_stream_ids_as_track_ids",
+      "1",
+    )
+  }
+
+  @Test
+  fun `a spec with no track ids leaves the numbering to ffmpeg`() {
+    val args = task.ffmpegArgs(SharedFixtures.ThreeAudio, "out.mp4")
+
+    args.none { it == "-streamid" || it == "-use_stream_ids_as_track_ids" } shouldBe true
+  }
+
+  @Test
+  fun `track ids are set on every track of an mp4 or on none`() {
+    val gapped = SharedFixtures.ThreeAudioGapped
+
+    assertFailsWith<IllegalArgumentException> { gapped.copy(videoTrackId = null) }
+    assertFailsWith<IllegalArgumentException> { gapped.copy(container = FixtureContainer.Matroska) }
+    assertFailsWith<IllegalArgumentException> { gapped.copy(videoTrackId = 5) }
   }
 
   @Test
