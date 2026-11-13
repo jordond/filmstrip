@@ -59,7 +59,7 @@ internal class SourceVideoInfo(
  */
 internal class SourceReader(
   private val input: Input,
-  private val headers: HeaderBytes,
+  private val headers: () -> HeaderBytes,
 ) {
   private var track: InputVideoTrack? = null
   private var looked = false
@@ -107,7 +107,7 @@ internal class SourceReader(
             .await()
             .asDouble()
             .toLong()
-        movieAudioTrackIdsOf(size, headers::read, count)
+        movieAudioTrackIdsOf(size, headers()::read, count)
       } else {
         List(count) { ordinal -> audioTrackIdOf(isMovie = false, trackId = null, ordinal = ordinal) }
       }
@@ -314,10 +314,13 @@ internal class SourceReader(
       try {
         when (source) {
           is MediaSource.Uri -> {
-            SourceReader(Input(inputOptions(UrlSource(source.uri))), headerBytesOf(source.uri))
+            SourceReader(Input(inputOptions(UrlSource(source.uri))), { headerBytesOf(source.uri) })
           }
           is MediaSource.Bytes -> {
-            SourceReader(Input(inputOptions(BufferSource(source.bytes.toUint8Array()))), headerBytesOf(source.bytes))
+            SourceReader(
+              Input(inputOptions(BufferSource(source.bytes.toUint8Array()))),
+              { headerBytesOf(source.bytes) },
+            )
           }
           is MediaSource.Path -> {
             null
@@ -332,7 +335,7 @@ internal class SourceReader(
       }
 
     fun ofBuffer(buffer: ArrayBuffer): SourceReader =
-      SourceReader(Input(inputOptions(BufferSource(buffer))), headerBytesOf(buffer))
+      SourceReader(Input(inputOptions(BufferSource(buffer))), { headerBytesOf(buffer) })
 
     private fun inputOptions(backing: JsAny): JsAny =
       JsOptions()

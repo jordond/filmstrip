@@ -30,6 +30,7 @@ import dev.jordond.filmstrip.webcodecs.internal.BrowserProber
 import dev.jordond.filmstrip.webcodecs.internal.SourceCache
 import dev.jordond.filmstrip.webcodecs.internal.SourceReader
 import dev.jordond.filmstrip.webcodecs.internal.audio.StretchedAudio
+import dev.jordond.filmstrip.webcodecs.internal.fetchRange
 import dev.jordond.filmstrip.webcodecs.internal.preview.BrowserAudioPreview
 import io.kotest.assertions.withClue
 import io.kotest.matchers.doubles.plusOrMinus
@@ -46,8 +47,8 @@ import kotlin.time.Duration
  * Which audio track of a source with three of them the browser probes, exports and previews.
  *
  * The probe reads the published fixtures ffmpeg wrote, as MP4, as an MP4 whose track ids skip, as Matroska and as a
- * transport stream, served beside the test bundle. The exports and previews read a copy muxed here to the same shape [ThreeAudio] describes, checked
- * against it the same way. Each track is heard by the tone it carries.
+ * transport stream, served beside the test bundle. The exports and previews read a copy muxed here to the same shape
+ * [ThreeAudio] describes, checked against it the same way. Each track is heard by the tone it carries.
  */
 class BrowserAudioTrackMediaTest {
   @Test
@@ -101,6 +102,20 @@ class BrowserAudioTrackMediaTest {
         val info = BrowserProber().probe(MediaSource.Uri(url)).shouldBeInstanceOf<ProbeResult.Success>().info
 
         ThreeAudioGapped.assertProbed(info)
+      } finally {
+        URL.revokeObjectURL(url)
+      }
+    }
+
+  @Test
+  fun aRangeOfAnObjectUrlIsAnsweredWithTheRangeAlone() =
+    runTest {
+      val url = URL.createObjectURL(gappedBlob())
+      try {
+        val answer = fetchRange(url, start = 4, count = 4)
+
+        answer.isWhole shouldBe false
+        answer.bytes.decodeToString() shouldBe "ftyp"
       } finally {
         URL.revokeObjectURL(url)
       }

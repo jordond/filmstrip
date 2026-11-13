@@ -287,6 +287,15 @@ class MovieDurationTest {
     }
 
   @Test
+  fun theAudioTracksOfAMovieWithATrackThatHasNoHeaderAreNamedByTheirPlace() =
+    runTest {
+      val headless = box("trak", box("mdia", mediaHeader(1000, 2000) + handler("soun")))
+      val file = movieFile(MOVIE_HEADER + media(5, "soun") + headless + media(12, "soun"))
+
+      audioIdsOf(file, count = 3) shouldBe List(3) { audioTrackIdOf(isMovie = false, trackId = null, ordinal = it) }
+    }
+
+  @Test
   fun aSoundHeaderWithTheReservedIdZeroIsNamedByItsPlace() =
     runTest {
       val file = movieFile(MOVIE_HEADER + media(1, "vide") + media(5, "soun") + media(0, "soun") + media(12, "soun"))

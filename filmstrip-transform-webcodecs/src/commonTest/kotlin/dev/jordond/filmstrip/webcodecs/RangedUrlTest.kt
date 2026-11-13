@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip.webcodecs
 
+import dev.jordond.filmstrip.webcodecs.internal.MAX_RANGE_BLOCKS
 import dev.jordond.filmstrip.webcodecs.internal.RANGE_BLOCK
 import dev.jordond.filmstrip.webcodecs.internal.RangeAnswer
 import dev.jordond.filmstrip.webcodecs.internal.RangedUrl
@@ -70,6 +71,39 @@ class RangedUrlTest {
       url.read(7, RANGE_BLOCK * 2) shouldBe slice(7, RANGE_BLOCK * 2)
 
       asked.size shouldBe 1
+    }
+
+  @Test
+  fun aBlockPastTheMostKeptDropsTheOldest() =
+    runTest {
+      val long = ByteArray(RANGE_BLOCK * (MAX_RANGE_BLOCKS + 1)) { (it * 31).toByte() }
+      val url =
+        RangedUrl { start, count ->
+          asked += start to count
+          RangeAnswer(long.copyOfRange(start.toInt(), minOf(long.size, start.toInt() + count)), isWhole = false)
+        }
+
+      repeat(MAX_RANGE_BLOCKS + 1) { url.read(it.toLong() * RANGE_BLOCK, 8) }
+      url.read(RANGE_BLOCK.toLong(), 8)
+      asked.size shouldBe MAX_RANGE_BLOCKS + 1
+      url.read(0, 8) shouldBe long.copyOfRange(0, 8)
+
+      asked.size shouldBe MAX_RANGE_BLOCKS + 2
+    }
+
+  @Test
+  fun aBlockTheServerClippedIsAskedForItsRest() =
+    runTest {
+      val clip = 1000
+      val url =
+        RangedUrl { start, count ->
+          asked += start to count
+          RangeAnswer(slice(start, minOf(count, clip)), isWhole = false)
+        }
+
+      url.read(clip - 10L, 64) shouldBe slice(clip - 10L, 64)
+
+      asked.shouldContainExactly(0L to RANGE_BLOCK, clip.toLong() to 54)
     }
 
   private fun ranged(): RangedUrl =
