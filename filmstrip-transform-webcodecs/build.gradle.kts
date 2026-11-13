@@ -9,7 +9,13 @@ plugins {
 val browserFixtures =
   testMedia(
     name = "browser",
-    specs = listOf(SharedFixtures.ThreeAudio, SharedFixtures.ThreeAudioMatroska, SharedFixtures.ThreeAudioTs),
+    specs =
+      listOf(
+        SharedFixtures.ThreeAudio,
+        SharedFixtures.ThreeAudioGapped,
+        SharedFixtures.ThreeAudioMatroska,
+        SharedFixtures.ThreeAudioTs,
+      ),
   )
 
 kotlin {

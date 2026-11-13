@@ -8,6 +8,7 @@ import dev.jordond.filmstrip.media.AudioTrackId
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.audioTrackIdOf
 import dev.jordond.filmstrip.media.describe
+import dev.jordond.filmstrip.media.movieAudioTrackIdsOf
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedAudioTrack
 import dev.jordond.filmstrip.webcodecs.internal.interop.ALL_FORMATS
 import dev.jordond.filmstrip.webcodecs.internal.interop.ArrayBuffer
@@ -58,6 +59,7 @@ internal class SourceVideoInfo(
  */
 internal class SourceReader(
   private val input: Input,
+  private val headers: HeaderBytes,
 ) {
   private var track: InputVideoTrack? = null
   private var looked = false
@@ -85,13 +87,30 @@ internal class SourceReader(
   }
 
   /**
-   * The [AudioTrackId] of each of [audioTracks], in the same order, named through [audioTrackIdOf] by the container
-   * mediabunny read the file as.
+   * The [AudioTrackId] of each of [audioTracks], in the same order.
+   *
+   * A file mediabunny read as MP4 or QuickTime has its ids read off its own track headers by [movieAudioTrackIdsOf],
+   * since mediabunny reports a track's place and not the id its header carries. Any other file is named by place
+   * through [audioTrackIdOf].
+   *
+   * mediabunny gives no key to pair a track with its header but their order, and it drops a sound track whose header
+   * it cannot use. For such a file the tracks are paired with the sound headers by place, so a track listed after the
+   * dropped one takes the id of the header before its own.
    */
   suspend fun audioTrackIds(): List<AudioTrackId> =
     audioTrackIds ?: run {
-      val isMovie = input.getFormat().await().mimeType in MOVIE_FORMATS
-      audioTracks().mapIndexed { ordinal, track -> audioTrackIdOf(isMovie, track.id.toLong(), ordinal) }
+      val count = audioTracks().size
+      if (input.getFormat().await().mimeType in MOVIE_FORMATS) {
+        val size =
+          input.source
+            .getSize()
+            .await()
+            .asDouble()
+            .toLong()
+        movieAudioTrackIdsOf(size, headers::read, count)
+      } else {
+        List(count) { ordinal -> audioTrackIdOf(isMovie = false, trackId = null, ordinal = ordinal) }
+      }
     }.also { audioTrackIds = it }
 
   /**
@@ -293,21 +312,27 @@ internal class SourceReader(
      */
     fun of(source: MediaSource): SourceReader? =
       try {
-        backingOf(source)?.let { SourceReader(Input(inputOptions(it))) }
+        when (source) {
+          is MediaSource.Uri -> {
+            SourceReader(Input(inputOptions(UrlSource(source.uri))), headerBytesOf(source.uri))
+          }
+          is MediaSource.Bytes -> {
+            SourceReader(Input(inputOptions(BufferSource(source.bytes.toUint8Array()))), headerBytesOf(source.bytes))
+          }
+          is MediaSource.Path -> {
+            null
+          }
+          // A still has no container for the demuxer to open.
+          is MediaSource.Image -> {
+            null
+          }
+        }
       } catch (refused: Throwable) {
         null
       }
 
-    fun ofBuffer(buffer: ArrayBuffer): SourceReader = SourceReader(Input(inputOptions(BufferSource(buffer))))
-
-    private fun backingOf(source: MediaSource): JsAny? =
-      when (source) {
-        is MediaSource.Uri -> UrlSource(source.uri)
-        is MediaSource.Bytes -> BufferSource(source.bytes.toUint8Array())
-        is MediaSource.Path -> null
-        // A still has no container for the demuxer to open.
-        is MediaSource.Image -> null
-      }
+    fun ofBuffer(buffer: ArrayBuffer): SourceReader =
+      SourceReader(Input(inputOptions(BufferSource(buffer))), headerBytesOf(buffer))
 
     private fun inputOptions(backing: JsAny): JsAny =
       JsOptions()
