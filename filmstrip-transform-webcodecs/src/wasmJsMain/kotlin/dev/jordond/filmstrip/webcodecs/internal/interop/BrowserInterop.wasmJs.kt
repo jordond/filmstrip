@@ -55,6 +55,10 @@ internal actual fun jsCopyWith(
   value: String,
 ): JsAny = copyWith(source, key, value)
 
+internal actual fun JsNumber.asDouble(): Double = toDouble()
+
+internal actual fun JsString.asString(): String = toString()
+
 internal actual fun FloatArray.toFloat32Array(): Float32Array {
   val out = Float32Array(size)
   forEachIndexed { index, value -> setFloat(out, index, value) }

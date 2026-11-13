@@ -15,6 +15,7 @@ import dev.jordond.filmstrip.webcodecs.internal.interop.JsOptions
 import dev.jordond.filmstrip.webcodecs.internal.interop.OffscreenCanvas
 import dev.jordond.filmstrip.webcodecs.internal.interop.VideoSample
 import dev.jordond.filmstrip.webcodecs.internal.interop.WebGl2
+import dev.jordond.filmstrip.webcodecs.internal.interop.asString
 import dev.jordond.filmstrip.webcodecs.internal.interop.toFloat32Array
 import kotlin.js.ExperimentalWasmJsInterop
 import kotlin.js.JsAny
@@ -348,7 +349,7 @@ internal class BrowserCompositor(
     gl.bindTexture(GL_TEXTURE_2D, target)
     gl.pixelStorei(GL_UNPACK_FLIP_Y_WEBGL, 1)
     val image = frame.toVideoFrame()
-    val primaries = sdPrimariesCodePoint(image.colorSpace.primaries?.toString())
+    val primaries = sdPrimariesCodePoint(image.colorSpace.primaries?.asString())
     if (primaries != null) gl.pixelStorei(GL_UNPACK_COLORSPACE_CONVERSION_WEBGL, GL_NONE)
     try {
       gl.texImage2D(GL_TEXTURE_2D, 0, GL_RGBA, GL_RGBA, GL_UNSIGNED_BYTE, image)

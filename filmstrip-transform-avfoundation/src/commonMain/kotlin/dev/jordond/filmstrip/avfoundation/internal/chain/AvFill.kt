@@ -63,7 +63,7 @@ private fun inCodes(
 }
 
 /**
- * Whether this platform can name the color space [transfer] is written in.
+ * Whether this platform can name the color space `transfer` is written in.
  *
  * A platform that cannot leaves [fillCIColor] on its sRGB fallback, which draws a fill dimmer than
  * it was authored rather than failing the export.

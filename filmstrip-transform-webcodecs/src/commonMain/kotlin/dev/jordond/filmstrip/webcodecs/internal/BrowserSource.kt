@@ -21,6 +21,8 @@ import dev.jordond.filmstrip.webcodecs.internal.interop.JsOptions
 import dev.jordond.filmstrip.webcodecs.internal.interop.UrlSource
 import dev.jordond.filmstrip.webcodecs.internal.interop.VideoDecoder
 import dev.jordond.filmstrip.webcodecs.internal.interop.VideoSampleSink
+import dev.jordond.filmstrip.webcodecs.internal.interop.asDouble
+import dev.jordond.filmstrip.webcodecs.internal.interop.asString
 import dev.jordond.filmstrip.webcodecs.internal.interop.audioTrackList
 import dev.jordond.filmstrip.webcodecs.internal.interop.awaitOwned
 import dev.jordond.filmstrip.webcodecs.internal.interop.firstVideoTrack
@@ -113,31 +115,31 @@ internal class SourceReader(
    * The file's duration, in microseconds. The largest end timestamp among all its tracks, so a
    * source with audio running past its video reads its real length rather than the video's.
    */
-  suspend fun durationUs(): Double = input.computeDuration().await().toDouble() * MICROS_PER_SECOND
+  suspend fun durationUs(): Double = input.computeDuration().await().asDouble() * MICROS_PER_SECOND
 
   suspend fun videoInfo(): SourceVideoInfo? {
     val track = videoTrack() ?: return null
     return SourceVideoInfo(
-      durationUs = track.computeDuration().await().toDouble() * MICROS_PER_SECOND,
+      durationUs = track.computeDuration().await().asDouble() * MICROS_PER_SECOND,
       width =
         track
           .getDisplayWidth()
           .await()
-          .toDouble()
+          .asDouble()
           .toInt(),
       height =
         track
           .getDisplayHeight()
           .await()
-          .toDouble()
+          .asDouble()
           .toInt(),
       rotationDegrees =
         track
           .getRotation()
           .await()
-          .toDouble()
+          .asDouble()
           .toInt(),
-      codec = track.getCodec().await()?.toString() ?: return null,
+      codec = track.getCodec().await()?.asString() ?: return null,
       frameRate = track.measuredFrameRate(),
     )
   }
@@ -277,7 +279,7 @@ internal class SourceReader(
   private suspend fun yieldsTenBit(open: () -> VideoSampleSink?): Boolean {
     val sample = awaitCatching { open()?.getSample(0.0)?.awaitOwned { it?.close() } }.getOrNull() ?: return false
     return try {
-      sample.format?.toString() == TEN_BIT_FORMAT
+      sample.format?.asString() == TEN_BIT_FORMAT
     } finally {
       sample.close()
     }

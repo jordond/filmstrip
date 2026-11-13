@@ -1,3 +1,5 @@
+@file:OptIn(ExperimentalWasmJsInterop::class)
+
 package dev.jordond.filmstrip.webcodecs.internal
 
 import dev.jordond.filmstrip.capability.AudioEncoderCapability
@@ -18,6 +20,7 @@ import dev.jordond.filmstrip.webcodecs.internal.interop.hasAudioEncoder
 import dev.jordond.filmstrip.webcodecs.internal.interop.hasVideoEncoder
 import dev.jordond.filmstrip.webcodecs.internal.interop.webCodecString
 import kotlinx.coroutines.await
+import kotlin.js.ExperimentalWasmJsInterop
 
 /**
  * What the browser's encoders can do, on WebCodecs.

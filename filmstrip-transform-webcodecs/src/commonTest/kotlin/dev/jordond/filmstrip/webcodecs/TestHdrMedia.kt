@@ -28,6 +28,7 @@ import dev.jordond.filmstrip.webcodecs.internal.interop.Uint16Array
 import dev.jordond.filmstrip.webcodecs.internal.interop.Uint8Array
 import dev.jordond.filmstrip.webcodecs.internal.interop.VideoSample
 import dev.jordond.filmstrip.webcodecs.internal.interop.VideoSampleSource
+import dev.jordond.filmstrip.webcodecs.internal.interop.asString
 import dev.jordond.filmstrip.webcodecs.internal.interop.toUint8Array
 import io.kotest.assertions.withClue
 import kotlinx.coroutines.await
@@ -212,7 +213,7 @@ internal suspend fun decodeTenBitFrames(
       while (true) {
         val sample = stream.next() ?: break
         try {
-          val format = sample.format?.toString()
+          val format = sample.format?.asString()
           check(format == TEN_BIT) { "the decoded frame was $format rather than $TEN_BIT" }
           val options = JsOptions().build()
           val bytes = ArrayBuffer(sample.allocationSize(options))

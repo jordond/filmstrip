@@ -10,7 +10,7 @@ import kotlin.coroutines.EmptyCoroutineContext
 import kotlin.coroutines.startCoroutine
 
 /**
- * Reads up to [count] bytes of a file starting at [start], handing back fewer when the file ends first.
+ * Reads up to [count] bytes of a file starting at `start`, handing back fewer when the file ends first.
  */
 internal typealias ByteRangeRead = suspend (start: Long, count: Int) -> ByteArray
 

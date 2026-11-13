@@ -107,7 +107,7 @@ internal sealed interface IccCurve {
 
   /**
    * The PQ curve, decoding a signal through [nitsFromPqSignal] to light where one is [HDR_REFERENCE_WHITE_NITS], so
-   * its peak lands at [HdrTransfer.displayLightCeiling].
+   * its peak lands at [dev.jordond.filmstrip.color.displayLightCeiling].
    */
   data object Pq : IccCurve {
     override fun evaluate(x: Double): Double = nitsFromPqSignal(x) / HDR_REFERENCE_WHITE_NITS

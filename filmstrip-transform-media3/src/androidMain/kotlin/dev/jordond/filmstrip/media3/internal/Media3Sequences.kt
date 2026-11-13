@@ -147,7 +147,7 @@ internal class Lowering(
    * clip whose samples were never read is clipped from its own start, cut to what its speed plays in [length], and run
    * at that speed.
    *
-   * [setFrameRate] is media3's limit on slow motion: it is a maximum and nothing duplicates a frame, so a clip slowed
+   * `setFrameRate` is media3's limit on slow motion: it is a maximum and nothing duplicates a frame, so a clip slowed
    * past its source's rate writes each frame it shows once, on the first of its slots, instead of filling every slot.
    */
   private fun ResolvedClip.gridItem(

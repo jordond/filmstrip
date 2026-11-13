@@ -271,7 +271,7 @@ class EncoderChoiceTest {
       graded.fallback
         .shouldNotBeNull()
         .adjustment.kind shouldBe AdjustmentKind.CodecFallback
-      graded.fallback?.adjustment shouldBe exported.fallback?.adjustment
+      graded.fallback.adjustment shouldBe exported.fallback?.adjustment
     }
   }
 

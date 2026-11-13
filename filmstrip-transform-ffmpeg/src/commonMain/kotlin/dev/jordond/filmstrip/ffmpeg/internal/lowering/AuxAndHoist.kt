@@ -67,7 +67,7 @@ internal fun hoistableLook(
   val clips = track?.clips.orEmpty().filter { slotsOf(it) > 0 }
   val first = clips.firstOrNull()?.effects?.singleOrNull() ?: return null
   if (first.stage == EffectStage.Spatial) return null
-  val look = first.effect.fragment ?: return null
+  val look = first.effect.fragment
   val whole = PixelRect(0, 0, output.width, output.height)
   val hoists =
     plainTail &&

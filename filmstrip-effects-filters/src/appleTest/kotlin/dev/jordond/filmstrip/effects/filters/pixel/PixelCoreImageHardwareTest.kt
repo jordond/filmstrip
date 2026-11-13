@@ -1,3 +1,5 @@
+@file:OptIn(BetaInteropApi::class)
+
 package dev.jordond.filmstrip.effects.filters.pixel
 
 import dev.jordond.filmstrip.InternalFilmstripApi
@@ -14,6 +16,7 @@ import io.kotest.matchers.doubles.shouldBeLessThan
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
+import kotlinx.cinterop.BetaInteropApi
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.addressOf
 import kotlinx.cinterop.convert
@@ -232,8 +235,11 @@ class PixelCoreImageHardwareTest {
   // Core Image works in half floats unless told otherwise, which would round a code before the cut reads it.
   private fun floatContext(): CIContext {
     val options =
-      NSDictionary.dictionaryWithObject(NSNumber(int = kCIFormatRGBAf), forKey = kCIContextWorkingFormat as NSString)
-    return CIContext.contextWithOptions(options as Map<Any?, *>)
+      NSDictionary.dictionaryWithObject(
+        NSNumber(int = kCIFormatRGBAf),
+        forKey = NSString.create(string = checkNotNull(kCIContextWorkingFormat)),
+      )
+    return CIContext.contextWithOptions(options)
   }
 
   private fun ramps(

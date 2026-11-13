@@ -161,9 +161,7 @@ internal class WriterSession(
       while (!stopping && pump.input.isReadyForMoreMediaData()) {
         if (brokeEarly()) return@requestMediaDataWhenReadyOnQueue
         when (autoreleasepool { step(pump) }) {
-          Step.Moved -> {
-            Unit
-          }
+          Step.Moved -> {}
           Step.Drained -> {
             finish(pump)
             return@requestMediaDataWhenReadyOnQueue

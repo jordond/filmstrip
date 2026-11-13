@@ -147,9 +147,7 @@ internal fun FiltersPlayground(
           color = Tokens.muted,
         )
       }
-      else -> {
-        Unit
-      }
+      else -> {}
     }
     CodePanel(filtersCode(settings), copy)
   }

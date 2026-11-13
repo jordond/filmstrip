@@ -1,3 +1,5 @@
+@file:OptIn(ExperimentalWasmJsInterop::class)
+
 package dev.jordond.filmstrip.webcodecs.internal.audio
 
 import dev.jordond.filmstrip.export.AudioFormat
@@ -12,6 +14,7 @@ import dev.jordond.filmstrip.webcodecs.internal.interop.AudioBuffer
 import dev.jordond.filmstrip.webcodecs.internal.interop.OfflineAudioContext
 import dev.jordond.filmstrip.webcodecs.internal.interop.toFloat32Array
 import kotlinx.coroutines.await
+import kotlin.js.ExperimentalWasmJsInterop
 import kotlin.time.Duration
 import kotlin.time.DurationUnit
 import kotlin.time.toDuration

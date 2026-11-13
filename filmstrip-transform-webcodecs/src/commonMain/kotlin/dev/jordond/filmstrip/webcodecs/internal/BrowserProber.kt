@@ -21,6 +21,8 @@ import dev.jordond.filmstrip.media.trackCodecOf
 import dev.jordond.filmstrip.webcodecs.internal.interop.InputAudioTrack
 import dev.jordond.filmstrip.webcodecs.internal.interop.InputVideoTrack
 import dev.jordond.filmstrip.webcodecs.internal.interop.Rational
+import dev.jordond.filmstrip.webcodecs.internal.interop.asDouble
+import dev.jordond.filmstrip.webcodecs.internal.interop.asString
 import kotlinx.coroutines.await
 import kotlin.js.ExperimentalWasmJsInterop
 import kotlin.time.Duration.Companion.microseconds
@@ -90,15 +92,15 @@ internal class BrowserProber : MediaProber {
   }
 
   private suspend fun InputVideoTrack.toTrackInfo(bitrate: Bitrate?): VideoTrackInfo? {
-    val codec = getCodec().await()?.toString() ?: return null
+    val codec = getCodec().await()?.asString() ?: return null
     val trackCodec = trackCodecOf(codec)
-    val coded = Size(getCodedWidth().await().toDouble().toInt(), getCodedHeight().await().toDouble().toInt())
-    val rotation = getRotation().await().toDouble().toInt()
+    val coded = Size(getCodedWidth().await().asDouble().toInt(), getCodedHeight().await().asDouble().toInt())
+    val rotation = getRotation().await().asDouble().toInt()
     val pixelAspect = getPixelAspectRatio().await().toFloat()
     val space = getColorSpace().await()
     val bitDepth =
       when (trackCodec.kind) {
-        CodecKind.Hevc -> hevcBitDepth(getCodecParameterString().await()?.toString())
+        CodecKind.Hevc -> hevcBitDepth(getCodecParameterString().await()?.asString())
         else -> null
       }
     return VideoTrackInfo(
@@ -109,8 +111,8 @@ internal class BrowserProber : MediaProber {
       frameRate = measuredFrameRate(),
       codec = trackCodec,
       bitDepth = bitDepth,
-      colorSpace = space.primaries?.toString().toColorSpace(),
-      hdrTransfer = space.transfer?.toString().toHdrTransfer(),
+      colorSpace = space.primaries?.asString().toColorSpace(),
+      hdrTransfer = space.transfer?.asString().toHdrTransfer(),
       bitrate = bitrate,
       hasAlpha = canBeTransparent().await().toBoolean(),
     )
@@ -123,14 +125,14 @@ internal class BrowserProber : MediaProber {
     bitrate: Bitrate?,
     flagged: Boolean,
   ): AudioTrackInfo? {
-    val codec = getCodec().await()?.toString() ?: return null
+    val codec = getCodec().await()?.asString() ?: return null
     return AudioTrackInfo(
       id = id,
       codec = trackCodecOf(codec),
-      sampleRate = getSampleRate().await().toDouble().toInt(),
-      channelCount = getNumberOfChannels().await().toDouble().toInt(),
+      sampleRate = getSampleRate().await().asDouble().toInt(),
+      channelCount = getNumberOfChannels().await().asDouble().toInt(),
       bitrate = bitrate,
-      language = audioLanguageOf(getLanguageCode().await().toString()),
+      language = audioLanguageOf(getLanguageCode().await().asString()),
       isDefault = flagged && getDisposition().await().default,
     )
   }

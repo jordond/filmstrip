@@ -25,8 +25,8 @@ import kotlin.js.Promise
  * @property bitmap The decoded picture.
  * @property size The size the compositor uploads the picture at. A picture carrying samples takes their size as they
  * are laid out, and any other picture the size of [bitmap].
- * @property color What [pictureColor] reads from the picture's bytes, or null when it is untagged.
- * @property samples What [pngSamples] reads from a PNG's bytes, what [PictureRoute.Evaluated] turns an AVIF's samples
+ * @property color What `pictureColor` reads from the picture's bytes, or null when it is untagged.
+ * @property samples What `pngSamples` reads from a PNG's bytes, what [PictureRoute.Evaluated] turns an AVIF's samples
  * into as sixteen-bit RGBA, or null for any other picture.
  * @property limits Why the picture lands short of how its bytes describe it, empty when it lands exactly.
  * @property orientation The turn the compositor lays the uploaded picture out by, [PictureOrientation.Normal] for one

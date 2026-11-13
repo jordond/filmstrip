@@ -1,4 +1,4 @@
-@file:OptIn(InternalFilmstripApi::class)
+@file:OptIn(InternalFilmstripApi::class, ExperimentalCoroutinesApi::class)
 
 package dev.jordond.filmstrip.sample.tryit
 
@@ -16,6 +16,7 @@ import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow

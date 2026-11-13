@@ -9,6 +9,7 @@ import dev.jordond.filmstrip.webcodecs.internal.interop.OffscreenCanvas
 import dev.jordond.filmstrip.webcodecs.internal.interop.Uint8Array
 import dev.jordond.filmstrip.webcodecs.internal.interop.VideoSample
 import dev.jordond.filmstrip.webcodecs.internal.interop.WebGl2
+import dev.jordond.filmstrip.webcodecs.internal.interop.asString
 import dev.jordond.filmstrip.webcodecs.internal.interop.toUint8Array
 import dev.jordond.filmstrip.webcodecs.internal.render.FULLSCREEN_VERTEX_SHADER
 import dev.jordond.filmstrip.webcodecs.internal.render.HdrPass
@@ -43,7 +44,7 @@ class HdrPassTest {
         packed.length shouldBe WIDTH * SAMPLE_BYTES * 2 * HEIGHT
         val sample = tenBitSample(packed, pass)
         try {
-          sample.format?.toString() shouldBe TEN_BIT_FORMAT
+          sample.format?.asString() shouldBe TEN_BIT_FORMAT
           sample.codedWidth shouldBe WIDTH
           sample.codedHeight shouldBe HEIGHT
           sample.allocationSize(JsOptions().put("layout", pass.layout).build()) shouldBe packed.length

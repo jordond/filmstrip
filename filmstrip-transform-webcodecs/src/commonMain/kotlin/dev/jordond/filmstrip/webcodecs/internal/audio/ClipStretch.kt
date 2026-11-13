@@ -17,6 +17,7 @@ import dev.jordond.filmstrip.webcodecs.internal.interop.BaseAudioContext
 import dev.jordond.filmstrip.webcodecs.internal.interop.InputAudioTrack
 import dev.jordond.filmstrip.webcodecs.internal.interop.MediabunnyIterator
 import dev.jordond.filmstrip.webcodecs.internal.interop.WrappedAudioBuffer
+import dev.jordond.filmstrip.webcodecs.internal.interop.asDouble
 import dev.jordond.filmstrip.webcodecs.internal.interop.toFloat32Array
 import kotlinx.coroutines.await
 import kotlin.js.ExperimentalWasmJsInterop
@@ -280,13 +281,13 @@ internal class ClipStretch private constructor(
           audioTrack
             .getSampleRate()
             .await()
-            .toDouble()
+            .asDouble()
             .toInt(),
         channelCount =
           audioTrack
             .getNumberOfChannels()
             .await()
-            .toDouble()
+            .asDouble()
             .toInt(),
         keep = keep,
         open = open,

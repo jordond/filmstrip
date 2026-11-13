@@ -1,3 +1,5 @@
+@file:OptIn(BetaInteropApi::class)
+
 package dev.jordond.filmstrip.effects.spatial
 
 import dev.jordond.filmstrip.color.BlurPlan
@@ -26,6 +28,7 @@ import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.types.shouldBeInstanceOf
+import kotlinx.cinterop.BetaInteropApi
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.addressOf
 import kotlinx.cinterop.convert

@@ -1,3 +1,5 @@
+@file:OptIn(ExperimentalWasmJsInterop::class)
+
 package dev.jordond.filmstrip.webcodecs
 
 import dev.jordond.filmstrip.ComponentRegistry
@@ -24,6 +26,7 @@ import dev.jordond.filmstrip.webcodecs.internal.BrowserProber
 import dev.jordond.filmstrip.webcodecs.internal.SourceReader
 import dev.jordond.filmstrip.webcodecs.internal.interop.JsOptions
 import dev.jordond.filmstrip.webcodecs.internal.interop.Uint8Array
+import dev.jordond.filmstrip.webcodecs.internal.interop.asString
 import dev.jordond.filmstrip.webcodecs.internal.preview.PreviewFrame
 import dev.jordond.filmstrip.webcodecs.internal.preview.toBrowserPreview
 import io.kotest.assertions.withClue
@@ -33,6 +36,7 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.await
 import kotlinx.coroutines.test.runTest
+import kotlin.js.ExperimentalWasmJsInterop
 import kotlin.math.abs
 import kotlin.test.Test
 import kotlin.time.Duration
@@ -231,7 +235,7 @@ class BrowserSdColorMediaTest {
           val options = JsOptions().build()
           val planes = Uint8Array(sample.allocationSize(options))
           val frame = sample.toVideoFrame()
-          val primaries = frame.colorSpace.primaries?.toString()
+          val primaries = frame.colorSpace.primaries?.asString()
           val fullRange = frame.colorSpace.fullRange?.toString() == "true"
           frame.close()
           sample.copyTo(planes, options).await()

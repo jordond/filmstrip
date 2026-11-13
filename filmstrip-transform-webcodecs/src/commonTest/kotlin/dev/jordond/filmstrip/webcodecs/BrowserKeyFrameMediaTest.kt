@@ -1,3 +1,5 @@
+@file:OptIn(ExperimentalWasmJsInterop::class)
+
 package dev.jordond.filmstrip.webcodecs
 
 import dev.jordond.filmstrip.codec.AudioCodec
@@ -17,6 +19,7 @@ import io.kotest.assertions.withClue
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.test.runTest
+import kotlin.js.ExperimentalWasmJsInterop
 import kotlin.test.Test
 import kotlin.time.Duration.Companion.milliseconds
 

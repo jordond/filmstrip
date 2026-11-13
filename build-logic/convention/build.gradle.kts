@@ -22,7 +22,7 @@ spotless {
   }
 }
 
-val testedPlugins: Configuration by configurations.creating
+val testedPlugins: Configuration = configurations.create("testedPlugins")
 
 dependencies {
   compileOnly(libs.bundles.logic.plugins)

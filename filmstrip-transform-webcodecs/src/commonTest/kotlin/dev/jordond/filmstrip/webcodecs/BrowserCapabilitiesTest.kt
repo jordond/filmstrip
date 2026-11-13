@@ -1,3 +1,5 @@
+@file:OptIn(ExperimentalWasmJsInterop::class)
+
 package dev.jordond.filmstrip.webcodecs
 
 import dev.jordond.filmstrip.CapabilitiesResult
@@ -26,6 +28,7 @@ import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
+import kotlin.js.ExperimentalWasmJsInterop
 import kotlin.test.Test
 
 /**

@@ -17,7 +17,7 @@ import dev.jordond.filmstrip.geometry.Size
  * [FilmSignal.grained] does. A map of [FilmSignal.dustAt] and [FilmSignal.scratchAt] lands on it through `lut2`, and
  * [GainMaps] draws [FilmSignal.gateMask] once into a sixteen bit map that `blend` multiplies every colour plane's
  * code by, at 256 a code, leaving alpha as it came. The marks map comes two ways with the same samples, a `geq` in
- * [drawn] and [MarkPlanes] in [live]. Either way it is tagged full range before it reaches `gbrap`, so its codes land
+ * `drawn` and [MarkPlanes] in `live`. Either way it is tagged full range before it reaches `gbrap`, so its codes land
  * as written rather than stretched from limited range.
  */
 internal fun filmGate(

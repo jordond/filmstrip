@@ -2,6 +2,7 @@
 
 package dev.jordond.filmstrip.webcodecs
 
+import dev.jordond.filmstrip.webcodecs.internal.interop.asString
 import dev.jordond.filmstrip.webcodecs.internal.interop.awaitOwned
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContainExactly
@@ -34,7 +35,7 @@ class OwnedAwaitTest {
     runTest {
       val pending = Pending()
       val released = mutableListOf<String>()
-      val job = launch(start = CoroutineStart.UNDISPATCHED) { pending.promise.awaitOwned { released += it.toString() } }
+      val job = launch(start = CoroutineStart.UNDISPATCHED) { pending.promise.awaitOwned { released += it.asString() } }
 
       job.cancelAndJoin()
       released.shouldBeEmpty()
@@ -51,7 +52,7 @@ class OwnedAwaitTest {
     runTest {
       val pending = Pending()
       val released = mutableListOf<String>()
-      val job = launch(start = CoroutineStart.UNDISPATCHED) { pending.promise.awaitOwned { released += it.toString() } }
+      val job = launch(start = CoroutineStart.UNDISPATCHED) { pending.promise.awaitOwned { released += it.asString() } }
 
       pending.resolve(VALUE.toJsString())
       job.cancelAndJoin()
@@ -71,7 +72,7 @@ class OwnedAwaitTest {
       var returned: String? = null
       val job =
         launch(held, start = CoroutineStart.UNDISPATCHED) {
-          returned = pending.promise.awaitOwned { released += it.toString() }.toString()
+          returned = pending.promise.awaitOwned { released += it.asString() }.asString()
         }
 
       pending.resolve(VALUE.toJsString())
@@ -94,7 +95,7 @@ class OwnedAwaitTest {
       var returned: String? = null
       val job =
         launch(start = CoroutineStart.UNDISPATCHED) {
-          returned = pending.promise.awaitOwned { released += it.toString() }.toString()
+          returned = pending.promise.awaitOwned { released += it.asString() }.asString()
         }
 
       pending.resolve(VALUE.toJsString())
@@ -110,7 +111,7 @@ class OwnedAwaitTest {
     runTest {
       val pending = Pending()
       val released = mutableListOf<String>()
-      val job = launch(start = CoroutineStart.UNDISPATCHED) { pending.promise.awaitOwned { released += it.toString() } }
+      val job = launch(start = CoroutineStart.UNDISPATCHED) { pending.promise.awaitOwned { released += it.asString() } }
 
       job.cancelAndJoin()
       val before = UnhandledRejections.seen
@@ -131,7 +132,7 @@ class OwnedAwaitTest {
       owned.reject(BrowserError(MESSAGE))
 
       val fromAwait = runCatching { plain.promise.await() }.exceptionOrNull().shouldNotBeNull()
-      val fromOwned = runCatching { owned.promise.awaitOwned { released += it.toString() } }.exceptionOrNull()
+      val fromOwned = runCatching { owned.promise.awaitOwned { released += it.asString() } }.exceptionOrNull()
 
       fromOwned.shouldNotBeNull()
       fromOwned::class shouldBe fromAwait::class

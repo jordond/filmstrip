@@ -140,7 +140,7 @@ class FfmpegCrtMediaTest {
       val row = (0 until height).first { crtLit(width / 2, it, width, height, k) }
       withClue("the picture's own top edge ends in black") {
         (row > 0) shouldBe true
-        (0 until RGB).forEach { frame.channelAt(width, width / 2, row - 1, it) shouldBeLessThan CLEAR_LUMA.toInt() + 1 }
+        (0 until RGB).forEach { frame.channelAt(width, width / 2, row - 1, it) shouldBeLessThan CLEAR_LUMA + 1 }
       }
     }
 
