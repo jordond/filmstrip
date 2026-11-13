@@ -12,11 +12,12 @@ import dev.jordond.filmstrip.player.PlayerEngineFactory
 import dev.jordond.filmstrip.thumbnail.ThumbnailSourceFactory
 
 /**
- * Creates a [Filmstrip], registering whatever [block] asks for and nothing else.
+ * Creates a [Filmstrip] from every filmstrip artifact on the classpath, plus whatever [block] registers.
  *
- * An instance built with an empty block can only [Filmstrip.probe], and only on Android and Apple.
- * Depend on `dev.jordond.filmstrip:filmstrip` and call `allBackends()` in [block] to register every
- * backend it bundles.
+ * Each backend, the player and the filters register themselves when their artifact is a dependency, so
+ * `Filmstrip()` with `dev.jordond.filmstrip:filmstrip` can probe, plan, export and preview. What [block] registers
+ * goes ahead of what was discovered. Call [FilmstripBuilder.autoRegister] with false to register only what [block]
+ * asks for.
  *
  * On Android the application context comes from App Startup. Where App Startup is disabled or does
  * not run, such as a bare JVM test, install one with the Android-only `Filmstrip(context)` overload.
@@ -34,6 +35,55 @@ public fun Filmstrip(block: FilmstripBuilder.() -> Unit = {}): Filmstrip = Films
 @FilmstripDsl
 public class FilmstripBuilder {
   private var registry: ComponentRegistry.Builder = ComponentRegistry.Builder()
+  private val installed = mutableSetOf<String>()
+  private val options = mutableMapOf<OptionKey<*>, Any>()
+  private var autoRegister = true
+
+  /**
+   * Sets whether [build] adds the artifacts it discovers on the classpath. On by default.
+   *
+   * Turned off, the instance has only what this builder registered, which is how a test builds one with a backend
+   * missing.
+   *
+   * @param enabled Whether to add discovered artifacts.
+   * @return This builder.
+   */
+  public fun autoRegister(enabled: Boolean): FilmstripBuilder = apply { autoRegister = enabled }
+
+  /**
+   * Runs [registrar] unless one with the same id already ran on this builder.
+   *
+   * @param registrar The artifact's registrar.
+   * @return This builder.
+   */
+  @InternalFilmstripApi
+  public fun install(registrar: FilmstripRegistrar): FilmstripBuilder =
+    apply { if (installed.add(registrar.id)) registrar.register(this) }
+
+  /**
+   * Sets the value a registrar reads for [key], replacing any earlier one.
+   *
+   * @param key The option.
+   * @param value Its value.
+   * @return This builder.
+   */
+  @InternalFilmstripApi
+  public fun <T : Any> option(
+    key: OptionKey<T>,
+    value: T,
+  ): FilmstripBuilder = apply { options[key] = value }
+
+  /**
+   * The value set for [key], or null when nothing set one.
+   *
+   * @param key The option.
+   * @return Its value.
+   */
+  @InternalFilmstripApi
+  public fun <T : Any> optionOrNull(key: OptionKey<T>): T? {
+    @Suppress("UNCHECKED_CAST")
+    return options[key] as T?
+  }
 
   /**
    * Registers components through a receiver lambda.
@@ -119,6 +169,23 @@ public class FilmstripBuilder {
 
   /**
    * Builds the configured [Filmstrip].
+   *
+   * Unless [autoRegister] turned it off, every discovered artifact this builder did not install is added behind what
+   * it registered.
    */
-  public fun build(): Filmstrip = DefaultFilmstrip(registry.build())
+  public fun build(): Filmstrip = DefaultFilmstrip(components())
+
+  internal fun components(): ComponentRegistry {
+    val own = registry.build()
+    if (!autoRegister) return own
+    val discovered = FilmstripRegistrars.discovered().filterNot { it.id in installed }
+    if (discovered.isEmpty()) return own
+    // A second builder over the same options and the same installed ids, so a registrar reads what the block set and
+    // a dependency the block installed is not added twice.
+    val seed = FilmstripBuilder()
+    seed.installed += installed
+    seed.options += options
+    discovered.forEach { seed.install(it) }
+    return own.layeredOver(seed.registry.build())
+  }
 }

@@ -1,19 +1,15 @@
 package dev.jordond.filmstrip.sample
 
 import dev.jordond.filmstrip.Filmstrip
-import dev.jordond.filmstrip.allBackends
-import dev.jordond.filmstrip.effects.filters.filters
 
 /**
- * Builds the sample's [Filmstrip] through the bundle artifact, which registers every backend, plus the opt-in filters.
+ * Builds the sample's [Filmstrip] from the bundle artifact and the opt-in filters, which register themselves.
  *
  * @param recorder Receives what the backends learn while they run, such as the ffmpeg banner and
  *   the command line it was spawned with.
  */
 fun createSampleFilmstrip(recorder: DiagnosticsRecorder): Filmstrip =
   Filmstrip {
-    allBackends()
-    filters()
     addDiagnosticListener(recorder.asListener())
   }
 

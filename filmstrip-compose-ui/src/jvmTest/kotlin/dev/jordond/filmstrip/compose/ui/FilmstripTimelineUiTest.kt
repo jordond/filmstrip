@@ -33,7 +33,7 @@ class FilmstripTimelineUiTest {
       setContent {
         Stage {
           FilmstripTimeline(
-            renderer = Filmstrip(),
+            renderer = Filmstrip { autoRegister(false) },
             composition = COMPOSITION,
             duration = DURATION,
             position = { Duration.ZERO },
@@ -62,7 +62,7 @@ class FilmstripTimelineUiTest {
       setContent {
         Stage {
           FilmstripTimeline(
-            renderer = Filmstrip(),
+            renderer = Filmstrip { autoRegister(false) },
             composition = COMPOSITION,
             duration = DURATION,
             position = { Duration.ZERO },
@@ -89,7 +89,7 @@ class FilmstripTimelineUiTest {
       setContent {
         Stage {
           FilmstripTimeline(
-            renderer = Filmstrip(),
+            renderer = Filmstrip { autoRegister(false) },
             composition = COMPOSITION,
             duration = duration,
             position = { Duration.ZERO },

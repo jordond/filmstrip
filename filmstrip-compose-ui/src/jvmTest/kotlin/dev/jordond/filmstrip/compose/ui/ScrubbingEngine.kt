@@ -127,7 +127,8 @@ internal fun testComposition(): Composition =
 /**
  * A `Filmstrip` whose only backend is [engine].
  */
-internal fun filmstripWith(engine: ScrubbingEngine): Filmstrip = Filmstrip { addPlayerEngineFactory { _, _ -> engine } }
+internal fun filmstripWith(engine: ScrubbingEngine): Filmstrip =
+  Filmstrip { autoRegister(false).addPlayerEngineFactory { _, _ -> engine } }
 
 /**
  * A thumbnail source that records what it was asked for and answers at once.
@@ -159,4 +160,4 @@ internal class RecordingThumbnailSource : ThumbnailSource {
  * A `Filmstrip` whose only backend is [source].
  */
 internal fun filmstripWith(source: RecordingThumbnailSource): Filmstrip =
-  Filmstrip { addThumbnailSourceFactory { _, _ -> source } }
+  Filmstrip { autoRegister(false).addThumbnailSourceFactory { _, _ -> source } }

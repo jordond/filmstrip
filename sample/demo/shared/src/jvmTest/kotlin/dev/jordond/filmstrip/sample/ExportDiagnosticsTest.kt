@@ -38,7 +38,7 @@ class ExportDiagnosticsTest {
     val adjustment = Adjustment(AdjustmentKind.CodecFallback, "hevc", "h264", "No HEVC encoder.")
     val state =
       SampleAppState(
-        filmstrip = Filmstrip { addExportEngineFactory { AdjustingEngine(listOf(adjustment)) } },
+        filmstrip = Filmstrip { autoRegister(false).addExportEngineFactory { AdjustingEngine(listOf(adjustment)) } },
         scope = CoroutineScope(Dispatchers.Unconfined),
       )
 
@@ -59,7 +59,7 @@ class ExportDiagnosticsTest {
       )
     val state =
       SampleAppState(
-        filmstrip = Filmstrip { addExportEngineFactory { AdjustingEngine(adjustments) } },
+        filmstrip = Filmstrip { autoRegister(false).addExportEngineFactory { AdjustingEngine(adjustments) } },
         scope = CoroutineScope(Dispatchers.Unconfined),
       )
 

@@ -1,6 +1,7 @@
 package dev.jordond.filmstrip.effects
 
 import dev.jordond.filmstrip.FilmstripBuilder
+import dev.jordond.filmstrip.FilmstripRegistrar
 import dev.jordond.filmstrip.effect.Attributes
 import dev.jordond.filmstrip.effect.EffectResolution
 import dev.jordond.filmstrip.effect.EffectResolver
@@ -26,6 +27,15 @@ public expect class BuiltInEffectResolver() : EffectResolver {
 /**
  * Registers the built-in effect catalogue.
  *
- * Without this call a built-in effect resolves to nothing and `plan` refuses it by name.
+ * Every backend and the player register it themselves, so a builder only calls this to put a resolver of its own
+ * behind the catalogue. A second call on the same builder does nothing.
  */
-public fun FilmstripBuilder.builtInEffects(): FilmstripBuilder = addEffectResolver(BuiltInEffectResolver())
+public fun FilmstripBuilder.builtInEffects(): FilmstripBuilder = install(BuiltInEffectsRegistrar())
+
+internal class BuiltInEffectsRegistrar : FilmstripRegistrar {
+  override val id: String = "filmstrip-effects"
+
+  override fun register(builder: FilmstripBuilder) {
+    builder.addEffectResolver(BuiltInEffectResolver())
+  }
+}

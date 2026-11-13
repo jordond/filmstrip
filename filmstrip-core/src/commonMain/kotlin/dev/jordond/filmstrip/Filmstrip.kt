@@ -30,9 +30,9 @@ import kotlinx.coroutines.flow.Flow
  * Which of these work depends on what is registered. [export], [plan] and [capabilities] need this target's engine
  * artifact, which is `filmstrip-transform-media3`, `filmstrip-transform-avfoundation`, `filmstrip-transform-webcodecs`
  * or `filmstrip-transform-ffmpeg`. [preview] and effect-applied frames need `filmstrip-player`, and effects need
- * `filmstrip-effects`. Each registers itself through [FilmstripBuilder], or `dev.jordond.filmstrip:filmstrip` with
- * `allBackends()` registers the engine and the player together. A missing one is reported as
- * [FilmstripError.BackendMissing] naming the artifact rather than as a crash.
+ * `filmstrip-effects`. Each registers itself when it is a dependency, and `dev.jordond.filmstrip:filmstrip` brings the
+ * engine and the player together. A missing one is reported as [FilmstripError.BackendMissing] naming the artifact
+ * rather than as a crash.
  */
 @Stable
 public interface Filmstrip :

@@ -58,8 +58,8 @@ internal class BrowserPlanner(
       renderCapabilities = { _, encodesHdr -> renderCapabilities(encodesHdr) },
       parityOf = ::browserParityOf,
       unclaimedMessage = { specId ->
-        "No resolver claimed $specId on the browser backend. Register the built-in catalogue with " +
-          "builtInEffects(), or add a resolver that recognises RenderApi.WebGl."
+        "No resolver claimed $specId on the browser backend. Add the artifact that defines it, or a " +
+          "resolver that recognises RenderApi.WebGl."
       },
       ladder = BROWSER_LADDER,
       supportsCopy = true,

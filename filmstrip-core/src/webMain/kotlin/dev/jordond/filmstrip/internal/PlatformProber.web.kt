@@ -23,8 +23,8 @@ internal actual class PlatformProber actual constructor() {
             artifact = EXPORT_BACKEND.artifact,
             message =
               "`probe` needs a demuxer in a browser, and filmstrip-core carries none. Add " +
-                "${EXPORT_BACKEND.artifact} and register it with Filmstrip { ${EXPORT_BACKEND.registration} }, " +
-                "which reads metadata with mediabunny.",
+                "${EXPORT_BACKEND.artifact}, which registers itself and reads metadata with mediabunny, or call " +
+                "${EXPORT_BACKEND.registration} on a builder with autoRegister(false).",
           ),
         )
       }

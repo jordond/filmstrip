@@ -23,7 +23,7 @@ class WebMissingBackendTest {
     contractTest {
       val source = MediaSource.ofUri("https://example.test/clip.mp4")
       val composition = Composition(tracks = listOf(Track(listOf(Clip(source)))))
-      val player = Filmstrip { playerBackend() }.preview(composition)
+      val player = Filmstrip { autoRegister(false).playerBackend() }.preview(composition)
 
       try {
         val error =

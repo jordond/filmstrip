@@ -8,7 +8,6 @@ import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import dev.jordond.filmstrip.Filmstrip
-import dev.jordond.filmstrip.allBackends
 import dev.jordond.filmstrip.compose.VideoSurface
 import dev.jordond.filmstrip.compose.rememberFilmstripPlayer
 import dev.jordond.filmstrip.edit.Composition
@@ -51,7 +50,7 @@ internal fun landingComposition(): Composition {
 
 internal suspend fun landingExport(composition: Composition) {
   // region export
-  val filmstrip = Filmstrip { allBackends() }
+  val filmstrip = Filmstrip()
 
   val plan =
     when (val verdict = filmstrip.plan(composition, ExportSpec.Upload)) {

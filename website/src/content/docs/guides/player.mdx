@@ -12,8 +12,8 @@ preview shows what the export writes.
 <Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Player.kt" region="open" />
 
 `preview` returns right away and loads in the background. You own the player and have to `close` it. Without
-`filmstrip-player` registered, the player reports `PlaybackError.BackendMissing` instead of throwing. A browser reports
-the same error, naming `filmstrip-transform-webcodecs`, when `webCodecsBackend()` isn't registered.
+`filmstrip-player` on the classpath, the player reports `PlaybackError.BackendMissing` instead of throwing. A browser
+reports the same error, naming `filmstrip-transform-webcodecs`, when that artifact is missing.
 
 A preview writes no file, so a device with no video encoder still previews and only its exports are refused. In a
 browser that preview plays its audio too, given a WebCodecs `AudioDecoder`. A browser needs a WebCodecs `VideoDecoder`

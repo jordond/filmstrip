@@ -90,7 +90,7 @@ internal class FakeThumbnailSource : ThumbnailSource {
  * A `Filmstrip` whose only backend is [source].
  */
 internal fun filmstripWith(source: FakeThumbnailSource): Filmstrip =
-  Filmstrip { addThumbnailSourceFactory { _, _ -> source } }
+  Filmstrip { autoRegister(false).addThumbnailSourceFactory { _, _ -> source } }
 
 /**
  * Whether this image's pixels have been released.

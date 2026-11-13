@@ -62,6 +62,7 @@ public final class dev/jordond/filmstrip/FilmstripBuilder {
 	public final fun addEffectResolver (Ldev/jordond/filmstrip/effect/EffectResolver;)Ldev/jordond/filmstrip/FilmstripBuilder;
 	public final fun addPlayerEngineFactory (Ldev/jordond/filmstrip/player/PlayerEngineFactory;)Ldev/jordond/filmstrip/FilmstripBuilder;
 	public final fun addThumbnailSourceFactory (Ldev/jordond/filmstrip/thumbnail/ThumbnailSourceFactory;)Ldev/jordond/filmstrip/FilmstripBuilder;
+	public final fun autoRegister (Z)Ldev/jordond/filmstrip/FilmstripBuilder;
 	public final fun build ()Ldev/jordond/filmstrip/Filmstrip;
 	public final fun components (Lkotlin/jvm/functions/Function1;)Ldev/jordond/filmstrip/FilmstripBuilder;
 }

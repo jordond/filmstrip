@@ -1,6 +1,7 @@
 public final class dev/jordond/filmstrip/ffmpeg/FfmpegBackendKt {
+	public static final fun ffmpeg (Ldev/jordond/filmstrip/FilmstripBuilder;Lkotlin/jvm/functions/Function1;)Ldev/jordond/filmstrip/FilmstripBuilder;
+	public static final fun ffmpegBackend (Ldev/jordond/filmstrip/FilmstripBuilder;)Ldev/jordond/filmstrip/FilmstripBuilder;
 	public static final fun ffmpegBackend (Ldev/jordond/filmstrip/FilmstripBuilder;Ldev/jordond/filmstrip/ffmpeg/FfmpegConfig;)Ldev/jordond/filmstrip/FilmstripBuilder;
-	public static synthetic fun ffmpegBackend$default (Ldev/jordond/filmstrip/FilmstripBuilder;Ldev/jordond/filmstrip/ffmpeg/FfmpegConfig;ILjava/lang/Object;)Ldev/jordond/filmstrip/FilmstripBuilder;
 }
 
 public final class dev/jordond/filmstrip/ffmpeg/FfmpegConfig {
@@ -14,5 +15,18 @@ public final class dev/jordond/filmstrip/ffmpeg/FfmpegConfig {
 	public final fun getThreads ()Ljava/lang/Integer;
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/jordond/filmstrip/ffmpeg/FfmpegConfig$Builder {
+	public fun <init> ()V
+	public final fun build ()Ldev/jordond/filmstrip/ffmpeg/FfmpegConfig;
+	public final fun getExecutablePath ()Ljava/lang/String;
+	public final fun getExtraArgs ()Ljava/util/List;
+	public final fun getProbePath ()Ljava/lang/String;
+	public final fun getThreads ()Ljava/lang/Integer;
+	public final fun setExecutablePath (Ljava/lang/String;)V
+	public final fun setExtraArgs (Ljava/util/List;)V
+	public final fun setProbePath (Ljava/lang/String;)V
+	public final fun setThreads (Ljava/lang/Integer;)V
 }
 

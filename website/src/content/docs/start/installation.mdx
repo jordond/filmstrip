@@ -59,7 +59,7 @@ filmstrip is pre-1.0.0, so the API might break between releases until then.
 <Code code={build} lang="kotlin" title="build.gradle.kts" />
 
 `filmstrip` is the bundle. It brings core, the effect catalogue, the player and the right export backend for each
-target. Call `allBackends()` once in [setup](/guides/setup/) and every target is ready.
+target. Each of them registers itself, so `Filmstrip()` in [setup](/guides/setup/) is ready on every target.
 
 filmstrip has no Gradle plugin. A build that applies Kotlin Multiplatform and the Android plugin resolves and
 compiles it for Android, iOS, the JVM, `js` and `wasmJs` with the dependency above and nothing else.
@@ -98,10 +98,10 @@ Pick single artifacts instead of the bundle when you want less on the classpath.
 
 | Artifact | What's in it |
 | --- | --- |
-| `filmstrip` | The bundle: core, effects, player, and the right backend for each target, plus `allBackends()` to register them. Not Compose. |
+| `filmstrip` | The bundle: core, effects, player, and the right backend for each target, each registering itself. Not Compose. |
 | `filmstrip-core` | Model, `MediaSource`/`MediaSink`, `probe()`, `ThumbnailSource`, the `VideoPlayer` API and `PlayerEngine` SPI, and the effect SPI. No runtime, no effect catalogue. |
 | `filmstrip-effects` | The built-in effect catalogue. GL effects on Android, Core Image on Apple, ffmpeg filter graphs on the JVM, and WebGL2 passes in the browser. |
-| `filmstrip-effects-filters` | Opt-in [filters](/guides/filters/) like VHS, on every target. Not in the bundle, so add it and call `filters()` on the builder. |
+| `filmstrip-effects-filters` | Opt-in [filters](/guides/filters/) like VHS, on every target. Not in the bundle. Add it and its filters register themselves. |
 | `filmstrip-transform` | The export planner, shared by every backend. Add a backend artifact alongside it to actually export. |
 | `filmstrip-transform-media3` | The Media3 backend, Android. |
 | `filmstrip-transform-avfoundation` | The AVFoundation backend, iOS and macOS. |

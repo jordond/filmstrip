@@ -19,7 +19,7 @@ class DiagnosticsReportTest {
   private val recorder = DiagnosticsRecorder()
   private val state =
     SampleAppState(
-      filmstrip = Filmstrip(),
+      filmstrip = Filmstrip { autoRegister(false) },
       recorder = recorder,
       scope = CoroutineScope(Dispatchers.Unconfined),
     )

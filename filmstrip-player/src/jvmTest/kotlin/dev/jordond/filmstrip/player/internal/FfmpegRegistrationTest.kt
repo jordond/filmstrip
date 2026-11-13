@@ -4,6 +4,7 @@ import dev.jordond.filmstrip.ComponentRegistry
 import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.ffmpeg.FfmpegConfig
+import dev.jordond.filmstrip.ffmpeg.ffmpeg
 import dev.jordond.filmstrip.ffmpeg.ffmpegBackend
 import dev.jordond.filmstrip.player.PlaybackError
 import dev.jordond.filmstrip.player.PreviewQualityPolicy
@@ -41,6 +42,18 @@ class FfmpegRegistrationTest {
   fun `a preview runs the toolchain its registration names`(): Unit =
     runBlocking {
       val components = Filmstrip { ffmpegBackend(FfmpegConfig(executablePath = "/nonexistent/ffmpeg")) }.components
+
+      FfmpegPreviewPlanner(components)
+        .plan(jvmFixtureComposition(), PreviewQualityPolicy.Full, ExportSpec())
+        .shouldBeInstanceOf<PlanResult.Refused<PlaybackError>>()
+        .error
+        .shouldBeInstanceOf<PlaybackError.DecoderUnavailable>()
+    }
+
+  @Test
+  fun `a preview runs the toolchain the block's ffmpeg config names`(): Unit =
+    runBlocking {
+      val components = Filmstrip { ffmpeg { executablePath = "/nonexistent/ffmpeg" } }.components
 
       FfmpegPreviewPlanner(components)
         .plan(jvmFixtureComposition(), PreviewQualityPolicy.Full, ExportSpec())

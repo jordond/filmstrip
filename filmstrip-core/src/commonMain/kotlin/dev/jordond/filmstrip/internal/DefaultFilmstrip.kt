@@ -168,15 +168,15 @@ internal class DefaultFilmstrip(
     FilmstripError.BackendMissing(
       artifact = EXPORT_BACKEND.artifact,
       message =
-        "`$operation` needs an export backend. Add ${EXPORT_BACKEND.artifact} and register it " +
-          "with Filmstrip { ${EXPORT_BACKEND.registration} }. Registered export engine " +
+        "`$operation` needs an export backend. Add ${EXPORT_BACKEND.artifact}, which registers itself, " +
+          "or call ${EXPORT_BACKEND.registration} on a builder with autoRegister(false). Registered export engine " +
           "factories: ${components.exportEngineFactories.size}.",
     )
 
   private companion object {
     val MISSING_PLAYER =
-      "`preview` needs a playback backend. Add dev.jordond.filmstrip:filmstrip-player and " +
-        "register it with Filmstrip { playerBackend() }."
+      "`preview` needs a playback backend. Add dev.jordond.filmstrip:filmstrip-player, which registers " +
+        "itself, or call playerBackend() on a builder with autoRegister(false)."
   }
 }
 

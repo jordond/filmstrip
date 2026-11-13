@@ -1,6 +1,7 @@
 package dev.jordond.filmstrip.effects.filters
 
 import dev.jordond.filmstrip.FilmstripBuilder
+import dev.jordond.filmstrip.FilmstripRegistrar
 import dev.jordond.filmstrip.effect.Attributes
 import dev.jordond.filmstrip.effect.EffectResolution
 import dev.jordond.filmstrip.effect.EffectResolver
@@ -26,7 +27,15 @@ public expect class FilterEffectResolver() : EffectResolver {
 /**
  * Registers the filter catalogue, the looks and the sounds.
  *
- * Without this call a filter resolves to nothing and `plan` refuses it by name.
+ * The catalogue registers itself when this artifact is a dependency, so a builder only calls this with discovery
+ * turned off, or to put a resolver of its own behind the catalogue. A second call on the same builder does nothing.
  */
-public fun FilmstripBuilder.filters(): FilmstripBuilder =
-  addEffectResolver(FilterEffectResolver()).addAudioEffectResolver(FilterAudioEffectResolver())
+public fun FilmstripBuilder.filters(): FilmstripBuilder = install(FiltersRegistrar())
+
+internal class FiltersRegistrar : FilmstripRegistrar {
+  override val id: String = "filmstrip-effects-filters"
+
+  override fun register(builder: FilmstripBuilder) {
+    builder.addEffectResolver(FilterEffectResolver()).addAudioEffectResolver(FilterAudioEffectResolver())
+  }
+}

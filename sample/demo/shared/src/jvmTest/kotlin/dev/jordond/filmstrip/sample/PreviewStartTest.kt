@@ -27,7 +27,7 @@ class PreviewStartTest {
   private val recorder = DiagnosticsRecorder()
   private val state =
     SampleAppState(
-      filmstrip = Filmstrip { addMediaProberFactory { MediaProber { resolved.await() } } },
+      filmstrip = Filmstrip { autoRegister(false).addMediaProberFactory { MediaProber { resolved.await() } } },
       recorder = recorder,
       scope = CoroutineScope(Dispatchers.Unconfined),
     )

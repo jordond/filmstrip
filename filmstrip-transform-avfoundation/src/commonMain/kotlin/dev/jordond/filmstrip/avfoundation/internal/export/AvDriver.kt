@@ -122,8 +122,8 @@ internal class AvDriver(
     }
 
   override fun unclaimed(specId: String): String =
-    "No resolver claimed $specId on the Apple backend. Register the built-in catalogue with " +
-      "builtInEffects(), or add a resolver that recognises RenderApi.CoreImage."
+    "No resolver claimed $specId on the Apple backend. Add the artifact that defines it, or a " +
+      "resolver that recognises RenderApi.CoreImage."
 
   override fun export(
     resolved: ResolvedComposition,

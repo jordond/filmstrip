@@ -50,6 +50,7 @@ class SampleSessionTest {
     SampleAppState(
       filmstrip =
         Filmstrip {
+          autoRegister(false)
           addMediaProberFactory { MediaProber { ProbeResult.Success(MediaInfo(5.seconds, null, emptyList(), true)) } }
         },
       scope = CoroutineScope(Dispatchers.Unconfined),
@@ -108,6 +109,7 @@ class SampleSessionTest {
       SampleAppState(
         filmstrip =
           Filmstrip {
+            autoRegister(false)
             addMediaProberFactory {
               MediaProber { ProbeResult.Success(MediaInfo(5.seconds, SOURCE_TRACK, emptyList(), true)) }
             }
@@ -170,6 +172,7 @@ class SampleSessionTest {
       SampleAppState(
         filmstrip =
           Filmstrip {
+            autoRegister(false)
             addMediaProberFactory { MediaProber { ProbeResult.Success(MediaInfo(5.seconds, null, emptyList(), true)) } }
           },
         scope = CoroutineScope(Dispatchers.Unconfined),
@@ -266,6 +269,7 @@ class SampleSessionTest {
     SampleAppState(
       filmstrip =
         Filmstrip {
+          autoRegister(false)
           addMediaProberFactory { MediaProber { ProbeResult.Success(MediaInfo(5.seconds, null, emptyList(), true)) } }
         },
       scope = CoroutineScope(Dispatchers.Unconfined),
@@ -277,6 +281,7 @@ class SampleSessionTest {
     SampleAppState(
       filmstrip =
         Filmstrip {
+          autoRegister(false)
           addMediaProberFactory {
             // Ignores its own cancellation the way a platform read past the point of no return does.
             MediaProber { source -> withContext(NonCancellable) { gates.getValue(source).await() } }

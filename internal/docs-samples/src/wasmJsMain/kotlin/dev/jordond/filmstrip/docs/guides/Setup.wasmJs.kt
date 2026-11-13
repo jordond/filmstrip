@@ -8,6 +8,7 @@ internal fun setupWebCodecs(): Filmstrip {
   // region setup-webcodecs
   val filmstrip =
     Filmstrip {
+      autoRegister(false)
       webCodecsBackend()
       playerBackend()
     }

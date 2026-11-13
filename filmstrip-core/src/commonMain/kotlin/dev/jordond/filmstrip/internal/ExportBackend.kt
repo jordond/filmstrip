@@ -4,7 +4,7 @@ package dev.jordond.filmstrip.internal
  * Which artifact owns encoding on this target, and the call that registers it.
  *
  * @property artifact The Maven coordinate to add.
- * @property registration The builder call that registers it, without a receiver.
+ * @property registration The builder call that registers it when discovery is off, without a receiver.
  */
 internal class ExportBackend(
   val artifact: String,

@@ -42,7 +42,12 @@ class AllBackendsTest {
 
   @Test
   fun `the transform backend alone registers no player`() {
-    val components = FilmstripBuilder().transformBackend().build().components
+    val components =
+      FilmstripBuilder()
+        .autoRegister(false)
+        .transformBackend()
+        .build()
+        .components
 
     components.backends.map { it.name } shouldBe listOf(DEFAULT_TRANSFORM_BACKEND)
     components.exportEngineFactories.size shouldBe 1

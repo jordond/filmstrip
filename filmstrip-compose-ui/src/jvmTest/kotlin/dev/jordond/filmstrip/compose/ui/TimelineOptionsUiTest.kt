@@ -139,7 +139,7 @@ class TimelineOptionsUiTest {
     setContent {
       Stage {
         FilmstripTimeline(
-          renderer = Filmstrip(),
+          renderer = Filmstrip { autoRegister(false) },
           composition = COMPOSITION,
           duration = DURATION,
           position = { position },
@@ -174,7 +174,7 @@ class TimelineOptionsUiTest {
     setContent {
       Stage {
         FilmstripTimeline(
-          renderer = Filmstrip(),
+          renderer = Filmstrip { autoRegister(false) },
           composition = COMPOSITION,
           duration = DURATION,
           position = position,

@@ -5,7 +5,6 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.window.ComposeViewport
 import dev.jordond.filmstrip.Filmstrip
-import dev.jordond.filmstrip.allBackends
 import dev.jordond.filmstrip.sample.exportSink
 import kotlinx.browser.document
 import kotlinx.coroutines.MainScope
@@ -17,7 +16,7 @@ import kotlinx.coroutines.launch
 @OptIn(ExperimentalComposeUiApi::class)
 fun main() {
   val scope = MainScope()
-  val filmstrip = Filmstrip { allBackends() }
+  val filmstrip = Filmstrip()
   val engine = TryEngine(scope, exporter = { edit, spec -> writeExport(filmstrip, edit, spec, exportSink()) })
   val bridge = TryBridge(engine::apply, engine::onPageHidden, engine::onGesture)
   bridge.start()

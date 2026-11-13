@@ -52,8 +52,8 @@ internal class Media3Driver(
   override fun toneMapLimit(sdrSources: List<MediaSource>): String? = hdrDecodeLimit(Build.VERSION.SDK_INT)
 
   override fun unclaimed(specId: String): String =
-    "No resolver claimed $specId on the Android backend. Register the built-in catalogue with " +
-      "builtInEffects(), or add a resolver that recognises RenderApi.OpenGlEs."
+    "No resolver claimed $specId on the Android backend. Add the artifact that defines it, or a " +
+      "resolver that recognises RenderApi.OpenGlEs."
 
   override suspend fun syncSampleAtOrBefore(
     source: MediaSource,

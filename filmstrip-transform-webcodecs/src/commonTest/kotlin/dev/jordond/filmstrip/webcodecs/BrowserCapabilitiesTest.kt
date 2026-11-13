@@ -157,10 +157,10 @@ class BrowserCapabilitiesTest {
     }
 
   @Test
-  fun anEmptyBuilderNamesTheArtifactThisBackendRegistersAs() =
+  fun aBuilderWithoutDiscoveryNamesTheArtifactThisBackendRegistersAs() =
     runTest {
       val missing =
-        Filmstrip {}
+        Filmstrip { autoRegister(false) }
           .probe(MediaSource.Uri("blob:nothing"))
           .shouldBeInstanceOf<ProbeResult.Failure>()
           .error

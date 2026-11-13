@@ -1,7 +1,6 @@
 package dev.jordond.filmstrip.docs.extending
 
 import dev.jordond.filmstrip.Filmstrip
-import dev.jordond.filmstrip.allBackends
 import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.EffectsBuilder
 import dev.jordond.filmstrip.edit.compositionOf
@@ -61,7 +60,6 @@ internal fun softFocusFilmstrip(): Filmstrip {
   // region register
   val filmstrip =
     Filmstrip {
-      allBackends()
       addEffectResolver(SoftFocusResolver())
     }
   // endregion

@@ -1,7 +1,6 @@
 package dev.jordond.filmstrip.docs.guides
 
 import dev.jordond.filmstrip.Filmstrip
-import dev.jordond.filmstrip.allBackends
 import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.effects.filters.camcorder.ClockStyle
@@ -11,7 +10,6 @@ import dev.jordond.filmstrip.effects.filters.camcorder.camcorder
 import dev.jordond.filmstrip.effects.filters.crt.crt
 import dev.jordond.filmstrip.effects.filters.film.Film
 import dev.jordond.filmstrip.effects.filters.film.film
-import dev.jordond.filmstrip.effects.filters.filters
 import dev.jordond.filmstrip.effects.filters.glitch.glitch
 import dev.jordond.filmstrip.effects.filters.lut.CubeLut
 import dev.jordond.filmstrip.effects.filters.lut.lut
@@ -24,17 +22,6 @@ import dev.jordond.filmstrip.effects.filters.vhs.TapeSpeed
 import dev.jordond.filmstrip.effects.filters.vhs.vhs
 import dev.jordond.filmstrip.media.MediaSource
 import kotlin.time.Duration.Companion.seconds
-
-internal fun filtersSetup(): Filmstrip {
-  // region register
-  val filmstrip =
-    Filmstrip {
-      allBackends()
-      filters()
-    }
-  // endregion
-  return filmstrip
-}
 
 internal fun pixelLook(): Composition {
   // region pixel

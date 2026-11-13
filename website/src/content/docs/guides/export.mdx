@@ -142,8 +142,8 @@ On every backend an SD source beside an HDR one has no grade to keep, so `HdrMod
 
 ## Film
 
-`Film` from `filmstrip-effects-filters` makes the frame look like it was shot on film. Register the renderer with
-`filters()` on the builder. `grain` and `halation` run from `0f` to `1f`, on a clip, a track or the composition, and
+`Film` from `filmstrip-effects-filters` makes the frame look like it was shot on film. Its renderer
+registers itself once the artifact is a dependency. `grain` and `halation` run from `0f` to `1f`, on a clip, a track or the composition, and
 either at `0f` skips its part. Halation glows warm around the brightest parts of the picture, and grain lands over the
 result, heaviest in the midtones.
 

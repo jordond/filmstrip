@@ -158,7 +158,8 @@ internal fun testComposition(path: String): Composition =
 /**
  * A `Filmstrip` whose only backend is [engine].
  */
-internal fun filmstripWith(engine: RecordingEngine): Filmstrip = Filmstrip { addPlayerEngineFactory { _, _ -> engine } }
+internal fun filmstripWith(engine: RecordingEngine): Filmstrip =
+  Filmstrip { autoRegister(false).addPlayerEngineFactory { _, _ -> engine } }
 
 /**
  * A preview reporting [outputSize] and nothing else of note.

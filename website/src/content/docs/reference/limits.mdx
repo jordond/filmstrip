@@ -187,7 +187,7 @@ Which audio track is the default comes from these, on each backend:
 AVFoundation opens no Matroska or WebM file, from a path or from bytes, so Apple refuses one as `SourceUnreadable`.
 On iOS AVFoundation opens no MPEG transport stream either, and Apple refuses one the same way. macOS opens it.
 
-On Android the tracks come from media3's own extractors, once the media3 backend is registered. Without it, core's
+On Android the tracks come from media3's own extractors, once `filmstrip-transform-media3` is a dependency. Without it, core's
 prober flags no default track outside an MP4 or QuickTime file, so a clip that names no track plays the first one.
 
 media3 leaves out a track whose codec it can't read, so outside an MP4 or QuickTime file the audio tracks after it are

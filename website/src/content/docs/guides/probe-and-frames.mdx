@@ -23,7 +23,7 @@ reports the same length for the same file. Any other container gets the length t
 On a video track, size a target from `displaySize`, which has rotation and pixel aspect applied, rather than `codedSize`.
 `bitDepth` is often null, since only HEVC carries it somewhere every backend can read. `hdrTransfer` is null for SDR.
 
-Android and Apple read a container with core alone. The JVM and the browser need a registered backend. Without one, both
+Android and Apple read a container with core alone. The JVM and the browser need their backend artifact. Without it, both
 fail with `BackendMissing`, naming the artifact to add. A still needs no backend on any target.
 
 On the JVM a probe that `ffprobe` hasn't finished within its deadline is stopped and refused as `TimedOut`, which names

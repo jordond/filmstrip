@@ -79,8 +79,8 @@ internal class FfmpegPlanner(
       },
       parityOf = FfmpegParity::of,
       unclaimedMessage = { specId ->
-        "No resolver claimed $specId on the ffmpeg backend. Register the built-in catalogue with " +
-          "builtInEffects(), or add a resolver that recognises RenderApi.FilterGraph."
+        "No resolver claimed $specId on the ffmpeg backend. Add the artifact that defines it, or a " +
+          "resolver that recognises RenderApi.FilterGraph."
       },
       ladder = CODEC_LADDER,
       noteOf = FfmpegParity::noteFor,

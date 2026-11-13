@@ -20,4 +20,38 @@ public class FfmpegConfig(
   public val probePath: String? = null,
   public val extraArgs: List<String> = emptyList(),
   public val threads: Int? = null,
-)
+) {
+  /**
+   * Collects an [FfmpegConfig] field by field, for `ffmpeg { }` on a `FilmstripBuilder`.
+   *
+   * Every field starts at the [FfmpegConfig] default.
+   */
+  public class Builder {
+    /**
+     * An absolute path to `ffmpeg`, or null to read `FILMSTRIP_FFMPEG` and then search `PATH`.
+     */
+    public var executablePath: String? = null
+
+    /**
+     * An absolute path to `ffprobe`, or null to resolve it the way [FfmpegConfig.probePath] does.
+     */
+    public var probePath: String? = null
+
+    /**
+     * Arguments appended to every encode, immediately before the output file.
+     */
+    public var extraArgs: List<String> = emptyList()
+
+    /**
+     * How many threads to allow, or null to let ffmpeg decide.
+     */
+    public var threads: Int? = null
+
+    /**
+     * Builds the config these fields describe.
+     *
+     * @return The config.
+     */
+    public fun build(): FfmpegConfig = FfmpegConfig(executablePath, probePath, extraArgs, threads)
+  }
+}

@@ -43,7 +43,7 @@ needs.
 ## Usage
 
 ```kotlin
-val filmstrip = Filmstrip { allBackends() }
+val filmstrip = Filmstrip()
 
 val composition = compositionOf {
   clip(MediaSource.of(path))

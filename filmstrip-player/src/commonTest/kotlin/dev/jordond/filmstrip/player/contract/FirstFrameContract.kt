@@ -52,7 +52,15 @@ internal suspend fun EngineUnderTest.surfaceReadStaysCurrentWhilePaused(
   engine.features.supports(PlayerFeature.LiveParameterRedraw) shouldBe claimsLiveParameterRedraw
 
   val held = HeldLoadEngine(engine)
-  val player = Filmstrip { addPlayerEngineFactory { _, _ -> held } }.preview(fixture, PlayerConfig())
+  val player =
+    Filmstrip {
+      autoRegister(false).addPlayerEngineFactory {
+        _,
+        _,
+        ->
+        held
+      }
+    }.preview(fixture, PlayerConfig())
   var read: ReadbackResult? = null
   val surface =
     scope.launch {

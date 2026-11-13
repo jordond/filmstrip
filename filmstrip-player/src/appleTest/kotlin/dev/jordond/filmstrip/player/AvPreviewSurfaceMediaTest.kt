@@ -20,7 +20,7 @@ class AvPreviewSurfaceMediaTest {
   @Test
   fun `a preview no AVFoundation engine backs is left alone`() =
     contractTest { scope ->
-      val player = Filmstrip { }.preview(appleFixtureComposition())
+      val player = Filmstrip { autoRegister(false) }.preview(appleFixtureComposition())
       val events = mutableListOf<PlaybackEvent>()
       val collector = scope.launch { player.events.collect { events += it } }
       try {

@@ -190,8 +190,10 @@ class AppleVhsHardwareTest {
       val edit = Composition(listOf(Track(listOf(Clip(MediaSource.of(fixture(CLIP)))))), listOf(Vhs()))
 
       val refused =
-        Filmstrip { avFoundationBackend() }
-          .plan(edit, ExportSpec())
+        Filmstrip {
+          autoRegister(false)
+          avFoundationBackend()
+        }.plan(edit, ExportSpec())
           .shouldBeInstanceOf<Verdict.Incapable>()
 
       refused.reasons.joinToString { it.message } shouldContain Vhs.ID

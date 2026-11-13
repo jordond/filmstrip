@@ -5,10 +5,10 @@ description: Which backend runs on which target, what it needs at runtime and wh
 
 import { MIN_IOS, MIN_MACOS, versions } from '../../../lib/versions'
 
-Each target has one backend. With the `filmstrip` bundle, `allBackends()` registers the right one. If you depend on a
-backend directly, call its own function.
+Each target has one backend, and it registers itself when its artifact is on the classpath. The `filmstrip` bundle
+brings the right one. With `autoRegister(false)` in the block, call its own function.
 
-| Backend      | Targets           | Artifact                           | Register with           |
+| Backend      | Targets           | Artifact                           | Explicit call           |
 | ------------ | ----------------- | ---------------------------------- | ----------------------- |
 | Media3       | Android           | `filmstrip-transform-media3`       | `media3Backend()`       |
 | AVFoundation | iOS and macOS     | `filmstrip-transform-avfoundation` | `avFoundationBackend()` |

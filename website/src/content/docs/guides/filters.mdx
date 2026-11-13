@@ -14,11 +14,7 @@ use one doesn't carry one. See [Installation](/start/installation/#modules) for 
 
 <PagePlayground {...frontmatter.playground} />
 
-## Register them
-
-Call `filters()` on the builder. A filter with no renderer registered is refused by name at plan time.
-
-<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Filters.kt" region="register" />
+Adding the artifact is all it takes. Its renderers register themselves with every `Filmstrip` you build.
 
 ## VHS
 

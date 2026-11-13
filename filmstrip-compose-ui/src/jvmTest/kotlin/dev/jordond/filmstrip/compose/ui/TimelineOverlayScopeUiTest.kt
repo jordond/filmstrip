@@ -95,7 +95,7 @@ class TimelineOverlayScopeUiTest {
     setContent {
       Box(Modifier.size(width = 400.dp, height = 120.dp)) {
         FilmstripTimeline(
-          renderer = Filmstrip(),
+          renderer = Filmstrip { autoRegister(false) },
           composition = COMPOSITION,
           duration = DURATION,
           position = position,

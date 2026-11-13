@@ -2832,6 +2832,7 @@ final class dev.jordond.filmstrip/FilmstripBuilder { // dev.jordond.filmstrip/Fi
     final fun addEffectResolver(dev.jordond.filmstrip.effect/EffectResolver): dev.jordond.filmstrip/FilmstripBuilder // dev.jordond.filmstrip/FilmstripBuilder.addEffectResolver|addEffectResolver(dev.jordond.filmstrip.effect.EffectResolver){}[0]
     final fun addPlayerEngineFactory(dev.jordond.filmstrip.player/PlayerEngineFactory): dev.jordond.filmstrip/FilmstripBuilder // dev.jordond.filmstrip/FilmstripBuilder.addPlayerEngineFactory|addPlayerEngineFactory(dev.jordond.filmstrip.player.PlayerEngineFactory){}[0]
     final fun addThumbnailSourceFactory(dev.jordond.filmstrip.thumbnail/ThumbnailSourceFactory): dev.jordond.filmstrip/FilmstripBuilder // dev.jordond.filmstrip/FilmstripBuilder.addThumbnailSourceFactory|addThumbnailSourceFactory(dev.jordond.filmstrip.thumbnail.ThumbnailSourceFactory){}[0]
+    final fun autoRegister(kotlin/Boolean): dev.jordond.filmstrip/FilmstripBuilder // dev.jordond.filmstrip/FilmstripBuilder.autoRegister|autoRegister(kotlin.Boolean){}[0]
     final fun build(): dev.jordond.filmstrip/Filmstrip // dev.jordond.filmstrip/FilmstripBuilder.build|build(){}[0]
     final fun components(kotlin/Function1<dev.jordond.filmstrip/ComponentRegistry.Builder, kotlin/Unit>): dev.jordond.filmstrip/FilmstripBuilder // dev.jordond.filmstrip/FilmstripBuilder.components|components(kotlin.Function1<dev.jordond.filmstrip.ComponentRegistry.Builder,kotlin.Unit>){}[0]
 }

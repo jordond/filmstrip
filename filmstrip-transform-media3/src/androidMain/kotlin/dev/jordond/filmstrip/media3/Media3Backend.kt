@@ -1,6 +1,7 @@
 package dev.jordond.filmstrip.media3
 
 import dev.jordond.filmstrip.FilmstripBuilder
+import dev.jordond.filmstrip.FilmstripRegistrar
 import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.capability.EffectParity
 import dev.jordond.filmstrip.codec.VideoCodec
@@ -23,13 +24,24 @@ import dev.jordond.filmstrip.transform.internal.copy.Mp4Copy
  * It also registers a prober that lists a source's audio tracks the way media3's own extractors read them, so `probe`
  * names the tracks an export can play, in the order it plays them by.
  *
+ * The backend registers itself when its artifact is a dependency, so a builder only calls this with discovery turned
+ * off. A second call on the same builder does nothing.
+ *
  * @return This builder.
  */
-public fun FilmstripBuilder.media3Backend(): FilmstripBuilder =
-  builtInEffects()
-    .addExportEngineFactory { components -> media3ExportEngine(components) }
-    .addMediaProberFactory { Media3Prober() }
-    .addBackendInfo(BackendInfo(name = "media3", artifact = "dev.jordond.filmstrip:filmstrip-transform-media3"))
+public fun FilmstripBuilder.media3Backend(): FilmstripBuilder = install(Media3Registrar())
+
+internal class Media3Registrar : FilmstripRegistrar {
+  override val id: String = "filmstrip-transform-media3"
+
+  override fun register(builder: FilmstripBuilder) {
+    builder
+      .builtInEffects()
+      .addExportEngineFactory { components -> media3ExportEngine(components) }
+      .addMediaProberFactory { Media3Prober() }
+      .addBackendInfo(BackendInfo(name = "media3", artifact = "dev.jordond.filmstrip:filmstrip-transform-media3"))
+  }
+}
 
 /**
  * Builds the engine every media3 lowering goes through.

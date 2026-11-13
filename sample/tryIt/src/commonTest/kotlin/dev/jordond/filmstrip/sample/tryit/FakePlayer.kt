@@ -93,4 +93,4 @@ internal data class LoadedEdit(
  * A [FakePlayer] over [source], delegating to the player a filmstrip with no backend hands out.
  */
 internal fun fakePlayer(source: MediaSource): FakePlayer =
-  FakePlayer(Filmstrip { }.preview(compositionOf { clip(source) }, PlayerConfig()))
+  FakePlayer(Filmstrip { autoRegister(false) }.preview(compositionOf { clip(source) }, PlayerConfig()))

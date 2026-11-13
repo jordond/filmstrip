@@ -5,8 +5,6 @@ import androidx.compose.material3.Text
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.window.ComposeViewport
 import dev.jordond.filmstrip.Filmstrip
-import dev.jordond.filmstrip.allBackends
-import dev.jordond.filmstrip.effects.filters.filters
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.sample.ui.SampleTheme
 import dev.jordond.filmstrip.sample.ui.Tokens
@@ -21,11 +19,7 @@ import org.w3c.dom.url.URLSearchParams
  */
 @OptIn(ExperimentalComposeUiApi::class)
 fun main() {
-  val filmstrip =
-    Filmstrip {
-      allBackends()
-      filters()
-    }
+  val filmstrip = Filmstrip()
   val copy: (String) -> Unit = { window.navigator.clipboard.writeText(it) }
   val logo = ImageSource.ofUri(URL("logo.png", window.location.href).href)
   val sample = URLSearchParams(window.location.search.toJsString()).get("sample")

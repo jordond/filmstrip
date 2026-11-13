@@ -8,6 +8,7 @@ internal fun setupAvFoundation(): Filmstrip {
   // region setup-avfoundation
   val filmstrip =
     Filmstrip {
+      autoRegister(false)
       avFoundationBackend()
       playerBackend()
     }

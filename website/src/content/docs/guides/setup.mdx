@@ -1,6 +1,6 @@
 ---
 title: Setup
-description: Create a Filmstrip instance and register its backends.
+description: Create a Filmstrip instance and choose what it registers.
 ---
 
 import { Aside, TabItem, Tabs } from '@astrojs/starlight/components'
@@ -11,16 +11,32 @@ your DI graph lives, and pass it to whatever needs to probe, plan, export or pre
 
 ## Register everything
 
-With the `filmstrip` artifact, `allBackends()` registers this target's export backend, the player and the built-in
-effects.
+Every filmstrip artifact on the classpath registers itself. With the `filmstrip` bundle, `Filmstrip()` has this
+target's export backend, the player and the built-in effects, and adding `filmstrip-effects-filters` adds the filters.
 
 <Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Setup.kt" region="setup-all" />
 
-An instance built with an empty block can only probe, and only on Android and Apple. The same probe returns
-`FilmstripError.BackendMissing` on the JVM and in a browser. Anything else reports `BackendMissing` too, naming the
-artifact to add.
+Anything you register in the block sits in front of what registered itself, so your own resolvers and factories are
+asked first.
 
-## Register only what you need
+## Configure ffmpeg
+
+On the JVM, `ffmpeg { }` sets where the ffmpeg backend finds its programs. It can go anywhere in the block.
+
+<Snippet file="jvmMain/kotlin/dev/jordond/filmstrip/docs/guides/Setup.jvm.kt" region="setup-ffmpeg" />
+
+Without it filmstrip reads `FILMSTRIP_FFMPEG` and `FILMSTRIP_FFPROBE`, then searches `PATH`.
+
+## Register by hand
+
+`autoRegister(false)` turns discovery off, so the instance holds only what the block registers. `allBackends()` then
+registers this target's export backend, the player and the built-in effects.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Setup.kt" region="setup-explicit" />
+
+An instance built this way with nothing in the block can only probe, and only on Android and Apple. The same probe
+returns `FilmstripError.BackendMissing` on the JVM and in a browser. Anything else reports `BackendMissing` too,
+naming the artifact to add.
 
 `transformBackend()` registers the export backend and the built-in effects without the player.
 
@@ -30,8 +46,7 @@ artifact to add.
 
 <Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Setup.kt" region="setup-player" />
 
-Without the `filmstrip` bundle, depend on `filmstrip-player` and the engine artifact for each target, then register
-the engine by name.
+Without the `filmstrip` bundle, call the engine's own function.
 
 <Tabs syncKey="platform">
   <TabItem label="Android">
@@ -40,18 +55,15 @@ the engine by name.
   <TabItem label="iOS">
     <Snippet file="iosMain/kotlin/dev/jordond/filmstrip/docs/guides/Setup.ios.kt" region="setup-avfoundation" />
   </TabItem>
-  <TabItem label="Desktop (JVM)">
-    <Snippet file="jvmMain/kotlin/dev/jordond/filmstrip/docs/guides/Setup.jvm.kt" region="setup-ffmpeg" />
-    `FfmpegConfig` is optional. Without it filmstrip reads `FILMSTRIP_FFMPEG` and `FILMSTRIP_FFPROBE`, then searches
-    `PATH`.
-  </TabItem>
   <TabItem label="Web">
     <Snippet file="wasmJsMain/kotlin/dev/jordond/filmstrip/docs/guides/Setup.wasmJs.kt" region="setup-webcodecs" />
   </TabItem>
 </Tabs>
 
+On the JVM, `ffmpegBackend()` does the same and reads `ffmpeg { }` like discovery does.
+
 Each registration goes in at the front, so a backend registered later in the block wins over one registered
-before it.
+before it. Calling a module's function twice, or calling it with discovery on, registers it once.
 
 ## Android context
 
@@ -112,7 +124,7 @@ An app that runs no App Startup initializers at all removes the provider instead
     tools:node="remove" />
 ```
 
-Either way the app still builds, and `Filmstrip(context) { }` is then the only thing that hands filmstrip a
+Either way the app still builds, and `Filmstrip(context)` is then the only thing that hands filmstrip a
 context.
 
 ### Without a context

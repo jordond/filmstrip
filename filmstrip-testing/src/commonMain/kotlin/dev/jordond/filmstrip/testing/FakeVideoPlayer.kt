@@ -58,7 +58,18 @@ public class FakeVideoPlayer private constructor(
   private constructor(
     engine: FakePlayerEngine,
     composition: Composition,
-  ) : this(engine, Filmstrip { addPlayerEngineFactory { _, _ -> engine } }.preview(composition), composition)
+  ) : this(
+    engine,
+    Filmstrip {
+      autoRegister(false).addPlayerEngineFactory {
+        _,
+        _,
+        ->
+        engine
+      }
+    }.preview(composition),
+    composition,
+  )
 
   private val recorded = mutableListOf<PlayerCall>(PlayerCall.SetComposition(composition, null, false))
 

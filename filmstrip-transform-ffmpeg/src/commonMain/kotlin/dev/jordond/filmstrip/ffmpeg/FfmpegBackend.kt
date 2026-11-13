@@ -3,7 +3,9 @@ package dev.jordond.filmstrip.ffmpeg
 import dev.jordond.filmstrip.FilmstripBuilder
 import dev.jordond.filmstrip.FilmstripComponents
 import dev.jordond.filmstrip.FilmstripError
+import dev.jordond.filmstrip.FilmstripRegistrar
 import dev.jordond.filmstrip.InternalFilmstripApi
+import dev.jordond.filmstrip.OptionKey
 import dev.jordond.filmstrip.diagnostics.BackendInfo
 import dev.jordond.filmstrip.effects.builtInEffects
 import dev.jordond.filmstrip.export.EngineComponents
@@ -13,7 +15,28 @@ import dev.jordond.filmstrip.ffmpeg.internal.FfmpegProber
 import dev.jordond.filmstrip.ffmpeg.internal.FfmpegRuntime
 
 /**
+ * Sets how the ffmpeg backend finds its binaries and what it passes them.
+ *
+ * The backend registers itself when `filmstrip-transform-ffmpeg` is a dependency and reads this config when the
+ * instance first needs ffmpeg, so this call can go anywhere in the block. A later call replaces an earlier one.
+ *
+ * ```kotlin
+ * val filmstrip = Filmstrip {
+ *   ffmpeg { executablePath = "/opt/ffmpeg/bin/ffmpeg" }
+ * }
+ * ```
+ *
+ * @param block Sets the config's fields.
+ * @return This builder.
+ */
+public fun FilmstripBuilder.ffmpeg(block: FfmpegConfig.Builder.() -> Unit): FilmstripBuilder =
+  option(FFMPEG_CONFIG, FfmpegConfig.Builder().apply(block).build())
+
+/**
  * Registers the ffmpeg backend, so `probe`, `plan`, `export` and `capabilities` work on the desktop.
+ *
+ * The backend registers itself when its artifact is a dependency, so a builder only calls this with discovery turned
+ * off. It runs the config [ffmpeg] set, or the default one. A second call on the same builder does nothing.
  *
  * filmstrip ships no ffmpeg and links none of it. This drives an `ffmpeg` and an `ffprobe` that are
  * already on the machine, as separate programs over an argument list and a pipe. Nothing is
@@ -24,21 +47,34 @@ import dev.jordond.filmstrip.ffmpeg.internal.FfmpegRuntime
  * [FilmstripError.ToolchainMissing] when there is nothing usable to run, which is a value rather than
  * a failure to construct the graph.
  *
- * Register it after another engine backend on a platform that has both and this one wins, because
- * each registration goes in at the front.
+ * @return This builder.
+ */
+public fun FilmstripBuilder.ffmpegBackend(): FilmstripBuilder = install(FfmpegRegistrar())
+
+/**
+ * Sets [config] the way [ffmpeg] does, then registers the ffmpeg backend.
  *
  * @param config How to find ffmpeg and what to pass it.
  * @return This builder.
  */
-public fun FilmstripBuilder.ffmpegBackend(config: FfmpegConfig = FfmpegConfig()): FilmstripBuilder {
-  // One runtime behind both, so resolving the binaries, probing a clip and measuring the encoder
-  // ladder happen once for every component. The factory runs per caller, so the engine
-  // it hands back holds nothing worth keeping that the runtime does not already hold.
-  val runtime = FfmpegRuntime.of(config)
-  return builtInEffects()
-    .addExportEngineFactory(FfmpegEngineFactory(runtime))
-    .addMediaProberFactory { FfmpegProber(runtime) }
-    .addBackendInfo(BackendInfo(name = "ffmpeg", artifact = "dev.jordond.filmstrip:filmstrip-transform-ffmpeg"))
+public fun FilmstripBuilder.ffmpegBackend(config: FfmpegConfig): FilmstripBuilder =
+  option(FFMPEG_CONFIG, config).ffmpegBackend()
+
+private val FFMPEG_CONFIG = OptionKey<FfmpegConfig>("ffmpeg")
+
+internal class FfmpegRegistrar : FilmstripRegistrar {
+  override val id: String = "filmstrip-transform-ffmpeg"
+
+  override fun register(builder: FilmstripBuilder) {
+    // One runtime behind both, so resolving the binaries, probing a clip and measuring the encoder ladder happen once
+    // for every component. It is looked up on first use, after the block has set its config.
+    val runtime = lazy { FfmpegRuntime.of(builder.optionOrNull(FFMPEG_CONFIG) ?: FfmpegConfig()) }
+    builder
+      .builtInEffects()
+      .addExportEngineFactory(FfmpegEngineFactory(runtime))
+      .addMediaProberFactory { FfmpegProber(runtime.value) }
+      .addBackendInfo(BackendInfo(name = "ffmpeg", artifact = "dev.jordond.filmstrip:filmstrip-transform-ffmpeg"))
+  }
 }
 
 /**
@@ -79,7 +115,7 @@ public fun FilmstripComponents.registeredFfmpegEngine(): FfmpegExportEngine? =
  * Builds engines over one registration's runtime, which is what [registeredFfmpegEngine] finds it by.
  */
 private class FfmpegEngineFactory(
-  private val runtime: FfmpegRuntime,
+  private val runtime: Lazy<FfmpegRuntime>,
 ) : ExportEngineFactory {
-  override fun create(components: EngineComponents): FfmpegExportEngine = FfmpegExportEngine(components, runtime)
+  override fun create(components: EngineComponents): FfmpegExportEngine = FfmpegExportEngine(components, runtime.value)
 }

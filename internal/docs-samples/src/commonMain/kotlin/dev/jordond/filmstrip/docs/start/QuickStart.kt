@@ -1,7 +1,6 @@
 package dev.jordond.filmstrip.docs.start
 
 import dev.jordond.filmstrip.Filmstrip
-import dev.jordond.filmstrip.allBackends
 import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.ExportStatus
@@ -11,10 +10,7 @@ import dev.jordond.filmstrip.media.MediaSource
 
 internal suspend fun quickStart(path: String) {
   // region quick-start
-  val filmstrip =
-    Filmstrip {
-      allBackends()
-    }
+  val filmstrip = Filmstrip()
 
   val composition =
     compositionOf {

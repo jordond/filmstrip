@@ -13,8 +13,9 @@ import dev.jordond.filmstrip.thumbnail.ThumbnailSourceFactory
 /**
  * Every pluggable piece a [Filmstrip] instance was built with.
  *
- * Components are always registered explicitly, through [Builder]. Resolvers and factories are inserted at the front,
- * so one registered after a built-in overrides it. Backend infos and diagnostic listeners keep registration order.
+ * Components are registered through [Builder]. Resolvers and factories are inserted at the front, so one registered
+ * after a built-in overrides it. Backend infos and diagnostic listeners keep registration order. A [FilmstripBuilder]
+ * puts the artifacts it discovered behind everything its block registered.
  *
  * @property effectResolvers Resolvers that lower an effect spec to something an engine can run.
  * @property audioEffectResolvers Resolvers that lower an audio effect spec to something an engine can run.
@@ -43,6 +44,20 @@ public class ComponentRegistry internal constructor(
    * @return A builder carrying every component in this registry, in the same order.
    */
   public fun newBuilder(): Builder = Builder(this)
+
+  // Everything here ahead of everything in [base], so a resolver or factory in this registry wins, and [base]'s
+  // backend infos and listeners come first in their lists.
+  internal fun layeredOver(base: ComponentRegistry): ComponentRegistry =
+    ComponentRegistry(
+      effectResolvers = effectResolvers + base.effectResolvers,
+      audioEffectResolvers = audioEffectResolvers + base.audioEffectResolvers,
+      playerEngineFactories = playerEngineFactories + base.playerEngineFactories,
+      thumbnailSourceFactories = thumbnailSourceFactories + base.thumbnailSourceFactories,
+      exportEngineFactories = exportEngineFactories + base.exportEngineFactories,
+      mediaProberFactories = mediaProberFactories + base.mediaProberFactories,
+      backends = base.backends + backends,
+      diagnosticListeners = base.diagnosticListeners + diagnosticListeners,
+    )
 
   /**
    * Accumulates components. Resolvers and factories go in front-first so later registrations take precedence, and
