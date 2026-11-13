@@ -5,6 +5,7 @@ package dev.jordond.filmstrip.webcodecs
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.webcodecs.internal.SourceReader
 import dev.jordond.filmstrip.webcodecs.internal.interop.AudioSampleSink
+import dev.jordond.filmstrip.webcodecs.internal.interop.asDouble
 import kotlinx.coroutines.await
 import kotlin.js.ExperimentalWasmJsInterop
 import kotlin.math.abs
@@ -40,7 +41,7 @@ internal suspend fun decodeAudioSamples(source: MediaSource): DecodedSamples {
       track
         .getSampleRate()
         .await()
-        .toDouble()
+        .asDouble()
         .toInt()
     val iterator = AudioSampleSink(track).samples(0.0, Double.POSITIVE_INFINITY)
     val chunks = mutableListOf<FloatArray>()

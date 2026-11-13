@@ -65,6 +65,10 @@ internal actual fun Uint8Array.toByteArray(): ByteArray {
   return js("new Int8Array(view.buffer.slice(view.byteOffset, view.byteOffset + view.length))").unsafeCast<ByteArray>()
 }
 
+internal actual fun JsNumber.asDouble(): Double = unsafeCast<Double>()
+
+internal actual fun JsString.asString(): String = unsafeCast<String>()
+
 internal actual fun hasVideoEncoder(): Boolean = js("typeof VideoEncoder !== 'undefined'").unsafeCast<Boolean>()
 
 internal actual fun hasAudioEncoder(): Boolean = js("typeof AudioEncoder !== 'undefined'").unsafeCast<Boolean>()

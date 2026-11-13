@@ -3,6 +3,8 @@
 package dev.jordond.filmstrip.webcodecs.internal
 
 import dev.jordond.filmstrip.internal.awaitCatching
+import dev.jordond.filmstrip.webcodecs.internal.interop.asDouble
+import dev.jordond.filmstrip.webcodecs.internal.interop.asString
 import kotlinx.coroutines.await
 import kotlin.js.ExperimentalWasmJsInterop
 
@@ -69,7 +71,7 @@ private suspend fun EncodedFile.readBack(): VerifiedFile? {
         .videoTrack()
         ?.getCodec()
         ?.await()
-        ?.toString() ?: return null
+        ?.asString() ?: return null
     val audio = reader.verifiedAudio()
     val stream = reader.frames(0.0, Double.POSITIVE_INFINITY) ?: return null
     var decoded = 0L
@@ -124,8 +126,8 @@ private suspend fun EncodedFile.readBackAudio(): VerifiedFile? {
  */
 private suspend fun SourceReader.verifiedAudio(): VerifiedAudio? {
   val track = firstAudioTrack() ?: return null
-  val codec = track.getCodec().await()?.toString() ?: return null
-  val sampleRate = track.getSampleRate().await().toDouble()
-  val channels = track.getNumberOfChannels().await().toDouble()
+  val codec = track.getCodec().await()?.asString() ?: return null
+  val sampleRate = track.getSampleRate().await().asDouble()
+  val channels = track.getNumberOfChannels().await().asDouble()
   return VerifiedAudio(codec, sampleRate.toInt(), channels.toInt())
 }

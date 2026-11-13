@@ -28,6 +28,7 @@ import dev.jordond.filmstrip.webcodecs.internal.interop.InputAudioTrack
 import dev.jordond.filmstrip.webcodecs.internal.interop.MediabunnyIterator
 import dev.jordond.filmstrip.webcodecs.internal.interop.OfflineAudioContext
 import dev.jordond.filmstrip.webcodecs.internal.interop.WrappedAudioBuffer
+import dev.jordond.filmstrip.webcodecs.internal.interop.asDouble
 import dev.jordond.filmstrip.webcodecs.internal.interop.toFloat32Array
 import kotlinx.coroutines.await
 import kotlinx.coroutines.currentCoroutineContext
@@ -314,8 +315,8 @@ internal object BrowserAudioMix {
       AudioBufferSink(audioTrack).buffers(startSeconds, endSeconds)
     },
   ): AudioBuffer? {
-    val sampleRate = audioTrack.getSampleRate().await().toDouble()
-    val channels = audioTrack.getNumberOfChannels().await().toDouble()
+    val sampleRate = audioTrack.getSampleRate().await().asDouble()
+    val channels = audioTrack.getNumberOfChannels().await().asDouble()
     val channelCount = channels.toInt()
     val frames = bufferFrames(audioFramesOf(endSeconds - startSeconds, sampleRate.toInt()))
     val buffer = context.createBuffer(channelCount, frames, sampleRate.toFloat())

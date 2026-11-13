@@ -39,6 +39,7 @@ import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.test.encodesHdr
 import dev.jordond.filmstrip.transform.internal.geometry.blurPlan
 import dev.jordond.filmstrip.webcodecs.internal.SourceReader
+import dev.jordond.filmstrip.webcodecs.internal.interop.asString
 import io.kotest.assertions.withClue
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
@@ -283,9 +284,9 @@ class BrowserHdrMediaTest {
     val reader = checkNotNull(SourceReader.of(source))
     try {
       val colorSpace = checkNotNull(reader.videoTrack()).getColorSpace().await()
-      colorSpace.primaries?.toString() shouldBe "bt2020"
-      colorSpace.transfer?.toString() shouldBe transfer
-      colorSpace.matrix?.toString() shouldBe "bt2020-ncl"
+      colorSpace.primaries?.asString() shouldBe "bt2020"
+      colorSpace.transfer?.asString() shouldBe transfer
+      colorSpace.matrix?.asString() shouldBe "bt2020-ncl"
     } finally {
       reader.close()
     }

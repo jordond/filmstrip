@@ -30,6 +30,7 @@ import dev.jordond.filmstrip.webcodecs.internal.interop.EncodedVideoPacketSource
 import dev.jordond.filmstrip.webcodecs.internal.interop.JsOptions
 import dev.jordond.filmstrip.webcodecs.internal.interop.Mp4OutputFormat
 import dev.jordond.filmstrip.webcodecs.internal.interop.Output
+import dev.jordond.filmstrip.webcodecs.internal.interop.asString
 import io.kotest.assertions.withClue
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
@@ -223,7 +224,7 @@ class BrowserCopyGridMediaTest {
         return buildList {
           while (true) {
             val packet = stream.next() ?: break
-            add(CopyPacket(packet.timestamp.seconds, packet.type.toString() == "key"))
+            add(CopyPacket(packet.timestamp.seconds, packet.type.asString() == "key"))
           }
         }
       } finally {

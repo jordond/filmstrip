@@ -8,6 +8,8 @@ import dev.jordond.filmstrip.geometry.Size
 import kotlin.js.ExperimentalWasmJsInterop
 import kotlin.js.JsAny
 import kotlin.js.JsArray
+import kotlin.js.JsNumber
+import kotlin.js.JsString
 
 // Almost everything the browser export touches is a typed external in webMain, shared by both
 // targets. What is left here is the handful of things js and wasmJs genuinely spell differently:
@@ -118,6 +120,18 @@ internal expect fun hasAudioDecoder(): Boolean
  * volume both run on.
  */
 internal expect fun hasAudioContext(): Boolean
+
+/**
+ * Reads a JavaScript number as a Kotlin [Double]. The js target already represents it as one, so there the call is
+ * free. wasmJs converts across the boundary.
+ */
+internal expect fun JsNumber.asDouble(): Double
+
+/**
+ * Reads a JavaScript string as a Kotlin [String]. The js target already represents it as one, so there the call is
+ * free. wasmJs copies it across the boundary.
+ */
+internal expect fun JsString.asString(): String
 
 /**
  * VP9 Profile 2, 10-bit 4:2:0. The one HDR profile any browser encoder here was measured to take.

@@ -18,6 +18,7 @@ import dev.jordond.filmstrip.webcodecs.internal.interop.InputVideoTrack
 import dev.jordond.filmstrip.webcodecs.internal.interop.JsOptions
 import dev.jordond.filmstrip.webcodecs.internal.interop.Mp4OutputFormat
 import dev.jordond.filmstrip.webcodecs.internal.interop.Output
+import dev.jordond.filmstrip.webcodecs.internal.interop.asString
 import kotlinx.coroutines.await
 import kotlin.js.ExperimentalWasmJsInterop
 import kotlin.js.JsAny
@@ -168,7 +169,7 @@ private const val KEY_PACKET_TYPE = "key"
  * group of pictures nothing before it presents into begins.
  */
 private val EncodedPacket.isKeyPacket: Boolean
-  get() = type.toString() == KEY_PACKET_TYPE
+  get() = type.asString() == KEY_PACKET_TYPE
 
 /**
  * The video packets of [window]'s source in decode order, from the sync sample its copy opens on through
@@ -235,11 +236,11 @@ private fun EncodedPacket.rebasedOnto(origin: Double): EncodedPacket =
   if (origin == 0.0) this else clone(JsOptions().put("timestamp", timestamp - origin).build())
 
 private suspend fun InputVideoTrack.codecString(): String =
-  getCodec().await()?.toString()
+  getCodec().await()?.asString()
     ?: throw BrowserExportFailure("mediabunny read a video track with no codec name.")
 
 private suspend fun InputAudioTrack.codecString(): String =
-  getCodec().await()?.toString()
+  getCodec().await()?.asString()
     ?: throw BrowserExportFailure("mediabunny read an audio track with no codec name.")
 
 /**
