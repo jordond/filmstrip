@@ -166,6 +166,7 @@ abstract class GenerateTestMediaTask
         )
         if (spec.container == FixtureContainer.Mp4) addAll(listOf("-movflags", "+faststart"))
         addAll(audioTrackArgs(spec))
+        addAll(trackIdArgs(spec))
         addAll(DETERMINISTIC_ARGS)
         add(target)
       }
@@ -185,6 +186,19 @@ abstract class GenerateTestMediaTask
           track.language?.let { addAll(listOf("-metadata:s:a:$index", "language=$it")) }
           addAll(listOf("-disposition:a:$index", if (track.isDefault) "default" else "0"))
         }
+      }
+
+    /**
+     * Writes the track ids a fixture asks for into its track headers, the video stream first and then each audio
+     * stream.
+     *
+     * Empty for a fixture that asks for none, which ffmpeg numbers from one in stream order.
+     */
+    internal fun trackIdArgs(spec: FixtureSpec): List<String> =
+      buildList {
+        val ids = spec.trackIds ?: return@buildList
+        ids.forEachIndexed { stream, id -> addAll(listOf("-streamid", "$stream:$id")) }
+        addAll(listOf("-use_stream_ids_as_track_ids", "1"))
       }
 
     /**
@@ -300,7 +314,7 @@ abstract class GenerateTestMediaTask
             "error",
             "-count_frames",
             "-show_entries",
-            "stream=codec_type,width,height,avg_frame_rate,nb_read_frames,bit_rate,sample_rate,channels," +
+            "stream=id,codec_type,width,height,avg_frame_rate,nb_read_frames,bit_rate,sample_rate,channels," +
               "pix_fmt,color_transfer,color_primaries:stream_tags=language:stream_disposition=default",
             "-show_entries",
             "stream_side_data=rotation",
@@ -358,6 +372,10 @@ abstract class GenerateTestMediaTask
             val askedDefaults = spec.audioTracks.map { if (it.isDefault) "1" else "0" }
             if (languages != askedLanguages) add("languages $languages != $askedLanguages")
             if (defaults != askedDefaults) add("defaults $defaults != $askedDefaults")
+          }
+          spec.trackIds?.let { asked ->
+            val written = fields["id"].orEmpty().map { it.removePrefix("0x").toIntOrNull(radix = 16) }
+            if (written != asked) add("track ids $written != $asked")
           }
           if (spec.rotationDegrees != 0) {
             val rotation = fields["rotation"]?.firstOrNull()?.toIntOrNull()

@@ -5,12 +5,14 @@ import dev.jordond.filmstrip.test.MovieBoxes.ascii
 import dev.jordond.filmstrip.test.MovieBoxes.bareTrack
 import dev.jordond.filmstrip.test.MovieBoxes.box
 import dev.jordond.filmstrip.test.MovieBoxes.fullBox
+import dev.jordond.filmstrip.test.MovieBoxes.handler
 import dev.jordond.filmstrip.test.MovieBoxes.mediaHeader
 import dev.jordond.filmstrip.test.MovieBoxes.movieHeader
 import dev.jordond.filmstrip.test.MovieBoxes.trackHeader
 import dev.jordond.filmstrip.test.MovieBoxes.u32
 import dev.jordond.filmstrip.test.MovieBoxes.u64
 import dev.jordond.filmstrip.test.PrimedAudio
+import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
@@ -246,6 +248,76 @@ class MovieDurationTest {
       durationOf(PrimedAudio.mp4().copyOf(40)).shouldBeNull()
     }
 
+  @Test
+  fun theAudioTracksOfAMovieAreNamedByTheirTrackHeaders() =
+    runTest {
+      val file = movieFile(MOVIE_HEADER + media(1, "vide") + media(5, "soun") + media(9, "soun") + media(12, "soun"))
+
+      audioIdsOf(file, count = 3).shouldContainExactly(AudioTrackId(5), AudioTrackId(9), AudioTrackId(12))
+    }
+
+  @Test
+  fun theAudioTracksOfAFileThatIsNotAMovieAreNamedByTheirPlace() =
+    runTest {
+      val ids = audioIdsOf(ascii("ID3") + ByteArray(64), count = 3)
+
+      ids.shouldContainExactly(AudioTrackId(1), AudioTrackId(2), AudioTrackId(3))
+      ids shouldBe List(3) { audioTrackIdOf(isMovie = false, trackId = null, ordinal = it) }
+    }
+
+  // A reader that lists fewer audio tracks than the movie has sound headers is paired with the headers by place.
+  @Test
+  fun fewerTracksThanSoundHeadersTakeTheFirstHeaders() =
+    runTest {
+      val file = movieFile(MOVIE_HEADER + media(1, "vide") + media(5, "soun") + media(9, "soun") + media(12, "soun"))
+
+      audioIdsOf(file, count = 2).shouldContainExactly(AudioTrackId(5), AudioTrackId(9))
+    }
+
+  @Test
+  fun aTrackPastTheLastSoundHeaderIsNamedByItsPlace() =
+    runTest {
+      val file = movieFile(MOVIE_HEADER + media(1, "vide") + media(5, "soun") + media(9, "soun"))
+
+      audioIdsOf(file, count = 3).shouldContainExactly(
+        AudioTrackId(5),
+        AudioTrackId(9),
+        audioTrackIdOf(isMovie = true, trackId = null, ordinal = 2),
+      )
+    }
+
+  @Test
+  fun theAudioTracksOfAMovieWithATrackThatHasNoHeaderAreNamedByTheirPlace() =
+    runTest {
+      val headless = box("trak", box("mdia", mediaHeader(1000, 2000) + handler("soun")))
+      val file = movieFile(MOVIE_HEADER + media(5, "soun") + headless + media(12, "soun"))
+
+      audioIdsOf(file, count = 3) shouldBe List(3) { audioTrackIdOf(isMovie = false, trackId = null, ordinal = it) }
+    }
+
+  @Test
+  fun aSoundHeaderWithTheReservedIdZeroIsNamedByItsPlace() =
+    runTest {
+      val file = movieFile(MOVIE_HEADER + media(1, "vide") + media(5, "soun") + media(0, "soun") + media(12, "soun"))
+
+      audioIdsOf(file, count = 3).shouldContainExactly(AudioTrackId(5), AudioTrackId(2), AudioTrackId(12))
+    }
+
+  private fun media(
+    id: Long,
+    type: String,
+  ): ByteArray = box("trak", trackHeader(2000, id = id) + box("mdia", mediaHeader(1000, 2000) + handler(type)))
+
+  private suspend fun audioIdsOf(
+    file: ByteArray,
+    count: Int,
+  ): List<AudioTrackId> =
+    movieAudioTrackIdsOf(
+      file.size.toLong(),
+      { start, length -> file.copyOfRange(start.toInt(), minOf(file.size, start.toInt() + length)) },
+      count,
+    )
+
   private fun track(length: Duration): ByteArray = bareTrack(length.inWholeMilliseconds)
 
   private fun movieFile(
@@ -260,6 +332,7 @@ class MovieDurationTest {
 
   private companion object {
     val FTYP = box("ftyp", ascii("isom") + u32(0) + ascii("isom"))
+    val MOVIE_HEADER = movieHeader(timescale = 1000, duration = 2000)
     val FILLER_HEADER = u32(72) + ascii("free")
     const val RATE_ONE = 0x00010000L
 

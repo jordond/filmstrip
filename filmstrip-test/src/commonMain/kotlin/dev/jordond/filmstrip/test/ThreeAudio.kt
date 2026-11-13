@@ -71,6 +71,18 @@ public object ThreeAudio : AudioTrackFixture(
 }
 
 /**
+ * The `three_audio_gapped` fixture, the same tracks as [ThreeAudio] under track ids that skip.
+ *
+ * Its audio tracks carry the ids 5, 9 and 12, none of which is a track's place among the tracks or among the audio
+ * tracks, so a prober that counts the tracks instead of reading their headers names them wrong.
+ */
+@InternalFilmstripApi
+public object ThreeAudioGapped : AudioTrackFixture(
+  fileName = "three_audio_gapped.mp4",
+  tracks = ThreeAudio.tracks.zip(listOf(5L, 9L, 12L)) { track, id -> track.copy(id = AudioTrackId(id)) },
+)
+
+/**
  * The `three_audio_matroska` fixture, the same tracks as [ThreeAudio] written as Matroska.
  *
  * Only an MP4 or QuickTime file's track ids name its tracks, so these are named by their place among the audio tracks,

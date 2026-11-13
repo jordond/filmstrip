@@ -35,6 +35,33 @@ internal external class Uint8Array : JsAny {
   val length: Int
 
   fun at(index: Int): Int
+
+  /**
+   * A view of the same bytes from [begin] up to [end], copying nothing.
+   */
+  fun subarray(
+    begin: Int,
+    end: Int,
+  ): Uint8Array
+}
+
+/**
+ * Fetches [input] with the request options in [init], which is how a byte range of a URL is asked for.
+ */
+internal external fun fetch(
+  input: String,
+  init: JsAny,
+): Promise<Response>
+
+/**
+ * The answer to a [fetch].
+ *
+ * @property status The HTTP status, 206 when the server answered a range request with the range alone.
+ */
+internal external interface Response : JsAny {
+  val status: Int
+
+  fun arrayBuffer(): Promise<ArrayBuffer>
 }
 
 /**

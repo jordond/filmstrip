@@ -15,8 +15,12 @@ import dev.jordond.filmstrip.media.AudioTrackId
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.ProbeResult
+import dev.jordond.filmstrip.media.URL
 import dev.jordond.filmstrip.media.defaultAudioTrackOf
+import dev.jordond.filmstrip.media.fetch
+import dev.jordond.filmstrip.media.toByteArray
 import dev.jordond.filmstrip.test.ThreeAudio
+import dev.jordond.filmstrip.test.ThreeAudioGapped
 import dev.jordond.filmstrip.test.ThreeAudioMatroska
 import dev.jordond.filmstrip.test.ThreeAudioTs
 import dev.jordond.filmstrip.transform.internal.ResolveResult
@@ -26,12 +30,14 @@ import dev.jordond.filmstrip.webcodecs.internal.BrowserProber
 import dev.jordond.filmstrip.webcodecs.internal.SourceCache
 import dev.jordond.filmstrip.webcodecs.internal.SourceReader
 import dev.jordond.filmstrip.webcodecs.internal.audio.StretchedAudio
+import dev.jordond.filmstrip.webcodecs.internal.fetchRange
 import dev.jordond.filmstrip.webcodecs.internal.preview.BrowserAudioPreview
 import io.kotest.assertions.withClue
 import io.kotest.matchers.doubles.plusOrMinus
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
+import kotlinx.coroutines.await
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
@@ -40,9 +46,9 @@ import kotlin.time.Duration
 /**
  * Which audio track of a source with three of them the browser probes, exports and previews.
  *
- * The probe reads the published fixtures ffmpeg wrote, as MP4, as Matroska and as a transport stream, served beside
- * the test bundle. The exports and previews read a copy muxed here to the same shape [ThreeAudio] describes, checked
- * against it the same way. Each track is heard by the tone it carries.
+ * The probe reads the published fixtures ffmpeg wrote, as MP4, as an MP4 whose track ids skip, as Matroska and as a
+ * transport stream, served beside the test bundle. The exports and previews read a copy muxed here to the same shape
+ * [ThreeAudio] describes, checked against it the same way. Each track is heard by the tone it carries.
  */
 class BrowserAudioTrackMediaTest {
   @Test
@@ -71,6 +77,60 @@ class BrowserAudioTrackMediaTest {
         BrowserProber().probe(source).shouldBeInstanceOf<ProbeResult.Success>().info,
         readsLanguage = false,
       )
+    }
+
+  // The ids 5, 9 and 12 are no track's place, so they can only come off the track headers.
+  @Test
+  fun theProbeNamesTheTracksOfAGappedFixtureByTheirTrackHeaders() =
+    runTest {
+      ThreeAudioGapped.assertProbed(BrowserProber().probe(GAPPED).shouldBeInstanceOf<ProbeResult.Success>().info)
+    }
+
+  @Test
+  fun theProbeNamesTheTracksOfAGappedFixtureHeldInMemory() =
+    runTest {
+      val source = MediaSource.Bytes(gappedBlob().arrayBuffer().await().toByteArray())
+
+      ThreeAudioGapped.assertProbed(BrowserProber().probe(source).shouldBeInstanceOf<ProbeResult.Success>().info)
+    }
+
+  @Test
+  fun theProbeNamesTheTracksOfAGappedFixtureBehindAnObjectUrl() =
+    runTest {
+      val url = URL.createObjectURL(gappedBlob())
+      try {
+        val info = BrowserProber().probe(MediaSource.Uri(url)).shouldBeInstanceOf<ProbeResult.Success>().info
+
+        ThreeAudioGapped.assertProbed(info)
+      } finally {
+        URL.revokeObjectURL(url)
+      }
+    }
+
+  @Test
+  fun aRangeOfAnObjectUrlIsAnsweredWithTheRangeAlone() =
+    runTest {
+      val url = URL.createObjectURL(gappedBlob())
+      try {
+        val answer = fetchRange(url, start = 4, count = 4)
+
+        answer.isWhole shouldBe false
+        answer.bytes.decodeToString() shouldBe "ftyp"
+      } finally {
+        URL.revokeObjectURL(url)
+      }
+    }
+
+  @Test
+  fun aClipPlaysTheMiddleTrackOfAGappedFixtureByItsHeaderId() =
+    runTest {
+      val middle = ThreeAudioGapped.tracks[1]
+      val clip = Clip(GAPPED, effects = listOf(Brightness(BRIGHTNESS)), audioTrack = middle.id)
+
+      val audio = exported(Composition(listOf(Track(listOf(clip)))))
+
+      middle.id shouldBe AudioTrackId(9)
+      audio.samples.dominantHz(audio.sampleRate) shouldBe (middle.toneHz.toDouble() plusOrMinus DOMINANT_STEP_HZ)
     }
 
   @Test
@@ -146,6 +206,8 @@ class BrowserAudioTrackMediaTest {
       }
     }
 
+  private suspend fun gappedBlob() = fetch(GAPPED.uri).await().blob().await()
+
   private suspend fun threeAudio(): MediaSource =
     MediaSource.Bytes(
       makeClipWithAudioTracks(
@@ -204,6 +266,7 @@ class BrowserAudioTrackMediaTest {
 
   private companion object {
     val PUBLISHED = MediaSource.Uri("/base/kotlin/${ThreeAudio.FILE_NAME}")
+    val GAPPED = MediaSource.Uri("/base/kotlin/${ThreeAudioGapped.fileName}")
     const val FRAMES = 45
     const val BRIGHTNESS = 0.1f
     const val SPEED = 1.5

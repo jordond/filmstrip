@@ -27,6 +27,17 @@ object SharedFixtures {
     )
 
   /**
+   * [ThreeAudio] with track ids that skip, the video on 1 and the audio on 5, 9 and 12, so a test can tell a prober
+   * that reads the id in a track header from one that counts the tracks.
+   */
+  val ThreeAudioGapped: FixtureSpec =
+    ThreeAudio.copy(
+      name = "three_audio_gapped",
+      videoTrackId = 1,
+      audioTracks = ThreeAudio.audioTracks.zip(listOf(5, 9, 12)) { track, id -> track.copy(trackId = id) },
+    )
+
+  /**
    * [ThreeAudio] written as Matroska, so a test can check what a prober reads off a container with no MP4 track
    * headers, the default flag above all.
    */

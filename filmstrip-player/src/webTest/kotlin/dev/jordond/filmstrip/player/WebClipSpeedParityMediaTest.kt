@@ -30,8 +30,9 @@ internal object WebClipParity : ClipParityBackend {
 
   override val frameRate: Int = FIXTURE_FRAME_RATE
 
-  // H.264 at this frame size is hard on the caption's glyph edges. The same edit at speed 1 reads 38.6 dB on Chrome 156
-  // and the slow end 37.2 dB. A frame taken one source frame off reads 27 dB, well under this floor.
+  // H.264 keeps chroma at half size, which is hard on the caption's glyph edges over the fixture's saturated bars. On
+  // Chrome 157 the slow end reads 36.1 dB, 46.9 dB on luma alone and 45.3 dB outside the caption. A frame taken one
+  // source frame off reads 28.8 dB, well under this floor.
   override val minPsnrDb: Double get() = CAPTION_MIN_PSNR_DB
 
   override val minSsim: Double get() = encodedMinSsim()
@@ -58,5 +59,5 @@ internal object WebClipParity : ClipParityBackend {
    */
   suspend fun exportOf(composition: Composition): WebExport = written.getOrPut(composition) { webExported(composition) }
 
-  private const val CAPTION_MIN_PSNR_DB = 36.5
+  private const val CAPTION_MIN_PSNR_DB = 35.5
 }

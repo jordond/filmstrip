@@ -14,6 +14,7 @@ import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.CLIP
 import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.HDR_CLIP
 import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.TIMEOUT
 import dev.jordond.filmstrip.test.ThreeAudio
+import dev.jordond.filmstrip.test.ThreeAudioGapped
 import dev.jordond.filmstrip.test.ThreeAudioMatroska
 import dev.jordond.filmstrip.test.ThreeAudioTs
 import io.kotest.assertions.withClue
@@ -134,6 +135,18 @@ class AndroidProbeTest {
       val audio = probe.infoOf(MediaSource.ofBytes(bytes)).audio
 
       withClue("no audio track") { audio.shouldNotBeNull() }.sampleRate shouldBe AMR_SAMPLE_RATE
+    }
+
+  // The ids 5, 9 and 12 are no track's place, so they can only come off the track headers.
+  @Test
+  fun namesTheTracksOfAGappedFixtureByTheirTrackHeaders() =
+    runTest(timeout = TIMEOUT) {
+      val source = probe.fixture(ThreeAudioGapped.fileName)
+
+      withClue("core's platform prober") {
+        ThreeAudioGapped.assertProbed(platformProber().probe(source).shouldBeInstanceOf<ProbeResult.Success>().info)
+      }
+      withClue("the media3 prober") { ThreeAudioGapped.assertProbed(probe.infoOf(source)) }
     }
 
   @Test

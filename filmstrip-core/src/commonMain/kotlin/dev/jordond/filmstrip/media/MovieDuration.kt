@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip.media
 
+import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.color.CodestreamSignal
 import dev.jordond.filmstrip.picture.ByteRangeRead
 import dev.jordond.filmstrip.picture.PictureWalk
@@ -78,6 +79,29 @@ internal suspend fun trackHeadersOf(
   size: Long,
   read: ByteRangeRead,
 ): List<TrackHeader>? = walkPicture(RangedPicture(size, read)) { inMovie { start, end -> trackHeaders(start, end) } }
+
+/**
+ * The [AudioTrackId] of each of the first [count] audio tracks of a file of [size] bytes that [read] fetches ranges of.
+ *
+ * An MP4 or QuickTime file names the audio track at each place by the track id in the sound track header at that place,
+ * in the order its `moov` box lists them. Any other container, a file [trackHeadersOf] cannot read, and a track past
+ * the last sound header are named by their place counted from one. Every id goes through [audioTrackIdOf], and the list
+ * is always [count] long.
+ *
+ * A caller whose reader lists fewer audio tracks than the file has sound headers is paired with the headers by place.
+ *
+ * @param read Reads up to `count` bytes of the file starting at `start`, handing back fewer when the file ends first.
+ */
+@InternalFilmstripApi
+public suspend fun movieAudioTrackIdsOf(
+  size: Long,
+  read: suspend (start: Long, count: Int) -> ByteArray,
+  count: Int,
+): List<AudioTrackId> {
+  val headers = trackHeadersOf(size, read)
+  val sound = headers.orEmpty().filter { it.isSound }
+  return List(count) { ordinal -> audioTrackIdOf(isMovie = headers != null, sound.getOrNull(ordinal)?.id, ordinal) }
+}
 
 /**
  * The most tracks [trackHeadersOf] lists before it stops trusting the file.

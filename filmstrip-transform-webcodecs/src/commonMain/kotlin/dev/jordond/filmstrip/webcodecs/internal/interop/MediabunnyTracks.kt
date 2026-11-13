@@ -13,11 +13,6 @@ import kotlin.js.Promise
  * The audio track of an [Input].
  */
 internal external interface InputAudioTrack : JsAny {
-  /**
-   * The track's id in its file, which for an MP4 is the track id in its track header and for Matroska its track number.
-   */
-  val id: Double
-
   fun getSampleRate(): Promise<JsNumber>
 
   /**

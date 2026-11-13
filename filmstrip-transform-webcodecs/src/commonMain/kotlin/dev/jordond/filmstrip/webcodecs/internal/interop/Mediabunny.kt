@@ -52,7 +52,22 @@ internal external class Input(
    */
   fun getFormat(): Promise<InputFormat>
 
+  /**
+   * The source the input was opened over.
+   */
+  val source: InputSource
+
   fun dispose()
+}
+
+/**
+ * The bytes behind an [Input], whichever source class it was opened over.
+ */
+internal external interface InputSource : JsAny {
+  /**
+   * The file's size in bytes, which a [UrlSource] asks the server for.
+   */
+  fun getSize(): Promise<JsNumber>
 }
 
 /**

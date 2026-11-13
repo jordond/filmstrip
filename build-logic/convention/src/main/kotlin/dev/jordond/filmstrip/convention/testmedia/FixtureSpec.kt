@@ -29,6 +29,9 @@ import java.io.Serializable
  * place of the tone. A test that asks where a source frame landed needs a frame it can find, and a steady tone repeats
  * every period.
  * @param container The container the clip is written in, which also names its file's extension.
+ * @param videoTrackId The track id written into the video track's header, or null to leave the numbering to ffmpeg,
+ * which counts the tracks from one. Set together with every [AudioTrackSpec.trackId] or not at all, and only for an
+ * MP4, the one container here whose track ids name its tracks.
  */
 data class FixtureSpec(
   val name: String,
@@ -46,12 +49,25 @@ data class FixtureSpec(
   val patch: FixturePatch? = null,
   val clickSeconds: Double? = null,
   val container: FixtureContainer = FixtureContainer.Mp4,
+  val videoTrackId: Int? = null,
 ) : Serializable {
   val fileName: String get() = "$name.${container.extension}"
+
+  /**
+   * The track id of every stream in the order the file lists them, the video first, or null when the numbering is left
+   * to ffmpeg.
+   */
+  val trackIds: List<Int>? get() = videoTrackId?.let { video -> listOf(video) + audioTracks.mapNotNull { it.trackId } }
 
   init {
     require(audioTracks.isNotEmpty()) { "$name has no audio track" }
     require(clickSeconds == null || audioTracks.size == 1) { "$name clicks on more than one audio track" }
+    val ids = listOf(videoTrackId) + audioTracks.map { it.trackId }
+    require(ids.all { it == null } || ids.none { it == null }) { "$name sets a track id on some tracks only" }
+    require(videoTrackId == null || container == FixtureContainer.Mp4) { "$name sets track ids outside an MP4" }
+    require(ids.filterNotNull().let { set -> set.all { it > 0 } && set.distinct().size == set.size }) {
+      "$name needs distinct track ids above zero"
+    }
   }
 
   companion object {
@@ -69,11 +85,14 @@ data class FixtureSpec(
  * @param isDefault Whether the track is written as the default audio track, which an MP4 records as the enabled flag
  * in its track header and Matroska as the track's default flag. An MPEG transport stream carries no such flag. Only
  * read when the fixture carries more than one audio track.
+ * @param trackId The track id written into the track's header, or null to leave the numbering to ffmpeg. See
+ * [FixtureSpec.videoTrackId].
  */
 data class AudioTrackSpec(
   val toneHz: Int = 440,
   val language: String? = null,
   val isDefault: Boolean = false,
+  val trackId: Int? = null,
 ) : Serializable {
   companion object {
     private const val serialVersionUID: Long = 1L

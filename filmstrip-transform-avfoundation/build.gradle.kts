@@ -55,6 +55,7 @@ val appleFixtures =
           audioTracks = listOf(AudioTrackSpec(toneHz = 880)),
         ),
         SharedFixtures.ThreeAudio,
+        SharedFixtures.ThreeAudioGapped,
         SharedFixtures.ThreeAudioMatroska,
         SharedFixtures.ThreeAudioTs,
         FixtureSpec("apple_export_b", 480, 270, 30, 2.0, 48000, 2, bitrateKbps = 1_000, hue = 120),
