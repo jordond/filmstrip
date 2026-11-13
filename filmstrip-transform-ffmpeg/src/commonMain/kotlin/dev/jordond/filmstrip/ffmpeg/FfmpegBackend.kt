@@ -38,10 +38,10 @@ public fun FilmstripBuilder.ffmpeg(block: FfmpegConfig.Builder.() -> Unit): Film
  * The backend registers itself when its artifact is a dependency, so a builder only calls this with discovery turned
  * off. It runs the config [ffmpeg] set, or the default one. A second call on the same builder does nothing.
  *
- * filmstrip ships no ffmpeg and links none of it. This drives an `ffmpeg` and an `ffprobe` that are
- * already on the machine, as separate programs over an argument list and a pipe. Nothing is
- * bundled, so nothing about the licence of the build a user installed reaches filmstrip's own
- * artifacts, and nothing about filmstrip's licence reaches theirs.
+ * This artifact links no ffmpeg and carries none. It drives an `ffmpeg` and an `ffprobe` as separate programs over
+ * an argument list and a pipe. They are the ones already on the machine, unless `filmstrip-transform-ffmpeg-bundled`
+ * is a dependency and supplies its own. Nothing about the licence of the build it runs reaches filmstrip's own
+ * artifacts, and nothing about filmstrip's licence reaches that build.
  *
  * Registration always succeeds, whether or not a binary is there. The four operations report
  * [FilmstripError.ToolchainMissing] when there is nothing usable to run, which is a value rather than
@@ -67,8 +67,14 @@ internal class FfmpegRegistrar : FilmstripRegistrar {
 
   override fun register(builder: FilmstripBuilder) {
     // One runtime behind both, so resolving the binaries, probing a clip and measuring the encoder ladder happen once
-    // for every component. It is looked up on first use, after the block has set its config.
-    val runtime = lazy { FfmpegRuntime.of(builder.optionOrNull(FFMPEG_CONFIG) ?: FfmpegConfig()) }
+    // for every component. It is looked up on first use, after the block and every registrar have set their options.
+    val runtime =
+      lazy {
+        FfmpegRuntime.of(
+          config = builder.optionOrNull(FFMPEG_CONFIG) ?: FfmpegConfig(),
+          binaries = builder.optionOrNull(FFMPEG_BINARIES),
+        )
+      }
     builder
       .builtInEffects()
       .addExportEngineFactory(FfmpegEngineFactory(runtime))

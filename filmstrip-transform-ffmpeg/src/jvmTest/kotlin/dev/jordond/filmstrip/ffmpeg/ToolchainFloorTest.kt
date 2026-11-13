@@ -8,7 +8,6 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.test.runTest
-import java.io.File
 import java.nio.file.Files
 import kotlin.test.Test
 
@@ -87,25 +86,11 @@ class ToolchainFloorTest {
           .orEmpty()
       val banner = "ffmpeg version $version Copyright (c) 2000-2025 the FFmpeg developers$library"
       val listing = (listOf("Bitstream filters:") + bitstreamFilters).joinToString("\n")
-      val ffmpeg = script(directory, "ffmpeg", banner, listing)
-      script(directory, "ffprobe", "ffprobe version $version")
+      val ffmpeg = toolchainScript(directory, "ffmpeg", banner, listing)
+      toolchainScript(directory, "ffprobe", "ffprobe version $version")
       return ToolchainLocator(FfmpegConfig(executablePath = ffmpeg.absolutePath), ProcessRunner()).toolchain()
     } finally {
       directory.deleteRecursively()
     }
   }
-
-  private fun script(
-    directory: File,
-    name: String,
-    banner: String,
-    bitstreamFilters: String = "",
-  ): File =
-    File(directory, name).apply {
-      writeText(
-        "#!/bin/sh\ncase \"$*\" in *-bsfs*) printf '%s\\n' '$bitstreamFilters' ;; " +
-          "*) printf '%s\\n' '$banner' ;; esac\n",
-      )
-      setExecutable(true)
-    }
 }

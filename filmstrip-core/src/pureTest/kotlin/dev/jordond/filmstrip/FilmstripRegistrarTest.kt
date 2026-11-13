@@ -122,6 +122,33 @@ class FilmstripRegistrarTest {
     runs shouldBe listOf("test-shared")
   }
 
+  @Test
+  fun `a registrar the block installed reads an option a discovered registrar set`() {
+    val key = OptionKey<String>("label")
+    val reader = Reading(key)
+    discover(Setting(key, "discovered"))
+
+    FilmstripBuilder().install(reader).components()
+
+    reader.read() shouldBe "discovered"
+  }
+
+  @Test
+  fun `an option a discovered registrar set stays on the builder it ran on`() {
+    val key = OptionKey<String>("label")
+    val setting = Setting(key, "discovered")
+    val first = Reading(key)
+    val second = Reading(key)
+    discover(setting)
+    FilmstripBuilder().install(first).components()
+    FilmstripRegistrars.remove(setting.id)
+
+    FilmstripBuilder().install(second).components()
+
+    first.read() shouldBe "discovered"
+    second.read() shouldBe null
+  }
+
   private fun discover(registrar: FilmstripRegistrar) {
     FilmstripRegistrars.register(registrar)
     added += registrar.id
@@ -150,6 +177,30 @@ class FilmstripRegistrarTest {
       val label = builder.optionOrNull(key) ?: "unset"
       builder.addBackendInfo(BackendInfo(name = label, artifact = id))
     }
+  }
+
+  private class Setting(
+    private val key: OptionKey<String>,
+    private val value: String,
+  ) : FilmstripRegistrar {
+    override val id: String = "test-setting"
+
+    override fun register(builder: FilmstripBuilder) {
+      builder.option(key, value)
+    }
+  }
+
+  private class Reading(
+    private val key: OptionKey<String>,
+  ) : FilmstripRegistrar {
+    override val id: String = "test-reading"
+    private var builder: FilmstripBuilder? = null
+
+    override fun register(builder: FilmstripBuilder) {
+      this.builder = builder
+    }
+
+    fun read(): String? = builder?.optionOrNull(key)
   }
 
   private class Dependent(

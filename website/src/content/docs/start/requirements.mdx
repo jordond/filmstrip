@@ -20,7 +20,7 @@ import { MIN_IOS, MIN_MACOS, TESTED_BROWSERS, versions } from '../../../lib/vers
 | Android | API {versions.minSdk} | Media3 Transformer and media3-exoplayer |
 | iOS | {MIN_IOS} | AVFoundation, VideoToolbox and AVPlayer |
 | macOS | {MIN_MACOS} | AVFoundation, VideoToolbox and AVPlayer |
-| Desktop (JVM) | ffmpeg {versions.ffmpeg} | The `ffmpeg` and `ffprobe` on the machine |
+| Desktop (JVM) | ffmpeg {versions.ffmpeg} | The `ffmpeg` and `ffprobe` on the machine, or the ones `filmstrip-transform-ffmpeg-bundled` carries |
 | Browser | WebCodecs `VideoDecoder`, and `VideoEncoder` to export | WebCodecs, drawn to a canvas |
 
 ## What you add yourself
@@ -32,7 +32,7 @@ the machine.
 | --- | --- |
 | Android | Nothing. Or a context through `Filmstrip(context)` when the app [removes the initializer](/guides/setup/#remove-the-initializer) |
 | iOS and macOS | Nothing |
-| Desktop (JVM) | `ffmpeg` and `ffprobe` {versions.ffmpeg} or later on the machine that runs the app |
+| Desktop (JVM) | `ffmpeg` and `ffprobe` {versions.ffmpeg} or later on the machine that runs the app, or the [`filmstrip-transform-ffmpeg-bundled`](/guides/setup/#bundle-ffmpeg) dependency |
 | Browser | Nothing. Gradle installs mediabunny {versions.mediabunny} for `js` and `wasmJs` |
 
 ## Browsers
@@ -46,12 +46,19 @@ Firefox for Android has neither video half, per caniuse as checked on 2026-11-06
 
 ## ffmpeg
 
-The JVM backend links no ffmpeg and bundles none. It runs `ffmpeg` and `ffprobe` as separate programs, found
-through `ffmpeg { }` in the `Filmstrip` block, then the `FILMSTRIP_FFMPEG` and `FILMSTRIP_FFPROBE` environment variables, then `PATH`. An
-older build is reported as `FilmstripError.ToolchainMissing` when you plan or export, never as a crash. A snapshot
+The JVM backend links no ffmpeg. It runs `ffmpeg` and `ffprobe` as separate programs, found through `ffmpeg { }` in
+the `Filmstrip` block, then the `FILMSTRIP_FFMPEG` and `FILMSTRIP_FFPROBE` environment variables, then
+`filmstrip-transform-ffmpeg-bundled` when it's a dependency, then `PATH`. An older build is reported as `FilmstripError.ToolchainMissing` when you plan or export, never as a crash. A snapshot
 with no release number, like `N-121284-g4c9e0eb`, is held to the `libavformat` version it prints instead, 62.3 or
 later for ffmpeg 8. One that prints neither is refused the same way, since nothing says it's new enough.
 
 The build also needs the `noise` bitstream filter, which a trimmed copy uses to stop its video on the last frame it
 keeps. Every build configured with ffmpeg's defaults carries it. One built without it is refused with
 `ToolchainMissing` too, naming the filter.
+
+### Bundled ffmpeg
+
+`filmstrip-transform-ffmpeg-bundled` carries ffmpeg 8.1 for Linux x86_64 and arm64, macOS arm64 and x86_64, and
+Windows x86_64. The Linux builds need glibc 2.35 or later, so Ubuntu 22.04 or Debian 12 and up. The Windows build is
+not tested. On any other platform the backend reports `ToolchainMissing` naming the platform, and doesn't search
+`PATH`. See [Bundle ffmpeg](/guides/setup/#bundle-ffmpeg) for what it encodes and its licence.

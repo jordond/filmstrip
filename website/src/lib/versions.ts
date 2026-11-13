@@ -69,6 +69,7 @@ export interface Versions {
   minSdk: string
   jdk: string
   ffmpeg: string
+  bytedecoFfmpeg: string
   mediabunny: string
 }
 
@@ -88,6 +89,7 @@ export function readVersions(root: string = repoRoot): Versions {
     minSdk: catalogVersion(toml, 'sdk-min'),
     jdk: catalogVersion(toml, 'jvmTarget'),
     ffmpeg: ffmpegFloor(readFileSync(join(root, toolchainPath), 'utf8')),
+    bytedecoFfmpeg: catalogVersion(toml, 'bytedeco-ffmpeg'),
     mediabunny: mediabunnyVersion(readFileSync(join(root, webcodecsBuildPath), 'utf8')),
   }
 }

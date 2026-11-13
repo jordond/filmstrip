@@ -10,6 +10,7 @@ import dev.jordond.filmstrip.media.HdrTransfer
  * @property isHardwareAccelerated Whether the encode runs on dedicated silicon rather than the CPU.
  * @property preset The `-preset` to encode at, or null for an encoder that has no such option.
  * @property probeArguments What the capability probe adds to keep its single frame cheap.
+ * @property profile The `-profile:v` an SDR encode names, or null to leave the encoder its own default.
  * @property hdrPixelFormat The 10-bit pixel format this encoder writes HDR in, or null when it has
  *   no HDR profile to reach.
  * @property hdrProfile The `-profile:v` an HDR encode needs, or null alongside a null
@@ -20,6 +21,7 @@ internal class FfmpegEncoder(
   val isHardwareAccelerated: Boolean,
   val preset: String? = null,
   val probeArguments: List<String> = emptyList(),
+  val profile: String? = null,
   val hdrPixelFormat: String? = null,
   val hdrProfile: String? = null,
 )
@@ -45,6 +47,11 @@ private val X26X_PROBE = listOf("-preset", "ultrafast")
  * per encoder and is not what this list sorts on. It is one machine and one clip, at a
  * pinned bitrate, with no quality-per-bit comparison behind it. nvenc, qsv and vaapi are absent
  * because nobody has measured them.
+ *
+ * `libopenh264` comes last for H264. It is the software H264 encoder an LGPL build carries in place of libx264, and
+ * the only one such a build has on Linux and Windows. Its limits are openh264's own: 8-bit 4:2:0 only, nothing larger
+ * than 4096x2304, and a bitrate it holds only as far as it can without dropping frames, which filmstrip never lets it
+ * do. Its default profile is constrained baseline, so it is asked for high.
  */
 internal val FFMPEG_ENCODERS: Map<VideoCodec, List<FfmpegEncoder>> =
   mapOf(
@@ -57,6 +64,7 @@ internal val FFMPEG_ENCODERS: Map<VideoCodec, List<FfmpegEncoder>> =
           probeArguments = X26X_PROBE,
         ),
         FfmpegEncoder(name = "h264_videotoolbox", isHardwareAccelerated = true),
+        FfmpegEncoder(name = "libopenh264", isHardwareAccelerated = false, profile = "high"),
       ),
     VideoCodec.Hevc to
       listOf(

@@ -59,6 +59,7 @@ include(
   ":filmstrip-transform-avfoundation",
   ":filmstrip-transform-webcodecs",
   ":filmstrip-transform-ffmpeg",
+  ":filmstrip-transform-ffmpeg-bundled",
   ":filmstrip-player",
   ":filmstrip-compose",
   ":filmstrip-compose-ui",

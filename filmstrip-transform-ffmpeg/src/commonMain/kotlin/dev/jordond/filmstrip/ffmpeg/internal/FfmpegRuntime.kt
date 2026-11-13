@@ -3,6 +3,7 @@ package dev.jordond.filmstrip.ffmpeg.internal
 import dev.jordond.filmstrip.CapabilitiesResult
 import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.capability.DeviceCapabilities
+import dev.jordond.filmstrip.ffmpeg.FfmpegBinaries
 import dev.jordond.filmstrip.ffmpeg.FfmpegConfig
 import dev.jordond.filmstrip.ffmpeg.internal.FfmpegRuntime.Companion.of
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.SdColor
@@ -62,8 +63,9 @@ internal class FfmpegRuntime private constructor(
   val bindFeeds: (List<LiveFeedRequest>) -> LiveBinding = ::bindLiveFeeds,
   val deadline: (window: Duration) -> Duration = ::probeDeadline,
   private val runner: ProcessRunner = ProcessRunner(),
+  val binaries: FfmpegBinaries? = null,
 ) {
-  private val locator = ToolchainLocator(config, runner, deadline(Duration.ZERO))
+  private val locator = ToolchainLocator(config, runner, deadline(Duration.ZERO), binaries)
   private val probeLock = Mutex()
   private val probes = mutableMapOf<String, Stamped<MediaInfo>>()
 
@@ -393,27 +395,30 @@ internal class FfmpegRuntime private constructor(
     private const val TAIL_PIXEL_FORMAT = "yuv420p"
     private const val FFPROBE = "ffprobe"
 
-    // Keyed on the config, which compares structurally, so two callers that spelled the same
-    // configuration reach the same runtime. Held in use order and capped: a process usually
-    // registers one configuration, and a caller that keeps spelling fresh ones drops the least
-    // recently used. An evicted runtime owns no process and no handle, only the toolchain and
-    // probe answers it had cached, so the next caller to name that configuration pays for those
-    // again and nothing else.
+    // Keyed on the config, which compares structurally, and on the binary source by what it equals, so two callers
+    // that spelled the same configuration over the same source reach the same runtime. Held in use order and capped:
+    // a process usually registers one configuration, and a caller that keeps spelling fresh ones drops the least
+    // recently used. An evicted runtime owns no process and no handle, only the toolchain and probe answers it had
+    // cached, so the next caller to name that configuration pays for those again and nothing else.
     const val MAX_RUNTIMES = 8
 
-    private val runtimes = LinkedHashMap<FfmpegConfig, FfmpegRuntime>()
+    private val runtimes = LinkedHashMap<Pair<FfmpegConfig, FfmpegBinaries?>, FfmpegRuntime>()
 
     /**
-     * The runtime [config] resolves through, built the first time it is asked for.
+     * The runtime [config] resolves through over [binaries], built the first time it is asked for.
      *
      * Every backend component goes through this, so an export, a probe and a preview built from
      * the same configuration resolve the binaries once between them and share one probe cache.
      */
-    fun of(config: FfmpegConfig): FfmpegRuntime =
+    fun of(
+      config: FfmpegConfig,
+      binaries: FfmpegBinaries? = null,
+    ): FfmpegRuntime =
       exclusively {
-        runtimes.remove(config)?.also { runtimes[config] = it }
-          ?: FfmpegRuntime(config).also {
-            runtimes[config] = it
+        val key = config to binaries
+        runtimes.remove(key)?.also { runtimes[key] = it }
+          ?: FfmpegRuntime(config, binaries = binaries).also {
+            runtimes[key] = it
             while (runtimes.size > MAX_RUNTIMES) runtimes.remove(runtimes.keys.first())
           }
       }
@@ -427,7 +432,8 @@ internal class FfmpegRuntime private constructor(
       bindFeeds: (List<LiveFeedRequest>) -> LiveBinding = ::bindLiveFeeds,
       deadline: (window: Duration) -> Duration = ::probeDeadline,
       runner: ProcessRunner = ProcessRunner(),
-    ): FfmpegRuntime = FfmpegRuntime(config, bytesRoot, bindFeeds, deadline, runner)
+      binaries: FfmpegBinaries? = null,
+    ): FfmpegRuntime = FfmpegRuntime(config, bytesRoot, bindFeeds, deadline, runner, binaries)
   }
 }
 

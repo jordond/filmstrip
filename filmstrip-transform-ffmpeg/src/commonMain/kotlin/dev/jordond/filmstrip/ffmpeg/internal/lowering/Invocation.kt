@@ -344,6 +344,12 @@ private fun Invocation.videoArguments(): List<String> =
       add("-color_trc")
       add(transfer)
     }
+    if (hdrPixelFormat == null) {
+      encoder?.profile?.let {
+        add("-profile:v")
+        add(it)
+      }
+    }
     if (name == "libx265") {
       x265Params().takeIf { it.isNotEmpty() }?.let {
         add("-x265-params")
@@ -368,7 +374,8 @@ private fun Invocation.videoArguments(): List<String> =
  * `-g` is the longest run between two key frames and `-keyint_min` the shortest, so the two together fix the spacing.
  * x264 also starts a key frame at a scene cut unless `-sc_threshold` is zero, and x265 takes the same switch through
  * its own params. The VideoToolbox encoders read `-g` as a ceiling and add key frames of their own, which is
- * VideoToolbox's limit.
+ * VideoToolbox's limit. libopenh264 reads `-g` as a ceiling as well and starts a key frame at a scene cut, and ffmpeg
+ * gives it no switch to turn that off, which is openh264's limit.
  */
 internal fun keyFrameArguments(
   encoder: String,

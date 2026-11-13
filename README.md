@@ -19,8 +19,9 @@
 A Kotlin Multiplatform library for encoding, editing and previewing video. It targets Android, iOS,
 macOS, the JVM and the browser, and uses whatever encoder the platform already has: Media3
 Transformer on Android, AVFoundation and VideoToolbox on Apple, WebCodecs in the browser. The
-published artifacts carry no native binaries. The JVM backend is the exception, and it shells out to
-an ffmpeg you installed yourself, 8.0 or later.
+published artifacts carry no native binaries. The JVM backend shells out to ffmpeg 8.0 or later,
+either one you installed yourself or the one the opt-in `filmstrip-transform-ffmpeg-bundled` artifact
+brings.
 
 > filmstrip is pre-1.0.0, so the API might break between releases until then.
 

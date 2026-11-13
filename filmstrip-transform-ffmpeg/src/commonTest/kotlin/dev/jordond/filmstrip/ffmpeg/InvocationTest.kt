@@ -13,6 +13,7 @@ import dev.jordond.filmstrip.ffmpeg.internal.lowering.InputSpec
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.Invocation
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.arguments
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.ffmpegEncoderNamed
+import dev.jordond.filmstrip.ffmpeg.internal.lowering.ffmpegEncoders
 import dev.jordond.filmstrip.ffmpeg.internal.process.FfmpegVersion
 import dev.jordond.filmstrip.ffmpeg.internal.process.Toolchain
 import dev.jordond.filmstrip.geometry.Size
@@ -176,7 +177,9 @@ class InvocationTest {
   // Every encoder, VP9 included, runs at the rate the plan settled on, with the peak and buffer scaled off it.
   @Test
   fun `rate controls every encoder from the plan's bitrate`() {
-    for ((codec, encoder) in listOf(VideoCodec.H264 to "libx264", VideoCodec.Vp9 to "libvpx-vp9")) {
+    val encoders =
+      listOf(VideoCodec.H264 to "libx264", VideoCodec.H264 to "libopenh264", VideoCodec.Vp9 to "libvpx-vp9")
+    for ((codec, encoder) in encoders) {
       val arguments = argumentsFor(codec, encoder)
       val bits = PLANNED_BITRATE.bitsPerSecond
 
@@ -196,6 +199,7 @@ class InvocationTest {
       listOf(
         VideoCodec.H264 to "libx264",
         VideoCodec.H264 to "h264_videotoolbox",
+        VideoCodec.H264 to "libopenh264",
         VideoCodec.Hevc to "libx265",
         VideoCodec.Vp9 to "libvpx-vp9",
       )
@@ -219,6 +223,35 @@ class InvocationTest {
     x264.after("-sc_threshold") shouldBe "0"
     x265.after("-x265-params").split(":") shouldContain "scenecut=0"
     hardware.shouldNotContain("-sc_threshold")
+  }
+
+  // openh264 defaults to constrained baseline. It has no preset and no scene cut switch, and letting it skip frames
+  // to hold the bitrate would drop frames the edit placed.
+  @Test
+  fun `openh264 encodes high profile 8-bit and is given nothing it does not take`() {
+    val arguments = argumentsFor(VideoCodec.H264, "libopenh264", keyFrameSpacing = 15)
+
+    arguments.encoderName() shouldBe "libopenh264"
+    arguments.after("-profile:v") shouldBe "high"
+    arguments.after("-pix_fmt") shouldBe "yuv420p"
+    arguments.shouldNotContain("-preset")
+    arguments.shouldNotContain("-sc_threshold")
+    arguments.shouldNotContain("-allow_skip_frames")
+  }
+
+  @Test
+  fun `openh264 is the last H264 encoder tried and has no HDR profile`() {
+    val row = VideoCodec.H264.ffmpegEncoders()
+
+    row.last().name shouldBe "libopenh264"
+    row.last().hdrPixelFormat shouldBe null
+    row.last().isHardwareAccelerated shouldBe false
+  }
+
+  @Test
+  fun `only an encoder with a profile of its own is given one for an SDR encode`() {
+    argumentsFor(VideoCodec.H264, "libx264").shouldNotContain("-profile:v")
+    argumentsFor(VideoCodec.Hevc, "hevc_videotoolbox").shouldNotContain("-profile:v")
   }
 
   @Test

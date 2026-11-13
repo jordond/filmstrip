@@ -36,7 +36,7 @@ public fun Filmstrip(block: FilmstripBuilder.() -> Unit = {}): Filmstrip = Films
 public class FilmstripBuilder {
   private var registry: ComponentRegistry.Builder = ComponentRegistry.Builder()
   private val installed = mutableSetOf<String>()
-  private val options = mutableMapOf<OptionKey<*>, Any>()
+  private var options = mutableMapOf<OptionKey<*>, Any>()
   private var autoRegister = true
 
   /**
@@ -62,6 +62,9 @@ public class FilmstripBuilder {
 
   /**
    * Sets the value a registrar reads for [key], replacing any earlier one.
+   *
+   * Every registrar of one instance reads the same options, discovered or installed by the block, so a registrar
+   * that reads lazily sees a value set after it ran.
    *
    * @param key The option.
    * @param value Its value.
@@ -180,11 +183,11 @@ public class FilmstripBuilder {
     if (!autoRegister) return own
     val discovered = FilmstripRegistrars.discovered().filterNot { it.id in installed }
     if (discovered.isEmpty()) return own
-    // A second builder over the same options and the same installed ids, so a registrar reads what the block set and
-    // a dependency the block installed is not added twice.
+    // A second builder sharing this one's options and starting from its installed ids, so registrars on either side
+    // read what the other set and a dependency the block installed is not added twice.
     val seed = FilmstripBuilder()
     seed.installed += installed
-    seed.options += options
+    seed.options = options
     discovered.forEach { seed.install(it) }
     return own.layeredOver(seed.registry.build())
   }

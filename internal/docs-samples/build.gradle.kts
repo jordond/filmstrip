@@ -51,5 +51,9 @@ kotlin {
       implementation(projects.filmstripTesting)
       implementation(libs.compose.runtime)
     }
+
+    jvmMain.dependencies {
+      implementation(projects.filmstripTransformFfmpegBundled)
+    }
   }
 }

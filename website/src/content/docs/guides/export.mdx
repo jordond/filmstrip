@@ -35,6 +35,10 @@ Each preset is a plain `ExportSpec` you opt into, so you can copy one and change
 the source's codec. When the device has no encoder for the source's codec it falls back and reports a
 `CodecFallback`. It never blocks a stream copy, so an edit that could be copied still is.
 
+On the JVM the encoders are the ones the ffmpeg in use was built with. The
+[bundled ffmpeg](/guides/setup/#what-it-encodes) has no HEVC encoder on Linux and Windows, so a spec that asks for
+HEVC, like `Archive`, doesn't get it there. The plan says what it did instead.
+
 When the composition has audio to hear and the export can't encode any of it, the file is written without audio and
 the plan reports an `AudioDropped` adjustment. That happens when the device has no audio encoder, or when the container
 carries none of the codecs it encodes. A `strict` spec refuses instead, and so does an `AudioOnly` composition, which

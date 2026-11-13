@@ -1,0 +1,4 @@
+public final class dev/jordond/filmstrip/ffmpeg/bundled/BundledFfmpegKt {
+	public static final fun ffmpegBundled (Ldev/jordond/filmstrip/FilmstripBuilder;)Ldev/jordond/filmstrip/FilmstripBuilder;
+}
+

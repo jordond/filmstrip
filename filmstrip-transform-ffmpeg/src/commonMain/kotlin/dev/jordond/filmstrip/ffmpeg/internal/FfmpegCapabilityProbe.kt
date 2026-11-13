@@ -150,7 +150,7 @@ private suspend fun FfmpegRuntime.canEncode(
           add(it)
         }
         addAll(encoder.probeArguments)
-        profile?.let {
+        (profile ?: encoder.profile)?.let {
           add("-profile:v")
           add(it)
         }

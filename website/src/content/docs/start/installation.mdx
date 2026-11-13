@@ -80,8 +80,11 @@ compiles it for Android, iOS, the JVM, `js` and `wasmJs` with the dependency abo
   </TabItem>
   <TabItem label="Desktop (JVM)">
     The JVM backend runs the `ffmpeg` and `ffprobe` already on the machine, version {versions.ffmpeg} or later.
-    filmstrip ships neither. Install them with your package manager, such as `brew install ffmpeg` or
-    `apt install ffmpeg`, and filmstrip finds them on `PATH`.
+    Install them with your package manager, such as `brew install ffmpeg` or `apt install ffmpeg`, and filmstrip
+    finds them on `PATH`.
+
+    To ship an app that needs nothing installed, add `filmstrip-transform-ffmpeg-bundled`, which carries its own
+    ffmpeg. See [Bundle ffmpeg](/guides/setup/#bundle-ffmpeg).
   </TabItem>
   <TabItem label="Web">
     The browser backend runs on WebCodecs for both `wasmJs` and `js`. It's tested on {TESTED_BROWSERS}.
@@ -107,6 +110,7 @@ Pick single artifacts instead of the bundle when you want less on the classpath.
 | `filmstrip-transform-avfoundation` | The AVFoundation backend, iOS and macOS. |
 | `filmstrip-transform-webcodecs` | The WebCodecs backend, browser. |
 | `filmstrip-transform-ffmpeg` | The ffmpeg backend, JVM. Runs an `ffmpeg` and `ffprobe` already on the machine. |
+| `filmstrip-transform-ffmpeg-bundled` | Opt-in [ffmpeg and ffprobe](/guides/setup/#bundle-ffmpeg) for the JVM backend to run, so the machine needs none. Not in the bundle. |
 | `filmstrip-player` | Preview playback over each target's backend. |
 | `filmstrip-compose` | Compose Multiplatform bindings: player state, the frame strip's cache, and bare surfaces. |
 | `filmstrip-compose-ui` | The drawn timeline: scrolling strip, ruler, playhead, trim handles, scrub gestures. Foundation only, no Material. |

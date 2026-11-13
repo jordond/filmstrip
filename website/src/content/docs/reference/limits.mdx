@@ -45,10 +45,22 @@ that run in frames. See [Export](/guides/export/#key-frames).
 | Media3       | A key frame every `keyFrameSpacing` frames.                                                   |
 | AVFoundation | A key frame at most every `keyFrameSpacing` frames. VideoToolbox adds more where it chooses.  |
 | WebCodecs    | A key frame every `keyFrameSpacing` frames.                                                   |
-| ffmpeg       | A key frame every `keyFrameSpacing` frames. Its VideoToolbox encoders behave as AVFoundation. |
+| ffmpeg       | A key frame every `keyFrameSpacing` frames. Its VideoToolbox encoders behave as AVFoundation, and openh264 adds one at a scene cut. |
 
 - A stream copy keeps the source's key frames wherever they are. Name a codec or a bitrate to get a transcode and
   the spacing with it.
+
+## openh264
+
+The [bundled ffmpeg](/guides/setup/#bundle-ffmpeg) encodes H.264 with openh264 on Linux and Windows, and so does any
+ffmpeg built without libx264 and without VideoToolbox.
+
+- It writes 8-bit 4:2:0 only, so it never carries an HDR grade.
+- Its largest frame is 4096x2304, so `capabilities()` reports 4K as its ceiling.
+- It starts a key frame at every scene cut as well as every `keyFrameSpacing` frames, and ffmpeg has no switch for
+  that.
+- It holds the bitrate on ordinary footage. On a frame it can't compress that far, like heavy grain or noise, it
+  overshoots instead of dropping frames, since filmstrip never lets an encoder drop one.
 
 ## Probe deadline
 

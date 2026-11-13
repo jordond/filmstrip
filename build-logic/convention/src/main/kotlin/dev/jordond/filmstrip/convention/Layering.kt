@@ -23,7 +23,12 @@ internal enum class Layer(
   Filters(setOf(Core, Effects)),
   Transform(setOf(Core, Effects), mayTestWith = setOf(Filters)),
   Backend(setOf(Core, Effects, Transform), mayTestWith = setOf(Filters)),
+
   Player(setOf(Core, Effects, Transform, Backend), mayTestWith = setOf(Filters)),
+
+  // Opt-in, the binaries a backend runs in place of the machine's own. Nothing above it may take it. Its tests read a
+  // preview frame through the player. Declared below Player, since an enum entry cannot name one that comes later.
+  Binaries(setOf(Core, Effects, Transform, Backend), mayTestWith = setOf(Player)),
 
   // Fakes a consumer's tests run against. It reaches the player for the half of an engine with no platform in it.
   // Declared above the layers that test with it, since an enum entry cannot name one that comes later.
@@ -53,6 +58,7 @@ private val LAYERS: Map<String, Layer> =
     ":filmstrip-transform-avfoundation" to Layer.Backend,
     ":filmstrip-transform-webcodecs" to Layer.Backend,
     ":filmstrip-transform-ffmpeg" to Layer.Backend,
+    ":filmstrip-transform-ffmpeg-bundled" to Layer.Binaries,
     ":filmstrip-player" to Layer.Player,
     ":filmstrip-compose" to Layer.Compose,
     ":filmstrip-compose-ui" to Layer.ComposeUi,
@@ -107,6 +113,7 @@ private val FORBIDDEN_EXTERNALS: Map<Layer, Set<String>> =
     Layer.Filters to COMPOSE + MEDIA3_RUNTIMES,
     Layer.Transform to COMPOSE + MEDIA3_RUNTIMES,
     Layer.Backend to COMPOSE,
+    Layer.Binaries to COMPOSE,
     Layer.Player to COMPOSE,
     Layer.Umbrella to COMPOSE,
     Layer.Io to COMPOSE + "androidx.media3",

@@ -3,8 +3,28 @@ title: Setup
 description: Create a Filmstrip instance and choose what it registers.
 ---
 
-import { Aside, TabItem, Tabs } from '@astrojs/starlight/components'
+import { Aside, Code, TabItem, Tabs } from '@astrojs/starlight/components'
 import Snippet from '../../../components/Snippet.astro'
+import { versions } from '../../../lib/versions'
+
+export const bundled = `kotlin {
+  sourceSets {
+    jvmMain.dependencies {
+      implementation("${versions.group}:filmstrip-transform-ffmpeg-bundled:${versions.library}")
+    }
+  }
+}`
+
+export const oneOs = `jvmMain.dependencies {
+  implementation("${versions.group}:filmstrip-transform-ffmpeg-bundled:${versions.library}") {
+    exclude(group = "org.bytedeco", module = "ffmpeg")
+  }
+  runtimeOnly("org.bytedeco:ffmpeg:${versions.bytedecoFfmpeg}:linux-x86_64")
+}`
+
+export const gpl = `jvmMain.dependencies {
+  runtimeOnly("org.bytedeco:ffmpeg:${versions.bytedecoFfmpeg}:linux-x86_64-gpl")
+}`
 
 Everything in filmstrip goes through one `Filmstrip` instance. Create it once, keep it for as long as your app or
 your DI graph lives, and pass it to whatever needs to probe, plan, export or preview.
@@ -26,6 +46,65 @@ On the JVM, `ffmpeg { }` sets where the ffmpeg backend finds its programs. It ca
 <Snippet file="jvmMain/kotlin/dev/jordond/filmstrip/docs/guides/Setup.jvm.kt" region="setup-ffmpeg" />
 
 Without it filmstrip reads `FILMSTRIP_FFMPEG` and `FILMSTRIP_FFPROBE`, then searches `PATH`.
+
+## Bundle ffmpeg
+
+By default the JVM backend runs the ffmpeg on the machine. To ship an app that needs nothing installed, add
+`filmstrip-transform-ffmpeg-bundled` next to `filmstrip`.
+
+<Code code={bundled} lang="kotlin" title="build.gradle.kts" />
+
+That's the whole setup. The artifact registers itself, and `Filmstrip()` runs the ffmpeg and ffprobe it carries. They
+are [bytedeco](https://github.com/bytedeco/javacpp-presets/tree/master/ffmpeg)'s build of ffmpeg 8.1, unpacked into
+`~/.javacpp/cache` the first time the instance needs ffmpeg.
+
+filmstrip looks for ffmpeg in this order and takes the first it finds:
+
+1. `ffmpeg { executablePath = ... }`
+2. `FILMSTRIP_FFMPEG`
+3. The bundled ffmpeg
+4. `PATH`, only when the bundled artifact isn't a dependency
+
+On a platform the artifact has no ffmpeg for, every operation reports `FilmstripError.ToolchainMissing` naming the
+platform. It never falls back to `PATH`, so an app doesn't quietly run a different ffmpeg on one machine.
+
+### One platform
+
+The artifact depends on ffmpeg for Linux x86_64 and arm64, macOS arm64 and x86_64, and Windows x86_64, about 130 MB
+of jars in all. An app packaged for one platform can drop the rest and add its own back.
+
+<Code code={oneOs} lang="kotlin" title="build.gradle.kts" />
+
+The classifiers are `linux-x86_64`, `linux-arm64`, `macosx-arm64`, `macosx-x86_64` and `windows-x86_64`.
+
+### What it encodes
+
+The bundled build is LGPL, so it has no libx264 and no libx265.
+
+| Platform          | H.264        | HEVC         | HDR export |
+| ----------------- | ------------ | ------------ | ---------- |
+| macOS             | VideoToolbox | VideoToolbox | Yes        |
+| Linux and Windows | openh264     | None         | No         |
+
+On Linux and Windows `VideoCodec.Auto` lands on H.264, and a spec that names HEVC or keeps an HDR grade is planned
+the way it is on any device without that encoder. openh264 has [limits of its own](/reference/limits/#openh264).
+
+To get libx264 and libx265, add bytedeco's GPL build for your platform. filmstrip runs it ahead of the LGPL one.
+
+<Code code={gpl} lang="kotlin" title="build.gradle.kts" />
+
+### Licence
+
+filmstrip runs ffmpeg as a separate program and links none of it, so filmstrip's own licence doesn't change. Your
+app is what distributes the binaries. The bundled build is under the LGPL version 3, and the GPL build under the GPL
+version 3. Either way that means shipping the licence text, saying your app uses FFmpeg, and pointing to the source
+bytedeco built it from. Read [FFmpeg's licence page](https://ffmpeg.org/legal.html) before you ship.
+
+### With discovery off
+
+`ffmpegBundled()` registers the ffmpeg backend over the bundled ffmpeg.
+
+<Snippet file="jvmMain/kotlin/dev/jordond/filmstrip/docs/guides/Setup.jvm.kt" region="setup-ffmpeg-bundled" />
 
 ## Register by hand
 

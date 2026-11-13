@@ -5,8 +5,8 @@ import dev.drewhamilton.poko.Poko
 /**
  * How the ffmpeg backend finds its binaries and what it passes them.
  *
- * @property executablePath An absolute path to `ffmpeg`, or null to read `FILMSTRIP_FFMPEG` from
- *   the environment and then search `PATH`.
+ * @property executablePath An absolute path to `ffmpeg`, or null to read `FILMSTRIP_FFMPEG` from the environment,
+ *   then take the one `filmstrip-transform-ffmpeg-bundled` carries when it is a dependency, then search `PATH`.
  * @property probePath An absolute path to `ffprobe`, or null to resolve it the same way from
  *   `FILMSTRIP_FFPROBE`, then `PATH`, then beside whichever `ffmpeg` was found.
  * @property extraArgs Arguments appended to every encode, immediately before the output file.
@@ -28,7 +28,8 @@ public class FfmpegConfig(
    */
   public class Builder {
     /**
-     * An absolute path to `ffmpeg`, or null to read `FILMSTRIP_FFMPEG` and then search `PATH`.
+     * An absolute path to `ffmpeg`, or null to read `FILMSTRIP_FFMPEG`, then take the one
+     * `filmstrip-transform-ffmpeg-bundled` carries when it is a dependency, then search `PATH`.
      */
     public var executablePath: String? = null
 
