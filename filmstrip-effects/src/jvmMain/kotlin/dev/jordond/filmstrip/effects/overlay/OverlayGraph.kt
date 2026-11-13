@@ -24,7 +24,7 @@ import dev.jordond.filmstrip.picture.PictureOrientation
  * animation that cannot be driven at all, is refused before the graph is built. A decode stopped at its deadline fails
  * with the [FilmstripError.TimedOut] it was stopped with.
  *
- * @param bytes The picture's bytes as this lowering read them, or null when this process cannot read them.
+ * @param read The picture's bytes as this lowering read them, or the refusal when this process cannot read them.
  *
  * @return The fragment, [EffectResolution.Degraded] by each limit the decode of its picture reports, or
  * [EffectResolution.Unsupported] when the picture or its animation cannot be lowered here, or [EffectResolution.Failed]

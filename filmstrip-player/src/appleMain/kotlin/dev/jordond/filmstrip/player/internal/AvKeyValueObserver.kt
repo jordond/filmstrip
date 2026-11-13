@@ -150,7 +150,7 @@ private var selectorInstalled = false
 /**
  * Guards [observers] and [selectorInstalled].
  *
- * Held only across a map operation and the one-time selector install, never across [onChanged],
+ * Held only across a map operation and the one-time selector install, never across `onChanged`,
  * which runs after the lookup has let go.
  */
 private val registryLock = NSLock()

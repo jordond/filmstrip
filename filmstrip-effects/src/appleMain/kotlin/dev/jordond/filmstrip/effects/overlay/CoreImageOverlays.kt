@@ -55,7 +55,7 @@ internal fun OverlayPlacement.transformOnto(
  *
  * Overlays are not batched the way Android's are. Core Image fuses a run of composites into one
  * pass over the frame, so there is no sampler budget to spend and no analogue of
- * [MAX_OVERLAYS_PER_EFFECT].
+ * `MAX_OVERLAYS_PER_EFFECT`.
  */
 @OptIn(ExperimentalForeignApi::class)
 internal fun CIImage.compositedOnto(

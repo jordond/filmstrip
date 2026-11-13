@@ -5,6 +5,7 @@ import dev.jordond.filmstrip.avfoundation.internal.composition.AvComposition
 import dev.jordond.filmstrip.avfoundation.internal.interop.copyFormatHint
 import dev.jordond.filmstrip.avfoundation.internal.time.MEDIA_TIMESCALE
 import dev.jordond.filmstrip.avfoundation.internal.time.toCMTime
+import dev.jordond.filmstrip.export.ExportEstimate
 import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.export.ExportStatus
 import dev.jordond.filmstrip.media.HdrTransfer

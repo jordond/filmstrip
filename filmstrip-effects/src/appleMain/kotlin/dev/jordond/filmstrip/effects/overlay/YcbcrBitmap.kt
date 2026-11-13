@@ -44,7 +44,7 @@ import kotlin.math.roundToInt
 
 /**
  * The primary image ImageIO decodes from this data under the identity matrix, each texel's stored samples turned into
- * color by [landing]'s evaluator and handed to Core Image with no color space as sixteen-bit RGBA.
+ * color by `landing`'s evaluator and handed to Core Image with no color space as sixteen-bit RGBA.
  *
  * It is [PictureRead.Unreadable] when ImageIO decodes no image, and refused when [evaluatedCodes] cannot read the
  * samples it hands out.

@@ -38,7 +38,7 @@ import kotlin.time.Duration
  * A clip's audio effects run on its own item ahead of its level, and the composition's run on the finished mix,
  * which a sequence of silence holds to the length of the timeline.
  *
- * Every clip's chain is lowered before the composition's, in track and clip order, which is the order [wrapper] sees
+ * Every clip's chain is lowered before the composition's, in track and clip order, which is the order `wrapper` sees
  * them in. A clip that covers no slot of the grid lays no video, so its chain is never lowered.
  *
  * @param bounds The samples each clip decodes, read off its container by `readClips`.

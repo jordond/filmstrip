@@ -43,7 +43,7 @@ import kotlin.time.DurationUnit
  * So a clip's effect runs over its audio in one unbroken stream ahead of its gain, the composition's effects run on
  * the mix, and both carry their state from one window to the next. A new start opens them again with none.
  *
- * A context starts suspended until the page has had a user gesture. [resume] is issued and never
+ * A context starts suspended until the page has had a user gesture. `resume` is issued and never
  * waited on, because the Web Audio spec parks its promise rather than rejecting it when a page is
  * not allowed to start, and a caller that waited would hang for as long as the user did not click.
  * [isRunning] and [onStateChanged] are the signals worth reading instead.

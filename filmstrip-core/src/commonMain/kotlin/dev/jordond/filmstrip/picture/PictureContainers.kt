@@ -79,8 +79,8 @@ internal suspend inline fun PictureWalk.forEachJpegSegment(visit: (marker: Int, 
 }
 
 /**
- * The first image directory of the TIFF block that starts at [base] and stops at [end], whose offsets count from
- * [base]. Its [count] entries start at [first].
+ * The first image directory of the TIFF block that starts at `base` and stops at [end], whose offsets count from
+ * `base`. Its [count] entries start at [first].
  */
 internal class TiffDirectory(
   val little: Boolean,

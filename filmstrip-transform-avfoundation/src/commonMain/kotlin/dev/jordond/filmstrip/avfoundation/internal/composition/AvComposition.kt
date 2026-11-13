@@ -24,6 +24,7 @@ import dev.jordond.filmstrip.avfoundation.internal.writer.pcmReaderFormat
 import dev.jordond.filmstrip.codec.AudioCodec
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.TrackContent
+import dev.jordond.filmstrip.export.OutputFormat
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.internal.AppleScratch
 import dev.jordond.filmstrip.media.HdrTransfer

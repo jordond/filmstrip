@@ -10,7 +10,7 @@ import kotlin.math.abs
 // Reads an AVIF or HEIC clap the way libheif crops a decoded picture by it, with libheif's fraction arithmetic.
 
 /**
- * The texels libheif keeps of a frame of [frame]'s size when it decodes it through this `clap`.
+ * The texels libheif keeps of a frame of `frame`'s size when it decodes it through this `clap`.
  *
  * @property left The first column kept, counted from the frame's left edge.
  * @property top The first row kept, counted from the frame's top edge.

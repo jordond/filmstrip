@@ -23,7 +23,7 @@ import kotlin.time.Duration.Companion.seconds
  * A [VideoPlayer] with no backend under it, for testing code that drives a player.
  *
  * Everything but the platform is the player filmstrip ships: the state snapshots, the seek and scrub handling, the
- * shuttle and the listeners. In place of a decoder there is a clock on [scope]'s scheduler. The playhead moves at
+ * shuttle and the listeners. In place of a decoder there is a clock on `scope`'s scheduler. The playhead moves at
  * normal speed while the player is playing, ready and not stalled, a seek lands on the frame grid, and reaching the
  * duration stops the player and reports [PlaybackEvent.Ended]. Nothing here reads the wall clock, so a test moves
  * time with `advanceTimeBy` and lets queued work run with `runCurrent`.
