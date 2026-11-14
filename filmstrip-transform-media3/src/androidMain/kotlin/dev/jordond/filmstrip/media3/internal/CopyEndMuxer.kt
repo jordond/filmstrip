@@ -33,9 +33,9 @@ internal const val COPY_AUDIO_SILENT: String =
 internal class CopyEndMuxerFactory(
   sourceEnd: Duration?,
   gridEnd: Duration?,
+  private val media3: Muxer.Factory =
+    InAppMp4Muxer.Factory().apply { sourceEnd?.let { setVideoDurationUs(it.inWholeMicroseconds) } },
 ) : Muxer.Factory {
-  private val media3 =
-    InAppMp4Muxer.Factory().apply { sourceEnd?.let { setVideoDurationUs(it.inWholeMicroseconds) } }
   private val gridEnd = gridEnd?.inWholeMicroseconds.takeIf { sourceEnd == null }
 
   /**
@@ -67,6 +67,7 @@ internal class CopyEndMuxerFactory(
     // The priming written so far, kept back until a unit that is heard follows it.
     private val priming = mutableListOf<Pair<ByteBuffer, BufferInfo>>()
     private var heard = false
+    private var closed = false
 
     override fun addTrack(format: Format): Int {
       val track = muxer.addTrack(format)
@@ -83,6 +84,7 @@ internal class CopyEndMuxerFactory(
       byteBuffer: ByteBuffer,
       bufferInfo: BufferInfo,
     ) {
+      check(!closed) { "CopyEndMuxer is closed." }
       when (trackId) {
         video -> {
           videoTimes += bufferInfo.presentationTimeUs
@@ -104,15 +106,20 @@ internal class CopyEndMuxerFactory(
     override fun addMetadataEntry(metadataEntry: Metadata.Entry) = muxer.addMetadataEntry(metadataEntry)
 
     override fun close() {
-      video?.let { track -> gridEnd?.let { copiedVideoEndOf(videoTimes, it) }?.let { end(track, it) } }
-      audio?.let { track ->
-        when (val end = copiedAudioEndOf(audioTimes, audioUnit)) {
-          is CopiedAudioEnd.At -> end(track, end.time)
-          CopiedAudioEnd.Silent -> leftAudioOut = true
-          CopiedAudioEnd.Unstamped -> Unit
+      if (closed) return
+      closed = true
+      try {
+        video?.let { track -> gridEnd?.let { copiedVideoEndOf(videoTimes, it) }?.let { end(track, it) } }
+        audio?.let { track ->
+          when (val end = copiedAudioEndOf(audioTimes, audioUnit)) {
+            is CopiedAudioEnd.At -> end(track, end.time)
+            CopiedAudioEnd.Silent -> leftAudioOut = true
+            CopiedAudioEnd.Unstamped -> Unit
+          }
         }
+      } finally {
+        muxer.close()
       }
-      muxer.close()
     }
 
     private fun end(
