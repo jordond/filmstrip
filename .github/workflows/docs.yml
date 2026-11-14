@@ -74,6 +74,12 @@ jobs:
       - &gradle
         name: Set up Gradle
         uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
+      # The runner has 16 GB. Each Dokka worker holds about 2.4 GB whatever its heap, so four of them beside the daemons
+      # at gradle.properties' 8 GB heaps fill it. The CI properties keep the Gradle calls of this job to two workers.
+      - &properties
+        name: Copy CI gradle.properties
+        working-directory: .
+        run: mkdir -p ~/.gradle ; cp .github/ci-gradle.properties ~/.gradle/gradle.properties
       - &api
         name: Build the API reference
         working-directory: .
@@ -130,6 +136,7 @@ jobs:
           fetch-depth: 0
       - *jdk
       - *gradle
+      - *properties
       - *api
       - *wasm
       - *node
