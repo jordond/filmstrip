@@ -33,9 +33,11 @@ internal expect fun platformFileOf(uri: String): PlatformFile
  * A source built here is a path or a platform uri, neither of which holds anything open. Only a
  * browser mints something that has to be freed.
  */
-public actual fun MediaSource.release() {}
+public actual fun releasePicked(source: MediaSource) {}
 
 /**
- * Does nothing either, for the same reason [MediaSource.release] does nothing.
+ * Does nothing either.
+ *
+ * A still built here holds nothing open, the same as a video source.
  */
-public actual fun ImageSource.release() {}
+public actual fun releasePicked(source: ImageSource) {}

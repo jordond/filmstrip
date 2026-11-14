@@ -22,7 +22,7 @@ import io.github.vinceglb.filekit.dialogs.compose.rememberFilePickerLauncher
  * resolver on Android, so read it once in the callback and hold the result rather than reading it
  * during composition.
  *
- * In a browser [source] is an object URL that lives until the page unloads. `MediaSource.release`
+ * In a browser [source] is an object URL that lives until the page unloads. `releasePicked(source)`
  * frees it earlier, once nothing reads the source any more.
  *
  * @property file What the picker handed back.

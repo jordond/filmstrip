@@ -16,7 +16,7 @@ import kotlin.js.JsAny
  * Publishes this file as an object URL, which is the only handle WebCodecs reads.
  *
  * Every call mints a new URL, so call it once per file and keep the result. The URL holds the
- * picked file until [release] frees it or the page unloads.
+ * picked file until [releasePicked] frees it or the page unloads.
  *
  * @throws IllegalArgumentException on a picked directory, which has no bytes to read.
  */
@@ -25,7 +25,7 @@ public actual fun PlatformFile.toMediaSource(): MediaSource = MediaSource.ofUri(
 /**
  * The same, for a still image.
  *
- * A new URL every call, held until [release] frees it or the page unloads.
+ * A new URL every call, held until [releasePicked] frees it or the page unloads.
  *
  * @throws IllegalArgumentException on a picked directory, which has no bytes to read.
  */
@@ -41,15 +41,17 @@ public actual fun PlatformFile.toMediaSink(): MediaSink = MediaSink.of(name)
  *
  * Every other arm names something this module never minted, so it is left alone.
  */
-public actual fun MediaSource.release() {
-  if (this is MediaSource.Uri) revokeObjectUrl(uri)
+public actual fun releasePicked(source: MediaSource) {
+  if (source is MediaSource.Uri) revokeObjectUrl(source.uri)
 }
 
 /**
- * Revokes the object URL [toImageSource] minted, the way [MediaSource.release] does.
+ * Revokes the object URL [toImageSource] minted.
+ *
+ * Every other arm is left alone, the same as for a video source.
  */
-public actual fun ImageSource.release() {
-  if (this is ImageSource.Uri) revokeObjectUrl(uri)
+public actual fun releasePicked(source: ImageSource) {
+  if (source is ImageSource.Uri) revokeObjectUrl(source.uri)
 }
 
 @OptIn(ExperimentalFileKitApi::class)

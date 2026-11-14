@@ -3,7 +3,7 @@ package dev.jordond.filmstrip.docs.guides
 import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.export.ExportSpec
-import dev.jordond.filmstrip.filekit.release
+import dev.jordond.filmstrip.filekit.releasePicked
 import dev.jordond.filmstrip.filekit.toMediaSink
 import dev.jordond.filmstrip.filekit.toMediaSource
 import io.github.vinceglb.filekit.PlatformFile
@@ -21,6 +21,6 @@ internal suspend fun fileKitSources(
     println(status)
   }
 
-  source.release()
+  releasePicked(source)
   // endregion
 }
