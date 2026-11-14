@@ -2,6 +2,7 @@ package dev.jordond.filmstrip.ffmpeg.bundled
 
 import dev.jordond.filmstrip.FilmstripBuilder
 import dev.jordond.filmstrip.FilmstripRegistrar
+import dev.jordond.filmstrip.RegistrarId
 import dev.jordond.filmstrip.ffmpeg.ffmpegBackend
 import dev.jordond.filmstrip.ffmpeg.ffmpegBinaries
 
@@ -21,7 +22,7 @@ import dev.jordond.filmstrip.ffmpeg.ffmpegBinaries
 public fun FilmstripBuilder.ffmpegBundled(): FilmstripBuilder = install(BundledFfmpegRegistrar())
 
 internal class BundledFfmpegRegistrar : FilmstripRegistrar {
-  override val id: String = "filmstrip-transform-ffmpeg-bundled"
+  override val id: RegistrarId = RegistrarId("filmstrip-transform-ffmpeg-bundled")
 
   override fun register(builder: FilmstripBuilder) {
     builder.ffmpegBinaries(BundledBinaries.Default).ffmpegBackend()

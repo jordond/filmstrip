@@ -1978,7 +1978,7 @@ public abstract interface class dev/jordond/filmstrip/player/PlayerEngine : dev/
 	public abstract fun addListener (Ldev/jordond/filmstrip/player/EngineListener;)Ldev/jordond/filmstrip/Cancellable;
 	public abstract fun dispose ()V
 	public abstract fun getFeatures ()Ldev/jordond/filmstrip/player/PlayerFeatures;
-	public abstract fun getId ()Ljava/lang/String;
+	public abstract fun getId-WlM0K_Y ()Ljava/lang/String;
 	public abstract fun getNativePlayer ()Ljava/lang/Object;
 	public abstract fun getReadback ()Ldev/jordond/filmstrip/player/PreviewFrameReadback;
 	public abstract fun setComposition (Ldev/jordond/filmstrip/player/SetCompositionRequest;Ldev/jordond/filmstrip/player/SetCompositionCallback;)Ldev/jordond/filmstrip/Cancellable;
@@ -1986,6 +1986,20 @@ public abstract interface class dev/jordond/filmstrip/player/PlayerEngine : dev/
 
 public abstract interface class dev/jordond/filmstrip/player/PlayerEngineFactory {
 	public abstract fun create (Ldev/jordond/filmstrip/player/PlayerConfig;Ldev/jordond/filmstrip/FilmstripComponents;)Ldev/jordond/filmstrip/player/PlayerEngine;
+}
+
+public final class dev/jordond/filmstrip/player/PlayerEngineId {
+	public static final synthetic fun box-impl (Ljava/lang/String;)Ldev/jordond/filmstrip/player/PlayerEngineId;
+	public static fun constructor-impl (Ljava/lang/String;)Ljava/lang/String;
+	public fun equals (Ljava/lang/Object;)Z
+	public static fun equals-impl (Ljava/lang/String;Ljava/lang/Object;)Z
+	public static final fun equals-impl0 (Ljava/lang/String;Ljava/lang/String;)Z
+	public final fun getValue ()Ljava/lang/String;
+	public fun hashCode ()I
+	public static fun hashCode-impl (Ljava/lang/String;)I
+	public fun toString ()Ljava/lang/String;
+	public static fun toString-impl (Ljava/lang/String;)Ljava/lang/String;
+	public final synthetic fun unbox-impl ()Ljava/lang/String;
 }
 
 public final class dev/jordond/filmstrip/player/PlayerFeature : java/lang/Enum {

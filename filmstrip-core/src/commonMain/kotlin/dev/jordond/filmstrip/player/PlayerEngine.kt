@@ -7,7 +7,28 @@ import dev.jordond.filmstrip.FilmstripComponents
 import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.export.ExportSpec
+import kotlin.jvm.JvmInline
 import kotlin.time.Duration
+
+/**
+ * Names a [PlayerEngine] for diagnostics.
+ *
+ * Read it off [PlayerEngine.id]. Namespace the value like a package, `filmstrip.exoplayer`, so two engines cannot
+ * collide.
+ *
+ * @property value The identifier as text, the way it reads in a message or a diagnostic.
+ */
+@JvmInline
+public value class PlayerEngineId(
+  public val value: String,
+) {
+  /**
+   * Prints the identifier as it was given.
+   *
+   * @return The [value], with nothing added.
+   */
+  override fun toString(): String = value
+}
 
 /**
  * A playback engine.
@@ -20,7 +41,7 @@ public interface PlayerEngine : PlayerTransport {
   /**
    * A stable identifier for diagnostics, such as `filmstrip.exoplayer`.
    */
-  public val id: String
+  public val id: PlayerEngineId
 
   /**
    * What this engine can do, as it finds it on this device.

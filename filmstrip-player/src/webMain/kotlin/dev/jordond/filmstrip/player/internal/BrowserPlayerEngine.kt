@@ -7,6 +7,7 @@ import dev.jordond.filmstrip.player.PlaybackError
 import dev.jordond.filmstrip.player.PlaybackEvent
 import dev.jordond.filmstrip.player.PlaybackStatus
 import dev.jordond.filmstrip.player.PlayerConfig
+import dev.jordond.filmstrip.player.PlayerEngineId
 import dev.jordond.filmstrip.player.PlayerFeature
 import dev.jordond.filmstrip.player.PlayerFeatures
 import dev.jordond.filmstrip.player.PreviewFrameReadback
@@ -151,7 +152,7 @@ internal class BrowserPlayerEngine(
    */
   val transportStarted: Boolean get() = transport.started
 
-  override val id: String = "filmstrip.webcodecs"
+  override val id: PlayerEngineId = PlayerEngineId("filmstrip.webcodecs")
 
   // Discovered, not assumed. Readback is the whole display path here, so a page that cannot give
   // out a WebGL2 context has none of the drawing features rather than some of them. HdrPreview and

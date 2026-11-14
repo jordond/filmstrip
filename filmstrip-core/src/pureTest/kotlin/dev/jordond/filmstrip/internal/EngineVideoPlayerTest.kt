@@ -10,6 +10,7 @@ import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.player.PlaybackEvent
 import dev.jordond.filmstrip.player.PlaybackStatus
+import dev.jordond.filmstrip.player.PlayerEngineId
 import dev.jordond.filmstrip.player.PlayerState
 import dev.jordond.filmstrip.player.PreviewInfo
 import dev.jordond.filmstrip.player.PreviewQualityPolicy
@@ -34,6 +35,11 @@ import kotlin.time.Duration.Companion.seconds
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class EngineVideoPlayerTest {
+  @Test
+  fun `an engine id prints as its value`() {
+    PlayerEngineId("filmstrip.test").toString() shouldBe "filmstrip.test"
+  }
+
   @Test
   fun theInitialCompositionIsLoadedHoldingThePlayheadAndPaused() {
     val engine = FakePlayerEngine()

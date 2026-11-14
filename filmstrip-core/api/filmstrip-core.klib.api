@@ -577,7 +577,7 @@ abstract interface dev.jordond.filmstrip.player/PlayerEngine : dev.jordond.films
     abstract val features // dev.jordond.filmstrip.player/PlayerEngine.features|{}features[0]
         abstract fun <get-features>(): dev.jordond.filmstrip.player/PlayerFeatures // dev.jordond.filmstrip.player/PlayerEngine.features.<get-features>|<get-features>(){}[0]
     abstract val id // dev.jordond.filmstrip.player/PlayerEngine.id|{}id[0]
-        abstract fun <get-id>(): kotlin/String // dev.jordond.filmstrip.player/PlayerEngine.id.<get-id>|<get-id>(){}[0]
+        abstract fun <get-id>(): dev.jordond.filmstrip.player/PlayerEngineId // dev.jordond.filmstrip.player/PlayerEngine.id.<get-id>|<get-id>(){}[0]
     abstract val nativePlayer // dev.jordond.filmstrip.player/PlayerEngine.nativePlayer|{}nativePlayer[0]
         abstract fun <get-nativePlayer>(): kotlin/Any? // dev.jordond.filmstrip.player/PlayerEngine.nativePlayer.<get-nativePlayer>|<get-nativePlayer>(){}[0]
     abstract val readback // dev.jordond.filmstrip.player/PlayerEngine.readback|{}readback[0]
@@ -2858,6 +2858,17 @@ final value class dev.jordond.filmstrip.media/AudioTrackId { // dev.jordond.film
     final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.media/AudioTrackId.equals|equals(kotlin.Any?){}[0]
     final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.media/AudioTrackId.hashCode|hashCode(){}[0]
     final fun toString(): kotlin/String // dev.jordond.filmstrip.media/AudioTrackId.toString|toString(){}[0]
+}
+
+final value class dev.jordond.filmstrip.player/PlayerEngineId { // dev.jordond.filmstrip.player/PlayerEngineId|null[0]
+    constructor <init>(kotlin/String) // dev.jordond.filmstrip.player/PlayerEngineId.<init>|<init>(kotlin.String){}[0]
+
+    final val value // dev.jordond.filmstrip.player/PlayerEngineId.value|{}value[0]
+        final fun <get-value>(): kotlin/String // dev.jordond.filmstrip.player/PlayerEngineId.value.<get-value>|<get-value>(){}[0]
+
+    final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.player/PlayerEngineId.equals|equals(kotlin.Any?){}[0]
+    final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.player/PlayerEngineId.hashCode|hashCode(){}[0]
+    final fun toString(): kotlin/String // dev.jordond.filmstrip.player/PlayerEngineId.toString|toString(){}[0]
 }
 
 final object dev.jordond.filmstrip.effect/EffectIds { // dev.jordond.filmstrip.effect/EffectIds|null[0]

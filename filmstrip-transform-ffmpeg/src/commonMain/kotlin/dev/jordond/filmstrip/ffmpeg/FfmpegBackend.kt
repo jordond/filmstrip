@@ -6,6 +6,7 @@ import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.FilmstripRegistrar
 import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.OptionKey
+import dev.jordond.filmstrip.RegistrarId
 import dev.jordond.filmstrip.diagnostics.BackendInfo
 import dev.jordond.filmstrip.effects.builtInEffects
 import dev.jordond.filmstrip.export.EngineComponents
@@ -63,7 +64,7 @@ public fun FilmstripBuilder.ffmpegBackend(config: FfmpegConfig): FilmstripBuilde
 private val FFMPEG_CONFIG = OptionKey<FfmpegConfig>("ffmpeg")
 
 internal class FfmpegRegistrar : FilmstripRegistrar {
-  override val id: String = "filmstrip-transform-ffmpeg"
+  override val id: RegistrarId = RegistrarId("filmstrip-transform-ffmpeg")
 
   override fun register(builder: FilmstripBuilder) {
     // One runtime behind both, so resolving the binaries, probing a clip and measuring the encoder ladder happen once

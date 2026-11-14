@@ -9,7 +9,7 @@ import kotlin.test.Test
 import kotlin.test.assertSame
 
 class FilmstripRegistrarTest {
-  private val added = mutableListOf<String>()
+  private val added = mutableListOf<RegistrarId>()
 
   @AfterTest
   fun forget() {
@@ -149,6 +149,11 @@ class FilmstripRegistrarTest {
     second.read() shouldBe null
   }
 
+  @Test
+  fun `a registrar id prints as its value`() {
+    RegistrarId("filmstrip-test").toString() shouldBe "filmstrip-test"
+  }
+
   private fun discover(registrar: FilmstripRegistrar) {
     FilmstripRegistrars.register(registrar)
     added += registrar.id
@@ -157,13 +162,15 @@ class FilmstripRegistrarTest {
   private fun List<BackendInfo>.names(): List<String> = map { it.name }
 
   private class Recording(
-    override val id: String,
+    private val name: String,
     private val runs: MutableList<String> = mutableListOf(),
     private val resolver: EffectResolver? = null,
   ) : FilmstripRegistrar {
+    override val id: RegistrarId = RegistrarId(name)
+
     override fun register(builder: FilmstripBuilder) {
-      runs += id
-      builder.addBackendInfo(BackendInfo(name = id, artifact = id))
+      runs += name
+      builder.addBackendInfo(BackendInfo(name = name, artifact = name))
       resolver?.let { builder.addEffectResolver(it) }
     }
   }
@@ -171,11 +178,11 @@ class FilmstripRegistrarTest {
   private class Labelled(
     private val key: OptionKey<String>,
   ) : FilmstripRegistrar {
-    override val id: String = "test-labelled"
+    override val id: RegistrarId = RegistrarId("test-labelled")
 
     override fun register(builder: FilmstripBuilder) {
       val label = builder.optionOrNull(key) ?: "unset"
-      builder.addBackendInfo(BackendInfo(name = label, artifact = id))
+      builder.addBackendInfo(BackendInfo(name = label, artifact = id.value))
     }
   }
 
@@ -183,7 +190,7 @@ class FilmstripRegistrarTest {
     private val key: OptionKey<String>,
     private val value: String,
   ) : FilmstripRegistrar {
-    override val id: String = "test-setting"
+    override val id: RegistrarId = RegistrarId("test-setting")
 
     override fun register(builder: FilmstripBuilder) {
       builder.option(key, value)
@@ -193,7 +200,7 @@ class FilmstripRegistrarTest {
   private class Reading(
     private val key: OptionKey<String>,
   ) : FilmstripRegistrar {
-    override val id: String = "test-reading"
+    override val id: RegistrarId = RegistrarId("test-reading")
     private var builder: FilmstripBuilder? = null
 
     override fun register(builder: FilmstripBuilder) {
@@ -204,9 +211,11 @@ class FilmstripRegistrarTest {
   }
 
   private class Dependent(
-    override val id: String,
+    name: String,
     private val dependency: FilmstripRegistrar,
   ) : FilmstripRegistrar {
+    override val id: RegistrarId = RegistrarId(name)
+
     override fun register(builder: FilmstripBuilder) {
       builder.install(dependency)
     }

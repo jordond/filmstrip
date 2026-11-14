@@ -14,6 +14,7 @@ import dev.jordond.filmstrip.player.EngineListener
 import dev.jordond.filmstrip.player.PlaybackEvent
 import dev.jordond.filmstrip.player.PlaybackStatus
 import dev.jordond.filmstrip.player.PlayerEngine
+import dev.jordond.filmstrip.player.PlayerEngineId
 import dev.jordond.filmstrip.player.PlayerFeatures
 import dev.jordond.filmstrip.player.PlayerState
 import dev.jordond.filmstrip.player.PreviewFrameReadback
@@ -53,7 +54,7 @@ internal class RecordingEngine(
   var isScrubbing: Boolean = false
     private set
 
-  override val id: String = "filmstrip.compose-test"
+  override val id: PlayerEngineId = PlayerEngineId("filmstrip.compose-test")
 
   override val features: PlayerFeatures = PlayerFeatures(emptySet())
 

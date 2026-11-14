@@ -7,6 +7,7 @@ import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.player.PlaybackError
 import dev.jordond.filmstrip.player.PlaybackEvent
 import dev.jordond.filmstrip.player.PlaybackStatus
+import dev.jordond.filmstrip.player.PlayerEngineId
 import dev.jordond.filmstrip.player.PlayerFeature
 import dev.jordond.filmstrip.player.PlayerFeatures
 import dev.jordond.filmstrip.player.PreviewFrameReadback
@@ -50,7 +51,7 @@ internal class FakePlayerEngine(
   private var heldSeek: (() -> Unit)? = null
   private var playbackRange: TimeRange? = null
 
-  override val id: String = "filmstrip.fake"
+  override val id: PlayerEngineId = PlayerEngineId("filmstrip.fake")
 
   override val features: PlayerFeatures = PlayerFeatures(supported)
 

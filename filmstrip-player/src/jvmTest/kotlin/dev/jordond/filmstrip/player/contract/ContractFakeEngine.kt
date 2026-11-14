@@ -17,6 +17,7 @@ import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.player.PlaybackError
 import dev.jordond.filmstrip.player.PlaybackEvent
 import dev.jordond.filmstrip.player.PlaybackStatus
+import dev.jordond.filmstrip.player.PlayerEngineId
 import dev.jordond.filmstrip.player.PlayerFeature
 import dev.jordond.filmstrip.player.PlayerFeatures
 import dev.jordond.filmstrip.player.PreviewFrameReadback
@@ -73,7 +74,7 @@ internal class ContractFakeEngine(
   private var transport: Job? = null
   private var isLanding = false
 
-  override val id: String = "filmstrip.contract-fake"
+  override val id: PlayerEngineId = PlayerEngineId("filmstrip.contract-fake")
 
   override val features: PlayerFeatures =
     PlayerFeatures(setOf(PlayerFeature.FrameReadback, PlayerFeature.LiveParameterRedraw, PlayerFeature.Shuttle))

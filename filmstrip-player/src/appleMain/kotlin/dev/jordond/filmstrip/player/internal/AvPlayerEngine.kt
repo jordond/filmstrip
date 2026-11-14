@@ -14,6 +14,7 @@ import dev.jordond.filmstrip.player.PlaybackError
 import dev.jordond.filmstrip.player.PlaybackEvent
 import dev.jordond.filmstrip.player.PlaybackStatus
 import dev.jordond.filmstrip.player.PlayerConfig
+import dev.jordond.filmstrip.player.PlayerEngineId
 import dev.jordond.filmstrip.player.PlayerFeature
 import dev.jordond.filmstrip.player.PlayerFeatures
 import dev.jordond.filmstrip.player.PreviewFrameReadback
@@ -210,7 +211,7 @@ internal class AvPlayerEngine(
    */
   val platformPlayer: AVPlayer get() = player
 
-  override val id: String = "filmstrip.avfoundation"
+  override val id: PlayerEngineId = PlayerEngineId("filmstrip.avfoundation")
 
   // HdrPreview is left unclaimed: whether a grade survives to the panel is the display's answer,
   // and nothing here has measured it. A claimed feature that is not there reads as a frozen UI.

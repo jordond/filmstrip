@@ -35,7 +35,7 @@ public fun Filmstrip(block: FilmstripBuilder.() -> Unit = {}): Filmstrip = Films
 @FilmstripDsl
 public class FilmstripBuilder {
   private var registry: ComponentRegistry.Builder = ComponentRegistry.Builder()
-  private val installed = mutableSetOf<String>()
+  private val installed = mutableSetOf<RegistrarId>()
   private var options = mutableMapOf<OptionKey<*>, Any>()
   private var autoRegister = true
 

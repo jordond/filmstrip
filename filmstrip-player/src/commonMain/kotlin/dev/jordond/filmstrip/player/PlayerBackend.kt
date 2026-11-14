@@ -2,6 +2,7 @@ package dev.jordond.filmstrip.player
 
 import dev.jordond.filmstrip.FilmstripBuilder
 import dev.jordond.filmstrip.FilmstripRegistrar
+import dev.jordond.filmstrip.RegistrarId
 import dev.jordond.filmstrip.effects.builtInEffects
 
 /**
@@ -14,7 +15,7 @@ import dev.jordond.filmstrip.effects.builtInEffects
 public fun FilmstripBuilder.playerBackend(): FilmstripBuilder = install(PlayerRegistrar())
 
 internal class PlayerRegistrar : FilmstripRegistrar {
-  override val id: String = "filmstrip-player"
+  override val id: RegistrarId = RegistrarId("filmstrip-player")
 
   override fun register(builder: FilmstripBuilder) {
     builder

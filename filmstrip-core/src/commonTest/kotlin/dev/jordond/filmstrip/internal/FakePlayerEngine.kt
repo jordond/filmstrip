@@ -5,6 +5,7 @@ import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.player.EngineListener
 import dev.jordond.filmstrip.player.PlayerEngine
+import dev.jordond.filmstrip.player.PlayerEngineId
 import dev.jordond.filmstrip.player.PlayerFeatures
 import dev.jordond.filmstrip.player.PreviewFrameReadback
 import dev.jordond.filmstrip.player.PreviewQualityPolicy
@@ -31,7 +32,7 @@ internal class FakePlayerEngine : PlayerEngine {
 
   private val callbacks: MutableList<SetCompositionCallback> = mutableListOf()
 
-  override val id: String = "fake"
+  override val id: PlayerEngineId = PlayerEngineId("fake")
 
   override val features: PlayerFeatures = PlayerFeatures(emptySet())
 
