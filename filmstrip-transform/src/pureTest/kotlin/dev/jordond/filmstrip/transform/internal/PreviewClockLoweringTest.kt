@@ -3,6 +3,7 @@ package dev.jordond.filmstrip.transform.internal
 import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.effect.Attributes
+import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.effect.EffectResolution
 import dev.jordond.filmstrip.effect.EffectResolver
 import dev.jordond.filmstrip.effect.EffectSpec
@@ -61,7 +62,7 @@ class PreviewClockLoweringTest {
   }
 
   private class Seen : EffectResolver {
-    val clocks = mutableListOf<Pair<String, PreviewClock?>>()
+    val clocks = mutableListOf<Pair<EffectId, PreviewClock?>>()
 
     override fun resolve(
       spec: EffectSpec,
@@ -74,13 +75,13 @@ class PreviewClockLoweringTest {
   }
 
   private data class Ticking(
-    override val id: String,
+    override val id: EffectId,
   ) : EffectSpec {
     override val stage: EffectStage get() = EffectStage.Spatial
   }
 
   private companion object {
-    const val CLIP = "test.ticking.clip"
-    const val MIX = "test.ticking.mix"
+    val CLIP = EffectId("test.ticking.clip")
+    val MIX = EffectId("test.ticking.mix")
   }
 }

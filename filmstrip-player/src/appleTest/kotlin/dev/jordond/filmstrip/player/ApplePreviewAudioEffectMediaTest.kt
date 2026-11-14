@@ -12,6 +12,7 @@ import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
+import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.player.contract.awaitComposition
 import dev.jordond.filmstrip.player.contract.awaitContract
@@ -131,7 +132,7 @@ class ApplePreviewAudioEffectMediaTest {
   }
 
   private data object Throwing : AudioEffectSpec {
-    override val id: String = "dev.jordond.filmstrip.test.throwing-audio"
+    override val id: EffectId = EffectId("dev.jordond.filmstrip.test.throwing-audio")
   }
 
   private object Kernels : AudioEffectResolver {

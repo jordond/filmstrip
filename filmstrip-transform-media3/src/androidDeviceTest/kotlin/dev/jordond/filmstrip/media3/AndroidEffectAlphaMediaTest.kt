@@ -9,6 +9,7 @@ import dev.jordond.filmstrip.color.blurPlane
 import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.Track
+import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.effect.EffectResolution
 import dev.jordond.filmstrip.effect.EffectResolver
 import dev.jordond.filmstrip.effect.EffectSpec
@@ -235,7 +236,7 @@ class AndroidEffectAlphaMediaTest {
 private class HalfAlpha(
   val edge: Double,
 ) : EffectSpec {
-  override val id: String get() = "test.halfAlpha"
+  override val id: EffectId get() = EffectId("test.halfAlpha")
   override val stage: EffectStage get() = EffectStage.Spatial
 }
 

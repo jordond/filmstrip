@@ -6,6 +6,7 @@ import dev.jordond.filmstrip.capability.EffectParity
 import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.Composition
+import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.effect.EffectIds
 import dev.jordond.filmstrip.effect.EffectResolver
 import dev.jordond.filmstrip.effect.RenderApi
@@ -122,7 +123,7 @@ internal class BrowserPlanner(
   internal fun lower(
     composition: Composition,
     ask: Ask,
-    dropped: Set<String> = emptySet(),
+    dropped: Set<EffectId> = emptySet(),
     opaque: Set<MediaSource> = emptySet(),
   ): LoweredExport<BrowserRender> {
     unconditionalRefusal(composition, ask.infos)?.let { return it }
@@ -236,7 +237,7 @@ internal val BROWSER_LADDER: List<VideoCodec> = listOf(VideoCodec.H264, VideoCod
  * `PlannedEffect.parity` and the engine-level [dev.jordond.filmstrip.export.ExportEngine.parityOf]
  * answer the same question the same way.
  */
-internal fun browserParityOf(specId: String): EffectParity? =
+internal fun browserParityOf(specId: EffectId): EffectParity? =
   when (specId) {
     EffectIds.CROP,
     EffectIds.CROP_RECT,

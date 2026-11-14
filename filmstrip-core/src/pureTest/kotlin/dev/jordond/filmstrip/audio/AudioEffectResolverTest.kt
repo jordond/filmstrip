@@ -5,6 +5,7 @@ import dev.jordond.filmstrip.FilmstripComponents
 import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.compositionOf
+import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.player.PlayerConfig
 import io.kotest.matchers.collections.shouldContainExactly
@@ -17,7 +18,7 @@ import kotlin.time.Duration.Companion.seconds
 @OptIn(InternalFilmstripApi::class)
 class AudioEffectResolverTest {
   private val attributes = AudioAttributes(TimeRange(0.seconds, 2.seconds))
-  private val spec = Named("test.hum")
+  private val spec = Named(EffectId("test.hum"))
 
   @Test
   fun `the first resolver to claim a spec wins`() {
@@ -92,6 +93,6 @@ class AudioEffectResolverTest {
   }
 
   private data class Named(
-    override val id: String,
+    override val id: EffectId,
   ) : AudioEffectSpec
 }

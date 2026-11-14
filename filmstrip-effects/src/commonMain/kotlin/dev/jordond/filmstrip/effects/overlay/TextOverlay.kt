@@ -4,6 +4,7 @@ import dev.drewhamilton.poko.Poko
 import dev.jordond.filmstrip.edit.EffectsBuilder
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.effect.Attributes
+import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.effect.EffectIds
 import dev.jordond.filmstrip.geometry.Anchor
 import dev.jordond.filmstrip.geometry.Size
@@ -32,7 +33,7 @@ public class TextOverlay(
   override val visibleDuring: TimeRange? = null,
   override val animation: OverlayAnimation? = null,
 ) : OverlayEffect {
-  override val id: String get() = EffectIds.TEXT_OVERLAY
+  override val id: EffectId get() = EffectIds.TEXT_OVERLAY
 }
 
 /**

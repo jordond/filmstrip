@@ -5,6 +5,7 @@ import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.EffectsBuilder
 import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.effect.Attributes
+import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.effect.EffectResolution
 import dev.jordond.filmstrip.effect.EffectResolver
 import dev.jordond.filmstrip.effect.EffectSpec
@@ -16,7 +17,7 @@ import dev.jordond.filmstrip.media.MediaSource
 internal data class SoftFocus(
   val radius: Float,
 ) : EffectSpec {
-  override val id: String get() = "acme.softfocus"
+  override val id: EffectId get() = EffectId("acme.softfocus")
 
   override val stage: EffectStage get() = EffectStage.Spatial
 }

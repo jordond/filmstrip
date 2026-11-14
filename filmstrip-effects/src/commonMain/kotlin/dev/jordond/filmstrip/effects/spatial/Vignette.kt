@@ -2,6 +2,7 @@ package dev.jordond.filmstrip.effects.spatial
 
 import dev.drewhamilton.poko.Poko
 import dev.jordond.filmstrip.edit.EffectsBuilder
+import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.effect.EffectIds
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effect.EffectStage
@@ -35,7 +36,7 @@ public class Vignette(
     require(softness in 0f..1f) { "A vignette's softness runs from 0 to 1, not $softness." }
   }
 
-  override val id: String get() = EffectIds.VIGNETTE
+  override val id: EffectId get() = EffectIds.VIGNETTE
 
   override val stage: EffectStage get() = EffectStage.Spatial
 

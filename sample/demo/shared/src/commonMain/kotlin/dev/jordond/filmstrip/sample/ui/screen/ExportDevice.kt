@@ -203,7 +203,7 @@ private fun PlanSummary(
     }
     estimate.approximateDuration?.let { MenuStat("Estimated run", "about ${it.asClock()}") }
 
-    state.parity().forEach { (id, name) -> MenuStat(id, name.lowercase()) }
+    state.parity().forEach { (id, name) -> MenuStat(id.value, name.lowercase()) }
   }
 }
 

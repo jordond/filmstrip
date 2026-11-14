@@ -17,7 +17,7 @@ internal fun camcorderPass(
 ): WebGlPass {
   val tables = OsdTables(CamcorderOsd(camcorder, frameRate))
   return WebGlPass(
-    Camcorder.ID,
+    Camcorder.ID.value,
     listOf(
       WebGlStep(
         name = "display",

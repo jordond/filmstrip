@@ -7,6 +7,7 @@ import dev.jordond.filmstrip.capability.EffectParity
 import dev.jordond.filmstrip.codec.AudioCodec
 import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.edit.Composition
+import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.export.Adjustment
 import dev.jordond.filmstrip.export.AdjustmentKind
 import dev.jordond.filmstrip.export.ExportEngine
@@ -99,6 +100,6 @@ class ExportDiagnosticsTest {
       to: MediaSink,
     ): Flow<ExportStatus> = flowOf(ExportStatus.Adjusted(adjustments))
 
-    override fun parityOf(specId: String): EffectParity? = null
+    override fun parityOf(specId: EffectId): EffectParity? = null
   }
 }

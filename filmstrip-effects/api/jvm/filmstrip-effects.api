@@ -13,7 +13,7 @@ public final class dev/jordond/filmstrip/effects/color/Brightness : dev/jordond/
 	public fun equals (Ljava/lang/Object;)Z
 	public fun getBeneathOverlays ()Z
 	public final fun getFactor ()F
-	public fun getId ()Ljava/lang/String;
+	public fun getId-M7MrD_4 ()Ljava/lang/String;
 	public fun getRedrawsWhileHeld ()Z
 	public fun getRequiresSdr ()Z
 	public fun getScope ()Ldev/jordond/filmstrip/effect/EffectScope;
@@ -42,7 +42,7 @@ public final class dev/jordond/filmstrip/effects/color/ColorMatrix : dev/jordond
 	public final fun getGb ()F
 	public final fun getGg ()F
 	public final fun getGr ()F
-	public fun getId ()Ljava/lang/String;
+	public fun getId-M7MrD_4 ()Ljava/lang/String;
 	public final fun getRBias ()F
 	public final fun getRb ()F
 	public fun getRedrawsWhileHeld ()Z
@@ -69,7 +69,7 @@ public final class dev/jordond/filmstrip/effects/color/Contrast : dev/jordond/fi
 	public fun equals (Ljava/lang/Object;)Z
 	public fun getBeneathOverlays ()Z
 	public final fun getFactor ()F
-	public fun getId ()Ljava/lang/String;
+	public fun getId-M7MrD_4 ()Ljava/lang/String;
 	public fun getRedrawsWhileHeld ()Z
 	public fun getRequiresSdr ()Z
 	public fun getScope ()Ldev/jordond/filmstrip/effect/EffectScope;
@@ -88,7 +88,7 @@ public final class dev/jordond/filmstrip/effects/color/HueRotate : dev/jordond/f
 	public fun equals (Ljava/lang/Object;)Z
 	public fun getBeneathOverlays ()Z
 	public final fun getDegrees ()F
-	public fun getId ()Ljava/lang/String;
+	public fun getId-M7MrD_4 ()Ljava/lang/String;
 	public fun getRedrawsWhileHeld ()Z
 	public fun getRequiresSdr ()Z
 	public fun getScope ()Ldev/jordond/filmstrip/effect/EffectScope;
@@ -109,7 +109,7 @@ public final class dev/jordond/filmstrip/effects/color/Invert : dev/jordond/film
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getAmount ()F
 	public fun getBeneathOverlays ()Z
-	public fun getId ()Ljava/lang/String;
+	public fun getId-M7MrD_4 ()Ljava/lang/String;
 	public fun getRedrawsWhileHeld ()Z
 	public fun getRequiresSdr ()Z
 	public fun getScope ()Ldev/jordond/filmstrip/effect/EffectScope;
@@ -132,7 +132,7 @@ public final class dev/jordond/filmstrip/effects/color/RgbAdjustment : dev/jordo
 	public fun getBeneathOverlays ()Z
 	public final fun getBlue ()F
 	public final fun getGreen ()F
-	public fun getId ()Ljava/lang/String;
+	public fun getId-M7MrD_4 ()Ljava/lang/String;
 	public final fun getRed ()F
 	public fun getRedrawsWhileHeld ()Z
 	public fun getRequiresSdr ()Z
@@ -153,7 +153,7 @@ public final class dev/jordond/filmstrip/effects/color/Saturation : dev/jordond/
 	public fun equals (Ljava/lang/Object;)Z
 	public fun getBeneathOverlays ()Z
 	public final fun getFactor ()F
-	public fun getId ()Ljava/lang/String;
+	public fun getId-M7MrD_4 ()Ljava/lang/String;
 	public fun getRedrawsWhileHeld ()Z
 	public fun getRequiresSdr ()Z
 	public fun getScope ()Ldev/jordond/filmstrip/effect/EffectScope;
@@ -175,7 +175,7 @@ public final class dev/jordond/filmstrip/effects/color/Sepia : dev/jordond/films
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getAmount ()F
 	public fun getBeneathOverlays ()Z
-	public fun getId ()Ljava/lang/String;
+	public fun getId-M7MrD_4 ()Ljava/lang/String;
 	public fun getRedrawsWhileHeld ()Z
 	public fun getRequiresSdr ()Z
 	public fun getScope ()Ldev/jordond/filmstrip/effect/EffectScope;
@@ -198,7 +198,7 @@ public final class dev/jordond/filmstrip/effects/geometry/Crop : dev/jordond/fil
 	public final fun getAspect ()Ldev/jordond/filmstrip/geometry/AspectRatio;
 	public fun getBeneathOverlays ()Z
 	public final fun getFit ()Ldev/jordond/filmstrip/geometry/Fit;
-	public fun getId ()Ljava/lang/String;
+	public fun getId-M7MrD_4 ()Ljava/lang/String;
 	public fun getRedrawsWhileHeld ()Z
 	public fun getRequiresSdr ()Z
 	public fun getScope ()Ldev/jordond/filmstrip/effect/EffectScope;
@@ -219,7 +219,7 @@ public final class dev/jordond/filmstrip/effects/geometry/CropRect : dev/jordond
 	public fun <init> (Ldev/jordond/filmstrip/geometry/NormalizedRect;)V
 	public fun equals (Ljava/lang/Object;)Z
 	public fun getBeneathOverlays ()Z
-	public fun getId ()Ljava/lang/String;
+	public fun getId-M7MrD_4 ()Ljava/lang/String;
 	public final fun getRect ()Ldev/jordond/filmstrip/geometry/NormalizedRect;
 	public fun getRedrawsWhileHeld ()Z
 	public fun getRequiresSdr ()Z
@@ -239,7 +239,7 @@ public final class dev/jordond/filmstrip/effects/geometry/Flip : dev/jordond/fil
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getAxis ()Ldev/jordond/filmstrip/geometry/FlipAxis;
 	public fun getBeneathOverlays ()Z
-	public fun getId ()Ljava/lang/String;
+	public fun getId-M7MrD_4 ()Ljava/lang/String;
 	public fun getRedrawsWhileHeld ()Z
 	public fun getRequiresSdr ()Z
 	public fun getScope ()Ldev/jordond/filmstrip/effect/EffectScope;
@@ -260,7 +260,7 @@ public final class dev/jordond/filmstrip/effects/geometry/KenBurns : dev/jordond
 	public fun getBeneathOverlays ()Z
 	public final fun getEasing ()Ldev/jordond/filmstrip/motion/Easing;
 	public final fun getFrom ()Ldev/jordond/filmstrip/geometry/NormalizedRect;
-	public fun getId ()Ljava/lang/String;
+	public fun getId-M7MrD_4 ()Ljava/lang/String;
 	public fun getRedrawsWhileHeld ()Z
 	public fun getRequiresSdr ()Z
 	public fun getScope ()Ldev/jordond/filmstrip/effect/EffectScope;
@@ -282,7 +282,7 @@ public final class dev/jordond/filmstrip/effects/geometry/Rotate : dev/jordond/f
 	public fun equals (Ljava/lang/Object;)Z
 	public fun getBeneathOverlays ()Z
 	public final fun getDegrees ()I
-	public fun getId ()Ljava/lang/String;
+	public fun getId-M7MrD_4 ()Ljava/lang/String;
 	public fun getRedrawsWhileHeld ()Z
 	public fun getRequiresSdr ()Z
 	public fun getScope ()Ldev/jordond/filmstrip/effect/EffectScope;
@@ -303,7 +303,7 @@ public final class dev/jordond/filmstrip/effects/geometry/Scale : dev/jordond/fi
 	public fun getBeneathOverlays ()Z
 	public final fun getFit ()Ldev/jordond/filmstrip/geometry/Fit;
 	public final fun getHeightPx ()I
-	public fun getId ()Ljava/lang/String;
+	public fun getId-M7MrD_4 ()Ljava/lang/String;
 	public fun getRedrawsWhileHeld ()Z
 	public fun getRequiresSdr ()Z
 	public fun getScope ()Ldev/jordond/filmstrip/effect/EffectScope;
@@ -341,7 +341,7 @@ public final class dev/jordond/filmstrip/effects/overlay/ImageOverlay : dev/jord
 	public fun getAnimation ()Ldev/jordond/filmstrip/effects/overlay/OverlayAnimation;
 	public fun getBeneathOverlays ()Z
 	public final fun getCorner ()Ldev/jordond/filmstrip/geometry/Corner;
-	public fun getId ()Ljava/lang/String;
+	public fun getId-M7MrD_4 ()Ljava/lang/String;
 	public final fun getImage ()Ldev/jordond/filmstrip/media/ImageSource;
 	public final fun getMargin ()F
 	public final fun getOpacity ()F
@@ -457,7 +457,7 @@ public final class dev/jordond/filmstrip/effects/overlay/TextOverlay : dev/jordo
 	public final fun getAnchor ()Ldev/jordond/filmstrip/geometry/Anchor;
 	public fun getAnimation ()Ldev/jordond/filmstrip/effects/overlay/OverlayAnimation;
 	public fun getBeneathOverlays ()Z
-	public fun getId ()Ljava/lang/String;
+	public fun getId-M7MrD_4 ()Ljava/lang/String;
 	public fun getRedrawsWhileHeld ()Z
 	public fun getRequiresSdr ()Z
 	public fun getScope ()Ldev/jordond/filmstrip/effect/EffectScope;
@@ -482,7 +482,7 @@ public final class dev/jordond/filmstrip/effects/spatial/GaussianBlur : dev/jord
 	public fun <init> (F)V
 	public fun equals (Ljava/lang/Object;)Z
 	public fun getBeneathOverlays ()Z
-	public fun getId ()Ljava/lang/String;
+	public fun getId-M7MrD_4 ()Ljava/lang/String;
 	public fun getRedrawsWhileHeld ()Z
 	public fun getRequiresSdr ()Z
 	public fun getScope ()Ldev/jordond/filmstrip/effect/EffectScope;
@@ -503,7 +503,7 @@ public final class dev/jordond/filmstrip/effects/spatial/Vignette : dev/jordond/
 	public synthetic fun <init> (FFFILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun equals (Ljava/lang/Object;)Z
 	public fun getBeneathOverlays ()Z
-	public fun getId ()Ljava/lang/String;
+	public fun getId-M7MrD_4 ()Ljava/lang/String;
 	public final fun getRadius ()F
 	public fun getRedrawsWhileHeld ()Z
 	public fun getRequiresSdr ()Z

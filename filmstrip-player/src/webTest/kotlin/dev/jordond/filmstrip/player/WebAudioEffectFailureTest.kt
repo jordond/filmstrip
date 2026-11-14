@@ -8,6 +8,7 @@ import dev.jordond.filmstrip.audio.AudioEffectSpec
 import dev.jordond.filmstrip.audio.AudioKernel
 import dev.jordond.filmstrip.audio.PlatformAudioEffect
 import dev.jordond.filmstrip.edit.AudioSpec
+import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.player.contract.awaitComposition
 import dev.jordond.filmstrip.player.contract.awaitContract
 import dev.jordond.filmstrip.player.contract.contractTest
@@ -77,7 +78,7 @@ class WebAudioEffectFailureTest {
   private data class Throwing(
     val after: Float,
   ) : AudioEffectSpec {
-    override val id: String = "dev.jordond.filmstrip.test.throwing-audio"
+    override val id: EffectId = EffectId("dev.jordond.filmstrip.test.throwing-audio")
   }
 
   private object Kernels : AudioEffectResolver {

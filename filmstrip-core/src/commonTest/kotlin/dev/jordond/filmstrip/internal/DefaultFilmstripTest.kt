@@ -9,6 +9,7 @@ import dev.jordond.filmstrip.codec.AudioCodec
 import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.compositionOf
+import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.export.Adjustment
 import dev.jordond.filmstrip.export.AdjustmentKind
 import dev.jordond.filmstrip.export.ExportEngine
@@ -79,7 +80,7 @@ class DefaultFilmstripTest {
       }
       ("`plan`" in plan.reasons.single().message).shouldBeTrue()
       plan.withoutUnsupported.shouldBeNull()
-      filmstrip.parityOf("blur").shouldBeNull()
+      filmstrip.parityOf(EffectId("blur")).shouldBeNull()
     }
 
   @Test
@@ -108,7 +109,7 @@ class DefaultFilmstripTest {
 
       filmstrip.capabilities()
       filmstrip.plan(COMPOSITION, SPEC)
-      filmstrip.parityOf("blur")
+      filmstrip.parityOf(EffectId("blur"))
 
       listOf(declinerAsked, chosenAsked, behindAsked) shouldBe listOf(1, 1, 0)
       chosen.calls shouldBe listOf("capabilities", "plan", "parity blur")
@@ -227,7 +228,7 @@ class DefaultFilmstripTest {
     val engine = FakeExportEngine(Verdict.Capable(planOf(COMPOSITION)), parity = EffectParity.Approximate)
     val filmstrip = filmstripOf(ExportEngineFactory { engine })
 
-    filmstrip.parityOf("blur") shouldBe EffectParity.Approximate
+    filmstrip.parityOf(EffectId("blur")) shouldBe EffectParity.Approximate
   }
 
   // One frame is a poster and has to be exact, a strip is a run where a sync sample will do.
@@ -411,7 +412,7 @@ private class FakeExportEngine(
     return flowOf(*statuses.toTypedArray())
   }
 
-  override fun parityOf(specId: String): EffectParity? {
+  override fun parityOf(specId: EffectId): EffectParity? {
     calls += "parity $specId"
     return parity
   }
@@ -457,5 +458,5 @@ private class SucceedingExportEngine(
       ExportStatus.Success(to, MediaInfo(4.seconds, null, emptyList(), isExportable = true), adjustments),
     )
 
-  override fun parityOf(specId: String): EffectParity? = null
+  override fun parityOf(specId: EffectId): EffectParity? = null
 }

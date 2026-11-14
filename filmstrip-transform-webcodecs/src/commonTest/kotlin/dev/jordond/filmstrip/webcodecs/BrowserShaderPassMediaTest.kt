@@ -8,6 +8,7 @@ import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.outputSlotTime
+import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.effect.EffectResolution
 import dev.jordond.filmstrip.effect.EffectResolver
 import dev.jordond.filmstrip.effect.EffectSpec
@@ -199,7 +200,7 @@ class BrowserShaderPassMediaTest {
     runTest {
       val failure = assertFailsWith<BrowserExportFailure> { lowered(listOf(Clip(source())), listOf(Unknown)) }
 
-      failure.message.orEmpty() shouldContain Unknown.id
+      failure.message.orEmpty() shouldContain Unknown.id.value
     }
 
   @Test
@@ -208,7 +209,7 @@ class BrowserShaderPassMediaTest {
       val failure =
         assertFailsWith<BrowserExportFailure> { lowered(listOf(Clip(source(), effects = listOf(Unknown)))) }
 
-      failure.message.orEmpty() shouldContain Unknown.id
+      failure.message.orEmpty() shouldContain Unknown.id.value
     }
 
   @Test
@@ -384,17 +385,17 @@ private class ShaderEffect(
   beneath: Boolean = true,
   val key: String = shader.fragmentSource,
 ) : EffectSpec {
-  override val id: String get() = "test.shader"
+  override val id: EffectId get() = EffectId("test.shader")
   override val beneathOverlays: Boolean = beneath
 }
 
 private data object Grade : EffectSpec {
-  override val id: String get() = "test.grade"
+  override val id: EffectId get() = EffectId("test.grade")
   override val stage: EffectStage get() = EffectStage.Color
 }
 
 private data object Unknown : EffectSpec {
-  override val id: String get() = "test.unknown"
+  override val id: EffectId get() = EffectId("test.unknown")
   override val stage: EffectStage get() = EffectStage.Composite
 }
 

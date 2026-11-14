@@ -9,6 +9,7 @@ import dev.jordond.filmstrip.color.brightnessDisplayGain
 import dev.jordond.filmstrip.color.brightnessSceneGain
 import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.effect.Attributes
+import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.effect.EffectResolution
 import dev.jordond.filmstrip.effect.EffectResolver
 import dev.jordond.filmstrip.effect.EffectSpec
@@ -224,7 +225,7 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
   }
 
   private fun unsupported(
-    id: String,
+    id: EffectId,
     message: String,
   ): EffectResolution = EffectResolution.Unsupported(id, message)
 

@@ -4,6 +4,7 @@ import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.capability.AudioEncoderCapability
 import dev.jordond.filmstrip.codec.AudioCodec
 import dev.jordond.filmstrip.codec.VideoCodec
+import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.effect.EffectIds
 import dev.jordond.filmstrip.effects.color.Brightness
 import dev.jordond.filmstrip.effects.color.Sepia
@@ -148,10 +149,10 @@ class ConcessionsTest {
 
     approximated shouldBe
       listOf(
-        Adjustment(AdjustmentKind.EffectApproximated, EffectIds.BRIGHTNESS, "approximated", "rounds"),
-        Adjustment(AdjustmentKind.EffectApproximated, EffectIds.BRIGHTNESS, "approximated", "converts"),
-        Adjustment(AdjustmentKind.EffectApproximated, EffectIds.SEPIA, "approximated", "rounds"),
-        Adjustment(AdjustmentKind.EffectApproximated, EffectIds.SEPIA, "approximated", "converts"),
+        Adjustment(AdjustmentKind.EffectApproximated, EffectIds.BRIGHTNESS.value, "approximated", "rounds"),
+        Adjustment(AdjustmentKind.EffectApproximated, EffectIds.BRIGHTNESS.value, "approximated", "converts"),
+        Adjustment(AdjustmentKind.EffectApproximated, EffectIds.SEPIA.value, "approximated", "rounds"),
+        Adjustment(AdjustmentKind.EffectApproximated, EffectIds.SEPIA.value, "approximated", "converts"),
       )
   }
 
@@ -160,7 +161,7 @@ class ConcessionsTest {
     val dropped = concessions(dropped = setOf(EffectIds.SEPIA)).single()
 
     val message = "${EffectIds.SEPIA} cannot run on this device and is not in this plan."
-    dropped.adjustment shouldBe Adjustment(AdjustmentKind.EffectDropped, EffectIds.SEPIA, "removed", message)
+    dropped.adjustment shouldBe Adjustment(AdjustmentKind.EffectDropped, EffectIds.SEPIA.value, "removed", message)
     dropped.strictRefusal.shouldBeInstanceOf<FilmstripError.InvalidComposition>().message shouldBe message
   }
 
@@ -170,7 +171,7 @@ class ConcessionsTest {
     grade: Grade = gradeOf(),
     encoding: Encoding = encodingOf(SIZE),
     lowered: List<LoweredEffect> = emptyList(),
-    dropped: Set<String> = emptySet(),
+    dropped: Set<EffectId> = emptySet(),
   ): List<Concession> = concessionsOf(spec, framing, grade, encoding, aac, lowered.flatMap { it.degraded }, dropped)
 
   private companion object {

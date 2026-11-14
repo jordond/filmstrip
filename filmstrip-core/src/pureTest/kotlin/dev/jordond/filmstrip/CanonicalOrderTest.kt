@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip
 
+import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.effect.EffectIds
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effect.EffectStage
@@ -15,7 +16,7 @@ class CanonicalOrderTest {
   fun aBeneathOverlaysSpecRunsAheadOfEveryRankedOverlay() {
     val beneath =
       object : EffectSpec {
-        override val id = "test.beneath"
+        override val id = EffectId("test.beneath")
         override val stage = EffectStage.Composite
         override val beneathOverlays = true
       }
@@ -29,19 +30,19 @@ class CanonicalOrderTest {
         ),
       )
 
-    ordered.map { it.id } shouldBe listOf(EffectIds.SCALE, "test.beneath", EffectIds.IMAGE_OVERLAY)
+    ordered.map { it.id } shouldBe listOf(EffectIds.SCALE, EffectId("test.beneath"), EffectIds.IMAGE_OVERLAY)
   }
 
   @Test
   fun beneathOverlaysChangesNothingOutsideComposite() {
     val color =
       object : EffectSpec {
-        override val id = "test.color"
+        override val id = EffectId("test.color")
         override val beneathOverlays = true
       }
 
     canonicalOrder(listOf(spec(EffectIds.BRIGHTNESS, EffectStage.Color), color)).map { it.id } shouldBe
-      listOf(EffectIds.BRIGHTNESS, "test.color")
+      listOf(EffectIds.BRIGHTNESS, EffectId("test.color"))
   }
 
   @Test
@@ -117,13 +118,13 @@ class CanonicalOrderTest {
     val ordered =
       canonicalOrder(
         listOf(
-          spec("acme.bloom", EffectStage.Spatial),
+          spec(EffectId("acme.bloom"), EffectStage.Spatial),
           spec(EffectIds.VIGNETTE, EffectStage.Spatial),
           spec(EffectIds.GAUSSIAN_BLUR, EffectStage.Spatial),
         ),
       )
 
-    ordered.map { it.id } shouldBe listOf(EffectIds.GAUSSIAN_BLUR, EffectIds.VIGNETTE, "acme.bloom")
+    ordered.map { it.id } shouldBe listOf(EffectIds.GAUSSIAN_BLUR, EffectIds.VIGNETTE, EffectId("acme.bloom"))
   }
 
   @Test
@@ -131,21 +132,21 @@ class CanonicalOrderTest {
     val ordered =
       canonicalOrder(
         listOf(
-          spec("acme.grain", EffectStage.Color),
-          spec("acme.bloom", EffectStage.Color),
+          spec(EffectId("acme.grain"), EffectStage.Color),
+          spec(EffectId("acme.bloom"), EffectStage.Color),
           spec(EffectIds.ROTATE, EffectStage.Geometry),
         ),
       )
 
-    ordered.map { it.id } shouldBe listOf(EffectIds.ROTATE, "acme.grain", "acme.bloom")
+    ordered.map { it.id } shouldBe listOf(EffectIds.ROTATE, EffectId("acme.grain"), EffectId("acme.bloom"))
   }
 
   private fun spec(
-    specId: String,
+    specId: EffectId,
     specStage: EffectStage,
   ): EffectSpec =
     object : EffectSpec {
-      override val id: String get() = specId
+      override val id: EffectId get() = specId
       override val stage: EffectStage get() = specStage
     }
 }

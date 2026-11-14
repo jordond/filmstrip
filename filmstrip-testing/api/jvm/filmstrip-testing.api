@@ -49,7 +49,7 @@ public final class dev/jordond/filmstrip/testing/FakeFilmstrip : dev/jordond/fil
 	public final fun getOnPreview ()Lkotlin/jvm/functions/Function2;
 	public final fun getOnProbe ()Lkotlin/jvm/functions/Function1;
 	public final fun getPlayers ()Ljava/util/List;
-	public fun parityOf (Ljava/lang/String;)Ldev/jordond/filmstrip/capability/EffectParity;
+	public fun parityOf-_D964Gs (Ljava/lang/String;)Ldev/jordond/filmstrip/capability/EffectParity;
 	public fun plan (Ldev/jordond/filmstrip/edit/Composition;Ldev/jordond/filmstrip/export/ExportSpec;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public fun preview (Ldev/jordond/filmstrip/edit/Composition;Ldev/jordond/filmstrip/player/PlayerConfig;)Ldev/jordond/filmstrip/player/VideoPlayer;
 	public fun probe (Ldev/jordond/filmstrip/media/MediaSource;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
@@ -158,9 +158,9 @@ public final class dev/jordond/filmstrip/testing/FilmstripCall$Frames : dev/jord
 }
 
 public final class dev/jordond/filmstrip/testing/FilmstripCall$ParityOf : dev/jordond/filmstrip/testing/FilmstripCall {
-	public fun <init> (Ljava/lang/String;)V
+	public synthetic fun <init> (Ljava/lang/String;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun equals (Ljava/lang/Object;)Z
-	public final fun getSpecId ()Ljava/lang/String;
+	public final fun getSpecId-M7MrD_4 ()Ljava/lang/String;
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
 }

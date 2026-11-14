@@ -2,6 +2,7 @@ package dev.jordond.filmstrip.transform.internal
 
 import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.InternalFilmstripApi
+import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.export.Verdict
 import dev.jordond.filmstrip.transform.internal.copy.CopyPacketWindow
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
@@ -21,5 +22,5 @@ public class NegotiatedExport(
   public val verdict: Verdict,
   public val composition: ResolvedComposition?,
   public val fallbackCopyWindow: CopyPacketWindow? = null,
-  internal val unsupported: Map<String, FilmstripError> = emptyMap(),
+  internal val unsupported: Map<EffectId, FilmstripError> = emptyMap(),
 )

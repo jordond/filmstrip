@@ -6,6 +6,7 @@ import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.audio.AudioEffectSpec
 import dev.jordond.filmstrip.audio.AudioKernel
 import dev.jordond.filmstrip.audio.PlatformAudioEffect
+import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.export.AudioFormat
 import dev.jordond.filmstrip.transform.internal.audio.KernelChain
 import dev.jordond.filmstrip.transform.internal.audio.timelineFrameOf
@@ -105,7 +106,7 @@ class KernelAudioProcessorTest {
     val asked = mutableListOf<AudioFormat>()
     val effect =
       ResolvedAudioEffect(
-        "test",
+        EffectId("test"),
         PlatformAudioEffect { format ->
           asked += format
           Halve()
@@ -145,7 +146,7 @@ class KernelAudioProcessorTest {
 
     fun effect(amount: Float) =
       ResolvedAudioEffect(
-        "test",
+        EffectId("test"),
         PlatformAudioEffect {
           built++
           Halve()
@@ -183,7 +184,7 @@ class KernelAudioProcessorTest {
     var built = 0
     val effect =
       ResolvedAudioEffect(
-        "test",
+        EffectId("test"),
         PlatformAudioEffect {
           built++
           Halve()
@@ -223,7 +224,7 @@ class KernelAudioProcessorTest {
       flush(AudioProcessor.StreamMetadata.DEFAULT)
     }
 
-  private fun effectOf(kernel: AudioKernel) = ResolvedAudioEffect("test", PlatformAudioEffect { kernel })
+  private fun effectOf(kernel: AudioKernel) = ResolvedAudioEffect(EffectId("test"), PlatformAudioEffect { kernel })
 
   // Interleaved stereo whose samples count up, so a sample's value names where in the stream it came from.
   private fun ramp(frames: Int): ShortArray = ShortArray(frames * CHANNELS) { (it + 1).toShort() }
@@ -261,7 +262,7 @@ class KernelAudioProcessorTest {
   private data class Amount(
     val amount: Float,
   ) : AudioEffectSpec {
-    override val id: String get() = "test.amount"
+    override val id: EffectId get() = EffectId("test.amount")
   }
 
   // Leaves the samples alone and keeps every position it was handed.

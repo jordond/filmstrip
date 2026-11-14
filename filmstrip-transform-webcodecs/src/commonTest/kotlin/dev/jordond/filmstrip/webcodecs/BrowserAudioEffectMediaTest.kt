@@ -7,6 +7,7 @@ import dev.jordond.filmstrip.audio.PlatformAudioEffect
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.edit.outputLengthOf
+import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.export.AudioFormat
 import dev.jordond.filmstrip.media.AudioTrackInfo
 import dev.jordond.filmstrip.media.MediaInfo
@@ -126,7 +127,7 @@ class BrowserAudioEffectMediaTest {
   @Test
   fun aKernelThatThrowsFailsTheMix() =
     runTest {
-      val broken = ResolvedAudioEffect("test.broken", PlatformAudioEffect { ThrowingKernel() })
+      val broken = ResolvedAudioEffect(EffectId("test.broken"), PlatformAudioEffect { ThrowingKernel() })
       val source = toneSource()
 
       listOf(
@@ -409,6 +410,7 @@ class BrowserAudioEffectMediaTest {
     val BURST_EDGE = 20.milliseconds
     val READ = TimelineBursts.LENGTH - BURST_EDGE * 2
     val GAP_READ = TimelineBursts.PERIOD - TimelineBursts.LENGTH - BURST_EDGE * 2
-    val DELAY = ResolvedAudioEffect("test.delay", PlatformAudioEffect { DelayKernel(DELAY_FRAMES, it.channelCount) })
+    val DELAY =
+      ResolvedAudioEffect(EffectId("test.delay"), PlatformAudioEffect { DelayKernel(DELAY_FRAMES, it.channelCount) })
   }
 }

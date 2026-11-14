@@ -9,6 +9,7 @@ import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.outputSlotTime
+import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.effect.EffectResolution
 import dev.jordond.filmstrip.effect.EffectResolver
 import dev.jordond.filmstrip.effect.EffectSpec
@@ -409,7 +410,7 @@ class BrowserLutMediaTest {
 private class TableEffect(
   val table: WebGlTable,
 ) : EffectSpec {
-  override val id: String get() = "test.table"
+  override val id: EffectId get() = EffectId("test.table")
   override val stage: EffectStage get() = EffectStage.Composite
   override val beneathOverlays: Boolean get() = true
 }

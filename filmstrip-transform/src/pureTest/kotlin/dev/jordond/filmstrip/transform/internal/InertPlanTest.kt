@@ -6,6 +6,7 @@ import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.TrackContent
+import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.effect.EffectIds
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effects.BuiltInEffectResolver
@@ -52,7 +53,7 @@ class InertPlanTest {
   fun `a brightness of one is left out and named`() {
     val edit = single(fixture.clip(effects = listOf(Brightness(1f))))
 
-    reasonsOf(edit) shouldContainExactly listOf(EffectIds.BRIGHTNESS to InertReason.NoChangeToFrame)
+    reasonsOf(edit) shouldContainExactly listOf(EffectIds.BRIGHTNESS.value to InertReason.NoChangeToFrame)
     clipEffectsOf(edit).shouldBeEmpty()
   }
 
@@ -68,7 +69,7 @@ class InertPlanTest {
   fun `a spec that declares itself inert is left out and named`() {
     val inert =
       object : EffectSpec {
-        override val id = "test.inert"
+        override val id = EffectId("test.inert")
         override val isInert = true
       }
     val edit = single(fixture.clip(effects = listOf(inert)))
@@ -82,7 +83,7 @@ class InertPlanTest {
     val silent = single(fixture.clip(effects = listOf(Vhs(intensity = 0f))))
     val kept = single(fixture.clip(effects = listOf(Vhs(intensity = 0.5f))))
 
-    reasonsOf(silent) shouldContainExactly listOf(Vhs.ID to InertReason.NoChangeToFrame)
+    reasonsOf(silent) shouldContainExactly listOf(Vhs.ID.value to InertReason.NoChangeToFrame)
     clipEffectsOf(silent).shouldBeEmpty()
     reasonsOf(kept).shouldBeEmpty()
     clipEffectsOf(kept).size shouldBe 1
@@ -97,7 +98,7 @@ class InertPlanTest {
     verdict
       .shouldBeInstanceOf<Verdict.Incapable>()
       .reasons
-      .joinToString { it.toString() } shouldContain Vhs.ID
+      .joinToString { it.toString() } shouldContain Vhs.ID.value
   }
 
   @Test
@@ -106,7 +107,10 @@ class InertPlanTest {
       Composition(listOf(Track(listOf(fixture.clip(effects = listOf(Brightness(2f)))), effects = listOf(HALF))))
 
     reasonsOf(edit) shouldContainExactly
-      listOf(EffectIds.BRIGHTNESS to InertReason.NoChangeToFrame, EffectIds.BRIGHTNESS to InertReason.NoChangeToFrame)
+      listOf(
+        EffectIds.BRIGHTNESS.value to InertReason.NoChangeToFrame,
+        EffectIds.BRIGHTNESS.value to InertReason.NoChangeToFrame,
+      )
     clipEffectsOf(edit).shouldBeEmpty()
   }
 
@@ -147,7 +151,7 @@ class InertPlanTest {
     val same = single(fixture.clip(effects = listOf(Crop(AspectRatio(16, 9)))))
     val narrower = single(fixture.clip(effects = listOf(Crop(AspectRatio(4, 3)))))
 
-    reasonsOf(same) shouldContainExactly listOf(EffectIds.CROP to InertReason.NoChangeToFrame)
+    reasonsOf(same) shouldContainExactly listOf(EffectIds.CROP.value to InertReason.NoChangeToFrame)
     clipEffectsOf(same).shouldBeEmpty()
     reasonsOf(narrower).shouldBeEmpty()
   }
@@ -155,7 +159,7 @@ class InertPlanTest {
   @Test
   fun `a whole turn is left out and a quarter turn is kept`() {
     reasonsOf(single(fixture.clip(effects = listOf(Rotate(360))))) shouldContainExactly
-      listOf(EffectIds.ROTATE to InertReason.NoChangeToFrame)
+      listOf(EffectIds.ROTATE.value to InertReason.NoChangeToFrame)
     reasonsOf(single(fixture.clip(effects = listOf(Rotate(90))))).shouldBeEmpty()
   }
 
@@ -164,7 +168,7 @@ class InertPlanTest {
     val hidden = single(fixture.clip(effects = listOf(overlay(opacity = 0f))))
     val half = single(fixture.clip(effects = listOf(overlay(opacity = 0.5f))))
 
-    reasonsOf(hidden) shouldContainExactly listOf(EffectIds.IMAGE_OVERLAY to InertReason.NeverVisible)
+    reasonsOf(hidden) shouldContainExactly listOf(EffectIds.IMAGE_OVERLAY.value to InertReason.NeverVisible)
     clipEffectsOf(hidden).shouldBeEmpty()
     reasonsOf(half).shouldBeEmpty()
   }
@@ -185,7 +189,7 @@ class InertPlanTest {
 
     val plan = fixture.plan(edit, resolvers = REFUSES_TEXT).shouldBeInstanceOf<Verdict.Capable>().plan
     plan.inertNotices.map(InertNotice::subjectAndReason) shouldContainExactly
-      listOf(EffectIds.TEXT_OVERLAY to InertReason.NeverVisible)
+      listOf(EffectIds.TEXT_OVERLAY.value to InertReason.NeverVisible)
   }
 
   @Test
@@ -195,7 +199,7 @@ class InertPlanTest {
 
     val plan = fixture.plan(edit, resolvers = REFUSES_TEXT).shouldBeInstanceOf<Verdict.Capable>().plan
     plan.inertNotices.map(InertNotice::subjectAndReason) shouldContainExactly
-      listOf(EffectIds.TEXT_OVERLAY to InertReason.NeverVisible)
+      listOf(EffectIds.TEXT_OVERLAY.value to InertReason.NeverVisible)
   }
 
   @Test
@@ -353,7 +357,7 @@ class InertPlanTest {
   fun `taking an inert effect off a clip keeps its speed`() {
     val edit = single(fixture.clip(effects = listOf(Brightness(1f))).withSpeed(0.7))
 
-    reasonsOf(edit) shouldContainExactly listOf(EffectIds.BRIGHTNESS to InertReason.NoChangeToFrame)
+    reasonsOf(edit) shouldContainExactly listOf(EffectIds.BRIGHTNESS.value to InertReason.NoChangeToFrame)
     fixture
       .resolve(edit)
       .tracks

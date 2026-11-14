@@ -20,6 +20,7 @@ import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.edit.outputSlotOf
 import dev.jordond.filmstrip.edit.outputSlotsOf
 import dev.jordond.filmstrip.effect.Attributes
+import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.effect.EffectIds
 import dev.jordond.filmstrip.effect.EffectResolution
 import dev.jordond.filmstrip.effect.EffectResolver
@@ -1314,7 +1315,7 @@ class BrowserPlannerTest {
     engine.parityOf(EffectIds.ROTATE) shouldBe EffectParity.Exact
     engine.parityOf(EffectIds.SCALE) shouldBe EffectParity.Exact
     engine.parityOf(EffectIds.KEN_BURNS) shouldBe EffectParity.Exact
-    engine.parityOf("acme.filmgrain").shouldBeNull()
+    engine.parityOf(EffectId("acme.filmgrain")).shouldBeNull()
   }
 
   private fun matrixOf(spec: EffectSpec): FloatArray = checkNotNull(colorMatrixOf(spec)).toColumnMajor4x4()

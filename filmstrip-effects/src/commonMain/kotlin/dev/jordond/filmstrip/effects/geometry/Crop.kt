@@ -3,6 +3,7 @@ package dev.jordond.filmstrip.effects.geometry
 import dev.drewhamilton.poko.Poko
 import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.edit.EffectsBuilder
+import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.effect.EffectIds
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effect.EffectStage
@@ -27,7 +28,7 @@ public class Crop(
   public val fit: Fit = Fit.Crop,
   public val anchor: Anchor = Anchor.Center,
 ) : EffectSpec {
-  override val id: String get() = EffectIds.CROP
+  override val id: EffectId get() = EffectIds.CROP
 
   override val stage: EffectStage get() = EffectStage.Geometry
 }

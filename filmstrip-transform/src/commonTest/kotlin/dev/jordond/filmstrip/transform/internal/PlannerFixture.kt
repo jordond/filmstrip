@@ -19,6 +19,7 @@ import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.effect.Attributes
 import dev.jordond.filmstrip.effect.Degradation
 import dev.jordond.filmstrip.effect.DegradationReason
+import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.effect.EffectResolution
 import dev.jordond.filmstrip.effect.EffectResolver
 import dev.jordond.filmstrip.effect.EffectSpec
@@ -306,9 +307,9 @@ internal fun firstClipOf(resolved: ResolvedComposition) =
  * An id in [degrade] resolves degraded for every cause in [causes], in order.
  */
 internal class FakeResolver(
-  private val refuse: Set<String> = emptySet(),
-  private val degrade: Set<String> = emptySet(),
-  private val declines: Set<String> = emptySet(),
+  private val refuse: Set<EffectId> = emptySet(),
+  private val degrade: Set<EffectId> = emptySet(),
+  private val declines: Set<EffectId> = emptySet(),
   private val causes: List<Degradation> = listOf(ROUNDS_IT),
 ) : EffectResolver {
   override fun resolve(
@@ -338,12 +339,12 @@ internal class FakeResolver(
  * An id in [degrade] resolves degraded for [ROUNDS_IT], and one in [fail] fails with [AUDIO_READ_FAILED].
  */
 internal class FakeAudioResolver(
-  private val refuse: Set<String> = emptySet(),
-  private val degrade: Set<String> = emptySet(),
-  private val declines: Set<String> = emptySet(),
-  private val fail: Set<String> = emptySet(),
+  private val refuse: Set<EffectId> = emptySet(),
+  private val degrade: Set<EffectId> = emptySet(),
+  private val declines: Set<EffectId> = emptySet(),
+  private val fail: Set<EffectId> = emptySet(),
 ) : AudioEffectResolver {
-  val asked = mutableListOf<Pair<String, TimeRange>>()
+  val asked = mutableListOf<Pair<EffectId, TimeRange>>()
 
   override fun resolve(
     spec: AudioEffectSpec,

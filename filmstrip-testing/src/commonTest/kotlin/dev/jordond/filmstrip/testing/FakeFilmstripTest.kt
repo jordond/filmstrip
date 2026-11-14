@@ -5,6 +5,7 @@ import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.capability.EffectParity
 import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.edit.Composition
+import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.ExportStatus
 import dev.jordond.filmstrip.export.Verdict
@@ -100,11 +101,11 @@ class FakeFilmstripTest {
     runTest {
       val filmstrip = FakeFilmstrip(this)
 
-      filmstrip.parityOf("blur") shouldBe EffectParity.Exact
-      filmstrip.onParityOf = { id -> EffectParity.Approximate.takeIf { id == "grain" } }
-      filmstrip.parityOf("grain") shouldBe EffectParity.Approximate
-      filmstrip.parityOf("blur").shouldBeNull()
-      filmstrip.calls.last() shouldBe FilmstripCall.ParityOf("blur")
+      filmstrip.parityOf(EffectId("blur")) shouldBe EffectParity.Exact
+      filmstrip.onParityOf = { id -> EffectParity.Approximate.takeIf { id == EffectId("grain") } }
+      filmstrip.parityOf(EffectId("grain")) shouldBe EffectParity.Approximate
+      filmstrip.parityOf(EffectId("blur")).shouldBeNull()
+      filmstrip.calls.last() shouldBe FilmstripCall.ParityOf(EffectId("blur"))
     }
 
   @Test

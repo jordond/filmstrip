@@ -2,6 +2,7 @@ package dev.jordond.filmstrip.effects.filters.crt
 
 import dev.drewhamilton.poko.Poko
 import dev.jordond.filmstrip.edit.EffectsBuilder
+import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effect.EffectStage
 
@@ -31,7 +32,7 @@ public class Crt(
     require(intensity in 0f..1f) { "A CRT intensity has to be within 0 to 1, not $intensity." }
   }
 
-  override val id: String get() = ID
+  override val id: EffectId get() = ID
 
   override val stage: EffectStage get() = EffectStage.Composite
 
@@ -45,7 +46,7 @@ public class Crt(
     /**
      * The id every plan and notice names this effect by.
      */
-    public const val ID: String = "filmstrip.filters.crt"
+    public val ID: EffectId = EffectId("filmstrip.filters.crt")
   }
 }
 

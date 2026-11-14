@@ -2,6 +2,7 @@ package dev.jordond.filmstrip.effects.filters.glitch
 
 import dev.drewhamilton.poko.Poko
 import dev.jordond.filmstrip.edit.EffectsBuilder
+import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effect.EffectStage
 
@@ -35,7 +36,7 @@ public class Glitch(
     require(intensity in 0f..1f) { "A glitch intensity has to be within 0 to 1, not $intensity." }
   }
 
-  override val id: String get() = ID
+  override val id: EffectId get() = ID
 
   override val stage: EffectStage get() = EffectStage.Composite
 
@@ -49,7 +50,7 @@ public class Glitch(
     /**
      * The id every plan and notice names this effect by.
      */
-    public const val ID: String = "filmstrip.filters.glitch"
+    public val ID: EffectId = EffectId("filmstrip.filters.glitch")
 
     /**
      * The seed a [Glitch] uses unless it is given one.

@@ -2,6 +2,7 @@ package dev.jordond.filmstrip.effects.spatial
 
 import dev.drewhamilton.poko.Poko
 import dev.jordond.filmstrip.edit.EffectsBuilder
+import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.effect.EffectIds
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effect.EffectStage
@@ -28,7 +29,7 @@ public class GaussianBlur(
     require(sigma in 0f..MAX_SIGMA) { "A blur's sigma runs from 0 to $MAX_SIGMA of the frame width, not $sigma." }
   }
 
-  override val id: String get() = EffectIds.GAUSSIAN_BLUR
+  override val id: EffectId get() = EffectIds.GAUSSIAN_BLUR
 
   override val stage: EffectStage get() = EffectStage.Spatial
 

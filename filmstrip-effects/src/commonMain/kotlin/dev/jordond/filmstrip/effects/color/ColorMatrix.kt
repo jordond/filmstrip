@@ -9,6 +9,7 @@ import dev.jordond.filmstrip.color.sdrSignalCeilingDouble
 import dev.jordond.filmstrip.color.sdrSignalFromHlgSignal
 import dev.jordond.filmstrip.color.sdrSignalFromNits
 import dev.jordond.filmstrip.edit.EffectsBuilder
+import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.effect.EffectIds
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effect.EffectStage
@@ -69,7 +70,7 @@ public class ColorMatrix(
     require(entries().all { it.isFinite() }) { "Every color matrix entry has to be a finite number." }
   }
 
-  override val id: String get() = EffectIds.COLOR_MATRIX
+  override val id: EffectId get() = EffectIds.COLOR_MATRIX
 
   override val stage: EffectStage get() = EffectStage.Color
 

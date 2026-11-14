@@ -11,6 +11,7 @@ import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.TrackContent
+import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.export.OutputFormat
 import dev.jordond.filmstrip.geometry.Fill
@@ -268,7 +269,7 @@ class Media3AudioEffectLoweringTest {
     val TRIM_START = 210.milliseconds
     val CLIP_LENGTH = 500.milliseconds
     val NO_READS = Media3ClipReads(emptyMap(), emptyMap(), emptyMap())
-    val FIRST = ResolvedAudioEffect("first", PlatformAudioEffect { Untouched() })
-    val SECOND = ResolvedAudioEffect("second", PlatformAudioEffect { Untouched() })
+    val FIRST = ResolvedAudioEffect(EffectId("first"), PlatformAudioEffect { Untouched() })
+    val SECOND = ResolvedAudioEffect(EffectId("second"), PlatformAudioEffect { Untouched() })
   }
 }

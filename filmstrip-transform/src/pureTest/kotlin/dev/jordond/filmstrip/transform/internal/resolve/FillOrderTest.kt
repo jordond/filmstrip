@@ -3,6 +3,7 @@ package dev.jordond.filmstrip.transform.internal.resolve
 import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.Track
+import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.effect.EffectIds
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effect.EffectStage
@@ -67,7 +68,7 @@ class FillOrderTest {
     val negotiated = negotiate(effects = listOf(Brightness(1.2f), Sepia(), FakeOverlay(FIRST)))
 
     val folded = negotiated.effectsUnderFill.single()
-    folded.specId shouldBe "${EffectIds.BRIGHTNESS}, ${EffectIds.SEPIA}"
+    folded.specId shouldBe EffectId("${EffectIds.BRIGHTNESS}, ${EffectIds.SEPIA}")
     folded.stage shouldBe EffectStage.Color
     negotiated.effectsOverFill.ids() shouldBe listOf(FIRST)
   }
@@ -123,12 +124,12 @@ class FillOrderTest {
       .shouldNotBeNull()
   }
 
-  private fun List<ResolvedEffect>.ids(): List<String> = map { it.specId }
+  private fun List<ResolvedEffect>.ids(): List<EffectId> = map { it.specId }
 
   private companion object {
-    const val FIRST = "test.overlay.first"
-    const val SECOND = "test.overlay.second"
-    const val BENEATH = "test.beneath"
+    val FIRST = EffectId("test.overlay.first")
+    val SECOND = EffectId("test.overlay.second")
+    val BENEATH = EffectId("test.beneath")
   }
 }
 
@@ -137,7 +138,7 @@ class FillOrderTest {
  * draw, so a test can see where the planner and the fill order put one.
  */
 private class FakeOverlay(
-  override val id: String,
+  override val id: EffectId,
 ) : EffectSpec {
   override val stage: EffectStage get() = EffectStage.Composite
 }

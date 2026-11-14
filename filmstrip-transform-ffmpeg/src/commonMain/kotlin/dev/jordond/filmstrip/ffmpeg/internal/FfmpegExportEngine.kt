@@ -8,6 +8,7 @@ import dev.jordond.filmstrip.diagnostics.DiagnosticEvent
 import dev.jordond.filmstrip.diagnostics.DiagnosticEvent.Detail
 import dev.jordond.filmstrip.diagnostics.report
 import dev.jordond.filmstrip.edit.Composition
+import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.effect.PreviewClock
 import dev.jordond.filmstrip.export.Adjustment
 import dev.jordond.filmstrip.export.EngineComponents
@@ -135,7 +136,7 @@ public class FfmpegExportEngine internal constructor(
       }
     }
 
-  override fun parityOf(specId: String): EffectParity? = FfmpegParity.of(specId)
+  override fun parityOf(specId: EffectId): EffectParity? = FfmpegParity.of(specId)
 
   /**
    * Resolves the binaries, announcing what was found the first time anything asks.

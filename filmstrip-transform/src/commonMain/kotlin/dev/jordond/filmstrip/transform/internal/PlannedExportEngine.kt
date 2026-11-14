@@ -6,6 +6,7 @@ import dev.jordond.filmstrip.audio.AudioEffectResolver
 import dev.jordond.filmstrip.capability.EffectParity
 import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.edit.Composition
+import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.effect.EffectResolver
 import dev.jordond.filmstrip.effect.PreviewClock
 import dev.jordond.filmstrip.export.CopyBlocker
@@ -38,7 +39,7 @@ public class PlannedExportEngine(
   prober: MediaProber,
   resolvers: List<EffectResolver>,
   audioResolvers: List<AudioEffectResolver>,
-  private val parity: Map<String, EffectParity>,
+  private val parity: Map<EffectId, EffectParity>,
   ladder: List<VideoCodec>,
   supportsCopy: Boolean,
   muxerAccepts: (MediaInfo) -> Boolean,
@@ -70,7 +71,7 @@ public class PlannedExportEngine(
 
   override suspend fun capabilities(): CapabilitiesResult = reads.device()
 
-  override fun parityOf(specId: String): EffectParity? = parity[specId]
+  override fun parityOf(specId: EffectId): EffectParity? = parity[specId]
 
   private suspend fun lower(
     composition: Composition,

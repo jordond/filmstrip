@@ -2,6 +2,7 @@ package dev.jordond.filmstrip.capability
 
 import dev.drewhamilton.poko.Poko
 import dev.jordond.filmstrip.FilmstripError
+import dev.jordond.filmstrip.effect.EffectId
 
 /**
  * How faithfully the preview reproduces the export, for one effect.
@@ -42,7 +43,7 @@ public enum class EffectParity {
  */
 @Poko
 public class ParityNote(
-  public val specId: String,
+  public val specId: EffectId,
   public val parity: EffectParity,
   public val message: String,
 )

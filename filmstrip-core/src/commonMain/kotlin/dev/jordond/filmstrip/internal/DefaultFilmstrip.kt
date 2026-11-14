@@ -7,6 +7,7 @@ import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.capability.EffectParity
 import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.effectsRevision
+import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.export.ExportEngine
 import dev.jordond.filmstrip.export.ExportPlan
 import dev.jordond.filmstrip.export.ExportSpec
@@ -138,7 +139,7 @@ internal class DefaultFilmstrip(
 
   // Parity is a property of the pipeline that renders an effect, so the engine answers. With no
   // engine registered there is no pipeline and therefore no answer, which `null` already covers.
-  override fun parityOf(specId: String): EffectParity? = exportEngine?.parityOf(specId)
+  override fun parityOf(specId: EffectId): EffectParity? = exportEngine?.parityOf(specId)
 
   private val thumbnails = ThumbnailDispatcher(components)
 

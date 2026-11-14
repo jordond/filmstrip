@@ -2,6 +2,7 @@ package dev.jordond.filmstrip.effects.color
 
 import dev.drewhamilton.poko.Poko
 import dev.jordond.filmstrip.edit.EffectsBuilder
+import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.effect.EffectIds
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effect.EffectStage
@@ -31,7 +32,7 @@ public class RgbAdjustment(
     }
   }
 
-  override val id: String get() = EffectIds.RGB_ADJUSTMENT
+  override val id: EffectId get() = EffectIds.RGB_ADJUSTMENT
 
   override val stage: EffectStage get() = EffectStage.Color
 }

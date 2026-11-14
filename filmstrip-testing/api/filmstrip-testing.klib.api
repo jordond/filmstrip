@@ -70,10 +70,10 @@ sealed interface dev.jordond.filmstrip.testing/FilmstripCall { // dev.jordond.fi
     }
 
     final class ParityOf : dev.jordond.filmstrip.testing/FilmstripCall { // dev.jordond.filmstrip.testing/FilmstripCall.ParityOf|null[0]
-        constructor <init>(kotlin/String) // dev.jordond.filmstrip.testing/FilmstripCall.ParityOf.<init>|<init>(kotlin.String){}[0]
+        constructor <init>(dev.jordond.filmstrip.effect/EffectId) // dev.jordond.filmstrip.testing/FilmstripCall.ParityOf.<init>|<init>(dev.jordond.filmstrip.effect.EffectId){}[0]
 
         final val specId // dev.jordond.filmstrip.testing/FilmstripCall.ParityOf.specId|{}specId[0]
-            final fun <get-specId>(): kotlin/String // dev.jordond.filmstrip.testing/FilmstripCall.ParityOf.specId.<get-specId>|<get-specId>(){}[0]
+            final fun <get-specId>(): dev.jordond.filmstrip.effect/EffectId // dev.jordond.filmstrip.testing/FilmstripCall.ParityOf.specId.<get-specId>|<get-specId>(){}[0]
 
         final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.testing/FilmstripCall.ParityOf.equals|equals(kotlin.Any?){}[0]
         final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.testing/FilmstripCall.ParityOf.hashCode|hashCode(){}[0]
@@ -306,8 +306,8 @@ final class dev.jordond.filmstrip.testing/FakeFilmstrip : dev.jordond.filmstrip/
         final fun <get-onFrame>(): kotlin/Function2<dev.jordond.filmstrip.edit/Composition, kotlin.time/Duration, dev.jordond.filmstrip.media/FrameResult> // dev.jordond.filmstrip.testing/FakeFilmstrip.onFrame.<get-onFrame>|<get-onFrame>(){}[0]
         final fun <set-onFrame>(kotlin/Function2<dev.jordond.filmstrip.edit/Composition, kotlin.time/Duration, dev.jordond.filmstrip.media/FrameResult>) // dev.jordond.filmstrip.testing/FakeFilmstrip.onFrame.<set-onFrame>|<set-onFrame>(kotlin.Function2<dev.jordond.filmstrip.edit.Composition,kotlin.time.Duration,dev.jordond.filmstrip.media.FrameResult>){}[0]
     final var onParityOf // dev.jordond.filmstrip.testing/FakeFilmstrip.onParityOf|{}onParityOf[0]
-        final fun <get-onParityOf>(): kotlin/Function1<kotlin/String, dev.jordond.filmstrip.capability/EffectParity?> // dev.jordond.filmstrip.testing/FakeFilmstrip.onParityOf.<get-onParityOf>|<get-onParityOf>(){}[0]
-        final fun <set-onParityOf>(kotlin/Function1<kotlin/String, dev.jordond.filmstrip.capability/EffectParity?>) // dev.jordond.filmstrip.testing/FakeFilmstrip.onParityOf.<set-onParityOf>|<set-onParityOf>(kotlin.Function1<kotlin.String,dev.jordond.filmstrip.capability.EffectParity?>){}[0]
+        final fun <get-onParityOf>(): kotlin/Function1<dev.jordond.filmstrip.effect/EffectId, dev.jordond.filmstrip.capability/EffectParity?> // dev.jordond.filmstrip.testing/FakeFilmstrip.onParityOf.<get-onParityOf>|<get-onParityOf>(){}[0]
+        final fun <set-onParityOf>(kotlin/Function1<dev.jordond.filmstrip.effect/EffectId, dev.jordond.filmstrip.capability/EffectParity?>) // dev.jordond.filmstrip.testing/FakeFilmstrip.onParityOf.<set-onParityOf>|<set-onParityOf>(kotlin.Function1<dev.jordond.filmstrip.effect.EffectId,dev.jordond.filmstrip.capability.EffectParity?>){}[0]
     final var onPlan // dev.jordond.filmstrip.testing/FakeFilmstrip.onPlan|{}onPlan[0]
         final fun <get-onPlan>(): kotlin/Function2<dev.jordond.filmstrip.edit/Composition, dev.jordond.filmstrip.export/ExportSpec, dev.jordond.filmstrip.export/Verdict> // dev.jordond.filmstrip.testing/FakeFilmstrip.onPlan.<get-onPlan>|<get-onPlan>(){}[0]
         final fun <set-onPlan>(kotlin/Function2<dev.jordond.filmstrip.edit/Composition, dev.jordond.filmstrip.export/ExportSpec, dev.jordond.filmstrip.export/Verdict>) // dev.jordond.filmstrip.testing/FakeFilmstrip.onPlan.<set-onPlan>|<set-onPlan>(kotlin.Function2<dev.jordond.filmstrip.edit.Composition,dev.jordond.filmstrip.export.ExportSpec,dev.jordond.filmstrip.export.Verdict>){}[0]
@@ -321,7 +321,7 @@ final class dev.jordond.filmstrip.testing/FakeFilmstrip : dev.jordond.filmstrip/
     final fun export(dev.jordond.filmstrip.edit/Composition, dev.jordond.filmstrip.export/ExportSpec, dev.jordond.filmstrip.media/MediaSink): kotlinx.coroutines.flow/Flow<dev.jordond.filmstrip.export/ExportStatus> // dev.jordond.filmstrip.testing/FakeFilmstrip.export|export(dev.jordond.filmstrip.edit.Composition;dev.jordond.filmstrip.export.ExportSpec;dev.jordond.filmstrip.media.MediaSink){}[0]
     final fun export(dev.jordond.filmstrip.export/ExportPlan, dev.jordond.filmstrip.media/MediaSink): kotlinx.coroutines.flow/Flow<dev.jordond.filmstrip.export/ExportStatus> // dev.jordond.filmstrip.testing/FakeFilmstrip.export|export(dev.jordond.filmstrip.export.ExportPlan;dev.jordond.filmstrip.media.MediaSink){}[0]
     final fun frames(dev.jordond.filmstrip.edit/Composition, kotlin.collections/List<kotlin.time/Duration>, kotlin/Int?, dev.jordond.filmstrip.export/ExportSpec): kotlinx.coroutines.flow/Flow<dev.jordond.filmstrip.media/FrameResult> // dev.jordond.filmstrip.testing/FakeFilmstrip.frames|frames(dev.jordond.filmstrip.edit.Composition;kotlin.collections.List<kotlin.time.Duration>;kotlin.Int?;dev.jordond.filmstrip.export.ExportSpec){}[0]
-    final fun parityOf(kotlin/String): dev.jordond.filmstrip.capability/EffectParity? // dev.jordond.filmstrip.testing/FakeFilmstrip.parityOf|parityOf(kotlin.String){}[0]
+    final fun parityOf(dev.jordond.filmstrip.effect/EffectId): dev.jordond.filmstrip.capability/EffectParity? // dev.jordond.filmstrip.testing/FakeFilmstrip.parityOf|parityOf(dev.jordond.filmstrip.effect.EffectId){}[0]
     final fun preview(dev.jordond.filmstrip.edit/Composition, dev.jordond.filmstrip.player/PlayerConfig): dev.jordond.filmstrip.player/VideoPlayer // dev.jordond.filmstrip.testing/FakeFilmstrip.preview|preview(dev.jordond.filmstrip.edit.Composition;dev.jordond.filmstrip.player.PlayerConfig){}[0]
     final suspend fun capabilities(): dev.jordond.filmstrip/CapabilitiesResult // dev.jordond.filmstrip.testing/FakeFilmstrip.capabilities|capabilities(){}[0]
     final suspend fun frame(dev.jordond.filmstrip.edit/Composition, kotlin.time/Duration, kotlin/Int?, dev.jordond.filmstrip.export/ExportSpec): dev.jordond.filmstrip.media/FrameResult // dev.jordond.filmstrip.testing/FakeFilmstrip.frame|frame(dev.jordond.filmstrip.edit.Composition;kotlin.time.Duration;kotlin.Int?;dev.jordond.filmstrip.export.ExportSpec){}[0]

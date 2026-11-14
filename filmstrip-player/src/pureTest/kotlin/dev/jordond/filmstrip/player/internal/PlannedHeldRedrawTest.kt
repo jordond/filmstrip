@@ -4,6 +4,7 @@ import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
+import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.player.SetCompositionRequest
@@ -100,12 +101,12 @@ class PlannedHeldRedrawTest {
   private data class Moving(
     val inert: Boolean = false,
   ) : EffectSpec {
-    override val id: String = "test.moving"
+    override val id: EffectId = EffectId("test.moving")
     override val redrawsWhileHeld: Boolean get() = true
     override val isInert: Boolean get() = inert
   }
 
   private data object Still : EffectSpec {
-    override val id: String = "test.still"
+    override val id: EffectId = EffectId("test.still")
   }
 }

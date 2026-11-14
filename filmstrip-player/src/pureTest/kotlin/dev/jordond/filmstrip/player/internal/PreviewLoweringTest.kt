@@ -9,6 +9,7 @@ import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
+import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.HdrMode
@@ -240,9 +241,9 @@ class PreviewLoweringTest {
         FilmstripError.UnsupportedResolution(NATURAL, NATURAL, MESSAGE),
         FilmstripError.DecoderRejectedInput("hvc1", MESSAGE),
         FilmstripError.InvalidComposition(MESSAGE),
-        FilmstripError.UnsupportedEffect("spec", MESSAGE),
-        FilmstripError.UnpreviewableEffect("spec", MESSAGE),
-        FilmstripError.PlatformEffectAsymmetry("spec", MESSAGE),
+        FilmstripError.UnsupportedEffect(EffectId("spec"), MESSAGE),
+        FilmstripError.UnpreviewableEffect(EffectId("spec"), MESSAGE),
+        FilmstripError.PlatformEffectAsymmetry(EffectId("spec"), MESSAGE),
         FilmstripError.UnsupportedStillFormat(StillFormat.Png, MESSAGE),
       )
 

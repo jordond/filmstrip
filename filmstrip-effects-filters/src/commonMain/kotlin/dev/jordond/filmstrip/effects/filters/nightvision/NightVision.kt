@@ -2,6 +2,7 @@ package dev.jordond.filmstrip.effects.filters.nightvision
 
 import dev.drewhamilton.poko.Poko
 import dev.jordond.filmstrip.edit.EffectsBuilder
+import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effect.EffectStage
 
@@ -36,7 +37,7 @@ public class NightVision(
     require(intensity in 0f..1f) { "A night vision intensity has to be within 0 to 1, not $intensity." }
   }
 
-  override val id: String get() = ID
+  override val id: EffectId get() = ID
 
   override val stage: EffectStage get() = EffectStage.Composite
 
@@ -50,7 +51,7 @@ public class NightVision(
     /**
      * The id every plan and notice names this effect by.
      */
-    public const val ID: String = "filmstrip.filters.nightvision"
+    public val ID: EffectId = EffectId("filmstrip.filters.nightvision")
 
     /**
      * The seed a [NightVision] uses unless it is given one.

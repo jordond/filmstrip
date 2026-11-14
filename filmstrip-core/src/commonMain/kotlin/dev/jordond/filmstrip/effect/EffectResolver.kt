@@ -100,7 +100,7 @@ public sealed interface EffectResolution {
    */
   @Poko
   public class Unsupported(
-    public val specId: String,
+    public val specId: EffectId,
     public val message: String,
   ) : EffectResolution
 

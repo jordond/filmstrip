@@ -2,6 +2,7 @@ package dev.jordond.filmstrip.transform.internal.negotiation
 
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.effect.Attributes
+import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.effect.EffectIds
 import dev.jordond.filmstrip.effect.EffectResolution
 import dev.jordond.filmstrip.effect.EffectResolver
@@ -44,7 +45,7 @@ class StageLoweringTest {
     recorder.specs.map { it.id } shouldBe listOf(EffectIds.COLOR_MATRIX)
     lowered.spec.id shouldBe EffectIds.COLOR_MATRIX
     lowered.sources.map { it.id } shouldBe canonicalOrder(listOf(Brightness(4f), Sepia(1f))).map { it.id }
-    lowered.resolvedEffect.shouldNotBeNull().specId shouldBe lowered.sources.joinToString(", ") { it.id }
+    lowered.resolvedEffect.shouldNotBeNull().specId shouldBe EffectId(lowered.sources.map { it.id }.joinToString(", "))
   }
 
   @Test
@@ -53,7 +54,7 @@ class StageLoweringTest {
 
     val lowered = lower(lowering, listOf(Brightness(4f), Sepia(1f))).single()
 
-    lowered.unsupported shouldBe UNCLAIMED(lowered.sources.joinToString(", ") { it.id })
+    lowered.unsupported shouldBe UNCLAIMED(EffectId(lowered.sources.map { it.id }.joinToString(", ")))
     lowered.resolvedEffect.shouldBeNull()
   }
 
@@ -206,10 +207,10 @@ class StageLoweringTest {
    * Keeps every spec it is asked about and the attributes it was asked with, claiming only [claims] when it is set.
    */
   private class Recorder(
-    private val claims: Set<String>? = null,
+    private val claims: Set<EffectId>? = null,
   ) : EffectResolver {
     val specs = mutableListOf<EffectSpec>()
-    val attributes = mutableMapOf<String, Attributes>()
+    val attributes = mutableMapOf<EffectId, Attributes>()
 
     override fun resolve(
       spec: EffectSpec,
@@ -225,6 +226,6 @@ class StageLoweringTest {
   private companion object {
     val SIZE = Size(1920, 1080)
     val SPAN = TimeRange.of(500.milliseconds, 2_500.milliseconds)
-    val UNCLAIMED: (String) -> String = { "nothing claimed $it" }
+    val UNCLAIMED: (EffectId) -> String = { "nothing claimed $it" }
   }
 }

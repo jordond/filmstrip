@@ -4,6 +4,7 @@ import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.effect.Attributes
 import dev.jordond.filmstrip.effect.CoreImageEffect
+import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.effect.EffectResolution
 import dev.jordond.filmstrip.effect.EffectResolver
 import dev.jordond.filmstrip.effect.EffectSpec
@@ -51,7 +52,7 @@ class AppleThumbnailStepFailureMediaTest {
     }
 
   private object Throwing : EffectSpec {
-    override val id: String = "dev.jordond.filmstrip.test.throwing"
+    override val id: EffectId = EffectId("dev.jordond.filmstrip.test.throwing")
   }
 
   private object ThrowingResolver : EffectResolver {

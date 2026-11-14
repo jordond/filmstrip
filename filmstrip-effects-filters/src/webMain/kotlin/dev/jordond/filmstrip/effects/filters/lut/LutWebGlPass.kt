@@ -11,7 +11,7 @@ internal fun lutPass(lut: Lut): WebGlPass {
   val atlas = lutAtlas(lut.table.blended(lut.intensity))
   val uniforms = LutShader.uniforms(atlas)
   return WebGlPass(
-    Lut.ID,
+    Lut.ID.value,
     listOf(
       WebGlStep(
         name = "table",

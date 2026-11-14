@@ -9,6 +9,7 @@ import dev.jordond.filmstrip.color.SMPTE_C_PRIMARIES
 import dev.jordond.filmstrip.color.sdPrimariesToBt709
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.TimeRange
+import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.effect.EffectStage
 import dev.jordond.filmstrip.effect.PlatformEffect
 import dev.jordond.filmstrip.effects.geometry.Crop
@@ -240,7 +241,7 @@ class ClipPlacementLoweringTest {
   private fun resolvedEffect(
     effect: Effect,
     stage: EffectStage,
-  ): ResolvedEffect = ResolvedEffect("test", PlatformEffect(effect), stage)
+  ): ResolvedEffect = ResolvedEffect(EffectId("test"), PlatformEffect(effect), stage)
 
   private companion object {
     val OUTPUT = Size(320, 180)

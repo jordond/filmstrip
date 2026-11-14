@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip.effects.filters.tape
 
+import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.effects.filters.vhs.TapeSpeed
 import dev.jordond.filmstrip.effects.filters.vhs.Vhs
 import io.kotest.matchers.shouldBe
@@ -15,7 +16,7 @@ class TapeAudioTest {
     tape.tape shouldBe Vhs().tape
     tape.seed shouldBe Vhs().seed
     tape.mono shouldBe true
-    tape.id shouldBe "filmstrip.filters.tapeAudio"
+    tape.id shouldBe EffectId("filmstrip.filters.tapeAudio")
   }
 
   @Test

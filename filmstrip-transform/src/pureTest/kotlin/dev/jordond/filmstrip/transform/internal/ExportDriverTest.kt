@@ -7,6 +7,7 @@ import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.effect.Attributes
+import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.effect.EffectResolution
 import dev.jordond.filmstrip.effect.EffectResolver
 import dev.jordond.filmstrip.effect.EffectSpec
@@ -154,7 +155,7 @@ class ExportDriverTest {
     val engine = engine(driver, composition(fixture.clip()))
 
     engine.parityOf(KNOWN_ID) shouldBe EffectParity.Exact
-    engine.parityOf("dev.jordond.filmstrip.unknown") shouldBe null
+    engine.parityOf(EffectId("dev.jordond.filmstrip.unknown")) shouldBe null
   }
 
   // The packets are read before negotiating, so a plan, not the export after it, shows the copy is lost.
@@ -292,7 +293,7 @@ private open class DefaultSyncDriver(
       features = emptySet(),
     )
 
-  override fun unclaimed(specId: String): String = "nothing claimed $specId"
+  override fun unclaimed(specId: EffectId): String = "nothing claimed $specId"
 
   override fun export(
     resolved: ResolvedComposition,
@@ -362,4 +363,4 @@ private const val EXPIRED = "the packet read was stopped"
 
 private val SINK = MediaSink.of("/out/driver.mp4")
 
-private const val KNOWN_ID = "dev.jordond.filmstrip.known"
+private val KNOWN_ID = EffectId("dev.jordond.filmstrip.known")

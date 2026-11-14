@@ -3,6 +3,7 @@ package dev.jordond.filmstrip.ffmpeg.internal
 import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.audio.AudioEffectResolver
 import dev.jordond.filmstrip.edit.Composition
+import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.effect.EffectResolver
 import dev.jordond.filmstrip.effect.EffectStage
 import dev.jordond.filmstrip.effect.FilterFragment
@@ -147,7 +148,7 @@ internal class FfmpegPlanner(
   fun lower(
     composition: Composition,
     ask: Ask,
-    dropped: Set<String> = emptySet(),
+    dropped: Set<EffectId> = emptySet(),
     sdColors: Map<MediaSource, SdColor> = emptyMap(),
     bt709Sources: Set<MediaSource> = emptySet(),
     tailFormatSources: Set<MediaSource> = emptySet(),
@@ -161,7 +162,7 @@ internal class FfmpegPlanner(
   private fun lowerReadable(
     composition: Composition,
     ask: Ask,
-    dropped: Set<String>,
+    dropped: Set<EffectId>,
     sdColors: Map<MediaSource, SdColor>,
     bt709Sources: Set<MediaSource>,
     tailFormatSources: Set<MediaSource>,
@@ -186,7 +187,7 @@ internal class FfmpegPlanner(
     // Geometry moves a clip's pixels and leaves their colour, so only what the planner left in any other stage counts.
     val drawsOnColor = effects.any { it.stage != EffectStage.Geometry }
     val demands =
-      effects.map { it.effect.fragment.filterNames() to it.specId } +
+      effects.map { it.effect.fragment.filterNames() to it.specId.value } +
         sdColors.values.map { it.filterNames() to SD_CLIP }
     demands.forEach { (filters, what) ->
       filters.firstOrNull { !toolchain.hasFilter(it) }?.let { filter ->

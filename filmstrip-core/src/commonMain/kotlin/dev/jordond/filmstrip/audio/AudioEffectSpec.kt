@@ -1,5 +1,7 @@
 package dev.jordond.filmstrip.audio
 
+import dev.jordond.filmstrip.effect.EffectId
+
 /**
  * A declaration of an audio effect, as plain data with no platform types and no signal processing.
  *
@@ -15,10 +17,9 @@ public interface AudioEffectSpec {
   /**
    * Stable identifier that names the effect in a plan and in diagnostics.
    *
-   * Namespace it like a package, `acme.reverb`, so two libraries cannot collide. Never derive it from the class name,
-   * which changes under refactoring and under Objective-C export.
+   * It is the same for every instance of one kind of effect.
    */
-  public val id: String
+  public val id: EffectId
 
   /**
    * Whether this effect leaves every sample as it was, as configured.

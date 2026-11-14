@@ -8,6 +8,7 @@ import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.TrackContent
+import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effect.canonicalOrder
 import dev.jordond.filmstrip.effects.color.fusedColorMatrices
@@ -215,7 +216,7 @@ private fun List<EffectSpec>.withoutInert(
           reaches.all { reach -> reach.spans.all { spec.drawsNothingWithin(it) } } -> InertReason.NeverVisible
         else -> null
       }
-    reason?.also { notices += InertNotice(spec.id, it, inertMessage(spec.id, where, it)) } != null
+    reason?.also { notices += InertNotice(spec.id.value, it, inertMessage(spec.id, where, it)) } != null
   }
 }
 
@@ -233,7 +234,7 @@ private fun List<AudioEffectSpec>.withoutInert(
         spec.isInert -> InertReason.NoChangeToAudio
         else -> null
       }
-    reason?.also { notices += InertNotice(spec.id, it, inertMessage(spec.id, where, it)) } != null
+    reason?.also { notices += InertNotice(spec.id.value, it, inertMessage(spec.id, where, it)) } != null
   }
 }
 
@@ -355,13 +356,13 @@ private fun speedWithout(
 }
 
 private fun inertMessage(
-  id: String,
+  id: EffectId,
   where: String,
   reason: InertReason,
 ): String =
   when (reason) {
     InertReason.NeverVisible -> "The $id on $where is never drawn, so it was left out."
-    InertReason.NoStreamToApplyTo -> fadeMessage(id, where)
+    InertReason.NoStreamToApplyTo -> fadeMessage(id.value, where)
     InertReason.NoChangeToAudio -> "The $id on $where leaves every sample as it was, so it was left out."
     else -> "The $id on $where leaves every pixel as it was, so it was left out."
   }

@@ -8,6 +8,7 @@ import dev.jordond.filmstrip.codec.Bitrate
 import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.TimeRange
+import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effect.PreviewClock
 import dev.jordond.filmstrip.export.Adjustment
@@ -124,7 +125,7 @@ internal class Grade(
   val path: ExportPath,
   val copyBlockedBy: List<CopyBlocker>,
   val copyOpensAt: Duration?,
-  val sdrForcedBy: List<String> = emptyList(),
+  val sdrForcedBy: List<EffectId> = emptyList(),
 )
 
 /**

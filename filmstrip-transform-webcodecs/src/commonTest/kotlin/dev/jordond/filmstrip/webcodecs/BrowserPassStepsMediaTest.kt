@@ -8,6 +8,7 @@ import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.outputSlotTime
+import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.effect.EffectResolution
 import dev.jordond.filmstrip.effect.EffectResolver
 import dev.jordond.filmstrip.effect.EffectSpec
@@ -217,7 +218,7 @@ private class StepsEffect(
   val steps: List<WebGlStep>,
   val key: String = steps.joinToString { it.fragmentSource },
 ) : EffectSpec {
-  override val id: String get() = "test.steps"
+  override val id: EffectId get() = EffectId("test.steps")
   override val stage: EffectStage get() = EffectStage.Composite
   override val beneathOverlays: Boolean get() = true
 }

@@ -10,6 +10,7 @@ import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.effect.Attributes
 import dev.jordond.filmstrip.effect.CoreImageEffect
+import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.effect.EffectResolution
 import dev.jordond.filmstrip.effect.EffectResolver
 import dev.jordond.filmstrip.effect.EffectSpec
@@ -295,7 +296,7 @@ class AppleToneMapExportHardwareTest {
   }
 
   private object Probe : EffectSpec {
-    override val id: String = "dev.jordond.filmstrip.test.tonemapprobe"
+    override val id: EffectId = EffectId("dev.jordond.filmstrip.test.tonemapprobe")
   }
 
   private class StepResolver(

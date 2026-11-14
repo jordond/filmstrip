@@ -7,6 +7,7 @@ import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.effect.Attributes
+import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.effect.EffectIds
 import dev.jordond.filmstrip.effect.EffectResolution
 import dev.jordond.filmstrip.effect.EffectResolver
@@ -63,7 +64,8 @@ class EffectPlanTest {
       .specId shouldBe Rotate(90).id
     val fallback = incapable.withoutUnsupported.shouldNotBeNull()
     fallback.plan.effectOrder shouldBe emptyList()
-    fallback.adjustments.map { it.kind to it.requested } shouldBe listOf(AdjustmentKind.EffectDropped to Rotate(90).id)
+    fallback.adjustments.map { it.kind to it.requested } shouldBe
+      listOf(AdjustmentKind.EffectDropped to Rotate(90).id.value)
   }
 
   @Test
@@ -100,7 +102,7 @@ class EffectPlanTest {
 
     val adjustments = verdict.shouldBeInstanceOf<Verdict.Degraded>().adjustments
     val approximated = adjustments.filter { it.kind == AdjustmentKind.EffectApproximated }
-    approximated.map { it.requested to it.message } shouldBe THREE_CAUSES.map { Rotate(90).id to it.message }
+    approximated.map { it.requested to it.message } shouldBe THREE_CAUSES.map { Rotate(90).id.value to it.message }
   }
 
   // Every effect the caller wrote in the run is told about every cause, each source in turn.
@@ -118,7 +120,7 @@ class EffectPlanTest {
     val approximated = adjustments.filter { it.kind == AdjustmentKind.EffectApproximated }
     approximated.map { it.requested to it.message } shouldBe
       listOf(EffectIds.BRIGHTNESS, EffectIds.CONTRAST, EffectIds.SEPIA).flatMap { id ->
-        THREE_CAUSES.map { id to it.message }
+        THREE_CAUSES.map { id.value to it.message }
       }
   }
 
@@ -239,10 +241,10 @@ class EffectPlanTest {
       listOf(EffectIds.BRIGHTNESS, EffectIds.SEPIA)
     verdict.reasons.forEach { reason ->
       val message = (reason as FilmstripError.UnsupportedEffect).message
-      withClue("the message reads $message") { message.contains(EffectIds.BRIGHTNESS).shouldBeTrue() }
-      withClue("the message reads $message") { message.contains(EffectIds.SEPIA).shouldBeTrue() }
+      withClue("the message reads $message") { message.contains(EffectIds.BRIGHTNESS.value).shouldBeTrue() }
+      withClue("the message reads $message") { message.contains(EffectIds.SEPIA.value).shouldBeTrue() }
       withClue("the message names the id the fold made up: $message") {
-        (!message.contains(EffectIds.COLOR_MATRIX)).shouldBeTrue()
+        (!message.contains(EffectIds.COLOR_MATRIX.value)).shouldBeTrue()
       }
     }
   }
@@ -448,8 +450,8 @@ private val PUSH_IN =
  * against so a plan's geometry chain is assertable.
  */
 private class RecordingResolver : EffectResolver {
-  val inputSizes = mutableMapOf<String, Size>()
-  val outputSizes = mutableMapOf<String, Size>()
+  val inputSizes = mutableMapOf<EffectId, Size>()
+  val outputSizes = mutableMapOf<EffectId, Size>()
   val spans = mutableListOf<TimeRange>()
   val specs = mutableListOf<EffectSpec>()
 

@@ -50,7 +50,7 @@ public abstract interface class dev/jordond/filmstrip/Filmstrip : dev/jordond/fi
 	public abstract fun export (Ldev/jordond/filmstrip/edit/Composition;Ldev/jordond/filmstrip/export/ExportSpec;Ldev/jordond/filmstrip/media/MediaSink;)Lkotlinx/coroutines/flow/Flow;
 	public abstract fun export (Ldev/jordond/filmstrip/export/ExportPlan;Ldev/jordond/filmstrip/media/MediaSink;)Lkotlinx/coroutines/flow/Flow;
 	public abstract fun getComponents ()Ldev/jordond/filmstrip/ComponentRegistry;
-	public abstract fun parityOf (Ljava/lang/String;)Ldev/jordond/filmstrip/capability/EffectParity;
+	public abstract fun parityOf-_D964Gs (Ljava/lang/String;)Ldev/jordond/filmstrip/capability/EffectParity;
 	public abstract fun plan (Ldev/jordond/filmstrip/edit/Composition;Ldev/jordond/filmstrip/export/ExportSpec;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public abstract fun probe (Ldev/jordond/filmstrip/media/MediaSource;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 }
@@ -132,10 +132,10 @@ public final class dev/jordond/filmstrip/FilmstripError$NoEncoder : dev/jordond/
 }
 
 public final class dev/jordond/filmstrip/FilmstripError$PlatformEffectAsymmetry : dev/jordond/filmstrip/FilmstripError {
-	public fun <init> (Ljava/lang/String;Ljava/lang/String;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun equals (Ljava/lang/Object;)Z
 	public fun getMessage ()Ljava/lang/String;
-	public final fun getSpecId ()Ljava/lang/String;
+	public final fun getSpecId-M7MrD_4 ()Ljava/lang/String;
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
 }
@@ -201,19 +201,19 @@ public final class dev/jordond/filmstrip/FilmstripError$Underlying$Companion {
 }
 
 public final class dev/jordond/filmstrip/FilmstripError$UnpreviewableEffect : dev/jordond/filmstrip/FilmstripError {
-	public fun <init> (Ljava/lang/String;Ljava/lang/String;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun equals (Ljava/lang/Object;)Z
 	public fun getMessage ()Ljava/lang/String;
-	public final fun getSpecId ()Ljava/lang/String;
+	public final fun getSpecId-M7MrD_4 ()Ljava/lang/String;
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
 }
 
 public final class dev/jordond/filmstrip/FilmstripError$UnsupportedEffect : dev/jordond/filmstrip/FilmstripError {
-	public fun <init> (Ljava/lang/String;Ljava/lang/String;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun equals (Ljava/lang/Object;)Z
 	public fun getMessage ()Ljava/lang/String;
-	public final fun getSpecId ()Ljava/lang/String;
+	public final fun getSpecId-M7MrD_4 ()Ljava/lang/String;
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
 }
@@ -294,10 +294,10 @@ public final class dev/jordond/filmstrip/audio/AudioEffectResolution$Resolved : 
 }
 
 public final class dev/jordond/filmstrip/audio/AudioEffectResolution$Unsupported : dev/jordond/filmstrip/audio/AudioEffectResolution {
-	public fun <init> (Ljava/lang/String;Ljava/lang/String;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getMessage ()Ljava/lang/String;
-	public final fun getSpecId ()Ljava/lang/String;
+	public final fun getSpecId-M7MrD_4 ()Ljava/lang/String;
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
 }
@@ -307,7 +307,7 @@ public abstract interface class dev/jordond/filmstrip/audio/AudioEffectResolver 
 }
 
 public abstract interface class dev/jordond/filmstrip/audio/AudioEffectSpec {
-	public abstract fun getId ()Ljava/lang/String;
+	public abstract fun getId-M7MrD_4 ()Ljava/lang/String;
 	public fun isInert ()Z
 }
 
@@ -382,11 +382,11 @@ public final class dev/jordond/filmstrip/capability/OutputProperty : java/lang/E
 }
 
 public final class dev/jordond/filmstrip/capability/ParityNote {
-	public fun <init> (Ljava/lang/String;Ldev/jordond/filmstrip/capability/EffectParity;Ljava/lang/String;)V
+	public synthetic fun <init> (Ljava/lang/String;Ldev/jordond/filmstrip/capability/EffectParity;Ljava/lang/String;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getMessage ()Ljava/lang/String;
 	public final fun getParity ()Ldev/jordond/filmstrip/capability/EffectParity;
-	public final fun getSpecId ()Ljava/lang/String;
+	public final fun getSpecId-M7MrD_4 ()Ljava/lang/String;
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
 }
@@ -822,26 +822,40 @@ public final class dev/jordond/filmstrip/effect/DegradationReason : java/lang/En
 	public static fun values ()[Ldev/jordond/filmstrip/effect/DegradationReason;
 }
 
+public final class dev/jordond/filmstrip/effect/EffectId {
+	public static final synthetic fun box-impl (Ljava/lang/String;)Ldev/jordond/filmstrip/effect/EffectId;
+	public static fun constructor-impl (Ljava/lang/String;)Ljava/lang/String;
+	public fun equals (Ljava/lang/Object;)Z
+	public static fun equals-impl (Ljava/lang/String;Ljava/lang/Object;)Z
+	public static final fun equals-impl0 (Ljava/lang/String;Ljava/lang/String;)Z
+	public final fun getValue ()Ljava/lang/String;
+	public fun hashCode ()I
+	public static fun hashCode-impl (Ljava/lang/String;)I
+	public fun toString ()Ljava/lang/String;
+	public static fun toString-impl (Ljava/lang/String;)Ljava/lang/String;
+	public final synthetic fun unbox-impl ()Ljava/lang/String;
+}
+
 public final class dev/jordond/filmstrip/effect/EffectIds {
-	public static final field BRIGHTNESS Ljava/lang/String;
-	public static final field COLOR_MATRIX Ljava/lang/String;
-	public static final field CONTRAST Ljava/lang/String;
-	public static final field CROP Ljava/lang/String;
-	public static final field CROP_RECT Ljava/lang/String;
-	public static final field FLIP Ljava/lang/String;
-	public static final field GAUSSIAN_BLUR Ljava/lang/String;
-	public static final field HUE_ROTATE Ljava/lang/String;
-	public static final field IMAGE_OVERLAY Ljava/lang/String;
 	public static final field INSTANCE Ldev/jordond/filmstrip/effect/EffectIds;
-	public static final field INVERT Ljava/lang/String;
-	public static final field KEN_BURNS Ljava/lang/String;
-	public static final field RGB_ADJUSTMENT Ljava/lang/String;
-	public static final field ROTATE Ljava/lang/String;
-	public static final field SATURATION Ljava/lang/String;
-	public static final field SCALE Ljava/lang/String;
-	public static final field SEPIA Ljava/lang/String;
-	public static final field TEXT_OVERLAY Ljava/lang/String;
-	public static final field VIGNETTE Ljava/lang/String;
+	public final fun getBRIGHTNESS-M7MrD_4 ()Ljava/lang/String;
+	public final fun getCOLOR_MATRIX-M7MrD_4 ()Ljava/lang/String;
+	public final fun getCONTRAST-M7MrD_4 ()Ljava/lang/String;
+	public final fun getCROP-M7MrD_4 ()Ljava/lang/String;
+	public final fun getCROP_RECT-M7MrD_4 ()Ljava/lang/String;
+	public final fun getFLIP-M7MrD_4 ()Ljava/lang/String;
+	public final fun getGAUSSIAN_BLUR-M7MrD_4 ()Ljava/lang/String;
+	public final fun getHUE_ROTATE-M7MrD_4 ()Ljava/lang/String;
+	public final fun getIMAGE_OVERLAY-M7MrD_4 ()Ljava/lang/String;
+	public final fun getINVERT-M7MrD_4 ()Ljava/lang/String;
+	public final fun getKEN_BURNS-M7MrD_4 ()Ljava/lang/String;
+	public final fun getRGB_ADJUSTMENT-M7MrD_4 ()Ljava/lang/String;
+	public final fun getROTATE-M7MrD_4 ()Ljava/lang/String;
+	public final fun getSATURATION-M7MrD_4 ()Ljava/lang/String;
+	public final fun getSCALE-M7MrD_4 ()Ljava/lang/String;
+	public final fun getSEPIA-M7MrD_4 ()Ljava/lang/String;
+	public final fun getTEXT_OVERLAY-M7MrD_4 ()Ljava/lang/String;
+	public final fun getVIGNETTE-M7MrD_4 ()Ljava/lang/String;
 }
 
 public abstract interface class dev/jordond/filmstrip/effect/EffectResolution {
@@ -873,10 +887,10 @@ public final class dev/jordond/filmstrip/effect/EffectResolution$Resolved : dev/
 }
 
 public final class dev/jordond/filmstrip/effect/EffectResolution$Unsupported : dev/jordond/filmstrip/effect/EffectResolution {
-	public fun <init> (Ljava/lang/String;Ljava/lang/String;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getMessage ()Ljava/lang/String;
-	public final fun getSpecId ()Ljava/lang/String;
+	public final fun getSpecId-M7MrD_4 ()Ljava/lang/String;
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
 }
@@ -900,7 +914,7 @@ public final class dev/jordond/filmstrip/effect/EffectScope : java/lang/Enum {
 
 public abstract interface class dev/jordond/filmstrip/effect/EffectSpec {
 	public fun getBeneathOverlays ()Z
-	public abstract fun getId ()Ljava/lang/String;
+	public abstract fun getId-M7MrD_4 ()Ljava/lang/String;
 	public fun getRedrawsWhileHeld ()Z
 	public fun getRequiresSdr ()Z
 	public fun getScope ()Ldev/jordond/filmstrip/effect/EffectScope;

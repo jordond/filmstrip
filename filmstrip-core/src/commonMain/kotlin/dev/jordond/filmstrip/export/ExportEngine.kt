@@ -6,6 +6,7 @@ import dev.jordond.filmstrip.audio.AudioEffectResolver
 import dev.jordond.filmstrip.capability.EffectParity
 import dev.jordond.filmstrip.diagnostics.DiagnosticListener
 import dev.jordond.filmstrip.edit.Composition
+import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.effect.EffectResolver
 import dev.jordond.filmstrip.media.MediaProberFactory
 import dev.jordond.filmstrip.media.MediaSink
@@ -66,7 +67,7 @@ public interface ExportEngine {
    * @return The effect's parity, or null when this engine does not know [specId] or cannot render
    *   it. Call [plan] for the reason.
    */
-  public fun parityOf(specId: String): EffectParity?
+  public fun parityOf(specId: EffectId): EffectParity?
 }
 
 /**

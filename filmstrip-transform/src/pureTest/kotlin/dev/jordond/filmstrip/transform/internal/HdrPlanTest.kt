@@ -2,6 +2,7 @@ package dev.jordond.filmstrip.transform.internal
 
 import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.codec.VideoCodec
+import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effects.color.Brightness
 import dev.jordond.filmstrip.export.AdjustmentKind
@@ -33,7 +34,7 @@ class HdrPlanTest {
   private val encodesHdr = fixture.device(hdr = true)
   private val needsSdr =
     object : EffectSpec {
-      override val id = "test.needsSdr"
+      override val id = EffectId("test.needsSdr")
       override val requiresSdr = true
     }
 

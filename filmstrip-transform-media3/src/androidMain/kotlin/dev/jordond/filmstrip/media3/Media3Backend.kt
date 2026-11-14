@@ -6,6 +6,7 @@ import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.capability.EffectParity
 import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.diagnostics.BackendInfo
+import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.effect.EffectIds
 import dev.jordond.filmstrip.effects.builtInEffects
 import dev.jordond.filmstrip.export.CopyBlocker
@@ -90,7 +91,7 @@ private const val SQUARE_PIXELS = 1f
 
 private val MEDIA3_LADDER: List<VideoCodec> = listOf(VideoCodec.H264, VideoCodec.Hevc)
 
-private val MEDIA3_PARITY: Map<String, EffectParity> =
+private val MEDIA3_PARITY: Map<EffectId, EffectParity> =
   mapOf(
     EffectIds.ROTATE to EffectParity.Exact,
     EffectIds.FLIP to EffectParity.Exact,

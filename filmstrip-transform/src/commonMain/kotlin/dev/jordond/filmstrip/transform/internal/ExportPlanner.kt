@@ -9,6 +9,7 @@ import dev.jordond.filmstrip.codec.AudioCodec
 import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.Composition
+import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.effect.EffectResolver
 import dev.jordond.filmstrip.effect.EffectStage
 import dev.jordond.filmstrip.effect.RenderCapabilities
@@ -89,12 +90,12 @@ public class ExportPlanner(
   resolvers: List<EffectResolver>,
   audioResolvers: List<AudioEffectResolver>,
   private val renderCapabilities: (Size, Boolean) -> RenderCapabilities,
-  private val parityOf: (String) -> EffectParity?,
-  unclaimedMessage: (String) -> String,
+  private val parityOf: (EffectId) -> EffectParity?,
+  unclaimedMessage: (EffectId) -> String,
   private val ladder: List<VideoCodec>,
   supportsCopy: Boolean,
   muxerAccepts: (MediaInfo) -> Boolean,
-  private val noteOf: (String) -> String? = { null },
+  private val noteOf: (EffectId) -> String? = { null },
   private val canToneMap: Boolean = true,
   private val toneMapLimit: (List<MediaSource>) -> String? = { null },
   private val fillLimit: (Fill) -> String? = { null },
@@ -121,7 +122,7 @@ public class ExportPlanner(
   public fun negotiate(
     composition: Composition,
     ask: Ask,
-    dropped: Set<String> = emptySet(),
+    dropped: Set<EffectId> = emptySet(),
   ): NegotiatedExport {
     val unsupported =
       when (val first = settle(composition.withoutEffectIds(dropped), dropped, ask)) {
@@ -156,7 +157,7 @@ public class ExportPlanner(
   private fun fallbackOf(
     composition: Composition,
     ask: Ask,
-    unsupported: Map<String, FilmstripError>,
+    unsupported: Map<EffectId, FilmstripError>,
   ): NegotiatedExport {
     val retry = settle(composition.withoutEffectIds(unsupported.keys), unsupported.keys, ask)
     // The retry drops at least one effect and reports each as an adjustment, so it is never Capable.
@@ -238,7 +239,7 @@ public class ExportPlanner(
    */
   private fun settle(
     authored: Composition,
-    dropped: Set<String>,
+    dropped: Set<EffectId>,
     ask: Ask,
   ): Settlement {
     val graded = graded(authored, ask).orElse { return refused(it) }
@@ -272,12 +273,12 @@ public class ExportPlanner(
     val mix = audioLowering.lower(edit.audioEffects, timeline.span)
     val loweredAudio = timeline.loweredAudio + mix
 
-    val unsupported = linkedMapOf<String, FilmstripError>()
+    val unsupported = linkedMapOf<EffectId, FilmstripError>()
     val reasons = mutableListOf<FilmstripError>()
     var failed = false
 
     fun report(
-      ids: List<String>,
+      ids: List<EffectId>,
       refusal: String?,
       failure: FilmstripError?,
     ) {
@@ -430,7 +431,7 @@ public class ExportPlanner(
     ) : Settlement
 
     class Unsupported(
-      val effects: Map<String, FilmstripError>,
+      val effects: Map<EffectId, FilmstripError>,
     ) : Settlement
   }
 
@@ -443,7 +444,7 @@ public class ExportPlanner(
   }
 }
 
-private fun Composition.withoutEffectIds(ids: Set<String>): Composition {
+private fun Composition.withoutEffectIds(ids: Set<EffectId>): Composition {
   if (ids.isEmpty()) return this
   val stripped =
     tracks.map { track ->

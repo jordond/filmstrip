@@ -2,6 +2,7 @@ package dev.jordond.filmstrip.transform.internal.negotiation
 
 import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.codec.AudioCodec
+import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.export.Adjustment
 import dev.jordond.filmstrip.export.AdjustmentKind
 import dev.jordond.filmstrip.export.ExportSpec
@@ -21,8 +22,8 @@ internal fun concessionsOf(
   grade: Grade,
   encoding: Encoding,
   audio: CodecChoice<AudioCodec>,
-  degraded: List<Pair<String, String>>,
-  dropped: Set<String>,
+  degraded: List<Pair<EffectId, String>>,
+  dropped: Set<EffectId>,
 ): List<Concession> =
   buildList {
     encoding.video.fallback?.let(::add)
@@ -62,10 +63,10 @@ internal fun concessionsOf(
       )
     }
     degraded.distinct().forEach { (id, message) ->
-      add(concession(AdjustmentKind.EffectApproximated, id, "approximated", message))
+      add(concession(AdjustmentKind.EffectApproximated, id.value, "approximated", message))
     }
     dropped.forEach { id ->
-      add(concession(AdjustmentKind.EffectDropped, id, "removed", "$id $DROPPED"))
+      add(concession(AdjustmentKind.EffectDropped, id.value, "removed", "$id $DROPPED"))
     }
   }
 
@@ -102,7 +103,7 @@ private fun concession(
 
 private fun Size.describe(): String = "${width}x$height"
 
-private fun toneMappedFor(ids: List<String>): String =
+private fun toneMappedFor(ids: List<EffectId>): String =
   "${ids.joinToString()} needs SDR frames, so the grade is tone-mapped to SDR."
 
 private const val TONE_MAPPED = "This device cannot encode HDR, so the grade is tone-mapped to SDR."

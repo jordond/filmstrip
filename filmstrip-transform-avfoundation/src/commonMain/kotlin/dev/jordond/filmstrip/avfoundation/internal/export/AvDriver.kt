@@ -20,6 +20,7 @@ import dev.jordond.filmstrip.avfoundation.internal.writer.WriterRun
 import dev.jordond.filmstrip.avfoundation.internal.writer.avEncoderCapabilities
 import dev.jordond.filmstrip.avfoundation.internal.writer.resolveDestination
 import dev.jordond.filmstrip.capability.DeviceCapabilities
+import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.effect.RenderApi
 import dev.jordond.filmstrip.effect.RenderCapabilities
 import dev.jordond.filmstrip.effect.RenderFeature
@@ -121,7 +122,7 @@ internal class AvDriver(
       }
     }
 
-  override fun unclaimed(specId: String): String =
+  override fun unclaimed(specId: EffectId): String =
     "No resolver claimed $specId on the Apple backend. Add the artifact that defines it, or a " +
       "resolver that recognises RenderApi.CoreImage."
 

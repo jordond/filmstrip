@@ -3,6 +3,7 @@ package dev.jordond.filmstrip.transform.internal.resolve
 import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.audio.AudioEffectSpec
 import dev.jordond.filmstrip.audio.PlatformAudioEffect
+import dev.jordond.filmstrip.effect.EffectId
 
 /**
  * One audio effect, lowered, still carrying the id it came from.
@@ -15,7 +16,7 @@ import dev.jordond.filmstrip.audio.PlatformAudioEffect
  */
 @InternalFilmstripApi
 public class ResolvedAudioEffect(
-  public val specId: String,
+  public val specId: EffectId,
   public val effect: PlatformAudioEffect,
   public val spec: AudioEffectSpec? = null,
 )

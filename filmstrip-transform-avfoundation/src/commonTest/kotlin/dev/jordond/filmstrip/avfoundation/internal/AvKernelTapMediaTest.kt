@@ -12,6 +12,7 @@ import dev.jordond.filmstrip.avfoundation.internal.time.timeRangeOf
 import dev.jordond.filmstrip.avfoundation.internal.time.toCMTime
 import dev.jordond.filmstrip.avfoundation.mixedAudioOf
 import dev.jordond.filmstrip.edit.TimeRange
+import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.test.TimelineBursts
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedAudioEffect
 import io.kotest.assertions.withClue
@@ -130,7 +131,7 @@ class AvKernelTapMediaTest {
         TimeRange.of(Duration.ZERO, LENGTH),
         listOf(
           ResolvedAudioEffect(
-            "delay",
+            EffectId("delay"),
             PlatformAudioEffect {
               built++
               DelayKernel(it, LATENCY_FRAMES)
@@ -201,7 +202,7 @@ class AvKernelTapMediaTest {
   }
 
   private fun delayed() =
-    bursts() + ResolvedAudioEffect("delay", PlatformAudioEffect { DelayKernel(it, LATENCY_FRAMES) })
+    bursts() + ResolvedAudioEffect(EffectId("delay"), PlatformAudioEffect { DelayKernel(it, LATENCY_FRAMES) })
 
   // The frame each run of sound opens on, a run being closed by a stretch of silence.
   private fun AudioProbe.onsets(): List<Int> {

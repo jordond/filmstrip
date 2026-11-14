@@ -11,6 +11,7 @@ import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.edit.outputSlotTime
 import dev.jordond.filmstrip.edit.outputSlotsOf
+import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.effect.EffectStage
 import dev.jordond.filmstrip.effect.PlatformEffect
 import dev.jordond.filmstrip.export.ExportPath
@@ -210,7 +211,7 @@ class Media3PreviewMediaTest {
 
   private fun brightness(scale: Float): ResolvedEffect =
     ResolvedEffect(
-      "brightness",
+      EffectId("brightness"),
       PlatformEffect(
         RgbAdjustment
           .Builder()
@@ -222,7 +223,8 @@ class Media3PreviewMediaTest {
       EffectStage.Color,
     )
 
-  private fun opaque(): ResolvedEffect = ResolvedEffect("opaque", PlatformEffect(OpaqueEffect()), EffectStage.Color)
+  private fun opaque(): ResolvedEffect =
+    ResolvedEffect(EffectId("opaque"), PlatformEffect(OpaqueEffect()), EffectStage.Color)
 
   private fun composition(
     output: Size = FRAME,

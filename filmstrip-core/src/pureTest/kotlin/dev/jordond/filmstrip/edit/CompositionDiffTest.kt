@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip.edit
 
+import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.effect.EffectIds
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effect.EffectStage
@@ -257,13 +258,13 @@ class CompositionDiffTest {
   // A minimal EffectSpec fabricated in-place, since the built-in effects live in filmstrip-effects,
   // a module core cannot depend on. rect stands in for whatever a real effect's own parameter is.
   private fun fakeEffect(
-    specId: String,
+    specId: EffectId,
     specStage: EffectStage,
     rect: Float = 0f,
   ): EffectSpec = FakeEffect(specId, specStage, rect)
 
   private data class FakeEffect(
-    override val id: String,
+    override val id: EffectId,
     override val stage: EffectStage,
     val rect: Float,
   ) : EffectSpec

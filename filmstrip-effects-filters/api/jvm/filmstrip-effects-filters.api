@@ -16,13 +16,12 @@ public final class dev/jordond/filmstrip/effects/filters/FilterEffectResolverKt 
 public final class dev/jordond/filmstrip/effects/filters/camcorder/Camcorder : dev/jordond/filmstrip/effect/EffectSpec {
 	public static final field Companion Ldev/jordond/filmstrip/effects/filters/camcorder/Camcorder$Companion;
 	public static final field DEFAULT_TEXT_SIZE F
-	public static final field ID Ljava/lang/String;
 	public fun <init> (Ljava/util/List;Ldev/jordond/filmstrip/effects/filters/camcorder/RecordedAt;F)V
 	public synthetic fun <init> (Ljava/util/List;Ldev/jordond/filmstrip/effects/filters/camcorder/RecordedAt;FILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun equals (Ljava/lang/Object;)Z
 	public fun getBeneathOverlays ()Z
 	public final fun getElements ()Ljava/util/List;
-	public fun getId ()Ljava/lang/String;
+	public fun getId-M7MrD_4 ()Ljava/lang/String;
 	public final fun getRecordedAt ()Ldev/jordond/filmstrip/effects/filters/camcorder/RecordedAt;
 	public fun getRedrawsWhileHeld ()Z
 	public fun getRequiresSdr ()Z
@@ -36,6 +35,7 @@ public final class dev/jordond/filmstrip/effects/filters/camcorder/Camcorder : d
 
 public final class dev/jordond/filmstrip/effects/filters/camcorder/Camcorder$Companion {
 	public final fun getDEFAULT_RECORDED_AT ()Ldev/jordond/filmstrip/effects/filters/camcorder/RecordedAt;
+	public final fun getID-M7MrD_4 ()Ljava/lang/String;
 }
 
 public final class dev/jordond/filmstrip/effects/filters/camcorder/CamcorderBuilder {
@@ -212,13 +212,12 @@ public final class dev/jordond/filmstrip/effects/filters/camcorder/TransportMode
 
 public final class dev/jordond/filmstrip/effects/filters/crt/Crt : dev/jordond/filmstrip/effect/EffectSpec {
 	public static final field Companion Ldev/jordond/filmstrip/effects/filters/crt/Crt$Companion;
-	public static final field ID Ljava/lang/String;
 	public fun <init> ()V
 	public fun <init> (F)V
 	public synthetic fun <init> (FILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun equals (Ljava/lang/Object;)Z
 	public fun getBeneathOverlays ()Z
-	public fun getId ()Ljava/lang/String;
+	public fun getId-M7MrD_4 ()Ljava/lang/String;
 	public final fun getIntensity ()F
 	public fun getRedrawsWhileHeld ()Z
 	public fun getRequiresSdr ()Z
@@ -230,6 +229,7 @@ public final class dev/jordond/filmstrip/effects/filters/crt/Crt : dev/jordond/f
 }
 
 public final class dev/jordond/filmstrip/effects/filters/crt/Crt$Companion {
+	public final fun getID-M7MrD_4 ()Ljava/lang/String;
 }
 
 public final class dev/jordond/filmstrip/effects/filters/crt/CrtKt {
@@ -240,7 +240,6 @@ public final class dev/jordond/filmstrip/effects/filters/crt/CrtKt {
 public final class dev/jordond/filmstrip/effects/filters/film/Film : dev/jordond/filmstrip/effect/EffectSpec {
 	public static final field Companion Ldev/jordond/filmstrip/effects/filters/film/Film$Companion;
 	public static final field DEFAULT_SEED I
-	public static final field ID Ljava/lang/String;
 	public fun <init> ()V
 	public fun <init> (FFFFFFI)V
 	public synthetic fun <init> (FFFFFFIILkotlin/jvm/internal/DefaultConstructorMarker;)V
@@ -251,7 +250,7 @@ public final class dev/jordond/filmstrip/effects/filters/film/Film : dev/jordond
 	public final fun getGate ()F
 	public final fun getGrain ()F
 	public final fun getHalation ()F
-	public fun getId ()Ljava/lang/String;
+	public fun getId-M7MrD_4 ()Ljava/lang/String;
 	public fun getRedrawsWhileHeld ()Z
 	public fun getRequiresSdr ()Z
 	public fun getScope ()Ldev/jordond/filmstrip/effect/EffectScope;
@@ -264,6 +263,7 @@ public final class dev/jordond/filmstrip/effects/filters/film/Film : dev/jordond
 }
 
 public final class dev/jordond/filmstrip/effects/filters/film/Film$Companion {
+	public final fun getID-M7MrD_4 ()Ljava/lang/String;
 	public final fun getSuper8 ()Ldev/jordond/filmstrip/effects/filters/film/Film;
 }
 
@@ -275,13 +275,12 @@ public final class dev/jordond/filmstrip/effects/filters/film/FilmKt {
 public final class dev/jordond/filmstrip/effects/filters/glitch/Glitch : dev/jordond/filmstrip/effect/EffectSpec {
 	public static final field Companion Ldev/jordond/filmstrip/effects/filters/glitch/Glitch$Companion;
 	public static final field DEFAULT_SEED I
-	public static final field ID Ljava/lang/String;
 	public fun <init> ()V
 	public fun <init> (FI)V
 	public synthetic fun <init> (FIILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun equals (Ljava/lang/Object;)Z
 	public fun getBeneathOverlays ()Z
-	public fun getId ()Ljava/lang/String;
+	public fun getId-M7MrD_4 ()Ljava/lang/String;
 	public final fun getIntensity ()F
 	public fun getRedrawsWhileHeld ()Z
 	public fun getRequiresSdr ()Z
@@ -294,6 +293,7 @@ public final class dev/jordond/filmstrip/effects/filters/glitch/Glitch : dev/jor
 }
 
 public final class dev/jordond/filmstrip/effects/filters/glitch/Glitch$Companion {
+	public final fun getID-M7MrD_4 ()Ljava/lang/String;
 }
 
 public final class dev/jordond/filmstrip/effects/filters/glitch/GlitchKt {
@@ -324,12 +324,11 @@ public final class dev/jordond/filmstrip/effects/filters/lut/CubeLutKt {
 
 public final class dev/jordond/filmstrip/effects/filters/lut/Lut : dev/jordond/filmstrip/effect/EffectSpec {
 	public static final field Companion Ldev/jordond/filmstrip/effects/filters/lut/Lut$Companion;
-	public static final field ID Ljava/lang/String;
 	public fun <init> (Ldev/jordond/filmstrip/effects/filters/lut/CubeLut;F)V
 	public synthetic fun <init> (Ldev/jordond/filmstrip/effects/filters/lut/CubeLut;FILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun equals (Ljava/lang/Object;)Z
 	public fun getBeneathOverlays ()Z
-	public fun getId ()Ljava/lang/String;
+	public fun getId-M7MrD_4 ()Ljava/lang/String;
 	public final fun getIntensity ()F
 	public fun getRedrawsWhileHeld ()Z
 	public fun getRequiresSdr ()Z
@@ -342,6 +341,7 @@ public final class dev/jordond/filmstrip/effects/filters/lut/Lut : dev/jordond/f
 }
 
 public final class dev/jordond/filmstrip/effects/filters/lut/Lut$Companion {
+	public final fun getID-M7MrD_4 ()Ljava/lang/String;
 }
 
 public final class dev/jordond/filmstrip/effects/filters/lut/LutKt {
@@ -352,13 +352,12 @@ public final class dev/jordond/filmstrip/effects/filters/lut/LutKt {
 public final class dev/jordond/filmstrip/effects/filters/nightvision/NightVision : dev/jordond/filmstrip/effect/EffectSpec {
 	public static final field Companion Ldev/jordond/filmstrip/effects/filters/nightvision/NightVision$Companion;
 	public static final field DEFAULT_SEED I
-	public static final field ID Ljava/lang/String;
 	public fun <init> ()V
 	public fun <init> (FI)V
 	public synthetic fun <init> (FIILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun equals (Ljava/lang/Object;)Z
 	public fun getBeneathOverlays ()Z
-	public fun getId ()Ljava/lang/String;
+	public fun getId-M7MrD_4 ()Ljava/lang/String;
 	public final fun getIntensity ()F
 	public fun getRedrawsWhileHeld ()Z
 	public fun getRequiresSdr ()Z
@@ -371,6 +370,7 @@ public final class dev/jordond/filmstrip/effects/filters/nightvision/NightVision
 }
 
 public final class dev/jordond/filmstrip/effects/filters/nightvision/NightVision$Companion {
+	public final fun getID-M7MrD_4 ()Ljava/lang/String;
 }
 
 public final class dev/jordond/filmstrip/effects/filters/nightvision/NightVisionKt {
@@ -381,7 +381,6 @@ public final class dev/jordond/filmstrip/effects/filters/nightvision/NightVision
 public final class dev/jordond/filmstrip/effects/filters/pixel/Pixel : dev/jordond/filmstrip/effect/EffectSpec {
 	public static final field Companion Ldev/jordond/filmstrip/effects/filters/pixel/Pixel$Companion;
 	public static final field DEFAULT_CELLS I
-	public static final field ID Ljava/lang/String;
 	public static final field MAX_CELLS I
 	public static final field MAX_LEVELS I
 	public static final field MIN_CELLS I
@@ -393,7 +392,7 @@ public final class dev/jordond/filmstrip/effects/filters/pixel/Pixel : dev/jordo
 	public fun getBeneathOverlays ()Z
 	public final fun getCells ()I
 	public final fun getDither ()F
-	public fun getId ()Ljava/lang/String;
+	public fun getId-M7MrD_4 ()Ljava/lang/String;
 	public final fun getLevels ()I
 	public final fun getPalette ()Ldev/jordond/filmstrip/effects/filters/pixel/PixelPalette;
 	public fun getRedrawsWhileHeld ()Z
@@ -406,6 +405,7 @@ public final class dev/jordond/filmstrip/effects/filters/pixel/Pixel : dev/jordo
 }
 
 public final class dev/jordond/filmstrip/effects/filters/pixel/Pixel$Companion {
+	public final fun getID-M7MrD_4 ()Ljava/lang/String;
 }
 
 public final class dev/jordond/filmstrip/effects/filters/pixel/PixelKt {
@@ -431,7 +431,6 @@ public final class dev/jordond/filmstrip/effects/filters/pixel/PixelPalette$Comp
 
 public final class dev/jordond/filmstrip/effects/filters/tape/TapeAudio : dev/jordond/filmstrip/audio/AudioEffectSpec {
 	public static final field Companion Ldev/jordond/filmstrip/effects/filters/tape/TapeAudio$Companion;
-	public static final field ID Ljava/lang/String;
 	public fun <init> ()V
 	public fun <init> (FLdev/jordond/filmstrip/effects/filters/vhs/TapeSpeed;IFFLdev/jordond/filmstrip/effects/filters/tape/Wobble;Ldev/jordond/filmstrip/effects/filters/tape/Wobble;Z)V
 	public synthetic fun <init> (FLdev/jordond/filmstrip/effects/filters/vhs/TapeSpeed;IFFLdev/jordond/filmstrip/effects/filters/tape/Wobble;Ldev/jordond/filmstrip/effects/filters/tape/Wobble;ZILkotlin/jvm/internal/DefaultConstructorMarker;)V
@@ -439,7 +438,7 @@ public final class dev/jordond/filmstrip/effects/filters/tape/TapeAudio : dev/jo
 	public final fun getBandLimit ()F
 	public final fun getFlutter ()Ldev/jordond/filmstrip/effects/filters/tape/Wobble;
 	public final fun getHiss ()F
-	public fun getId ()Ljava/lang/String;
+	public fun getId-M7MrD_4 ()Ljava/lang/String;
 	public final fun getIntensity ()F
 	public final fun getMono ()Z
 	public final fun getSeed ()I
@@ -451,6 +450,7 @@ public final class dev/jordond/filmstrip/effects/filters/tape/TapeAudio : dev/jo
 }
 
 public final class dev/jordond/filmstrip/effects/filters/tape/TapeAudio$Companion {
+	public final fun getID-M7MrD_4 ()Ljava/lang/String;
 }
 
 public final class dev/jordond/filmstrip/effects/filters/tape/TapeAudioBuilder {
@@ -574,14 +574,13 @@ public final class dev/jordond/filmstrip/effects/filters/vhs/TrackingBuilder {
 public final class dev/jordond/filmstrip/effects/filters/vhs/Vhs : dev/jordond/filmstrip/effect/EffectSpec {
 	public static final field Companion Ldev/jordond/filmstrip/effects/filters/vhs/Vhs$Companion;
 	public static final field DEFAULT_SEED I
-	public static final field ID Ljava/lang/String;
 	public fun <init> ()V
 	public fun <init> (FLdev/jordond/filmstrip/effects/filters/vhs/TapeSpeed;ILdev/jordond/filmstrip/effects/filters/vhs/Tracking;Ldev/jordond/filmstrip/effects/filters/vhs/TapeClock;)V
 	public synthetic fun <init> (FLdev/jordond/filmstrip/effects/filters/vhs/TapeSpeed;ILdev/jordond/filmstrip/effects/filters/vhs/Tracking;Ldev/jordond/filmstrip/effects/filters/vhs/TapeClock;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun equals (Ljava/lang/Object;)Z
 	public fun getBeneathOverlays ()Z
 	public final fun getClock ()Ldev/jordond/filmstrip/effects/filters/vhs/TapeClock;
-	public fun getId ()Ljava/lang/String;
+	public fun getId-M7MrD_4 ()Ljava/lang/String;
 	public final fun getIntensity ()F
 	public fun getRedrawsWhileHeld ()Z
 	public fun getRequiresSdr ()Z
@@ -596,6 +595,7 @@ public final class dev/jordond/filmstrip/effects/filters/vhs/Vhs : dev/jordond/f
 }
 
 public final class dev/jordond/filmstrip/effects/filters/vhs/Vhs$Companion {
+	public final fun getID-M7MrD_4 ()Ljava/lang/String;
 }
 
 public final class dev/jordond/filmstrip/effects/filters/vhs/VhsBuilder {

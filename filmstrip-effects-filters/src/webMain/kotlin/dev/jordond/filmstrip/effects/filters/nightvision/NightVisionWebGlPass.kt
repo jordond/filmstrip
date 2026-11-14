@@ -13,7 +13,7 @@ import kotlin.time.DurationUnit
  */
 internal fun nightVisionPass(nightVision: NightVision): WebGlPass =
   WebGlPass(
-    NightVision.ID,
+    NightVision.ID.value,
     listOf(
       WebGlStep(
         name = "phosphor",

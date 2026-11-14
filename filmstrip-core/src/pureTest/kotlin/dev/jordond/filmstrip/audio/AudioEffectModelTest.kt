@@ -9,6 +9,7 @@ import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.edit.diff
 import dev.jordond.filmstrip.edit.effectsRevision
+import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.media.MediaSource
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContainExactly
@@ -139,6 +140,6 @@ class AudioEffectModelTest {
   private data class Hum(
     val level: Float,
   ) : AudioEffectSpec {
-    override val id: String = "test.hum"
+    override val id: EffectId = EffectId("test.hum")
   }
 }

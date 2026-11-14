@@ -2,6 +2,7 @@ package dev.jordond.filmstrip.effects.geometry
 
 import dev.drewhamilton.poko.Poko
 import dev.jordond.filmstrip.edit.EffectsBuilder
+import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.effect.EffectIds
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effect.EffectStage
@@ -19,7 +20,7 @@ public class Scale(
   public val heightPx: Int,
   public val fit: Fit = Fit.Contain,
 ) : EffectSpec {
-  override val id: String get() = EffectIds.SCALE
+  override val id: EffectId get() = EffectIds.SCALE
 
   override val stage: EffectStage get() = EffectStage.Geometry
 }

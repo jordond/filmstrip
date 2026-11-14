@@ -184,7 +184,7 @@ class AppleVhsHardwareTest {
           .plan(edit, ExportSpec(hdr = HdrMode.KeepHdr))
           .shouldBeInstanceOf<Verdict.Incapable>()
 
-      refused.reasons.joinToString { it.message } shouldContain Vhs.ID
+      refused.reasons.joinToString { it.message } shouldContain Vhs.ID.value
     }
 
   @Test
@@ -199,7 +199,7 @@ class AppleVhsHardwareTest {
         }.plan(edit, ExportSpec())
           .shouldBeInstanceOf<Verdict.Incapable>()
 
-      refused.reasons.joinToString { it.message } shouldContain Vhs.ID
+      refused.reasons.joinToString { it.message } shouldContain Vhs.ID.value
     }
 
   @Test
