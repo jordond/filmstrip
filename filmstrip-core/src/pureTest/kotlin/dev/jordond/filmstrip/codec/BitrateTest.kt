@@ -1,6 +1,8 @@
 package dev.jordond.filmstrip.codec
 
+import dev.jordond.filmstrip.export.ExportSpec
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import kotlin.test.Test
 
 class BitrateTest {
@@ -48,5 +50,19 @@ class BitrateTest {
     Bitrate(Long.MAX_VALUE).toString() shouldBe "9223372036854.78 Mbps"
     Bitrate(-2_500_000).toString() shouldBe "-2.5 Mbps"
     Bitrate(Long.MIN_VALUE).toString() shouldBe "-9223372036854775808 bps"
+  }
+
+  @Test
+  fun `two rates of the same bits per second are equal and hash alike`() {
+    Bitrate.mbps(4) shouldBe Bitrate(4_000_000)
+    Bitrate.mbps(4).hashCode() shouldBe Bitrate(4_000_000).hashCode()
+    Bitrate.mbps(4) shouldNotBe Bitrate(4_000_001)
+  }
+
+  @Test
+  fun `a rate held by an export spec takes part in its equality`() {
+    ExportSpec(bitrate = Bitrate.kbps(2_500)) shouldBe ExportSpec(bitrate = Bitrate(2_500_000))
+    ExportSpec(bitrate = Bitrate.kbps(2_500)) shouldNotBe ExportSpec(bitrate = Bitrate.kbps(2_501))
+    ExportSpec(bitrate = Bitrate.kbps(2_500)) shouldNotBe ExportSpec(bitrate = null)
   }
 }

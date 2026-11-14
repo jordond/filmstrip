@@ -11,10 +11,10 @@ public final class dev/jordond/filmstrip/testing/ExportBuildersKt {
 	public static synthetic fun testExportPlan-u4uj9nY$default (Ldev/jordond/filmstrip/edit/Composition;Ldev/jordond/filmstrip/export/ExportSpec;Ldev/jordond/filmstrip/export/ExportPath;Ldev/jordond/filmstrip/export/OutputFormat;Ljava/util/List;Ldev/jordond/filmstrip/export/ExportEstimate;Ldev/jordond/filmstrip/capability/EffectParity;JLjava/util/List;Ljava/util/List;ILjava/lang/Object;)Ldev/jordond/filmstrip/export/ExportPlan;
 	public static final fun testIncapableVerdict (Ljava/util/List;Ldev/jordond/filmstrip/export/Verdict$Degraded;)Ldev/jordond/filmstrip/export/Verdict$Incapable;
 	public static synthetic fun testIncapableVerdict$default (Ljava/util/List;Ldev/jordond/filmstrip/export/Verdict$Degraded;ILjava/lang/Object;)Ldev/jordond/filmstrip/export/Verdict$Incapable;
-	public static final fun testOutputFormat (Ldev/jordond/filmstrip/geometry/Size;Ldev/jordond/filmstrip/codec/VideoCodec;Ldev/jordond/filmstrip/codec/AudioCodec;Ldev/jordond/filmstrip/codec/Bitrate;ILdev/jordond/filmstrip/export/AudioFormat;Ljava/lang/Integer;)Ldev/jordond/filmstrip/export/OutputFormat;
-	public static synthetic fun testOutputFormat$default (Ldev/jordond/filmstrip/geometry/Size;Ldev/jordond/filmstrip/codec/VideoCodec;Ldev/jordond/filmstrip/codec/AudioCodec;Ldev/jordond/filmstrip/codec/Bitrate;ILdev/jordond/filmstrip/export/AudioFormat;Ljava/lang/Integer;ILjava/lang/Object;)Ldev/jordond/filmstrip/export/OutputFormat;
-	public static final fun testVideoEncoder (Ldev/jordond/filmstrip/codec/VideoCodec;Ljava/lang/String;Ldev/jordond/filmstrip/geometry/Size;Ljava/lang/Integer;Ldev/jordond/filmstrip/codec/Bitrate;Ljava/lang/Boolean;I)Ldev/jordond/filmstrip/capability/VideoEncoderCapability;
-	public static synthetic fun testVideoEncoder$default (Ldev/jordond/filmstrip/codec/VideoCodec;Ljava/lang/String;Ldev/jordond/filmstrip/geometry/Size;Ljava/lang/Integer;Ldev/jordond/filmstrip/codec/Bitrate;Ljava/lang/Boolean;IILjava/lang/Object;)Ldev/jordond/filmstrip/capability/VideoEncoderCapability;
+	public static final fun testOutputFormat-RIzvpXE (Ldev/jordond/filmstrip/geometry/Size;Ldev/jordond/filmstrip/codec/VideoCodec;Ldev/jordond/filmstrip/codec/AudioCodec;Ldev/jordond/filmstrip/codec/Bitrate;ILdev/jordond/filmstrip/export/AudioFormat;Ljava/lang/Integer;)Ldev/jordond/filmstrip/export/OutputFormat;
+	public static synthetic fun testOutputFormat-RIzvpXE$default (Ldev/jordond/filmstrip/geometry/Size;Ldev/jordond/filmstrip/codec/VideoCodec;Ldev/jordond/filmstrip/codec/AudioCodec;Ldev/jordond/filmstrip/codec/Bitrate;ILdev/jordond/filmstrip/export/AudioFormat;Ljava/lang/Integer;ILjava/lang/Object;)Ldev/jordond/filmstrip/export/OutputFormat;
+	public static final fun testVideoEncoder-rhD9y5U (Ldev/jordond/filmstrip/codec/VideoCodec;Ljava/lang/String;Ldev/jordond/filmstrip/geometry/Size;Ljava/lang/Integer;Ldev/jordond/filmstrip/codec/Bitrate;Ljava/lang/Boolean;I)Ldev/jordond/filmstrip/capability/VideoEncoderCapability;
+	public static synthetic fun testVideoEncoder-rhD9y5U$default (Ldev/jordond/filmstrip/codec/VideoCodec;Ljava/lang/String;Ldev/jordond/filmstrip/geometry/Size;Ljava/lang/Integer;Ldev/jordond/filmstrip/codec/Bitrate;Ljava/lang/Boolean;IILjava/lang/Object;)Ldev/jordond/filmstrip/capability/VideoEncoderCapability;
 }
 
 public final class dev/jordond/filmstrip/testing/FakeExport {
@@ -202,16 +202,16 @@ public final class dev/jordond/filmstrip/testing/FrameBuilders_androidKt {
 }
 
 public final class dev/jordond/filmstrip/testing/MediaBuildersKt {
-	public static final fun testAudioTrack-ah_a8P8 (JLdev/jordond/filmstrip/media/TrackCodec;IILdev/jordond/filmstrip/codec/Bitrate;Ljava/lang/String;Z)Ldev/jordond/filmstrip/media/AudioTrackInfo;
-	public static synthetic fun testAudioTrack-ah_a8P8$default (JLdev/jordond/filmstrip/media/TrackCodec;IILdev/jordond/filmstrip/codec/Bitrate;Ljava/lang/String;ZILjava/lang/Object;)Ldev/jordond/filmstrip/media/AudioTrackInfo;
+	public static final fun testAudioTrack-PFNceqM (JLdev/jordond/filmstrip/media/TrackCodec;IILdev/jordond/filmstrip/codec/Bitrate;Ljava/lang/String;Z)Ldev/jordond/filmstrip/media/AudioTrackInfo;
+	public static synthetic fun testAudioTrack-PFNceqM$default (JLdev/jordond/filmstrip/media/TrackCodec;IILdev/jordond/filmstrip/codec/Bitrate;Ljava/lang/String;ZILjava/lang/Object;)Ldev/jordond/filmstrip/media/AudioTrackInfo;
 	public static final fun testMediaInfo-rnQQ1Ag (JLdev/jordond/filmstrip/media/VideoTrackInfo;Ljava/util/List;Z)Ldev/jordond/filmstrip/media/MediaInfo;
 	public static synthetic fun testMediaInfo-rnQQ1Ag$default (JLdev/jordond/filmstrip/media/VideoTrackInfo;Ljava/util/List;ZILjava/lang/Object;)Ldev/jordond/filmstrip/media/MediaInfo;
 	public static final fun testMediaSink (Ljava/lang/String;)Ldev/jordond/filmstrip/media/MediaSink;
 	public static synthetic fun testMediaSink$default (Ljava/lang/String;ILjava/lang/Object;)Ldev/jordond/filmstrip/media/MediaSink;
 	public static final fun testMediaSource (Ljava/lang/String;)Ldev/jordond/filmstrip/media/MediaSource;
 	public static synthetic fun testMediaSource$default (Ljava/lang/String;ILjava/lang/Object;)Ldev/jordond/filmstrip/media/MediaSource;
-	public static final fun testVideoTrack (Ldev/jordond/filmstrip/geometry/Size;ILdev/jordond/filmstrip/geometry/Size;FLjava/lang/Float;Ldev/jordond/filmstrip/media/TrackCodec;Ljava/lang/Integer;Ldev/jordond/filmstrip/media/ColorSpace;Ldev/jordond/filmstrip/media/HdrTransfer;Ldev/jordond/filmstrip/codec/Bitrate;Z)Ldev/jordond/filmstrip/media/VideoTrackInfo;
-	public static synthetic fun testVideoTrack$default (Ldev/jordond/filmstrip/geometry/Size;ILdev/jordond/filmstrip/geometry/Size;FLjava/lang/Float;Ldev/jordond/filmstrip/media/TrackCodec;Ljava/lang/Integer;Ldev/jordond/filmstrip/media/ColorSpace;Ldev/jordond/filmstrip/media/HdrTransfer;Ldev/jordond/filmstrip/codec/Bitrate;ZILjava/lang/Object;)Ldev/jordond/filmstrip/media/VideoTrackInfo;
+	public static final fun testVideoTrack-7vKOUNY (Ldev/jordond/filmstrip/geometry/Size;ILdev/jordond/filmstrip/geometry/Size;FLjava/lang/Float;Ldev/jordond/filmstrip/media/TrackCodec;Ljava/lang/Integer;Ldev/jordond/filmstrip/media/ColorSpace;Ldev/jordond/filmstrip/media/HdrTransfer;Ldev/jordond/filmstrip/codec/Bitrate;Z)Ldev/jordond/filmstrip/media/VideoTrackInfo;
+	public static synthetic fun testVideoTrack-7vKOUNY$default (Ldev/jordond/filmstrip/geometry/Size;ILdev/jordond/filmstrip/geometry/Size;FLjava/lang/Float;Ldev/jordond/filmstrip/media/TrackCodec;Ljava/lang/Integer;Ldev/jordond/filmstrip/media/ColorSpace;Ldev/jordond/filmstrip/media/HdrTransfer;Ldev/jordond/filmstrip/codec/Bitrate;ZILjava/lang/Object;)Ldev/jordond/filmstrip/media/VideoTrackInfo;
 }
 
 public abstract interface class dev/jordond/filmstrip/testing/PlayerCall {

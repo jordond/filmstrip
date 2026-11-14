@@ -1,6 +1,6 @@
 package dev.jordond.filmstrip.codec
 
-import dev.drewhamilton.poko.Poko
+import kotlin.jvm.JvmInline
 import kotlin.math.absoluteValue
 
 /**
@@ -8,8 +8,8 @@ import kotlin.math.absoluteValue
  *
  * @property bitsPerSecond The rate, in bits per second.
  */
-@Poko
-public class Bitrate(
+@JvmInline
+public value class Bitrate(
   public val bitsPerSecond: Long,
 ) {
   /**

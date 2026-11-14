@@ -401,12 +401,12 @@ public final class dev/jordond/filmstrip/capability/PreviewFidelity : java/lang/
 }
 
 public final class dev/jordond/filmstrip/capability/VideoEncoderCapability {
-	public fun <init> (Ldev/jordond/filmstrip/codec/VideoCodec;Ljava/lang/String;Ldev/jordond/filmstrip/geometry/Size;Ljava/lang/Integer;Ldev/jordond/filmstrip/codec/Bitrate;Ljava/lang/Boolean;I)V
+	public synthetic fun <init> (Ldev/jordond/filmstrip/codec/VideoCodec;Ljava/lang/String;Ldev/jordond/filmstrip/geometry/Size;Ljava/lang/Integer;Ldev/jordond/filmstrip/codec/Bitrate;Ljava/lang/Boolean;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun accepts (Ldev/jordond/filmstrip/geometry/Size;)Z
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getCodec ()Ldev/jordond/filmstrip/codec/VideoCodec;
 	public final fun getEncoderName ()Ljava/lang/String;
-	public final fun getMaxBitrate ()Ldev/jordond/filmstrip/codec/Bitrate;
+	public final fun getMaxBitrate-Lb8eIko ()Ldev/jordond/filmstrip/codec/Bitrate;
 	public final fun getMaxFrameRate ()Ljava/lang/Integer;
 	public final fun getMaxSize ()Ldev/jordond/filmstrip/geometry/Size;
 	public final fun getSizeAlignment ()I
@@ -431,18 +431,24 @@ public final class dev/jordond/filmstrip/codec/AudioCodec : java/lang/Enum {
 
 public final class dev/jordond/filmstrip/codec/Bitrate {
 	public static final field Companion Ldev/jordond/filmstrip/codec/Bitrate$Companion;
-	public fun <init> (J)V
+	public static final synthetic fun box-impl (J)Ldev/jordond/filmstrip/codec/Bitrate;
+	public static fun constructor-impl (J)J
 	public fun equals (Ljava/lang/Object;)Z
+	public static fun equals-impl (JLjava/lang/Object;)Z
+	public static final fun equals-impl0 (JJ)Z
 	public final fun getBitsPerSecond ()J
 	public fun hashCode ()I
+	public static fun hashCode-impl (J)I
 	public fun toString ()Ljava/lang/String;
+	public static fun toString-impl (J)Ljava/lang/String;
+	public final synthetic fun unbox-impl ()J
 }
 
 public final class dev/jordond/filmstrip/codec/Bitrate$Companion {
-	public final fun kbps (D)Ldev/jordond/filmstrip/codec/Bitrate;
-	public final fun kbps (I)Ldev/jordond/filmstrip/codec/Bitrate;
-	public final fun mbps (D)Ldev/jordond/filmstrip/codec/Bitrate;
-	public final fun mbps (I)Ldev/jordond/filmstrip/codec/Bitrate;
+	public final fun kbps-cfAuI9o (D)J
+	public final fun kbps-cfAuI9o (I)J
+	public final fun mbps-cfAuI9o (D)J
+	public final fun mbps-cfAuI9o (I)J
 }
 
 public final class dev/jordond/filmstrip/codec/VideoCodec : java/lang/Enum {
@@ -1085,7 +1091,7 @@ public final class dev/jordond/filmstrip/export/ExportSpec {
 	public synthetic fun <init> (Ljava/lang/Integer;Ldev/jordond/filmstrip/codec/Bitrate;Ldev/jordond/filmstrip/export/VideoQuality;Ldev/jordond/filmstrip/codec/VideoCodec;Ldev/jordond/filmstrip/codec/AudioCodec;Ljava/lang/Integer;Ldev/jordond/filmstrip/export/HdrMode;ZLkotlin/time/Duration;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getAudioCodec ()Ldev/jordond/filmstrip/codec/AudioCodec;
-	public final fun getBitrate ()Ldev/jordond/filmstrip/codec/Bitrate;
+	public final fun getBitrate-Lb8eIko ()Ldev/jordond/filmstrip/codec/Bitrate;
 	public final fun getFrameRate ()Ljava/lang/Integer;
 	public final fun getHdr ()Ldev/jordond/filmstrip/export/HdrMode;
 	public final fun getHeightPx ()Ljava/lang/Integer;
@@ -1185,12 +1191,12 @@ public final class dev/jordond/filmstrip/export/InertReason : java/lang/Enum {
 }
 
 public final class dev/jordond/filmstrip/export/OutputFormat {
-	public fun <init> (Ldev/jordond/filmstrip/geometry/Size;Ldev/jordond/filmstrip/codec/VideoCodec;Ldev/jordond/filmstrip/codec/AudioCodec;Ldev/jordond/filmstrip/codec/Bitrate;ILdev/jordond/filmstrip/export/AudioFormat;Ljava/lang/Integer;)V
 	public synthetic fun <init> (Ldev/jordond/filmstrip/geometry/Size;Ldev/jordond/filmstrip/codec/VideoCodec;Ldev/jordond/filmstrip/codec/AudioCodec;Ldev/jordond/filmstrip/codec/Bitrate;ILdev/jordond/filmstrip/export/AudioFormat;Ljava/lang/Integer;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (Ldev/jordond/filmstrip/geometry/Size;Ldev/jordond/filmstrip/codec/VideoCodec;Ldev/jordond/filmstrip/codec/AudioCodec;Ldev/jordond/filmstrip/codec/Bitrate;ILdev/jordond/filmstrip/export/AudioFormat;Ljava/lang/Integer;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getAudioCodec ()Ldev/jordond/filmstrip/codec/AudioCodec;
 	public final fun getAudioFormat ()Ldev/jordond/filmstrip/export/AudioFormat;
-	public final fun getBitrate ()Ldev/jordond/filmstrip/codec/Bitrate;
+	public final fun getBitrate-Lb8eIko ()Ldev/jordond/filmstrip/codec/Bitrate;
 	public final fun getFrameRate ()I
 	public final fun getKeyFrameSpacing ()Ljava/lang/Integer;
 	public final fun getSize ()Ldev/jordond/filmstrip/geometry/Size;
@@ -1396,7 +1402,7 @@ public final class dev/jordond/filmstrip/media/AudioTrackId {
 public final class dev/jordond/filmstrip/media/AudioTrackInfo {
 	public synthetic fun <init> (JLdev/jordond/filmstrip/media/TrackCodec;IILdev/jordond/filmstrip/codec/Bitrate;Ljava/lang/String;ZLkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun equals (Ljava/lang/Object;)Z
-	public final fun getBitrate ()Ldev/jordond/filmstrip/codec/Bitrate;
+	public final fun getBitrate-Lb8eIko ()Ldev/jordond/filmstrip/codec/Bitrate;
 	public final fun getChannelCount ()I
 	public final fun getCodec ()Ldev/jordond/filmstrip/media/TrackCodec;
 	public final fun getId-H9z-YEg ()J
@@ -1637,10 +1643,10 @@ public final class dev/jordond/filmstrip/media/TrackCodec {
 }
 
 public final class dev/jordond/filmstrip/media/VideoTrackInfo {
-	public fun <init> (Ldev/jordond/filmstrip/geometry/Size;Ldev/jordond/filmstrip/geometry/Size;IFLjava/lang/Float;Ldev/jordond/filmstrip/media/TrackCodec;Ljava/lang/Integer;Ldev/jordond/filmstrip/media/ColorSpace;Ldev/jordond/filmstrip/media/HdrTransfer;Ldev/jordond/filmstrip/codec/Bitrate;Z)V
+	public synthetic fun <init> (Ldev/jordond/filmstrip/geometry/Size;Ldev/jordond/filmstrip/geometry/Size;IFLjava/lang/Float;Ldev/jordond/filmstrip/media/TrackCodec;Ljava/lang/Integer;Ldev/jordond/filmstrip/media/ColorSpace;Ldev/jordond/filmstrip/media/HdrTransfer;Ldev/jordond/filmstrip/codec/Bitrate;ZLkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getBitDepth ()Ljava/lang/Integer;
-	public final fun getBitrate ()Ldev/jordond/filmstrip/codec/Bitrate;
+	public final fun getBitrate-Lb8eIko ()Ldev/jordond/filmstrip/codec/Bitrate;
 	public final fun getCodec ()Ldev/jordond/filmstrip/media/TrackCodec;
 	public final fun getCodedSize ()Ldev/jordond/filmstrip/geometry/Size;
 	public final fun getColorSpace ()Ldev/jordond/filmstrip/media/ColorSpace;

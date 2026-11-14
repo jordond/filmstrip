@@ -1902,24 +1902,6 @@ final class dev.jordond.filmstrip.capability/VideoEncoderCapability { // dev.jor
     final fun toString(): kotlin/String // dev.jordond.filmstrip.capability/VideoEncoderCapability.toString|toString(){}[0]
 }
 
-final class dev.jordond.filmstrip.codec/Bitrate { // dev.jordond.filmstrip.codec/Bitrate|null[0]
-    constructor <init>(kotlin/Long) // dev.jordond.filmstrip.codec/Bitrate.<init>|<init>(kotlin.Long){}[0]
-
-    final val bitsPerSecond // dev.jordond.filmstrip.codec/Bitrate.bitsPerSecond|{}bitsPerSecond[0]
-        final fun <get-bitsPerSecond>(): kotlin/Long // dev.jordond.filmstrip.codec/Bitrate.bitsPerSecond.<get-bitsPerSecond>|<get-bitsPerSecond>(){}[0]
-
-    final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.codec/Bitrate.equals|equals(kotlin.Any?){}[0]
-    final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.codec/Bitrate.hashCode|hashCode(){}[0]
-    final fun toString(): kotlin/String // dev.jordond.filmstrip.codec/Bitrate.toString|toString(){}[0]
-
-    final object Companion { // dev.jordond.filmstrip.codec/Bitrate.Companion|null[0]
-        final fun kbps(kotlin/Double): dev.jordond.filmstrip.codec/Bitrate // dev.jordond.filmstrip.codec/Bitrate.Companion.kbps|kbps(kotlin.Double){}[0]
-        final fun kbps(kotlin/Int): dev.jordond.filmstrip.codec/Bitrate // dev.jordond.filmstrip.codec/Bitrate.Companion.kbps|kbps(kotlin.Int){}[0]
-        final fun mbps(kotlin/Double): dev.jordond.filmstrip.codec/Bitrate // dev.jordond.filmstrip.codec/Bitrate.Companion.mbps|mbps(kotlin.Double){}[0]
-        final fun mbps(kotlin/Int): dev.jordond.filmstrip.codec/Bitrate // dev.jordond.filmstrip.codec/Bitrate.Companion.mbps|mbps(kotlin.Int){}[0]
-    }
-}
-
 final class dev.jordond.filmstrip.diagnostics/BackendInfo { // dev.jordond.filmstrip.diagnostics/BackendInfo|null[0]
     constructor <init>(kotlin/String, kotlin/String) // dev.jordond.filmstrip.diagnostics/BackendInfo.<init>|<init>(kotlin.String;kotlin.String){}[0]
 
@@ -2836,6 +2818,24 @@ final class dev.jordond.filmstrip/FilmstripBuilder { // dev.jordond.filmstrip/Fi
     final fun autoRegister(kotlin/Boolean): dev.jordond.filmstrip/FilmstripBuilder // dev.jordond.filmstrip/FilmstripBuilder.autoRegister|autoRegister(kotlin.Boolean){}[0]
     final fun build(): dev.jordond.filmstrip/Filmstrip // dev.jordond.filmstrip/FilmstripBuilder.build|build(){}[0]
     final fun components(kotlin/Function1<dev.jordond.filmstrip/ComponentRegistry.Builder, kotlin/Unit>): dev.jordond.filmstrip/FilmstripBuilder // dev.jordond.filmstrip/FilmstripBuilder.components|components(kotlin.Function1<dev.jordond.filmstrip.ComponentRegistry.Builder,kotlin.Unit>){}[0]
+}
+
+final value class dev.jordond.filmstrip.codec/Bitrate { // dev.jordond.filmstrip.codec/Bitrate|null[0]
+    constructor <init>(kotlin/Long) // dev.jordond.filmstrip.codec/Bitrate.<init>|<init>(kotlin.Long){}[0]
+
+    final val bitsPerSecond // dev.jordond.filmstrip.codec/Bitrate.bitsPerSecond|{}bitsPerSecond[0]
+        final fun <get-bitsPerSecond>(): kotlin/Long // dev.jordond.filmstrip.codec/Bitrate.bitsPerSecond.<get-bitsPerSecond>|<get-bitsPerSecond>(){}[0]
+
+    final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.codec/Bitrate.equals|equals(kotlin.Any?){}[0]
+    final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.codec/Bitrate.hashCode|hashCode(){}[0]
+    final fun toString(): kotlin/String // dev.jordond.filmstrip.codec/Bitrate.toString|toString(){}[0]
+
+    final object Companion { // dev.jordond.filmstrip.codec/Bitrate.Companion|null[0]
+        final fun kbps(kotlin/Double): dev.jordond.filmstrip.codec/Bitrate // dev.jordond.filmstrip.codec/Bitrate.Companion.kbps|kbps(kotlin.Double){}[0]
+        final fun kbps(kotlin/Int): dev.jordond.filmstrip.codec/Bitrate // dev.jordond.filmstrip.codec/Bitrate.Companion.kbps|kbps(kotlin.Int){}[0]
+        final fun mbps(kotlin/Double): dev.jordond.filmstrip.codec/Bitrate // dev.jordond.filmstrip.codec/Bitrate.Companion.mbps|mbps(kotlin.Double){}[0]
+        final fun mbps(kotlin/Int): dev.jordond.filmstrip.codec/Bitrate // dev.jordond.filmstrip.codec/Bitrate.Companion.mbps|mbps(kotlin.Int){}[0]
+    }
 }
 
 final value class dev.jordond.filmstrip.media/AudioTrackId { // dev.jordond.filmstrip.media/AudioTrackId|null[0]
