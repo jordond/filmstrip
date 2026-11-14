@@ -2,6 +2,7 @@ package dev.jordond.filmstrip.effects.filters
 
 import dev.jordond.filmstrip.FilmstripBuilder
 import dev.jordond.filmstrip.FilmstripRegistrar
+import dev.jordond.filmstrip.RegistrarId
 import dev.jordond.filmstrip.effect.Attributes
 import dev.jordond.filmstrip.effect.EffectResolution
 import dev.jordond.filmstrip.effect.EffectResolver
@@ -33,7 +34,7 @@ public expect class FilterEffectResolver() : EffectResolver {
 public fun FilmstripBuilder.filters(): FilmstripBuilder = install(FiltersRegistrar())
 
 internal class FiltersRegistrar : FilmstripRegistrar {
-  override val id: String = "filmstrip-effects-filters"
+  override val id: RegistrarId = RegistrarId("filmstrip-effects-filters")
 
   override fun register(builder: FilmstripBuilder) {
     builder.addEffectResolver(FilterEffectResolver()).addAudioEffectResolver(FilterAudioEffectResolver())

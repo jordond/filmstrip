@@ -2,6 +2,7 @@ package dev.jordond.filmstrip.effects.color
 
 import dev.drewhamilton.poko.Poko
 import dev.jordond.filmstrip.edit.EffectsBuilder
+import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.effect.EffectIds
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effect.EffectStage
@@ -24,7 +25,7 @@ public class Sepia(
     require(amount.isFinite()) { "A sepia amount has to be a finite number, not $amount." }
   }
 
-  override val id: String get() = EffectIds.SEPIA
+  override val id: EffectId get() = EffectIds.SEPIA
 
   override val stage: EffectStage get() = EffectStage.Color
 }

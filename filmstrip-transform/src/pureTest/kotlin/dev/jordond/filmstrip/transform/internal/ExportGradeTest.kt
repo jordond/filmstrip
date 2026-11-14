@@ -8,6 +8,7 @@ import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.Track
+import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.HdrMode
@@ -32,7 +33,7 @@ class ExportGradeTest {
   private val encodesHdr = fixture.device(hdr = true)
   private val needsSdr =
     object : EffectSpec {
-      override val id = "test.needsSdr"
+      override val id = EffectId("test.needsSdr")
       override val requiresSdr = true
     }
 

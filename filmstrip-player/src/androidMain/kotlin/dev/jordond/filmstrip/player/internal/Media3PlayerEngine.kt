@@ -22,6 +22,7 @@ import dev.jordond.filmstrip.player.PlaybackError
 import dev.jordond.filmstrip.player.PlaybackEvent
 import dev.jordond.filmstrip.player.PlaybackStatus
 import dev.jordond.filmstrip.player.PlayerConfig
+import dev.jordond.filmstrip.player.PlayerEngineId
 import dev.jordond.filmstrip.player.PlayerFeature
 import dev.jordond.filmstrip.player.PlayerFeatures
 import dev.jordond.filmstrip.player.PreviewFrameReadback
@@ -201,7 +202,7 @@ internal class Media3PlayerEngine(
       seekInFlight = { seeks.target != null },
     )
 
-  override val id: String = "filmstrip.media3"
+  override val id: PlayerEngineId = PlayerEngineId("filmstrip.media3")
 
   /**
    * What watches for the occasions media3 does not report. Reachable so a test can raise one.

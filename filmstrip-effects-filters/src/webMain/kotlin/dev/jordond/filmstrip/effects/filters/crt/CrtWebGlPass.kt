@@ -10,7 +10,7 @@ import dev.jordond.filmstrip.effect.WebGlStep
  */
 internal fun crtPass(crt: Crt): WebGlPass =
   WebGlPass(
-    Crt.ID,
+    Crt.ID.value,
     listOf(
       WebGlStep(
         name = "tube",

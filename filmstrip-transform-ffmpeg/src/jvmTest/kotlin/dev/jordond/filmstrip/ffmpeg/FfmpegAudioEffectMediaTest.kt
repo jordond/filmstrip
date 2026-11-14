@@ -8,6 +8,7 @@ import dev.jordond.filmstrip.audio.PlatformAudioEffect
 import dev.jordond.filmstrip.edit.AudioLevel
 import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.compositionOf
+import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.effect.FilterNode
 import dev.jordond.filmstrip.export.AdjustmentKind
 import dev.jordond.filmstrip.export.ExportSpec
@@ -149,11 +150,11 @@ class FfmpegAudioEffectMediaTest {
   private data class FilterBursts(
     val amplitude: Float,
   ) : AudioEffectSpec {
-    override val id: String get() = "test.filter-bursts"
+    override val id: EffectId get() = EffectId("test.filter-bursts")
   }
 
   private data object NoLowering : AudioEffectSpec {
-    override val id: String get() = "test.no-lowering"
+    override val id: EffectId get() = EffectId("test.no-lowering")
   }
 
   private companion object {

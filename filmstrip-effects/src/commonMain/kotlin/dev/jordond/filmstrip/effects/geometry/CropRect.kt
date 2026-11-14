@@ -2,6 +2,7 @@ package dev.jordond.filmstrip.effects.geometry
 
 import dev.drewhamilton.poko.Poko
 import dev.jordond.filmstrip.edit.EffectsBuilder
+import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.effect.EffectIds
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effect.EffectStage
@@ -24,7 +25,7 @@ public class CropRect(
     require(rect.isValid) { "A crop keeps a region of the frame, so $rect has to have area and lie inside it." }
   }
 
-  override val id: String get() = EffectIds.CROP_RECT
+  override val id: EffectId get() = EffectIds.CROP_RECT
 
   override val stage: EffectStage get() = EffectStage.Geometry
 }

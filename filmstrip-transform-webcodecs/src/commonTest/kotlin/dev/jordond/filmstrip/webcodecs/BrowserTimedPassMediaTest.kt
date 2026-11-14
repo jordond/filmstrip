@@ -6,6 +6,7 @@ import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.outputSlotTime
+import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.effect.EffectResolution
 import dev.jordond.filmstrip.effect.EffectResolver
 import dev.jordond.filmstrip.effect.EffectSpec
@@ -97,19 +98,19 @@ private data class SwitchRegion(
   val after: NormalizedRect,
   val at: Duration,
 ) : EffectSpec {
-  override val id: String get() = "test.switchRegion"
+  override val id: EffectId get() = EffectId("test.switchRegion")
   override val stage: EffectStage get() = EffectStage.Geometry
 }
 
 private data object TimedMirror : EffectSpec {
-  override val id: String get() = "test.timedMirror"
+  override val id: EffectId get() = EffectId("test.timedMirror")
   override val stage: EffectStage get() = EffectStage.Geometry
 }
 
 private data class FixedRegion(
   val rect: NormalizedRect,
 ) : EffectSpec {
-  override val id: String get() = "test.fixedRegion"
+  override val id: EffectId get() = EffectId("test.fixedRegion")
   override val stage: EffectStage get() = EffectStage.Geometry
 }
 

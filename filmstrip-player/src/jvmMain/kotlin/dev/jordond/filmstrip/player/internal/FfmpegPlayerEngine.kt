@@ -7,6 +7,7 @@ import dev.jordond.filmstrip.player.PlaybackError
 import dev.jordond.filmstrip.player.PlaybackEvent
 import dev.jordond.filmstrip.player.PlaybackStatus
 import dev.jordond.filmstrip.player.PlayerConfig
+import dev.jordond.filmstrip.player.PlayerEngineId
 import dev.jordond.filmstrip.player.PlayerFeature
 import dev.jordond.filmstrip.player.PlayerFeatures
 import dev.jordond.filmstrip.player.PreviewFrameReadback
@@ -95,7 +96,7 @@ internal class FfmpegPlayerEngine(
   var platformLoads: Int = 0
     private set
 
-  override val id: String = "filmstrip.ffmpeg"
+  override val id: PlayerEngineId = PlayerEngineId("filmstrip.ffmpeg")
 
   // No AudioMonitoring: nothing here opens an audio device. No LiveParameterRedraw: a parameter is
   // filter graph text, so changing one is a new graph and a new process rather than a value swapped

@@ -4,6 +4,7 @@ import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.outputSlotTime
+import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.effect.EffectResolution
 import dev.jordond.filmstrip.effect.EffectResolver
 import dev.jordond.filmstrip.effect.EffectSpec
@@ -176,11 +177,11 @@ class FfmpegEffectClockMediaTest {
   }
 
   private object ClockRamp : EffectSpec {
-    override val id: String = "test.clock-ramp"
+    override val id: EffectId = EffectId("test.clock-ramp")
   }
 
   private object ChainClockRamp : EffectSpec {
-    override val id: String = "test.chain-clock-ramp"
+    override val id: EffectId = EffectId("test.chain-clock-ramp")
   }
 
   private companion object {

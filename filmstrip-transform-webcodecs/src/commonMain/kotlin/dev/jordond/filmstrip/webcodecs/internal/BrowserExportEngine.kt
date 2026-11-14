@@ -7,6 +7,7 @@ import dev.jordond.filmstrip.capability.DeviceCapabilities
 import dev.jordond.filmstrip.capability.EffectParity
 import dev.jordond.filmstrip.codec.Bitrate
 import dev.jordond.filmstrip.edit.Composition
+import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.effect.PreviewClock
 import dev.jordond.filmstrip.export.EngineComponents
 import dev.jordond.filmstrip.export.ExportPath
@@ -78,7 +79,7 @@ public class BrowserExportEngine(
 
   override suspend fun capabilities(): CapabilitiesResult = reads.device()
 
-  override fun parityOf(specId: String): EffectParity? = browserParityOf(specId)
+  override fun parityOf(specId: EffectId): EffectParity? = browserParityOf(specId)
 
   private suspend fun lower(
     composition: Composition,

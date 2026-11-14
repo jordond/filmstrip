@@ -258,7 +258,7 @@ final class dev.jordond.filmstrip.effects.filters.camcorder/Camcorder : dev.jord
     final val elements // dev.jordond.filmstrip.effects.filters.camcorder/Camcorder.elements|{}elements[0]
         final fun <get-elements>(): kotlin.collections/List<dev.jordond.filmstrip.effects.filters.camcorder/OsdElement> // dev.jordond.filmstrip.effects.filters.camcorder/Camcorder.elements.<get-elements>|<get-elements>(){}[0]
     final val id // dev.jordond.filmstrip.effects.filters.camcorder/Camcorder.id|{}id[0]
-        final fun <get-id>(): kotlin/String // dev.jordond.filmstrip.effects.filters.camcorder/Camcorder.id.<get-id>|<get-id>(){}[0]
+        final fun <get-id>(): dev.jordond.filmstrip.effect/EffectId // dev.jordond.filmstrip.effects.filters.camcorder/Camcorder.id.<get-id>|<get-id>(){}[0]
     final val isInert // dev.jordond.filmstrip.effects.filters.camcorder/Camcorder.isInert|{}isInert[0]
         final fun <get-isInert>(): kotlin/Boolean // dev.jordond.filmstrip.effects.filters.camcorder/Camcorder.isInert.<get-isInert>|<get-isInert>(){}[0]
     final val recordedAt // dev.jordond.filmstrip.effects.filters.camcorder/Camcorder.recordedAt|{}recordedAt[0]
@@ -277,11 +277,11 @@ final class dev.jordond.filmstrip.effects.filters.camcorder/Camcorder : dev.jord
     final object Companion { // dev.jordond.filmstrip.effects.filters.camcorder/Camcorder.Companion|null[0]
         final const val DEFAULT_TEXT_SIZE // dev.jordond.filmstrip.effects.filters.camcorder/Camcorder.Companion.DEFAULT_TEXT_SIZE|{}DEFAULT_TEXT_SIZE[0]
             final fun <get-DEFAULT_TEXT_SIZE>(): kotlin/Float // dev.jordond.filmstrip.effects.filters.camcorder/Camcorder.Companion.DEFAULT_TEXT_SIZE.<get-DEFAULT_TEXT_SIZE>|<get-DEFAULT_TEXT_SIZE>(){}[0]
-        final const val ID // dev.jordond.filmstrip.effects.filters.camcorder/Camcorder.Companion.ID|{}ID[0]
-            final fun <get-ID>(): kotlin/String // dev.jordond.filmstrip.effects.filters.camcorder/Camcorder.Companion.ID.<get-ID>|<get-ID>(){}[0]
 
         final val DEFAULT_RECORDED_AT // dev.jordond.filmstrip.effects.filters.camcorder/Camcorder.Companion.DEFAULT_RECORDED_AT|{}DEFAULT_RECORDED_AT[0]
             final fun <get-DEFAULT_RECORDED_AT>(): dev.jordond.filmstrip.effects.filters.camcorder/RecordedAt // dev.jordond.filmstrip.effects.filters.camcorder/Camcorder.Companion.DEFAULT_RECORDED_AT.<get-DEFAULT_RECORDED_AT>|<get-DEFAULT_RECORDED_AT>(){}[0]
+        final val ID // dev.jordond.filmstrip.effects.filters.camcorder/Camcorder.Companion.ID|{}ID[0]
+            final fun <get-ID>(): dev.jordond.filmstrip.effect/EffectId // dev.jordond.filmstrip.effects.filters.camcorder/Camcorder.Companion.ID.<get-ID>|<get-ID>(){}[0]
     }
 }
 
@@ -332,7 +332,7 @@ final class dev.jordond.filmstrip.effects.filters.crt/Crt : dev.jordond.filmstri
     final val beneathOverlays // dev.jordond.filmstrip.effects.filters.crt/Crt.beneathOverlays|{}beneathOverlays[0]
         final fun <get-beneathOverlays>(): kotlin/Boolean // dev.jordond.filmstrip.effects.filters.crt/Crt.beneathOverlays.<get-beneathOverlays>|<get-beneathOverlays>(){}[0]
     final val id // dev.jordond.filmstrip.effects.filters.crt/Crt.id|{}id[0]
-        final fun <get-id>(): kotlin/String // dev.jordond.filmstrip.effects.filters.crt/Crt.id.<get-id>|<get-id>(){}[0]
+        final fun <get-id>(): dev.jordond.filmstrip.effect/EffectId // dev.jordond.filmstrip.effects.filters.crt/Crt.id.<get-id>|<get-id>(){}[0]
     final val intensity // dev.jordond.filmstrip.effects.filters.crt/Crt.intensity|{}intensity[0]
         final fun <get-intensity>(): kotlin/Float // dev.jordond.filmstrip.effects.filters.crt/Crt.intensity.<get-intensity>|<get-intensity>(){}[0]
     final val isInert // dev.jordond.filmstrip.effects.filters.crt/Crt.isInert|{}isInert[0]
@@ -347,8 +347,8 @@ final class dev.jordond.filmstrip.effects.filters.crt/Crt : dev.jordond.filmstri
     final fun toString(): kotlin/String // dev.jordond.filmstrip.effects.filters.crt/Crt.toString|toString(){}[0]
 
     final object Companion { // dev.jordond.filmstrip.effects.filters.crt/Crt.Companion|null[0]
-        final const val ID // dev.jordond.filmstrip.effects.filters.crt/Crt.Companion.ID|{}ID[0]
-            final fun <get-ID>(): kotlin/String // dev.jordond.filmstrip.effects.filters.crt/Crt.Companion.ID.<get-ID>|<get-ID>(){}[0]
+        final val ID // dev.jordond.filmstrip.effects.filters.crt/Crt.Companion.ID|{}ID[0]
+            final fun <get-ID>(): dev.jordond.filmstrip.effect/EffectId // dev.jordond.filmstrip.effects.filters.crt/Crt.Companion.ID.<get-ID>|<get-ID>(){}[0]
     }
 }
 
@@ -368,7 +368,7 @@ final class dev.jordond.filmstrip.effects.filters.film/Film : dev.jordond.filmst
     final val halation // dev.jordond.filmstrip.effects.filters.film/Film.halation|{}halation[0]
         final fun <get-halation>(): kotlin/Float // dev.jordond.filmstrip.effects.filters.film/Film.halation.<get-halation>|<get-halation>(){}[0]
     final val id // dev.jordond.filmstrip.effects.filters.film/Film.id|{}id[0]
-        final fun <get-id>(): kotlin/String // dev.jordond.filmstrip.effects.filters.film/Film.id.<get-id>|<get-id>(){}[0]
+        final fun <get-id>(): dev.jordond.filmstrip.effect/EffectId // dev.jordond.filmstrip.effects.filters.film/Film.id.<get-id>|<get-id>(){}[0]
     final val isInert // dev.jordond.filmstrip.effects.filters.film/Film.isInert|{}isInert[0]
         final fun <get-isInert>(): kotlin/Boolean // dev.jordond.filmstrip.effects.filters.film/Film.isInert.<get-isInert>|<get-isInert>(){}[0]
     final val requiresSdr // dev.jordond.filmstrip.effects.filters.film/Film.requiresSdr|{}requiresSdr[0]
@@ -387,9 +387,9 @@ final class dev.jordond.filmstrip.effects.filters.film/Film : dev.jordond.filmst
     final object Companion { // dev.jordond.filmstrip.effects.filters.film/Film.Companion|null[0]
         final const val DEFAULT_SEED // dev.jordond.filmstrip.effects.filters.film/Film.Companion.DEFAULT_SEED|{}DEFAULT_SEED[0]
             final fun <get-DEFAULT_SEED>(): kotlin/Int // dev.jordond.filmstrip.effects.filters.film/Film.Companion.DEFAULT_SEED.<get-DEFAULT_SEED>|<get-DEFAULT_SEED>(){}[0]
-        final const val ID // dev.jordond.filmstrip.effects.filters.film/Film.Companion.ID|{}ID[0]
-            final fun <get-ID>(): kotlin/String // dev.jordond.filmstrip.effects.filters.film/Film.Companion.ID.<get-ID>|<get-ID>(){}[0]
 
+        final val ID // dev.jordond.filmstrip.effects.filters.film/Film.Companion.ID|{}ID[0]
+            final fun <get-ID>(): dev.jordond.filmstrip.effect/EffectId // dev.jordond.filmstrip.effects.filters.film/Film.Companion.ID.<get-ID>|<get-ID>(){}[0]
         final val Super8 // dev.jordond.filmstrip.effects.filters.film/Film.Companion.Super8|{}Super8[0]
             final fun <get-Super8>(): dev.jordond.filmstrip.effects.filters.film/Film // dev.jordond.filmstrip.effects.filters.film/Film.Companion.Super8.<get-Super8>|<get-Super8>(){}[0]
     }
@@ -401,7 +401,7 @@ final class dev.jordond.filmstrip.effects.filters.glitch/Glitch : dev.jordond.fi
     final val beneathOverlays // dev.jordond.filmstrip.effects.filters.glitch/Glitch.beneathOverlays|{}beneathOverlays[0]
         final fun <get-beneathOverlays>(): kotlin/Boolean // dev.jordond.filmstrip.effects.filters.glitch/Glitch.beneathOverlays.<get-beneathOverlays>|<get-beneathOverlays>(){}[0]
     final val id // dev.jordond.filmstrip.effects.filters.glitch/Glitch.id|{}id[0]
-        final fun <get-id>(): kotlin/String // dev.jordond.filmstrip.effects.filters.glitch/Glitch.id.<get-id>|<get-id>(){}[0]
+        final fun <get-id>(): dev.jordond.filmstrip.effect/EffectId // dev.jordond.filmstrip.effects.filters.glitch/Glitch.id.<get-id>|<get-id>(){}[0]
     final val intensity // dev.jordond.filmstrip.effects.filters.glitch/Glitch.intensity|{}intensity[0]
         final fun <get-intensity>(): kotlin/Float // dev.jordond.filmstrip.effects.filters.glitch/Glitch.intensity.<get-intensity>|<get-intensity>(){}[0]
     final val isInert // dev.jordond.filmstrip.effects.filters.glitch/Glitch.isInert|{}isInert[0]
@@ -420,8 +420,9 @@ final class dev.jordond.filmstrip.effects.filters.glitch/Glitch : dev.jordond.fi
     final object Companion { // dev.jordond.filmstrip.effects.filters.glitch/Glitch.Companion|null[0]
         final const val DEFAULT_SEED // dev.jordond.filmstrip.effects.filters.glitch/Glitch.Companion.DEFAULT_SEED|{}DEFAULT_SEED[0]
             final fun <get-DEFAULT_SEED>(): kotlin/Int // dev.jordond.filmstrip.effects.filters.glitch/Glitch.Companion.DEFAULT_SEED.<get-DEFAULT_SEED>|<get-DEFAULT_SEED>(){}[0]
-        final const val ID // dev.jordond.filmstrip.effects.filters.glitch/Glitch.Companion.ID|{}ID[0]
-            final fun <get-ID>(): kotlin/String // dev.jordond.filmstrip.effects.filters.glitch/Glitch.Companion.ID.<get-ID>|<get-ID>(){}[0]
+
+        final val ID // dev.jordond.filmstrip.effects.filters.glitch/Glitch.Companion.ID|{}ID[0]
+            final fun <get-ID>(): dev.jordond.filmstrip.effect/EffectId // dev.jordond.filmstrip.effects.filters.glitch/Glitch.Companion.ID.<get-ID>|<get-ID>(){}[0]
     }
 }
 
@@ -453,7 +454,7 @@ final class dev.jordond.filmstrip.effects.filters.lut/Lut : dev.jordond.filmstri
     final val beneathOverlays // dev.jordond.filmstrip.effects.filters.lut/Lut.beneathOverlays|{}beneathOverlays[0]
         final fun <get-beneathOverlays>(): kotlin/Boolean // dev.jordond.filmstrip.effects.filters.lut/Lut.beneathOverlays.<get-beneathOverlays>|<get-beneathOverlays>(){}[0]
     final val id // dev.jordond.filmstrip.effects.filters.lut/Lut.id|{}id[0]
-        final fun <get-id>(): kotlin/String // dev.jordond.filmstrip.effects.filters.lut/Lut.id.<get-id>|<get-id>(){}[0]
+        final fun <get-id>(): dev.jordond.filmstrip.effect/EffectId // dev.jordond.filmstrip.effects.filters.lut/Lut.id.<get-id>|<get-id>(){}[0]
     final val intensity // dev.jordond.filmstrip.effects.filters.lut/Lut.intensity|{}intensity[0]
         final fun <get-intensity>(): kotlin/Float // dev.jordond.filmstrip.effects.filters.lut/Lut.intensity.<get-intensity>|<get-intensity>(){}[0]
     final val isInert // dev.jordond.filmstrip.effects.filters.lut/Lut.isInert|{}isInert[0]
@@ -470,8 +471,8 @@ final class dev.jordond.filmstrip.effects.filters.lut/Lut : dev.jordond.filmstri
     final fun toString(): kotlin/String // dev.jordond.filmstrip.effects.filters.lut/Lut.toString|toString(){}[0]
 
     final object Companion { // dev.jordond.filmstrip.effects.filters.lut/Lut.Companion|null[0]
-        final const val ID // dev.jordond.filmstrip.effects.filters.lut/Lut.Companion.ID|{}ID[0]
-            final fun <get-ID>(): kotlin/String // dev.jordond.filmstrip.effects.filters.lut/Lut.Companion.ID.<get-ID>|<get-ID>(){}[0]
+        final val ID // dev.jordond.filmstrip.effects.filters.lut/Lut.Companion.ID|{}ID[0]
+            final fun <get-ID>(): dev.jordond.filmstrip.effect/EffectId // dev.jordond.filmstrip.effects.filters.lut/Lut.Companion.ID.<get-ID>|<get-ID>(){}[0]
     }
 }
 
@@ -481,7 +482,7 @@ final class dev.jordond.filmstrip.effects.filters.nightvision/NightVision : dev.
     final val beneathOverlays // dev.jordond.filmstrip.effects.filters.nightvision/NightVision.beneathOverlays|{}beneathOverlays[0]
         final fun <get-beneathOverlays>(): kotlin/Boolean // dev.jordond.filmstrip.effects.filters.nightvision/NightVision.beneathOverlays.<get-beneathOverlays>|<get-beneathOverlays>(){}[0]
     final val id // dev.jordond.filmstrip.effects.filters.nightvision/NightVision.id|{}id[0]
-        final fun <get-id>(): kotlin/String // dev.jordond.filmstrip.effects.filters.nightvision/NightVision.id.<get-id>|<get-id>(){}[0]
+        final fun <get-id>(): dev.jordond.filmstrip.effect/EffectId // dev.jordond.filmstrip.effects.filters.nightvision/NightVision.id.<get-id>|<get-id>(){}[0]
     final val intensity // dev.jordond.filmstrip.effects.filters.nightvision/NightVision.intensity|{}intensity[0]
         final fun <get-intensity>(): kotlin/Float // dev.jordond.filmstrip.effects.filters.nightvision/NightVision.intensity.<get-intensity>|<get-intensity>(){}[0]
     final val isInert // dev.jordond.filmstrip.effects.filters.nightvision/NightVision.isInert|{}isInert[0]
@@ -500,8 +501,9 @@ final class dev.jordond.filmstrip.effects.filters.nightvision/NightVision : dev.
     final object Companion { // dev.jordond.filmstrip.effects.filters.nightvision/NightVision.Companion|null[0]
         final const val DEFAULT_SEED // dev.jordond.filmstrip.effects.filters.nightvision/NightVision.Companion.DEFAULT_SEED|{}DEFAULT_SEED[0]
             final fun <get-DEFAULT_SEED>(): kotlin/Int // dev.jordond.filmstrip.effects.filters.nightvision/NightVision.Companion.DEFAULT_SEED.<get-DEFAULT_SEED>|<get-DEFAULT_SEED>(){}[0]
-        final const val ID // dev.jordond.filmstrip.effects.filters.nightvision/NightVision.Companion.ID|{}ID[0]
-            final fun <get-ID>(): kotlin/String // dev.jordond.filmstrip.effects.filters.nightvision/NightVision.Companion.ID.<get-ID>|<get-ID>(){}[0]
+
+        final val ID // dev.jordond.filmstrip.effects.filters.nightvision/NightVision.Companion.ID|{}ID[0]
+            final fun <get-ID>(): dev.jordond.filmstrip.effect/EffectId // dev.jordond.filmstrip.effects.filters.nightvision/NightVision.Companion.ID.<get-ID>|<get-ID>(){}[0]
     }
 }
 
@@ -515,7 +517,7 @@ final class dev.jordond.filmstrip.effects.filters.pixel/Pixel : dev.jordond.film
     final val dither // dev.jordond.filmstrip.effects.filters.pixel/Pixel.dither|{}dither[0]
         final fun <get-dither>(): kotlin/Float // dev.jordond.filmstrip.effects.filters.pixel/Pixel.dither.<get-dither>|<get-dither>(){}[0]
     final val id // dev.jordond.filmstrip.effects.filters.pixel/Pixel.id|{}id[0]
-        final fun <get-id>(): kotlin/String // dev.jordond.filmstrip.effects.filters.pixel/Pixel.id.<get-id>|<get-id>(){}[0]
+        final fun <get-id>(): dev.jordond.filmstrip.effect/EffectId // dev.jordond.filmstrip.effects.filters.pixel/Pixel.id.<get-id>|<get-id>(){}[0]
     final val isInert // dev.jordond.filmstrip.effects.filters.pixel/Pixel.isInert|{}isInert[0]
         final fun <get-isInert>(): kotlin/Boolean // dev.jordond.filmstrip.effects.filters.pixel/Pixel.isInert.<get-isInert>|<get-isInert>(){}[0]
     final val levels // dev.jordond.filmstrip.effects.filters.pixel/Pixel.levels|{}levels[0]
@@ -534,8 +536,6 @@ final class dev.jordond.filmstrip.effects.filters.pixel/Pixel : dev.jordond.film
     final object Companion { // dev.jordond.filmstrip.effects.filters.pixel/Pixel.Companion|null[0]
         final const val DEFAULT_CELLS // dev.jordond.filmstrip.effects.filters.pixel/Pixel.Companion.DEFAULT_CELLS|{}DEFAULT_CELLS[0]
             final fun <get-DEFAULT_CELLS>(): kotlin/Int // dev.jordond.filmstrip.effects.filters.pixel/Pixel.Companion.DEFAULT_CELLS.<get-DEFAULT_CELLS>|<get-DEFAULT_CELLS>(){}[0]
-        final const val ID // dev.jordond.filmstrip.effects.filters.pixel/Pixel.Companion.ID|{}ID[0]
-            final fun <get-ID>(): kotlin/String // dev.jordond.filmstrip.effects.filters.pixel/Pixel.Companion.ID.<get-ID>|<get-ID>(){}[0]
         final const val MAX_CELLS // dev.jordond.filmstrip.effects.filters.pixel/Pixel.Companion.MAX_CELLS|{}MAX_CELLS[0]
             final fun <get-MAX_CELLS>(): kotlin/Int // dev.jordond.filmstrip.effects.filters.pixel/Pixel.Companion.MAX_CELLS.<get-MAX_CELLS>|<get-MAX_CELLS>(){}[0]
         final const val MAX_LEVELS // dev.jordond.filmstrip.effects.filters.pixel/Pixel.Companion.MAX_LEVELS|{}MAX_LEVELS[0]
@@ -544,6 +544,9 @@ final class dev.jordond.filmstrip.effects.filters.pixel/Pixel : dev.jordond.film
             final fun <get-MIN_CELLS>(): kotlin/Int // dev.jordond.filmstrip.effects.filters.pixel/Pixel.Companion.MIN_CELLS.<get-MIN_CELLS>|<get-MIN_CELLS>(){}[0]
         final const val MIN_LEVELS // dev.jordond.filmstrip.effects.filters.pixel/Pixel.Companion.MIN_LEVELS|{}MIN_LEVELS[0]
             final fun <get-MIN_LEVELS>(): kotlin/Int // dev.jordond.filmstrip.effects.filters.pixel/Pixel.Companion.MIN_LEVELS.<get-MIN_LEVELS>|<get-MIN_LEVELS>(){}[0]
+
+        final val ID // dev.jordond.filmstrip.effects.filters.pixel/Pixel.Companion.ID|{}ID[0]
+            final fun <get-ID>(): dev.jordond.filmstrip.effect/EffectId // dev.jordond.filmstrip.effects.filters.pixel/Pixel.Companion.ID.<get-ID>|<get-ID>(){}[0]
     }
 }
 
@@ -580,7 +583,7 @@ final class dev.jordond.filmstrip.effects.filters.tape/TapeAudio : dev.jordond.f
     final val hiss // dev.jordond.filmstrip.effects.filters.tape/TapeAudio.hiss|{}hiss[0]
         final fun <get-hiss>(): kotlin/Float // dev.jordond.filmstrip.effects.filters.tape/TapeAudio.hiss.<get-hiss>|<get-hiss>(){}[0]
     final val id // dev.jordond.filmstrip.effects.filters.tape/TapeAudio.id|{}id[0]
-        final fun <get-id>(): kotlin/String // dev.jordond.filmstrip.effects.filters.tape/TapeAudio.id.<get-id>|<get-id>(){}[0]
+        final fun <get-id>(): dev.jordond.filmstrip.effect/EffectId // dev.jordond.filmstrip.effects.filters.tape/TapeAudio.id.<get-id>|<get-id>(){}[0]
     final val intensity // dev.jordond.filmstrip.effects.filters.tape/TapeAudio.intensity|{}intensity[0]
         final fun <get-intensity>(): kotlin/Float // dev.jordond.filmstrip.effects.filters.tape/TapeAudio.intensity.<get-intensity>|<get-intensity>(){}[0]
     final val isInert // dev.jordond.filmstrip.effects.filters.tape/TapeAudio.isInert|{}isInert[0]
@@ -599,8 +602,8 @@ final class dev.jordond.filmstrip.effects.filters.tape/TapeAudio : dev.jordond.f
     final fun toString(): kotlin/String // dev.jordond.filmstrip.effects.filters.tape/TapeAudio.toString|toString(){}[0]
 
     final object Companion { // dev.jordond.filmstrip.effects.filters.tape/TapeAudio.Companion|null[0]
-        final const val ID // dev.jordond.filmstrip.effects.filters.tape/TapeAudio.Companion.ID|{}ID[0]
-            final fun <get-ID>(): kotlin/String // dev.jordond.filmstrip.effects.filters.tape/TapeAudio.Companion.ID.<get-ID>|<get-ID>(){}[0]
+        final val ID // dev.jordond.filmstrip.effects.filters.tape/TapeAudio.Companion.ID|{}ID[0]
+            final fun <get-ID>(): dev.jordond.filmstrip.effect/EffectId // dev.jordond.filmstrip.effects.filters.tape/TapeAudio.Companion.ID.<get-ID>|<get-ID>(){}[0]
     }
 }
 
@@ -671,7 +674,7 @@ final class dev.jordond.filmstrip.effects.filters.vhs/Vhs : dev.jordond.filmstri
     final val clock // dev.jordond.filmstrip.effects.filters.vhs/Vhs.clock|{}clock[0]
         final fun <get-clock>(): dev.jordond.filmstrip.effects.filters.vhs/TapeClock // dev.jordond.filmstrip.effects.filters.vhs/Vhs.clock.<get-clock>|<get-clock>(){}[0]
     final val id // dev.jordond.filmstrip.effects.filters.vhs/Vhs.id|{}id[0]
-        final fun <get-id>(): kotlin/String // dev.jordond.filmstrip.effects.filters.vhs/Vhs.id.<get-id>|<get-id>(){}[0]
+        final fun <get-id>(): dev.jordond.filmstrip.effect/EffectId // dev.jordond.filmstrip.effects.filters.vhs/Vhs.id.<get-id>|<get-id>(){}[0]
     final val intensity // dev.jordond.filmstrip.effects.filters.vhs/Vhs.intensity|{}intensity[0]
         final fun <get-intensity>(): kotlin/Float // dev.jordond.filmstrip.effects.filters.vhs/Vhs.intensity.<get-intensity>|<get-intensity>(){}[0]
     final val isInert // dev.jordond.filmstrip.effects.filters.vhs/Vhs.isInert|{}isInert[0]
@@ -696,8 +699,9 @@ final class dev.jordond.filmstrip.effects.filters.vhs/Vhs : dev.jordond.filmstri
     final object Companion { // dev.jordond.filmstrip.effects.filters.vhs/Vhs.Companion|null[0]
         final const val DEFAULT_SEED // dev.jordond.filmstrip.effects.filters.vhs/Vhs.Companion.DEFAULT_SEED|{}DEFAULT_SEED[0]
             final fun <get-DEFAULT_SEED>(): kotlin/Int // dev.jordond.filmstrip.effects.filters.vhs/Vhs.Companion.DEFAULT_SEED.<get-DEFAULT_SEED>|<get-DEFAULT_SEED>(){}[0]
-        final const val ID // dev.jordond.filmstrip.effects.filters.vhs/Vhs.Companion.ID|{}ID[0]
-            final fun <get-ID>(): kotlin/String // dev.jordond.filmstrip.effects.filters.vhs/Vhs.Companion.ID.<get-ID>|<get-ID>(){}[0]
+
+        final val ID // dev.jordond.filmstrip.effects.filters.vhs/Vhs.Companion.ID|{}ID[0]
+            final fun <get-ID>(): dev.jordond.filmstrip.effect/EffectId // dev.jordond.filmstrip.effects.filters.vhs/Vhs.Companion.ID.<get-ID>|<get-ID>(){}[0]
     }
 }
 

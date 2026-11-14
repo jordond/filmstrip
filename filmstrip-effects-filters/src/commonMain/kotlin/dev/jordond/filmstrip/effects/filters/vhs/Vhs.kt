@@ -1,6 +1,7 @@
 package dev.jordond.filmstrip.effects.filters.vhs
 
 import dev.drewhamilton.poko.Poko
+import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effect.EffectStage
 
@@ -41,7 +42,7 @@ public class Vhs(
     require(intensity in 0f..1f) { "A VHS intensity has to be within 0 to 1, not $intensity." }
   }
 
-  override val id: String get() = ID
+  override val id: EffectId get() = ID
 
   override val stage: EffectStage get() = EffectStage.Composite
 
@@ -57,7 +58,7 @@ public class Vhs(
     /**
      * The id every plan and notice names this effect by.
      */
-    public const val ID: String = "filmstrip.filters.vhs"
+    public val ID: EffectId = EffectId("filmstrip.filters.vhs")
 
     /**
      * The seed a [Vhs] uses unless it is given one.

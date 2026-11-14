@@ -8,6 +8,7 @@ import dev.jordond.filmstrip.audio.AudioEffectSpec
 import dev.jordond.filmstrip.audio.PlatformAudioEffect
 import dev.jordond.filmstrip.audio.resolveAudioEffect
 import dev.jordond.filmstrip.edit.TimeRange
+import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedAudioEffect
 
 /**
@@ -58,11 +59,11 @@ internal class LoweredAudioEffect(
   val spec: AudioEffectSpec,
   effect: PlatformAudioEffect?,
   val unsupported: String? = null,
-  val degraded: List<Pair<String, String>> = emptyList(),
+  val degraded: List<Pair<EffectId, String>> = emptyList(),
   val failed: FilmstripError? = null,
 ) {
   val resolvedEffect: ResolvedAudioEffect? = effect?.let { ResolvedAudioEffect(spec.id, it, spec) }
 }
 
-private fun unclaimed(id: String): String =
+private fun unclaimed(id: EffectId): String =
   "No audio effect resolver claimed $id. Register the one that realizes it with addAudioEffectResolver."

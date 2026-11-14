@@ -7,6 +7,7 @@ import dev.jordond.filmstrip.player.EngineListener
 import dev.jordond.filmstrip.player.PlaybackError
 import dev.jordond.filmstrip.player.PlaybackEvent
 import dev.jordond.filmstrip.player.PlaybackStatus
+import dev.jordond.filmstrip.player.PlayerEngineId
 import dev.jordond.filmstrip.player.PlayerFeature
 import dev.jordond.filmstrip.player.PlayerFeatures
 import dev.jordond.filmstrip.player.PlayerState
@@ -57,7 +58,7 @@ internal class FakePlayerEngine(
   var releases: Int = 0
     private set
 
-  override val id: String = "filmstrip.fake"
+  override val id: PlayerEngineId = PlayerEngineId("filmstrip.fake")
 
   override val features: PlayerFeatures = PlayerFeatures(claimed)
 

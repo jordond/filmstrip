@@ -2,6 +2,7 @@ package dev.jordond.filmstrip.effects
 
 import dev.jordond.filmstrip.FilmstripBuilder
 import dev.jordond.filmstrip.FilmstripRegistrar
+import dev.jordond.filmstrip.RegistrarId
 import dev.jordond.filmstrip.effect.Attributes
 import dev.jordond.filmstrip.effect.EffectResolution
 import dev.jordond.filmstrip.effect.EffectResolver
@@ -33,7 +34,7 @@ public expect class BuiltInEffectResolver() : EffectResolver {
 public fun FilmstripBuilder.builtInEffects(): FilmstripBuilder = install(BuiltInEffectsRegistrar())
 
 internal class BuiltInEffectsRegistrar : FilmstripRegistrar {
-  override val id: String = "filmstrip-effects"
+  override val id: RegistrarId = RegistrarId("filmstrip-effects")
 
   override fun register(builder: FilmstripBuilder) {
     builder.addEffectResolver(BuiltInEffectResolver())

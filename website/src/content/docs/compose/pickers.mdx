@@ -20,7 +20,7 @@ dismissed. A dismissal isn't an error, and `onError` only hears about a pick tha
 `PickedMedia` has the `source` to hand to a composition and the `file` the dialog returned. Reading a file's name goes
 through the content resolver on Android, so read it once in the callback and hold on to it.
 
-In a browser the `source` is an object URL that lives until the page unloads. `MediaSource.release` frees it earlier, once
+In a browser the `source` is an object URL that lives until the page unloads. `releasePicked(source)` frees it earlier, once
 nothing reads the source any more.
 
 ## Pick an image

@@ -1,7 +1,7 @@
 package dev.jordond.filmstrip.sample
 
 import dev.jordond.filmstrip.effect.EffectIds
-import dev.jordond.filmstrip.effect.inCanonicalOrder
+import dev.jordond.filmstrip.effect.canonicalOrder
 import dev.jordond.filmstrip.effects.color.ColorMatrix
 import dev.jordond.filmstrip.effects.color.Saturation
 import dev.jordond.filmstrip.media.MediaSource
@@ -41,7 +41,7 @@ class EditStateTest {
         EffectIds.INVERT,
         EffectIds.COLOR_MATRIX,
       )
-    effects.inCanonicalOrder() shouldBe effects
+    canonicalOrder(effects) shouldBe effects
     edit.colorGraded shouldBe true
   }
 

@@ -2,6 +2,7 @@ package dev.jordond.filmstrip.test
 
 import dev.jordond.filmstrip.audio.AudioEffectSpec
 import dev.jordond.filmstrip.audio.AudioKernel
+import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.export.AudioFormat
 import kotlin.math.PI
 import kotlin.math.sin
@@ -20,7 +21,7 @@ import kotlin.time.Duration.Companion.milliseconds
 public data class TimelineBursts(
   val amplitude: Float,
 ) : AudioEffectSpec {
-  override val id: String get() = ID
+  override val id: EffectId get() = ID
 
   /**
    * Builds the kernel for one stream at [format].
@@ -28,7 +29,7 @@ public data class TimelineBursts(
   public fun newKernel(format: AudioFormat): AudioKernel = BurstKernel(format, amplitude)
 
   public companion object {
-    public const val ID: String = "test.timeline-bursts"
+    public val ID: EffectId = EffectId("test.timeline-bursts")
     public const val TONE_HZ: Int = 1_000
     public val PERIOD: Duration = 400.milliseconds
     public val LENGTH: Duration = 80.milliseconds

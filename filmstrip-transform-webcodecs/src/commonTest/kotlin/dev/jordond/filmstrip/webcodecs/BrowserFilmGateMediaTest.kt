@@ -7,6 +7,7 @@ import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.outputSlotTime
+import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.effect.EffectResolution
 import dev.jordond.filmstrip.effect.EffectResolver
 import dev.jordond.filmstrip.effect.EffectSpec
@@ -322,7 +323,7 @@ class BrowserFilmGateMediaTest {
 
 // Takes every pixel's alpha to PARTIAL_ALPHA of what it was and leaves its color.
 private object PartAlpha : EffectSpec {
-  override val id: String get() = "test.partAlpha"
+  override val id: EffectId get() = EffectId("test.partAlpha")
   override val stage: EffectStage get() = EffectStage.Spatial
 }
 
@@ -333,7 +334,7 @@ private val PartAlphaResolver =
       "#version 300 es\nprecision highp float;\nin vec2 vUv;\nout vec4 fragColor;\nuniform sampler2D uFrame;\n" +
         "void main() {\n  vec4 c = texture(uFrame, vUv);\n  fragColor = vec4(c.rgb, c.a * $PARTIAL_ALPHA);\n}\n"
     val step = WebGlStep("partAlpha", source, mapOf("uFrame" to WebGlStep.INPUT)) { _, _, _ -> emptyMap() }
-    EffectResolution.Resolved(PlatformEffect(WebGlPass(PartAlpha.id, listOf(step))))
+    EffectResolution.Resolved(PlatformEffect(WebGlPass(PartAlpha.id.value, listOf(step))))
   }
 
 private val SPEC = ExportSpec(videoCodec = VideoCodec.H264)

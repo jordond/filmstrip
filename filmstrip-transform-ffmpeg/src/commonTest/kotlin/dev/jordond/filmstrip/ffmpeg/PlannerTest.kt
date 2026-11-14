@@ -547,7 +547,7 @@ class PlannerTest {
         val reason = verdict.shouldBeInstanceOf<Verdict.Incapable>().reasons.single()
         val message = reason.shouldBeInstanceOf<FilmstripError.InvalidComposition>().message
         message shouldContain filter
-        message shouldContain Film.ID
+        message shouldContain Film.ID.value
       }
     }
   }
@@ -568,7 +568,7 @@ class PlannerTest {
         val reason = verdict.shouldBeInstanceOf<Verdict.Incapable>().reasons.single()
         val message = reason.shouldBeInstanceOf<FilmstripError.InvalidComposition>().message
         message shouldContain filter
-        message shouldContain Crt.ID
+        message shouldContain Crt.ID.value
       }
     }
   }
@@ -590,7 +590,7 @@ class PlannerTest {
         val reason = verdict.shouldBeInstanceOf<Verdict.Incapable>().reasons.single()
         val message = reason.shouldBeInstanceOf<FilmstripError.InvalidComposition>().message
         message shouldContain filter
-        message shouldContain Lut.ID
+        message shouldContain Lut.ID.value
       }
     }
   }
@@ -611,7 +611,7 @@ class PlannerTest {
         val reason = verdict.shouldBeInstanceOf<Verdict.Incapable>().reasons.single()
         val message = reason.shouldBeInstanceOf<FilmstripError.InvalidComposition>().message
         message shouldContain filter
-        message shouldContain NightVision.ID
+        message shouldContain NightVision.ID.value
       }
     }
   }
@@ -632,7 +632,7 @@ class PlannerTest {
         val reason = verdict.shouldBeInstanceOf<Verdict.Incapable>().reasons.single()
         val message = reason.shouldBeInstanceOf<FilmstripError.InvalidComposition>().message
         message shouldContain filter
-        message shouldContain Vhs.ID
+        message shouldContain Vhs.ID.value
       }
     }
   }
@@ -653,7 +653,7 @@ class PlannerTest {
         val reason = verdict.shouldBeInstanceOf<Verdict.Incapable>().reasons.single()
         val message = reason.shouldBeInstanceOf<FilmstripError.InvalidComposition>().message
         message shouldContain filter
-        message shouldContain Glitch.ID
+        message shouldContain Glitch.ID.value
       }
     }
   }

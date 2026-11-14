@@ -5,6 +5,7 @@ import dev.jordond.filmstrip.ComponentRegistry
 import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.capability.EffectParity
 import dev.jordond.filmstrip.edit.Composition
+import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.export.ExportPlan
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.ExportStatus
@@ -85,7 +86,7 @@ public class FakeFilmstrip(
   /**
    * Answers each `parityOf`.
    */
-  public var onParityOf: (specId: String) -> EffectParity? = { EffectParity.Exact }
+  public var onParityOf: (specId: EffectId) -> EffectParity? = { EffectParity.Exact }
 
   /**
    * Answers each `frame`, and each position `frames` is asked for.
@@ -143,7 +144,7 @@ public class FakeFilmstrip(
     }
   }
 
-  override fun parityOf(specId: String): EffectParity? {
+  override fun parityOf(specId: EffectId): EffectParity? {
     recorded += FilmstripCall.ParityOf(specId)
     return onParityOf(specId)
   }

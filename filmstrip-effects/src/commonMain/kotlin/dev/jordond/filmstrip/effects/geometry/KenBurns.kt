@@ -4,13 +4,13 @@ import dev.drewhamilton.poko.Poko
 import dev.jordond.filmstrip.ExperimentalFilmstripApi
 import dev.jordond.filmstrip.edit.EffectsBuilder
 import dev.jordond.filmstrip.edit.TimeRange
+import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.effect.EffectIds
 import dev.jordond.filmstrip.effect.EffectScope
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effect.EffectStage
 import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.motion.Easing
-import dev.jordond.filmstrip.motion.paced
 import kotlin.time.Duration
 
 /**
@@ -45,7 +45,7 @@ public class KenBurns(
     }
   }
 
-  override val id: String get() = EffectIds.KEN_BURNS
+  override val id: EffectId get() = EffectIds.KEN_BURNS
 
   override val stage: EffectStage get() = EffectStage.Geometry
 

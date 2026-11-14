@@ -2,6 +2,7 @@ package dev.jordond.filmstrip.testing
 
 import dev.drewhamilton.poko.Poko
 import dev.jordond.filmstrip.edit.Composition
+import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.export.ExportPlan
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.media.MediaSink
@@ -75,7 +76,7 @@ public sealed interface FilmstripCall {
    */
   @Poko
   public class ParityOf(
-    public val specId: String,
+    public val specId: EffectId,
   ) : FilmstripCall
 
   /**

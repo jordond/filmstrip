@@ -3,6 +3,7 @@ package dev.jordond.filmstrip.webcodecs
 import dev.jordond.filmstrip.FilmstripBuilder
 import dev.jordond.filmstrip.FilmstripRegistrar
 import dev.jordond.filmstrip.InternalFilmstripApi
+import dev.jordond.filmstrip.RegistrarId
 import dev.jordond.filmstrip.capability.DeviceCapabilities
 import dev.jordond.filmstrip.diagnostics.BackendInfo
 import dev.jordond.filmstrip.effects.builtInEffects
@@ -24,7 +25,7 @@ import dev.jordond.filmstrip.webcodecs.internal.BrowserProber
 public fun FilmstripBuilder.webCodecsBackend(): FilmstripBuilder = install(WebCodecsRegistrar())
 
 internal class WebCodecsRegistrar : FilmstripRegistrar {
-  override val id: String = "filmstrip-transform-webcodecs"
+  override val id: RegistrarId = RegistrarId("filmstrip-transform-webcodecs")
 
   override fun register(builder: FilmstripBuilder) {
     builder

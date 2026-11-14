@@ -7,6 +7,7 @@ import androidx.media3.transformer.Composition
 import dev.jordond.filmstrip.FilmstripContext
 import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.capability.DeviceCapabilities
+import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.effect.RenderCapabilities
 import dev.jordond.filmstrip.export.ExportStatus
 import dev.jordond.filmstrip.geometry.Size
@@ -51,7 +52,7 @@ internal class Media3Driver(
 
   override fun toneMapLimit(sdrSources: List<MediaSource>): String? = hdrDecodeLimit(Build.VERSION.SDK_INT)
 
-  override fun unclaimed(specId: String): String =
+  override fun unclaimed(specId: EffectId): String =
     "No resolver claimed $specId on the Android backend. Add the artifact that defines it, or a " +
       "resolver that recognises RenderApi.OpenGlEs."
 

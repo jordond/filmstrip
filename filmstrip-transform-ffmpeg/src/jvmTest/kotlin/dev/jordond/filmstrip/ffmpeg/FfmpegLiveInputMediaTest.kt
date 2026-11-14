@@ -5,6 +5,7 @@ import dev.jordond.filmstrip.diagnostics.DiagnosticEvent.Detail
 import dev.jordond.filmstrip.diagnostics.DiagnosticListener
 import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.Composition
+import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.effect.EffectResolution
 import dev.jordond.filmstrip.effect.EffectResolver
 import dev.jordond.filmstrip.effect.EffectSpec
@@ -316,7 +317,7 @@ class FfmpegLiveInputMediaTest {
   }
 
   private object TickLook : EffectSpec {
-    override val id: String = "test.tick-look"
+    override val id: EffectId = EffectId("test.tick-look")
   }
 
   private companion object {

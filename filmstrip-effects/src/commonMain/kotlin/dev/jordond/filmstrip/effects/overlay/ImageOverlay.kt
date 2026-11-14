@@ -3,6 +3,7 @@ package dev.jordond.filmstrip.effects.overlay
 import dev.drewhamilton.poko.Poko
 import dev.jordond.filmstrip.edit.EffectsBuilder
 import dev.jordond.filmstrip.edit.TimeRange
+import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.effect.EffectIds
 import dev.jordond.filmstrip.geometry.Corner
 import dev.jordond.filmstrip.geometry.Size
@@ -43,7 +44,7 @@ public class ImageOverlay(
   override val visibleDuring: TimeRange? = null,
   override val animation: OverlayAnimation? = null,
 ) : OverlayEffect {
-  override val id: String get() = EffectIds.IMAGE_OVERLAY
+  override val id: EffectId get() = EffectIds.IMAGE_OVERLAY
 
   public companion object {
     /**

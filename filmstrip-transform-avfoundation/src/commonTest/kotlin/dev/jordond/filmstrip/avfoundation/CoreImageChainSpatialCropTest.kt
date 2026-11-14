@@ -9,6 +9,7 @@ import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.effect.CoreImageEffect
+import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.effect.EffectStage
 import dev.jordond.filmstrip.effect.PlatformEffect
 import dev.jordond.filmstrip.export.ExportPath
@@ -86,7 +87,7 @@ class CoreImageChainSpatialCropTest {
 
   private fun growing(): ResolvedEffect =
     ResolvedEffect(
-      specId = "dev.jordond.filmstrip.test.growing",
+      specId = EffectId("dev.jordond.filmstrip.test.growing"),
       effect =
         PlatformEffect(
           CoreImageEffect { image, _ ->

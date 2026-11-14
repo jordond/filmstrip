@@ -8,6 +8,7 @@ import dev.jordond.filmstrip.edit.CLIP_SPEED_RANGE
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.edit.outputLengthOf
+import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.effect.FilterNode
 import dev.jordond.filmstrip.export.AudioFormat
 import dev.jordond.filmstrip.export.ExportPath
@@ -378,7 +379,7 @@ class AudioLoweringTest {
     )
 
   private fun List<FilterNode>.asAudioEffects(): List<ResolvedAudioEffect> =
-    if (isEmpty()) emptyList() else listOf(ResolvedAudioEffect("test.filters", PlatformAudioEffect(this)))
+    if (isEmpty()) emptyList() else listOf(ResolvedAudioEffect(EffectId("test.filters"), PlatformAudioEffect(this)))
 
   private fun composition(
     tracks: List<ResolvedTrack>,

@@ -5,6 +5,7 @@ import dev.jordond.filmstrip.audio.AudioEffectResolver
 import dev.jordond.filmstrip.audio.AudioEffectSpec
 import dev.jordond.filmstrip.audio.AudioKernel
 import dev.jordond.filmstrip.audio.PlatformAudioEffect
+import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.export.AudioFormat
 import dev.jordond.filmstrip.test.TimelineBursts
 import io.kotest.assertions.withClue
@@ -20,7 +21,7 @@ import kotlin.time.Duration.Companion.milliseconds
 internal data class Delay(
   val frames: Int,
 ) : AudioEffectSpec {
-  override val id: String get() = "test.delay"
+  override val id: EffectId get() = EffectId("test.delay")
 }
 
 /**
@@ -29,14 +30,14 @@ internal data class Delay(
 internal data class AddedBursts(
   val amplitude: Float,
 ) : AudioEffectSpec {
-  override val id: String get() = "test.added-bursts"
+  override val id: EffectId get() = EffectId("test.added-bursts")
 }
 
 /**
  * An effect whose kernel throws on the first block it is handed.
  */
 internal data object Broken : AudioEffectSpec {
-  override val id: String get() = "test.broken"
+  override val id: EffectId get() = EffectId("test.broken")
 }
 
 /**

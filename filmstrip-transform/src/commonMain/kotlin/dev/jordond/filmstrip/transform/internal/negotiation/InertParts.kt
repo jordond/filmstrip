@@ -8,8 +8,9 @@ import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.TrackContent
+import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.effect.EffectSpec
-import dev.jordond.filmstrip.effect.inCanonicalOrder
+import dev.jordond.filmstrip.effect.canonicalOrder
 import dev.jordond.filmstrip.effects.color.fusedColorMatrices
 import dev.jordond.filmstrip.effects.color.identityColorRuns
 import dev.jordond.filmstrip.effects.geometry.Crop
@@ -178,8 +179,7 @@ private fun identityAcross(
   val runs =
     reaches.map { reach ->
       val identity = reach.chain.identityColorRuns()
-      reach.chain
-        .inCanonicalOrder()
+      canonicalOrder(reach.chain)
         .fusedColorMatrices()
         .map { it.sources }
         .filter { run -> run.all { spec -> identity.any { it === spec } } }
@@ -216,7 +216,7 @@ private fun List<EffectSpec>.withoutInert(
           reaches.all { reach -> reach.spans.all { spec.drawsNothingWithin(it) } } -> InertReason.NeverVisible
         else -> null
       }
-    reason?.also { notices += InertNotice(spec.id, it, inertMessage(spec.id, where, it)) } != null
+    reason?.also { notices += InertNotice(spec.id.value, it, inertMessage(spec.id, where, it)) } != null
   }
 }
 
@@ -234,7 +234,7 @@ private fun List<AudioEffectSpec>.withoutInert(
         spec.isInert -> InertReason.NoChangeToAudio
         else -> null
       }
-    reason?.also { notices += InertNotice(spec.id, it, inertMessage(spec.id, where, it)) } != null
+    reason?.also { notices += InertNotice(spec.id.value, it, inertMessage(spec.id, where, it)) } != null
   }
 }
 
@@ -258,7 +258,7 @@ private fun EffectSpec.changesNoGeometry(reaches: List<Reach>): Boolean =
 // The frame the chain hands [spec], walked in canonical order through every geometry effect ahead of it.
 private fun Reach.frameEntering(spec: EffectSpec): Size? {
   var size = entry ?: return null
-  for (step in chain.inCanonicalOrder()) {
+  for (step in canonicalOrder(chain)) {
     if (step === spec) return size
     size = frameAfter(step, size)
   }
@@ -356,13 +356,13 @@ private fun speedWithout(
 }
 
 private fun inertMessage(
-  id: String,
+  id: EffectId,
   where: String,
   reason: InertReason,
 ): String =
   when (reason) {
     InertReason.NeverVisible -> "The $id on $where is never drawn, so it was left out."
-    InertReason.NoStreamToApplyTo -> fadeMessage(id, where)
+    InertReason.NoStreamToApplyTo -> fadeMessage(id.value, where)
     InertReason.NoChangeToAudio -> "The $id on $where leaves every sample as it was, so it was left out."
     else -> "The $id on $where leaves every pixel as it was, so it was left out."
   }

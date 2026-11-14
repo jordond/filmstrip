@@ -15,6 +15,7 @@ import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.diagnostics.BackendInfo
 import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
+import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.export.Adjustment
 import dev.jordond.filmstrip.export.ExportPlan
 import dev.jordond.filmstrip.export.ExportSpec
@@ -655,7 +656,7 @@ public class SampleAppState(
   /**
    * How faithfully each effect in the current edit will preview, straight from the engine.
    */
-  fun parity(): List<Pair<String, String>> =
+  fun parity(): List<Pair<EffectId, String>> =
     composition()?.effects.orEmpty().map { spec ->
       spec.id to (filmstrip.parityOf(spec.id)?.name ?: "unknown")
     }

@@ -48,6 +48,6 @@ class PreviewClockTest {
   }
 
   private object Plain : EffectSpec {
-    override val id: String = "test.plain"
+    override val id: EffectId = EffectId("test.plain")
   }
 }

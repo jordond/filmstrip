@@ -9,6 +9,7 @@ import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.effect.CoreImageEffect
+import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.effect.EffectStage
 import dev.jordond.filmstrip.effect.PlatformEffect
 import dev.jordond.filmstrip.export.ExportPath
@@ -165,7 +166,7 @@ class CoreImageChainFailureTest {
     )
 
   private companion object {
-    const val SPEC_ID = "dev.jordond.filmstrip.test.throwing"
+    val SPEC_ID = EffectId("dev.jordond.filmstrip.test.throwing")
     const val REASON = "The picture is too large to draw at its color."
     const val FRAME_RATE = 30
     val OUTPUT = Size(640, 360)

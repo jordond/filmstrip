@@ -3,9 +3,11 @@ package dev.jordond.filmstrip.media3
 import dev.jordond.filmstrip.FilmstripBuilder
 import dev.jordond.filmstrip.FilmstripRegistrar
 import dev.jordond.filmstrip.InternalFilmstripApi
+import dev.jordond.filmstrip.RegistrarId
 import dev.jordond.filmstrip.capability.EffectParity
 import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.diagnostics.BackendInfo
+import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.effect.EffectIds
 import dev.jordond.filmstrip.effects.builtInEffects
 import dev.jordond.filmstrip.export.CopyBlocker
@@ -32,7 +34,7 @@ import dev.jordond.filmstrip.transform.internal.copy.Mp4Copy
 public fun FilmstripBuilder.media3Backend(): FilmstripBuilder = install(Media3Registrar())
 
 internal class Media3Registrar : FilmstripRegistrar {
-  override val id: String = "filmstrip-transform-media3"
+  override val id: RegistrarId = RegistrarId("filmstrip-transform-media3")
 
   override fun register(builder: FilmstripBuilder) {
     builder
@@ -90,7 +92,7 @@ private const val SQUARE_PIXELS = 1f
 
 private val MEDIA3_LADDER: List<VideoCodec> = listOf(VideoCodec.H264, VideoCodec.Hevc)
 
-private val MEDIA3_PARITY: Map<String, EffectParity> =
+private val MEDIA3_PARITY: Map<EffectId, EffectParity> =
   mapOf(
     EffectIds.ROTATE to EffectParity.Exact,
     EffectIds.FLIP to EffectParity.Exact,

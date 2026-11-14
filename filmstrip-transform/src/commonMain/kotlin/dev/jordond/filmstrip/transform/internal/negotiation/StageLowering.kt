@@ -3,13 +3,14 @@ package dev.jordond.filmstrip.transform.internal.negotiation
 import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.effect.Attributes
+import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.effect.EffectResolution
 import dev.jordond.filmstrip.effect.EffectResolver
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effect.PlatformEffect
 import dev.jordond.filmstrip.effect.PreviewClock
 import dev.jordond.filmstrip.effect.RenderCapabilities
-import dev.jordond.filmstrip.effect.inCanonicalOrder
+import dev.jordond.filmstrip.effect.canonicalOrder
 import dev.jordond.filmstrip.effects.BuiltInEffectResolver
 import dev.jordond.filmstrip.effects.color.FoldedSpec
 import dev.jordond.filmstrip.effects.color.colorMatrixOf
@@ -47,7 +48,7 @@ internal class LoweringTarget(
  */
 internal class StageLowering(
   private val resolvers: List<EffectResolver>,
-  private val unclaimedMessage: (String) -> String,
+  private val unclaimedMessage: (EffectId) -> String,
 ) {
   // Where the built-in catalogue sits, or -1 when it was never registered.
   private val catalogue: Int = resolvers.indexOfFirst { it is BuiltInEffectResolver }
@@ -100,7 +101,7 @@ internal class StageLowering(
         target.previewClock,
       )
     }
-    val ordered = stages.flatMap { it.inCanonicalOrder() }
+    val ordered = stages.flatMap { canonicalOrder(it) }
     val tracker = OpaqueTracker(sourceHasAlpha)
     val chain =
       foldedChain(
@@ -230,7 +231,7 @@ private class FoldedChain(
 
 // What a backend calls the effect it was handed. A folded run stands for several authored effects,
 // and naming the one the fold made up puts an id in a message that the caller never wrote.
-private fun List<EffectSpec>.authoredIds(): String = joinToString(", ") { it.id }
+private fun List<EffectSpec>.authoredIds(): EffectId = EffectId(map { it.id }.joinToString(", "))
 
 /**
  * One effect, after the resolver chain has been asked.
@@ -250,7 +251,7 @@ internal class LoweredEffect(
   degradedMessages: List<String> = emptyList(),
   val failed: FilmstripError? = null,
 ) {
-  val degraded: List<Pair<String, String>> =
+  val degraded: List<Pair<EffectId, String>> =
     sources.flatMap { source -> degradedMessages.map { source.id to it } }
 
   // Sources come from the canonically ordered list, so a fused run never spans stages and every

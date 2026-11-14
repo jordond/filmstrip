@@ -55,7 +55,7 @@ class PlatformFilesWebTest {
       val source = pickedFile().toMediaSource()
 
       withClue("a freshly picked file should be readable") { source.isReadable() shouldBe true }
-      source.release()
+      releasePicked(source)
       withClue("a released file should no longer be readable") { source.isReadable() shouldBe false }
     }
 
@@ -65,7 +65,7 @@ class PlatformFilesWebTest {
       val source = pickedFile().toImageSource()
 
       withClue("a freshly picked still should be readable") { source.isReadable() shouldBe true }
-      source.release()
+      releasePicked(source)
       withClue("a released still should no longer be readable") { source.isReadable() shouldBe false }
     }
 
@@ -76,7 +76,7 @@ class PlatformFilesWebTest {
       val released = pickedFile("first.mp4").toMediaSource()
       val kept = pickedFile("second.mp4").toMediaSource()
 
-      released.release()
+      releasePicked(released)
 
       withClue("the released pick should no longer be readable") { released.isReadable() shouldBe false }
       withClue("the other pick should still be readable") { kept.isReadable() shouldBe true }
@@ -97,22 +97,22 @@ class PlatformFilesWebTest {
   @Test
   fun releasingAPathDoesNothing() =
     runTest {
-      MediaSource.of("/clips/beach.mp4").release()
-      ImageSource.of("/stills/beach.png").release()
+      releasePicked(MediaSource.of("/clips/beach.mp4"))
+      releasePicked(ImageSource.of("/stills/beach.png"))
     }
 
   @Test
   fun releasingAUriThatIsNotAnObjectUrlDoesNothing() =
     runTest {
-      MediaSource.ofUri("https://example.test/clip.mp4").release()
-      ImageSource.ofUri("https://example.test/still.png").release()
+      releasePicked(MediaSource.ofUri("https://example.test/clip.mp4"))
+      releasePicked(ImageSource.ofUri("https://example.test/still.png"))
     }
 
   @Test
   fun releasingBytesDoesNothing() =
     runTest {
-      MediaSource.ofBytes(byteArrayOf(1, 2, 3, 4)).release()
-      ImageSource.ofBytes(byteArrayOf(1, 2, 3, 4)).release()
+      releasePicked(MediaSource.ofBytes(byteArrayOf(1, 2, 3, 4)))
+      releasePicked(ImageSource.ofBytes(byteArrayOf(1, 2, 3, 4)))
     }
 
   private suspend fun MediaSource.isReadable(): Boolean = isReadable(this.shouldBeInstanceOf<MediaSource.Uri>().uri)

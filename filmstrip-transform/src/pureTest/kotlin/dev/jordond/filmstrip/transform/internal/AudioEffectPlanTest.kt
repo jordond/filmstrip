@@ -10,6 +10,7 @@ import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.TrackContent
+import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.export.AdjustmentKind
 import dev.jordond.filmstrip.export.CopyBlocker
 import dev.jordond.filmstrip.export.ExportPath
@@ -40,40 +41,47 @@ class AudioEffectPlanTest {
 
   @Test
   fun `a clip runs its own effects and then its track's and the mix runs the composition's`() {
-    val first = heard(audioEffects = listOf(Fx("a"), Fx("b")))
+    val first = heard(audioEffects = listOf(Fx(EffectId("a")), Fx(EffectId("b"))))
     val second = heard()
-    val edit = Composition(listOf(Track(listOf(first, second), audioEffects = listOf(Fx("c")))), audioEffects = fx("d"))
+    val edit =
+      Composition(
+        listOf(Track(listOf(first, second), audioEffects = listOf(Fx(EffectId("c"))))),
+        audioEffects = fx(EffectId("d")),
+      )
 
     val resolved = fixture.resolve(edit)
 
     resolved.tracks[0].clips.map { clip -> clip.audioEffects.map { it.specId } } shouldContainExactly
-      listOf(listOf("a", "b", "c"), listOf("c"))
-    resolved.mixAudioEffects.map { it.specId } shouldContainExactly listOf("d")
+      listOf(listOf(EffectId("a"), EffectId("b"), EffectId("c")), listOf(EffectId("c")))
+    resolved.mixAudioEffects.map { it.specId } shouldContainExactly listOf(EffectId("d"))
   }
 
   @Test
   fun `the same effect declared twice at one scope runs twice`() {
-    val resolved = fixture.resolve(single(heard(audioEffects = listOf(Fx("a"), Fx("a")))))
+    val resolved = fixture.resolve(single(heard(audioEffects = listOf(Fx(EffectId("a")), Fx(EffectId("a"))))))
 
-    firstClipOf(resolved).audioEffects.map { it.specId } shouldContainExactly listOf("a", "a")
+    firstClipOf(resolved).audioEffects.map { it.specId } shouldContainExactly listOf(EffectId("a"), EffectId("a"))
   }
 
   @Test
   fun `each effect is asked over the run of audio it lands on`() {
     val resolver = FakeAudioResolver()
-    val first = heard(trim = TimeRange(0.seconds, 2.seconds), audioEffects = fx("clip"))
+    val first = heard(trim = TimeRange(0.seconds, 2.seconds), audioEffects = fx(EffectId("clip")))
     val second = heard(trim = TimeRange(1.seconds, 4.seconds))
     val edit =
-      Composition(listOf(Track(listOf(first, second), audioEffects = fx("track"))), audioEffects = fx("mix"))
+      Composition(
+        listOf(Track(listOf(first, second), audioEffects = fx(EffectId("track")))),
+        audioEffects = fx(EffectId("mix")),
+      )
 
     fixture.resolve(edit, audioResolvers = listOf(resolver))
 
     resolver.asked shouldContainExactly
       listOf(
-        "clip" to TimeRange.of(0.seconds, 2.seconds),
-        "track" to TimeRange.of(0.seconds, 2.seconds),
-        "track" to TimeRange.of(2.seconds, 5.seconds),
-        "mix" to TimeRange.of(0.seconds, 5.seconds),
+        EffectId("clip") to TimeRange.of(0.seconds, 2.seconds),
+        EffectId("track") to TimeRange.of(0.seconds, 2.seconds),
+        EffectId("track") to TimeRange.of(2.seconds, 5.seconds),
+        EffectId("mix") to TimeRange.of(0.seconds, 5.seconds),
       )
   }
 
@@ -82,7 +90,7 @@ class AudioEffectPlanTest {
     val resolver = FakeAudioResolver()
     val picture = heard(trim = TimeRange(0.seconds, 5.seconds))
     val bed = heard(trim = TimeRange(0.seconds, 2.seconds))
-    val music = Track(listOf(bed), TrackContent.Audio, looping = true, audioEffects = fx("bed"))
+    val music = Track(listOf(bed), TrackContent.Audio, looping = true, audioEffects = fx(EffectId("bed")))
 
     val resolved =
       fixture.resolve(
@@ -91,7 +99,7 @@ class AudioEffectPlanTest {
       )
 
     resolved.tracks[1].clips.map { clip -> clip.audioEffects.map { it.specId } } shouldContainExactly
-      listOf(listOf("bed"), listOf("bed"), listOf("bed"))
+      listOf(listOf(EffectId("bed")), listOf(EffectId("bed")), listOf(EffectId("bed")))
     resolver.asked.map { it.second } shouldContainExactly
       listOf(
         TimeRange.of(0.seconds, 2.seconds),
@@ -103,11 +111,11 @@ class AudioEffectPlanTest {
   @Test
   fun `an effect that declares itself inert is left out at every scope and named`() {
     val resolver = FakeAudioResolver()
-    val clip = heard(audioEffects = listOf(Fx("clip", inert = true)))
+    val clip = heard(audioEffects = listOf(Fx(EffectId("clip"), inert = true)))
     val edit =
       Composition(
-        listOf(Track(listOf(clip), audioEffects = listOf(Fx("track", inert = true)))),
-        audioEffects = listOf(Fx("mix", inert = true), Fx("kept")),
+        listOf(Track(listOf(clip), audioEffects = listOf(Fx(EffectId("track"), inert = true)))),
+        audioEffects = listOf(Fx(EffectId("mix"), inert = true), Fx(EffectId("kept"))),
       )
 
     val plan = planOf(edit, resolver)
@@ -124,15 +132,15 @@ class AudioEffectPlanTest {
         "The track on track 0 leaves every sample as it was, so it was left out.",
         "The mix on the composition leaves every sample as it was, so it was left out.",
       )
-    resolver.asked.map { it.first } shouldContainExactly listOf("kept")
+    resolver.asked.map { it.first } shouldContainExactly listOf(EffectId("kept"))
   }
 
   @Test
   fun `a muted clip's effects have no stream and its track's reach only the clips that are heard`() {
-    val muted = heard(audioEffects = fx("muted")).withAudio(AudioLevel.Mute)
-    val silent = fixture.clip(audioEffects = fx("no audio"))
+    val muted = heard(audioEffects = fx(EffectId("muted"))).withAudio(AudioLevel.Mute)
+    val silent = fixture.clip(audioEffects = fx(EffectId("no audio")))
     val audible = heard()
-    val edit = Composition(listOf(Track(listOf(muted, silent, audible), audioEffects = fx("track"))))
+    val edit = Composition(listOf(Track(listOf(muted, silent, audible), audioEffects = fx(EffectId("track")))))
 
     val plan = planOf(edit)
     val resolved = fixture.resolve(edit)
@@ -142,14 +150,19 @@ class AudioEffectPlanTest {
     plan.inertNotices.first().message shouldBe
       "The muted on clip 0 of track 0 has no audio to apply to, so it was left out."
     resolved.tracks[0].clips.map { clip -> clip.audioEffects.map { it.specId } } shouldContainExactly
-      listOf(emptyList(), emptyList(), listOf("track"))
+      listOf(emptyList(), emptyList(), listOf(EffectId("track")))
   }
 
   @Test
   fun `a muted track's effects and its clips' have no stream`() {
-    val track = Track(listOf(heard(audioEffects = fx("clip"))), audio = AudioLevel.Mute, audioEffects = fx("track"))
+    val track =
+      Track(
+        listOf(heard(audioEffects = fx(EffectId("clip")))),
+        audio = AudioLevel.Mute,
+        audioEffects = fx(EffectId("track")),
+      )
 
-    val plan = planOf(Composition(listOf(track), audioEffects = fx("mix")))
+    val plan = planOf(Composition(listOf(track), audioEffects = fx(EffectId("mix"))))
 
     plan.inertNotices.map { it.subject to it.reason } shouldContainExactly
       listOf("clip" to InertReason.NoStreamToApplyTo, "track" to InertReason.NoStreamToApplyTo)
@@ -159,9 +172,9 @@ class AudioEffectPlanTest {
   fun `a muted or removed composition leaves every audio effect without a stream`() {
     listOf(AudioSpec.Mute, AudioSpec.Remove).forEach { audio ->
       val resolver = FakeAudioResolver()
-      val track = Track(listOf(heard(audioEffects = fx("clip"))), audioEffects = fx("track"))
+      val track = Track(listOf(heard(audioEffects = fx(EffectId("clip")))), audioEffects = fx(EffectId("track")))
 
-      val plan = planOf(Composition(listOf(track), audio = audio, audioEffects = fx("mix")), resolver)
+      val plan = planOf(Composition(listOf(track), audio = audio, audioEffects = fx(EffectId("mix"))), resolver)
 
       plan.inertNotices.map { it.subject to it.reason } shouldContainExactly
         listOf(
@@ -175,14 +188,15 @@ class AudioEffectPlanTest {
 
   @Test
   fun `a mix effect over clips that are all muted still runs and keeps the audio track`() {
-    val edit = Composition(listOf(Track(listOf(heard().withAudio(AudioLevel.Mute)))), audioEffects = fx("hiss"))
+    val edit =
+      Composition(listOf(Track(listOf(heard().withAudio(AudioLevel.Mute)))), audioEffects = fx(EffectId("hiss")))
 
     val plan = planOf(edit)
     val resolved = fixture.resolve(edit)
 
     plan.inertNotices.shouldBeEmpty()
     plan.output.audioCodec shouldNotBe AudioCodec.None
-    resolved.mixAudioEffects.map { it.specId } shouldContainExactly listOf("hiss")
+    resolved.mixAudioEffects.map { it.specId } shouldContainExactly listOf(EffectId("hiss"))
   }
 
   @Test
@@ -190,16 +204,17 @@ class AudioEffectPlanTest {
     val plain = heard()
     planOf(single(plain)).path shouldBe ExportPath.Copy
 
-    blockersOf(single(plain.withAudioEffects(fx("a")))) shouldContainExactly listOf(CopyBlocker.ClipHasAudioEffects)
-    blockersOf(Composition(listOf(Track(listOf(plain), audioEffects = fx("a"))))) shouldContainExactly
+    blockersOf(single(plain.withAudioEffects(fx(EffectId("a"))))) shouldContainExactly
+      listOf(CopyBlocker.ClipHasAudioEffects)
+    blockersOf(Composition(listOf(Track(listOf(plain), audioEffects = fx(EffectId("a")))))) shouldContainExactly
       listOf(CopyBlocker.TrackHasAudioEffects)
-    blockersOf(Composition(listOf(Track(listOf(plain))), audioEffects = fx("a"))) shouldContainExactly
+    blockersOf(Composition(listOf(Track(listOf(plain))), audioEffects = fx(EffectId("a")))) shouldContainExactly
       listOf(CopyBlocker.CompositionHasAudioEffects)
   }
 
   @Test
   fun `a clip whose only audio effect is inert copies`() {
-    val plan = planOf(single(heard(audioEffects = listOf(Fx("a", inert = true)))))
+    val plan = planOf(single(heard(audioEffects = listOf(Fx(EffectId("a"), inert = true)))))
 
     plan.path shouldBe ExportPath.Copy
     plan.copyBlockedBy.shouldBeEmpty()
@@ -207,41 +222,41 @@ class AudioEffectPlanTest {
 
   @Test
   fun `an effect no resolver claims is refused by id`() {
-    val edit = single(heard(audioEffects = fx("acme.reverb")))
+    val edit = single(heard(audioEffects = fx(EffectId("acme.reverb"))))
 
     val refused = fixture.plan(edit, audioResolvers = emptyList()).shouldBeInstanceOf<Verdict.Incapable>()
 
     val error = refused.reasons.single().shouldBeInstanceOf<FilmstripError.UnsupportedEffect>()
-    error.specId shouldBe "acme.reverb"
+    error.specId shouldBe EffectId("acme.reverb")
     error.message shouldBe
       "No audio effect resolver claimed acme.reverb. Register the one that realizes it with addAudioEffectResolver."
   }
 
   @Test
   fun `a refused effect is named and the plan without it plays clean audio`() {
-    val resolver = FakeAudioResolver(refuse = setOf("clip", "mix"))
-    val clip = heard(audioEffects = listOf(Fx("clip"), Fx("kept")))
-    val edit = Composition(listOf(Track(listOf(clip))), audioEffects = fx("mix"))
+    val resolver = FakeAudioResolver(refuse = setOf(EffectId("clip"), EffectId("mix")))
+    val clip = heard(audioEffects = listOf(Fx(EffectId("clip")), Fx(EffectId("kept"))))
+    val edit = Composition(listOf(Track(listOf(clip))), audioEffects = fx(EffectId("mix")))
 
     val refused = fixture.plan(edit, audioResolvers = listOf(resolver)).shouldBeInstanceOf<Verdict.Incapable>()
-    val without = negotiated(edit, resolver, dropped = setOf("clip", "mix"))
+    val without = negotiated(edit, resolver, dropped = setOf(EffectId("clip"), EffectId("mix")))
 
     refused.reasons.map { it.shouldBeInstanceOf<FilmstripError.UnsupportedEffect>().specId } shouldContainExactly
-      listOf("clip", "mix")
+      listOf(EffectId("clip"), EffectId("mix"))
     refused.withoutUnsupported
       .shouldNotBeNull()
       .adjustments
       .map { it.kind to it.requested } shouldContainExactly
       listOf(AdjustmentKind.EffectDropped to "clip", AdjustmentKind.EffectDropped to "mix")
-    firstClipOf(without).audioEffects.map { it.specId } shouldContainExactly listOf("kept")
+    firstClipOf(without).audioEffects.map { it.specId } shouldContainExactly listOf(EffectId("kept"))
     without.mixAudioEffects.shouldBeEmpty()
   }
 
   @Test
   fun `a degraded effect is an approximation the verdict names`() {
-    val edit = single(heard(audioEffects = fx("a")))
+    val edit = single(heard(audioEffects = fx(EffectId("a"))))
 
-    val verdict = fixture.plan(edit, audioResolvers = listOf(FakeAudioResolver(degrade = setOf("a"))))
+    val verdict = fixture.plan(edit, audioResolvers = listOf(FakeAudioResolver(degrade = setOf(EffectId("a")))))
 
     val adjustment = verdict.shouldBeInstanceOf<Verdict.Degraded>().adjustments.single()
     adjustment.kind shouldBe AdjustmentKind.EffectApproximated
@@ -251,11 +266,11 @@ class AudioEffectPlanTest {
 
   @Test
   fun `an effect whose resolution fails refuses the export with its error and no fallback`() {
-    val edit = single(heard(audioEffects = fx("a")))
+    val edit = single(heard(audioEffects = fx(EffectId("a"))))
 
     val refused =
       fixture
-        .plan(edit, audioResolvers = listOf(FakeAudioResolver(fail = setOf("a"))))
+        .plan(edit, audioResolvers = listOf(FakeAudioResolver(fail = setOf(EffectId("a")))))
         .shouldBeInstanceOf<Verdict.Incapable>()
 
     refused.reasons shouldContain AUDIO_READ_FAILED
@@ -266,12 +281,12 @@ class AudioEffectPlanTest {
   fun `effects planned again from equal specs are the ones already running and a changed or moved one is not`() {
     fun mixOf(vararg effects: AudioEffectSpec) =
       fixture.resolve(Composition(listOf(Track(listOf(heard()))), audioEffects = effects.toList())).mixAudioEffects
-    val standing = mixOf(Fx("a", amount = 0.5f), Fx("b"))
+    val standing = mixOf(Fx(EffectId("a"), amount = 0.5f), Fx(EffectId("b")))
 
-    mixOf(Fx("a", amount = 0.5f), Fx("b")).runsAs(standing) shouldBe true
-    mixOf(Fx("a", amount = 0.6f), Fx("b")).runsAs(standing) shouldBe false
-    mixOf(Fx("b"), Fx("a", amount = 0.5f)).runsAs(standing) shouldBe false
-    mixOf(Fx("a", amount = 0.5f)).runsAs(standing) shouldBe false
+    mixOf(Fx(EffectId("a"), amount = 0.5f), Fx(EffectId("b"))).runsAs(standing) shouldBe true
+    mixOf(Fx(EffectId("a"), amount = 0.6f), Fx(EffectId("b"))).runsAs(standing) shouldBe false
+    mixOf(Fx(EffectId("b")), Fx(EffectId("a"), amount = 0.5f)).runsAs(standing) shouldBe false
+    mixOf(Fx(EffectId("a"), amount = 0.5f)).runsAs(standing) shouldBe false
   }
 
   private fun heard(
@@ -281,7 +296,7 @@ class AudioEffectPlanTest {
 
   private fun single(clip: Clip): Composition = Composition(listOf(Track(listOf(clip))))
 
-  private fun fx(id: String): List<AudioEffectSpec> = listOf(Fx(id))
+  private fun fx(id: EffectId): List<AudioEffectSpec> = listOf(Fx(id))
 
   private fun planOf(
     edit: Composition,
@@ -298,7 +313,7 @@ class AudioEffectPlanTest {
   private fun negotiated(
     edit: Composition,
     resolver: FakeAudioResolver,
-    dropped: Set<String>,
+    dropped: Set<EffectId>,
   ): ResolvedComposition =
     fixture
       .planner(audioResolvers = listOf(resolver))
@@ -307,7 +322,7 @@ class AudioEffectPlanTest {
       .shouldNotBeNull()
 
   private data class Fx(
-    override val id: String,
+    override val id: EffectId,
     val inert: Boolean = false,
     val amount: Float = 1f,
   ) : AudioEffectSpec {

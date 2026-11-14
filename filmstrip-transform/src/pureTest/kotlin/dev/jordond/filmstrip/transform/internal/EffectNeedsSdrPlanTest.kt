@@ -2,6 +2,7 @@ package dev.jordond.filmstrip.transform.internal
 
 import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.Track
+import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effects.filters.vhs.Vhs
 import dev.jordond.filmstrip.export.AdjustmentKind
@@ -29,7 +30,7 @@ class EffectNeedsSdrPlanTest {
   private val encodesHdr = fixture.device(hdr = true)
   private val needsSdr =
     object : EffectSpec {
-      override val id = "test.needsSdr"
+      override val id = EffectId("test.needsSdr")
       override val requiresSdr = true
     }
 
@@ -44,7 +45,7 @@ class EffectNeedsSdrPlanTest {
     val degraded = verdict.shouldBeInstanceOf<Verdict.Degraded>()
     val adjustment = degraded.adjustments.single()
     adjustment.kind shouldBe AdjustmentKind.HdrToneMapped
-    adjustment.message shouldContain needsSdr.id
+    adjustment.message shouldContain needsSdr.id.value
     adjustment.message shouldNotContain "device"
     fixture
       .resolve(
@@ -89,7 +90,7 @@ class EffectNeedsSdrPlanTest {
         .single()
         .toString()
 
-    reason shouldContain needsSdr.id
+    reason shouldContain needsSdr.id.value
     reason shouldNotContain "encode"
   }
 
@@ -101,7 +102,7 @@ class EffectNeedsSdrPlanTest {
       .plan(edit, ExportSpec(strict = true), device = encodesHdr)
       .shouldBeInstanceOf<Verdict.Incapable>()
       .reasons
-      .joinToString() shouldContain needsSdr.id
+      .joinToString() shouldContain needsSdr.id.value
   }
 
   @Test

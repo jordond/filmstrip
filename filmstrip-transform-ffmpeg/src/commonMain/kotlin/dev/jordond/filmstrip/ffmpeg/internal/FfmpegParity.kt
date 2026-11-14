@@ -1,6 +1,7 @@
 package dev.jordond.filmstrip.ffmpeg.internal
 
 import dev.jordond.filmstrip.capability.EffectParity
+import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.effect.EffectIds
 
 /**
@@ -14,11 +15,11 @@ import dev.jordond.filmstrip.effect.EffectIds
  * shapes its glyphs with its own fonts, as every backend does.
  */
 internal object FfmpegParity {
-  fun of(specId: String): EffectParity? = TABLE[specId]
+  fun of(specId: EffectId): EffectParity? = TABLE[specId]
 
-  fun noteFor(specId: String): String? = NOTES[specId]
+  fun noteFor(specId: EffectId): String? = NOTES[specId]
 
-  private val TABLE: Map<String, EffectParity> =
+  private val TABLE: Map<EffectId, EffectParity> =
     mapOf(
       EffectIds.ROTATE to EffectParity.Exact,
       EffectIds.FLIP to EffectParity.Exact,
@@ -39,7 +40,7 @@ internal object FfmpegParity {
       EffectIds.VIGNETTE to EffectParity.Approximate,
     )
 
-  private val NOTES: Map<String, String> =
+  private val NOTES: Map<EffectId, String> =
     mapOf(
       EffectIds.SCALE to
         "swscale resamples bicubic, which is a different kernel from the one a preview would use, " +

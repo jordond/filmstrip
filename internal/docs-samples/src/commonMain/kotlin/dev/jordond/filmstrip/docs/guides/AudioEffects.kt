@@ -8,6 +8,7 @@ import dev.jordond.filmstrip.audio.AudioKernel
 import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.edit.compositionOf
+import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.export.AudioFormat
 import dev.jordond.filmstrip.media.MediaSource
 import kotlin.math.PI
@@ -18,7 +19,7 @@ internal data class Tremolo(
   val rateHz: Float,
   val depth: Float,
 ) : AudioEffectSpec {
-  override val id: String get() = "sample.tremolo"
+  override val id: EffectId get() = EffectId("sample.tremolo")
 
   override val isInert: Boolean get() = depth == 0f
 }

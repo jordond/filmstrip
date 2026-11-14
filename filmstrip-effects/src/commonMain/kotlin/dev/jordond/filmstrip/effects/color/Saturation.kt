@@ -2,6 +2,7 @@ package dev.jordond.filmstrip.effects.color
 
 import dev.drewhamilton.poko.Poko
 import dev.jordond.filmstrip.edit.EffectsBuilder
+import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.effect.EffectIds
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effect.EffectStage
@@ -26,7 +27,7 @@ public class Saturation(
     require(factor.isFinite()) { "A saturation factor has to be a finite number, not $factor." }
   }
 
-  override val id: String get() = EffectIds.SATURATION
+  override val id: EffectId get() = EffectIds.SATURATION
 
   override val stage: EffectStage get() = EffectStage.Color
 }

@@ -11,6 +11,7 @@ import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.TrackContent
+import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.effect.EffectStage
 import dev.jordond.filmstrip.effect.PlatformEffect
 import dev.jordond.filmstrip.effects.geometry.Crop
@@ -380,7 +381,7 @@ class Media3CompositionTest {
   private fun resolvedEffect(
     effect: Effect,
     stage: EffectStage = EffectStage.Color,
-  ): ResolvedEffect = ResolvedEffect("test", PlatformEffect(effect), stage)
+  ): ResolvedEffect = ResolvedEffect(EffectId("test"), PlatformEffect(effect), stage)
 }
 
 private val OUTPUT = Size(320, 180)

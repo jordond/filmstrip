@@ -257,7 +257,7 @@ private fun TimeRange?.summary(): String {
 private fun FilmstripError.line(): String = "${this::class.simpleName ?: "Error"}: $message"
 
 private fun Composition.effectIds(): List<String> =
-  (effects + tracks.flatMap { track -> track.effects + track.clips.flatMap { it.effects } }).map { it.id }
+  (effects + tracks.flatMap { track -> track.effects + track.clips.flatMap { it.effects } }).map { it.id.value }
 
 /**
  * The fields of the spec a bug report needs, which is every field a caller can set.

@@ -2,12 +2,13 @@ package dev.jordond.filmstrip.transform.internal.negotiation
 
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.effect.Attributes
+import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.effect.EffectIds
 import dev.jordond.filmstrip.effect.EffectResolution
 import dev.jordond.filmstrip.effect.EffectResolver
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effect.RenderCapabilities
-import dev.jordond.filmstrip.effect.inCanonicalOrder
+import dev.jordond.filmstrip.effect.canonicalOrder
 import dev.jordond.filmstrip.effects.BuiltInEffectResolver
 import dev.jordond.filmstrip.effects.color.Brightness
 import dev.jordond.filmstrip.effects.color.Sepia
@@ -43,8 +44,8 @@ class StageLoweringTest {
 
     recorder.specs.map { it.id } shouldBe listOf(EffectIds.COLOR_MATRIX)
     lowered.spec.id shouldBe EffectIds.COLOR_MATRIX
-    lowered.sources.map { it.id } shouldBe listOf(Brightness(4f), Sepia(1f)).inCanonicalOrder().map { it.id }
-    lowered.resolvedEffect.shouldNotBeNull().specId shouldBe lowered.sources.joinToString(", ") { it.id }
+    lowered.sources.map { it.id } shouldBe canonicalOrder(listOf(Brightness(4f), Sepia(1f))).map { it.id }
+    lowered.resolvedEffect.shouldNotBeNull().specId shouldBe EffectId(lowered.sources.map { it.id }.joinToString(", "))
   }
 
   @Test
@@ -53,7 +54,7 @@ class StageLoweringTest {
 
     val lowered = lower(lowering, listOf(Brightness(4f), Sepia(1f))).single()
 
-    lowered.unsupported shouldBe UNCLAIMED(lowered.sources.joinToString(", ") { it.id })
+    lowered.unsupported shouldBe UNCLAIMED(EffectId(lowered.sources.map { it.id }.joinToString(", ")))
     lowered.resolvedEffect.shouldBeNull()
   }
 
@@ -87,7 +88,7 @@ class StageLoweringTest {
 
     val lowered = lower(StageLowering(listOf(claimer, BuiltInEffectResolver()), UNCLAIMED), effects)
 
-    lowered.map { entry -> entry.sources.map { it.id } } shouldBe effects.inCanonicalOrder().map { listOf(it.id) }
+    lowered.map { entry -> entry.sources.map { it.id } } shouldBe canonicalOrder(effects).map { listOf(it.id) }
     lowered.single { it.spec.id == EffectIds.SEPIA }.resolvedEffect?.specId shouldBe EffectIds.SEPIA
     claimer.specs.count { it.id == EffectIds.SEPIA } shouldBe 1
   }
@@ -206,10 +207,10 @@ class StageLoweringTest {
    * Keeps every spec it is asked about and the attributes it was asked with, claiming only [claims] when it is set.
    */
   private class Recorder(
-    private val claims: Set<String>? = null,
+    private val claims: Set<EffectId>? = null,
   ) : EffectResolver {
     val specs = mutableListOf<EffectSpec>()
-    val attributes = mutableMapOf<String, Attributes>()
+    val attributes = mutableMapOf<EffectId, Attributes>()
 
     override fun resolve(
       spec: EffectSpec,
@@ -225,6 +226,6 @@ class StageLoweringTest {
   private companion object {
     val SIZE = Size(1920, 1080)
     val SPAN = TimeRange.of(500.milliseconds, 2_500.milliseconds)
-    val UNCLAIMED: (String) -> String = { "nothing claimed $it" }
+    val UNCLAIMED: (EffectId) -> String = { "nothing claimed $it" }
   }
 }

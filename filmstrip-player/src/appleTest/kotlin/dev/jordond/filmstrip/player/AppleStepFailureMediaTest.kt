@@ -3,6 +3,7 @@ package dev.jordond.filmstrip.player
 import dev.jordond.filmstrip.ComponentRegistry
 import dev.jordond.filmstrip.effect.Attributes
 import dev.jordond.filmstrip.effect.CoreImageEffect
+import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.effect.EffectResolution
 import dev.jordond.filmstrip.effect.EffectResolver
 import dev.jordond.filmstrip.effect.EffectSpec
@@ -109,13 +110,13 @@ class AppleStepFailureMediaTest {
     }
 
   private object Throwing : EffectSpec {
-    override val id: String = "dev.jordond.filmstrip.test.throwing"
+    override val id: EffectId = EffectId("dev.jordond.filmstrip.test.throwing")
   }
 
   private data class Tuned(
     val throws: Boolean,
   ) : EffectSpec {
-    override val id: String = "dev.jordond.filmstrip.test.tuned"
+    override val id: EffectId = EffectId("dev.jordond.filmstrip.test.tuned")
   }
 
   private object ThrowingResolver : EffectResolver {

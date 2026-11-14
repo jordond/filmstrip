@@ -2,6 +2,7 @@ package dev.jordond.filmstrip.effects.filters.tape
 
 import dev.drewhamilton.poko.Poko
 import dev.jordond.filmstrip.audio.AudioEffectSpec
+import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.effects.filters.vhs.TapeSpeed
 import dev.jordond.filmstrip.effects.filters.vhs.Vhs
 
@@ -44,7 +45,7 @@ public class TapeAudio(
     require(hiss in 0f..1f) { "A tape audio hiss has to be within 0 to 1, not $hiss." }
   }
 
-  override val id: String get() = ID
+  override val id: EffectId get() = ID
 
   override val isInert: Boolean
     get() = intensity == 0f || (bandLimit == 0f && hiss == 0f && wow.depth == 0f && flutter.depth == 0f && !mono)
@@ -53,7 +54,7 @@ public class TapeAudio(
     /**
      * The id every plan and notice names this effect by.
      */
-    public const val ID: String = "filmstrip.filters.tapeAudio"
+    public val ID: EffectId = EffectId("filmstrip.filters.tapeAudio")
   }
 }
 

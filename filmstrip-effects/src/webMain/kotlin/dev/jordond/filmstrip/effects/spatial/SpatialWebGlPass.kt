@@ -13,7 +13,7 @@ import dev.jordond.filmstrip.effects.color.displayLightGradeUniforms
 // linear display light with reference white at one, which the steps carry into the light the compositor grades in.
 internal fun GaussianBlur.toPass(attributes: Attributes): EffectResolution =
   pass(
-    id,
+    id.value,
     SpatialShader.blurSteps(
       this,
       attributes.hdrTransfer?.displayLightGradeUniforms(),
@@ -23,7 +23,7 @@ internal fun GaussianBlur.toPass(attributes: Attributes): EffectResolution =
 
 internal fun Vignette.toPass(attributes: Attributes): EffectResolution =
   pass(
-    id,
+    id.value,
     SpatialShader.vignetteSteps(
       this,
       attributes.hdrTransfer?.displayLightGradeUniforms(),

@@ -17,7 +17,7 @@ internal fun vhsPass(
   previewClock: PreviewClock? = null,
 ): WebGlPass =
   WebGlPass(
-    Vhs.ID,
+    Vhs.ID.value,
     listOf(
       WebGlStep(
         name = "tape",

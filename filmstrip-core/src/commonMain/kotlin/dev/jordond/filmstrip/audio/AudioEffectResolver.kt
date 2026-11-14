@@ -5,6 +5,7 @@ import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.effect.Degradation
+import dev.jordond.filmstrip.effect.EffectId
 
 /**
  * Realizes an [AudioEffectSpec] as something the current platform can run.
@@ -93,7 +94,7 @@ public sealed interface AudioEffectResolution {
    */
   @Poko
   public class Unsupported(
-    public val specId: String,
+    public val specId: EffectId,
     public val message: String,
   ) : AudioEffectResolution
 

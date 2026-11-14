@@ -8,6 +8,7 @@ import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.player.PlaybackError
 import dev.jordond.filmstrip.player.PlaybackEvent
 import dev.jordond.filmstrip.player.PlaybackStatus
+import dev.jordond.filmstrip.player.PlayerEngineId
 import dev.jordond.filmstrip.player.PlayerFeatures
 import dev.jordond.filmstrip.player.PreviewFrameReadback
 import dev.jordond.filmstrip.player.PreviewQualityPolicy
@@ -37,7 +38,7 @@ internal class MissingContextPlayerEngine(
   private val error =
     PlaybackError.Underlying(PlaybackError.Underlying.NO_PLATFORM_CODE, FilmstripContext.MISSING_CONTEXT)
 
-  override val id: String = "filmstrip.media3"
+  override val id: PlayerEngineId = PlayerEngineId("filmstrip.media3")
 
   override val features: PlayerFeatures = PlayerFeatures(emptySet())
 

@@ -8,6 +8,7 @@ import dev.jordond.filmstrip.edit.outputLengthOf
 import dev.jordond.filmstrip.edit.sourceLengthOf
 import dev.jordond.filmstrip.edit.stillHold
 import dev.jordond.filmstrip.effect.Attributes
+import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.effect.EffectIds
 import dev.jordond.filmstrip.effect.EffectResolution
 import dev.jordond.filmstrip.effect.EffectResolver
@@ -329,8 +330,8 @@ class TrackLayingTest {
    * Claims everything, keeping the span and the input frame each effect was measured against.
    */
   private class SpanRecorder : EffectResolver {
-    val spans = mutableMapOf<String, TimeRange>()
-    val inputs = mutableMapOf<String, Size>()
+    val spans = mutableMapOf<EffectId, TimeRange>()
+    val inputs = mutableMapOf<EffectId, Size>()
 
     override fun resolve(
       spec: EffectSpec,

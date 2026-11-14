@@ -3,7 +3,7 @@ package dev.jordond.filmstrip.transform.internal.geometry
 import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effect.EffectStage
-import dev.jordond.filmstrip.effect.inCanonicalOrder
+import dev.jordond.filmstrip.effect.canonicalOrder
 import dev.jordond.filmstrip.effects.geometry.Crop
 import dev.jordond.filmstrip.effects.geometry.Flip
 import dev.jordond.filmstrip.effects.geometry.Scale
@@ -104,7 +104,7 @@ public fun placementOf(
   stages: List<List<EffectSpec>>,
   naturalSize: Size,
 ): ClipPlacement {
-  val chain = stages.flatMap { it.inCanonicalOrder() }
+  val chain = stages.flatMap { canonicalOrder(it) }
   val canvases = mutableListOf<CanvasPlacement>()
   // The frame the planner measures, the frame a backend really holds, and the canvas no effect has read yet.
   var size = sourceSize

@@ -19,10 +19,9 @@ public interface EffectSpec {
   /**
    * Stable identifier, used for pipeline ordering and diagnostics.
    *
-   * Namespace it like a package, `acme.filmgrain`, so two libraries cannot collide. Never derive it
-   * from the class name, which changes under refactoring and under Objective-C export.
+   * It is the same for every instance of one kind of effect.
    */
-  public val id: String
+  public val id: EffectId
 
   /**
    * Where in the pipeline this effect runs.
@@ -146,38 +145,40 @@ public enum class EffectStage {
  * canonical pipeline order, keeps matching across releases.
  */
 public object EffectIds {
-  public const val ROTATE: String = "filmstrip.rotate"
-  public const val FLIP: String = "filmstrip.flip"
-  public const val CROP: String = "filmstrip.crop"
-  public const val CROP_RECT: String = "filmstrip.cropRect"
-  public const val KEN_BURNS: String = "filmstrip.kenBurns"
-  public const val SCALE: String = "filmstrip.scale"
-  public const val BRIGHTNESS: String = "filmstrip.brightness"
-  public const val RGB_ADJUSTMENT: String = "filmstrip.rgbAdjustment"
-  public const val CONTRAST: String = "filmstrip.contrast"
-  public const val SATURATION: String = "filmstrip.saturation"
-  public const val HUE_ROTATE: String = "filmstrip.hueRotate"
-  public const val SEPIA: String = "filmstrip.sepia"
-  public const val INVERT: String = "filmstrip.invert"
-  public const val COLOR_MATRIX: String = "filmstrip.colorMatrix"
-  public const val GAUSSIAN_BLUR: String = "filmstrip.gaussianBlur"
-  public const val VIGNETTE: String = "filmstrip.vignette"
-  public const val IMAGE_OVERLAY: String = "filmstrip.imageOverlay"
-  public const val TEXT_OVERLAY: String = "filmstrip.textOverlay"
+  public val ROTATE: EffectId = EffectId("filmstrip.rotate")
+  public val FLIP: EffectId = EffectId("filmstrip.flip")
+  public val CROP: EffectId = EffectId("filmstrip.crop")
+  public val CROP_RECT: EffectId = EffectId("filmstrip.cropRect")
+  public val KEN_BURNS: EffectId = EffectId("filmstrip.kenBurns")
+  public val SCALE: EffectId = EffectId("filmstrip.scale")
+  public val BRIGHTNESS: EffectId = EffectId("filmstrip.brightness")
+  public val RGB_ADJUSTMENT: EffectId = EffectId("filmstrip.rgbAdjustment")
+  public val CONTRAST: EffectId = EffectId("filmstrip.contrast")
+  public val SATURATION: EffectId = EffectId("filmstrip.saturation")
+  public val HUE_ROTATE: EffectId = EffectId("filmstrip.hueRotate")
+  public val SEPIA: EffectId = EffectId("filmstrip.sepia")
+  public val INVERT: EffectId = EffectId("filmstrip.invert")
+  public val COLOR_MATRIX: EffectId = EffectId("filmstrip.colorMatrix")
+  public val GAUSSIAN_BLUR: EffectId = EffectId("filmstrip.gaussianBlur")
+  public val VIGNETTE: EffectId = EffectId("filmstrip.vignette")
+  public val IMAGE_OVERLAY: EffectId = EffectId("filmstrip.imageOverlay")
+  public val TEXT_OVERLAY: EffectId = EffectId("filmstrip.textOverlay")
 }
 
 /**
- * Sorts [this] into the canonical pipeline order.
+ * Sorts [effects] into the canonical pipeline order.
  *
  * Effects sort by stage, then by filmstrip's rank within that stage, then by the order they were
  * declared. Anything without a rank lands after the ranked effects in its stage, so a third-party
  * effect's position is stable without a priority number. Within [EffectStage.Composite] an effect
  * that declares [EffectSpec.beneathOverlays] sorts ahead of every rank.
  *
+ * @param effects the effects as they were declared.
  * @return the effects in the order the pipeline runs them.
  */
-public fun List<EffectSpec>.inCanonicalOrder(): List<EffectSpec> =
-  withIndex()
+public fun canonicalOrder(effects: List<EffectSpec>): List<EffectSpec> =
+  effects
+    .withIndex()
     .sortedWith(
       compareBy(
         { (_, spec) -> spec.stage.ordinal },
@@ -193,7 +194,7 @@ public fun List<EffectSpec>.inCanonicalOrder(): List<EffectSpec> =
 // so the color stage runs exposure first, contrast on the exposed frame, the hue and tone changes
 // on that, and a caller's own matrix last as the look the rest was graded for. A vignette runs after a blur so its
 // falloff stays the shape it was given.
-private val CANONICAL_RANK: Map<String, Int> =
+private val CANONICAL_RANK: Map<EffectId, Int> =
   mapOf(
     EffectIds.ROTATE to 0,
     EffectIds.FLIP to 1,

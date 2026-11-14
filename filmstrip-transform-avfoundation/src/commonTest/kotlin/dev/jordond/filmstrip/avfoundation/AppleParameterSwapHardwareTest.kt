@@ -10,6 +10,7 @@ import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.effect.CoreImageEffect
+import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.effect.EffectStage
 import dev.jordond.filmstrip.effect.PlatformEffect
 import dev.jordond.filmstrip.export.ExportPath
@@ -430,7 +431,7 @@ class AppleParameterSwapHardwareTest {
 
   private companion object {
     const val CLIP_NAME = "apple_export_a.mp4"
-    const val SPEC_ID = "test.channel-gain"
+    val SPEC_ID = EffectId("test.channel-gain")
 
     val SOURCE = Size(640, 360)
     val OUTPUT = Size(320, 180)

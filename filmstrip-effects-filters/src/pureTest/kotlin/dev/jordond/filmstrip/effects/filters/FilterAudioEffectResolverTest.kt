@@ -5,6 +5,7 @@ import dev.jordond.filmstrip.audio.AudioAttributes
 import dev.jordond.filmstrip.audio.AudioEffectResolution
 import dev.jordond.filmstrip.audio.AudioEffectSpec
 import dev.jordond.filmstrip.edit.TimeRange
+import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.effects.filters.tape.TapeAudio
 import dev.jordond.filmstrip.effects.filters.tape.Wobble
 import io.kotest.matchers.nulls.shouldBeNull
@@ -31,6 +32,6 @@ class FilterAudioEffectResolverTest {
   }
 
   private data object Other : AudioEffectSpec {
-    override val id: String get() = "test.other"
+    override val id: EffectId get() = EffectId("test.other")
   }
 }

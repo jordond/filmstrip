@@ -12,7 +12,7 @@ import kotlin.time.DurationUnit
  */
 internal fun filmPass(film: Film): WebGlPass =
   WebGlPass(
-    Film.ID,
+    Film.ID.value,
     FilmShader.steps(film).map { step ->
       WebGlStep(
         name = step.name,

@@ -3,7 +3,7 @@ package dev.jordond.filmstrip.edit
 import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.audio.AudioEffectSpec
 import dev.jordond.filmstrip.effect.EffectSpec
-import dev.jordond.filmstrip.effect.inCanonicalOrder
+import dev.jordond.filmstrip.effect.canonicalOrder
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.media.AudioTrackId
 import dev.jordond.filmstrip.media.MediaSource
@@ -69,12 +69,12 @@ public fun diff(
 public fun Composition.effectsRevision(): Long {
   var hash = HASH_SEED
   hash = hash.mixed(timeline())
-  hash = hash.mixed(effects.inCanonicalOrder())
+  hash = hash.mixed(canonicalOrder(effects))
   hash = hash.mixed(fill)
   for (track in tracks) {
-    hash = hash.mixed(track.effects.inCanonicalOrder())
+    hash = hash.mixed(canonicalOrder(track.effects))
     for (clip in track.clips) {
-      hash = hash.mixed(clip.effects.inCanonicalOrder())
+      hash = hash.mixed(canonicalOrder(clip.effects))
     }
   }
   return hash
@@ -100,21 +100,21 @@ private fun Composition.audioTracks(): List<List<AudioTrackId?>> =
 
 private fun Composition.rendering(): Rendering =
   Rendering(
-    compositionEffects = effects.inCanonicalOrder(),
+    compositionEffects = canonicalOrder(effects),
     fill = fill,
     audio = audio,
     audioEffects = audioEffects,
     tracks =
       tracks.map { track ->
         TrackRendering(
-          effects = track.effects.inCanonicalOrder(),
+          effects = canonicalOrder(track.effects),
           audio = track.audio,
           fadeIn = track.fadeIn,
           fadeOut = track.fadeOut,
           audioEffects = track.audioEffects,
           clips =
             track.clips.map {
-              ClipRendering(it.effects.inCanonicalOrder(), it.audio, it.fadeIn, it.fadeOut, it.audioEffects)
+              ClipRendering(canonicalOrder(it.effects), it.audio, it.fadeIn, it.fadeOut, it.audioEffects)
             },
         )
       },

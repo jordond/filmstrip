@@ -7,6 +7,7 @@ import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.outputSlotTime
+import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.effect.EffectResolution
 import dev.jordond.filmstrip.effect.EffectResolver
 import dev.jordond.filmstrip.effect.EffectSpec
@@ -35,7 +36,7 @@ internal class AlphaLeftOf(
   val edge: Double,
   val alpha: Double,
 ) : EffectSpec {
-  override val id: String get() = "test.alphaLeftOf"
+  override val id: EffectId get() = EffectId("test.alphaLeftOf")
   override val stage: EffectStage get() = EffectStage.Spatial
 }
 

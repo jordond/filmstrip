@@ -21,6 +21,7 @@ import dev.jordond.filmstrip.media.VideoTrackInfo
 import dev.jordond.filmstrip.player.EngineListener
 import dev.jordond.filmstrip.player.PlaybackError
 import dev.jordond.filmstrip.player.PlayerEngine
+import dev.jordond.filmstrip.player.PlayerEngineId
 import dev.jordond.filmstrip.player.PlayerFeatures
 import dev.jordond.filmstrip.player.PreviewFrameReadback
 import dev.jordond.filmstrip.player.PreviewInfo
@@ -338,7 +339,7 @@ class SampleSessionTest {
 private class ReportingEngine(
   private val outputSize: Size,
 ) : PlayerEngine {
-  override val id: String = "reporting"
+  override val id: PlayerEngineId = PlayerEngineId("reporting")
 
   override val features: PlayerFeatures = PlayerFeatures(emptySet())
 

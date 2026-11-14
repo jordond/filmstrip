@@ -12,6 +12,7 @@ import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
+import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.export.AudioFormat
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.media3.internal.preview.toMedia3Preview
@@ -156,7 +157,7 @@ class AndroidPreviewLevelSwapMediaTest {
     @Volatile
     var onReached: (() -> Unit)? = null
 
-    override val id: String get() = "test.swap-cue"
+    override val id: EffectId get() = EffectId("test.swap-cue")
 
     fun newKernel(format: AudioFormat): AudioKernel {
       val cueFrame = (at.toDouble(DurationUnit.SECONDS) * format.sampleRate).toLong()

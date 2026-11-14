@@ -397,6 +397,7 @@ final enum class dev.jordond.filmstrip.motion/Easing : kotlin/Enum<dev.jordond.f
     final val entries // dev.jordond.filmstrip.motion/Easing.entries|#static{}entries[0]
         final fun <get-entries>(): kotlin.enums/EnumEntries<dev.jordond.filmstrip.motion/Easing> // dev.jordond.filmstrip.motion/Easing.entries.<get-entries>|<get-entries>#static(){}[0]
 
+    final fun paced(kotlin/Float): kotlin/Float // dev.jordond.filmstrip.motion/Easing.paced|paced(kotlin.Float){}[0]
     final fun valueOf(kotlin/String): dev.jordond.filmstrip.motion/Easing // dev.jordond.filmstrip.motion/Easing.valueOf|valueOf#static(kotlin.String){}[0]
     final fun values(): kotlin/Array<dev.jordond.filmstrip.motion/Easing> // dev.jordond.filmstrip.motion/Easing.values|values#static(){}[0]
 }
@@ -543,14 +544,14 @@ abstract fun interface dev.jordond.filmstrip/Cancellable { // dev.jordond.filmst
 
 abstract interface dev.jordond.filmstrip.audio/AudioEffectSpec { // dev.jordond.filmstrip.audio/AudioEffectSpec|null[0]
     abstract val id // dev.jordond.filmstrip.audio/AudioEffectSpec.id|{}id[0]
-        abstract fun <get-id>(): kotlin/String // dev.jordond.filmstrip.audio/AudioEffectSpec.id.<get-id>|<get-id>(){}[0]
+        abstract fun <get-id>(): dev.jordond.filmstrip.effect/EffectId // dev.jordond.filmstrip.audio/AudioEffectSpec.id.<get-id>|<get-id>(){}[0]
     open val isInert // dev.jordond.filmstrip.audio/AudioEffectSpec.isInert|{}isInert[0]
         open fun <get-isInert>(): kotlin/Boolean // dev.jordond.filmstrip.audio/AudioEffectSpec.isInert.<get-isInert>|<get-isInert>(){}[0]
 }
 
 abstract interface dev.jordond.filmstrip.effect/EffectSpec { // dev.jordond.filmstrip.effect/EffectSpec|null[0]
     abstract val id // dev.jordond.filmstrip.effect/EffectSpec.id|{}id[0]
-        abstract fun <get-id>(): kotlin/String // dev.jordond.filmstrip.effect/EffectSpec.id.<get-id>|<get-id>(){}[0]
+        abstract fun <get-id>(): dev.jordond.filmstrip.effect/EffectId // dev.jordond.filmstrip.effect/EffectSpec.id.<get-id>|<get-id>(){}[0]
     open val beneathOverlays // dev.jordond.filmstrip.effect/EffectSpec.beneathOverlays|{}beneathOverlays[0]
         open fun <get-beneathOverlays>(): kotlin/Boolean // dev.jordond.filmstrip.effect/EffectSpec.beneathOverlays.<get-beneathOverlays>|<get-beneathOverlays>(){}[0]
     open val isInert // dev.jordond.filmstrip.effect/EffectSpec.isInert|{}isInert[0]
@@ -576,7 +577,7 @@ abstract interface dev.jordond.filmstrip.player/PlayerEngine : dev.jordond.films
     abstract val features // dev.jordond.filmstrip.player/PlayerEngine.features|{}features[0]
         abstract fun <get-features>(): dev.jordond.filmstrip.player/PlayerFeatures // dev.jordond.filmstrip.player/PlayerEngine.features.<get-features>|<get-features>(){}[0]
     abstract val id // dev.jordond.filmstrip.player/PlayerEngine.id|{}id[0]
-        abstract fun <get-id>(): kotlin/String // dev.jordond.filmstrip.player/PlayerEngine.id.<get-id>|<get-id>(){}[0]
+        abstract fun <get-id>(): dev.jordond.filmstrip.player/PlayerEngineId // dev.jordond.filmstrip.player/PlayerEngine.id.<get-id>|<get-id>(){}[0]
     abstract val nativePlayer // dev.jordond.filmstrip.player/PlayerEngine.nativePlayer|{}nativePlayer[0]
         abstract fun <get-nativePlayer>(): kotlin/Any? // dev.jordond.filmstrip.player/PlayerEngine.nativePlayer.<get-nativePlayer>|<get-nativePlayer>(){}[0]
     abstract val readback // dev.jordond.filmstrip.player/PlayerEngine.readback|{}readback[0]
@@ -642,7 +643,7 @@ abstract interface dev.jordond.filmstrip/Filmstrip : dev.jordond.filmstrip.playe
 
     abstract fun export(dev.jordond.filmstrip.edit/Composition, dev.jordond.filmstrip.export/ExportSpec, dev.jordond.filmstrip.media/MediaSink): kotlinx.coroutines.flow/Flow<dev.jordond.filmstrip.export/ExportStatus> // dev.jordond.filmstrip/Filmstrip.export|export(dev.jordond.filmstrip.edit.Composition;dev.jordond.filmstrip.export.ExportSpec;dev.jordond.filmstrip.media.MediaSink){}[0]
     abstract fun export(dev.jordond.filmstrip.export/ExportPlan, dev.jordond.filmstrip.media/MediaSink): kotlinx.coroutines.flow/Flow<dev.jordond.filmstrip.export/ExportStatus> // dev.jordond.filmstrip/Filmstrip.export|export(dev.jordond.filmstrip.export.ExportPlan;dev.jordond.filmstrip.media.MediaSink){}[0]
-    abstract fun parityOf(kotlin/String): dev.jordond.filmstrip.capability/EffectParity? // dev.jordond.filmstrip/Filmstrip.parityOf|parityOf(kotlin.String){}[0]
+    abstract fun parityOf(dev.jordond.filmstrip.effect/EffectId): dev.jordond.filmstrip.capability/EffectParity? // dev.jordond.filmstrip/Filmstrip.parityOf|parityOf(dev.jordond.filmstrip.effect.EffectId){}[0]
     abstract suspend fun capabilities(): dev.jordond.filmstrip/CapabilitiesResult // dev.jordond.filmstrip/Filmstrip.capabilities|capabilities(){}[0]
     abstract suspend fun plan(dev.jordond.filmstrip.edit/Composition, dev.jordond.filmstrip.export/ExportSpec): dev.jordond.filmstrip.export/Verdict // dev.jordond.filmstrip/Filmstrip.plan|plan(dev.jordond.filmstrip.edit.Composition;dev.jordond.filmstrip.export.ExportSpec){}[0]
     abstract suspend fun probe(dev.jordond.filmstrip.media/MediaSource): dev.jordond.filmstrip.media/ProbeResult // dev.jordond.filmstrip/Filmstrip.probe|probe(dev.jordond.filmstrip.media.MediaSource){}[0]
@@ -685,12 +686,12 @@ sealed interface dev.jordond.filmstrip.audio/AudioEffectResolution { // dev.jord
     }
 
     final class Unsupported : dev.jordond.filmstrip.audio/AudioEffectResolution { // dev.jordond.filmstrip.audio/AudioEffectResolution.Unsupported|null[0]
-        constructor <init>(kotlin/String, kotlin/String) // dev.jordond.filmstrip.audio/AudioEffectResolution.Unsupported.<init>|<init>(kotlin.String;kotlin.String){}[0]
+        constructor <init>(dev.jordond.filmstrip.effect/EffectId, kotlin/String) // dev.jordond.filmstrip.audio/AudioEffectResolution.Unsupported.<init>|<init>(dev.jordond.filmstrip.effect.EffectId;kotlin.String){}[0]
 
         final val message // dev.jordond.filmstrip.audio/AudioEffectResolution.Unsupported.message|{}message[0]
             final fun <get-message>(): kotlin/String // dev.jordond.filmstrip.audio/AudioEffectResolution.Unsupported.message.<get-message>|<get-message>(){}[0]
         final val specId // dev.jordond.filmstrip.audio/AudioEffectResolution.Unsupported.specId|{}specId[0]
-            final fun <get-specId>(): kotlin/String // dev.jordond.filmstrip.audio/AudioEffectResolution.Unsupported.specId.<get-specId>|<get-specId>(){}[0]
+            final fun <get-specId>(): dev.jordond.filmstrip.effect/EffectId // dev.jordond.filmstrip.audio/AudioEffectResolution.Unsupported.specId.<get-specId>|<get-specId>(){}[0]
 
         final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.audio/AudioEffectResolution.Unsupported.equals|equals(kotlin.Any?){}[0]
         final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.audio/AudioEffectResolution.Unsupported.hashCode|hashCode(){}[0]
@@ -808,12 +809,12 @@ sealed interface dev.jordond.filmstrip.effect/EffectResolution { // dev.jordond.
     }
 
     final class Unsupported : dev.jordond.filmstrip.effect/EffectResolution { // dev.jordond.filmstrip.effect/EffectResolution.Unsupported|null[0]
-        constructor <init>(kotlin/String, kotlin/String) // dev.jordond.filmstrip.effect/EffectResolution.Unsupported.<init>|<init>(kotlin.String;kotlin.String){}[0]
+        constructor <init>(dev.jordond.filmstrip.effect/EffectId, kotlin/String) // dev.jordond.filmstrip.effect/EffectResolution.Unsupported.<init>|<init>(dev.jordond.filmstrip.effect.EffectId;kotlin.String){}[0]
 
         final val message // dev.jordond.filmstrip.effect/EffectResolution.Unsupported.message|{}message[0]
             final fun <get-message>(): kotlin/String // dev.jordond.filmstrip.effect/EffectResolution.Unsupported.message.<get-message>|<get-message>(){}[0]
         final val specId // dev.jordond.filmstrip.effect/EffectResolution.Unsupported.specId|{}specId[0]
-            final fun <get-specId>(): kotlin/String // dev.jordond.filmstrip.effect/EffectResolution.Unsupported.specId.<get-specId>|<get-specId>(){}[0]
+            final fun <get-specId>(): dev.jordond.filmstrip.effect/EffectId // dev.jordond.filmstrip.effect/EffectResolution.Unsupported.specId.<get-specId>|<get-specId>(){}[0]
 
         final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.effect/EffectResolution.Unsupported.equals|equals(kotlin.Any?){}[0]
         final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.effect/EffectResolution.Unsupported.hashCode|hashCode(){}[0]
@@ -1629,12 +1630,12 @@ sealed interface dev.jordond.filmstrip/FilmstripError { // dev.jordond.filmstrip
     }
 
     final class PlatformEffectAsymmetry : dev.jordond.filmstrip/FilmstripError { // dev.jordond.filmstrip/FilmstripError.PlatformEffectAsymmetry|null[0]
-        constructor <init>(kotlin/String, kotlin/String) // dev.jordond.filmstrip/FilmstripError.PlatformEffectAsymmetry.<init>|<init>(kotlin.String;kotlin.String){}[0]
+        constructor <init>(dev.jordond.filmstrip.effect/EffectId, kotlin/String) // dev.jordond.filmstrip/FilmstripError.PlatformEffectAsymmetry.<init>|<init>(dev.jordond.filmstrip.effect.EffectId;kotlin.String){}[0]
 
         final val message // dev.jordond.filmstrip/FilmstripError.PlatformEffectAsymmetry.message|{}message[0]
             final fun <get-message>(): kotlin/String // dev.jordond.filmstrip/FilmstripError.PlatformEffectAsymmetry.message.<get-message>|<get-message>(){}[0]
         final val specId // dev.jordond.filmstrip/FilmstripError.PlatformEffectAsymmetry.specId|{}specId[0]
-            final fun <get-specId>(): kotlin/String // dev.jordond.filmstrip/FilmstripError.PlatformEffectAsymmetry.specId.<get-specId>|<get-specId>(){}[0]
+            final fun <get-specId>(): dev.jordond.filmstrip.effect/EffectId // dev.jordond.filmstrip/FilmstripError.PlatformEffectAsymmetry.specId.<get-specId>|<get-specId>(){}[0]
 
         final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip/FilmstripError.PlatformEffectAsymmetry.equals|equals(kotlin.Any?){}[0]
         final fun hashCode(): kotlin/Int // dev.jordond.filmstrip/FilmstripError.PlatformEffectAsymmetry.hashCode|hashCode(){}[0]
@@ -1727,12 +1728,12 @@ sealed interface dev.jordond.filmstrip/FilmstripError { // dev.jordond.filmstrip
     }
 
     final class UnpreviewableEffect : dev.jordond.filmstrip/FilmstripError { // dev.jordond.filmstrip/FilmstripError.UnpreviewableEffect|null[0]
-        constructor <init>(kotlin/String, kotlin/String) // dev.jordond.filmstrip/FilmstripError.UnpreviewableEffect.<init>|<init>(kotlin.String;kotlin.String){}[0]
+        constructor <init>(dev.jordond.filmstrip.effect/EffectId, kotlin/String) // dev.jordond.filmstrip/FilmstripError.UnpreviewableEffect.<init>|<init>(dev.jordond.filmstrip.effect.EffectId;kotlin.String){}[0]
 
         final val message // dev.jordond.filmstrip/FilmstripError.UnpreviewableEffect.message|{}message[0]
             final fun <get-message>(): kotlin/String // dev.jordond.filmstrip/FilmstripError.UnpreviewableEffect.message.<get-message>|<get-message>(){}[0]
         final val specId // dev.jordond.filmstrip/FilmstripError.UnpreviewableEffect.specId|{}specId[0]
-            final fun <get-specId>(): kotlin/String // dev.jordond.filmstrip/FilmstripError.UnpreviewableEffect.specId.<get-specId>|<get-specId>(){}[0]
+            final fun <get-specId>(): dev.jordond.filmstrip.effect/EffectId // dev.jordond.filmstrip/FilmstripError.UnpreviewableEffect.specId.<get-specId>|<get-specId>(){}[0]
 
         final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip/FilmstripError.UnpreviewableEffect.equals|equals(kotlin.Any?){}[0]
         final fun hashCode(): kotlin/Int // dev.jordond.filmstrip/FilmstripError.UnpreviewableEffect.hashCode|hashCode(){}[0]
@@ -1740,12 +1741,12 @@ sealed interface dev.jordond.filmstrip/FilmstripError { // dev.jordond.filmstrip
     }
 
     final class UnsupportedEffect : dev.jordond.filmstrip/FilmstripError { // dev.jordond.filmstrip/FilmstripError.UnsupportedEffect|null[0]
-        constructor <init>(kotlin/String, kotlin/String) // dev.jordond.filmstrip/FilmstripError.UnsupportedEffect.<init>|<init>(kotlin.String;kotlin.String){}[0]
+        constructor <init>(dev.jordond.filmstrip.effect/EffectId, kotlin/String) // dev.jordond.filmstrip/FilmstripError.UnsupportedEffect.<init>|<init>(dev.jordond.filmstrip.effect.EffectId;kotlin.String){}[0]
 
         final val message // dev.jordond.filmstrip/FilmstripError.UnsupportedEffect.message|{}message[0]
             final fun <get-message>(): kotlin/String // dev.jordond.filmstrip/FilmstripError.UnsupportedEffect.message.<get-message>|<get-message>(){}[0]
         final val specId // dev.jordond.filmstrip/FilmstripError.UnsupportedEffect.specId|{}specId[0]
-            final fun <get-specId>(): kotlin/String // dev.jordond.filmstrip/FilmstripError.UnsupportedEffect.specId.<get-specId>|<get-specId>(){}[0]
+            final fun <get-specId>(): dev.jordond.filmstrip.effect/EffectId // dev.jordond.filmstrip/FilmstripError.UnsupportedEffect.specId.<get-specId>|<get-specId>(){}[0]
 
         final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip/FilmstripError.UnsupportedEffect.equals|equals(kotlin.Any?){}[0]
         final fun hashCode(): kotlin/Int // dev.jordond.filmstrip/FilmstripError.UnsupportedEffect.hashCode|hashCode(){}[0]
@@ -1863,14 +1864,14 @@ final class dev.jordond.filmstrip.capability/FidelityNote { // dev.jordond.films
 }
 
 final class dev.jordond.filmstrip.capability/ParityNote { // dev.jordond.filmstrip.capability/ParityNote|null[0]
-    constructor <init>(kotlin/String, dev.jordond.filmstrip.capability/EffectParity, kotlin/String) // dev.jordond.filmstrip.capability/ParityNote.<init>|<init>(kotlin.String;dev.jordond.filmstrip.capability.EffectParity;kotlin.String){}[0]
+    constructor <init>(dev.jordond.filmstrip.effect/EffectId, dev.jordond.filmstrip.capability/EffectParity, kotlin/String) // dev.jordond.filmstrip.capability/ParityNote.<init>|<init>(dev.jordond.filmstrip.effect.EffectId;dev.jordond.filmstrip.capability.EffectParity;kotlin.String){}[0]
 
     final val message // dev.jordond.filmstrip.capability/ParityNote.message|{}message[0]
         final fun <get-message>(): kotlin/String // dev.jordond.filmstrip.capability/ParityNote.message.<get-message>|<get-message>(){}[0]
     final val parity // dev.jordond.filmstrip.capability/ParityNote.parity|{}parity[0]
         final fun <get-parity>(): dev.jordond.filmstrip.capability/EffectParity // dev.jordond.filmstrip.capability/ParityNote.parity.<get-parity>|<get-parity>(){}[0]
     final val specId // dev.jordond.filmstrip.capability/ParityNote.specId|{}specId[0]
-        final fun <get-specId>(): kotlin/String // dev.jordond.filmstrip.capability/ParityNote.specId.<get-specId>|<get-specId>(){}[0]
+        final fun <get-specId>(): dev.jordond.filmstrip.effect/EffectId // dev.jordond.filmstrip.capability/ParityNote.specId.<get-specId>|<get-specId>(){}[0]
 
     final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.capability/ParityNote.equals|equals(kotlin.Any?){}[0]
     final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.capability/ParityNote.hashCode|hashCode(){}[0]
@@ -1899,24 +1900,6 @@ final class dev.jordond.filmstrip.capability/VideoEncoderCapability { // dev.jor
     final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.capability/VideoEncoderCapability.equals|equals(kotlin.Any?){}[0]
     final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.capability/VideoEncoderCapability.hashCode|hashCode(){}[0]
     final fun toString(): kotlin/String // dev.jordond.filmstrip.capability/VideoEncoderCapability.toString|toString(){}[0]
-}
-
-final class dev.jordond.filmstrip.codec/Bitrate { // dev.jordond.filmstrip.codec/Bitrate|null[0]
-    constructor <init>(kotlin/Long) // dev.jordond.filmstrip.codec/Bitrate.<init>|<init>(kotlin.Long){}[0]
-
-    final val bitsPerSecond // dev.jordond.filmstrip.codec/Bitrate.bitsPerSecond|{}bitsPerSecond[0]
-        final fun <get-bitsPerSecond>(): kotlin/Long // dev.jordond.filmstrip.codec/Bitrate.bitsPerSecond.<get-bitsPerSecond>|<get-bitsPerSecond>(){}[0]
-
-    final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.codec/Bitrate.equals|equals(kotlin.Any?){}[0]
-    final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.codec/Bitrate.hashCode|hashCode(){}[0]
-    final fun toString(): kotlin/String // dev.jordond.filmstrip.codec/Bitrate.toString|toString(){}[0]
-
-    final object Companion { // dev.jordond.filmstrip.codec/Bitrate.Companion|null[0]
-        final fun kbps(kotlin/Double): dev.jordond.filmstrip.codec/Bitrate // dev.jordond.filmstrip.codec/Bitrate.Companion.kbps|kbps(kotlin.Double){}[0]
-        final fun kbps(kotlin/Int): dev.jordond.filmstrip.codec/Bitrate // dev.jordond.filmstrip.codec/Bitrate.Companion.kbps|kbps(kotlin.Int){}[0]
-        final fun mbps(kotlin/Double): dev.jordond.filmstrip.codec/Bitrate // dev.jordond.filmstrip.codec/Bitrate.Companion.mbps|mbps(kotlin.Double){}[0]
-        final fun mbps(kotlin/Int): dev.jordond.filmstrip.codec/Bitrate // dev.jordond.filmstrip.codec/Bitrate.Companion.mbps|mbps(kotlin.Int){}[0]
-    }
 }
 
 final class dev.jordond.filmstrip.diagnostics/BackendInfo { // dev.jordond.filmstrip.diagnostics/BackendInfo|null[0]
@@ -2837,6 +2820,35 @@ final class dev.jordond.filmstrip/FilmstripBuilder { // dev.jordond.filmstrip/Fi
     final fun components(kotlin/Function1<dev.jordond.filmstrip/ComponentRegistry.Builder, kotlin/Unit>): dev.jordond.filmstrip/FilmstripBuilder // dev.jordond.filmstrip/FilmstripBuilder.components|components(kotlin.Function1<dev.jordond.filmstrip.ComponentRegistry.Builder,kotlin.Unit>){}[0]
 }
 
+final value class dev.jordond.filmstrip.codec/Bitrate { // dev.jordond.filmstrip.codec/Bitrate|null[0]
+    constructor <init>(kotlin/Long) // dev.jordond.filmstrip.codec/Bitrate.<init>|<init>(kotlin.Long){}[0]
+
+    final val bitsPerSecond // dev.jordond.filmstrip.codec/Bitrate.bitsPerSecond|{}bitsPerSecond[0]
+        final fun <get-bitsPerSecond>(): kotlin/Long // dev.jordond.filmstrip.codec/Bitrate.bitsPerSecond.<get-bitsPerSecond>|<get-bitsPerSecond>(){}[0]
+
+    final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.codec/Bitrate.equals|equals(kotlin.Any?){}[0]
+    final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.codec/Bitrate.hashCode|hashCode(){}[0]
+    final fun toString(): kotlin/String // dev.jordond.filmstrip.codec/Bitrate.toString|toString(){}[0]
+
+    final object Companion { // dev.jordond.filmstrip.codec/Bitrate.Companion|null[0]
+        final fun kbps(kotlin/Double): dev.jordond.filmstrip.codec/Bitrate // dev.jordond.filmstrip.codec/Bitrate.Companion.kbps|kbps(kotlin.Double){}[0]
+        final fun kbps(kotlin/Int): dev.jordond.filmstrip.codec/Bitrate // dev.jordond.filmstrip.codec/Bitrate.Companion.kbps|kbps(kotlin.Int){}[0]
+        final fun mbps(kotlin/Double): dev.jordond.filmstrip.codec/Bitrate // dev.jordond.filmstrip.codec/Bitrate.Companion.mbps|mbps(kotlin.Double){}[0]
+        final fun mbps(kotlin/Int): dev.jordond.filmstrip.codec/Bitrate // dev.jordond.filmstrip.codec/Bitrate.Companion.mbps|mbps(kotlin.Int){}[0]
+    }
+}
+
+final value class dev.jordond.filmstrip.effect/EffectId { // dev.jordond.filmstrip.effect/EffectId|null[0]
+    constructor <init>(kotlin/String) // dev.jordond.filmstrip.effect/EffectId.<init>|<init>(kotlin.String){}[0]
+
+    final val value // dev.jordond.filmstrip.effect/EffectId.value|{}value[0]
+        final fun <get-value>(): kotlin/String // dev.jordond.filmstrip.effect/EffectId.value.<get-value>|<get-value>(){}[0]
+
+    final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.effect/EffectId.equals|equals(kotlin.Any?){}[0]
+    final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.effect/EffectId.hashCode|hashCode(){}[0]
+    final fun toString(): kotlin/String // dev.jordond.filmstrip.effect/EffectId.toString|toString(){}[0]
+}
+
 final value class dev.jordond.filmstrip.media/AudioTrackId { // dev.jordond.filmstrip.media/AudioTrackId|null[0]
     constructor <init>(kotlin/Long) // dev.jordond.filmstrip.media/AudioTrackId.<init>|<init>(kotlin.Long){}[0]
 
@@ -2848,43 +2860,54 @@ final value class dev.jordond.filmstrip.media/AudioTrackId { // dev.jordond.film
     final fun toString(): kotlin/String // dev.jordond.filmstrip.media/AudioTrackId.toString|toString(){}[0]
 }
 
+final value class dev.jordond.filmstrip.player/PlayerEngineId { // dev.jordond.filmstrip.player/PlayerEngineId|null[0]
+    constructor <init>(kotlin/String) // dev.jordond.filmstrip.player/PlayerEngineId.<init>|<init>(kotlin.String){}[0]
+
+    final val value // dev.jordond.filmstrip.player/PlayerEngineId.value|{}value[0]
+        final fun <get-value>(): kotlin/String // dev.jordond.filmstrip.player/PlayerEngineId.value.<get-value>|<get-value>(){}[0]
+
+    final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.player/PlayerEngineId.equals|equals(kotlin.Any?){}[0]
+    final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.player/PlayerEngineId.hashCode|hashCode(){}[0]
+    final fun toString(): kotlin/String // dev.jordond.filmstrip.player/PlayerEngineId.toString|toString(){}[0]
+}
+
 final object dev.jordond.filmstrip.effect/EffectIds { // dev.jordond.filmstrip.effect/EffectIds|null[0]
-    final const val BRIGHTNESS // dev.jordond.filmstrip.effect/EffectIds.BRIGHTNESS|{}BRIGHTNESS[0]
-        final fun <get-BRIGHTNESS>(): kotlin/String // dev.jordond.filmstrip.effect/EffectIds.BRIGHTNESS.<get-BRIGHTNESS>|<get-BRIGHTNESS>(){}[0]
-    final const val COLOR_MATRIX // dev.jordond.filmstrip.effect/EffectIds.COLOR_MATRIX|{}COLOR_MATRIX[0]
-        final fun <get-COLOR_MATRIX>(): kotlin/String // dev.jordond.filmstrip.effect/EffectIds.COLOR_MATRIX.<get-COLOR_MATRIX>|<get-COLOR_MATRIX>(){}[0]
-    final const val CONTRAST // dev.jordond.filmstrip.effect/EffectIds.CONTRAST|{}CONTRAST[0]
-        final fun <get-CONTRAST>(): kotlin/String // dev.jordond.filmstrip.effect/EffectIds.CONTRAST.<get-CONTRAST>|<get-CONTRAST>(){}[0]
-    final const val CROP // dev.jordond.filmstrip.effect/EffectIds.CROP|{}CROP[0]
-        final fun <get-CROP>(): kotlin/String // dev.jordond.filmstrip.effect/EffectIds.CROP.<get-CROP>|<get-CROP>(){}[0]
-    final const val CROP_RECT // dev.jordond.filmstrip.effect/EffectIds.CROP_RECT|{}CROP_RECT[0]
-        final fun <get-CROP_RECT>(): kotlin/String // dev.jordond.filmstrip.effect/EffectIds.CROP_RECT.<get-CROP_RECT>|<get-CROP_RECT>(){}[0]
-    final const val FLIP // dev.jordond.filmstrip.effect/EffectIds.FLIP|{}FLIP[0]
-        final fun <get-FLIP>(): kotlin/String // dev.jordond.filmstrip.effect/EffectIds.FLIP.<get-FLIP>|<get-FLIP>(){}[0]
-    final const val GAUSSIAN_BLUR // dev.jordond.filmstrip.effect/EffectIds.GAUSSIAN_BLUR|{}GAUSSIAN_BLUR[0]
-        final fun <get-GAUSSIAN_BLUR>(): kotlin/String // dev.jordond.filmstrip.effect/EffectIds.GAUSSIAN_BLUR.<get-GAUSSIAN_BLUR>|<get-GAUSSIAN_BLUR>(){}[0]
-    final const val HUE_ROTATE // dev.jordond.filmstrip.effect/EffectIds.HUE_ROTATE|{}HUE_ROTATE[0]
-        final fun <get-HUE_ROTATE>(): kotlin/String // dev.jordond.filmstrip.effect/EffectIds.HUE_ROTATE.<get-HUE_ROTATE>|<get-HUE_ROTATE>(){}[0]
-    final const val IMAGE_OVERLAY // dev.jordond.filmstrip.effect/EffectIds.IMAGE_OVERLAY|{}IMAGE_OVERLAY[0]
-        final fun <get-IMAGE_OVERLAY>(): kotlin/String // dev.jordond.filmstrip.effect/EffectIds.IMAGE_OVERLAY.<get-IMAGE_OVERLAY>|<get-IMAGE_OVERLAY>(){}[0]
-    final const val INVERT // dev.jordond.filmstrip.effect/EffectIds.INVERT|{}INVERT[0]
-        final fun <get-INVERT>(): kotlin/String // dev.jordond.filmstrip.effect/EffectIds.INVERT.<get-INVERT>|<get-INVERT>(){}[0]
-    final const val KEN_BURNS // dev.jordond.filmstrip.effect/EffectIds.KEN_BURNS|{}KEN_BURNS[0]
-        final fun <get-KEN_BURNS>(): kotlin/String // dev.jordond.filmstrip.effect/EffectIds.KEN_BURNS.<get-KEN_BURNS>|<get-KEN_BURNS>(){}[0]
-    final const val RGB_ADJUSTMENT // dev.jordond.filmstrip.effect/EffectIds.RGB_ADJUSTMENT|{}RGB_ADJUSTMENT[0]
-        final fun <get-RGB_ADJUSTMENT>(): kotlin/String // dev.jordond.filmstrip.effect/EffectIds.RGB_ADJUSTMENT.<get-RGB_ADJUSTMENT>|<get-RGB_ADJUSTMENT>(){}[0]
-    final const val ROTATE // dev.jordond.filmstrip.effect/EffectIds.ROTATE|{}ROTATE[0]
-        final fun <get-ROTATE>(): kotlin/String // dev.jordond.filmstrip.effect/EffectIds.ROTATE.<get-ROTATE>|<get-ROTATE>(){}[0]
-    final const val SATURATION // dev.jordond.filmstrip.effect/EffectIds.SATURATION|{}SATURATION[0]
-        final fun <get-SATURATION>(): kotlin/String // dev.jordond.filmstrip.effect/EffectIds.SATURATION.<get-SATURATION>|<get-SATURATION>(){}[0]
-    final const val SCALE // dev.jordond.filmstrip.effect/EffectIds.SCALE|{}SCALE[0]
-        final fun <get-SCALE>(): kotlin/String // dev.jordond.filmstrip.effect/EffectIds.SCALE.<get-SCALE>|<get-SCALE>(){}[0]
-    final const val SEPIA // dev.jordond.filmstrip.effect/EffectIds.SEPIA|{}SEPIA[0]
-        final fun <get-SEPIA>(): kotlin/String // dev.jordond.filmstrip.effect/EffectIds.SEPIA.<get-SEPIA>|<get-SEPIA>(){}[0]
-    final const val TEXT_OVERLAY // dev.jordond.filmstrip.effect/EffectIds.TEXT_OVERLAY|{}TEXT_OVERLAY[0]
-        final fun <get-TEXT_OVERLAY>(): kotlin/String // dev.jordond.filmstrip.effect/EffectIds.TEXT_OVERLAY.<get-TEXT_OVERLAY>|<get-TEXT_OVERLAY>(){}[0]
-    final const val VIGNETTE // dev.jordond.filmstrip.effect/EffectIds.VIGNETTE|{}VIGNETTE[0]
-        final fun <get-VIGNETTE>(): kotlin/String // dev.jordond.filmstrip.effect/EffectIds.VIGNETTE.<get-VIGNETTE>|<get-VIGNETTE>(){}[0]
+    final val BRIGHTNESS // dev.jordond.filmstrip.effect/EffectIds.BRIGHTNESS|{}BRIGHTNESS[0]
+        final fun <get-BRIGHTNESS>(): dev.jordond.filmstrip.effect/EffectId // dev.jordond.filmstrip.effect/EffectIds.BRIGHTNESS.<get-BRIGHTNESS>|<get-BRIGHTNESS>(){}[0]
+    final val COLOR_MATRIX // dev.jordond.filmstrip.effect/EffectIds.COLOR_MATRIX|{}COLOR_MATRIX[0]
+        final fun <get-COLOR_MATRIX>(): dev.jordond.filmstrip.effect/EffectId // dev.jordond.filmstrip.effect/EffectIds.COLOR_MATRIX.<get-COLOR_MATRIX>|<get-COLOR_MATRIX>(){}[0]
+    final val CONTRAST // dev.jordond.filmstrip.effect/EffectIds.CONTRAST|{}CONTRAST[0]
+        final fun <get-CONTRAST>(): dev.jordond.filmstrip.effect/EffectId // dev.jordond.filmstrip.effect/EffectIds.CONTRAST.<get-CONTRAST>|<get-CONTRAST>(){}[0]
+    final val CROP // dev.jordond.filmstrip.effect/EffectIds.CROP|{}CROP[0]
+        final fun <get-CROP>(): dev.jordond.filmstrip.effect/EffectId // dev.jordond.filmstrip.effect/EffectIds.CROP.<get-CROP>|<get-CROP>(){}[0]
+    final val CROP_RECT // dev.jordond.filmstrip.effect/EffectIds.CROP_RECT|{}CROP_RECT[0]
+        final fun <get-CROP_RECT>(): dev.jordond.filmstrip.effect/EffectId // dev.jordond.filmstrip.effect/EffectIds.CROP_RECT.<get-CROP_RECT>|<get-CROP_RECT>(){}[0]
+    final val FLIP // dev.jordond.filmstrip.effect/EffectIds.FLIP|{}FLIP[0]
+        final fun <get-FLIP>(): dev.jordond.filmstrip.effect/EffectId // dev.jordond.filmstrip.effect/EffectIds.FLIP.<get-FLIP>|<get-FLIP>(){}[0]
+    final val GAUSSIAN_BLUR // dev.jordond.filmstrip.effect/EffectIds.GAUSSIAN_BLUR|{}GAUSSIAN_BLUR[0]
+        final fun <get-GAUSSIAN_BLUR>(): dev.jordond.filmstrip.effect/EffectId // dev.jordond.filmstrip.effect/EffectIds.GAUSSIAN_BLUR.<get-GAUSSIAN_BLUR>|<get-GAUSSIAN_BLUR>(){}[0]
+    final val HUE_ROTATE // dev.jordond.filmstrip.effect/EffectIds.HUE_ROTATE|{}HUE_ROTATE[0]
+        final fun <get-HUE_ROTATE>(): dev.jordond.filmstrip.effect/EffectId // dev.jordond.filmstrip.effect/EffectIds.HUE_ROTATE.<get-HUE_ROTATE>|<get-HUE_ROTATE>(){}[0]
+    final val IMAGE_OVERLAY // dev.jordond.filmstrip.effect/EffectIds.IMAGE_OVERLAY|{}IMAGE_OVERLAY[0]
+        final fun <get-IMAGE_OVERLAY>(): dev.jordond.filmstrip.effect/EffectId // dev.jordond.filmstrip.effect/EffectIds.IMAGE_OVERLAY.<get-IMAGE_OVERLAY>|<get-IMAGE_OVERLAY>(){}[0]
+    final val INVERT // dev.jordond.filmstrip.effect/EffectIds.INVERT|{}INVERT[0]
+        final fun <get-INVERT>(): dev.jordond.filmstrip.effect/EffectId // dev.jordond.filmstrip.effect/EffectIds.INVERT.<get-INVERT>|<get-INVERT>(){}[0]
+    final val KEN_BURNS // dev.jordond.filmstrip.effect/EffectIds.KEN_BURNS|{}KEN_BURNS[0]
+        final fun <get-KEN_BURNS>(): dev.jordond.filmstrip.effect/EffectId // dev.jordond.filmstrip.effect/EffectIds.KEN_BURNS.<get-KEN_BURNS>|<get-KEN_BURNS>(){}[0]
+    final val RGB_ADJUSTMENT // dev.jordond.filmstrip.effect/EffectIds.RGB_ADJUSTMENT|{}RGB_ADJUSTMENT[0]
+        final fun <get-RGB_ADJUSTMENT>(): dev.jordond.filmstrip.effect/EffectId // dev.jordond.filmstrip.effect/EffectIds.RGB_ADJUSTMENT.<get-RGB_ADJUSTMENT>|<get-RGB_ADJUSTMENT>(){}[0]
+    final val ROTATE // dev.jordond.filmstrip.effect/EffectIds.ROTATE|{}ROTATE[0]
+        final fun <get-ROTATE>(): dev.jordond.filmstrip.effect/EffectId // dev.jordond.filmstrip.effect/EffectIds.ROTATE.<get-ROTATE>|<get-ROTATE>(){}[0]
+    final val SATURATION // dev.jordond.filmstrip.effect/EffectIds.SATURATION|{}SATURATION[0]
+        final fun <get-SATURATION>(): dev.jordond.filmstrip.effect/EffectId // dev.jordond.filmstrip.effect/EffectIds.SATURATION.<get-SATURATION>|<get-SATURATION>(){}[0]
+    final val SCALE // dev.jordond.filmstrip.effect/EffectIds.SCALE|{}SCALE[0]
+        final fun <get-SCALE>(): dev.jordond.filmstrip.effect/EffectId // dev.jordond.filmstrip.effect/EffectIds.SCALE.<get-SCALE>|<get-SCALE>(){}[0]
+    final val SEPIA // dev.jordond.filmstrip.effect/EffectIds.SEPIA|{}SEPIA[0]
+        final fun <get-SEPIA>(): dev.jordond.filmstrip.effect/EffectId // dev.jordond.filmstrip.effect/EffectIds.SEPIA.<get-SEPIA>|<get-SEPIA>(){}[0]
+    final val TEXT_OVERLAY // dev.jordond.filmstrip.effect/EffectIds.TEXT_OVERLAY|{}TEXT_OVERLAY[0]
+        final fun <get-TEXT_OVERLAY>(): dev.jordond.filmstrip.effect/EffectId // dev.jordond.filmstrip.effect/EffectIds.TEXT_OVERLAY.<get-TEXT_OVERLAY>|<get-TEXT_OVERLAY>(){}[0]
+    final val VIGNETTE // dev.jordond.filmstrip.effect/EffectIds.VIGNETTE|{}VIGNETTE[0]
+        final fun <get-VIGNETTE>(): dev.jordond.filmstrip.effect/EffectId // dev.jordond.filmstrip.effect/EffectIds.VIGNETTE.<get-VIGNETTE>|<get-VIGNETTE>(){}[0]
 }
 
 final object dev.jordond.filmstrip/FilmstripVersion { // dev.jordond.filmstrip/FilmstripVersion|null[0]
@@ -2892,17 +2915,12 @@ final object dev.jordond.filmstrip/FilmstripVersion { // dev.jordond.filmstrip/F
         final fun <get-name>(): kotlin/String // dev.jordond.filmstrip/FilmstripVersion.name.<get-name>|<get-name>(){}[0]
 }
 
-final val dev.jordond.filmstrip.codec/Kbps // dev.jordond.filmstrip.codec/Kbps|@kotlin.Int{}Kbps[0]
-    final fun (kotlin/Int).<get-Kbps>(): dev.jordond.filmstrip.codec/Bitrate // dev.jordond.filmstrip.codec/Kbps.<get-Kbps>|<get-Kbps>@kotlin.Int(){}[0]
-final val dev.jordond.filmstrip.codec/Mbps // dev.jordond.filmstrip.codec/Mbps|@kotlin.Int{}Mbps[0]
-    final fun (kotlin/Int).<get-Mbps>(): dev.jordond.filmstrip.codec/Bitrate // dev.jordond.filmstrip.codec/Mbps.<get-Mbps>|<get-Mbps>@kotlin.Int(){}[0]
 final val dev.jordond.filmstrip.edit/CLIP_SPEED_RANGE // dev.jordond.filmstrip.edit/CLIP_SPEED_RANGE|{}CLIP_SPEED_RANGE[0]
     final fun <get-CLIP_SPEED_RANGE>(): kotlin.ranges/ClosedFloatingPointRange<kotlin/Double> // dev.jordond.filmstrip.edit/CLIP_SPEED_RANGE.<get-CLIP_SPEED_RANGE>|<get-CLIP_SPEED_RANGE>(){}[0]
 
-final fun (dev.jordond.filmstrip.motion/Easing).dev.jordond.filmstrip.motion/paced(kotlin/Float): kotlin/Float // dev.jordond.filmstrip.motion/paced|paced@dev.jordond.filmstrip.motion.Easing(kotlin.Float){}[0]
-final fun (kotlin.collections/List<dev.jordond.filmstrip.effect/EffectSpec>).dev.jordond.filmstrip.effect/inCanonicalOrder(): kotlin.collections/List<dev.jordond.filmstrip.effect/EffectSpec> // dev.jordond.filmstrip.effect/inCanonicalOrder|inCanonicalOrder@kotlin.collections.List<dev.jordond.filmstrip.effect.EffectSpec>(){}[0]
 final fun dev.jordond.filmstrip.edit/TimeRange(kotlin.ranges/ClosedRange<kotlin.time/Duration>): dev.jordond.filmstrip.edit/TimeRange // dev.jordond.filmstrip.edit/TimeRange|TimeRange(kotlin.ranges.ClosedRange<kotlin.time.Duration>){}[0]
 final fun dev.jordond.filmstrip.edit/compositionOf(kotlin/Function1<dev.jordond.filmstrip.edit/CompositionBuilder, kotlin/Unit>): dev.jordond.filmstrip.edit/Composition // dev.jordond.filmstrip.edit/compositionOf|compositionOf(kotlin.Function1<dev.jordond.filmstrip.edit.CompositionBuilder,kotlin.Unit>){}[0]
+final fun dev.jordond.filmstrip.effect/canonicalOrder(kotlin.collections/List<dev.jordond.filmstrip.effect/EffectSpec>): kotlin.collections/List<dev.jordond.filmstrip.effect/EffectSpec> // dev.jordond.filmstrip.effect/canonicalOrder|canonicalOrder(kotlin.collections.List<dev.jordond.filmstrip.effect.EffectSpec>){}[0]
 final fun dev.jordond.filmstrip/Filmstrip(kotlin/Function1<dev.jordond.filmstrip/FilmstripBuilder, kotlin/Unit> = ...): dev.jordond.filmstrip/Filmstrip // dev.jordond.filmstrip/Filmstrip|Filmstrip(kotlin.Function1<dev.jordond.filmstrip.FilmstripBuilder,kotlin.Unit>){}[0]
 final suspend fun (dev.jordond.filmstrip.media/PlatformImage).dev.jordond.filmstrip.still/encodeStill(dev.jordond.filmstrip.still/StillSpec = ...): dev.jordond.filmstrip.still/StillBytes // dev.jordond.filmstrip.still/encodeStill|encodeStill@dev.jordond.filmstrip.media.PlatformImage(dev.jordond.filmstrip.still.StillSpec){}[0]
 final suspend fun (dev.jordond.filmstrip.player/PreviewFrameReadback).dev.jordond.filmstrip.player/frameAt(kotlin.time/Duration): dev.jordond.filmstrip.player/ReadbackResult // dev.jordond.filmstrip.player/frameAt|frameAt@dev.jordond.filmstrip.player.PreviewFrameReadback(kotlin.time.Duration){}[0]

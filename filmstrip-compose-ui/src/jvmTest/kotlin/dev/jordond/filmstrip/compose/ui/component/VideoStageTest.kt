@@ -33,6 +33,7 @@ import dev.jordond.filmstrip.player.EngineListener
 import dev.jordond.filmstrip.player.PlaybackEvent
 import dev.jordond.filmstrip.player.PlaybackStatus
 import dev.jordond.filmstrip.player.PlayerEngine
+import dev.jordond.filmstrip.player.PlayerEngineId
 import dev.jordond.filmstrip.player.PlayerFeatures
 import dev.jordond.filmstrip.player.PlayerState
 import dev.jordond.filmstrip.player.PreviewFrameReadback
@@ -300,7 +301,7 @@ private class StageEngine(
       fidelity = emptyList(),
     )
 
-  override val id: String = "filmstrip.compose-ui-stage-test"
+  override val id: PlayerEngineId = PlayerEngineId("filmstrip.compose-ui-stage-test")
 
   override val features: PlayerFeatures = PlayerFeatures(emptySet())
 

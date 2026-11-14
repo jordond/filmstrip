@@ -3,6 +3,7 @@ package dev.jordond.filmstrip
 import androidx.compose.runtime.Stable
 import dev.jordond.filmstrip.capability.EffectParity
 import dev.jordond.filmstrip.edit.Composition
+import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.export.ExportPlan
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.ExportStatus
@@ -129,5 +130,5 @@ public interface Filmstrip :
    *   render it, or no export backend is registered at all. Call [plan] for the reason, which is
    *   the only place that distinguishes the three.
    */
-  public fun parityOf(specId: String): EffectParity?
+  public fun parityOf(specId: EffectId): EffectParity?
 }

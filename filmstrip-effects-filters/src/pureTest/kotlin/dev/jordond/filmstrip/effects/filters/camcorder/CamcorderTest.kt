@@ -2,7 +2,7 @@ package dev.jordond.filmstrip.effects.filters.camcorder
 
 import dev.jordond.filmstrip.edit.EffectsBuilder
 import dev.jordond.filmstrip.effect.EffectStage
-import dev.jordond.filmstrip.effect.inCanonicalOrder
+import dev.jordond.filmstrip.effect.canonicalOrder
 import dev.jordond.filmstrip.effects.filters.vhs.TapeSpeed
 import dev.jordond.filmstrip.effects.filters.vhs.Vhs
 import dev.jordond.filmstrip.effects.filters.vhs.vhs
@@ -72,7 +72,7 @@ class CamcorderTest {
     val effects = EffectsBuilder().vhs { camcorder { rec() } }.build()
 
     effects.map { it.id } shouldContainExactly listOf(Camcorder.ID, Vhs.ID)
-    effects.inCanonicalOrder().map { it.id } shouldContainExactly listOf(Camcorder.ID, Vhs.ID)
+    canonicalOrder(effects).map { it.id } shouldContainExactly listOf(Camcorder.ID, Vhs.ID)
   }
 
   @Test
@@ -96,6 +96,6 @@ class CamcorderTest {
         .camcorder { rec() }
         .build()
 
-    effects.inCanonicalOrder().map { it.id } shouldContainExactly listOf(Vhs.ID, Camcorder.ID)
+    canonicalOrder(effects).map { it.id } shouldContainExactly listOf(Vhs.ID, Camcorder.ID)
   }
 }

@@ -3,6 +3,7 @@ package dev.jordond.filmstrip.transform.internal
 import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.capability.DeviceCapabilities
 import dev.jordond.filmstrip.edit.Clip
+import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.effect.RenderCapabilities
 import dev.jordond.filmstrip.export.ExportStatus
 import dev.jordond.filmstrip.geometry.Fill
@@ -90,7 +91,7 @@ public interface ExportDriver {
   /**
    * Names the render backend an unclaimed effect would have needed a resolver for.
    */
-  public fun unclaimed(specId: String): String
+  public fun unclaimed(specId: EffectId): String
 
   /**
    * Runs a plan, reporting progress as it goes.

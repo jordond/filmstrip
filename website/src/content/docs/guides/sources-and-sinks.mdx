@@ -51,6 +51,6 @@ source its backend reads, a content uri on Android, a file url on Apple and an o
 
 <Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/SourcesFileKit.kt" region="filekit" />
 
-In a browser a sink becomes a download named after the file. `release()` frees the object url a browser source
-holds. Calling it is optional, and does nothing on the other targets, but only call it once nothing reads the
+In a browser a sink becomes a download named after the file. `releasePicked(source)` frees the object url a browser
+source holds. Calling it is optional, and does nothing on the other targets, but only call it once nothing reads the
 source any more.

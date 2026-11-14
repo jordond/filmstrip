@@ -13,6 +13,7 @@ import dev.jordond.filmstrip.edit.outputSlotOf
 import dev.jordond.filmstrip.edit.outputSlotTime
 import dev.jordond.filmstrip.edit.outputSlotsOf
 import dev.jordond.filmstrip.effect.AuxInput
+import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.effect.EffectStage
 import dev.jordond.filmstrip.effect.FilterCrop
 import dev.jordond.filmstrip.effect.FilterFragment
@@ -963,7 +964,7 @@ class GraphLoweringTest {
   fun `flushes a merging composition effect's chain onto its own pad`() {
     val merging =
       ResolvedEffect(
-        specId = "test.merging",
+        specId = EffectId("test.merging"),
         effect =
           PlatformEffect(
             FilterFragment(
@@ -988,7 +989,7 @@ class GraphLoweringTest {
   fun `rebases an overlay's own branch onto its first frame`() {
     val overlay =
       ResolvedEffect(
-        specId = "test.overlay",
+        specId = EffectId("test.overlay"),
         effect =
           PlatformEffect(
             FilterFragment(
@@ -1015,7 +1016,7 @@ class GraphLoweringTest {
   fun `leaves a merging effect with no chain reading the pad it was handed`() {
     val overlay =
       ResolvedEffect(
-        specId = "test.overlay",
+        specId = EffectId("test.overlay"),
         effect =
           PlatformEffect(
             FilterFragment(
@@ -1190,11 +1191,11 @@ class GraphLoweringTest {
     )
 
   private fun fragmentEffect(fragment: FilterFragment): ResolvedEffect =
-    ResolvedEffect(specId = "test.fragment", effect = PlatformEffect(fragment), stage = EffectStage.Composite)
+    ResolvedEffect(specId = EffectId("test.fragment"), effect = PlatformEffect(fragment), stage = EffectStage.Composite)
 
   private fun chainedOverlay(): ResolvedEffect =
     ResolvedEffect(
-      specId = "test.chained",
+      specId = EffectId("test.chained"),
       effect =
         PlatformEffect(
           FilterFragment(
@@ -1208,14 +1209,14 @@ class GraphLoweringTest {
 
   private fun compositionEffect(): ResolvedEffect =
     ResolvedEffect(
-      specId = "test.brightness",
+      specId = EffectId("test.brightness"),
       effect = PlatformEffect(FilterFragment(chain = listOf(FilterNode("eq", "brightness" to "0.1")))),
       stage = EffectStage.Color,
     )
 
   private fun logoOverlay(): ResolvedEffect =
     ResolvedEffect(
-      specId = "test.overlay",
+      specId = EffectId("test.overlay"),
       effect =
         PlatformEffect(
           FilterFragment(
@@ -1228,7 +1229,7 @@ class GraphLoweringTest {
 
   private fun gradeEffect(sidecar: Sidecar): ResolvedEffect =
     ResolvedEffect(
-      specId = "test.grade",
+      specId = EffectId("test.grade"),
       effect =
         PlatformEffect(
           FilterFragment(

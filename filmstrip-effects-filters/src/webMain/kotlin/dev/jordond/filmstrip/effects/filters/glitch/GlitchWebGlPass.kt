@@ -13,7 +13,7 @@ import kotlin.time.DurationUnit
  */
 internal fun glitchPass(glitch: Glitch): WebGlPass =
   WebGlPass(
-    Glitch.ID,
+    Glitch.ID.value,
     listOf(
       WebGlStep(
         name = "tear",

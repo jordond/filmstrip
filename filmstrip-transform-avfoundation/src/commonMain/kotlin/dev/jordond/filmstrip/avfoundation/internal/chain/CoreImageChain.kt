@@ -2,6 +2,7 @@ package dev.jordond.filmstrip.avfoundation.internal.chain
 
 import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.avfoundation.internal.time.toDuration
+import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.effect.EffectStage
 import dev.jordond.filmstrip.effect.FrameInfo
 import dev.jordond.filmstrip.export.OutputFormat
@@ -406,6 +407,6 @@ internal class CoreImageChain(
  * failure a caller reads.
  */
 private class StepFailure(
-  val specId: String,
+  val specId: EffectId,
   val reason: String,
 ) : Exception(reason)

@@ -3,6 +3,28 @@ package dev.jordond.filmstrip
 import dev.jordond.filmstrip.internal.platformRegistrars
 import kotlin.concurrent.atomics.AtomicReference
 import kotlin.concurrent.atomics.ExperimentalAtomicApi
+import kotlin.jvm.JvmInline
+
+/**
+ * Names the artifact a [FilmstripRegistrar] registers.
+ *
+ * Read it off [FilmstripRegistrar.id]. An artifact uses its own module name, such as `filmstrip-transform-ffmpeg`, so
+ * two artifacts cannot collide.
+ *
+ * @property value The name as text, the way it reads in a message or a diagnostic.
+ */
+@InternalFilmstripApi
+@JvmInline
+public value class RegistrarId(
+  public val value: String,
+) {
+  /**
+   * Prints the name as it was given.
+   *
+   * @return The [value], with nothing added.
+   */
+  override fun toString(): String = value
+}
 
 /**
  * Registers one artifact's components on a [FilmstripBuilder].
@@ -17,7 +39,7 @@ import kotlin.concurrent.atomics.ExperimentalAtomicApi
  */
 @InternalFilmstripApi
 public interface FilmstripRegistrar {
-  public val id: String
+  public val id: RegistrarId
 
   /**
    * Adds this artifact's components to [builder].
@@ -53,9 +75,9 @@ public object FilmstripRegistrars {
 
   // Sorted by id, so the order a builder applies them in does not hang on the classpath or on load order.
   internal fun discovered(): List<FilmstripRegistrar> =
-    (added.load() + platformRegistrars()).distinctBy { it.id }.sortedBy { it.id }
+    (added.load() + platformRegistrars()).distinctBy { it.id }.sortedBy { it.id.value }
 
-  internal fun remove(id: String) {
+  internal fun remove(id: RegistrarId) {
     while (true) {
       val current = added.load()
       if (added.compareAndSet(current, current.filterNot { it.id == id })) return

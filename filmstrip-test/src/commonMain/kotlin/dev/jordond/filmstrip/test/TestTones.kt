@@ -2,6 +2,7 @@ package dev.jordond.filmstrip.test
 
 import dev.jordond.filmstrip.audio.AudioEffectSpec
 import dev.jordond.filmstrip.audio.AudioKernel
+import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.export.AudioFormat
 import kotlin.math.PI
 import kotlin.math.sin
@@ -24,7 +25,7 @@ public data class TestTones(
   val amplitude: Float,
   val length: Duration,
 ) : AudioEffectSpec {
-  override val id: String get() = ID
+  override val id: EffectId get() = ID
 
   /**
    * Builds the kernel for one stream at [format].
@@ -35,7 +36,7 @@ public data class TestTones(
     /**
      * The id every plan and notice names this effect by.
      */
-    public const val ID: String = "test.tones"
+    public val ID: EffectId = EffectId("test.tones")
   }
 }
 

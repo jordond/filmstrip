@@ -3,6 +3,7 @@ package dev.jordond.filmstrip
 import dev.drewhamilton.poko.Poko
 import dev.jordond.filmstrip.FilmstripError.Underlying.Companion.NO_PLATFORM_CODE
 import dev.jordond.filmstrip.codec.VideoCodec
+import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.still.StillFormat
 import kotlin.time.Duration
@@ -97,7 +98,7 @@ public sealed interface FilmstripError {
    */
   @Poko
   public class UnsupportedEffect(
-    public val specId: String,
+    public val specId: EffectId,
     override val message: String,
   ) : FilmstripError
 
@@ -109,7 +110,7 @@ public sealed interface FilmstripError {
    */
   @Poko
   public class UnpreviewableEffect(
-    public val specId: String,
+    public val specId: EffectId,
     override val message: String,
   ) : FilmstripError
 
@@ -124,7 +125,7 @@ public sealed interface FilmstripError {
    */
   @Poko
   public class PlatformEffectAsymmetry(
-    public val specId: String,
+    public val specId: EffectId,
     override val message: String,
   ) : FilmstripError
 

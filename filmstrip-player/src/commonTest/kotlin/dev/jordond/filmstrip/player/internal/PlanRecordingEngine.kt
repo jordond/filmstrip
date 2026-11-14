@@ -7,6 +7,7 @@ import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.player.PlaybackError
 import dev.jordond.filmstrip.player.PlaybackStatus
+import dev.jordond.filmstrip.player.PlayerEngineId
 import dev.jordond.filmstrip.player.PlayerFeatures
 import dev.jordond.filmstrip.player.PreviewFrameReadback
 import dev.jordond.filmstrip.player.PreviewQualityPolicy
@@ -26,7 +27,7 @@ internal class PlanRecordingEngine(
   var refusal: PlaybackError? = null
   var graphStanding = false
 
-  override val id: String = "filmstrip.planned"
+  override val id: PlayerEngineId = PlayerEngineId("filmstrip.planned")
 
   override val features: PlayerFeatures = PlayerFeatures(emptySet())
 

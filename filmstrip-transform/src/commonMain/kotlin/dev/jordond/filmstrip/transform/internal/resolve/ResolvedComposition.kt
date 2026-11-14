@@ -6,6 +6,7 @@ import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.edit.sourceOffsetAt
+import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.effect.EffectStage
 import dev.jordond.filmstrip.effect.PlatformEffect
 import dev.jordond.filmstrip.effect.PreviewClock
@@ -257,7 +258,7 @@ public val ResolvedClip.drawnRect: NormalizedRect
  */
 @InternalFilmstripApi
 public class ResolvedEffect(
-  public val specId: String,
+  public val specId: EffectId,
   public val effect: PlatformEffect,
   public val stage: EffectStage,
 )

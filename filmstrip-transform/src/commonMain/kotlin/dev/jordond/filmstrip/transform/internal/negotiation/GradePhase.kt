@@ -3,6 +3,7 @@ package dev.jordond.filmstrip.transform.internal.negotiation
 import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TrackContent
+import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.export.CopyBlocker
 import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.export.HdrMode
@@ -127,13 +128,13 @@ private fun drawnSdrSources(
  * An inert effect is taken out of the edit before it draws, so it needs nothing.
  */
 @InternalFilmstripApi
-public fun Composition.effectsThatRequireSdr(): List<String> =
+public fun Composition.effectsThatRequireSdr(): List<EffectId> =
   (effects + tracks.flatMap { track -> track.effects + track.clips.flatMap { it.effects } })
     .filter { it.requiresSdr && !it.isInert }
     .map { it.id }
     .distinct()
 
-private fun keepRefusedBy(ids: List<String>): String =
+private fun keepRefusedBy(ids: List<EffectId>): String =
   "HdrMode.KeepHdr cannot keep this grade, since ${ids.joinToString()} needs SDR frames. Use HdrMode.Auto or " +
     "HdrMode.ToneMapToSdr to bring it down to SDR, or take the effect out."
 
