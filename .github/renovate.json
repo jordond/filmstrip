@@ -36,7 +36,7 @@
   "prConcurrentLimit": 5,
   "prHourlyLimit": 0,
   "rebaseWhen": "conflicted",
-  "dependencyDashboard": true,
+  "dependencyDashboard": { "enabled": true },
   "osvVulnerabilityAlerts": true,
   "vulnerabilityAlerts": {
     "labels": ["dependencies", "security"],
@@ -147,6 +147,15 @@
       "semanticCommitScope": "sample",
       "labels": ["dependencies", "sample"],
       "prPriority": -1
+    },
+    {
+      "description": "Merge minor and patch updates of stable packages once every check passes",
+      "matchUpdateTypes": ["minor", "patch"],
+      "matchCurrentVersion": "!/^v?0/",
+      "automerge": true,
+      "automergeType": "pr",
+      "automergeStrategy": "squash",
+      "platformAutomerge": false
     }
   ]
 }
