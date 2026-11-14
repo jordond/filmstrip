@@ -9,7 +9,7 @@ import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effect.PlatformEffect
 import dev.jordond.filmstrip.effect.PreviewClock
 import dev.jordond.filmstrip.effect.RenderCapabilities
-import dev.jordond.filmstrip.effect.inCanonicalOrder
+import dev.jordond.filmstrip.effect.canonicalOrder
 import dev.jordond.filmstrip.effects.BuiltInEffectResolver
 import dev.jordond.filmstrip.effects.color.FoldedSpec
 import dev.jordond.filmstrip.effects.color.colorMatrixOf
@@ -100,7 +100,7 @@ internal class StageLowering(
         target.previewClock,
       )
     }
-    val ordered = stages.flatMap { it.inCanonicalOrder() }
+    val ordered = stages.flatMap { canonicalOrder(it) }
     val tracker = OpaqueTracker(sourceHasAlpha)
     val chain =
       foldedChain(

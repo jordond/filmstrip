@@ -7,7 +7,7 @@ import dev.jordond.filmstrip.effect.EffectResolution
 import dev.jordond.filmstrip.effect.EffectResolver
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effect.RenderCapabilities
-import dev.jordond.filmstrip.effect.inCanonicalOrder
+import dev.jordond.filmstrip.effect.canonicalOrder
 import dev.jordond.filmstrip.effects.BuiltInEffectResolver
 import dev.jordond.filmstrip.effects.color.Brightness
 import dev.jordond.filmstrip.effects.color.Sepia
@@ -43,7 +43,7 @@ class StageLoweringTest {
 
     recorder.specs.map { it.id } shouldBe listOf(EffectIds.COLOR_MATRIX)
     lowered.spec.id shouldBe EffectIds.COLOR_MATRIX
-    lowered.sources.map { it.id } shouldBe listOf(Brightness(4f), Sepia(1f)).inCanonicalOrder().map { it.id }
+    lowered.sources.map { it.id } shouldBe canonicalOrder(listOf(Brightness(4f), Sepia(1f))).map { it.id }
     lowered.resolvedEffect.shouldNotBeNull().specId shouldBe lowered.sources.joinToString(", ") { it.id }
   }
 
@@ -87,7 +87,7 @@ class StageLoweringTest {
 
     val lowered = lower(StageLowering(listOf(claimer, BuiltInEffectResolver()), UNCLAIMED), effects)
 
-    lowered.map { entry -> entry.sources.map { it.id } } shouldBe effects.inCanonicalOrder().map { listOf(it.id) }
+    lowered.map { entry -> entry.sources.map { it.id } } shouldBe canonicalOrder(effects).map { listOf(it.id) }
     lowered.single { it.spec.id == EffectIds.SEPIA }.resolvedEffect?.specId shouldBe EffectIds.SEPIA
     claimer.specs.count { it.id == EffectIds.SEPIA } shouldBe 1
   }

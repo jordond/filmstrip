@@ -12,7 +12,7 @@ import dev.jordond.filmstrip.edit.EffectsBuilder
 import dev.jordond.filmstrip.effect.EffectIds
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effect.EffectStage
-import dev.jordond.filmstrip.effect.inCanonicalOrder
+import dev.jordond.filmstrip.effect.canonicalOrder
 import dev.jordond.filmstrip.media.HdrTransfer
 import kotlin.math.abs
 
@@ -116,7 +116,7 @@ public val ColorMatrix.isIdentity: Boolean
  */
 @InternalFilmstripApi
 public fun List<EffectSpec>.identityColorRuns(): List<EffectSpec> =
-  inCanonicalOrder()
+  canonicalOrder(this)
     .fusedColorMatrices()
     .filter { colorMatrixOf(it.spec)?.isIdentity == true }
     .flatMap { it.sources }

@@ -167,17 +167,19 @@ public object EffectIds {
 }
 
 /**
- * Sorts [this] into the canonical pipeline order.
+ * Sorts [effects] into the canonical pipeline order.
  *
  * Effects sort by stage, then by filmstrip's rank within that stage, then by the order they were
  * declared. Anything without a rank lands after the ranked effects in its stage, so a third-party
  * effect's position is stable without a priority number. Within [EffectStage.Composite] an effect
  * that declares [EffectSpec.beneathOverlays] sorts ahead of every rank.
  *
+ * @param effects the effects as they were declared.
  * @return the effects in the order the pipeline runs them.
  */
-public fun List<EffectSpec>.inCanonicalOrder(): List<EffectSpec> =
-  withIndex()
+public fun canonicalOrder(effects: List<EffectSpec>): List<EffectSpec> =
+  effects
+    .withIndex()
     .sortedWith(
       compareBy(
         { (_, spec) -> spec.stage.ordinal },

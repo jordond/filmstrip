@@ -70,13 +70,3 @@ private const val HUNDREDTHS = 100L
 
 // The lowest rate that rounds to 1000 kbps, so it reads as 1 Mbps.
 private const val MBPS_FROM = 999_995L
-
-/**
- * This many megabits per second.
- */
-public val Int.Mbps: Bitrate get() = Bitrate.mbps(this)
-
-/**
- * This many kilobits per second.
- */
-public val Int.Kbps: Bitrate get() = Bitrate.kbps(this)

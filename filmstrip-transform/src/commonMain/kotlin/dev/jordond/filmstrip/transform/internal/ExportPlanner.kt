@@ -12,7 +12,7 @@ import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.effect.EffectResolver
 import dev.jordond.filmstrip.effect.EffectStage
 import dev.jordond.filmstrip.effect.RenderCapabilities
-import dev.jordond.filmstrip.effect.inCanonicalOrder
+import dev.jordond.filmstrip.effect.canonicalOrder
 import dev.jordond.filmstrip.export.AdjustmentKind
 import dev.jordond.filmstrip.export.CopyBlocker
 import dev.jordond.filmstrip.export.ExportEstimate
@@ -365,23 +365,22 @@ public class ExportPlanner(
   }
 
   private fun plannedEffects(edit: Composition): List<PlannedEffect> =
-    (edit.tracks.flatMap { track -> track.clips.flatMap { it.effects } + track.effects } + edit.effects)
-      .distinct()
-      .inCanonicalOrder()
-      .map { spec ->
-        val parity = parityOf(spec.id) ?: EffectParity.Exact
-        PlannedEffect(
-          spec = spec,
-          stage = spec.stage,
-          parity = parity,
-          note =
-            if (parity == EffectParity.Exact) {
-              null
-            } else {
-              ParityNote(spec.id, parity, noteOf(spec.id) ?: APPROXIMATE)
-            },
-        )
-      }
+    canonicalOrder(
+      (edit.tracks.flatMap { track -> track.clips.flatMap { it.effects } + track.effects } + edit.effects).distinct(),
+    ).map { spec ->
+      val parity = parityOf(spec.id) ?: EffectParity.Exact
+      PlannedEffect(
+        spec = spec,
+        stage = spec.stage,
+        parity = parity,
+        note =
+          if (parity == EffectParity.Exact) {
+            null
+          } else {
+            ParityNote(spec.id, parity, noteOf(spec.id) ?: APPROXIMATE)
+          },
+      )
+    }
 
   private fun estimate(
     output: OutputFormat,

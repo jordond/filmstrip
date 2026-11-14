@@ -27,24 +27,25 @@ public enum class Easing {
    * Accelerates out of the start and decelerates into the end, symmetric about the middle.
    */
   EaseInOut,
-}
+  ;
 
-/**
- * Paces [progress] along this curve.
- *
- * Every backend that draws a paced effect reads its position from here, so the same declaration
- * lands at the same point of its travel whichever engine is drawing.
- *
- * @param progress How far through the travel, clamped to `0f..1f`.
- * @return The eased fraction of the travel, in `0f..1f`.
- */
-public fun Easing.paced(progress: Float): Float {
-  val t = progress.coerceIn(0f, 1f)
-  return when (this) {
-    Easing.Linear -> t
-    Easing.EaseIn -> t * t
-    Easing.EaseOut -> t * (2f - t)
-    Easing.EaseInOut -> if (t < HALF) 2f * t * t else (FOUR - 2f * t) * t - 1f
+  /**
+   * Paces [progress] along this curve.
+   *
+   * Every backend that draws a paced effect reads its position from here, so the same declaration
+   * lands at the same point of its travel whichever engine is drawing.
+   *
+   * @param progress How far through the travel, clamped to `0f..1f`.
+   * @return The eased fraction of the travel, in `0f..1f`.
+   */
+  public fun paced(progress: Float): Float {
+    val t = progress.coerceIn(0f, 1f)
+    return when (this) {
+      Linear -> t
+      EaseIn -> t * t
+      EaseOut -> t * (2f - t)
+      EaseInOut -> if (t < HALF) 2f * t * t else (FOUR - 2f * t) * t - 1f
+    }
   }
 }
 

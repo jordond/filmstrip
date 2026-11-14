@@ -10,7 +10,6 @@ import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effect.EffectStage
 import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.motion.Easing
-import dev.jordond.filmstrip.motion.paced
 import kotlin.time.Duration
 
 /**

@@ -397,6 +397,7 @@ final enum class dev.jordond.filmstrip.motion/Easing : kotlin/Enum<dev.jordond.f
     final val entries // dev.jordond.filmstrip.motion/Easing.entries|#static{}entries[0]
         final fun <get-entries>(): kotlin.enums/EnumEntries<dev.jordond.filmstrip.motion/Easing> // dev.jordond.filmstrip.motion/Easing.entries.<get-entries>|<get-entries>#static(){}[0]
 
+    final fun paced(kotlin/Float): kotlin/Float // dev.jordond.filmstrip.motion/Easing.paced|paced(kotlin.Float){}[0]
     final fun valueOf(kotlin/String): dev.jordond.filmstrip.motion/Easing // dev.jordond.filmstrip.motion/Easing.valueOf|valueOf#static(kotlin.String){}[0]
     final fun values(): kotlin/Array<dev.jordond.filmstrip.motion/Easing> // dev.jordond.filmstrip.motion/Easing.values|values#static(){}[0]
 }
@@ -2892,17 +2893,12 @@ final object dev.jordond.filmstrip/FilmstripVersion { // dev.jordond.filmstrip/F
         final fun <get-name>(): kotlin/String // dev.jordond.filmstrip/FilmstripVersion.name.<get-name>|<get-name>(){}[0]
 }
 
-final val dev.jordond.filmstrip.codec/Kbps // dev.jordond.filmstrip.codec/Kbps|@kotlin.Int{}Kbps[0]
-    final fun (kotlin/Int).<get-Kbps>(): dev.jordond.filmstrip.codec/Bitrate // dev.jordond.filmstrip.codec/Kbps.<get-Kbps>|<get-Kbps>@kotlin.Int(){}[0]
-final val dev.jordond.filmstrip.codec/Mbps // dev.jordond.filmstrip.codec/Mbps|@kotlin.Int{}Mbps[0]
-    final fun (kotlin/Int).<get-Mbps>(): dev.jordond.filmstrip.codec/Bitrate // dev.jordond.filmstrip.codec/Mbps.<get-Mbps>|<get-Mbps>@kotlin.Int(){}[0]
 final val dev.jordond.filmstrip.edit/CLIP_SPEED_RANGE // dev.jordond.filmstrip.edit/CLIP_SPEED_RANGE|{}CLIP_SPEED_RANGE[0]
     final fun <get-CLIP_SPEED_RANGE>(): kotlin.ranges/ClosedFloatingPointRange<kotlin/Double> // dev.jordond.filmstrip.edit/CLIP_SPEED_RANGE.<get-CLIP_SPEED_RANGE>|<get-CLIP_SPEED_RANGE>(){}[0]
 
-final fun (dev.jordond.filmstrip.motion/Easing).dev.jordond.filmstrip.motion/paced(kotlin/Float): kotlin/Float // dev.jordond.filmstrip.motion/paced|paced@dev.jordond.filmstrip.motion.Easing(kotlin.Float){}[0]
-final fun (kotlin.collections/List<dev.jordond.filmstrip.effect/EffectSpec>).dev.jordond.filmstrip.effect/inCanonicalOrder(): kotlin.collections/List<dev.jordond.filmstrip.effect/EffectSpec> // dev.jordond.filmstrip.effect/inCanonicalOrder|inCanonicalOrder@kotlin.collections.List<dev.jordond.filmstrip.effect.EffectSpec>(){}[0]
 final fun dev.jordond.filmstrip.edit/TimeRange(kotlin.ranges/ClosedRange<kotlin.time/Duration>): dev.jordond.filmstrip.edit/TimeRange // dev.jordond.filmstrip.edit/TimeRange|TimeRange(kotlin.ranges.ClosedRange<kotlin.time.Duration>){}[0]
 final fun dev.jordond.filmstrip.edit/compositionOf(kotlin/Function1<dev.jordond.filmstrip.edit/CompositionBuilder, kotlin/Unit>): dev.jordond.filmstrip.edit/Composition // dev.jordond.filmstrip.edit/compositionOf|compositionOf(kotlin.Function1<dev.jordond.filmstrip.edit.CompositionBuilder,kotlin.Unit>){}[0]
+final fun dev.jordond.filmstrip.effect/canonicalOrder(kotlin.collections/List<dev.jordond.filmstrip.effect/EffectSpec>): kotlin.collections/List<dev.jordond.filmstrip.effect/EffectSpec> // dev.jordond.filmstrip.effect/canonicalOrder|canonicalOrder(kotlin.collections.List<dev.jordond.filmstrip.effect.EffectSpec>){}[0]
 final fun dev.jordond.filmstrip/Filmstrip(kotlin/Function1<dev.jordond.filmstrip/FilmstripBuilder, kotlin/Unit> = ...): dev.jordond.filmstrip/Filmstrip // dev.jordond.filmstrip/Filmstrip|Filmstrip(kotlin.Function1<dev.jordond.filmstrip.FilmstripBuilder,kotlin.Unit>){}[0]
 final suspend fun (dev.jordond.filmstrip.media/PlatformImage).dev.jordond.filmstrip.still/encodeStill(dev.jordond.filmstrip.still/StillSpec = ...): dev.jordond.filmstrip.still/StillBytes // dev.jordond.filmstrip.still/encodeStill|encodeStill@dev.jordond.filmstrip.media.PlatformImage(dev.jordond.filmstrip.still.StillSpec){}[0]
 final suspend fun (dev.jordond.filmstrip.player/PreviewFrameReadback).dev.jordond.filmstrip.player/frameAt(kotlin.time/Duration): dev.jordond.filmstrip.player/ReadbackResult // dev.jordond.filmstrip.player/frameAt|frameAt@dev.jordond.filmstrip.player.PreviewFrameReadback(kotlin.time.Duration){}[0]

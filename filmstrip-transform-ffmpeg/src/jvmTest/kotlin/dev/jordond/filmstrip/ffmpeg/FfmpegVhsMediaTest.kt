@@ -1,6 +1,6 @@
 package dev.jordond.filmstrip.ffmpeg
 
-import dev.jordond.filmstrip.codec.Mbps
+import dev.jordond.filmstrip.codec.Bitrate
 import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
@@ -476,7 +476,7 @@ class FfmpegVhsMediaTest {
     const val LATE_IN_CLIP = 45
     const val IN_WINDOW_FROM_SEEK = 9
     const val LATE_IN_WINDOW = 18
-    val ENCODED = ExportSpec(bitrate = 40.Mbps)
+    val ENCODED = ExportSpec(bitrate = Bitrate.mbps(40))
 
     // The encoder's own error at this bitrate, a mean across the frame.
     const val ENCODER_CODES = 1.0

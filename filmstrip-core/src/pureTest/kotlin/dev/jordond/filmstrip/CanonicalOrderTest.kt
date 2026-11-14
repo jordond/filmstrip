@@ -3,7 +3,7 @@ package dev.jordond.filmstrip
 import dev.jordond.filmstrip.effect.EffectIds
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effect.EffectStage
-import dev.jordond.filmstrip.effect.inCanonicalOrder
+import dev.jordond.filmstrip.effect.canonicalOrder
 import io.kotest.matchers.shouldBe
 import kotlin.test.Test
 
@@ -21,8 +21,13 @@ class CanonicalOrderTest {
       }
 
     val ordered =
-      listOf(spec(EffectIds.IMAGE_OVERLAY, EffectStage.Composite), beneath, spec(EffectIds.SCALE, EffectStage.Geometry))
-        .inCanonicalOrder()
+      canonicalOrder(
+        listOf(
+          spec(EffectIds.IMAGE_OVERLAY, EffectStage.Composite),
+          beneath,
+          spec(EffectIds.SCALE, EffectStage.Geometry),
+        ),
+      )
 
     ordered.map { it.id } shouldBe listOf(EffectIds.SCALE, "test.beneath", EffectIds.IMAGE_OVERLAY)
   }
@@ -35,7 +40,7 @@ class CanonicalOrderTest {
         override val beneathOverlays = true
       }
 
-    listOf(spec(EffectIds.BRIGHTNESS, EffectStage.Color), color).inCanonicalOrder().map { it.id } shouldBe
+    canonicalOrder(listOf(spec(EffectIds.BRIGHTNESS, EffectStage.Color), color)).map { it.id } shouldBe
       listOf(EffectIds.BRIGHTNESS, "test.color")
   }
 
@@ -52,7 +57,7 @@ class CanonicalOrderTest {
         spec(EffectIds.SCALE, EffectStage.Geometry),
       )
 
-    declared.inCanonicalOrder().map { it.id } shouldBe
+    canonicalOrder(declared).map { it.id } shouldBe
       listOf(EffectIds.ROTATE, EffectIds.CROP, EffectIds.SCALE, EffectIds.IMAGE_OVERLAY, EffectIds.TEXT_OVERLAY)
   }
 
@@ -71,7 +76,7 @@ class CanonicalOrderTest {
         spec(EffectIds.SCALE, EffectStage.Geometry),
       )
 
-    other.inCanonicalOrder().map { it.id } shouldBe one.inCanonicalOrder().map { it.id }
+    canonicalOrder(other).map { it.id } shouldBe canonicalOrder(one).map { it.id }
   }
 
   @Test
@@ -79,11 +84,13 @@ class CanonicalOrderTest {
     // Placed anywhere but last, the size stage pins nothing: crop and rotation both change the
     // frame after it. Asking for 1920x1080 with it first was measured producing 1080x608.
     val ordered =
-      listOf(
-        spec(EffectIds.SCALE, EffectStage.Geometry),
-        spec(EffectIds.CROP, EffectStage.Geometry),
-        spec(EffectIds.ROTATE, EffectStage.Geometry),
-      ).inCanonicalOrder()
+      canonicalOrder(
+        listOf(
+          spec(EffectIds.SCALE, EffectStage.Geometry),
+          spec(EffectIds.CROP, EffectStage.Geometry),
+          spec(EffectIds.ROTATE, EffectStage.Geometry),
+        ),
+      )
 
     ordered.last().id shouldBe EffectIds.SCALE
   }
@@ -91,13 +98,15 @@ class CanonicalOrderTest {
   @Test
   fun aPanTravelsInsideTheFramingTheCropChose() {
     val ordered =
-      listOf(
-        spec(EffectIds.SCALE, EffectStage.Geometry),
-        spec(EffectIds.KEN_BURNS, EffectStage.Geometry),
-        spec(EffectIds.CROP, EffectStage.Geometry),
-        spec(EffectIds.ROTATE, EffectStage.Geometry),
-        spec(EffectIds.FLIP, EffectStage.Geometry),
-      ).inCanonicalOrder()
+      canonicalOrder(
+        listOf(
+          spec(EffectIds.SCALE, EffectStage.Geometry),
+          spec(EffectIds.KEN_BURNS, EffectStage.Geometry),
+          spec(EffectIds.CROP, EffectStage.Geometry),
+          spec(EffectIds.ROTATE, EffectStage.Geometry),
+          spec(EffectIds.FLIP, EffectStage.Geometry),
+        ),
+      )
 
     ordered.map { it.id } shouldBe
       listOf(EffectIds.ROTATE, EffectIds.FLIP, EffectIds.CROP, EffectIds.KEN_BURNS, EffectIds.SCALE)
@@ -106,11 +115,13 @@ class CanonicalOrderTest {
   @Test
   fun aVignetteRunsAfterABlurAndBeforeAThirdPartySpatialEffect() {
     val ordered =
-      listOf(
-        spec("acme.bloom", EffectStage.Spatial),
-        spec(EffectIds.VIGNETTE, EffectStage.Spatial),
-        spec(EffectIds.GAUSSIAN_BLUR, EffectStage.Spatial),
-      ).inCanonicalOrder()
+      canonicalOrder(
+        listOf(
+          spec("acme.bloom", EffectStage.Spatial),
+          spec(EffectIds.VIGNETTE, EffectStage.Spatial),
+          spec(EffectIds.GAUSSIAN_BLUR, EffectStage.Spatial),
+        ),
+      )
 
     ordered.map { it.id } shouldBe listOf(EffectIds.GAUSSIAN_BLUR, EffectIds.VIGNETTE, "acme.bloom")
   }
@@ -118,11 +129,13 @@ class CanonicalOrderTest {
   @Test
   fun thirdPartyEffectsLandAtTheEndOfTheirStageInDeclarationOrder() {
     val ordered =
-      listOf(
-        spec("acme.grain", EffectStage.Color),
-        spec("acme.bloom", EffectStage.Color),
-        spec(EffectIds.ROTATE, EffectStage.Geometry),
-      ).inCanonicalOrder()
+      canonicalOrder(
+        listOf(
+          spec("acme.grain", EffectStage.Color),
+          spec("acme.bloom", EffectStage.Color),
+          spec(EffectIds.ROTATE, EffectStage.Geometry),
+        ),
+      )
 
     ordered.map { it.id } shouldBe listOf(EffectIds.ROTATE, "acme.grain", "acme.bloom")
   }

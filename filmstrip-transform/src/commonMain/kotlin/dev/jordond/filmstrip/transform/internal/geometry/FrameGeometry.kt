@@ -2,7 +2,7 @@ package dev.jordond.filmstrip.transform.internal.geometry
 
 import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.effect.EffectSpec
-import dev.jordond.filmstrip.effect.inCanonicalOrder
+import dev.jordond.filmstrip.effect.canonicalOrder
 import dev.jordond.filmstrip.effects.geometry.Crop
 import dev.jordond.filmstrip.effects.geometry.CropRect
 import dev.jordond.filmstrip.effects.geometry.Flip
@@ -67,4 +67,4 @@ public fun frameAfter(
 internal fun frameThrough(
   sourceSize: Size,
   stages: List<List<EffectSpec>>,
-): Size = stages.flatMap { it.inCanonicalOrder() }.fold(sourceSize) { size, spec -> frameAfter(spec, size) }
+): Size = stages.flatMap { canonicalOrder(it) }.fold(sourceSize) { size, spec -> frameAfter(spec, size) }

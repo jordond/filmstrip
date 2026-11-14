@@ -445,11 +445,6 @@ public final class dev/jordond/filmstrip/codec/Bitrate$Companion {
 	public final fun mbps (I)Ldev/jordond/filmstrip/codec/Bitrate;
 }
 
-public final class dev/jordond/filmstrip/codec/BitrateKt {
-	public static final fun getKbps (I)Ldev/jordond/filmstrip/codec/Bitrate;
-	public static final fun getMbps (I)Ldev/jordond/filmstrip/codec/Bitrate;
-}
-
 public final class dev/jordond/filmstrip/codec/VideoCodec : java/lang/Enum {
 	public static final field Auto Ldev/jordond/filmstrip/codec/VideoCodec;
 	public static final field Av1 Ldev/jordond/filmstrip/codec/VideoCodec;
@@ -917,7 +912,7 @@ public final class dev/jordond/filmstrip/effect/EffectSpec$DefaultImpls {
 }
 
 public final class dev/jordond/filmstrip/effect/EffectSpecKt {
-	public static final fun inCanonicalOrder (Ljava/util/List;)Ljava/util/List;
+	public static final fun canonicalOrder (Ljava/util/List;)Ljava/util/List;
 }
 
 public final class dev/jordond/filmstrip/effect/EffectStage : java/lang/Enum {
@@ -1665,12 +1660,9 @@ public final class dev/jordond/filmstrip/motion/Easing : java/lang/Enum {
 	public static final field EaseOut Ldev/jordond/filmstrip/motion/Easing;
 	public static final field Linear Ldev/jordond/filmstrip/motion/Easing;
 	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public final fun paced (F)F
 	public static fun valueOf (Ljava/lang/String;)Ldev/jordond/filmstrip/motion/Easing;
 	public static fun values ()[Ldev/jordond/filmstrip/motion/Easing;
-}
-
-public final class dev/jordond/filmstrip/motion/EasingKt {
-	public static final fun paced (Ldev/jordond/filmstrip/motion/Easing;F)F
 }
 
 public abstract interface class dev/jordond/filmstrip/player/EngineListener {

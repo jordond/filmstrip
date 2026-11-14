@@ -3,7 +3,6 @@ package dev.jordond.filmstrip.effects.geometry
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.motion.Easing
-import dev.jordond.filmstrip.motion.paced
 import io.kotest.assertions.withClue
 import io.kotest.matchers.floats.plusOrMinus
 import io.kotest.matchers.shouldBe
