@@ -21,8 +21,8 @@ import dev.jordond.filmstrip.effects.filters.nightvision.NightVision
 import dev.jordond.filmstrip.effects.filters.nightvision.NightVisionEffect
 import dev.jordond.filmstrip.effects.filters.pixel.Pixel
 import dev.jordond.filmstrip.effects.filters.pixel.PixelEffect
-import dev.jordond.filmstrip.effects.filters.vhs.Vhs
-import dev.jordond.filmstrip.effects.filters.vhs.VhsEffect
+import dev.jordond.filmstrip.effects.filters.tape.TapeLook
+import dev.jordond.filmstrip.effects.filters.tape.TapePictureEffect
 
 /**
  * Resolves the effects in this module for media3.
@@ -37,8 +37,8 @@ public actual class FilterEffectResolver actual constructor() : EffectResolver {
       is Camcorder -> {
         EffectResolution.Resolved(PlatformEffect(CamcorderEffect(CamcorderOsd(spec, attributes.frameRate))))
       }
-      is Vhs -> {
-        EffectResolution.Resolved(PlatformEffect(VhsEffect(spec, attributes.previewClock)))
+      is TapeLook -> {
+        EffectResolution.Resolved(PlatformEffect(TapePictureEffect(spec, attributes.previewClock)))
       }
       is Film -> {
         EffectResolution.Resolved(PlatformEffect(FilmEffect(spec)))

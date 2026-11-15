@@ -15,9 +15,9 @@ import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.effects.BuiltInEffectResolver
 import dev.jordond.filmstrip.effects.filters.FilterEffectResolver
+import dev.jordond.filmstrip.effects.filters.tape.TapePictureParams
+import dev.jordond.filmstrip.effects.filters.tape.TapePictureSignal
 import dev.jordond.filmstrip.effects.filters.vhs.Vhs
-import dev.jordond.filmstrip.effects.filters.vhs.VhsParams
-import dev.jordond.filmstrip.effects.filters.vhs.VhsSignal
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
@@ -88,14 +88,14 @@ class BrowserSdColorMediaTest {
         "composition" to Composition(listOf(Track(listOf(Clip(source)))), listOf(vhs)),
       ).forEach { (scope, edit) ->
         val drawn = previewFrameOf(source, edit)
-        val tick = VhsSignal.tickAt(0.0)
+        val tick = TapePictureSignal.tickAt(0.0)
         VHS_ROWS.forEach { y ->
-          val row = VhsSignal.virtualRow((y * drawn.size.height).toInt(), drawn.size.height)
+          val row = TapePictureSignal.virtualRow((y * drawn.size.height).toInt(), drawn.size.height)
           BAR_CENTRES.forEach { x ->
             val column = ((x * drawn.size.width).toInt() + MIDDLE) / drawn.size.width
             val wanted =
-              VhsSignal
-                .pixelAt(column, row, tick, vhs.seed, drawn.size.width, VhsParams.of(vhs)) {
+              TapePictureSignal
+                .pixelAt(column, row, tick, vhs.seed, drawn.size.width, TapePictureParams.of(vhs)) {
                   shownAt((it + 0.5) / drawn.size.width)
                 }.toList()
             withClue("$scope scope at row $y") { assertCodes(drawn.rgbAt(x, y), wanted, x, VHS_CODES) }

@@ -1,9 +1,9 @@
 package dev.jordond.filmstrip.ffmpeg
 
+import dev.jordond.filmstrip.effects.filters.tape.TapePictureParams
+import dev.jordond.filmstrip.effects.filters.tape.TapePictureSignal
 import dev.jordond.filmstrip.effects.filters.vhs.Tracking
 import dev.jordond.filmstrip.effects.filters.vhs.Vhs
-import dev.jordond.filmstrip.effects.filters.vhs.VhsParams
-import dev.jordond.filmstrip.effects.filters.vhs.VhsSignal
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.InputSource
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.MAX_LIVE_INPUTS
 import dev.jordond.filmstrip.ffmpeg.support.FilterFrames
@@ -29,7 +29,7 @@ import kotlin.time.Duration.Companion.seconds
 
 /**
  * Reads the snow ffmpeg lays over a [Vhs] tracking band, on its live planes and on its `geq` graph, against
- * [VhsSignal.snowAt].
+ * [TapePictureSignal.snowAt].
  */
 class FfmpegVhsSnowMediaTest {
   private val draw = FilterFrames()
@@ -87,16 +87,16 @@ class FfmpegVhsSnowMediaTest {
     frame: Yuv420Frame,
     columns: IntRange,
   ) {
-    val params = VhsParams.of(SNOWY)
+    val params = TapePictureParams.of(SNOWY)
     val tick = tickOf(READ_SLOT)
     val rows = bandRows(frame.height)
     rows.size shouldBeGreaterThan frame.height / 10
     var snowed = 0
     rows.forEach { y ->
-      val row = VhsSignal.virtualRow(y, frame.height)
+      val row = TapePictureSignal.virtualRow(y, frame.height)
       columns.forEach { column ->
         val x = (column + 0.5) / frame.width
-        val snow = VhsSignal.snowAt(SNOWY.seed, tick, row, x, params)
+        val snow = TapePictureSignal.snowAt(SNOWY.seed, tick, row, x, params)
         val want = lumaPlaneOf(SNOWY, tick, column, y, ::rampAt, frame.width, frame.height)
         val clean = lumaPlaneOf(CLEAN, tick, column, y, ::rampAt, frame.width, frame.height)
         if (abs(want - clean) > SNOW_SHOWS_CODES) snowed++
@@ -110,10 +110,10 @@ class FfmpegVhsSnowMediaTest {
   }
 
   private fun bandRows(height: Int): List<Int> {
-    val params = VhsParams.of(SNOWY)
+    val params = TapePictureParams.of(SNOWY)
     val tick = tickOf(READ_SLOT)
     return (0 until height).filter {
-      VhsSignal.trackingWeight(SNOWY.seed, tick, VhsSignal.virtualRow(it, height), params) > MID_BAND
+      TapePictureSignal.trackingWeight(SNOWY.seed, tick, TapePictureSignal.virtualRow(it, height), params) > MID_BAND
     }
   }
 

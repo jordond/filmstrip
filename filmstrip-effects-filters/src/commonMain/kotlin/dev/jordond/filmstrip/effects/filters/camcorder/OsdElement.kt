@@ -1,7 +1,7 @@
 package dev.jordond.filmstrip.effects.filters.camcorder
 
 import dev.drewhamilton.poko.Poko
-import dev.jordond.filmstrip.effects.filters.vhs.TapeSpeed
+import dev.jordond.filmstrip.effects.filters.tape.TapeStock
 import kotlin.time.Duration
 
 /**
@@ -88,11 +88,12 @@ public sealed interface OsdElement {
   }
 
   /**
-   * The tape [speed] as its label, `SP`, `LP` or `EP`.
+   * The tape [speed] as its label, like `SP` for a VHS tape at standard play or `B2` for a Betamax tape at its second
+   * speed.
    */
   @Poko
   public class Tape(
-    public val speed: TapeSpeed,
+    public val speed: TapeStock,
     override val corner: OsdCorner = OsdCorner.TopRight,
   ) : OsdElement
 

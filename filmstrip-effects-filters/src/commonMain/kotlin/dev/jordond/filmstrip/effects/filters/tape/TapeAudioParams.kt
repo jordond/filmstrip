@@ -1,6 +1,8 @@
 package dev.jordond.filmstrip.effects.filters.tape
 
 import dev.jordond.filmstrip.InternalFilmstripApi
+import dev.jordond.filmstrip.effects.filters.betamax.BetaSpeed
+import dev.jordond.filmstrip.effects.filters.hi8.Hi8Speed
 import dev.jordond.filmstrip.effects.filters.vhs.TapeSpeed
 import kotlin.math.PI
 import kotlin.math.ceil
@@ -83,7 +85,7 @@ public fun tapeAudioParams(
   sampleRate: Int,
 ): TapeAudioParams {
   require(sampleRate > 0) { "A sample rate has to be positive, not $sampleRate." }
-  val figures = figuresOf(spec.tape)
+  val figures = spec.tape.audioFigures()
   val intensity = spec.intensity.decimal()
   val band = intensity * spec.bandLimit.decimal()
   val ceiling = NYQUIST_SHARE * sampleRate
@@ -112,18 +114,26 @@ public fun tapeAudioParams(
   )
 }
 
-private class TapeFigures(
-  val lowPassHz: Double,
-  val hissDb: Double,
-  val wow: Double,
-  val flutter: Double,
-)
+// The linear track of a VHS tape.
+internal fun audioFiguresOf(speed: TapeSpeed): TapeAudioFigures =
+  when (speed) {
+    TapeSpeed.SP -> TapeAudioFigures(lowPassHz = 10_000.0, hissDb = 43.0, wow = 0.0015, flutter = 0.0010)
+    TapeSpeed.LP -> TapeAudioFigures(lowPassHz = 7_000.0, hissDb = 41.0, wow = 0.0025, flutter = 0.0015)
+    TapeSpeed.EP -> TapeAudioFigures(lowPassHz = 5_000.0, hissDb = 39.0, wow = 0.0035, flutter = 0.0020)
+  }
 
-private fun figuresOf(tape: TapeSpeed): TapeFigures =
-  when (tape) {
-    TapeSpeed.SP -> TapeFigures(lowPassHz = 10_000.0, hissDb = 43.0, wow = 0.0015, flutter = 0.0010)
-    TapeSpeed.LP -> TapeFigures(lowPassHz = 7_000.0, hissDb = 41.0, wow = 0.0025, flutter = 0.0015)
-    TapeSpeed.EP -> TapeFigures(lowPassHz = 5_000.0, hissDb = 39.0, wow = 0.0035, flutter = 0.0020)
+// The linear track of a Betamax tape, the VHS rows moved by how fast each tape runs past the head.
+internal fun audioFiguresOf(speed: BetaSpeed): TapeAudioFigures =
+  when (speed) {
+    BetaSpeed.I -> TapeAudioFigures(lowPassHz = 11_000.0, hissDb = 44.0, wow = 0.0012, flutter = 0.0008)
+    BetaSpeed.II -> TapeAudioFigures(lowPassHz = 7_000.0, hissDb = 41.0, wow = 0.0025, flutter = 0.0015)
+    BetaSpeed.III -> TapeAudioFigures(lowPassHz = 5_500.0, hissDb = 39.5, wow = 0.0032, flutter = 0.0018)
+  }
+
+// Hi8 sound is FM on the picture heads, so it is the same at both speeds and barely bends.
+internal fun audioFiguresOf(speed: Hi8Speed): TapeAudioFigures =
+  when (speed) {
+    Hi8Speed.SP, Hi8Speed.LP -> TapeAudioFigures(lowPassHz = 15_000.0, hissDb = 55.0, wow = 0.0002, flutter = 0.0002)
   }
 
 // A sine swinging the delay by this many frames bends the pitch by depth at its steepest.

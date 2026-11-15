@@ -1,9 +1,15 @@
 package dev.jordond.filmstrip.effects.filters.vhs
 
 import dev.drewhamilton.poko.Poko
+import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.effect.EffectId
-import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effect.EffectStage
+import dev.jordond.filmstrip.effects.filters.tape.TapeAudioFigures
+import dev.jordond.filmstrip.effects.filters.tape.TapeLook
+import dev.jordond.filmstrip.effects.filters.tape.TapePictureParams
+import dev.jordond.filmstrip.effects.filters.tape.TapeStock
+import dev.jordond.filmstrip.effects.filters.tape.audioFiguresOf
+import dev.jordond.filmstrip.effects.filters.tape.pictureStock
 
 /**
  * Makes the frame look like it was played back from a VHS tape.
@@ -32,12 +38,12 @@ import dev.jordond.filmstrip.effect.EffectStage
  */
 @Poko
 public class Vhs(
-  public val intensity: Float = 1f,
+  override val intensity: Float = 1f,
   public val tape: TapeSpeed = TapeSpeed.EP,
-  public val seed: Int = DEFAULT_SEED,
-  public val tracking: Tracking = Tracking.Events(),
-  public val clock: TapeClock = TapeClock.Composition,
-) : EffectSpec {
+  override val seed: Int = DEFAULT_SEED,
+  override val tracking: Tracking = Tracking.Events(),
+  override val clock: TapeClock = TapeClock.Composition,
+) : TapeLook {
   init {
     require(intensity in 0f..1f) { "A VHS intensity has to be within 0 to 1, not $intensity." }
   }
@@ -54,6 +60,10 @@ public class Vhs(
 
   override val redrawsWhileHeld: Boolean get() = clock == TapeClock.Wall
 
+  @InternalFilmstripApi
+  override fun pictureParams(): TapePictureParams =
+    TapePictureParams.at(intensity.toDouble(), tape.pictureStock, tracking)
+
   public companion object {
     /**
      * The id every plan and notice names this effect by.
@@ -63,12 +73,12 @@ public class Vhs(
     /**
      * The seed a [Vhs] uses unless it is given one.
      */
-    public const val DEFAULT_SEED: Int = 1984
+    public const val DEFAULT_SEED: Int = TapeLook.DEFAULT_SEED
   }
 }
 
 /**
- * What a [Vhs] pattern moves with.
+ * What a [TapeLook] pattern moves with.
  *
  * An export always draws from composition time, so two exports of one edit match whichever is chosen. Thumbnails and
  * frames read out of an edit do the same.
@@ -90,7 +100,7 @@ public enum class TapeClock {
 }
 
 /**
- * How long a tape was stretched, and so how much picture detail it kept.
+ * How long a VHS tape was stretched, and so how much picture detail it kept.
  *
  * @property lumaMHz The luma bandwidth, in megahertz.
  * @property chromaMHz The chroma bandwidth, in megahertz.
@@ -98,7 +108,7 @@ public enum class TapeClock {
 public enum class TapeSpeed(
   public val lumaMHz: Double,
   public val chromaMHz: Double,
-) {
+) : TapeStock {
   /**
    * Standard play, the sharpest of the three.
    */
@@ -113,4 +123,10 @@ public enum class TapeSpeed(
    * Extended play, the softest of the three.
    */
   EP(lumaMHz = 1.4, chromaMHz = 0.28),
+  ;
+
+  override val label: String get() = name
+
+  @InternalFilmstripApi
+  override fun audioFigures(): TapeAudioFigures = audioFiguresOf(this)
 }

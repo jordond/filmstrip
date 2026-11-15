@@ -1,5 +1,7 @@
 package dev.jordond.filmstrip.effects.filters.tape
 
+import dev.jordond.filmstrip.effects.filters.betamax.BetaSpeed
+import dev.jordond.filmstrip.effects.filters.hi8.Hi8Speed
 import dev.jordond.filmstrip.effects.filters.vhs.TapeSpeed
 import io.kotest.assertions.withClue
 import io.kotest.matchers.doubles.plusOrMinus
@@ -20,10 +22,15 @@ class TapeAudioParamsTest {
   @Test
   fun `each speed plays its own figures at full strength`() {
     val expected =
-      mapOf(
+      mapOf<TapeStock, List<Double>>(
         TapeSpeed.SP to listOf(10_000.0, 43.0, 0.0015, 0.0010),
         TapeSpeed.LP to listOf(7_000.0, 41.0, 0.0025, 0.0015),
         TapeSpeed.EP to listOf(5_000.0, 39.0, 0.0035, 0.0020),
+        BetaSpeed.I to listOf(11_000.0, 44.0, 0.0012, 0.0008),
+        BetaSpeed.II to listOf(7_000.0, 41.0, 0.0025, 0.0015),
+        BetaSpeed.III to listOf(5_500.0, 39.5, 0.0032, 0.0018),
+        Hi8Speed.SP to listOf(15_000.0, 55.0, 0.0002, 0.0002),
+        Hi8Speed.LP to listOf(15_000.0, 55.0, 0.0002, 0.0002),
       )
 
     for ((tape, figures) in expected) {
@@ -70,6 +77,15 @@ class TapeAudioParamsTest {
     half.highPassHz shouldBe (sqrt(5.0 * 100.0) plusOrMinus 1e-9)
     half.wowRateHz shouldBe full.wowRateHz
     half.flutterRateHz shouldBe full.flutterRateHz
+  }
+
+  @Test
+  fun `a Betamax tape at half a band limit sits on the geometric mean of the open band and its own`() {
+    val half = tapeAudioParams(TapeAudio(tape = BetaSpeed.II, bandLimit = 0.5f), RATE)
+
+    half.lowPassHz shouldBe (sqrt(20_000.0 * 7_000.0) plusOrMinus 1e-6)
+    half.highPassHz shouldBe (sqrt(5.0 * 100.0) plusOrMinus 1e-9)
+    half.hissRms shouldBe (decibels(-41.0) plusOrMinus 1e-12)
   }
 
   @Test

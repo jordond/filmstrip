@@ -3,16 +3,21 @@ package dev.jordond.filmstrip.sample.playground
 import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.EffectsBuilder
 import dev.jordond.filmstrip.edit.compositionOf
+import dev.jordond.filmstrip.effects.filters.betamax.BetaSpeed
+import dev.jordond.filmstrip.effects.filters.betamax.betamax
 import dev.jordond.filmstrip.effects.filters.camcorder.camcorder
 import dev.jordond.filmstrip.effects.filters.crt.crt
 import dev.jordond.filmstrip.effects.filters.film.Film
 import dev.jordond.filmstrip.effects.filters.film.film
 import dev.jordond.filmstrip.effects.filters.glitch.glitch
+import dev.jordond.filmstrip.effects.filters.hi8.Hi8Speed
+import dev.jordond.filmstrip.effects.filters.hi8.hi8
 import dev.jordond.filmstrip.effects.filters.lut.CubeLut
 import dev.jordond.filmstrip.effects.filters.lut.lut
 import dev.jordond.filmstrip.effects.filters.nightvision.nightVision
 import dev.jordond.filmstrip.effects.filters.pixel.PixelPalette
 import dev.jordond.filmstrip.effects.filters.pixel.pixel
+import dev.jordond.filmstrip.effects.filters.tape.TapeLookBuilder
 import dev.jordond.filmstrip.effects.filters.vhs.TapeSpeed
 import dev.jordond.filmstrip.effects.filters.vhs.Tracking
 import dev.jordond.filmstrip.effects.filters.vhs.vhs
@@ -29,7 +34,7 @@ internal enum class FilterLook(
   val hasIntensity: Boolean = true,
 ) {
   None("NONE"),
-  Vhs("VHS"),
+  Tape("TAPE"),
   Crt("CRT"),
   Glitch("GLITCH"),
   Lut("LUT"),
@@ -39,7 +44,21 @@ internal enum class FilterLook(
 }
 
 /**
- * Which tracking band the VHS look runs, bands now and then, one rolling band, or none.
+ * The tape format the tape look plays.
+ *
+ * @property builder The name of the function that adds the format's look.
+ */
+internal enum class TapeFormat(
+  val label: String,
+  val builder: String,
+) {
+  Vhs("VHS", "vhs"),
+  Betamax("BETAMAX", "betamax"),
+  Hi8("HI8", "hi8"),
+}
+
+/**
+ * Which tracking band the tape look runs, bands now and then, one rolling band, or none.
  */
 internal enum class TrackingMode(
   val label: String,
@@ -67,14 +86,18 @@ internal enum class PixelColours(
 internal val tealAndOrange: CubeLut by lazy { CubeLut.parse(TEAL_AND_ORANGE_CUBE) }
 
 /**
- * The look the filters sample applies, how strong each look is, the tape, tracking band, snow and camcorder display
- * VHS plays with, the colours the pixel look snaps to and whether Film takes its Super 8 preset. Each look keeps its
- * own intensity, so switching away and back finds it where it was.
+ * The look the filters sample applies, how strong each look is, the format, speed, tracking band, snow and camcorder
+ * display the tape look plays with, the colours the pixel look snaps to and whether Film takes its Super 8 preset.
+ * Each look keeps its own intensity and each tape format its own speed, so switching away and back finds it where it
+ * was.
  */
 internal data class FilterSettings(
-  val look: FilterLook = FilterLook.Vhs,
+  val look: FilterLook = FilterLook.Tape,
   val intensities: Map<FilterLook, Float> = emptyMap(),
+  val format: TapeFormat = TapeFormat.Vhs,
   val tape: TapeSpeed = TapeSpeed.EP,
+  val beta: BetaSpeed = BetaSpeed.II,
+  val hi8: Hi8Speed = Hi8Speed.SP,
   val tracking: TrackingMode = TrackingMode.Events,
   val snow: Float = Tracking.DEFAULT_SNOW,
   val camcorder: CamcorderSettings = CamcorderSettings(),
@@ -111,7 +134,7 @@ internal fun filtersEdit(
     effects {
       when (settings.look) {
         FilterLook.None -> Unit
-        FilterLook.Vhs -> vhsEffects(settings)
+        FilterLook.Tape -> tapeEffects(settings)
         FilterLook.Crt -> crt(intensity = settings.intensity())
         FilterLook.Glitch -> glitch(intensity = settings.intensity())
         FilterLook.Lut -> lut(tealAndOrange, intensity = settings.intensity())
@@ -122,11 +145,10 @@ internal fun filtersEdit(
     }
   }
 
-private fun EffectsBuilder.vhsEffects(settings: FilterSettings) {
+private fun EffectsBuilder.tapeEffects(settings: FilterSettings) {
   val display = settings.camcorder
-  vhs {
+  val shared: TapeLookBuilder.() -> Unit = {
     intensity = settings.intensity()
-    tape = settings.tape
     tracking =
       when (settings.tracking) {
         TrackingMode.Events -> events { snow = settings.snow }
@@ -134,6 +156,26 @@ private fun EffectsBuilder.vhsEffects(settings: FilterSettings) {
         TrackingMode.Off -> Tracking.Off
       }
     if (display.shown && display.mode == CamcorderMode.OnTape) camcorder { display.addTo(this) }
+  }
+  when (settings.format) {
+    TapeFormat.Vhs -> {
+      vhs {
+        tape = settings.tape
+        shared()
+      }
+    }
+    TapeFormat.Betamax -> {
+      betamax {
+        tape = settings.beta
+        shared()
+      }
+    }
+    TapeFormat.Hi8 -> {
+      hi8 {
+        tape = settings.hi8
+        shared()
+      }
+    }
   }
   if (display.shown && display.mode == CamcorderMode.Clean) camcorder { display.addTo(this) }
 }
@@ -148,8 +190,8 @@ internal fun filtersCode(settings: FilterSettings): List<List<CodePart>> {
       FilterLook.None -> {
         listOf(listOf(CodePart("  // Pick a look", CodeKind.Comment)))
       }
-      FilterLook.Vhs -> {
-        vhsCode(settings)
+      FilterLook.Tape -> {
+        tapeCode(settings)
       }
       FilterLook.Film if settings.super8 -> {
         listOf(
@@ -198,27 +240,43 @@ internal fun filtersCode(settings: FilterSettings): List<List<CodePart>> {
   }
 }
 
-private fun vhsCode(settings: FilterSettings): List<List<CodePart>> {
+private fun tapeCode(settings: FilterSettings): List<List<CodePart>> {
   val display = settings.camcorder
   val intensity = settings.intensity()
   val body =
     buildList {
       if (intensity != FilterSettings.FULL) add(settingCode("intensity", floatLiteral(intensity)))
-      if (settings.tape != TapeSpeed.EP) add(settingCode("tape", "TapeSpeed.${settings.tape.name}"))
+      speedCode(settings)?.let { add(settingCode("tape", it)) }
       trackingCode(settings)?.let { add(settingCode("tracking", it)) }
       if (display.shown && display.mode == CamcorderMode.OnTape) addAll(camcorderCode(display, "    "))
     }
   return buildList {
     if (body.isEmpty()) {
-      add(listOf(CodePart("  vhs()", CodeKind.Call)))
+      add(listOf(CodePart("  ${settings.format.builder}()", CodeKind.Call)))
     } else {
-      add(listOf(CodePart("  vhs {", CodeKind.Call)))
+      add(listOf(CodePart("  ${settings.format.builder} {", CodeKind.Call)))
       addAll(body)
       add(listOf(CodePart("  }", CodeKind.Call)))
     }
     if (display.shown && display.mode == CamcorderMode.Clean) addAll(camcorderCode(display, "  "))
   }
 }
+
+// The speed the format plays at as the code names it, or null at the speed the format starts on.
+private fun speedCode(settings: FilterSettings): String? =
+  when (settings.format) {
+    TapeFormat.Vhs -> settings.tape.takeIf { it != TapeSpeed.EP }?.let { "TapeSpeed.${it.name}" }
+    TapeFormat.Betamax -> settings.beta.takeIf { it != BetaSpeed.II }?.let { "BetaSpeed.${it.name}" }
+    TapeFormat.Hi8 -> settings.hi8.takeIf { it != Hi8Speed.SP }?.let { "Hi8Speed.${it.name}" }
+  }
+
+// The name of the speed the format plays at.
+private fun speedName(settings: FilterSettings): String =
+  when (settings.format) {
+    TapeFormat.Vhs -> settings.tape.name
+    TapeFormat.Betamax -> settings.beta.name
+    TapeFormat.Hi8 -> settings.hi8.name
+  }
 
 private fun trackingCode(settings: FilterSettings): String? {
   val snow = if (settings.snow == Tracking.DEFAULT_SNOW) null else " { snow = ${floatLiteral(settings.snow)} }"
@@ -245,7 +303,7 @@ private fun camcorderCode(
   }
 
 /**
- * What the status line says about [settings], such as `VHS · LP`, `VHS · EP · ROLLING · ON TAPE`, `CRT 0.5`,
+ * What the status line says about [settings], such as `VHS · LP`, `HI8 · SP · ROLLING · ON TAPE`, `CRT 0.5`,
  * `PIXEL · CGA` or `FILM · SUPER 8`.
  */
 internal fun filterSummary(settings: FilterSettings): String {
@@ -254,8 +312,8 @@ internal fun filterSummary(settings: FilterSettings): String {
   val intensity = settings.intensity()
   val strength = if (intensity == FilterSettings.FULL) "" else " ${floatLiteral(intensity).removeSuffix("f")}"
   if (settings.look == FilterLook.Pixel) return "${settings.look.label}$strength · ${settings.colours.label}"
-  if (settings.look != FilterLook.Vhs) return "${settings.look.label}$strength"
+  if (settings.look != FilterLook.Tape) return "${settings.look.label}$strength"
   val tracking = if (settings.tracking == TrackingMode.Events) "" else " · ${settings.tracking.label}"
   val camcorder = if (settings.camcorder.shown) " · ${settings.camcorder.mode.label}" else ""
-  return "${settings.look.label}$strength · ${settings.tape.name}$tracking$camcorder"
+  return "${settings.format.label}$strength · ${speedName(settings)}$tracking$camcorder"
 }

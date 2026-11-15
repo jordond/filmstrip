@@ -171,11 +171,11 @@ dev.jordond.filmstrip.effects.filters.pixel.PixelLoweringMediaTest 3.16
 dev.jordond.filmstrip.effects.filters.pixel.PixelShaderProgramMediaTest 1.60
 dev.jordond.filmstrip.effects.filters.pixel.PixelSignalTest 0.14
 dev.jordond.filmstrip.effects.filters.vhs.VhsCoreImageHardwareTest 10.03
-dev.jordond.filmstrip.effects.filters.vhs.VhsCoverageTest 0.72
-dev.jordond.filmstrip.effects.filters.vhs.VhsHashExpressionMediaTest 0.47
-dev.jordond.filmstrip.effects.filters.vhs.VhsPlanesMediaTest 109.61
-dev.jordond.filmstrip.effects.filters.vhs.VhsShaderProgramMediaTest 2.83
-dev.jordond.filmstrip.effects.filters.vhs.VhsSignalTest 0.88
+dev.jordond.filmstrip.effects.filters.tape.TapePictureCoverageTest 0.72
+dev.jordond.filmstrip.effects.filters.tape.TapePictureHashExpressionMediaTest 0.47
+dev.jordond.filmstrip.effects.filters.tape.TapePicturePlanesMediaTest 109.61
+dev.jordond.filmstrip.effects.filters.tape.TapePictureShaderProgramMediaTest 2.83
+dev.jordond.filmstrip.effects.filters.tape.TapePictureSignalTest 0.88
 dev.jordond.filmstrip.effects.geometry.KenBurnsStepHardwareTest 1.00
 dev.jordond.filmstrip.effects.geometry.KenBurnsTransformationTest 0.29
 dev.jordond.filmstrip.effects.overlay.CoreImageOverlaysHardwareTest 1.00
@@ -830,10 +830,10 @@ dev.jordond.filmstrip.webcodecs.WasmExportCanaryMediaTest 3.87
 @ffmpeg-8 dev.jordond.filmstrip.effects.filters.nightvision.NightVisionTest 0.51
 @ffmpeg-8 dev.jordond.filmstrip.effects.filters.pixel.PixelLoweringMediaTest 3.16
 @ffmpeg-8 dev.jordond.filmstrip.effects.filters.pixel.PixelSignalTest 0.14
-@ffmpeg-8 dev.jordond.filmstrip.effects.filters.vhs.VhsCoverageTest 0.34
-@ffmpeg-8 dev.jordond.filmstrip.effects.filters.vhs.VhsHashExpressionMediaTest 0.47
-@ffmpeg-8 dev.jordond.filmstrip.effects.filters.vhs.VhsPlanesMediaTest 109.61
-@ffmpeg-8 dev.jordond.filmstrip.effects.filters.vhs.VhsSignalTest 0.49
+@ffmpeg-8 dev.jordond.filmstrip.effects.filters.tape.TapePictureCoverageTest 0.34
+@ffmpeg-8 dev.jordond.filmstrip.effects.filters.tape.TapePictureHashExpressionMediaTest 0.47
+@ffmpeg-8 dev.jordond.filmstrip.effects.filters.tape.TapePicturePlanesMediaTest 109.61
+@ffmpeg-8 dev.jordond.filmstrip.effects.filters.tape.TapePictureSignalTest 0.49
 @ffmpeg-8 dev.jordond.filmstrip.effects.overlay.HdrOverlayGraphTest 0.45
 @ffmpeg-8 dev.jordond.filmstrip.effects.overlay.HdrOverlayRasterTest 0.15
 @ffmpeg-8 dev.jordond.filmstrip.effects.overlay.JvmTextRasterTest 1.89
@@ -1141,10 +1141,10 @@ dev.jordond.filmstrip.webcodecs.WasmExportCanaryMediaTest 3.87
 @ffmpeg-9 dev.jordond.filmstrip.effects.filters.nightvision.NightVisionLoweringTest 0.56
 @ffmpeg-9 dev.jordond.filmstrip.effects.filters.nightvision.NightVisionTest 0.12
 @ffmpeg-9 dev.jordond.filmstrip.effects.filters.pixel.PixelLoweringMediaTest 1.62
-@ffmpeg-9 dev.jordond.filmstrip.effects.filters.vhs.VhsCoverageTest 0.72
-@ffmpeg-9 dev.jordond.filmstrip.effects.filters.vhs.VhsHashExpressionMediaTest 0.34
-@ffmpeg-9 dev.jordond.filmstrip.effects.filters.vhs.VhsPlanesMediaTest 41.84
-@ffmpeg-9 dev.jordond.filmstrip.effects.filters.vhs.VhsSignalTest 0.31
+@ffmpeg-9 dev.jordond.filmstrip.effects.filters.tape.TapePictureCoverageTest 0.72
+@ffmpeg-9 dev.jordond.filmstrip.effects.filters.tape.TapePictureHashExpressionMediaTest 0.34
+@ffmpeg-9 dev.jordond.filmstrip.effects.filters.tape.TapePicturePlanesMediaTest 41.84
+@ffmpeg-9 dev.jordond.filmstrip.effects.filters.tape.TapePictureSignalTest 0.31
 @ffmpeg-9 dev.jordond.filmstrip.effects.overlay.HdrOverlayGraphTest 0.34
 @ffmpeg-9 dev.jordond.filmstrip.effects.overlay.JvmTextRasterTest 1.25
 @ffmpeg-9 dev.jordond.filmstrip.effects.overlay.OverlayAnimationTest 0.18

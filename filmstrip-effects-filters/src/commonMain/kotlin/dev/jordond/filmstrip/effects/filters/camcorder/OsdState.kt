@@ -47,7 +47,7 @@ internal fun osdStateAt(
           is OsdElement.Clock -> listOf(text(clockText(spec.recordedAt.plusSeconds(wholeSeconds), element.style)))
           is OsdElement.Counter -> counterRuns(element, micros, frameRate)
           is OsdElement.Battery -> listOf(batteryRun(element, blink))
-          is OsdElement.Tape -> listOf(text(element.speed.name))
+          is OsdElement.Tape -> listOf(text(element.speed.label))
           is OsdElement.Label -> listOf(text(element.text))
         }
       OsdLine(element.corner, runs)

@@ -6,6 +6,20 @@
 // - Show declarations: true
 
 // Library unique name: <filmstrip-root:filmstrip-effects-filters>
+final enum class dev.jordond.filmstrip.effects.filters.betamax/BetaSpeed : dev.jordond.filmstrip.effects.filters.tape/TapeStock, kotlin/Enum<dev.jordond.filmstrip.effects.filters.betamax/BetaSpeed> { // dev.jordond.filmstrip.effects.filters.betamax/BetaSpeed|null[0]
+    enum entry I // dev.jordond.filmstrip.effects.filters.betamax/BetaSpeed.I|null[0]
+    enum entry II // dev.jordond.filmstrip.effects.filters.betamax/BetaSpeed.II|null[0]
+    enum entry III // dev.jordond.filmstrip.effects.filters.betamax/BetaSpeed.III|null[0]
+
+    final val entries // dev.jordond.filmstrip.effects.filters.betamax/BetaSpeed.entries|#static{}entries[0]
+        final fun <get-entries>(): kotlin.enums/EnumEntries<dev.jordond.filmstrip.effects.filters.betamax/BetaSpeed> // dev.jordond.filmstrip.effects.filters.betamax/BetaSpeed.entries.<get-entries>|<get-entries>#static(){}[0]
+    final val label // dev.jordond.filmstrip.effects.filters.betamax/BetaSpeed.label|{}label[0]
+        final fun <get-label>(): kotlin/String // dev.jordond.filmstrip.effects.filters.betamax/BetaSpeed.label.<get-label>|<get-label>(){}[0]
+
+    final fun valueOf(kotlin/String): dev.jordond.filmstrip.effects.filters.betamax/BetaSpeed // dev.jordond.filmstrip.effects.filters.betamax/BetaSpeed.valueOf|valueOf#static(kotlin.String){}[0]
+    final fun values(): kotlin/Array<dev.jordond.filmstrip.effects.filters.betamax/BetaSpeed> // dev.jordond.filmstrip.effects.filters.betamax/BetaSpeed.values|values#static(){}[0]
+}
+
 final enum class dev.jordond.filmstrip.effects.filters.camcorder/ClockStyle : kotlin/Enum<dev.jordond.filmstrip.effects.filters.camcorder/ClockStyle> { // dev.jordond.filmstrip.effects.filters.camcorder/ClockStyle|null[0]
     enum entry TwelveHour // dev.jordond.filmstrip.effects.filters.camcorder/ClockStyle.TwelveHour|null[0]
     enum entry TwentyFourHour // dev.jordond.filmstrip.effects.filters.camcorder/ClockStyle.TwentyFourHour|null[0]
@@ -56,6 +70,19 @@ final enum class dev.jordond.filmstrip.effects.filters.camcorder/TransportMode :
     final fun values(): kotlin/Array<dev.jordond.filmstrip.effects.filters.camcorder/TransportMode> // dev.jordond.filmstrip.effects.filters.camcorder/TransportMode.values|values#static(){}[0]
 }
 
+final enum class dev.jordond.filmstrip.effects.filters.hi8/Hi8Speed : dev.jordond.filmstrip.effects.filters.tape/TapeStock, kotlin/Enum<dev.jordond.filmstrip.effects.filters.hi8/Hi8Speed> { // dev.jordond.filmstrip.effects.filters.hi8/Hi8Speed|null[0]
+    enum entry LP // dev.jordond.filmstrip.effects.filters.hi8/Hi8Speed.LP|null[0]
+    enum entry SP // dev.jordond.filmstrip.effects.filters.hi8/Hi8Speed.SP|null[0]
+
+    final val entries // dev.jordond.filmstrip.effects.filters.hi8/Hi8Speed.entries|#static{}entries[0]
+        final fun <get-entries>(): kotlin.enums/EnumEntries<dev.jordond.filmstrip.effects.filters.hi8/Hi8Speed> // dev.jordond.filmstrip.effects.filters.hi8/Hi8Speed.entries.<get-entries>|<get-entries>#static(){}[0]
+    final val label // dev.jordond.filmstrip.effects.filters.hi8/Hi8Speed.label|{}label[0]
+        final fun <get-label>(): kotlin/String // dev.jordond.filmstrip.effects.filters.hi8/Hi8Speed.label.<get-label>|<get-label>(){}[0]
+
+    final fun valueOf(kotlin/String): dev.jordond.filmstrip.effects.filters.hi8/Hi8Speed // dev.jordond.filmstrip.effects.filters.hi8/Hi8Speed.valueOf|valueOf#static(kotlin.String){}[0]
+    final fun values(): kotlin/Array<dev.jordond.filmstrip.effects.filters.hi8/Hi8Speed> // dev.jordond.filmstrip.effects.filters.hi8/Hi8Speed.values|values#static(){}[0]
+}
+
 final enum class dev.jordond.filmstrip.effects.filters.vhs/TapeClock : kotlin/Enum<dev.jordond.filmstrip.effects.filters.vhs/TapeClock> { // dev.jordond.filmstrip.effects.filters.vhs/TapeClock|null[0]
     enum entry Composition // dev.jordond.filmstrip.effects.filters.vhs/TapeClock.Composition|null[0]
     enum entry Wall // dev.jordond.filmstrip.effects.filters.vhs/TapeClock.Wall|null[0]
@@ -67,7 +94,7 @@ final enum class dev.jordond.filmstrip.effects.filters.vhs/TapeClock : kotlin/En
     final fun values(): kotlin/Array<dev.jordond.filmstrip.effects.filters.vhs/TapeClock> // dev.jordond.filmstrip.effects.filters.vhs/TapeClock.values|values#static(){}[0]
 }
 
-final enum class dev.jordond.filmstrip.effects.filters.vhs/TapeSpeed : kotlin/Enum<dev.jordond.filmstrip.effects.filters.vhs/TapeSpeed> { // dev.jordond.filmstrip.effects.filters.vhs/TapeSpeed|null[0]
+final enum class dev.jordond.filmstrip.effects.filters.vhs/TapeSpeed : dev.jordond.filmstrip.effects.filters.tape/TapeStock, kotlin/Enum<dev.jordond.filmstrip.effects.filters.vhs/TapeSpeed> { // dev.jordond.filmstrip.effects.filters.vhs/TapeSpeed|null[0]
     enum entry EP // dev.jordond.filmstrip.effects.filters.vhs/TapeSpeed.EP|null[0]
     enum entry LP // dev.jordond.filmstrip.effects.filters.vhs/TapeSpeed.LP|null[0]
     enum entry SP // dev.jordond.filmstrip.effects.filters.vhs/TapeSpeed.SP|null[0]
@@ -76,11 +103,34 @@ final enum class dev.jordond.filmstrip.effects.filters.vhs/TapeSpeed : kotlin/En
         final fun <get-chromaMHz>(): kotlin/Double // dev.jordond.filmstrip.effects.filters.vhs/TapeSpeed.chromaMHz.<get-chromaMHz>|<get-chromaMHz>(){}[0]
     final val entries // dev.jordond.filmstrip.effects.filters.vhs/TapeSpeed.entries|#static{}entries[0]
         final fun <get-entries>(): kotlin.enums/EnumEntries<dev.jordond.filmstrip.effects.filters.vhs/TapeSpeed> // dev.jordond.filmstrip.effects.filters.vhs/TapeSpeed.entries.<get-entries>|<get-entries>#static(){}[0]
+    final val label // dev.jordond.filmstrip.effects.filters.vhs/TapeSpeed.label|{}label[0]
+        final fun <get-label>(): kotlin/String // dev.jordond.filmstrip.effects.filters.vhs/TapeSpeed.label.<get-label>|<get-label>(){}[0]
     final val lumaMHz // dev.jordond.filmstrip.effects.filters.vhs/TapeSpeed.lumaMHz|{}lumaMHz[0]
         final fun <get-lumaMHz>(): kotlin/Double // dev.jordond.filmstrip.effects.filters.vhs/TapeSpeed.lumaMHz.<get-lumaMHz>|<get-lumaMHz>(){}[0]
 
     final fun valueOf(kotlin/String): dev.jordond.filmstrip.effects.filters.vhs/TapeSpeed // dev.jordond.filmstrip.effects.filters.vhs/TapeSpeed.valueOf|valueOf#static(kotlin.String){}[0]
     final fun values(): kotlin/Array<dev.jordond.filmstrip.effects.filters.vhs/TapeSpeed> // dev.jordond.filmstrip.effects.filters.vhs/TapeSpeed.values|values#static(){}[0]
+}
+
+abstract interface dev.jordond.filmstrip.effects.filters.tape/TapeLook : dev.jordond.filmstrip.effect/EffectSpec { // dev.jordond.filmstrip.effects.filters.tape/TapeLook|null[0]
+    abstract val clock // dev.jordond.filmstrip.effects.filters.tape/TapeLook.clock|{}clock[0]
+        abstract fun <get-clock>(): dev.jordond.filmstrip.effects.filters.vhs/TapeClock // dev.jordond.filmstrip.effects.filters.tape/TapeLook.clock.<get-clock>|<get-clock>(){}[0]
+    abstract val intensity // dev.jordond.filmstrip.effects.filters.tape/TapeLook.intensity|{}intensity[0]
+        abstract fun <get-intensity>(): kotlin/Float // dev.jordond.filmstrip.effects.filters.tape/TapeLook.intensity.<get-intensity>|<get-intensity>(){}[0]
+    abstract val seed // dev.jordond.filmstrip.effects.filters.tape/TapeLook.seed|{}seed[0]
+        abstract fun <get-seed>(): kotlin/Int // dev.jordond.filmstrip.effects.filters.tape/TapeLook.seed.<get-seed>|<get-seed>(){}[0]
+    abstract val tracking // dev.jordond.filmstrip.effects.filters.tape/TapeLook.tracking|{}tracking[0]
+        abstract fun <get-tracking>(): dev.jordond.filmstrip.effects.filters.vhs/Tracking // dev.jordond.filmstrip.effects.filters.tape/TapeLook.tracking.<get-tracking>|<get-tracking>(){}[0]
+
+    final object Companion { // dev.jordond.filmstrip.effects.filters.tape/TapeLook.Companion|null[0]
+        final const val DEFAULT_SEED // dev.jordond.filmstrip.effects.filters.tape/TapeLook.Companion.DEFAULT_SEED|{}DEFAULT_SEED[0]
+            final fun <get-DEFAULT_SEED>(): kotlin/Int // dev.jordond.filmstrip.effects.filters.tape/TapeLook.Companion.DEFAULT_SEED.<get-DEFAULT_SEED>|<get-DEFAULT_SEED>(){}[0]
+    }
+}
+
+abstract interface dev.jordond.filmstrip.effects.filters.tape/TapeStock { // dev.jordond.filmstrip.effects.filters.tape/TapeStock|null[0]
+    abstract val label // dev.jordond.filmstrip.effects.filters.tape/TapeStock.label|{}label[0]
+        abstract fun <get-label>(): kotlin/String // dev.jordond.filmstrip.effects.filters.tape/TapeStock.label.<get-label>|<get-label>(){}[0]
 }
 
 sealed interface dev.jordond.filmstrip.effects.filters.camcorder/OsdElement { // dev.jordond.filmstrip.effects.filters.camcorder/OsdElement|null[0]
@@ -168,12 +218,12 @@ sealed interface dev.jordond.filmstrip.effects.filters.camcorder/OsdElement { //
     }
 
     final class Tape : dev.jordond.filmstrip.effects.filters.camcorder/OsdElement { // dev.jordond.filmstrip.effects.filters.camcorder/OsdElement.Tape|null[0]
-        constructor <init>(dev.jordond.filmstrip.effects.filters.vhs/TapeSpeed, dev.jordond.filmstrip.effects.filters.camcorder/OsdCorner = ...) // dev.jordond.filmstrip.effects.filters.camcorder/OsdElement.Tape.<init>|<init>(dev.jordond.filmstrip.effects.filters.vhs.TapeSpeed;dev.jordond.filmstrip.effects.filters.camcorder.OsdCorner){}[0]
+        constructor <init>(dev.jordond.filmstrip.effects.filters.tape/TapeStock, dev.jordond.filmstrip.effects.filters.camcorder/OsdCorner = ...) // dev.jordond.filmstrip.effects.filters.camcorder/OsdElement.Tape.<init>|<init>(dev.jordond.filmstrip.effects.filters.tape.TapeStock;dev.jordond.filmstrip.effects.filters.camcorder.OsdCorner){}[0]
 
         final val corner // dev.jordond.filmstrip.effects.filters.camcorder/OsdElement.Tape.corner|{}corner[0]
             final fun <get-corner>(): dev.jordond.filmstrip.effects.filters.camcorder/OsdCorner // dev.jordond.filmstrip.effects.filters.camcorder/OsdElement.Tape.corner.<get-corner>|<get-corner>(){}[0]
         final val speed // dev.jordond.filmstrip.effects.filters.camcorder/OsdElement.Tape.speed|{}speed[0]
-            final fun <get-speed>(): dev.jordond.filmstrip.effects.filters.vhs/TapeSpeed // dev.jordond.filmstrip.effects.filters.camcorder/OsdElement.Tape.speed.<get-speed>|<get-speed>(){}[0]
+            final fun <get-speed>(): dev.jordond.filmstrip.effects.filters.tape/TapeStock // dev.jordond.filmstrip.effects.filters.camcorder/OsdElement.Tape.speed.<get-speed>|<get-speed>(){}[0]
 
         final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.effects.filters.camcorder/OsdElement.Tape.equals|equals(kotlin.Any?){}[0]
         final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.effects.filters.camcorder/OsdElement.Tape.hashCode|hashCode(){}[0]
@@ -250,6 +300,67 @@ sealed interface dev.jordond.filmstrip.effects.filters.vhs/Tracking { // dev.jor
     }
 }
 
+abstract class dev.jordond.filmstrip.effects.filters.tape/TapeLookBuilder { // dev.jordond.filmstrip.effects.filters.tape/TapeLookBuilder|null[0]
+    final var clock // dev.jordond.filmstrip.effects.filters.tape/TapeLookBuilder.clock|{}clock[0]
+        final fun <get-clock>(): dev.jordond.filmstrip.effects.filters.vhs/TapeClock // dev.jordond.filmstrip.effects.filters.tape/TapeLookBuilder.clock.<get-clock>|<get-clock>(){}[0]
+        final fun <set-clock>(dev.jordond.filmstrip.effects.filters.vhs/TapeClock) // dev.jordond.filmstrip.effects.filters.tape/TapeLookBuilder.clock.<set-clock>|<set-clock>(dev.jordond.filmstrip.effects.filters.vhs.TapeClock){}[0]
+    final var intensity // dev.jordond.filmstrip.effects.filters.tape/TapeLookBuilder.intensity|{}intensity[0]
+        final fun <get-intensity>(): kotlin/Float // dev.jordond.filmstrip.effects.filters.tape/TapeLookBuilder.intensity.<get-intensity>|<get-intensity>(){}[0]
+        final fun <set-intensity>(kotlin/Float) // dev.jordond.filmstrip.effects.filters.tape/TapeLookBuilder.intensity.<set-intensity>|<set-intensity>(kotlin.Float){}[0]
+    final var seed // dev.jordond.filmstrip.effects.filters.tape/TapeLookBuilder.seed|{}seed[0]
+        final fun <get-seed>(): kotlin/Int // dev.jordond.filmstrip.effects.filters.tape/TapeLookBuilder.seed.<get-seed>|<get-seed>(){}[0]
+        final fun <set-seed>(kotlin/Int) // dev.jordond.filmstrip.effects.filters.tape/TapeLookBuilder.seed.<set-seed>|<set-seed>(kotlin.Int){}[0]
+    final var tracking // dev.jordond.filmstrip.effects.filters.tape/TapeLookBuilder.tracking|{}tracking[0]
+        final fun <get-tracking>(): dev.jordond.filmstrip.effects.filters.vhs/Tracking // dev.jordond.filmstrip.effects.filters.tape/TapeLookBuilder.tracking.<get-tracking>|<get-tracking>(){}[0]
+        final fun <set-tracking>(dev.jordond.filmstrip.effects.filters.vhs/Tracking) // dev.jordond.filmstrip.effects.filters.tape/TapeLookBuilder.tracking.<set-tracking>|<set-tracking>(dev.jordond.filmstrip.effects.filters.vhs.Tracking){}[0]
+
+    final fun camcorder(kotlin/Function1<dev.jordond.filmstrip.effects.filters.camcorder/CamcorderBuilder, kotlin/Unit>) // dev.jordond.filmstrip.effects.filters.tape/TapeLookBuilder.camcorder|camcorder(kotlin.Function1<dev.jordond.filmstrip.effects.filters.camcorder.CamcorderBuilder,kotlin.Unit>){}[0]
+    final fun events(kotlin/Float = ..., kotlin/Function1<dev.jordond.filmstrip.effects.filters.vhs/TrackingBuilder, kotlin/Unit> = ...): dev.jordond.filmstrip.effects.filters.vhs/Tracking.Events // dev.jordond.filmstrip.effects.filters.tape/TapeLookBuilder.events|events(kotlin.Float;kotlin.Function1<dev.jordond.filmstrip.effects.filters.vhs.TrackingBuilder,kotlin.Unit>){}[0]
+    final fun rolling(kotlin.time/Duration = ..., kotlin/Function1<dev.jordond.filmstrip.effects.filters.vhs/TrackingBuilder, kotlin/Unit> = ...): dev.jordond.filmstrip.effects.filters.vhs/Tracking.Rolling // dev.jordond.filmstrip.effects.filters.tape/TapeLookBuilder.rolling|rolling(kotlin.time.Duration;kotlin.Function1<dev.jordond.filmstrip.effects.filters.vhs.TrackingBuilder,kotlin.Unit>){}[0]
+}
+
+final class dev.jordond.filmstrip.effects.filters.betamax/Betamax : dev.jordond.filmstrip.effects.filters.tape/TapeLook { // dev.jordond.filmstrip.effects.filters.betamax/Betamax|null[0]
+    constructor <init>(kotlin/Float = ..., dev.jordond.filmstrip.effects.filters.betamax/BetaSpeed = ..., kotlin/Int = ..., dev.jordond.filmstrip.effects.filters.vhs/Tracking = ..., dev.jordond.filmstrip.effects.filters.vhs/TapeClock = ...) // dev.jordond.filmstrip.effects.filters.betamax/Betamax.<init>|<init>(kotlin.Float;dev.jordond.filmstrip.effects.filters.betamax.BetaSpeed;kotlin.Int;dev.jordond.filmstrip.effects.filters.vhs.Tracking;dev.jordond.filmstrip.effects.filters.vhs.TapeClock){}[0]
+
+    final val beneathOverlays // dev.jordond.filmstrip.effects.filters.betamax/Betamax.beneathOverlays|{}beneathOverlays[0]
+        final fun <get-beneathOverlays>(): kotlin/Boolean // dev.jordond.filmstrip.effects.filters.betamax/Betamax.beneathOverlays.<get-beneathOverlays>|<get-beneathOverlays>(){}[0]
+    final val clock // dev.jordond.filmstrip.effects.filters.betamax/Betamax.clock|{}clock[0]
+        final fun <get-clock>(): dev.jordond.filmstrip.effects.filters.vhs/TapeClock // dev.jordond.filmstrip.effects.filters.betamax/Betamax.clock.<get-clock>|<get-clock>(){}[0]
+    final val id // dev.jordond.filmstrip.effects.filters.betamax/Betamax.id|{}id[0]
+        final fun <get-id>(): dev.jordond.filmstrip.effect/EffectId // dev.jordond.filmstrip.effects.filters.betamax/Betamax.id.<get-id>|<get-id>(){}[0]
+    final val intensity // dev.jordond.filmstrip.effects.filters.betamax/Betamax.intensity|{}intensity[0]
+        final fun <get-intensity>(): kotlin/Float // dev.jordond.filmstrip.effects.filters.betamax/Betamax.intensity.<get-intensity>|<get-intensity>(){}[0]
+    final val isInert // dev.jordond.filmstrip.effects.filters.betamax/Betamax.isInert|{}isInert[0]
+        final fun <get-isInert>(): kotlin/Boolean // dev.jordond.filmstrip.effects.filters.betamax/Betamax.isInert.<get-isInert>|<get-isInert>(){}[0]
+    final val redrawsWhileHeld // dev.jordond.filmstrip.effects.filters.betamax/Betamax.redrawsWhileHeld|{}redrawsWhileHeld[0]
+        final fun <get-redrawsWhileHeld>(): kotlin/Boolean // dev.jordond.filmstrip.effects.filters.betamax/Betamax.redrawsWhileHeld.<get-redrawsWhileHeld>|<get-redrawsWhileHeld>(){}[0]
+    final val requiresSdr // dev.jordond.filmstrip.effects.filters.betamax/Betamax.requiresSdr|{}requiresSdr[0]
+        final fun <get-requiresSdr>(): kotlin/Boolean // dev.jordond.filmstrip.effects.filters.betamax/Betamax.requiresSdr.<get-requiresSdr>|<get-requiresSdr>(){}[0]
+    final val seed // dev.jordond.filmstrip.effects.filters.betamax/Betamax.seed|{}seed[0]
+        final fun <get-seed>(): kotlin/Int // dev.jordond.filmstrip.effects.filters.betamax/Betamax.seed.<get-seed>|<get-seed>(){}[0]
+    final val stage // dev.jordond.filmstrip.effects.filters.betamax/Betamax.stage|{}stage[0]
+        final fun <get-stage>(): dev.jordond.filmstrip.effect/EffectStage // dev.jordond.filmstrip.effects.filters.betamax/Betamax.stage.<get-stage>|<get-stage>(){}[0]
+    final val tape // dev.jordond.filmstrip.effects.filters.betamax/Betamax.tape|{}tape[0]
+        final fun <get-tape>(): dev.jordond.filmstrip.effects.filters.betamax/BetaSpeed // dev.jordond.filmstrip.effects.filters.betamax/Betamax.tape.<get-tape>|<get-tape>(){}[0]
+    final val tracking // dev.jordond.filmstrip.effects.filters.betamax/Betamax.tracking|{}tracking[0]
+        final fun <get-tracking>(): dev.jordond.filmstrip.effects.filters.vhs/Tracking // dev.jordond.filmstrip.effects.filters.betamax/Betamax.tracking.<get-tracking>|<get-tracking>(){}[0]
+
+    final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.effects.filters.betamax/Betamax.equals|equals(kotlin.Any?){}[0]
+    final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.effects.filters.betamax/Betamax.hashCode|hashCode(){}[0]
+    final fun toString(): kotlin/String // dev.jordond.filmstrip.effects.filters.betamax/Betamax.toString|toString(){}[0]
+
+    final object Companion { // dev.jordond.filmstrip.effects.filters.betamax/Betamax.Companion|null[0]
+        final val ID // dev.jordond.filmstrip.effects.filters.betamax/Betamax.Companion.ID|{}ID[0]
+            final fun <get-ID>(): dev.jordond.filmstrip.effect/EffectId // dev.jordond.filmstrip.effects.filters.betamax/Betamax.Companion.ID.<get-ID>|<get-ID>(){}[0]
+    }
+}
+
+final class dev.jordond.filmstrip.effects.filters.betamax/BetamaxBuilder : dev.jordond.filmstrip.effects.filters.tape/TapeLookBuilder { // dev.jordond.filmstrip.effects.filters.betamax/BetamaxBuilder|null[0]
+    final var tape // dev.jordond.filmstrip.effects.filters.betamax/BetamaxBuilder.tape|{}tape[0]
+        final fun <get-tape>(): dev.jordond.filmstrip.effects.filters.betamax/BetaSpeed // dev.jordond.filmstrip.effects.filters.betamax/BetamaxBuilder.tape.<get-tape>|<get-tape>(){}[0]
+        final fun <set-tape>(dev.jordond.filmstrip.effects.filters.betamax/BetaSpeed) // dev.jordond.filmstrip.effects.filters.betamax/BetamaxBuilder.tape.<set-tape>|<set-tape>(dev.jordond.filmstrip.effects.filters.betamax.BetaSpeed){}[0]
+}
+
 final class dev.jordond.filmstrip.effects.filters.camcorder/Camcorder : dev.jordond.filmstrip.effect/EffectSpec { // dev.jordond.filmstrip.effects.filters.camcorder/Camcorder|null[0]
     constructor <init>(kotlin.collections/List<dev.jordond.filmstrip.effects.filters.camcorder/OsdElement>, dev.jordond.filmstrip.effects.filters.camcorder/RecordedAt = ..., kotlin/Float = ...) // dev.jordond.filmstrip.effects.filters.camcorder/Camcorder.<init>|<init>(kotlin.collections.List<dev.jordond.filmstrip.effects.filters.camcorder.OsdElement>;dev.jordond.filmstrip.effects.filters.camcorder.RecordedAt;kotlin.Float){}[0]
 
@@ -301,7 +412,7 @@ final class dev.jordond.filmstrip.effects.filters.camcorder/CamcorderBuilder { /
     final fun pause(dev.jordond.filmstrip.effects.filters.camcorder/OsdCorner = ...) // dev.jordond.filmstrip.effects.filters.camcorder/CamcorderBuilder.pause|pause(dev.jordond.filmstrip.effects.filters.camcorder.OsdCorner){}[0]
     final fun play(dev.jordond.filmstrip.effects.filters.camcorder/OsdCorner = ...) // dev.jordond.filmstrip.effects.filters.camcorder/CamcorderBuilder.play|play(dev.jordond.filmstrip.effects.filters.camcorder.OsdCorner){}[0]
     final fun rec(dev.jordond.filmstrip.effects.filters.camcorder/OsdCorner = ...) // dev.jordond.filmstrip.effects.filters.camcorder/CamcorderBuilder.rec|rec(dev.jordond.filmstrip.effects.filters.camcorder.OsdCorner){}[0]
-    final fun tape(dev.jordond.filmstrip.effects.filters.vhs/TapeSpeed, dev.jordond.filmstrip.effects.filters.camcorder/OsdCorner = ...) // dev.jordond.filmstrip.effects.filters.camcorder/CamcorderBuilder.tape|tape(dev.jordond.filmstrip.effects.filters.vhs.TapeSpeed;dev.jordond.filmstrip.effects.filters.camcorder.OsdCorner){}[0]
+    final fun tape(dev.jordond.filmstrip.effects.filters.tape/TapeStock, dev.jordond.filmstrip.effects.filters.camcorder/OsdCorner = ...) // dev.jordond.filmstrip.effects.filters.camcorder/CamcorderBuilder.tape|tape(dev.jordond.filmstrip.effects.filters.tape.TapeStock;dev.jordond.filmstrip.effects.filters.camcorder.OsdCorner){}[0]
     final fun transport(dev.jordond.filmstrip.effects.filters.camcorder/TransportMode, dev.jordond.filmstrip.effects.filters.camcorder/OsdCorner = ...) // dev.jordond.filmstrip.effects.filters.camcorder/CamcorderBuilder.transport|transport(dev.jordond.filmstrip.effects.filters.camcorder.TransportMode;dev.jordond.filmstrip.effects.filters.camcorder.OsdCorner){}[0]
 }
 
@@ -424,6 +535,48 @@ final class dev.jordond.filmstrip.effects.filters.glitch/Glitch : dev.jordond.fi
         final val ID // dev.jordond.filmstrip.effects.filters.glitch/Glitch.Companion.ID|{}ID[0]
             final fun <get-ID>(): dev.jordond.filmstrip.effect/EffectId // dev.jordond.filmstrip.effects.filters.glitch/Glitch.Companion.ID.<get-ID>|<get-ID>(){}[0]
     }
+}
+
+final class dev.jordond.filmstrip.effects.filters.hi8/Hi8 : dev.jordond.filmstrip.effects.filters.tape/TapeLook { // dev.jordond.filmstrip.effects.filters.hi8/Hi8|null[0]
+    constructor <init>(kotlin/Float = ..., dev.jordond.filmstrip.effects.filters.hi8/Hi8Speed = ..., kotlin/Int = ..., dev.jordond.filmstrip.effects.filters.vhs/Tracking = ..., dev.jordond.filmstrip.effects.filters.vhs/TapeClock = ...) // dev.jordond.filmstrip.effects.filters.hi8/Hi8.<init>|<init>(kotlin.Float;dev.jordond.filmstrip.effects.filters.hi8.Hi8Speed;kotlin.Int;dev.jordond.filmstrip.effects.filters.vhs.Tracking;dev.jordond.filmstrip.effects.filters.vhs.TapeClock){}[0]
+
+    final val beneathOverlays // dev.jordond.filmstrip.effects.filters.hi8/Hi8.beneathOverlays|{}beneathOverlays[0]
+        final fun <get-beneathOverlays>(): kotlin/Boolean // dev.jordond.filmstrip.effects.filters.hi8/Hi8.beneathOverlays.<get-beneathOverlays>|<get-beneathOverlays>(){}[0]
+    final val clock // dev.jordond.filmstrip.effects.filters.hi8/Hi8.clock|{}clock[0]
+        final fun <get-clock>(): dev.jordond.filmstrip.effects.filters.vhs/TapeClock // dev.jordond.filmstrip.effects.filters.hi8/Hi8.clock.<get-clock>|<get-clock>(){}[0]
+    final val id // dev.jordond.filmstrip.effects.filters.hi8/Hi8.id|{}id[0]
+        final fun <get-id>(): dev.jordond.filmstrip.effect/EffectId // dev.jordond.filmstrip.effects.filters.hi8/Hi8.id.<get-id>|<get-id>(){}[0]
+    final val intensity // dev.jordond.filmstrip.effects.filters.hi8/Hi8.intensity|{}intensity[0]
+        final fun <get-intensity>(): kotlin/Float // dev.jordond.filmstrip.effects.filters.hi8/Hi8.intensity.<get-intensity>|<get-intensity>(){}[0]
+    final val isInert // dev.jordond.filmstrip.effects.filters.hi8/Hi8.isInert|{}isInert[0]
+        final fun <get-isInert>(): kotlin/Boolean // dev.jordond.filmstrip.effects.filters.hi8/Hi8.isInert.<get-isInert>|<get-isInert>(){}[0]
+    final val redrawsWhileHeld // dev.jordond.filmstrip.effects.filters.hi8/Hi8.redrawsWhileHeld|{}redrawsWhileHeld[0]
+        final fun <get-redrawsWhileHeld>(): kotlin/Boolean // dev.jordond.filmstrip.effects.filters.hi8/Hi8.redrawsWhileHeld.<get-redrawsWhileHeld>|<get-redrawsWhileHeld>(){}[0]
+    final val requiresSdr // dev.jordond.filmstrip.effects.filters.hi8/Hi8.requiresSdr|{}requiresSdr[0]
+        final fun <get-requiresSdr>(): kotlin/Boolean // dev.jordond.filmstrip.effects.filters.hi8/Hi8.requiresSdr.<get-requiresSdr>|<get-requiresSdr>(){}[0]
+    final val seed // dev.jordond.filmstrip.effects.filters.hi8/Hi8.seed|{}seed[0]
+        final fun <get-seed>(): kotlin/Int // dev.jordond.filmstrip.effects.filters.hi8/Hi8.seed.<get-seed>|<get-seed>(){}[0]
+    final val stage // dev.jordond.filmstrip.effects.filters.hi8/Hi8.stage|{}stage[0]
+        final fun <get-stage>(): dev.jordond.filmstrip.effect/EffectStage // dev.jordond.filmstrip.effects.filters.hi8/Hi8.stage.<get-stage>|<get-stage>(){}[0]
+    final val tape // dev.jordond.filmstrip.effects.filters.hi8/Hi8.tape|{}tape[0]
+        final fun <get-tape>(): dev.jordond.filmstrip.effects.filters.hi8/Hi8Speed // dev.jordond.filmstrip.effects.filters.hi8/Hi8.tape.<get-tape>|<get-tape>(){}[0]
+    final val tracking // dev.jordond.filmstrip.effects.filters.hi8/Hi8.tracking|{}tracking[0]
+        final fun <get-tracking>(): dev.jordond.filmstrip.effects.filters.vhs/Tracking // dev.jordond.filmstrip.effects.filters.hi8/Hi8.tracking.<get-tracking>|<get-tracking>(){}[0]
+
+    final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.effects.filters.hi8/Hi8.equals|equals(kotlin.Any?){}[0]
+    final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.effects.filters.hi8/Hi8.hashCode|hashCode(){}[0]
+    final fun toString(): kotlin/String // dev.jordond.filmstrip.effects.filters.hi8/Hi8.toString|toString(){}[0]
+
+    final object Companion { // dev.jordond.filmstrip.effects.filters.hi8/Hi8.Companion|null[0]
+        final val ID // dev.jordond.filmstrip.effects.filters.hi8/Hi8.Companion.ID|{}ID[0]
+            final fun <get-ID>(): dev.jordond.filmstrip.effect/EffectId // dev.jordond.filmstrip.effects.filters.hi8/Hi8.Companion.ID.<get-ID>|<get-ID>(){}[0]
+    }
+}
+
+final class dev.jordond.filmstrip.effects.filters.hi8/Hi8Builder : dev.jordond.filmstrip.effects.filters.tape/TapeLookBuilder { // dev.jordond.filmstrip.effects.filters.hi8/Hi8Builder|null[0]
+    final var tape // dev.jordond.filmstrip.effects.filters.hi8/Hi8Builder.tape|{}tape[0]
+        final fun <get-tape>(): dev.jordond.filmstrip.effects.filters.hi8/Hi8Speed // dev.jordond.filmstrip.effects.filters.hi8/Hi8Builder.tape.<get-tape>|<get-tape>(){}[0]
+        final fun <set-tape>(dev.jordond.filmstrip.effects.filters.hi8/Hi8Speed) // dev.jordond.filmstrip.effects.filters.hi8/Hi8Builder.tape.<set-tape>|<set-tape>(dev.jordond.filmstrip.effects.filters.hi8.Hi8Speed){}[0]
 }
 
 final class dev.jordond.filmstrip.effects.filters.lut/CubeLut { // dev.jordond.filmstrip.effects.filters.lut/CubeLut|null[0]
@@ -574,7 +727,7 @@ final class dev.jordond.filmstrip.effects.filters.pixel/PixelPalette { // dev.jo
 }
 
 final class dev.jordond.filmstrip.effects.filters.tape/TapeAudio : dev.jordond.filmstrip.audio/AudioEffectSpec { // dev.jordond.filmstrip.effects.filters.tape/TapeAudio|null[0]
-    constructor <init>(kotlin/Float = ..., dev.jordond.filmstrip.effects.filters.vhs/TapeSpeed = ..., kotlin/Int = ..., kotlin/Float = ..., kotlin/Float = ..., dev.jordond.filmstrip.effects.filters.tape/Wobble = ..., dev.jordond.filmstrip.effects.filters.tape/Wobble = ..., kotlin/Boolean = ...) // dev.jordond.filmstrip.effects.filters.tape/TapeAudio.<init>|<init>(kotlin.Float;dev.jordond.filmstrip.effects.filters.vhs.TapeSpeed;kotlin.Int;kotlin.Float;kotlin.Float;dev.jordond.filmstrip.effects.filters.tape.Wobble;dev.jordond.filmstrip.effects.filters.tape.Wobble;kotlin.Boolean){}[0]
+    constructor <init>(kotlin/Float = ..., dev.jordond.filmstrip.effects.filters.tape/TapeStock = ..., kotlin/Int = ..., kotlin/Float = ..., kotlin/Float = ..., dev.jordond.filmstrip.effects.filters.tape/Wobble = ..., dev.jordond.filmstrip.effects.filters.tape/Wobble = ..., kotlin/Boolean = ...) // dev.jordond.filmstrip.effects.filters.tape/TapeAudio.<init>|<init>(kotlin.Float;dev.jordond.filmstrip.effects.filters.tape.TapeStock;kotlin.Int;kotlin.Float;kotlin.Float;dev.jordond.filmstrip.effects.filters.tape.Wobble;dev.jordond.filmstrip.effects.filters.tape.Wobble;kotlin.Boolean){}[0]
 
     final val bandLimit // dev.jordond.filmstrip.effects.filters.tape/TapeAudio.bandLimit|{}bandLimit[0]
         final fun <get-bandLimit>(): kotlin/Float // dev.jordond.filmstrip.effects.filters.tape/TapeAudio.bandLimit.<get-bandLimit>|<get-bandLimit>(){}[0]
@@ -593,7 +746,7 @@ final class dev.jordond.filmstrip.effects.filters.tape/TapeAudio : dev.jordond.f
     final val seed // dev.jordond.filmstrip.effects.filters.tape/TapeAudio.seed|{}seed[0]
         final fun <get-seed>(): kotlin/Int // dev.jordond.filmstrip.effects.filters.tape/TapeAudio.seed.<get-seed>|<get-seed>(){}[0]
     final val tape // dev.jordond.filmstrip.effects.filters.tape/TapeAudio.tape|{}tape[0]
-        final fun <get-tape>(): dev.jordond.filmstrip.effects.filters.vhs/TapeSpeed // dev.jordond.filmstrip.effects.filters.tape/TapeAudio.tape.<get-tape>|<get-tape>(){}[0]
+        final fun <get-tape>(): dev.jordond.filmstrip.effects.filters.tape/TapeStock // dev.jordond.filmstrip.effects.filters.tape/TapeAudio.tape.<get-tape>|<get-tape>(){}[0]
     final val wow // dev.jordond.filmstrip.effects.filters.tape/TapeAudio.wow|{}wow[0]
         final fun <get-wow>(): dev.jordond.filmstrip.effects.filters.tape/Wobble // dev.jordond.filmstrip.effects.filters.tape/TapeAudio.wow.<get-wow>|<get-wow>(){}[0]
 
@@ -627,8 +780,8 @@ final class dev.jordond.filmstrip.effects.filters.tape/TapeAudioBuilder { // dev
         final fun <get-seed>(): kotlin/Int // dev.jordond.filmstrip.effects.filters.tape/TapeAudioBuilder.seed.<get-seed>|<get-seed>(){}[0]
         final fun <set-seed>(kotlin/Int) // dev.jordond.filmstrip.effects.filters.tape/TapeAudioBuilder.seed.<set-seed>|<set-seed>(kotlin.Int){}[0]
     final var tape // dev.jordond.filmstrip.effects.filters.tape/TapeAudioBuilder.tape|{}tape[0]
-        final fun <get-tape>(): dev.jordond.filmstrip.effects.filters.vhs/TapeSpeed // dev.jordond.filmstrip.effects.filters.tape/TapeAudioBuilder.tape.<get-tape>|<get-tape>(){}[0]
-        final fun <set-tape>(dev.jordond.filmstrip.effects.filters.vhs/TapeSpeed) // dev.jordond.filmstrip.effects.filters.tape/TapeAudioBuilder.tape.<set-tape>|<set-tape>(dev.jordond.filmstrip.effects.filters.vhs.TapeSpeed){}[0]
+        final fun <get-tape>(): dev.jordond.filmstrip.effects.filters.tape/TapeStock // dev.jordond.filmstrip.effects.filters.tape/TapeAudioBuilder.tape.<get-tape>|<get-tape>(){}[0]
+        final fun <set-tape>(dev.jordond.filmstrip.effects.filters.tape/TapeStock) // dev.jordond.filmstrip.effects.filters.tape/TapeAudioBuilder.tape.<set-tape>|<set-tape>(dev.jordond.filmstrip.effects.filters.tape.TapeStock){}[0]
     final var wow // dev.jordond.filmstrip.effects.filters.tape/TapeAudioBuilder.wow|{}wow[0]
         final fun <get-wow>(): dev.jordond.filmstrip.effects.filters.tape/Wobble // dev.jordond.filmstrip.effects.filters.tape/TapeAudioBuilder.wow.<get-wow>|<get-wow>(){}[0]
         final fun <set-wow>(dev.jordond.filmstrip.effects.filters.tape/Wobble) // dev.jordond.filmstrip.effects.filters.tape/TapeAudioBuilder.wow.<set-wow>|<set-wow>(dev.jordond.filmstrip.effects.filters.tape.Wobble){}[0]
@@ -666,7 +819,7 @@ final class dev.jordond.filmstrip.effects.filters.vhs/TrackingBuilder { // dev.j
         final fun <set-snow>(kotlin/Float) // dev.jordond.filmstrip.effects.filters.vhs/TrackingBuilder.snow.<set-snow>|<set-snow>(kotlin.Float){}[0]
 }
 
-final class dev.jordond.filmstrip.effects.filters.vhs/Vhs : dev.jordond.filmstrip.effect/EffectSpec { // dev.jordond.filmstrip.effects.filters.vhs/Vhs|null[0]
+final class dev.jordond.filmstrip.effects.filters.vhs/Vhs : dev.jordond.filmstrip.effects.filters.tape/TapeLook { // dev.jordond.filmstrip.effects.filters.vhs/Vhs|null[0]
     constructor <init>(kotlin/Float = ..., dev.jordond.filmstrip.effects.filters.vhs/TapeSpeed = ..., kotlin/Int = ..., dev.jordond.filmstrip.effects.filters.vhs/Tracking = ..., dev.jordond.filmstrip.effects.filters.vhs/TapeClock = ...) // dev.jordond.filmstrip.effects.filters.vhs/Vhs.<init>|<init>(kotlin.Float;dev.jordond.filmstrip.effects.filters.vhs.TapeSpeed;kotlin.Int;dev.jordond.filmstrip.effects.filters.vhs.Tracking;dev.jordond.filmstrip.effects.filters.vhs.TapeClock){}[0]
 
     final val beneathOverlays // dev.jordond.filmstrip.effects.filters.vhs/Vhs.beneathOverlays|{}beneathOverlays[0]
@@ -705,26 +858,10 @@ final class dev.jordond.filmstrip.effects.filters.vhs/Vhs : dev.jordond.filmstri
     }
 }
 
-final class dev.jordond.filmstrip.effects.filters.vhs/VhsBuilder { // dev.jordond.filmstrip.effects.filters.vhs/VhsBuilder|null[0]
-    final var clock // dev.jordond.filmstrip.effects.filters.vhs/VhsBuilder.clock|{}clock[0]
-        final fun <get-clock>(): dev.jordond.filmstrip.effects.filters.vhs/TapeClock // dev.jordond.filmstrip.effects.filters.vhs/VhsBuilder.clock.<get-clock>|<get-clock>(){}[0]
-        final fun <set-clock>(dev.jordond.filmstrip.effects.filters.vhs/TapeClock) // dev.jordond.filmstrip.effects.filters.vhs/VhsBuilder.clock.<set-clock>|<set-clock>(dev.jordond.filmstrip.effects.filters.vhs.TapeClock){}[0]
-    final var intensity // dev.jordond.filmstrip.effects.filters.vhs/VhsBuilder.intensity|{}intensity[0]
-        final fun <get-intensity>(): kotlin/Float // dev.jordond.filmstrip.effects.filters.vhs/VhsBuilder.intensity.<get-intensity>|<get-intensity>(){}[0]
-        final fun <set-intensity>(kotlin/Float) // dev.jordond.filmstrip.effects.filters.vhs/VhsBuilder.intensity.<set-intensity>|<set-intensity>(kotlin.Float){}[0]
-    final var seed // dev.jordond.filmstrip.effects.filters.vhs/VhsBuilder.seed|{}seed[0]
-        final fun <get-seed>(): kotlin/Int // dev.jordond.filmstrip.effects.filters.vhs/VhsBuilder.seed.<get-seed>|<get-seed>(){}[0]
-        final fun <set-seed>(kotlin/Int) // dev.jordond.filmstrip.effects.filters.vhs/VhsBuilder.seed.<set-seed>|<set-seed>(kotlin.Int){}[0]
+final class dev.jordond.filmstrip.effects.filters.vhs/VhsBuilder : dev.jordond.filmstrip.effects.filters.tape/TapeLookBuilder { // dev.jordond.filmstrip.effects.filters.vhs/VhsBuilder|null[0]
     final var tape // dev.jordond.filmstrip.effects.filters.vhs/VhsBuilder.tape|{}tape[0]
         final fun <get-tape>(): dev.jordond.filmstrip.effects.filters.vhs/TapeSpeed // dev.jordond.filmstrip.effects.filters.vhs/VhsBuilder.tape.<get-tape>|<get-tape>(){}[0]
         final fun <set-tape>(dev.jordond.filmstrip.effects.filters.vhs/TapeSpeed) // dev.jordond.filmstrip.effects.filters.vhs/VhsBuilder.tape.<set-tape>|<set-tape>(dev.jordond.filmstrip.effects.filters.vhs.TapeSpeed){}[0]
-    final var tracking // dev.jordond.filmstrip.effects.filters.vhs/VhsBuilder.tracking|{}tracking[0]
-        final fun <get-tracking>(): dev.jordond.filmstrip.effects.filters.vhs/Tracking // dev.jordond.filmstrip.effects.filters.vhs/VhsBuilder.tracking.<get-tracking>|<get-tracking>(){}[0]
-        final fun <set-tracking>(dev.jordond.filmstrip.effects.filters.vhs/Tracking) // dev.jordond.filmstrip.effects.filters.vhs/VhsBuilder.tracking.<set-tracking>|<set-tracking>(dev.jordond.filmstrip.effects.filters.vhs.Tracking){}[0]
-
-    final fun camcorder(kotlin/Function1<dev.jordond.filmstrip.effects.filters.camcorder/CamcorderBuilder, kotlin/Unit>) // dev.jordond.filmstrip.effects.filters.vhs/VhsBuilder.camcorder|camcorder(kotlin.Function1<dev.jordond.filmstrip.effects.filters.camcorder.CamcorderBuilder,kotlin.Unit>){}[0]
-    final fun events(kotlin/Float = ..., kotlin/Function1<dev.jordond.filmstrip.effects.filters.vhs/TrackingBuilder, kotlin/Unit> = ...): dev.jordond.filmstrip.effects.filters.vhs/Tracking.Events // dev.jordond.filmstrip.effects.filters.vhs/VhsBuilder.events|events(kotlin.Float;kotlin.Function1<dev.jordond.filmstrip.effects.filters.vhs.TrackingBuilder,kotlin.Unit>){}[0]
-    final fun rolling(kotlin.time/Duration = ..., kotlin/Function1<dev.jordond.filmstrip.effects.filters.vhs/TrackingBuilder, kotlin/Unit> = ...): dev.jordond.filmstrip.effects.filters.vhs/Tracking.Rolling // dev.jordond.filmstrip.effects.filters.vhs/VhsBuilder.rolling|rolling(kotlin.time.Duration;kotlin.Function1<dev.jordond.filmstrip.effects.filters.vhs.TrackingBuilder,kotlin.Unit>){}[0]
 }
 
 final class dev.jordond.filmstrip.effects.filters/FilterAudioEffectResolver : dev.jordond.filmstrip.audio/AudioEffectResolver { // dev.jordond.filmstrip.effects.filters/FilterAudioEffectResolver|null[0]
@@ -743,10 +880,12 @@ final const val dev.jordond.filmstrip.effects.filters.lut/MAX_CUBE_CHARS // dev.
     final fun <get-MAX_CUBE_CHARS>(): kotlin/Int // dev.jordond.filmstrip.effects.filters.lut/MAX_CUBE_CHARS.<get-MAX_CUBE_CHARS>|<get-MAX_CUBE_CHARS>(){}[0]
 
 final fun (dev.jordond.filmstrip.edit/AudioEffectsBuilder).dev.jordond.filmstrip.effects.filters.tape/tapeAudio(kotlin/Function1<dev.jordond.filmstrip.effects.filters.tape/TapeAudioBuilder, kotlin/Unit> = ...): dev.jordond.filmstrip.edit/AudioEffectsBuilder // dev.jordond.filmstrip.effects.filters.tape/tapeAudio|tapeAudio@dev.jordond.filmstrip.edit.AudioEffectsBuilder(kotlin.Function1<dev.jordond.filmstrip.effects.filters.tape.TapeAudioBuilder,kotlin.Unit>){}[0]
+final fun (dev.jordond.filmstrip.edit/EffectsBuilder).dev.jordond.filmstrip.effects.filters.betamax/betamax(kotlin/Function1<dev.jordond.filmstrip.effects.filters.betamax/BetamaxBuilder, kotlin/Unit> = ...): dev.jordond.filmstrip.edit/EffectsBuilder // dev.jordond.filmstrip.effects.filters.betamax/betamax|betamax@dev.jordond.filmstrip.edit.EffectsBuilder(kotlin.Function1<dev.jordond.filmstrip.effects.filters.betamax.BetamaxBuilder,kotlin.Unit>){}[0]
 final fun (dev.jordond.filmstrip.edit/EffectsBuilder).dev.jordond.filmstrip.effects.filters.camcorder/camcorder(kotlin/Function1<dev.jordond.filmstrip.effects.filters.camcorder/CamcorderBuilder, kotlin/Unit>): dev.jordond.filmstrip.edit/EffectsBuilder // dev.jordond.filmstrip.effects.filters.camcorder/camcorder|camcorder@dev.jordond.filmstrip.edit.EffectsBuilder(kotlin.Function1<dev.jordond.filmstrip.effects.filters.camcorder.CamcorderBuilder,kotlin.Unit>){}[0]
 final fun (dev.jordond.filmstrip.edit/EffectsBuilder).dev.jordond.filmstrip.effects.filters.crt/crt(kotlin/Float = ...): dev.jordond.filmstrip.edit/EffectsBuilder // dev.jordond.filmstrip.effects.filters.crt/crt|crt@dev.jordond.filmstrip.edit.EffectsBuilder(kotlin.Float){}[0]
 final fun (dev.jordond.filmstrip.edit/EffectsBuilder).dev.jordond.filmstrip.effects.filters.film/film(kotlin/Float = ..., kotlin/Float = ..., kotlin/Float = ..., kotlin/Float = ..., kotlin/Float = ..., kotlin/Float = ..., kotlin/Int = ...): dev.jordond.filmstrip.edit/EffectsBuilder // dev.jordond.filmstrip.effects.filters.film/film|film@dev.jordond.filmstrip.edit.EffectsBuilder(kotlin.Float;kotlin.Float;kotlin.Float;kotlin.Float;kotlin.Float;kotlin.Float;kotlin.Int){}[0]
 final fun (dev.jordond.filmstrip.edit/EffectsBuilder).dev.jordond.filmstrip.effects.filters.glitch/glitch(kotlin/Float = ..., kotlin/Int = ...): dev.jordond.filmstrip.edit/EffectsBuilder // dev.jordond.filmstrip.effects.filters.glitch/glitch|glitch@dev.jordond.filmstrip.edit.EffectsBuilder(kotlin.Float;kotlin.Int){}[0]
+final fun (dev.jordond.filmstrip.edit/EffectsBuilder).dev.jordond.filmstrip.effects.filters.hi8/hi8(kotlin/Function1<dev.jordond.filmstrip.effects.filters.hi8/Hi8Builder, kotlin/Unit> = ...): dev.jordond.filmstrip.edit/EffectsBuilder // dev.jordond.filmstrip.effects.filters.hi8/hi8|hi8@dev.jordond.filmstrip.edit.EffectsBuilder(kotlin.Function1<dev.jordond.filmstrip.effects.filters.hi8.Hi8Builder,kotlin.Unit>){}[0]
 final fun (dev.jordond.filmstrip.edit/EffectsBuilder).dev.jordond.filmstrip.effects.filters.lut/lut(dev.jordond.filmstrip.effects.filters.lut/CubeLut, kotlin/Float = ...): dev.jordond.filmstrip.edit/EffectsBuilder // dev.jordond.filmstrip.effects.filters.lut/lut|lut@dev.jordond.filmstrip.edit.EffectsBuilder(dev.jordond.filmstrip.effects.filters.lut.CubeLut;kotlin.Float){}[0]
 final fun (dev.jordond.filmstrip.edit/EffectsBuilder).dev.jordond.filmstrip.effects.filters.nightvision/nightVision(kotlin/Float = ..., kotlin/Int = ...): dev.jordond.filmstrip.edit/EffectsBuilder // dev.jordond.filmstrip.effects.filters.nightvision/nightVision|nightVision@dev.jordond.filmstrip.edit.EffectsBuilder(kotlin.Float;kotlin.Int){}[0]
 final fun (dev.jordond.filmstrip.edit/EffectsBuilder).dev.jordond.filmstrip.effects.filters.pixel/pixel(kotlin/Int = ..., kotlin/Int = ..., kotlin/Float = ..., dev.jordond.filmstrip.effects.filters.pixel/PixelPalette? = ...): dev.jordond.filmstrip.edit/EffectsBuilder // dev.jordond.filmstrip.effects.filters.pixel/pixel|pixel@dev.jordond.filmstrip.edit.EffectsBuilder(kotlin.Int;kotlin.Int;kotlin.Float;dev.jordond.filmstrip.effects.filters.pixel.PixelPalette?){}[0]

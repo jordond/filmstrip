@@ -17,6 +17,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import dev.jordond.filmstrip.Filmstrip
+import dev.jordond.filmstrip.effects.filters.betamax.BetaSpeed
+import dev.jordond.filmstrip.effects.filters.hi8.Hi8Speed
 import dev.jordond.filmstrip.effects.filters.vhs.TapeSpeed
 import dev.jordond.filmstrip.effects.filters.vhs.Tracking
 import dev.jordond.filmstrip.sample.SamplePreset
@@ -30,9 +32,9 @@ import dev.jordond.filmstrip.sample.ui.Tokens
 internal val tearsOfSteel: SamplePreset by lazy { samplePresets.first { it.file == "tears-of-steel-bridge-720p.mp4" } }
 
 /**
- * The filters sample: real footage on a loop with one look on it at a time, its intensity, the tape, tracking, snow
- * and camcorder display for VHS, the colours for the pixel look and the Kotlin that gives the same picture. NONE plays
- * the untouched clip.
+ * The filters sample: real footage on a loop with one look on it at a time, its intensity, the format, speed, tracking,
+ * snow and camcorder display for the tape look, the colours for the pixel look and the Kotlin that gives the same
+ * picture. NONE plays the untouched clip.
  *
  * @param filmstrip Opens the player, with the filters registered.
  * @param copy Puts the code listing on the clipboard.
@@ -79,11 +81,32 @@ internal fun FiltersPlayground(
       )
     }
     when (settings.look) {
-      FilterLook.Vhs -> {
-        Group("TAPE", "sharpest to softest") {
+      FilterLook.Tape -> {
+        Group("FORMAT") {
           ChipRow {
-            TapeSpeed.entries.forEach { tape ->
-              Chip(tape.name, settings.tape == tape) { settings = settings.copy(tape = tape) }
+            TapeFormat.entries.forEach { format ->
+              Chip(format.label, settings.format == format) { settings = settings.copy(format = format) }
+            }
+          }
+        }
+        Group("SPEED", "sharpest to softest") {
+          ChipRow {
+            when (settings.format) {
+              TapeFormat.Vhs -> {
+                TapeSpeed.entries.forEach { tape ->
+                  Chip(tape.name, settings.tape == tape) { settings = settings.copy(tape = tape) }
+                }
+              }
+              TapeFormat.Betamax -> {
+                BetaSpeed.entries.forEach { beta ->
+                  Chip(beta.name, settings.beta == beta) { settings = settings.copy(beta = beta) }
+                }
+              }
+              TapeFormat.Hi8 -> {
+                Hi8Speed.entries.forEach { hi8 ->
+                  Chip(hi8.name, settings.hi8 == hi8) { settings = settings.copy(hi8 = hi8) }
+                }
+              }
             }
           }
         }

@@ -1,9 +1,9 @@
 package dev.jordond.filmstrip.ffmpeg
 
 import dev.jordond.filmstrip.edit.outputSlotTime
+import dev.jordond.filmstrip.effects.filters.tape.TapePictureParams
+import dev.jordond.filmstrip.effects.filters.tape.TapePictureSignal
 import dev.jordond.filmstrip.effects.filters.vhs.Vhs
-import dev.jordond.filmstrip.effects.filters.vhs.VhsParams
-import dev.jordond.filmstrip.effects.filters.vhs.VhsSignal
 import dev.jordond.filmstrip.effects.geometry.Crop
 import dev.jordond.filmstrip.ffmpeg.support.BYTE
 import dev.jordond.filmstrip.ffmpeg.support.FILTER_RATE
@@ -23,7 +23,7 @@ import kotlin.test.Test
 import kotlin.time.DurationUnit
 
 /**
- * Reads a [Vhs] on a clip beside a clear bar of its canvas against [VhsSignal.pixelAt].
+ * Reads a [Vhs] on a clip beside a clear bar of its canvas against [TapePictureSignal.pixelAt].
  */
 class FfmpegVhsBarEdgeMediaTest {
   private val draw = FilterFrames()
@@ -37,8 +37,11 @@ class FfmpegVhsBarEdgeMediaTest {
       val crop = Crop(AspectRatio(16, 9), fit = Fit.Contain)
       val clip = draw.clipOf(RAMP_HEIGHT, RAMP_HEIGHT, { BRIGHT.copyOf() }, listOf(crop, vhs))
       val frame = draw.planesAt(draw.composition(listOf(clip), fill = Fill.Solid(BAR_FILL)), READ_SLOT)
-      val params = VhsParams.of(vhs)
-      val tick = VhsSignal.tickAt(outputSlotTime(READ_SLOT.toLong(), FILTER_RATE).toDouble(DurationUnit.SECONDS))
+      val params = TapePictureParams.of(vhs)
+      val tick =
+        TapePictureSignal.tickAt(
+          outputSlotTime(READ_SLOT.toLong(), FILTER_RATE).toDouble(DurationUnit.SECONDS),
+        )
       val pictureLeft = (RAMP_WIDTH - RAMP_HEIGHT) / 2
       val pictureRight = pictureLeft + RAMP_HEIGHT
       val fill = listOf(BAR_FILL shr 16 and BYTE, BAR_FILL shr 8 and BYTE, BAR_FILL and BYTE).map { it / FULL }
@@ -49,11 +52,11 @@ class FfmpegVhsBarEdgeMediaTest {
       var worst = 0.0
       var slid = 0.0
       (RAMP_HEIGHT / 4 until RAMP_HEIGHT * 3 / 4).forEach { y ->
-        val row = VhsSignal.virtualRow(y, RAMP_HEIGHT)
-        slid = max(slid, abs(VhsSignal.rowShift(vhs.seed, tick, row, params)) * RAMP_WIDTH)
+        val row = TapePictureSignal.virtualRow(y, RAMP_HEIGHT)
+        slid = max(slid, abs(TapePictureSignal.rowShift(vhs.seed, tick, row, params)) * RAMP_WIDTH)
         columns.forEach { x ->
           val shown =
-            VhsSignal.pixelAt((x + 0.5) / RAMP_WIDTH, row, tick, vhs.seed, RAMP_WIDTH, params) { column ->
+            TapePictureSignal.pixelAt((x + 0.5) / RAMP_WIDTH, row, tick, vhs.seed, RAMP_WIDTH, params) { column ->
               if (column in pictureLeft until pictureRight) BRIGHT + 1.0 else DoubleArray(4)
             }
           val miss = abs(frame.luma(x, y).toDouble() - laid(shown, shown[3]))

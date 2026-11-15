@@ -20,8 +20,8 @@ import dev.jordond.filmstrip.effects.filters.nightvision.NightVision
 import dev.jordond.filmstrip.effects.filters.nightvision.nightVisionPass
 import dev.jordond.filmstrip.effects.filters.pixel.Pixel
 import dev.jordond.filmstrip.effects.filters.pixel.pixelPass
-import dev.jordond.filmstrip.effects.filters.vhs.Vhs
-import dev.jordond.filmstrip.effects.filters.vhs.vhsPass
+import dev.jordond.filmstrip.effects.filters.tape.TapeLook
+import dev.jordond.filmstrip.effects.filters.tape.tapePicturePass
 
 /**
  * Resolves the effects in this module for the browser.
@@ -36,8 +36,8 @@ public actual class FilterEffectResolver actual constructor() : EffectResolver {
       is Camcorder -> {
         EffectResolution.Resolved(PlatformEffect(camcorderPass(spec, attributes.frameRate)))
       }
-      is Vhs -> {
-        EffectResolution.Resolved(PlatformEffect(vhsPass(spec, attributes.previewClock)))
+      is TapeLook -> {
+        EffectResolution.Resolved(PlatformEffect(tapePicturePass(spec, attributes.previewClock)))
       }
       is Film -> {
         EffectResolution.Resolved(PlatformEffect(filmPass(spec)))

@@ -3,6 +3,8 @@ package dev.jordond.filmstrip.docs.guides
 import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.compositionOf
+import dev.jordond.filmstrip.effects.filters.betamax.BetaSpeed
+import dev.jordond.filmstrip.effects.filters.betamax.betamax
 import dev.jordond.filmstrip.effects.filters.camcorder.ClockStyle
 import dev.jordond.filmstrip.effects.filters.camcorder.DateStyle
 import dev.jordond.filmstrip.effects.filters.camcorder.RecordedAt
@@ -11,6 +13,8 @@ import dev.jordond.filmstrip.effects.filters.crt.crt
 import dev.jordond.filmstrip.effects.filters.film.Film
 import dev.jordond.filmstrip.effects.filters.film.film
 import dev.jordond.filmstrip.effects.filters.glitch.glitch
+import dev.jordond.filmstrip.effects.filters.hi8.Hi8Speed
+import dev.jordond.filmstrip.effects.filters.hi8.hi8
 import dev.jordond.filmstrip.effects.filters.lut.CubeLut
 import dev.jordond.filmstrip.effects.filters.lut.lut
 import dev.jordond.filmstrip.effects.filters.nightvision.nightVision
@@ -107,6 +111,42 @@ internal fun vhsLook(): Composition {
           tracking = rolling(period = 6.seconds) { snow = 0.5f }
         }
       }
+    }
+  // endregion
+  return composition
+}
+
+internal fun betamaxLook(): Composition {
+  // region betamax
+  val composition =
+    compositionOf {
+      clip(MediaSource.of("/path/to/home-movie.mp4"))
+      effects {
+        betamax {
+          intensity = 0.8f
+          tape = BetaSpeed.I
+        }
+      }
+    }
+  // endregion
+  return composition
+}
+
+internal fun hi8Look(): Composition {
+  // region hi8
+  val composition =
+    compositionOf {
+      clip(MediaSource.of("/path/to/holiday.mp4"))
+      effects {
+        hi8 {
+          tape = Hi8Speed.LP
+          camcorder {
+            rec()
+            tape(Hi8Speed.LP)
+          }
+        }
+      }
+      audioEffects { tapeAudio { tape = Hi8Speed.LP } }
     }
   // endregion
   return composition

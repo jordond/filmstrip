@@ -21,8 +21,8 @@ import dev.jordond.filmstrip.effects.filters.nightvision.NightVision
 import dev.jordond.filmstrip.effects.filters.nightvision.nightVisionFragment
 import dev.jordond.filmstrip.effects.filters.pixel.Pixel
 import dev.jordond.filmstrip.effects.filters.pixel.pixelFragment
-import dev.jordond.filmstrip.effects.filters.vhs.Vhs
-import dev.jordond.filmstrip.effects.filters.vhs.vhsFragment
+import dev.jordond.filmstrip.effects.filters.tape.TapeLook
+import dev.jordond.filmstrip.effects.filters.tape.tapePictureFragment
 
 /**
  * Resolves the effects in this module for ffmpeg filter graphs.
@@ -38,8 +38,8 @@ public actual class FilterEffectResolver actual constructor() : EffectResolver {
       is Camcorder -> {
         camcorderResolution(spec, attributes)
       }
-      is Vhs -> {
-        EffectResolution.Resolved(PlatformEffect(vhsFragment(spec, attributes.inputSize, attributes.opaque)))
+      is TapeLook -> {
+        EffectResolution.Resolved(PlatformEffect(tapePictureFragment(spec, attributes.inputSize, attributes.opaque)))
       }
       is Film -> {
         EffectResolution.Resolved(PlatformEffect(filmFragment(spec, attributes.inputSize)))

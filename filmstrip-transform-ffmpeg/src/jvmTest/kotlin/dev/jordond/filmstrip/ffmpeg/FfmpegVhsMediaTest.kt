@@ -8,9 +8,10 @@ import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.outputSlotOf
 import dev.jordond.filmstrip.edit.outputSlotTime
 import dev.jordond.filmstrip.effect.EffectSpec
+import dev.jordond.filmstrip.effects.filters.betamax.Betamax
+import dev.jordond.filmstrip.effects.filters.tape.TapePictureParams
+import dev.jordond.filmstrip.effects.filters.tape.TapePictureSignal
 import dev.jordond.filmstrip.effects.filters.vhs.Vhs
-import dev.jordond.filmstrip.effects.filters.vhs.VhsParams
-import dev.jordond.filmstrip.effects.filters.vhs.VhsSignal
 import dev.jordond.filmstrip.effects.geometry.Crop
 import dev.jordond.filmstrip.effects.overlay.ImageOverlay
 import dev.jordond.filmstrip.export.ExportSpec
@@ -22,7 +23,8 @@ import dev.jordond.filmstrip.ffmpeg.support.FULL
 import dev.jordond.filmstrip.ffmpeg.support.FilterFrames
 import dev.jordond.filmstrip.ffmpeg.support.RGBA
 import dev.jordond.filmstrip.ffmpeg.support.channelAt
-import dev.jordond.filmstrip.ffmpeg.support.texelsOver
+import dev.jordond.filmstrip.ffmpeg.support.meanLumaOffSignal
+import dev.jordond.filmstrip.ffmpeg.support.rampAt
 import dev.jordond.filmstrip.geometry.AspectRatio
 import dev.jordond.filmstrip.geometry.Corner
 import dev.jordond.filmstrip.geometry.Fill
@@ -151,11 +153,14 @@ class FfmpegVhsMediaTest {
           listOf(listOf(crop)),
           Size(WIDE_WIDTH, RAMP_HEIGHT),
         ).drawnRect
-      val params = VhsParams.of(vhs)
-      val tick = VhsSignal.tickAt(outputSlotTime(READ_SLOT.toLong(), FILTER_RATE).toDouble(DurationUnit.SECONDS))
+      val params = TapePictureParams.of(vhs)
+      val tick =
+        TapePictureSignal.tickAt(
+          outputSlotTime(READ_SLOT.toLong(), FILTER_RATE).toDouble(DurationUnit.SECONDS),
+        )
       val y = RAMP_HEIGHT - 1
-      val row = VhsSignal.virtualRow(y, RAMP_HEIGHT)
-      val shift = VhsSignal.rowShift(vhs.seed, tick, row, params)
+      val row = TapePictureSignal.virtualRow(y, RAMP_HEIGHT)
+      val shift = TapePictureSignal.rowShift(vhs.seed, tick, row, params)
       withClue("the head band has to reach into the bar for this to tell") {
         (shift * WIDE_WIDTH).toInt() shouldBeGreaterThan 2 * BAR_MARGIN
       }
@@ -166,7 +171,16 @@ class FfmpegVhsMediaTest {
 
       val movedIn = content.right + shift / 2
       val column = (movedIn * WIDE_WIDTH).toInt()
-      val wanted = VhsSignal.pixelAt((column + 0.5) / WIDE_WIDTH, row, tick, vhs.seed, WIDE_WIDTH, params, inside)
+      val wanted =
+        TapePictureSignal.pixelAt(
+          (column + 0.5) / WIDE_WIDTH,
+          row,
+          tick,
+          vhs.seed,
+          WIDE_WIDTH,
+          params,
+          inside,
+        )
       withClue("picture moved into the right bar") {
         val read = DoubleArray(3) { frame.channelAt(WIDE_WIDTH, column, y, it).toDouble() }
         abs(
@@ -216,18 +230,30 @@ class FfmpegVhsMediaTest {
           listOf(listOf(crop)),
           Size(WIDE_WIDTH, RAMP_HEIGHT),
         ).drawnRect
-      val params = VhsParams.of(vhs)
-      val tick = VhsSignal.tickAt(outputSlotTime(READ_SLOT.toLong(), FILTER_RATE).toDouble(DurationUnit.SECONDS))
+      val params = TapePictureParams.of(vhs)
+      val tick =
+        TapePictureSignal.tickAt(
+          outputSlotTime(READ_SLOT.toLong(), FILTER_RATE).toDouble(DurationUnit.SECONDS),
+        )
       val y = RAMP_HEIGHT - 1
-      val row = VhsSignal.virtualRow(y, RAMP_HEIGHT)
-      val shift = VhsSignal.rowShift(vhs.seed, tick, row, params)
+      val row = TapePictureSignal.virtualRow(y, RAMP_HEIGHT)
+      val shift = TapePictureSignal.rowShift(vhs.seed, tick, row, params)
       val inside = { column: Int ->
         val across = ((column + 0.5) / WIDE_WIDTH - content.left) / (content.right - content.left)
         if (across in 0.0..1.0) rampAt(across) else doubleArrayOf(0.0, 0.0, 0.0)
       }
 
       val column = ((content.right + shift / 2) * WIDE_WIDTH).toInt()
-      val wanted = VhsSignal.pixelAt((column + 0.5) / WIDE_WIDTH, row, tick, vhs.seed, WIDE_WIDTH, params, inside)
+      val wanted =
+        TapePictureSignal.pixelAt(
+          (column + 0.5) / WIDE_WIDTH,
+          row,
+          tick,
+          vhs.seed,
+          WIDE_WIDTH,
+          params,
+          inside,
+        )
       withClue("picture moved into the right bar") {
         val read = DoubleArray(3) { frame.channelAt(WIDE_WIDTH, column, y, it).toDouble() }
         abs(
@@ -316,25 +342,17 @@ class FfmpegVhsMediaTest {
       }
     }
 
-  private fun meanLumaOffSignal(
-    frame: ByteArray,
-    vhs: Vhs,
-    slot: Int,
-  ): Double {
-    val params = VhsParams.of(vhs)
-    val tick = VhsSignal.tickAt(outputSlotTime(slot.toLong(), FILTER_RATE).toDouble(DurationUnit.SECONDS))
-    val ramp = (::rampAt).texelsOver(RAMP_WIDTH)
-    val errors =
-      (0 until RAMP_HEIGHT step SIGNAL_STEP).flatMap { y ->
-        val row = VhsSignal.virtualRow(y, RAMP_HEIGHT)
-        (0 until RAMP_WIDTH step SIGNAL_STEP).map { x ->
-          val want = VhsSignal.pixelAt((x + 0.5) / RAMP_WIDTH, row, tick, vhs.seed, RAMP_WIDTH, params, ramp)
-          val read = DoubleArray(3) { frame.channelAt(RAMP_WIDTH, x, y, it).toDouble() }
-          abs(lumaOf(read[0], read[1], read[2]) - lumaOf(want[0] * FULL, want[1] * FULL, want[2] * FULL))
-        }
-      }
-    return errors.average()
-  }
+  @Test
+  fun `a composition betamax exports and reads on the signal at a mid intensity`() =
+    runBlocking<Unit> {
+      val betamax = Betamax(intensity = 0.6f)
+      val clip = draw.clipOf(RAMP_WIDTH, RAMP_HEIGHT, ::rampAt)
+      val composition = Composition(listOf(Track(listOf(clip))), listOf(betamax), fill = Fill.Solid(BLACK))
+
+      val frame = draw.exportedFrame(composition, READ_SLOT, ENCODED)
+
+      meanLumaOffSignal(frame, betamax, READ_SLOT) shouldBeBelow ENCODED_SIGNAL_CODES
+    }
 
   private suspend fun assertSameFrameOnExport(composition: Composition) {
     val at = 1_000.milliseconds
@@ -404,12 +422,12 @@ class FfmpegVhsMediaTest {
     }
 
   private fun barLumaOnSignal(vhs: Vhs): Double {
-    val params = VhsParams.of(vhs)
-    val tick = VhsSignal.tickAt(0.0)
+    val params = TapePictureParams.of(vhs)
+    val tick = TapePictureSignal.tickAt(0.0)
     val black = { _: Int -> doubleArrayOf(0.0, 0.0, 0.0) }
     return meanAcrossBar { x, y ->
-      val row = VhsSignal.virtualRow(y, CANVAS)
-      val rgb = VhsSignal.pixelAt((x + 0.5) / CANVAS, row, tick, vhs.seed, CANVAS, params, black)
+      val row = TapePictureSignal.virtualRow(y, CANVAS)
+      val rgb = TapePictureSignal.pixelAt((x + 0.5) / CANVAS, row, tick, vhs.seed, CANVAS, params, black)
       lumaOf(rgb[0] * FULL, rgb[1] * FULL, rgb[2] * FULL)
     }
   }
@@ -421,7 +439,7 @@ class FfmpegVhsMediaTest {
   }
 
   // A bar tells lifted from clean when the read lands closer to its own side of this.
-  private fun halfLift(vhs: Vhs): Double = VhsParams.of(vhs).lift * FULL / 2
+  private fun halfLift(vhs: Vhs): Double = TapePictureParams.of(vhs).lift * FULL / 2
 
   // The mean of the three channels, since chroma noise moves any one of them by more than a swatch's margin.
   private fun red(
@@ -430,12 +448,6 @@ class FfmpegVhsMediaTest {
     x: Int,
     y: Int,
   ): Int = (0..2).sumOf { frame[(y * width + x) * RGBA + it].toInt() and BYTE } / 3
-
-  // A mid-range ramp with blue running against the other two, so nothing saturates and a shift reads in both.
-  private fun rampAt(x: Double): DoubleArray {
-    val code = RAMP_LOW + x.coerceIn(0.0, 1.0) * RAMP_SPAN
-    return doubleArrayOf(code, code, 1.0 - code)
-  }
 
   private fun swatch(window: TimeRange? = null): ImageOverlay {
     val image = BufferedImage(SWATCH_PX, SWATCH_PX, BufferedImage.TYPE_INT_RGB)
@@ -452,8 +464,6 @@ class FfmpegVhsMediaTest {
     const val READ_SLOT = 30
     const val RAMP_WIDTH = 640
     const val RAMP_HEIGHT = 360
-    const val RAMP_LOW = 0.25
-    const val RAMP_SPAN = 0.5
     const val LUMA_CODES = 4.0
     const val SWATCH_CODE = 0x20
     const val SWATCH_RGB = 0x202020
@@ -483,7 +493,6 @@ class FfmpegVhsMediaTest {
 
     // What Linux takes for one argument, MAX_ARG_STRLEN.
     const val LINUX_ARGUMENT_CHARACTERS = 131_072
-    const val SIGNAL_STEP = 8
 
     // A written frame against the signal, the encoder's error on top of the trip through limited range and back.
     const val ENCODED_SIGNAL_CODES = 3.0

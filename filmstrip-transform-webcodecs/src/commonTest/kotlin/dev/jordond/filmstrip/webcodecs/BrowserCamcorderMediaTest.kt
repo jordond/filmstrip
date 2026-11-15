@@ -14,10 +14,10 @@ import dev.jordond.filmstrip.effects.filters.camcorder.Camcorder
 import dev.jordond.filmstrip.effects.filters.camcorder.CamcorderOsd
 import dev.jordond.filmstrip.effects.filters.camcorder.OsdElement
 import dev.jordond.filmstrip.effects.filters.camcorder.OsdRaster
+import dev.jordond.filmstrip.effects.filters.tape.TapePictureParams
+import dev.jordond.filmstrip.effects.filters.tape.TapePictureSignal
 import dev.jordond.filmstrip.effects.filters.vhs.TapeSpeed
 import dev.jordond.filmstrip.effects.filters.vhs.Vhs
-import dev.jordond.filmstrip.effects.filters.vhs.VhsParams
-import dev.jordond.filmstrip.effects.filters.vhs.VhsSignal
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.transform.internal.ResolveResult
@@ -114,17 +114,17 @@ class BrowserCamcorderMediaTest {
       val frame = drawn(edit(clip, listOf(CAMCORDER, vhs)))
       val recorded = drawn(edit(clip, listOf(CAMCORDER)))
       val raster = OSD.rasterAt(READ_TIME, WIDTH, HEIGHT)
-      val params = VhsParams.of(vhs)
-      val tick = VhsSignal.tickAt(READ_TIME.toDouble(DurationUnit.SECONDS))
+      val params = TapePictureParams.of(vhs)
+      val tick = TapePictureSignal.tickAt(READ_TIME.toDouble(DurationUnit.SECONDS))
       var worst = 0.0
       var moved = 0
 
       textRows(raster).forEach { y ->
-        val row = VhsSignal.virtualRow(y, HEIGHT)
+        val row = TapePictureSignal.virtualRow(y, HEIGHT)
         for (column in 0 until WIDTH) {
           val x = (column + 0.5) / WIDTH
           val expected =
-            VhsSignal.pixelAt(x, row, tick, vhs.seed, WIDTH, params) { column ->
+            TapePictureSignal.pixelAt(x, row, tick, vhs.seed, WIDTH, params) { column ->
               DoubleArray(RGB) {
                 recorded.codesAt(column, y)[it] /
                   FULL

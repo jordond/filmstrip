@@ -6,11 +6,11 @@ import android.opengl.GLES20
 import android.opengl.GLES30
 import androidx.media3.common.util.GlUtil
 import androidx.media3.effect.BaseGlShaderProgram
+import dev.jordond.filmstrip.effects.filters.tape.TapePictureParams
+import dev.jordond.filmstrip.effects.filters.tape.TapePictureShaderProgram
+import dev.jordond.filmstrip.effects.filters.tape.TapePictureSignal
 import dev.jordond.filmstrip.effects.filters.vhs.TapeSpeed
 import dev.jordond.filmstrip.effects.filters.vhs.Vhs
-import dev.jordond.filmstrip.effects.filters.vhs.VhsParams
-import dev.jordond.filmstrip.effects.filters.vhs.VhsShaderProgram
-import dev.jordond.filmstrip.effects.filters.vhs.VhsSignal
 import io.kotest.assertions.withClue
 import io.kotest.matchers.doubles.plusOrMinus
 import io.kotest.matchers.doubles.shouldBeGreaterThan
@@ -110,17 +110,17 @@ class CamcorderEffectMediaTest {
   fun aDisplayAheadOfVhsIsRecordedOnTheTape() {
     val vhs = Vhs(intensity = 0.5f)
     val recorded = drawn(listOf(display()), WIDTH, HEIGHT, listOf(BLINK_ON)).single()
-    val burned = drawn(listOf(display(), VhsShaderProgram(vhs)), WIDTH, HEIGHT, listOf(BLINK_ON)).single()
-    val params = VhsParams.of(vhs)
-    val tick = VhsSignal.tickAt(BLINK_ON.inWholeMicroseconds / 1e6)
+    val burned = drawn(listOf(display(), TapePictureShaderProgram(vhs)), WIDTH, HEIGHT, listOf(BLINK_ON)).single()
+    val params = TapePictureParams.of(vhs)
+    val tick = TapePictureSignal.tickAt(BLINK_ON.inWholeMicroseconds / 1e6)
     val raster = OSD.rasterAt(BLINK_ON, WIDTH, HEIGHT)
     var moved = 0.0
 
     textRows(raster).forEach { y ->
-      val row = VhsSignal.virtualRow(y, HEIGHT)
+      val row = TapePictureSignal.virtualRow(y, HEIGHT)
       for (column in 0 until WIDTH) {
         val x = (column + 0.5) / WIDTH
-        val expected = VhsSignal.pixelAt(x, row, tick, vhs.seed, WIDTH, params) { recorded.rgbAt(it, y) }
+        val expected = TapePictureSignal.pixelAt(x, row, tick, vhs.seed, WIDTH, params) { recorded.rgbAt(it, y) }
         val read = burned.rgbAt(column, y)
         for (channel in 0 until RGB) {
           withClue("row $y column $column channel $channel") {
@@ -136,7 +136,7 @@ class CamcorderEffectMediaTest {
   @Test
   fun aDisplayAfterVhsStaysClean() {
     val vhs = Vhs(intensity = 0.5f)
-    val frame = drawn(listOf(VhsShaderProgram(vhs), display()), WIDTH, HEIGHT, listOf(BLINK_ON)).single()
+    val frame = drawn(listOf(TapePictureShaderProgram(vhs), display()), WIDTH, HEIGHT, listOf(BLINK_ON)).single()
     val raster = OSD.rasterAt(BLINK_ON, WIDTH, HEIGHT)
 
     var lit = 0

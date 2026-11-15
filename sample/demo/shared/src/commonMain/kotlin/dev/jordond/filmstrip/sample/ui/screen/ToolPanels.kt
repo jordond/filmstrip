@@ -45,7 +45,6 @@ import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.effects.color.ColorMatrix
 import dev.jordond.filmstrip.effects.filters.pixel.Pixel
 import dev.jordond.filmstrip.effects.filters.pixel.PixelPalette
-import dev.jordond.filmstrip.effects.filters.vhs.TapeSpeed
 import dev.jordond.filmstrip.effects.filters.vhs.Tracking
 import dev.jordond.filmstrip.effects.overlay.ImageOverlay
 import dev.jordond.filmstrip.filekit.compose.rememberImagePickerLauncher
@@ -58,7 +57,8 @@ import dev.jordond.filmstrip.sample.EditState
 import dev.jordond.filmstrip.sample.EditorTool
 import dev.jordond.filmstrip.sample.FillMode
 import dev.jordond.filmstrip.sample.SampleAppState
-import dev.jordond.filmstrip.sample.VhsTrackingMode
+import dev.jordond.filmstrip.sample.TapeFormat
+import dev.jordond.filmstrip.sample.TapeTrackingMode
 import dev.jordond.filmstrip.sample.ui.AnchorGrid
 import dev.jordond.filmstrip.sample.ui.Chip
 import dev.jordond.filmstrip.sample.ui.ChipGroup
@@ -585,36 +585,46 @@ private fun AdjustPanel(state: SampleAppState) {
 
   ToolSection("Tape") {
     SwitchRow(
-      label = "VHS",
-      checked = edit.vhsEnabled,
+      label = "Tape look",
+      checked = edit.tapeEnabled,
       onCheckedChange = {
-        edit.vhsEnabled = it
+        edit.tapeEnabled = it
         state.onEditChanged()
       },
     )
-    if (edit.vhsEnabled) {
-      GradeSlider(state, "Intensity", edit.vhsIntensity, formatPercent(edit.vhsIntensity), 0f..1f, 1f) {
-        edit.vhsIntensity = it
+    if (edit.tapeEnabled || edit.tapeAudioEnabled) {
+      ChipGroup(
+        options = TapeFormat.entries.map { it.label to it },
+        selected = edit.tapeFormat,
+        onSelect = {
+          edit.selectTapeFormat(it)
+          state.onEditChanged()
+        },
+      )
+    }
+    if (edit.tapeEnabled) {
+      GradeSlider(state, "Intensity", edit.tapeIntensity, formatPercent(edit.tapeIntensity), 0f..1f, 1f) {
+        edit.tapeIntensity = it
       }
       ChipGroup(
-        options = TapeSpeed.entries.map { it.name to it },
-        selected = edit.vhsTape,
+        options = edit.tapeFormat.stocks,
+        selected = edit.tapeStock,
         onSelect = {
-          edit.vhsTape = it
+          edit.tapeStock = it
           state.onEditChanged()
         },
       )
       ChipGroup(
-        options = VhsTrackingMode.entries.map { it.name to it },
-        selected = edit.vhsTracking,
+        options = TapeTrackingMode.entries.map { it.name to it },
+        selected = edit.tapeTracking,
         onSelect = {
-          edit.vhsTracking = it
+          edit.tapeTracking = it
           state.onEditChanged()
         },
       )
-      if (edit.vhsTracking != VhsTrackingMode.Off) {
-        GradeSlider(state, "Snow", edit.vhsSnow, formatPercent(edit.vhsSnow), 0f..1f, Tracking.DEFAULT_SNOW) {
-          edit.vhsSnow = it
+      if (edit.tapeTracking != TapeTrackingMode.Off) {
+        GradeSlider(state, "Snow", edit.tapeSnow, formatPercent(edit.tapeSnow), 0f..1f, Tracking.DEFAULT_SNOW) {
+          edit.tapeSnow = it
         }
       }
     }
@@ -628,10 +638,10 @@ private fun AdjustPanel(state: SampleAppState) {
     )
     if (edit.tapeAudioEnabled) {
       ChipGroup(
-        options = TapeSpeed.entries.map { it.name to it },
-        selected = edit.tapeAudioTape,
+        options = edit.tapeFormat.stocks,
+        selected = edit.tapeAudioStock,
         onSelect = {
-          edit.tapeAudioTape = it
+          edit.tapeAudioStock = it
           state.onEditChanged()
         },
       )

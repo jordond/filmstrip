@@ -1,8 +1,8 @@
 package dev.jordond.filmstrip.ffmpeg
 
+import dev.jordond.filmstrip.effects.filters.tape.TapePictureParams
+import dev.jordond.filmstrip.effects.filters.tape.TapePictureSignal
 import dev.jordond.filmstrip.effects.filters.vhs.Vhs
-import dev.jordond.filmstrip.effects.filters.vhs.VhsParams
-import dev.jordond.filmstrip.effects.filters.vhs.VhsSignal
 import dev.jordond.filmstrip.ffmpeg.support.FilterFrames
 import dev.jordond.filmstrip.ffmpeg.support.VHS_CHROMA_CODES
 import dev.jordond.filmstrip.ffmpeg.support.VHS_CHROMA_SPAN
@@ -32,7 +32,8 @@ import io.kotest.matchers.doubles.shouldBeGreaterThan as shouldBeAbove
 import io.kotest.matchers.doubles.shouldBeLessThan as shouldBeBelow
 
 /**
- * Reads a [Vhs] against [VhsSignal] where a source's format, the frame's edges or a tiny blur could take it off.
+ * Reads a [Vhs] against [TapePictureSignal] where a source's format, the frame's edges or a tiny blur could take it
+ * off.
  */
 class FfmpegVhsSourceMediaTest {
   private val draw = FilterFrames()
@@ -95,7 +96,13 @@ class FfmpegVhsSourceMediaTest {
       val y = HEIGHT - 1
       val tick = tickOf(0)
       withClue("the head band has to move this row right for this to tell") {
-        VhsSignal.rowShift(vhs.seed, tick, VhsSignal.virtualRow(y, HEIGHT), VhsParams.of(vhs)) shouldBeAbove 0.0
+        TapePictureSignal.rowShift(
+          vhs.seed,
+          tick,
+          TapePictureSignal.virtualRow(y, HEIGHT),
+          TapePictureParams.of(vhs),
+        ) shouldBeAbove
+          0.0
       }
 
       val luma = lumaPlaneOf(vhs, tick, WIDTH - 1, y, ::flatAt)
@@ -112,7 +119,7 @@ class FfmpegVhsSourceMediaTest {
   fun `a low intensity on a narrow frame blurs at gblur's floor and keeps the picture`() =
     runBlocking<Unit> {
       val vhs = Vhs(intensity = LOW_INTENSITY)
-      val params = VhsParams.of(vhs)
+      val params = TapePictureParams.of(vhs)
       withClue("the luma sigma has to land under the floor for this to tell") {
         params.lumaSigma * NARROW_WIDTH shouldBeBelow GBLUR_FLOOR
       }
@@ -153,12 +160,12 @@ class FfmpegVhsSourceMediaTest {
     range: String,
   ) {
     val vhs = Vhs(intensity = 1f)
-    val params = VhsParams.of(vhs)
+    val params = TapePictureParams.of(vhs)
     val (slot, y, x) =
       (0 until LATER_SLOT)
         .firstNotNullOf { slot ->
           (0 until HEIGHT).firstNotNullOfOrNull { y ->
-            peakOf(vhs, tickOf(slot), VhsSignal.virtualRow(y, HEIGHT), params)?.let { Triple(slot, y, it) }
+            peakOf(vhs, tickOf(slot), TapePictureSignal.virtualRow(y, HEIGHT), params)?.let { Triple(slot, y, it) }
           }
         }
     val clip = draw.clipOf(WIDTH, HEIGHT, ::rampAt, listOf(vhs), pixelFormat, range)
@@ -177,11 +184,11 @@ class FfmpegVhsSourceMediaTest {
     vhs: Vhs,
     tick: Int,
     row: Int,
-    params: VhsParams,
+    params: TapePictureParams,
   ): Double? =
     (0 until WIDTH)
       .map { (it + 0.5) / WIDTH }
-      .firstOrNull { VhsSignal.dropout(vhs.seed, tick, row, it, params) > FULL_DROPOUT }
+      .firstOrNull { TapePictureSignal.dropout(vhs.seed, tick, row, it, params) > FULL_DROPOUT }
 
   // The flat clip's picture as R'G'B', from its plane codes.
   @Suppress("UNUSED_PARAMETER")

@@ -1,5 +1,8 @@
 package dev.jordond.filmstrip.effects.filters.camcorder
 
+import dev.jordond.filmstrip.effects.filters.betamax.BetaSpeed
+import dev.jordond.filmstrip.effects.filters.hi8.Hi8Speed
+import dev.jordond.filmstrip.effects.filters.tape.TapeStock
 import dev.jordond.filmstrip.effects.filters.vhs.TapeSpeed
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
@@ -118,6 +121,27 @@ class OsdStateTest {
       .runs
       .single()
       .colour shouldBe OsdParams.TEXT_COLOUR
+  }
+
+  @Test
+  fun `a tape reads its stock's label`() {
+    val labels =
+      mapOf<TapeStock, String>(
+        TapeSpeed.EP to "EP",
+        BetaSpeed.I to "B1",
+        BetaSpeed.II to "B2",
+        BetaSpeed.III to "B3",
+        Hi8Speed.LP to "LP",
+      )
+
+    for ((stock, label) in labels) {
+      val state = osd(Camcorder(listOf(OsdElement.Tape(stock)))).stateAt(1.seconds)
+      state.lines
+        .single()
+        .runs
+        .single()
+        .text shouldBe label
+    }
   }
 
   @Test

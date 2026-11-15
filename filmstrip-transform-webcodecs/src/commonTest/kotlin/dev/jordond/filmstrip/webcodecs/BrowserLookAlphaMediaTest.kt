@@ -14,9 +14,9 @@ import dev.jordond.filmstrip.effects.filters.glitch.GlitchParams
 import dev.jordond.filmstrip.effects.filters.glitch.GlitchSignal
 import dev.jordond.filmstrip.effects.filters.pixel.Pixel
 import dev.jordond.filmstrip.effects.filters.pixel.PixelSignal
+import dev.jordond.filmstrip.effects.filters.tape.TapePictureParams
+import dev.jordond.filmstrip.effects.filters.tape.TapePictureSignal
 import dev.jordond.filmstrip.effects.filters.vhs.Vhs
-import dev.jordond.filmstrip.effects.filters.vhs.VhsParams
-import dev.jordond.filmstrip.effects.filters.vhs.VhsSignal
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.webcodecs.internal.preview.PreviewFrame
@@ -112,11 +112,11 @@ class BrowserLookAlphaMediaTest {
   fun aClipVhsOnHalfAlphaReadsStraightColour() =
     runTest {
       val vhs = Vhs(intensity = MID)
-      val params = VhsParams.of(vhs)
-      val tick = VhsSignal.tickAt(READ_SECONDS)
+      val params = TapePictureParams.of(vhs)
+      val tick = TapePictureSignal.tickAt(READ_SECONDS)
       assertRowsLaid(vhs) { plain, x, y ->
-        val row = VhsSignal.virtualRow(y, plain.size.height)
-        VhsSignal.pixelAt(
+        val row = TapePictureSignal.virtualRow(y, plain.size.height)
+        TapePictureSignal.pixelAt(
           x,
           row,
           tick,

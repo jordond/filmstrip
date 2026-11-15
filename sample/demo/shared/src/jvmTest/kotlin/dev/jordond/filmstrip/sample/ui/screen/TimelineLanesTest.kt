@@ -137,8 +137,8 @@ class TimelineLanesTest {
   }
 
   @Test
-  fun `the VHS effect counts as a grade`() {
-    laneSpans(edit { vhsEnabled = true }, duration).grade shouldBe LaneSpan(0.seconds, 10.seconds)
+  fun `the tape look counts as a grade`() {
+    laneSpans(edit { tapeEnabled = true }, duration).grade shouldBe LaneSpan(0.seconds, 10.seconds)
   }
 
   @Test

@@ -1,7 +1,11 @@
 package dev.jordond.filmstrip.sample.playground
 
+import dev.jordond.filmstrip.effects.filters.betamax.BetaSpeed
+import dev.jordond.filmstrip.effects.filters.betamax.Betamax
 import dev.jordond.filmstrip.effects.filters.camcorder.Camcorder
 import dev.jordond.filmstrip.effects.filters.glitch.Glitch
+import dev.jordond.filmstrip.effects.filters.hi8.Hi8
+import dev.jordond.filmstrip.effects.filters.hi8.Hi8Speed
 import dev.jordond.filmstrip.effects.filters.vhs.TapeSpeed
 import dev.jordond.filmstrip.effects.filters.vhs.Tracking
 import dev.jordond.filmstrip.effects.filters.vhs.Vhs
@@ -83,6 +87,40 @@ class FilterSettingsTest {
   }
 
   @Test
+  fun `a hi8 is built from the settings and written with its own speed`() {
+    val settings = FilterSettings(format = TapeFormat.Hi8, hi8 = Hi8Speed.LP, tracking = TrackingMode.Off)
+
+    val hi8 = filtersEffects(settings).single().shouldBeInstanceOf<Hi8>()
+    hi8.tape shouldBe Hi8Speed.LP
+    hi8.tracking shouldBe Tracking.Off
+    codeText(filtersCode(settings)) shouldContain "  hi8 {\n    tape = Hi8Speed.LP\n    tracking = Tracking.Off\n  }"
+    codeText(filtersCode(FilterSettings(format = TapeFormat.Hi8, hi8 = Hi8Speed.LP))) shouldContain
+      "  hi8 {\n    tape = Hi8Speed.LP\n  }"
+    codeText(filtersCode(FilterSettings(format = TapeFormat.Hi8))) shouldContain "  hi8()\n"
+    filterSummary(settings) shouldBe "HI8 · LP · OFF"
+  }
+
+  @Test
+  fun `a betamax is built from the settings and keeps the speed vhs was on`() {
+    val settings = FilterSettings(format = TapeFormat.Betamax, tape = TapeSpeed.SP, beta = BetaSpeed.I)
+
+    filtersEffects(settings).single().shouldBeInstanceOf<Betamax>().tape shouldBe BetaSpeed.I
+    codeText(filtersCode(settings)) shouldContain "  betamax {\n    tape = BetaSpeed.I\n  }"
+    codeText(filtersCode(settings.copy(beta = BetaSpeed.II))) shouldContain "  betamax()\n"
+    filterSummary(settings) shouldBe "BETAMAX · I"
+    filtersEffects(settings.copy(format = TapeFormat.Vhs)).single().shouldBeInstanceOf<Vhs>().tape shouldBe
+      TapeSpeed.SP
+  }
+
+  @Test
+  fun `a camcorder on tape is written inside the hi8`() {
+    val settings = FilterSettings(format = TapeFormat.Hi8, camcorder = CamcorderSettings(CamcorderMode.OnTape))
+
+    codeText(filtersCode(settings)) shouldContain "  hi8 {\n    camcorder {\n      rec()"
+    filtersEffects(settings).map { it::class } shouldContainExactly listOf(Camcorder::class, Hi8::class)
+  }
+
+  @Test
   fun `a lut parses its table before the clip`() {
     val code = codeText(filtersCode(FilterSettings(look = FilterLook.Lut)))
     code shouldContain "val table = CubeLut.parse(tealAndOrangeCube)"
@@ -119,7 +157,7 @@ class FilterSettingsTest {
   fun `each look keeps its own intensity`() {
     val settings = FilterSettings().withIntensity(0.3f).copy(look = FilterLook.Crt)
     settings.intensity() shouldBe FilterSettings.FULL
-    settings.copy(look = FilterLook.Vhs).intensity() shouldBe 0.3f
+    settings.copy(look = FilterLook.Tape).intensity() shouldBe 0.3f
   }
 
   @Test

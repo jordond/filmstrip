@@ -2,7 +2,7 @@ package dev.jordond.filmstrip.effects.filters.camcorder
 
 import dev.jordond.filmstrip.edit.EffectsBuilder
 import dev.jordond.filmstrip.edit.FilmstripDsl
-import dev.jordond.filmstrip.effects.filters.vhs.TapeSpeed
+import dev.jordond.filmstrip.effects.filters.tape.TapeStock
 import kotlin.time.Duration
 
 /**
@@ -114,7 +114,7 @@ public class CamcorderBuilder internal constructor() {
    * Adds the tape [speed] label.
    */
   public fun tape(
-    speed: TapeSpeed,
+    speed: TapeStock,
     corner: OsdCorner = OsdCorner.TopRight,
   ) {
     elements += OsdElement.Tape(speed, corner)

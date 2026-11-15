@@ -8,10 +8,10 @@ import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.effects.BuiltInEffectResolver
 import dev.jordond.filmstrip.effects.filters.FilterEffectResolver
+import dev.jordond.filmstrip.effects.filters.tape.TapePictureParams
+import dev.jordond.filmstrip.effects.filters.tape.TapePictureSignal
 import dev.jordond.filmstrip.effects.filters.vhs.Tracking
 import dev.jordond.filmstrip.effects.filters.vhs.Vhs
-import dev.jordond.filmstrip.effects.filters.vhs.VhsParams
-import dev.jordond.filmstrip.effects.filters.vhs.VhsSignal
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.transform.internal.ResolveResult
@@ -35,7 +35,7 @@ import kotlin.time.Duration.Companion.seconds
 
 /**
  * Reads the snow a [Vhs] tracking band lays over a clip through the compositor, ahead of the encoder, against
- * [VhsSignal.snowAt].
+ * [TapePictureSignal.snowAt].
  */
 @OptIn(ExperimentalForeignApi::class)
 class AppleVhsSnowHardwareTest {
@@ -72,13 +72,14 @@ class AppleVhsSnowHardwareTest {
     val picture = codeFramesOf(source, 1).single().at(CENTRE, CENTRE)
     val edit = Composition(listOf(Track(listOf(Clip(MediaSource.of(source))))), listOf(SNOWY))
     val frame = withContext(Dispatchers.Default) { renderedFrameOf(graphOf(edit, spec), SNOW_READ_FRAME) }
-    val tick = VhsSignal.tickAt(SNOW_READ_FRAME / FRAME_RATE)
-    val row = VhsSignal.virtualRow(frame.height / 2, frame.height)
+    val tick = TapePictureSignal.tickAt(SNOW_READ_FRAME / FRAME_RATE)
+    val row = TapePictureSignal.virtualRow(frame.height / 2, frame.height)
     val read = frame.at(CENTRE, CENTRE)
     val wanted = signalOverRead(SNOWY, frame.width, frame.height, picture)
     val clean = signalOverRead(CLEAN_BAND, frame.width, frame.height, picture)
 
-    VhsSignal.snowAt(SNOWY.seed, tick, row, 0.5, VhsParams.of(SNOWY)).weight shouldBeGreaterThan SNOW / 2.0
+    TapePictureSignal.snowAt(SNOWY.seed, tick, row, 0.5, TapePictureParams.of(SNOWY)).weight shouldBeGreaterThan
+      SNOW / 2.0
     withClue("$name snow $wanted has to depart from the band with no snow $clean to tell") {
       maxOf(abs(wanted.r - clean.r), abs(wanted.g - clean.g), abs(wanted.b - clean.b)) * MAX_CODE shouldBeGreaterThan
         TONE_MAP_TOLERANCE_CODES
@@ -98,15 +99,15 @@ class AppleVhsSnowHardwareTest {
     height: Int,
     picture: Rgb,
   ): Rgb {
-    val tick = VhsSignal.tickAt(SNOW_READ_FRAME / FRAME_RATE)
+    val tick = TapePictureSignal.tickAt(SNOW_READ_FRAME / FRAME_RATE)
     val source = { _: Int -> doubleArrayOf(picture.r, picture.g, picture.b) }
     val left = (width * CENTRE).toInt() - READ_HALF
     val top = (height * CENTRE).toInt() - READ_HALF
     val pixels =
       (top until top + 2 * READ_HALF).flatMap { y ->
         (left until left + 2 * READ_HALF).map { x ->
-          val row = VhsSignal.virtualRow(y, height)
-          VhsSignal.pixelAt((x + 0.5) / width, row, tick, vhs.seed, width, VhsParams.of(vhs), source)
+          val row = TapePictureSignal.virtualRow(y, height)
+          TapePictureSignal.pixelAt((x + 0.5) / width, row, tick, vhs.seed, width, TapePictureParams.of(vhs), source)
         }
       }
     return Rgb(pixels.map { it[0] }.average(), pixels.map { it[1] }.average(), pixels.map { it[2] }.average())

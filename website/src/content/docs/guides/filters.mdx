@@ -3,7 +3,7 @@ title: Filters
 description: Add an opt-in look or sound like VHS, with its own module and its own resolver.
 playground:
   sample: filters
-  label: VHS, a camcorder display, CRT, glitch, pixel, night vision and a LUT on real footage
+  label: VHS, Betamax and Hi8 tape, a camcorder display, CRT, glitch, pixel, night vision and a LUT on real footage
 ---
 
 import PagePlayground from '../../../components/docs/PagePlayground.astro'
@@ -56,10 +56,34 @@ A `vhs` on the composition covers the whole frame, bars included. One on a clip 
 picture it moves into a bar lands over the fill. It runs under any overlay at its own scope, so a caption next to it stays
 clean. A clip overlay under a composition `vhs` is part of the clip's frame by then, and is burned in with it.
 
+## Betamax
+
+`betamax` plays the frame back from a Betamax tape. It draws the same kinds of damage `vhs` does with a little more luma
+detail, a quarter less noise and a quarter less colour bleed, so it reads as a cleaner tape. Beside a `vhs` at
+`TapeSpeed.SP` the difference is small, as it was on the decks. Beside the default `EP` it is plain.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Filters.kt" region="betamax" />
+
+`tape` is `BetaSpeed.I`, `II` or `III`, from sharpest to softest, and defaults to `II`, the speed most tapes were
+recorded at. A camcorder's `tape(speed)` shows them as `B1`, `B2` and `B3`. Every other setting is the one `vhs` has,
+tracking, clock and a recorded `camcorder` included.
+
+## Hi8
+
+`hi8` plays the frame back from a Hi8 camcorder tape. Luma is much sharper than on either cassette format while chroma
+stays as soft, so fine detail holds and colour still smears along each line. Colour sits closer to its luma, the
+grain is a little heavier, and dropouts come three times as often and run half as long, the short white ticks the
+format is known for.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Filters.kt" region="hi8" />
+
+`tape` is `Hi8Speed.SP` or `LP` and defaults to `SP`. A camcorder's `tape(speed)` shows them as `SP` and `LP`. Every
+other setting is the one `vhs` has.
+
 ## Tape audio
 
-`tapeAudio` makes a clip sound like the linear track of a VHS tape. It narrows the band, lays hiss under the sound, and
-bends the pitch with a slow wow and a fast flutter. It's an [audio effect](/guides/audio-effects/), so it goes in
+`tapeAudio` makes a clip sound like the sound track of a tape, the linear track of a VHS unless it is given another
+`tape`. It narrows the band, lays hiss under the sound, and bends the pitch with a slow wow and a fast flutter. It's an [audio effect](/guides/audio-effects/), so it goes in
 `audioEffects` on a clip, a track or the composition. The hiss and the bend follow the composition time, so a seek, a
 second export and every clip on a track play the same tape.
 
@@ -68,7 +92,7 @@ second export and every clip on a track play the same tape.
 | Setting     | What it does                                                                                     |
 | ----------- | ------------------------------------------------------------------------------------------------ |
 | `intensity` | How strong the sound is. `0f` leaves the audio alone and is listed as an inert notice            |
-| `tape`      | `TapeSpeed.SP`, `LP` or `EP`, from cleanest to roughest. Defaults to `EP`                        |
+| `tape`      | A `TapeSpeed`, `BetaSpeed` or `Hi8Speed`. Defaults to `TapeSpeed.EP`                             |
 | `seed`      | Picks the hiss and where the wow and flutter start. Equal seeds play the same tape               |
 | `bandLimit` | How far the band narrows toward the tape's own, from `0f` for the full band to `1f`              |
 | `hiss`      | How loud the hiss is against the tape's own, from `0f` for none to `1f`                          |
@@ -78,18 +102,25 @@ second export and every clip on a track play the same tape.
 
 Each tape speed has its own figures, and a setting scales the figure rather than replacing it.
 
-| Speed | Band             | Hiss under full scale | Wow              | Flutter        |
-| ----- | ---------------- | --------------------- | ---------------- | -------------- |
-| `SP`  | 100 Hz to 10 kHz | 43 dB                 | 0.15 % at 0.8 Hz | 0.10 % at 9 Hz |
-| `LP`  | 100 Hz to 7 kHz  | 41 dB                 | 0.25 % at 0.8 Hz | 0.15 % at 9 Hz |
-| `EP`  | 100 Hz to 5 kHz  | 39 dB                 | 0.35 % at 0.8 Hz | 0.20 % at 9 Hz |
+| Speed               | Band              | Hiss under full scale | Wow              | Flutter        |
+| ------------------- | ----------------- | --------------------- | ---------------- | -------------- |
+| `TapeSpeed.SP`      | 100 Hz to 10 kHz  | 43 dB                 | 0.15 % at 0.8 Hz | 0.10 % at 9 Hz |
+| `TapeSpeed.LP`      | 100 Hz to 7 kHz   | 41 dB                 | 0.25 % at 0.8 Hz | 0.15 % at 9 Hz |
+| `TapeSpeed.EP`      | 100 Hz to 5 kHz   | 39 dB                 | 0.35 % at 0.8 Hz | 0.20 % at 9 Hz |
+| `BetaSpeed.I`       | 100 Hz to 11 kHz  | 44 dB                 | 0.12 % at 0.8 Hz | 0.08 % at 9 Hz |
+| `BetaSpeed.II`      | 100 Hz to 7 kHz   | 41 dB                 | 0.25 % at 0.8 Hz | 0.15 % at 9 Hz |
+| `BetaSpeed.III`     | 100 Hz to 5.5 kHz | 39.5 dB               | 0.32 % at 0.8 Hz | 0.18 % at 9 Hz |
+| `Hi8Speed.SP`, `LP` | 100 Hz to 15 kHz  | 55 dB                 | 0.02 % at 0.8 Hz | 0.02 % at 9 Hz |
+
+A Hi8 tape carries its sound on the picture heads, so both of its speeds sound the same and far cleaner than a linear
+track.
 
 A `Wobble` takes a `depth` from `0f` to `1f` of the tape's figure, and a `rateHz` from 0.1 to 100, or `null` for the
 tape's own rate. `intensity` multiplies every setting, and at half way a corner sits half way between the full band and
 the tape's on a logarithmic scale.
 
-There is no helper that adds a `vhs` and a `tapeAudio` together. Declare both, and give them the same `tape` and `seed`
-so they read as one recording. The defaults already match.
+There is no helper that adds a tape look and a `tapeAudio` together. Declare both, and give them the same `tape` and
+`seed` so they read as one recording. The defaults of `vhs` and `tapeAudio` already match.
 
 ## Film
 
@@ -217,7 +248,7 @@ Each element is one call, and each takes a `corner`. Elements in the same corner
 | `clock(style)`        | The time of day, `TwelveHour` as `AM 10:32:00` or `TwentyFourHour`                   | `BottomLeft`  |
 | `counter(start, withFrames)` | A tape counter, `0:00:00`, or `0:00:00:00` with a frame count at the output rate | `TopRight` |
 | `battery(level)`      | A battery with a bar for each third of `level`, blinking while low                   | `TopRight`    |
-| `tape(speed)`         | The tape speed, `SP`, `LP` or `EP`                                                   | `TopRight`    |
+| `tape(speed)`         | The tape speed's label, like `SP`, `EP` or `B2`                                      | `TopRight`    |
 | `label(text)`         | Fixed text from `A` to `Z`, `0` to `9`, space and `: . / - ' +`                      | `BottomRight` |
 
 `recordedAt` is the date and time the date and clock show at the start of the composition, as a `RecordedAt` with no
@@ -234,7 +265,7 @@ that time had, and a counter on a clip still counts from the start of the compos
 Where you declare it decides whether the tape degrades it. Inside `vhs { camcorder { } }` the display is added ahead of
 the `vhs`, so it is recorded on the tape and smears and wobbles with the picture. Declared after a `vhs` at the same scope
 it stays clean, like a VCR's own display over the playback. A `vhs` records one `camcorder`, and a second inside the
-same block throws an `IllegalArgumentException`.
+same block throws an `IllegalArgumentException`. `betamax` and `hi8` take a `camcorder` the same way.
 
 <Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Filters.kt" region="camcorder-order" />
 
@@ -269,8 +300,8 @@ overlay under a composition `nightVision` is part of the clip's frame by then, a
 - media3 and the browser refuse a `lut` whose table is too large for the GL context's `MAX_TEXTURE_SIZE`.
 - The ffmpeg backend refuses a filter by name on a build missing a filter it runs on, like `geq`, `gblur`, `lut1d` or
   `blend`.
-- `vhs`, `film` and `nightVision` hand their grain and dropout planes to ffmpeg over a loopback socket, and draw them
-  with `geq` at the same samples where they cannot.
+- `vhs`, `betamax`, `hi8`, `film` and `nightVision` hand their grain and dropout planes to ffmpeg over a loopback
+  socket, and draw them with `geq` at the same samples where they cannot.
 - On ffmpeg, `crt` runs well under real time and holds a lot of memory per clip. A track of clips that all carry one
   equal `crt` at the output's size runs the look once after the join instead.
 - On ffmpeg, `pixel` writes `yuva420p`, whose chroma is shared by 2 by 2 pixels, so a cell edge that falls inside a

@@ -2,9 +2,8 @@ package dev.jordond.filmstrip.effects.filters.vhs
 
 import dev.jordond.filmstrip.edit.EffectsBuilder
 import dev.jordond.filmstrip.edit.FilmstripDsl
-import dev.jordond.filmstrip.effects.filters.camcorder.Camcorder
-import dev.jordond.filmstrip.effects.filters.camcorder.CamcorderBuilder
-import kotlin.time.Duration
+import dev.jordond.filmstrip.effects.filters.tape.TapeLookBuilder
+import dev.jordond.filmstrip.effects.filters.tape.addTapeLook
 
 /**
  * Adds a [Vhs] look described by [block].
@@ -18,70 +17,25 @@ import kotlin.time.Duration
  * }
  * ```
  *
- * A [VhsBuilder.camcorder] inside [block] is added ahead of the [Vhs], so its display is recorded on the tape.
+ * A [TapeLookBuilder.camcorder] inside [block] is added ahead of the [Vhs], so its display is recorded on the tape.
  */
-public fun EffectsBuilder.vhs(block: VhsBuilder.() -> Unit = {}): EffectsBuilder {
-  val builder = VhsBuilder().apply(block)
-  builder.camcorder?.let { add(it) }
-  return add(builder.build())
-}
+public fun EffectsBuilder.vhs(block: VhsBuilder.() -> Unit = {}): EffectsBuilder =
+  addTapeLook(VhsBuilder().apply(block))
 
 /**
  * Describes a [Vhs]. Every value starts at the one [Vhs] uses unless it is given one.
  *
- * @property intensity How strong the look is, from `0f` which leaves the frame alone to `1f`.
  * @property tape The tape speed, which sets how soft the picture is.
- * @property seed Picks the pattern of noise and events. Equal seeds draw the same tape.
- * @property tracking The band of mistracked tape, built with [events] or [rolling], or [Tracking.Off].
- * @property clock What the pattern moves with in a preview. [TapeClock.Wall] keeps it moving while paused.
  */
 @FilmstripDsl
-public class VhsBuilder internal constructor() {
-  public var intensity: Float = 1f
+public class VhsBuilder internal constructor() : TapeLookBuilder("vhs") {
   public var tape: TapeSpeed = TapeSpeed.EP
-  public var seed: Int = Vhs.DEFAULT_SEED
-  public var tracking: Tracking = Tracking.Events()
-  public var clock: TapeClock = TapeClock.Composition
-  internal var camcorder: Camcorder? = null
-    private set
 
-  /**
-   * Records a [Camcorder] display described by [block] on the tape, so the look degrades it with the picture.
-   *
-   * @throws IllegalArgumentException when this [vhs] already records a camcorder.
-   */
-  public fun camcorder(block: CamcorderBuilder.() -> Unit) {
-    require(camcorder == null) { "A vhs records one camcorder, and this vhs already has one." }
-    camcorder = CamcorderBuilder().apply(block).build()
-  }
-
-  /**
-   * Bands that turn up now and then with [chance] in each four second window, shaped by [block].
-   */
-  public fun events(
-    chance: Float = Tracking.DEFAULT_CHANCE,
-    block: TrackingBuilder.() -> Unit = {},
-  ): Tracking.Events {
-    val band = TrackingBuilder().apply(block)
-    return Tracking.Events(chance, band.height, band.shift, band.snow)
-  }
-
-  /**
-   * One band rolling top to bottom every [period], shaped by [block].
-   */
-  public fun rolling(
-    period: Duration = Tracking.DEFAULT_PERIOD,
-    block: TrackingBuilder.() -> Unit = {},
-  ): Tracking.Rolling {
-    val band = TrackingBuilder().apply(block)
-    return Tracking.Rolling(period, band.height, band.shift, band.snow)
-  }
-
-  internal fun build(): Vhs = Vhs(intensity, tape, seed, tracking, clock)
+  override fun build(): Vhs = Vhs(intensity, tape, seed, tracking, clock)
 }
 
 /**
- * Shapes a [Tracking] band for [VhsBuilder.events] or [VhsBuilder.rolling].
+ * Shapes a [Tracking] band for [TapeLookBuilder.events] or [TapeLookBuilder.rolling].
  *
  * @property height How tall the band is, as a fraction of the frame height from `0.02f` to `0.5f`.
  * @property shift The largest sideways slide inside the band, as a fraction of the frame width from `0f` to `0.1f`.

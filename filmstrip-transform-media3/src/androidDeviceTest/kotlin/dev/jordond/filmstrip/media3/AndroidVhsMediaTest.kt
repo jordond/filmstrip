@@ -10,10 +10,13 @@ import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.effect.EffectSpec
+import dev.jordond.filmstrip.effects.filters.betamax.Betamax
 import dev.jordond.filmstrip.effects.filters.filters
+import dev.jordond.filmstrip.effects.filters.hi8.Hi8
+import dev.jordond.filmstrip.effects.filters.tape.TapeLook
+import dev.jordond.filmstrip.effects.filters.tape.TapePictureParams
+import dev.jordond.filmstrip.effects.filters.tape.TapePictureSignal
 import dev.jordond.filmstrip.effects.filters.vhs.Vhs
-import dev.jordond.filmstrip.effects.filters.vhs.VhsParams
-import dev.jordond.filmstrip.effects.filters.vhs.VhsSignal
 import dev.jordond.filmstrip.effects.geometry.Crop
 import dev.jordond.filmstrip.effects.overlay.ImageOverlay
 import dev.jordond.filmstrip.export.AdjustmentKind
@@ -64,6 +67,19 @@ class AndroidVhsMediaTest {
       val plain = greyOfBar(barsEdit(Clip(probe.fixture()), listOf(crop)))
 
       taped - plain shouldBeGreaterThan halfLift(vhs)
+    }
+
+  @Test
+  fun aCompositionBetamaxAndHi8ReachTheBars() =
+    runTest(timeout = TIMEOUT) {
+      val crop = Crop(AspectRatio.Square, fit = Fit.Contain)
+      val plain = greyOfBar(barsEdit(Clip(probe.fixture()), listOf(crop)))
+
+      listOf(Betamax(), Hi8()).forEach { look ->
+        val taped = greyOfBar(barsEdit(Clip(probe.fixture()), listOf(crop, look)))
+
+        withClue(look.id) { taped - plain shouldBeGreaterThan halfLift(look) }
+      }
     }
 
   @Test
@@ -161,10 +177,10 @@ class AndroidVhsMediaTest {
         val wanted =
           points
             .map { (fx, fy) ->
-              val row = VhsSignal.virtualRow((size.height * fy).toInt(), size.height)
+              val row = TapePictureSignal.virtualRow((size.height * fy).toInt(), size.height)
               val x = ((size.width * fx).toInt() + 0.5) / size.width
-              val tick = VhsSignal.tickAt(0.0)
-              VhsSignal.pixelAt(x, row, tick, vhs.seed, size.width, VhsParams.of(vhs)) { shown }
+              val tick = TapePictureSignal.tickAt(0.0)
+              TapePictureSignal.pixelAt(x, row, tick, vhs.seed, size.width, TapePictureParams.of(vhs)) { shown }
             }.meanOfChannels()
         read.indices.forEach { channel ->
           withClue("API ${Build.VERSION.SDK_INT} $scope scope read ${read.toList()} against ${wanted.toList()}") {
@@ -208,8 +224,8 @@ class AndroidVhsMediaTest {
     val height = plan.output.size.height
     val y = 1f - (CODE_PATCH / 2).toFloat() / height
     val shiftAt = { fromBottom: Int ->
-      val row = VhsSignal.virtualRow(height - fromBottom, height)
-      VhsSignal.rowShift(vhs.seed, VhsSignal.tickAt(0.0), row, VhsParams.of(vhs)).toFloat()
+      val row = TapePictureSignal.virtualRow(height - fromBottom, height)
+      TapePictureSignal.rowShift(vhs.seed, TapePictureSignal.tickAt(0.0), row, TapePictureParams.of(vhs)).toFloat()
     }
     val least = shiftAt(CODE_PATCH)
     val most = shiftAt(1)
@@ -249,7 +265,7 @@ class AndroidVhsMediaTest {
   private suspend fun greyOfSwatch(edit: Composition): Double = probe.written(edit).rgbAt(SWATCH_FX, SWATCH_FY).mean()
 
   // A read tells lifted from clean when it lands closer to its own side of this.
-  private fun halfLift(vhs: Vhs): Double = VhsParams.of(vhs).lift * MAX_CODE / 2
+  private fun halfLift(look: TapeLook): Double = TapePictureParams.of(look).lift * MAX_CODE / 2
 
   // Chroma noise moves any one channel by more than the lift a read looks for.
   private fun Triple<Int, Int, Int>.mean(): Double = (first + second + third) / 3.0

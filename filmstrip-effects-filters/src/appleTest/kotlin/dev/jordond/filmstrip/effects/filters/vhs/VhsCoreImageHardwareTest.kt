@@ -7,8 +7,17 @@ import dev.jordond.filmstrip.effect.Attributes
 import dev.jordond.filmstrip.effect.EffectResolution
 import dev.jordond.filmstrip.effect.FrameInfo
 import dev.jordond.filmstrip.effects.color.createCodeSpace
+import dev.jordond.filmstrip.effects.filters.betamax.Betamax
+import dev.jordond.filmstrip.effects.filters.hi8.Hi8
 import dev.jordond.filmstrip.effects.filters.internal.KB
 import dev.jordond.filmstrip.effects.filters.internal.KR
+import dev.jordond.filmstrip.effects.filters.tape.TAPE_PICTURE_KERNEL_LIMIT
+import dev.jordond.filmstrip.effects.filters.tape.TapeLook
+import dev.jordond.filmstrip.effects.filters.tape.TapePictureParams
+import dev.jordond.filmstrip.effects.filters.tape.TapePictureSignal
+import dev.jordond.filmstrip.effects.filters.tape.tapePictureKernelLimit
+import dev.jordond.filmstrip.effects.filters.tape.tapePictureResolution
+import dev.jordond.filmstrip.effects.filters.tape.tapePictureStep
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ColorSpace
 import io.kotest.assertions.withClue
@@ -45,7 +54,7 @@ import kotlin.test.Test
 import kotlin.time.Duration.Companion.seconds
 
 /**
- * Reads the kernel's own output, with no encoder in the way, against [VhsSignal].
+ * Reads the kernel's own output, with no encoder in the way, against [TapePictureSignal].
  *
  * A frame goes in and comes out in the codes of the BT.709 buffer, the way the chain hands it over and takes it back.
  * Rows of a render come back from the top.
@@ -75,11 +84,46 @@ class VhsCoreImageHardwareTest {
   }
 
   @Test
+  fun `a hi8 dropout lands on the signal in the middle of its fall`() {
+    val (hi8, y, column) = midFall(HEIGHT) { seed -> Hi8(intensity = 0.6f, seed = seed) }
+    val frame = drawn(hi8, ramp(WIDTH, HEIGHT), WIDTH, HEIGHT)
+
+    assertRowMatches(frame, hi8, y, HEIGHT, WIDTH, ::rampTexel, READ_COLUMNS + column)
+  }
+
+  @Test
+  fun `a smaller frame draws the same hi8 dropout at its own rows`() {
+    val height = HEIGHT / 3
+    val (hi8, y, column) = midFall(height) { seed -> Hi8(intensity = 0.6f, seed = seed) }
+    val frame = drawn(hi8, ramp(WIDTH, height), WIDTH, height)
+
+    assertRowMatches(frame, hi8, y, height, WIDTH, ::rampTexel, READ_COLUMNS + column)
+    listOf(height / 4, height / 2, height - 1).forEach { row ->
+      assertRowMatches(frame, hi8, row, height, WIDTH, ::rampTexel)
+    }
+  }
+
+  @Test
+  fun `a betamax lands on the signal at a mid intensity`() {
+    val betamax = Betamax(intensity = 0.6f)
+    val frame = drawn(betamax, ramp(WIDTH, HEIGHT), WIDTH, HEIGHT)
+
+    READ_ROWS.forEach { y -> assertRowMatches(frame, betamax, y, HEIGHT, WIDTH, ::rampTexel) }
+  }
+
+  @Test
   fun `snow in the middle of a rolling band lands on the signal`() {
     val frame = drawn(SNOWY, ramp(WIDTH, HEIGHT), WIDTH, HEIGHT)
-    val row = VhsSignal.virtualRow(HEIGHT / 2, HEIGHT)
+    val row = TapePictureSignal.virtualRow(HEIGHT / 2, HEIGHT)
 
-    VhsSignal.snowAt(SNOWY.seed, VhsSignal.tickAt(SECONDS), row, 0.5, VhsParams.of(SNOWY)).weight shouldBeGreaterThan
+    TapePictureSignal
+      .snowAt(
+        SNOWY.seed,
+        TapePictureSignal.tickAt(SECONDS),
+        row,
+        0.5,
+        TapePictureParams.of(SNOWY),
+      ).weight shouldBeGreaterThan
       0.25
     listOf(HEIGHT * 2 / 5, HEIGHT / 2, HEIGHT * 3 / 5).forEach { y ->
       assertRowMatches(frame, SNOWY, y, HEIGHT, WIDTH, ::rampTexel)
@@ -131,7 +175,7 @@ class VhsCoreImageHardwareTest {
     val vhs = Vhs(intensity = 0.5f)
     val moved =
       ramp(WIDTH, HEIGHT).imageByApplyingTransform(CGAffineTransformMakeTranslation(MOVED_X, MOVED_Y))
-    val step = vhsStep(vhs)
+    val step = tapePictureStep(vhs)
     val output = step.apply(moved, FrameInfo(attributes(WIDTH, HEIGHT), SECONDS.seconds))
     val back = output.imageByApplyingTransform(CGAffineTransformMakeTranslation(-MOVED_X, -MOVED_Y))
     val frame = rendered(back, WIDTH, HEIGHT)
@@ -153,8 +197,8 @@ class VhsCoreImageHardwareTest {
   @Test
   fun `a half alpha step lands on the signal in straight colour`() {
     val vhs = Vhs(intensity = 0.5f)
-    val params = VhsParams.of(vhs)
-    val tick = VhsSignal.tickAt(SECONDS)
+    val params = TapePictureParams.of(vhs)
+    val tick = TapePictureSignal.tickAt(SECONDS)
     val straight = { column: Int -> rampTexel(column) + if (column < STEP_COLUMN) 1.0 else HALF_ALPHA }
     val image =
       imageOf(WIDTH, HEIGHT) { x, _ ->
@@ -164,12 +208,12 @@ class VhsCoreImageHardwareTest {
     val frame = drawn(vhs, image, WIDTH, HEIGHT)
 
     READ_ROWS.forEach { y ->
-      val row = VhsSignal.virtualRow(y, HEIGHT)
+      val row = TapePictureSignal.virtualRow(y, HEIGHT)
       // The column whose read lands between the last opaque column and the first half alpha one.
-      val straddles = ceil(STEP_COLUMN - 1 + VhsSignal.rowShift(vhs.seed, tick, row, params) * WIDTH).toInt()
+      val straddles = ceil(STEP_COLUMN - 1 + TapePictureSignal.rowShift(vhs.seed, tick, row, params) * WIDTH).toInt()
       val step = straddles - STEP_READS..straddles + STEP_READS
       (READ_COLUMNS.filter { it !in step } + step).forEach { column ->
-        val wanted = VhsSignal.pixelAt((column + 0.5) / WIDTH, row, tick, vhs.seed, WIDTH, params, straight)
+        val wanted = TapePictureSignal.pixelAt((column + 0.5) / WIDTH, row, tick, vhs.seed, WIDTH, params, straight)
         val at = (y * WIDTH + column) * CHANNELS
         val within = if (column in step) SAMPLER_WEIGHT_STEP else TOLERANCE
         withClue("row $y column $column alpha") { frame[at + 3].toDouble() shouldBe (wanted[3] plusOrMinus within) }
@@ -187,8 +231,9 @@ class VhsCoreImageHardwareTest {
     val vhs = Vhs(intensity = 0.5f)
     val frame = drawn(vhs, imageOf(WIDTH, HEIGHT, ::canvas), WIDTH, HEIGHT)
     val y = HEIGHT - 1
-    val row = VhsSignal.virtualRow(y, HEIGHT)
-    val shift = VhsSignal.rowShift(vhs.seed, VhsSignal.tickAt(SECONDS), row, VhsParams.of(vhs)) * WIDTH
+    val row = TapePictureSignal.virtualRow(y, HEIGHT)
+    val shift =
+      TapePictureSignal.rowShift(vhs.seed, TapePictureSignal.tickAt(SECONDS), row, TapePictureParams.of(vhs)) * WIDTH
     val alpha = { column: Double -> frame[(y * WIDTH + column.toInt()) * CHANNELS + 3].toDouble() }
     val red = { column: Double -> frame[(y * WIDTH + column.toInt()) * CHANNELS].toDouble() }
 
@@ -218,14 +263,15 @@ class VhsCoreImageHardwareTest {
     val source = { column: Int -> code(column).toDouble().let { doubleArrayOf(it, it, it) } }
     listOf(0.25f, 0.4f).forEach { intensity ->
       val vhs = Vhs(intensity = intensity)
-      val params = VhsParams.of(vhs)
-      val tick = VhsSignal.tickAt(SECONDS)
-      val output = vhsStep(vhs).apply(image, FrameInfo(attributes(WIDTH, HEIGHT), SECONDS.seconds))
+      val params = TapePictureParams.of(vhs)
+      val tick = TapePictureSignal.tickAt(SECONDS)
+      val output = tapePictureStep(vhs).apply(image, FrameInfo(attributes(WIDTH, HEIGHT), SECONDS.seconds))
       val frame = renderedBytes(output, WIDTH, HEIGHT)
       val lumaOf = { pixel: DoubleArray -> pixel[0] * KR + pixel[1] * (1 - KR - KB) + pixel[2] * KB }
       val wantAt = { column: Int, y: Int ->
         val x = (column + 0.5) / WIDTH
-        FULL_CODE * lumaOf(VhsSignal.pixelAt(x, VhsSignal.virtualRow(y, HEIGHT), tick, vhs.seed, WIDTH, params, source))
+        val row = TapePictureSignal.virtualRow(y, HEIGHT)
+        FULL_CODE * lumaOf(TapePictureSignal.pixelAt(x, row, tick, vhs.seed, WIDTH, params, source))
       }
       val readAt = { column: Int, y: Int ->
         val at = (y * WIDTH + column) * CHANNELS
@@ -256,7 +302,7 @@ class VhsCoreImageHardwareTest {
   @Test
   fun `nothing is drawn past the frame`() {
     val output =
-      vhsStep(
+      tapePictureStep(
         Vhs(intensity = 0.5f),
       ).apply(ramp(WIDTH, HEIGHT), FrameInfo(attributes(WIDTH, HEIGHT), SECONDS.seconds))
     val moved = output.imageByApplyingTransform(CGAffineTransformMakeTranslation(0.0, MOVED_Y))
@@ -276,33 +322,68 @@ class VhsCoreImageHardwareTest {
 
   @Test
   fun `this device compiles the kernel`() {
-    vhsKernelLimit().shouldBeNull()
+    tapePictureKernelLimit().shouldBeNull()
   }
 
   @Test
   fun `a device with no kernels is refused by name`() {
-    vhsKernelLimit(kernelsExist = false) shouldBe VHS_KERNEL_LIMIT
-    vhsKernelLimit(kernelsExist = true, compiles = { false }) shouldBe VHS_KERNEL_LIMIT
+    tapePictureKernelLimit(kernelsExist = false) shouldBe TAPE_PICTURE_KERNEL_LIMIT
+    tapePictureKernelLimit(kernelsExist = true, compiles = { false }) shouldBe TAPE_PICTURE_KERNEL_LIMIT
 
-    val refused = vhsResolution(Vhs(), VHS_KERNEL_LIMIT).shouldBeInstanceOf<EffectResolution.Unsupported>()
+    val refused =
+      tapePictureResolution(
+        Vhs(),
+        TAPE_PICTURE_KERNEL_LIMIT,
+      ).shouldBeInstanceOf<EffectResolution.Unsupported>()
     refused.specId shouldBe Vhs.ID
-    refused.message shouldBe VHS_KERNEL_LIMIT
+    refused.message shouldBe TAPE_PICTURE_KERNEL_LIMIT
+  }
+
+  @Test
+  fun `a refused hi8 is named by its own id`() {
+    val refused =
+      tapePictureResolution(Hi8(), TAPE_PICTURE_KERNEL_LIMIT).shouldBeInstanceOf<EffectResolution.Unsupported>()
+
+    refused.specId shouldBe Hi8.ID
+  }
+
+  // The first seed, row and column where a dropout of the look [lookOf] builds is in the middle of its fall at the read
+  // time, on a frame [height] tall.
+  private fun midFall(
+    height: Int,
+    lookOf: (Int) -> TapeLook,
+  ): Triple<TapeLook, Int, Int> {
+    val tick = TapePictureSignal.tickAt(SECONDS)
+    for (seed in 1..SEEDS) {
+      val look = lookOf(seed)
+      val params = TapePictureParams.of(look)
+      for (y in 0 until height) {
+        val row = TapePictureSignal.virtualRow(y, height)
+        for (column in 1 until WIDTH) {
+          val here = TapePictureSignal.dropout(seed, tick, row, (column + 0.5) / WIDTH, params)
+          val before = TapePictureSignal.dropout(seed, tick, row, (column - 0.5) / WIDTH, params)
+          if (here in MID_FALL && before > here) return Triple(look, y, column)
+        }
+      }
+    }
+    error("no dropout in the middle of its fall in $SEEDS seeds")
   }
 
   private fun assertRowMatches(
     frame: FloatArray,
-    vhs: Vhs,
+    vhs: TapeLook,
     y: Int,
     height: Int,
     width: Int,
     source: (Int) -> DoubleArray,
+    columns: List<Int> = READ_COLUMNS,
   ) {
-    val params = VhsParams.of(vhs)
-    val tick = VhsSignal.tickAt(SECONDS)
-    val row = VhsSignal.virtualRow(y, height)
-    READ_COLUMNS.forEach { column ->
+    val params = TapePictureParams.of(vhs)
+    val tick = TapePictureSignal.tickAt(SECONDS)
+    val row = TapePictureSignal.virtualRow(y, height)
+    columns.forEach { column ->
       val x = (column + 0.5) / width
-      val expected = VhsSignal.pixelAt(x, row, tick, vhs.seed, width, params, source)
+      val expected = TapePictureSignal.pixelAt(x, row, tick, vhs.seed, width, params, source)
       val at = (y * width + column) * CHANNELS
       expected.forEachIndexed { channel, value ->
         withClue("row $y column $column channel $channel") {
@@ -313,13 +394,13 @@ class VhsCoreImageHardwareTest {
   }
 
   private fun drawn(
-    vhs: Vhs,
+    vhs: TapeLook,
     image: CIImage,
     width: Int,
     height: Int,
     seconds: Double = SECONDS,
   ): FloatArray =
-    rendered(vhsStep(vhs).apply(image, FrameInfo(attributes(width, height), seconds.seconds)), width, height)
+    rendered(tapePictureStep(vhs).apply(image, FrameInfo(attributes(width, height), seconds.seconds)), width, height)
 
   private fun rendered(
     image: CIImage,
@@ -475,6 +556,8 @@ class VhsCoreImageHardwareTest {
     const val RGB = 3
     const val SECONDS = 1.5
     const val TOLERANCE = 1e-4
+    const val SEEDS = 200
+    val MID_FALL = 0.3..0.7
     const val HALF_ALPHA = 0.5
     const val STEP_COLUMN = WIDTH / 2
     const val STEP_READS = 2

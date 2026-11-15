@@ -21,12 +21,18 @@ import dev.jordond.filmstrip.effects.color.invert
 import dev.jordond.filmstrip.effects.color.rgbAdjustment
 import dev.jordond.filmstrip.effects.color.saturation
 import dev.jordond.filmstrip.effects.color.sepia
+import dev.jordond.filmstrip.effects.filters.betamax.BetaSpeed
+import dev.jordond.filmstrip.effects.filters.betamax.betamax
 import dev.jordond.filmstrip.effects.filters.camcorder.camcorder
 import dev.jordond.filmstrip.effects.filters.crt.crt
 import dev.jordond.filmstrip.effects.filters.film.film
+import dev.jordond.filmstrip.effects.filters.hi8.Hi8Speed
+import dev.jordond.filmstrip.effects.filters.hi8.hi8
 import dev.jordond.filmstrip.effects.filters.lut.CubeLut
 import dev.jordond.filmstrip.effects.filters.lut.lut
 import dev.jordond.filmstrip.effects.filters.pixel.pixel
+import dev.jordond.filmstrip.effects.filters.tape.TapeLookBuilder
+import dev.jordond.filmstrip.effects.filters.tape.TapeStock
 import dev.jordond.filmstrip.effects.filters.tape.tapeAudio
 import dev.jordond.filmstrip.effects.filters.vhs.TapeSpeed
 import dev.jordond.filmstrip.effects.filters.vhs.Tracking
@@ -67,12 +73,37 @@ public enum class CropMode {
 }
 
 /**
- * Which tracking band the VHS look runs, events now and then, one rolling band, or none.
+ * Which tracking band the tape look runs, events now and then, one rolling band, or none.
  */
-public enum class VhsTrackingMode {
+public enum class TapeTrackingMode {
   Events,
   Rolling,
   Off,
+}
+
+/**
+ * A tape format the tape look and the tape audio can play.
+ *
+ * @property label The name the format picker shows.
+ * @property stocks The speeds the format ran at, each under the name its chip shows.
+ * @property default The speed the format starts on.
+ */
+public enum class TapeFormat(
+  public val label: String,
+  public val stocks: List<Pair<String, TapeStock>>,
+  public val default: TapeStock,
+) {
+  Vhs("VHS", TapeSpeed.entries.map { it.name to it }, TapeSpeed.EP),
+  Betamax("Betamax", BetaSpeed.entries.map { it.name to it }, BetaSpeed.II),
+  Hi8("Hi8", Hi8Speed.entries.map { it.name to it }, Hi8Speed.SP),
+  ;
+
+  public companion object {
+    /**
+     * The format [stock] is a speed of.
+     */
+    public fun of(stock: TapeStock): TapeFormat = entries.first { format -> format.stocks.any { it.second == stock } }
+  }
 }
 
 /**
@@ -141,13 +172,13 @@ public class EditState {
   var vignette: Float by mutableStateOf(0f)
   var customMatrix: ColorMatrix by mutableStateOf(ColorMatrix.Identity)
 
-  var vhsEnabled: Boolean by mutableStateOf(false)
-  var vhsIntensity: Float by mutableStateOf(1f)
-  var vhsTape: TapeSpeed by mutableStateOf(TapeSpeed.EP)
-  var vhsTracking: VhsTrackingMode by mutableStateOf(VhsTrackingMode.Events)
-  var vhsSnow: Float by mutableStateOf(Tracking.DEFAULT_SNOW)
+  var tapeEnabled: Boolean by mutableStateOf(false)
+  var tapeIntensity: Float by mutableStateOf(1f)
+  var tapeStock: TapeStock by mutableStateOf(TapeFormat.Vhs.default)
+  var tapeTracking: TapeTrackingMode by mutableStateOf(TapeTrackingMode.Events)
+  var tapeSnow: Float by mutableStateOf(Tracking.DEFAULT_SNOW)
   var tapeAudioEnabled: Boolean by mutableStateOf(false)
-  var tapeAudioTape: TapeSpeed by mutableStateOf(TapeSpeed.EP)
+  var tapeAudioStock: TapeStock by mutableStateOf(TapeFormat.Vhs.default)
   var filmEnabled: Boolean by mutableStateOf(false)
   var filmGrain: Float by mutableStateOf(0.5f)
   var filmHalation: Float by mutableStateOf(0.5f)
@@ -351,7 +382,7 @@ public class EditState {
         snapWithin(snapWithinSeconds.toDouble().seconds)
       }
 
-      if (tapeAudioEnabled) audioEffects { tapeAudio { tape = tapeAudioTape } }
+      if (tapeAudioEnabled) audioEffects { tapeAudio { tape = tapeAudioStock } }
 
       effects {
         if (rotationDegrees != 0) rotate(rotationDegrees)
@@ -369,17 +400,29 @@ public class EditState {
         if (blur != 0f) blur(blur)
         if (vignette != 0f) vignette(strength = vignette)
         val burned = camcorderDisplay.shown && camcorderDisplay.burned
-        if (vhsEnabled) {
-          vhs {
-            if (burned) camcorder(camcorderDisplay.elements)
-            intensity = vhsIntensity
-            tape = vhsTape
-            tracking =
-              when (vhsTracking) {
-                VhsTrackingMode.Events -> events { snow = vhsSnow }
-                VhsTrackingMode.Rolling -> rolling { snow = vhsSnow }
-                VhsTrackingMode.Off -> Tracking.Off
+        if (tapeEnabled) {
+          when (val stock = tapeStock) {
+            is TapeSpeed -> {
+              vhs {
+                tape = stock
+                tapeLook(burned)
               }
+            }
+            is BetaSpeed -> {
+              betamax {
+                tape = stock
+                tapeLook(burned)
+              }
+            }
+            is Hi8Speed -> {
+              hi8 {
+                tape = stock
+                tapeLook(burned)
+              }
+            }
+            else -> {
+              error("No tape look plays ${stock.label}")
+            }
           }
         } else if (burned) {
           camcorder(camcorderDisplay.elements)
@@ -416,6 +459,31 @@ public class EditState {
     }
 
   /**
+   * The format the tape look plays, the one [tapeStock] is a speed of.
+   */
+  val tapeFormat: TapeFormat
+    get() = TapeFormat.of(tapeStock)
+
+  /**
+   * Puts the tape look and the tape audio on [format] at the speed it starts on.
+   */
+  fun selectTapeFormat(format: TapeFormat) {
+    tapeStock = format.default
+    tapeAudioStock = format.default
+  }
+
+  private fun TapeLookBuilder.tapeLook(burned: Boolean) {
+    if (burned) camcorder(camcorderDisplay.elements)
+    intensity = tapeIntensity
+    tracking =
+      when (tapeTracking) {
+        TapeTrackingMode.Events -> events { snow = tapeSnow }
+        TapeTrackingMode.Rolling -> rolling { snow = tapeSnow }
+        TapeTrackingMode.Off -> Tracking.Off
+      }
+  }
+
+  /**
    * Puts every knob back where it started, for the editor's reset action.
    */
   fun reset(sourceDuration: Duration?) {
@@ -447,13 +515,13 @@ public class EditState {
     saturation = 1f
     hueDegrees = 0f
     sepia = 0f
-    vhsEnabled = false
-    vhsIntensity = 1f
-    vhsTape = TapeSpeed.EP
-    vhsTracking = VhsTrackingMode.Events
-    vhsSnow = Tracking.DEFAULT_SNOW
+    tapeEnabled = false
+    tapeIntensity = 1f
+    tapeStock = TapeFormat.Vhs.default
+    tapeTracking = TapeTrackingMode.Events
+    tapeSnow = Tracking.DEFAULT_SNOW
     tapeAudioEnabled = false
-    tapeAudioTape = TapeSpeed.EP
+    tapeAudioStock = TapeFormat.Vhs.default
     filmEnabled = false
     filmGrain = 0.5f
     filmHalation = 0.5f

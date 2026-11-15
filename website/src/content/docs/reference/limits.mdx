@@ -232,6 +232,8 @@ picture but still plays its audio. If it's the whole primary track, it's refused
 Each [filter](/guides/filters/) looks the same on every backend, within a few code values. Where a backend can't run
 one, it's refused by name.
 
+`betamax` and `hi8` draw through the renderer `vhs` does, so every `vhs` limit and figure below holds for them too.
+
 - **Apple** runs `vhs`, `film`, `crt`, `glitch`, `lut`, `nightVision` and `pixel` on Core Image Metal kernels, which
   need an Apple6 GPU on iOS, or macOS 12 on a Mac.
 - **Browser** refuses a clip larger on a side than the page's `MAX_TEXTURE_SIZE`. A fit that crops makes the clip's

@@ -1,9 +1,11 @@
 package dev.jordond.filmstrip.ffmpeg
 
+import dev.jordond.filmstrip.effects.filters.hi8.Hi8
+import dev.jordond.filmstrip.effects.filters.tape.TapeLook
+import dev.jordond.filmstrip.effects.filters.tape.TapePictureParams
+import dev.jordond.filmstrip.effects.filters.tape.TapePictureSignal
 import dev.jordond.filmstrip.effects.filters.vhs.TapeSpeed
 import dev.jordond.filmstrip.effects.filters.vhs.Vhs
-import dev.jordond.filmstrip.effects.filters.vhs.VhsParams
-import dev.jordond.filmstrip.effects.filters.vhs.VhsSignal
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.ffmpeg.support.FilterFrames
 import dev.jordond.filmstrip.ffmpeg.support.VHS_CHROMA_SPAN
@@ -33,8 +35,8 @@ import io.kotest.matchers.doubles.shouldBeGreaterThan as shouldBeAbove
 import io.kotest.matchers.doubles.shouldBeLessThan as shouldBeBelow
 
 /**
- * Reads the frames ffmpeg draws for a [Vhs] straight off the preview pump against [VhsSignal], with no encoder in the
- * way.
+ * Reads the frames ffmpeg draws for a [Vhs] straight off the preview pump against [TapePictureSignal], with no encoder
+ * in the way.
  *
  * A chroma plane in 4:2:0 draws its own rows, so a pixel's chroma is read against the virtual row and the column of the
  * sample it comes from, and its luma against its own.
@@ -78,13 +80,19 @@ class FfmpegVhsSignalMediaTest {
     }
 
   // gblur is a recursive approximation of a Gaussian, which is ffmpeg's own limit. A step edge shows it where a ramp
-  // cannot, against the sigmaFor figures VhsSignal blurs with. The graph's own planes are read, from a clip written
-  // straight in those planes, so no RGB conversion sits on either side. Every row is read, since each lands the edge at
-  // its own subpixel shift and only some of them show the limit.
+  // cannot, against the sigmaFor figures TapePictureSignal blurs with. The graph's own planes are read, from a clip
+  // written straight in those planes, so no RGB conversion sits on either side. Every row is read, since each lands the
+  // edge at its own subpixel shift and only some of them show the limit.
   @Test
   fun `gblur lands within its limit of the signal's sigma at a mid intensity`() =
+    assertGblurWithinLimit(Vhs(intensity = 0.5f))
+
+  // The sharpest luma any tape look asks of gblur, 0.41 pixels on this frame.
+  @Test
+  fun `gblur lands within its limit of a hi8's sigma at full intensity`() = assertGblurWithinLimit(Hi8())
+
+  private fun assertGblurWithinLimit(vhs: TapeLook) =
     runBlocking<Unit> {
-      val vhs = Vhs(intensity = 0.5f)
       val colour = draw.clipOfPlanes(WIDTH, HEIGHT, { COLOUR_LUMA }, ::edgeCb, ::edgeCr)
       val grey = draw.clipOfPlanes(WIDTH, HEIGHT, ::edgeLuma, { VHS_CHROMA_ZERO }, { VHS_CHROMA_ZERO })
       val colourFrame = draw.planesAt(draw.composition(listOf(colour), listOf(vhs)), READ_SLOT)
@@ -150,7 +158,7 @@ class FfmpegVhsSignalMediaTest {
   fun `a halo over super black stays black`() =
     runBlocking<Unit> {
       val vhs = Vhs(tape = TapeSpeed.SP)
-      val params = VhsParams.of(vhs)
+      val params = TapePictureParams.of(vhs)
       val edge = WIDTH / 2
       val clip =
         draw.clipOfPlanes(WIDTH, HEIGHT, {
@@ -166,10 +174,10 @@ class FfmpegVhsSignalMediaTest {
       val tick = tickOf(READ_SLOT)
 
       GRAIN_ROWS.forEach { y ->
-        val row = VhsSignal.virtualRow(y, HEIGHT)
-        val landed = edge + (VhsSignal.rowShift(vhs.seed, tick, row, params) * WIDTH).roundToInt()
+        val row = TapePictureSignal.virtualRow(y, HEIGHT)
+        val landed = edge + (TapePictureSignal.rowShift(vhs.seed, tick, row, params) * WIDTH).roundToInt()
         (landed + SUPER_BLACK_FROM until landed + SUPER_BLACK_TO).forEach { column ->
-          if (VhsSignal.dropout(vhs.seed, tick, row, (column + 0.5) / WIDTH, params) == 0.0) {
+          if (TapePictureSignal.dropout(vhs.seed, tick, row, (column + 0.5) / WIDTH, params) == 0.0) {
             withClue("row $y column $column") { frame.luma(column, y) shouldBeLessThan SUPER_BLACK_MOST }
           }
         }

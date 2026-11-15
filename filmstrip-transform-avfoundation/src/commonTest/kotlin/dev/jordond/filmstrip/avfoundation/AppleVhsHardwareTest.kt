@@ -15,10 +15,13 @@ import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effects.BuiltInEffectResolver
 import dev.jordond.filmstrip.effects.filters.FilterEffectResolver
+import dev.jordond.filmstrip.effects.filters.betamax.Betamax
 import dev.jordond.filmstrip.effects.filters.filters
+import dev.jordond.filmstrip.effects.filters.hi8.Hi8
+import dev.jordond.filmstrip.effects.filters.tape.TapeLook
+import dev.jordond.filmstrip.effects.filters.tape.TapePictureParams
+import dev.jordond.filmstrip.effects.filters.tape.TapePictureSignal
 import dev.jordond.filmstrip.effects.filters.vhs.Vhs
-import dev.jordond.filmstrip.effects.filters.vhs.VhsParams
-import dev.jordond.filmstrip.effects.filters.vhs.VhsSignal
 import dev.jordond.filmstrip.effects.geometry.Crop
 import dev.jordond.filmstrip.effects.overlay.ImageOverlay
 import dev.jordond.filmstrip.export.AdjustmentKind
@@ -214,6 +217,20 @@ class AppleVhsHardwareTest {
     }
 
   @Test
+  fun `a composition betamax and hi8 reach the bars`() =
+    runTest(timeout = TIMEOUT) {
+      val crop = Crop(AspectRatio.Square, fit = Fit.Contain)
+      val plain = meanOfBar(barsEdit(Clip(MediaSource.of(fixture(CLIP))), listOf(crop)), "plain-bars")
+
+      listOf(Betamax(), Hi8()).forEach { look ->
+        val name = "${look.id.value}-bars"
+        val taped = meanOfBar(barsEdit(Clip(MediaSource.of(fixture(CLIP))), listOf(crop, look)), name)
+
+        withClue(look.id) { taped - plain shouldBeGreaterThan halfLift(look) }
+      }
+    }
+
+  @Test
   fun `a clip vhs leaves the composition bars alone`() =
     runTest(timeout = TIMEOUT) {
       val vhs = Vhs()
@@ -285,8 +302,8 @@ class AppleVhsHardwareTest {
     // picked to hold for every row in it.
     val y = 1f - (FrameProbe.PATCH / 2).toFloat() / height
     val shiftAt = { fromBottom: Int ->
-      val row = VhsSignal.virtualRow(height - fromBottom, height)
-      VhsSignal.rowShift(vhs.seed, VhsSignal.tickAt(0.0), row, VhsParams.of(vhs)).toFloat()
+      val row = TapePictureSignal.virtualRow(height - fromBottom, height)
+      TapePictureSignal.rowShift(vhs.seed, TapePictureSignal.tickAt(0.0), row, TapePictureParams.of(vhs)).toFloat()
     }
     val least = shiftAt(FrameProbe.PATCH)
     val most = shiftAt(1)
@@ -321,14 +338,14 @@ class AppleVhsHardwareTest {
     height: Int,
     picture: Rgb,
   ): Rgb {
-    val tick = VhsSignal.tickAt(index / FRAME_RATE)
+    val tick = TapePictureSignal.tickAt(index / FRAME_RATE)
     val source = { _: Int -> doubleArrayOf(picture.r, picture.g, picture.b) }
     val pixels =
       (-PATCH_HALF until PATCH_HALF step PATCH_STEP).flatMap { dy ->
         (-PATCH_HALF until PATCH_HALF step PATCH_STEP).map { dx ->
-          val row = VhsSignal.virtualRow((height * CENTRE).toInt() + dy, height)
+          val row = TapePictureSignal.virtualRow((height * CENTRE).toInt() + dy, height)
           val x = ((width * CENTRE).toInt() + dx + 0.5) / width
-          VhsSignal.pixelAt(x, row, tick, vhs.seed, width, VhsParams.of(vhs), source)
+          TapePictureSignal.pixelAt(x, row, tick, vhs.seed, width, TapePictureParams.of(vhs), source)
         }
       }
     return Rgb(pixels.map { it[0] }.average(), pixels.map { it[1] }.average(), pixels.map { it[2] }.average())
@@ -411,7 +428,7 @@ class AppleVhsHardwareTest {
     maxOf(abs(first - other.first), abs(second - other.second), abs(third - other.third))
 
   // A read tells lifted from clean when it lands closer to its own side of this.
-  private fun halfLift(vhs: Vhs): Double = VhsParams.of(vhs).lift * MAX_CODE / 2
+  private fun halfLift(look: TapeLook): Double = TapePictureParams.of(look).lift * MAX_CODE / 2
 
   private companion object {
     val TIMEOUT = 3.minutes

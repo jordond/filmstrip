@@ -55,7 +55,7 @@ internal fun EditState.trimOffset(): Duration = if (trimEnabled) trimStartSecond
  * Whether the edit is changing the picture's colour, which is what the grade lane and the tool rail mark.
  */
 internal val EditState.gradeContributes: Boolean
-  get() = colorGraded || vhsEnabled
+  get() = colorGraded || tapeEnabled
 
 /**
  * Works out where each lane sits on a strip of [duration].

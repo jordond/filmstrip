@@ -26,9 +26,9 @@ import dev.jordond.filmstrip.effects.filters.nightvision.nightVisionResolution
 import dev.jordond.filmstrip.effects.filters.pixel.Pixel
 import dev.jordond.filmstrip.effects.filters.pixel.pixelKernelLimit
 import dev.jordond.filmstrip.effects.filters.pixel.pixelResolution
-import dev.jordond.filmstrip.effects.filters.vhs.Vhs
-import dev.jordond.filmstrip.effects.filters.vhs.vhsKernelLimit
-import dev.jordond.filmstrip.effects.filters.vhs.vhsResolution
+import dev.jordond.filmstrip.effects.filters.tape.TapeLook
+import dev.jordond.filmstrip.effects.filters.tape.tapePictureKernelLimit
+import dev.jordond.filmstrip.effects.filters.tape.tapePictureResolution
 
 /**
  * Resolves the effects in this module for Core Image.
@@ -45,8 +45,8 @@ public actual class FilterEffectResolver actual constructor() : EffectResolver {
       is Camcorder -> {
         EffectResolution.Resolved(camcorderEffect(spec, attributes.frameRate))
       }
-      is Vhs -> {
-        vhsResolution(spec, vhsKernelLimit(), attributes.previewClock)
+      is TapeLook -> {
+        tapePictureResolution(spec, tapePictureKernelLimit(), attributes.previewClock)
       }
       is Film -> {
         filmResolution(spec, filmKernelLimit())

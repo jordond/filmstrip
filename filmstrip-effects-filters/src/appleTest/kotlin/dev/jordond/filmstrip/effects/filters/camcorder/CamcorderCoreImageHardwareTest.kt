@@ -7,11 +7,11 @@ import dev.jordond.filmstrip.effect.Attributes
 import dev.jordond.filmstrip.effect.CoreImageEffect
 import dev.jordond.filmstrip.effect.FrameInfo
 import dev.jordond.filmstrip.effects.color.createCodeSpace
+import dev.jordond.filmstrip.effects.filters.tape.TapePictureParams
+import dev.jordond.filmstrip.effects.filters.tape.TapePictureSignal
+import dev.jordond.filmstrip.effects.filters.tape.tapePictureStep
 import dev.jordond.filmstrip.effects.filters.vhs.TapeSpeed
 import dev.jordond.filmstrip.effects.filters.vhs.Vhs
-import dev.jordond.filmstrip.effects.filters.vhs.VhsParams
-import dev.jordond.filmstrip.effects.filters.vhs.VhsSignal
-import dev.jordond.filmstrip.effects.filters.vhs.vhsStep
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ColorSpace
 import io.kotest.assertions.withClue
@@ -92,14 +92,15 @@ class CamcorderCoreImageHardwareTest {
     assertOnRaster(rendered(back, WIDTH, HEIGHT), WIDTH, HEIGHT, OSD.rasterAt(BLINK_ON, WIDTH, HEIGHT))
   }
 
-  // Every pixel of a row the display lights is read against VhsSignal over the frame the display was drawn into.
+  // Every pixel of a row the display lights is read against TapePictureSignal over the frame the display was drawn
+  // into.
   @Test
   fun `a display ahead of vhs is recorded on the tape`() {
     val vhs = Vhs(intensity = 0.5f)
-    val params = VhsParams.of(vhs)
-    val tick = VhsSignal.tickAt(BLINK_ON.toDouble(DurationUnit.SECONDS))
+    val params = TapePictureParams.of(vhs)
+    val tick = TapePictureSignal.tickAt(BLINK_ON.toDouble(DurationUnit.SECONDS))
     val recorded = drawn(listOf(camcorderStep(OSD)), WIDTH, HEIGHT, BLINK_ON)
-    val burned = drawn(listOf(camcorderStep(OSD), vhsStep(vhs)), WIDTH, HEIGHT, BLINK_ON)
+    val burned = drawn(listOf(camcorderStep(OSD), tapePictureStep(vhs)), WIDTH, HEIGHT, BLINK_ON)
     val raster = OSD.rasterAt(BLINK_ON, WIDTH, HEIGHT)
     var widest = 0.0
     var moved = 0.0
@@ -113,9 +114,9 @@ class CamcorderCoreImageHardwareTest {
       }
       for (x in 0 until WIDTH) {
         val want =
-          VhsSignal.pixelAt(
+          TapePictureSignal.pixelAt(
             (x + 0.5) / WIDTH,
-            VhsSignal.virtualRow(y, HEIGHT),
+            TapePictureSignal.virtualRow(y, HEIGHT),
             tick,
             vhs.seed,
             WIDTH,
@@ -128,7 +129,7 @@ class CamcorderCoreImageHardwareTest {
       }
     }
     withClue("the display lights rows to read") { (rows > 0) shouldBe true }
-    withClue("the widest gap from VhsSignal on the display's rows was $widest") {
+    withClue("the widest gap from TapePictureSignal on the display's rows was $widest") {
       widest shouldBeLessThan KERNEL_HARD_EDGE
     }
     withClue("the tape moved the display off its own codes") { moved shouldBeGreaterThan 0.1 }
@@ -136,7 +137,7 @@ class CamcorderCoreImageHardwareTest {
 
   @Test
   fun `a display after vhs stays clean`() {
-    val frame = drawn(listOf(vhsStep(Vhs(intensity = 0.5f)), camcorderStep(OSD)), WIDTH, HEIGHT, BLINK_ON)
+    val frame = drawn(listOf(tapePictureStep(Vhs(intensity = 0.5f)), camcorderStep(OSD)), WIDTH, HEIGHT, BLINK_ON)
     val raster = OSD.rasterAt(BLINK_ON, WIDTH, HEIGHT)
     var lit = 0
     var widest = 0.0
@@ -335,7 +336,7 @@ class CamcorderCoreImageHardwareTest {
     const val TOLERANCE = 1e-4
 
     // The Core Image kernel's limit: the GPU samples the frame at float precision, and a hard edge between the display
-    // and the ramp turns that into up to this much off VhsSignal.
+    // and the ramp turns that into up to this much off TapePictureSignal.
     const val KERNEL_HARD_EDGE = 9.3e-4
     const val MOVED_X = 40.0
     const val MOVED_Y = 25.0

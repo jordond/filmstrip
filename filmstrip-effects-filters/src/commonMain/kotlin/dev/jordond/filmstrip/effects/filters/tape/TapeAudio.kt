@@ -4,35 +4,34 @@ import dev.drewhamilton.poko.Poko
 import dev.jordond.filmstrip.audio.AudioEffectSpec
 import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.effects.filters.vhs.TapeSpeed
-import dev.jordond.filmstrip.effects.filters.vhs.Vhs
 
 /**
- * Makes audio sound like it was played back from the linear track of a VHS tape.
+ * Makes audio sound like it was played back from the sound track of a tape.
  *
  * Narrows the band, lays hiss under the sound, and bends the pitch with a slow wow and a fast flutter. The hiss and
  * the bend are functions of the composition time and the [seed], so a seek, a second export and every clip of a track
  * land on the same tape.
  *
- * Each part scales the figure its [tape] speed has, and [intensity] scales them all. A [TapeAudio] and a
- * [Vhs] with equal [tape] and [seed] read as one recording.
+ * Each part scales the figure its [tape] stock has, and [intensity] scales them all. A [TapeAudio] and a [TapeLook]
+ * with equal [tape] and [seed] read as one recording.
  *
  * Register it with `filters()` on the builder. Without it `plan` refuses the effect by name.
  *
  * @property intensity How strong the sound is, from `0f` which leaves the audio alone to `1f`.
- * @property tape The tape speed, which sets the band, the hiss and how far the pitch bends.
+ * @property tape The tape format and speed, which sets the band, the hiss and how far the pitch bends.
  * @property seed Picks the hiss and where the wow and flutter start. Equal seeds play the same tape.
  * @property bandLimit How far the band narrows toward the tape's own, from `0f` for the full band to `1f`.
  * @property hiss How loud the hiss is against the tape's own, from `0f` for none to `1f`.
  * @property wow The slow bend in pitch.
  * @property flutter The fast bend in pitch.
- * @property mono Whether the channels are folded to one sound, as a linear track holds on nearly every deck.
+ * @property mono Whether the channels are folded to one sound, as the linear track of nearly every deck holds.
  * @throws IllegalArgumentException when [intensity], [bandLimit] or [hiss] is outside `0f..1f`.
  */
 @Poko
 public class TapeAudio(
   public val intensity: Float = 1f,
-  public val tape: TapeSpeed = TapeSpeed.EP,
-  public val seed: Int = Vhs.DEFAULT_SEED,
+  public val tape: TapeStock = TapeSpeed.EP,
+  public val seed: Int = TapeLook.DEFAULT_SEED,
   public val bandLimit: Float = 1f,
   public val hiss: Float = 1f,
   public val wow: Wobble = Wobble(),
