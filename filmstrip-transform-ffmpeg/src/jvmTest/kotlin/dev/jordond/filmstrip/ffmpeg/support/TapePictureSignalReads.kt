@@ -128,6 +128,43 @@ internal fun meanLumaOffSignal(
   return errors.average()
 }
 
+// The mean luma of a [frame] over a square patch centred on [x] and [y], in eight bit codes. A patch, since luma noise
+// moves any one pixel by a share of the lift a read is after.
+internal fun patchLuma(
+  frame: ByteArray,
+  width: Int,
+  x: Int,
+  y: Int,
+): Double = meanOverPatch(x, y) { column, line -> yccOf(readRgb(frame, width, column, line))[0] }
+
+// The mean luma the signal of [look] at tick 0 holds over the same patch of a flat grey picture of [code].
+internal fun patchLumaOnSignal(
+  look: TapeLook,
+  width: Int,
+  height: Int,
+  x: Int,
+  y: Int,
+  code: Int,
+): Double {
+  val params = TapePictureParams.of(look)
+  val tick = TapePictureSignal.tickAt(0.0)
+  val grey = { _: Int -> DoubleArray(3) { code / FULL } }
+  return meanOverPatch(x, y) { column, line ->
+    val row = TapePictureSignal.virtualRow(line, height)
+    yccOf(TapePictureSignal.pixelAt((column + 0.5) / width, row, tick, look.seed, width, params, grey).scaled())[0]
+  }
+}
+
+private fun meanOverPatch(
+  x: Int,
+  y: Int,
+  lumaAt: (Int, Int) -> Double,
+): Double {
+  val lines = y - PATCH_HALF until y + PATCH_HALF
+  val columns = x - PATCH_HALF until x + PATCH_HALF
+  return lines.sumOf { line -> columns.sumOf { column -> lumaAt(column, line) } } / (lines.count() * columns.count())
+}
+
 internal fun readRgb(
   frame: ByteArray,
   width: Int,
@@ -197,6 +234,7 @@ internal fun rampAt(x: Double): DoubleArray {
 
 private const val MID_FALL_SEEDS = 200
 private const val MEAN_STEP = 8
+private const val PATCH_HALF = 16
 private val MID_FALL = 0.3..0.7
 internal const val VHS_WIDTH = 640
 internal const val VHS_HEIGHT = 360

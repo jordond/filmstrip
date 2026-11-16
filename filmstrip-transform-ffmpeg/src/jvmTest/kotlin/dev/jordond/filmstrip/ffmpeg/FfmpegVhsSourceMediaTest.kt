@@ -219,8 +219,9 @@ class FfmpegVhsSourceMediaTest {
     // An 8 bit full range source is rounded once more on its way to limited range, half a code at most.
     const val SECOND_ROUNDING = 0.5
 
-    // gblur's limit on the step to black, which grows with the step. At full strength the most measured is 14.1 in luma
-    // and 1.9 in chroma on ffmpeg 8.0.1 x86_64. A blur left holding the edge pixel reads 25.6 and 5.0.
+    // gblur's limit on the step to black, which grows with the step. At full strength the most measured is 9.7 in luma
+    // and 1.2 in chroma on ffmpeg 8.0.1 x86_64. The picture's own middle column, which a held edge pixel would read,
+    // sits 55.6 and 16.0 away.
     const val FLAT_LUMA_CODES = 18.0
     const val FLAT_CHROMA_CODES = 3.0
   }

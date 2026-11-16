@@ -29,16 +29,16 @@ internal val TapeSpeed.pictureStock: PictureStock
 internal val BetaSpeed.pictureStock: PictureStock
   get() =
     when (this) {
-      BetaSpeed.I -> betamax(lumaMHz = 2.5, chromaMHz = 0.32)
-      BetaSpeed.II -> betamax(lumaMHz = 2.4, chromaMHz = 0.32)
-      BetaSpeed.III -> betamax(lumaMHz = 2.0, chromaMHz = 0.30)
+      BetaSpeed.I -> betamax(lumaMHz = 2.2, chromaMHz = 0.32)
+      BetaSpeed.II -> betamax(lumaMHz = 2.1, chromaMHz = 0.32)
+      BetaSpeed.III -> betamax(lumaMHz = 1.8, chromaMHz = 0.30)
     }
 
 internal val Hi8Speed.pictureStock: PictureStock
   get() =
     when (this) {
-      Hi8Speed.SP -> hi8(lumaMHz = 4.0, chromaMHz = 0.32)
-      Hi8Speed.LP -> hi8(lumaMHz = 3.4, chromaMHz = 0.30)
+      Hi8Speed.SP -> hi8(lumaMHz = 2.6, chromaMHz = 0.32)
+      Hi8Speed.LP -> hi8(lumaMHz = 2.3, chromaMHz = 0.30)
     }
 
 private fun betamax(
@@ -54,7 +54,7 @@ private fun hi8(
     lumaMHz,
     chromaMHz,
     lumaNoise = 1.25,
-    chromaNoise = 1.0,
+    chromaNoise = 0.6,
     chromaShift = 0.5,
     dropoutChance = 3.0,
     dropoutLength = 0.015,

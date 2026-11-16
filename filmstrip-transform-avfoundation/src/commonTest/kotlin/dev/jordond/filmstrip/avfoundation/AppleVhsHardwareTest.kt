@@ -100,20 +100,20 @@ class AppleVhsHardwareTest {
         val vhsPath = exported(Composition(listOf(Track(listOf(clip))), listOf(vhs)), HDR_SPEC, "signal-$transfer")
         val plain = codeFramesOf(plainPath, 1).single().at(CENTRE, CENTRE)
         val frames = codeFramesOf(vhsPath, LATER_FRAME + 1)
-        val means =
+        val lumas =
           listOf(0, 1, LATER_FRAME).associateWith { index ->
-            val read = frames[index].at(CENTRE, CENTRE).mean()
-            val wanted = signalOverPatch(vhs, index, frames[index].width, frames[index].height, plain).mean()
-            withClue("$transfer frame $index's signal $wanted has to depart from the plain ${plain.mean()} to tell") {
-              abs(wanted - plain.mean()) * MAX_CODE shouldBeGreaterThan WRITTEN_LUMA_CODES
+            val read = frames[index].at(CENTRE, CENTRE).luma()
+            val wanted = signalOverPatch(vhs, index, frames[index].width, frames[index].height, plain).luma()
+            withClue("$transfer frame $index's signal $wanted has to depart from the plain ${plain.luma()} to tell") {
+              abs(wanted - plain.luma()) * MAX_CODE shouldBeGreaterThan WRITTEN_LUMA_CODES
             }
             withClue("$transfer frame $index read $read against the signal's $wanted") {
               abs(read - wanted) * MAX_CODE shouldBeLessThan WRITTEN_LUMA_CODES
             }
             read
           }
-        withClue("$transfer frame 0 read ${means[0]} and frame 1 read ${means[1]}") {
-          abs(means.getValue(0) - means.getValue(1)) * MAX_CODE shouldBeLessThan WRITTEN_LUMA_CODES
+        withClue("$transfer frame 0 read ${lumas[0]} and frame 1 read ${lumas[1]}") {
+          abs(lumas.getValue(0) - lumas.getValue(1)) * MAX_CODE shouldBeLessThan WRITTEN_LUMA_CODES
         }
         remove(plainPath)
         remove(vhsPath)
@@ -121,7 +121,7 @@ class AppleVhsHardwareTest {
     }
 
   // The correction shows in one channel where a mean of the three hardly moves, so each channel is held to the signal
-  // ahead of the encoder, which moves one channel by more than the tolerance on its own. The file reads its mean.
+  // ahead of the encoder, which moves one channel by more than the tolerance on its own. The file reads its luma.
   @Test
   fun `a vhs on an sd clip reads the signal over the clip's corrected colour at both scopes`() =
     runTest(timeout = TIMEOUT) {
@@ -155,12 +155,12 @@ class AppleVhsHardwareTest {
         }
         val path = exported(edit, ExportSpec(), "sd-$scope")
         val written = codeFramesOf(path, 1).single()
-        val wanted = signalOverPatch(vhs, 0, written.width, written.height, corrected).mean()
-        withClue("$scope scope's signal $wanted has to depart from the plain ${corrected.mean()} to tell") {
-          abs(wanted - corrected.mean()) * MAX_CODE shouldBeGreaterThan WRITTEN_LUMA_CODES
+        val wanted = signalOverPatch(vhs, 0, written.width, written.height, corrected).luma()
+        withClue("$scope scope's signal $wanted has to depart from the plain ${corrected.luma()} to tell") {
+          abs(wanted - corrected.luma()) * MAX_CODE shouldBeGreaterThan WRITTEN_LUMA_CODES
         }
-        withClue("$scope scope wrote ${written.at(CENTRE, CENTRE)} against the signal's mean $wanted") {
-          abs(written.at(CENTRE, CENTRE).mean() - wanted) * MAX_CODE shouldBeLessThan WRITTEN_LUMA_CODES
+        withClue("$scope scope wrote ${written.at(CENTRE, CENTRE)} against the signal's luma $wanted") {
+          abs(written.at(CENTRE, CENTRE).luma() - wanted) * MAX_CODE shouldBeLessThan WRITTEN_LUMA_CODES
         }
         remove(path)
       }
@@ -422,6 +422,9 @@ class AppleVhsHardwareTest {
 
   private fun Rgb.mean(): Double = (r + g + b) / 3.0
 
+  // Luma on the weights the tape signal grades in, which a loss of chroma leaves alone where a mean of the three moves.
+  private fun Rgb.luma(): Double = KR * r + (1.0 - KR - KB) * g + KB * b
+
   private fun Triple<Int, Int, Int>.mean(): Double = (first + second + third) / 3.0
 
   private fun Triple<Int, Int, Int>.widestGapTo(other: Triple<Int, Int, Int>): Int =
@@ -444,6 +447,8 @@ class AppleVhsHardwareTest {
     const val CENTRE = 0.5f
     const val LATER_FRAME = 4
     const val MAX_CODE = 255.0
+    const val KR = 0.2126
+    const val KB = 0.0722
     const val PATCH_HALF = 8
     const val PATCH_STEP = 4
     const val BLACK = 0xFF000000.toInt()

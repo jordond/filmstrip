@@ -24,7 +24,11 @@ import dev.jordond.filmstrip.ffmpeg.support.FilterFrames
 import dev.jordond.filmstrip.ffmpeg.support.RGBA
 import dev.jordond.filmstrip.ffmpeg.support.channelAt
 import dev.jordond.filmstrip.ffmpeg.support.meanLumaOffSignal
+import dev.jordond.filmstrip.ffmpeg.support.patchLuma
+import dev.jordond.filmstrip.ffmpeg.support.patchLumaOnSignal
 import dev.jordond.filmstrip.ffmpeg.support.rampAt
+import dev.jordond.filmstrip.ffmpeg.support.readRgb
+import dev.jordond.filmstrip.ffmpeg.support.yccOf
 import dev.jordond.filmstrip.geometry.AspectRatio
 import dev.jordond.filmstrip.geometry.Corner
 import dev.jordond.filmstrip.geometry.Fill
@@ -48,6 +52,7 @@ import kotlin.test.Test
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.DurationUnit
+import io.kotest.matchers.doubles.shouldBeGreaterThan as shouldBeAbove
 import io.kotest.matchers.doubles.shouldBeLessThan as shouldBeBelow
 
 /**
@@ -129,12 +134,17 @@ class FfmpegVhsMediaTest {
   fun `a clip overlay under a composition vhs is burned`() =
     runBlocking<Unit> {
       assumeTrue("the fixtures are absent", landscape.isFile)
-      val composition =
-        whole(Clip(MediaSource.of(landscape.path), effects = listOf(swatch())), listOf(Vhs()))
+      val vhs = Vhs()
+      val composition = whole(Clip(MediaSource.of(landscape.path), effects = listOf(swatch())), listOf(vhs))
 
-      val read = red(draw.frames(composition, Duration.ZERO, 1).single(), 640, SWATCH_X, SWATCH_Y)
+      val frame = draw.frames(composition, Duration.ZERO, 1).single()
+      val onSignal = patchLumaOnSignal(vhs, RAMP_WIDTH, RAMP_HEIGHT, SWATCH_X, SWATCH_Y, SWATCH_CODE)
 
-      abs(read - SWATCH_CODE) shouldBeGreaterThan CLEAN_CODES - 1
+      withClue("the signal has to depart from the swatch to tell") {
+        abs(onSignal - SWATCH_CODE) shouldBeAbove
+          halfLift(vhs)
+      }
+      abs(patchLuma(frame, RAMP_WIDTH, SWATCH_X, SWATCH_Y) - onSignal) shouldBeBelow halfLift(vhs)
     }
 
   @Test
@@ -184,7 +194,7 @@ class FfmpegVhsMediaTest {
       withClue("picture moved into the right bar") {
         val read = DoubleArray(3) { frame.channelAt(WIDE_WIDTH, column, y, it).toDouble() }
         abs(
-          lumaOf(read[0], read[1], read[2]) - lumaOf(wanted[0] * FULL, wanted[1] * FULL, wanted[2] * FULL),
+          yccOf(read)[0] - yccOf(wanted)[0] * FULL,
         ) shouldBeBelow
           LUMA_CODES
       }
@@ -257,7 +267,7 @@ class FfmpegVhsMediaTest {
       withClue("picture moved into the right bar") {
         val read = DoubleArray(3) { frame.channelAt(WIDE_WIDTH, column, y, it).toDouble() }
         abs(
-          lumaOf(read[0], read[1], read[2]) - lumaOf(wanted[0] * FULL, wanted[1] * FULL, wanted[2] * FULL),
+          yccOf(read)[0] - yccOf(wanted)[0] * FULL,
         ) shouldBeBelow
           LUMA_CODES
       }
@@ -390,12 +400,6 @@ class FfmpegVhsMediaTest {
     }
   }
 
-  private fun lumaOf(
-    red: Double,
-    green: Double,
-    blue: Double,
-  ): Double = 0.2126 * red + 0.7152 * green + 0.0722 * blue
-
   private fun whole(
     clip: Clip,
     effects: List<EffectSpec> = emptyList(),
@@ -412,14 +416,7 @@ class FfmpegVhsMediaTest {
 
   // The mean luma across the top bar, since chroma and luma noise move any one pixel by more than the lift it reads.
   // Half the frame's width keeps clear of a swatch in the top corner.
-  private fun barLuma(frame: ByteArray): Double =
-    meanAcrossBar { x, y ->
-      lumaOf(
-        frame.channelAt(CANVAS, x, y, 0).toDouble(),
-        frame.channelAt(CANVAS, x, y, 1).toDouble(),
-        frame.channelAt(CANVAS, x, y, 2).toDouble(),
-      )
-    }
+  private fun barLuma(frame: ByteArray): Double = meanAcrossBar { x, y -> yccOf(readRgb(frame, CANVAS, x, y))[0] }
 
   private fun barLumaOnSignal(vhs: Vhs): Double {
     val params = TapePictureParams.of(vhs)
@@ -428,7 +425,7 @@ class FfmpegVhsMediaTest {
     return meanAcrossBar { x, y ->
       val row = TapePictureSignal.virtualRow(y, CANVAS)
       val rgb = TapePictureSignal.pixelAt((x + 0.5) / CANVAS, row, tick, vhs.seed, CANVAS, params, black)
-      lumaOf(rgb[0] * FULL, rgb[1] * FULL, rgb[2] * FULL)
+      yccOf(rgb)[0] * FULL
     }
   }
 

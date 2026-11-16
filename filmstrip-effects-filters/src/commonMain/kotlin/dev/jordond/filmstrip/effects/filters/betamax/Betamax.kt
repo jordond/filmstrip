@@ -17,7 +17,7 @@ import dev.jordond.filmstrip.effects.filters.vhs.Vhs
 /**
  * Makes the frame look like it was played back from a Betamax tape.
  *
- * Draws the damage a [Vhs] does with a little more luma detail, less noise and less colour bleed, so it reads as a
+ * Draws the damage a [Vhs] does with more luma detail, less noise and less colour bleed, so it reads as a
  * cleaner tape. The pattern is a function of the frame's composition time and its height as a fraction, so a seek or a
  * smaller preview shows the same tape. With [TapeClock.Wall] a preview draws the pattern from its own clock instead.
  *

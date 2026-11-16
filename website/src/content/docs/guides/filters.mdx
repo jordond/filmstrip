@@ -21,7 +21,7 @@ Adding the artifact is all it takes. Every `Filmstrip` you build can render its 
 `vhs` makes a frame look like it was played back from a tape. It softens luma, smears chroma along each line, wobbles the
 lines, bends the bottom of the frame like a head switch, and adds streaky noise, dropouts and a tracking band. Every
 backend draws the same tape, and the pattern follows the frame's composition time, so a seek or a smaller preview shows the
-same picture.
+same picture. The look is tuned on home camcorder tapes, so it is soft and a little washed out at every speed.
 
 <Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Filters.kt" region="vhs" />
 
@@ -58,9 +58,9 @@ clean. A clip overlay under a composition `vhs` is part of the clip's frame by t
 
 ## Betamax
 
-`betamax` plays the frame back from a Betamax tape. It draws the same kinds of damage `vhs` does with a little more luma
-detail, a quarter less noise and a quarter less colour bleed, so it reads as a cleaner tape. Beside a `vhs` at
-`TapeSpeed.SP` the difference is small, as it was on the decks. Beside the default `EP` it is plain.
+`betamax` plays the frame back from a Betamax tape. It draws the same kinds of damage `vhs` does with more luma detail,
+a quarter less noise and a quarter less colour bleed, so it reads as a cleaner tape. The difference shows beside a `vhs`
+at `TapeSpeed.SP` and is plain beside the default `EP`.
 
 <Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Filters.kt" region="betamax" />
 
@@ -70,10 +70,10 @@ tracking, clock and a recorded `camcorder` included.
 
 ## Hi8
 
-`hi8` plays the frame back from a Hi8 camcorder tape. Luma is much sharper than on either cassette format while chroma
-stays as soft, so fine detail holds and colour still smears along each line. Colour sits closer to its luma, the
-grain is a little heavier, and dropouts come three times as often and run half as long, the short white ticks the
-format is known for.
+`hi8` plays the frame back from a Hi8 camcorder tape. Luma is sharper than on either cassette format while chroma stays
+as soft, so more detail holds and colour still smears along each line. Colour sits closer to its luma, the luma grain
+is a little heavier, the colour noise is lighter, and dropouts come three times as often and run half as long, the
+short white ticks the format is known for.
 
 <Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Filters.kt" region="hi8" />
 

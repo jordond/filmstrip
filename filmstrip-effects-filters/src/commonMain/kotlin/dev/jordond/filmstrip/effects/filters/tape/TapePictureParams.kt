@@ -145,12 +145,12 @@ private fun Float.decimal(): Double = toString().toDouble()
 
 // Strengths of a VHS tape at intensity 1, in fractions of the width or code values.
 private const val HALO_GAIN = 0.3
-private const val JITTER = 0.0006
+private const val JITTER = 0.0002
 private const val WAVE = 0.0015
 private const val HEAD_SHIFT = 0.1042
 private const val CHROMA_SHIFT = 0.004
 private const val LUMA_NOISE = 0.008
-private const val DROPOUT_CHANCE = 0.001
+private const val DROPOUT_CHANCE = 0.0002
 private const val TRACK_NOISE = 0.12
-private const val DESATURATION = 0.12
+private const val DESATURATION = 0.25
 private const val LIFT = 0.03

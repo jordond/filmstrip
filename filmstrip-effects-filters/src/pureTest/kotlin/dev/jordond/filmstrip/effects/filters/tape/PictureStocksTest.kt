@@ -8,6 +8,7 @@ import dev.jordond.filmstrip.effects.filters.internal.FilterNoise
 import dev.jordond.filmstrip.effects.filters.vhs.TapeSpeed
 import dev.jordond.filmstrip.effects.filters.vhs.Vhs
 import io.kotest.assertions.withClue
+import io.kotest.matchers.collections.shouldBeStrictlyIncreasing
 import io.kotest.matchers.doubles.plusOrMinus
 import io.kotest.matchers.shouldBe
 import kotlin.test.Test
@@ -17,12 +18,12 @@ import kotlin.test.Test
  */
 class PictureStocksTest {
   @Test
-  fun `every VHS speed draws with the strengths it had before the other formats`() {
+  fun `every VHS speed draws with the strengths of the VHS table`() {
     val expected =
       mapOf(
-        TapeSpeed.SP to listOf(0.001061698717948718, 0.007962740384615384),
-        TapeSpeed.LP to listOf(0.001341093117408907, 0.008493589743589745),
-        TapeSpeed.EP to listOf(0.0018200549450549453, 0.009100274725274724),
+        TapeSpeed.SP to listOf(TapePictureSignal.sigmaFor(1.6), TapePictureSignal.sigmaFor(0.32)),
+        TapeSpeed.LP to listOf(TapePictureSignal.sigmaFor(1.35), TapePictureSignal.sigmaFor(0.30)),
+        TapeSpeed.EP to listOf(TapePictureSignal.sigmaFor(1.1), TapePictureSignal.sigmaFor(0.28)),
       )
 
     for ((speed, sigmas) in expected) {
@@ -31,13 +32,13 @@ class PictureStocksTest {
         params.lumaSigma shouldBe sigmas[0]
         params.chromaSigma shouldBe sigmas[1]
         params.haloGain shouldBe 0.3
-        params.jitter shouldBe 6.0E-4
+        params.jitter shouldBe 2.0E-4
         params.wave shouldBe 0.0015
         params.headShift shouldBe 0.1042
         params.chromaShift shouldBe 0.004
         params.lumaNoise shouldBe 0.008
         params.chromaNoise shouldBe 0.024
-        params.dropoutChance shouldBe 0.001
+        params.dropoutChance shouldBe 2.0E-4
         params.dropoutLength shouldBe 0.03
         params.trackingRolls shouldBe false
         params.trackingChance shouldBe 0.2
@@ -46,10 +47,25 @@ class PictureStocksTest {
         params.trackingShift shouldBe 0.02
         params.trackingNoise shouldBe 0.12
         params.trackingSnow shouldBe 0.6
-        params.desaturation shouldBe 0.12
+        params.desaturation shouldBe 0.25
         params.lift shouldBe 0.03
       }
     }
+  }
+
+  @Test
+  fun `a VHS at half intensity on EP blurs luma by half of its bandwidth's sigma`() {
+    val half = TapePictureParams.of(Vhs(intensity = 0.5f, tape = TapeSpeed.EP))
+
+    half.lumaSigma shouldBe (TapePictureSignal.sigmaFor(TapeSpeed.EP.lumaMHz) / 2 plusOrMinus 1e-15)
+    half.chromaSigma shouldBe (TapePictureSignal.sigmaFor(TapeSpeed.EP.chromaMHz) / 2 plusOrMinus 1e-15)
+  }
+
+  @Test
+  fun `each slower VHS speed blurs luma more than the one before it`() {
+    val sigmas = listOf(TapeSpeed.SP, TapeSpeed.LP, TapeSpeed.EP).map { TapePictureParams.of(Vhs(tape = it)).lumaSigma }
+
+    sigmas.shouldBeStrictlyIncreasing()
   }
 
   @Test
@@ -92,7 +108,33 @@ class PictureStocksTest {
     (betamax.lumaNoise < vhs.lumaNoise) shouldBe true
     (hi8.lumaSigma < betamax.lumaSigma) shouldBe true
     (hi8.dropoutChance > vhs.dropoutChance) shouldBe true
+    (hi8.chromaNoise < vhs.chromaNoise) shouldBe true
     (hi8.dropoutLength < vhs.dropoutLength) shouldBe true
+  }
+
+  @Test
+  fun `Hi8 blurs luma less than Betamax and Betamax less than VHS at matching speeds`() {
+    val matching =
+      listOf(
+        listOf(Hi8(tape = Hi8Speed.SP), Betamax(tape = BetaSpeed.I), Vhs(tape = TapeSpeed.SP)),
+        listOf(Hi8(tape = Hi8Speed.LP), Betamax(tape = BetaSpeed.II), Vhs(tape = TapeSpeed.LP)),
+        listOf(Betamax(tape = BetaSpeed.III), Vhs(tape = TapeSpeed.EP)),
+      )
+
+    for (looks in matching) {
+      withClue(looks.map { it::class.simpleName }) {
+        looks.map { TapePictureParams.of(it).lumaSigma }.shouldBeStrictlyIncreasing()
+      }
+    }
+  }
+
+  @Test
+  fun `each slower speed of a format blurs luma more than the one before it`() {
+    val betamax = BetaSpeed.entries.map { TapePictureParams.of(Betamax(tape = it)).lumaSigma }
+    val hi8 = Hi8Speed.entries.map { TapePictureParams.of(Hi8(tape = it)).lumaSigma }
+
+    betamax.shouldBeStrictlyIncreasing()
+    hi8.shouldBeStrictlyIncreasing()
   }
 
   @Test

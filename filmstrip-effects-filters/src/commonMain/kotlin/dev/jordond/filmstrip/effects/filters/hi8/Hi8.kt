@@ -17,7 +17,7 @@ import dev.jordond.filmstrip.effects.filters.vhs.Vhs
 /**
  * Makes the frame look like it was played back from a Hi8 camcorder tape.
  *
- * Draws the damage a [Vhs] does with much sharper luma under chroma that is just as soft, heavier grain, little colour
+ * Draws the damage a [Vhs] does with sharper luma under chroma that is just as soft, heavier grain, little colour
  * bleed and more dropouts, each one shorter. The pattern is a function of the frame's composition time and its height
  * as a fraction, so a seek or a smaller preview shows the same tape. With [TapeClock.Wall] a preview draws the pattern
  * from its own clock instead.

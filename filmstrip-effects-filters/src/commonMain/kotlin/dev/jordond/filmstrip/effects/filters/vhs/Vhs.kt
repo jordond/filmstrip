@@ -112,17 +112,17 @@ public enum class TapeSpeed(
   /**
    * Standard play, the sharpest of the three.
    */
-  SP(lumaMHz = 2.4, chromaMHz = 0.32),
+  SP(lumaMHz = 1.6, chromaMHz = 0.32),
 
   /**
    * Long play, between the other two.
    */
-  LP(lumaMHz = 1.9, chromaMHz = 0.30),
+  LP(lumaMHz = 1.35, chromaMHz = 0.30),
 
   /**
    * Extended play, the softest of the three.
    */
-  EP(lumaMHz = 1.4, chromaMHz = 0.28),
+  EP(lumaMHz = 1.1, chromaMHz = 0.28),
   ;
 
   override val label: String get() = name
