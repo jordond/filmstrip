@@ -32,7 +32,7 @@ val generateVersionFile =
          */
         public object FilmstripVersion {
           /**
-           * The published version, or the snapshot name on a build that is not a release.
+           * The published version, or `0.0.0-local` on a build that is not a release.
            */
           public val name: String = "$name"
         }

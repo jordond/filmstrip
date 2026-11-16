@@ -116,4 +116,4 @@ to a branch when the fix is not in the tag. A patch release replaces its minor's
 
 Tag the commit and publish a GitHub release. The tag is the version: the publish workflow passes it
 as `ORG_GRADLE_PROJECT_VERSION_NAME`, so no file in the repo records a released version.
-`VERSION_NAME` in `gradle.properties` only affects local builds.
+`VERSION_NAME` in `gradle.properties` only names local builds and is never published.
