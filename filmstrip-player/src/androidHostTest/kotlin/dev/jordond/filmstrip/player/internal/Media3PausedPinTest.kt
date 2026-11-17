@@ -56,6 +56,8 @@ class Media3PausedPinTest {
   fun `the floor stays through the clock reading the slot a replay seeks back to and goes once the clock passes it`() =
     runTest {
       val rig = HeldPinRig(this, playing = false)
+      // The play that asks for the replay.
+      rig.playing = true
       rig.seeks.replay(HELD_AT)
       runCurrent()
       rig.seeks.frameDrawn()
@@ -77,6 +79,7 @@ class Media3PausedPinTest {
       rig.resting = LATER_AT
       rig.seeks.position() shouldBe LATER_AT
 
+      rig.playing = true
       rig.resting = null
       rig.platformMs = LATER_AT.inWholeMilliseconds
       rig.seeks.position() shouldBe LATER_AT
@@ -86,6 +89,23 @@ class Media3PausedPinTest {
       rig.seeks.position() shouldBe (LATER_AT.inWholeMilliseconds + 1).milliseconds
       rig.platformMs = LATER_AT.inWholeMilliseconds
       rig.seeks.position() shouldBe LATER_AT.inWholeMilliseconds.milliseconds
+    }
+
+  // A paused player's clock can read past the frame it showed, as it does where the decoder is slow.
+  @Test
+  fun `the floor stays under a paused player whose clock reads past it and goes once it plays`() =
+    runTest {
+      val rig = HeldPinRig(this, playing = false)
+      rig.resting = HELD_AT
+      rig.seeks.position() shouldBe HELD_AT
+
+      rig.resting = null
+      rig.platformMs = HELD_AT.inWholeMilliseconds + CLOCK_BEHIND_MS
+      rig.seeks.position() shouldBe HELD_AT
+      rig.seeks.position() shouldBe HELD_AT
+
+      rig.playing = true
+      rig.seeks.position() shouldBe (HELD_AT.inWholeMilliseconds + CLOCK_BEHIND_MS).milliseconds
     }
 
   // The player had released the frame for the next slot before it stopped, and draws it once the pause has pinned the
@@ -168,6 +188,25 @@ class Media3PausedPinTest {
       rig.runPlayback()
       rig.drawn = HELD_AT
       rig.seeks.frameDrawn()
+      rig.pins.last() shouldBe HELD_AT
+      rig.pins.count { it == LATER_AT } shouldBe 0
+    }
+
+  // The frame was drawn after the seek was issued and before the playback thread got to it, so it is from before the
+  // seek, and the pause that follows reads it on the surface.
+  @Test
+  fun `a pause behind a seek handed over while playing leaves the pin off a frame drawn before the seek`() =
+    runTest {
+      val rig = HeldPinRig(this, playing = true, playbackDeferred = true)
+
+      rig.seeks.seek(HELD_AT, SeekAccuracy.Exact, wrap = false) { }
+      rig.runPlayback(turns = 1)
+      rig.drawn = LATER_AT
+      rig.seeks.frameDrawn()
+
+      rig.seeks.pause(HELD_AT)
+      rig.runPlayback()
+
       rig.pins.last() shouldBe HELD_AT
       rig.pins.count { it == LATER_AT } shouldBe 0
     }

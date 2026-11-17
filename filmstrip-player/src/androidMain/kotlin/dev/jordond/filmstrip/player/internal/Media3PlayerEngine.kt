@@ -162,6 +162,7 @@ internal class Media3PlayerEngine(
       pin = heldPin,
       resting = pausedFrame::resting,
       restingAt = { at -> if (isPlayWanted) at else landingOf(at) },
+      playWanted = { isPlayWanted },
       onRepresented = ::onRepresented,
     )
 
@@ -466,7 +467,6 @@ internal class Media3PlayerEngine(
         ?: next.resolved.heldPosition(readPosition(), loops.loopRange, isPlayWanted)
     val mediaStart = lowered.firstSlotOf(start)
     val startMs = mediaStart.toMediaMs()
-    val pinAt = heldSlotOf(start, mediaStart, isPlayWanted, scrubMode.active)
     seeks.rest(start, mediaStart)
     status.platformPositionMs = startMs
     guard.reset()
@@ -481,9 +481,7 @@ internal class Media3PlayerEngine(
       target.volume = level
       loads.handOver(load)
       target.setComposition(lowered.composition, startMs)
-      target.playWhenReady = wanted
-      // Behind the transport, since a fresh player told to play says so and that lets go of the pin.
-      heldPin.pin(pinAt)
+      heldPin.start(target, wanted, start, mediaStart, scrubMode.active)
       target.prepare()
     }
     return null

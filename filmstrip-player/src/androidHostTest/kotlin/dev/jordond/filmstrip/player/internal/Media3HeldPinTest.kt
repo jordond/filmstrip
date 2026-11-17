@@ -4,10 +4,12 @@ import android.os.Handler
 import androidx.media3.common.Player
 import dev.jordond.filmstrip.edit.outputSlotTime
 import dev.jordond.filmstrip.player.SeekAccuracy
+import dev.jordond.filmstrip.player.internal.HeldPinRig.Companion.AFTER_AT
 import dev.jordond.filmstrip.player.internal.HeldPinRig.Companion.ELSEWHERE_MS
 import dev.jordond.filmstrip.player.internal.HeldPinRig.Companion.FIRST_AT
 import dev.jordond.filmstrip.player.internal.HeldPinRig.Companion.HELD_AT
 import dev.jordond.filmstrip.player.internal.HeldPinRig.Companion.INTO_SLOT
+import dev.jordond.filmstrip.player.internal.HeldPinRig.Companion.LATER_AT
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe
@@ -85,16 +87,35 @@ class Media3HeldPinTest {
     heldSlotOf(FIRST_AT, FIRST_AT, playWanted = false, scrubbing = true) shouldBe null
   }
 
-  // A rebuild starts the fresh graph on the slot the playhead holds and pins it by the rule a seek is pinned by.
+  // A rebuild starts the fresh graph on the slot the playhead holds and pins it by the rule a seek is pinned by. The
+  // fresh player says it was told to play as it is, which lets go of whatever pin stands by then.
   @Test
   fun `a player told to play that is rebuilt in a scrub onto a later slot of a hold is pinned to it`() =
     runTest {
-      val rig = HeldPinRig(this, playing = true, scrubbing = true)
+      val rig = HeldPinRig(this, playing = false, scrubbing = true)
+      every { rig.player.playWhenReady = true } answers {
+        rig.playing = true
+        rig.seeks.unpin()
+      }
 
-      rig.pin.pin(heldSlotOf(HELD_AT, FIRST_AT, playWanted = rig.playing, scrubbing = rig.scrubbing))
+      rig.pin.start(rig.player, wanted = true, HELD_AT, FIRST_AT, rig.scrubbing)
 
+      rig.playing shouldBe true
       rig.pins.last() shouldBe HELD_AT
       rig.pin.slot shouldBe HELD_AT
+    }
+
+  @Test
+  fun `a paused player that is rebuilt onto a later slot of a hold is pinned to it and one playing on is not`() =
+    runTest {
+      val paused = HeldPinRig(this, playing = false)
+      paused.pin.start(paused.player, wanted = false, HELD_AT, FIRST_AT, scrubbing = false)
+      paused.pin.slot shouldBe HELD_AT
+
+      val playing = HeldPinRig(this, playing = false)
+      playing.pin.start(playing.player, wanted = true, HELD_AT, FIRST_AT, scrubbing = false)
+      playing.playing shouldBe true
+      playing.pin.slot shouldBe null
     }
 
   @Test
@@ -282,6 +303,32 @@ class Media3HeldPinTest {
 
       verify(exactly = 1) { rig.player.seekTo(FIRST_AT.inWholeMilliseconds) }
       rig.seeks.position() shouldBe HELD_AT
+    }
+
+  // The last slot is the nearest one to the end, and on an edit that ends in a hold it is a later slot of a sample.
+  @Test
+  fun `a play from the end of an edit that ends in a hold replays nothing`() =
+    runTest {
+      val rig = HeldPinRig(this, playing = false)
+      rig.length = AFTER_AT
+
+      rig.seeks.resume(at = AFTER_AT)
+      runCurrent()
+
+      rig.playing shouldBe true
+      verify(exactly = 0) { rig.player.seekTo(any<Long>()) }
+    }
+
+  @Test
+  fun `a play from the last slot of an edit that ends in a hold replays it`() =
+    runTest {
+      val rig = HeldPinRig(this, playing = false)
+      rig.length = AFTER_AT
+
+      rig.seeks.resume(at = LATER_AT)
+      runCurrent()
+
+      verify(exactly = 1) { rig.player.seekTo(FIRST_AT.inWholeMilliseconds) }
     }
 
   @Test

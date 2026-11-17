@@ -61,7 +61,8 @@ internal class Media3HeldPin(
    * whatever replays the frame. A playing player holds no pin, and neither does one that has drawn no frame. A frame
    * drawn before a seek handed over since is left to that seek, which pins the slot it is for.
    *
-   * @param handled The serial of the last seek the playback thread had handled when the frame was drawn.
+   * @param handled The serial of the last seek the playback thread had handled when the frame on the surface was
+   * drawn.
    * @param handedOver The serial of the seek the player was handed last.
    */
   fun settle(
@@ -70,6 +71,25 @@ internal class Media3HeldPin(
   ) {
     if (handled != handedOver || player()?.playWhenReady != false) return
     pin(drawn() ?: return)
+  }
+
+  /**
+   * Hands [target], a player standing on [start] of a graph just built, the transport and pins it by the rule a seek
+   * is pinned by. The pin follows the transport, since a player told to play says so and that lets go of the pin.
+   *
+   * @param wanted Whether the player this one replaces was told to play.
+   * @param media The slot the sample shown on [start] is written on.
+   * @param scrubbing Whether a scrub or a shuttle is under way.
+   */
+  fun start(
+    target: Player,
+    wanted: Boolean,
+    start: Duration,
+    media: Duration,
+    scrubbing: Boolean,
+  ) {
+    target.playWhenReady = wanted
+    pin(heldSlotOf(start, media, wanted, scrubbing))
   }
 
   /**

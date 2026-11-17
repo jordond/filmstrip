@@ -26,6 +26,7 @@ internal class HeldPinRig(
   playbackDeferred: Boolean = false,
 ) {
   val pins = mutableListOf<Duration?>()
+  var length: Duration = LENGTH
   var resting: Duration? = null
   var drawn: Duration? = null
   private val playbackQueued = ArrayDeque<Runnable>()
@@ -76,7 +77,7 @@ internal class HeldPinRig(
 
   private val composition =
     mockk<ResolvedComposition>().also {
-      every { it.duration } returns LENGTH
+      every { it.duration } answers { length }
       every { it.frameRate } returns RATE
     }
 
@@ -106,6 +107,7 @@ internal class HeldPinRig(
       firstSlotOf = ::firstSlotOf,
       pin = pin,
       resting = { resting },
+      playWanted = { playing },
       onRepresented = { },
     )
 

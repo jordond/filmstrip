@@ -209,12 +209,31 @@ class Media3RepresentTest {
       rig.seeks.position() shouldBe SHOWN
     }
 
+  // A slow decoder leaves the frame on screen behind the clock, and the surface took what named it.
+  @Test
+  fun `a paused player whose clock reads past the frame it showed is seeked back to that frame`() =
+    runTest {
+      val rig = Rig(this, restingMs = AHEAD_MS)
+      rig.resting = SHOWN
+      rig.seeks.position() shouldBe SHOWN
+      rig.resting = null
+
+      rig.seeks.represent(surfaceLost = true)
+      runCurrent()
+      rig.seeks.accepted(rig.seeks.playerSerial)
+
+      verify(exactly = 1) { rig.player.seekTo(SHOWN.inWholeMilliseconds) }
+      verify(exactly = 0) { rig.player.seekTo(AHEAD_MS) }
+      rig.seeks.position() shouldBe SHOWN
+    }
+
   /**
    * A coordinator over a paused player, with every post run inline and frames reaching a surface.
    */
   private class Rig(
     scope: TestScope,
     loaded: Boolean = true,
+    restingMs: Long = RESTING_MS,
   ) {
     var represented = 0
     var resting: Duration? = null
@@ -229,7 +248,7 @@ class Media3RepresentTest {
 
     val player =
       mockk<Player>().also {
-        every { it.currentPosition } returns RESTING_MS
+        every { it.currentPosition } returns restingMs
         every { it.playbackState } returns Player.STATE_READY
         every { it.isPlaying } returns false
         every { it.playWhenReady } returns false
@@ -250,13 +269,14 @@ class Media3RepresentTest {
         playback = { null },
         resolved = { composition.takeIf { loaded } },
         guard = WrapGuard(),
-        platformPositionMs = { RESTING_MS },
+        platformPositionMs = { restingMs },
         loopWrap = { null },
         scrubbing = { false },
         showsFrames = { true },
         onIssued = { },
         onRedirected = { },
         resting = { resting },
+        playWanted = { false },
         onRepresented = { represented++ },
       )
   }
@@ -273,5 +293,8 @@ class Media3RepresentTest {
 
     // Slot 24, three slots on from where the clock stopped.
     val SHOWN = 800.milliseconds
+
+    // Slot 27, three slots past the frame shown.
+    const val AHEAD_MS = 900L
   }
 }

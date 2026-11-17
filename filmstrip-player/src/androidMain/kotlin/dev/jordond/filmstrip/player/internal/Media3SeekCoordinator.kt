@@ -62,6 +62,8 @@ import kotlin.time.Duration.Companion.milliseconds
  * seek, or null. A paused player reports that slot, whatever media3's own clock reads.
  * @param restingAt The slot a paused player's clock reads rests on, for a player that has drawn no frame to name one,
  * and the time itself while it plays.
+ * @param playWanted Whether the player was told to play. Only then does the clock take the playhead on from the slot a
+ * pause rested on.
  * @param onRepresented Called once a held slot has been drawn again.
  */
 @ExperimentalApi
@@ -84,6 +86,7 @@ internal class Media3SeekCoordinator(
   private val pin: Media3HeldPin = Media3HeldPin(player, { resolved()?.frameRate }, firstSlotOf),
   private val resting: () -> Duration? = { null },
   private val restingAt: (Duration) -> Duration = { it },
+  private val playWanted: () -> Boolean = { true },
   private val onRepresented: () -> Unit,
 ) {
   private var completion: ((Duration) -> Unit)? = null
@@ -127,7 +130,7 @@ internal class Media3SeekCoordinator(
   ) {
     landing = slot
     mediaLanding = media
-    carried = null
+    floor.clear()
   }
 
   // Counts the seeks handed to media3. A landing media3 reports is only taken for the latest of them.
@@ -161,28 +164,13 @@ internal class Media3SeekCoordinator(
   var lastAccuracy: SeekAccuracy = SeekAccuracy.Exact
     private set
 
-  // The slot a pause rested on, carried into the play that follows until media3's clock reaches it. Written by
-  // whichever thread reads the position.
-  @Volatile
-  private var carried: Duration? = null
+  private val floor = Media3PlayheadFloor(resting, playWanted)
 
   // A seek in flight reads where it is going, since a reading media3 reports before it lands is from before the seek.
   fun position(): Duration = target ?: positionAt(platformPositionMs())
 
-  private fun positionAt(clockMs: Long): Duration {
-    resting()?.let { rested ->
-      carried = rested
-      return rested
-    }
-    val clock = restingAt(playheadOf(clockMs, landing, mediaLanding))
-    val floor = carried ?: return clock
-    // Let go once media3's own clock has reached it. A slot is seldom a whole millisecond, so the clock is held to the
-    // slot's own time and not to the millisecond under it, which the clock reads before it has reached the slot. A
-    // clock read as the landing it rests on stands for a slot the player is about to play on from, and so is not one
-    // that has.
-    if (clockMs.milliseconds >= floor) carried = null
-    return maxOf(clock, floor)
-  }
+  private fun positionAt(clockMs: Long): Duration =
+    floor.read(clockMs, restingAt(playheadOf(clockMs, landing, mediaLanding)))
 
   /**
    * Seeks to the slot [position] lands on and calls [onComplete] once media3 has landed there.
@@ -241,14 +229,17 @@ internal class Media3SeekCoordinator(
    * seek that flushes what is playing.
    *
    * @param at Where the playhead read as the play was asked for. A player that played its way there reads a time inside
-   * a slot, so it is the slot [at] lands on that is looked up.
+   * a slot, so it is the slot [at] lands on that is looked up. At or past the end there is nothing left to play, so
+   * nothing is replayed, though the last slot is the nearest one to land on.
    */
   fun resume(at: Duration) {
     val standing = player()
     val wasPlaying = standing?.playWhenReady == true
     unpin()
     standing?.playWhenReady = true
-    val slot = resolved()?.seekLandingOf(at) ?: at
+    val loaded = resolved()
+    if (loaded != null && at >= loaded.duration) return
+    val slot = loaded?.seekLandingOf(at) ?: at
     if (!wasPlaying && firstSlotOf(slot) != slot) scope.launch { replay(slot) }
   }
 
@@ -269,11 +260,14 @@ internal class Media3SeekCoordinator(
    * the player's thread.
    *
    * A frame the player had released before it stopped is drawn after that, so once the playback thread has stopped the
-   * pin is moved to the frame on the surface, which is the slot the playhead reports.
+   * pin is moved to the frame on the surface, which is the slot the playhead reports. The playback thread says which
+   * seek that frame was drawn after, so a frame from before a seek handed over since is left to that seek.
    */
   fun stopped() {
-    val serial = playerSerial
-    playback().run { handler.post { pin.settle(serial, playerSerial) } }
+    playback().run {
+      val drawnAfter = drawnSerial
+      handler.post { pin.settle(drawnAfter, playerSerial) }
+    }
   }
 
   /**
@@ -294,7 +288,7 @@ internal class Media3SeekCoordinator(
     if (target != null || representing) return
     // The pause rested on this slot, whatever frame was last drawn, so the playhead holds it until the clock reaches
     // it.
-    carried = maxOf(carried ?: slot, slot)
+    floor.raiseTo(slot)
     guard.seekIssued(wrap = false)
     representing = true
     completion = {}
@@ -333,7 +327,7 @@ internal class Media3SeekCoordinator(
   ) {
     val issued = ++serial
     this.target = target
-    if (!keepsCarry) carried = null
+    if (!keepsCarry) floor.clear()
     landing = target
     val media = firstSlotOf(target)
     mediaLanding = media
@@ -488,7 +482,7 @@ internal class Media3SeekCoordinator(
   fun cancel() {
     completion = null
     target = null
-    carried = null
+    floor.clear()
     representing = false
     landsUnseen = false
   }
