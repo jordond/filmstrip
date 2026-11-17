@@ -47,6 +47,11 @@ public interface PlayerTransport {
 
   /**
    * Enters scrubbing mode, where seek accuracy may relax to keep up with a moving finger.
+   *
+   * A scrub does not pause. A player that is playing plays on until the first seek of the scrub. On Android that seek
+   * stops the picture and the sound where it lands until [endScrub], which is media3's limit, while
+   * [PlayerState.playWhenReady] and [PlayerState.isPlaying] stay true. Playback carries on from there once the scrub
+   * ends.
    */
   public fun beginScrub()
 

@@ -61,6 +61,21 @@ public interface VideoPlayer :
    * thumb does not snap back to where it was under the user's finger. A relaxed seek moves it once more when it lands,
    * to the frame it landed on, which can be before the target on the browser and Apple.
    *
+   * While playing this is the playback clock, which on Android can read a slot or two off the frame on the surface.
+   * On Android and the JVM, once a pause has settled it is the time of the frame on the surface, so a frame read at it
+   * is that picture and a step of one frame either way lands on the frames beside it. That is held against the surface
+   * itself on Android, and against the frame last presented on the JVM. The other backends report their playback
+   * clock when paused too, and are not tested against their picture.
+   *
+   * Two readings are no frame's time. A player that has ended reads the duration, where the edit has no frame, so a
+   * frame read at it and a step from it are not held to the above. And an Android player with no surface attached
+   * draws no frame, so once paused it reads the slot its playback clock stopped in.
+   *
+   * On Android a play from a pause never reads behind the paused frame. Where that frame is one the edit holds over
+   * several slots, as a slowed clip or a source slower than the output does, the frame is decoded again from its first
+   * slot and the position stays on the paused slot until the clock has come back up to it. That takes up to the length
+   * of the hold, about 31 slots at a speed of 1/32.
+   *
    * @return the current position.
    */
   public fun currentPosition(): Duration

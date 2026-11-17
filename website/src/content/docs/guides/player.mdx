@@ -38,6 +38,22 @@ before you issue commands.
 `positionFlow` follows the playhead, snapped to the tick you ask for. `currentPosition` reads it once. Both report a
 seek's target as soon as it's issued, so a scrubber thumb doesn't snap back to where it was.
 
+While playing, `currentPosition` is the playback clock, which on Android can read a slot or two off the frame on the
+surface. On Android and the JVM, once a pause has settled, the playhead and the picture on the surface name the same
+frame. `currentPosition` is that frame's time, `frame()` at it returns that picture, and a step of one frame either way
+lands on the frames beside it. The tests hold that against the surface itself on Android, and against the frame last
+presented on the JVM. The other backends report their playback clock when paused too, and are not tested against their
+picture.
+
+Two readings are no frame's time. A player that has ended reads the duration, where the edit has no frame, so `frame()`
+at it and a step from it aren't held to the above. And an Android player with no surface attached draws no frame, so
+once paused it reads the slot its playback clock stopped in.
+
+On Android, a play from a pause never reads behind the paused frame. Where the edit holds that frame over several
+slots, as a slowed clip or a source slower than the output does, the frame is decoded again from its first slot and
+`currentPosition` stays on the paused slot until the clock has come back up to it. That takes up to the length of the
+hold, about 31 slots at a speed of 1/32.
+
 <Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Player.kt" region="playhead" />
 
 Each of these has a listener form too, `addStateListener`, `addEventListener` and `addPositionListener`, for callers
@@ -51,7 +67,7 @@ without coroutines.
   frame, before or after the one asked for, which suits a moving finger. The playhead reads the frame asked for until the
   seek completes, then moves once to the frame it landed on.
 - `beginScrub` and `endScrub` wrap a drag. Between them the engine relaxes seek accuracy, and `endScrub` settles on the
-  exact frame.
+  exact frame. A scrub doesn't pause, so a playing player plays on until the first seek of the drag.
 - `setLoopRange` wraps playback at the end of the range and reports `RangeLooped`. A range the composition ends inside wraps
   there and reports no `Ended`. A range that starts at or past the end has nothing to loop, so playback runs to the end. A
   wrap only happens during playback, so a paused seek past the range stays where it lands. After a wrap the playhead
@@ -122,6 +138,9 @@ the same ones the export's plan lists.
 
 <Aside type="note" title="Limits">
 - On Android a `Nearest` seek is no faster than an exact one.
+- On Android the first seek of a scrub stops a playing player's picture and sound where it lands until `endScrub`, which
+  is media3's scrubbing mode. `playWhenReady` and `isPlaying` stay true throughout, and playback carries on from there
+  once the scrub ends.
 - The ffmpeg preview waits for a scrub to settle instead of landing on a nearby frame.
 - On ffmpeg a changed effect parameter restarts the preview, so it reports no `LiveParameterRedraw`.
 - On Android a shuttle lands every frame exactly, so reverse and 4K run at fewer frames a second than on Apple.

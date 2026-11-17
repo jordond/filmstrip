@@ -67,6 +67,7 @@ internal class RebuildContract(
         }
 
         recorder.lastState.playWhenReady shouldBe true
+        val playing = recorder.playheads.size
         subject.engine.pause()
         awaitContract("the play axis to settle after pausing") { !recorder.lastState.playWhenReady }
         subject.quiet()
@@ -76,7 +77,13 @@ internal class RebuildContract(
         val left = recorder.playheads.subList(before - 1, boundary)
         val rebuilt = recorder.playheads.drop(boundary)
         left.shouldNotStepBack()
-        rebuilt.shouldNotStepBack()
+        if (subject.pauseLandsOnSlot) {
+          rebuilt.take(playing - boundary).shouldNotStepBack()
+          // By at most the one slot, so the pause cannot take the playhead further back than that.
+          rebuilt.last() shouldBeGreaterThanOrEqualTo rebuilt[playing - boundary - 1] - outputSlotTime(1, rate)
+        } else {
+          rebuilt.shouldNotStepBack()
+        }
         rebuilt.first().inWholeMicroseconds shouldBeGreaterThanOrEqualTo left.last().inWholeMicroseconds
         rebuilt.first() shouldBeGreaterThanOrEqualTo heldPosition(left.last(), duration, rate, null, playing = true)
         rebuilt.last() shouldBeLessThanOrEqualTo left.first() + elapsed + READING_SLACK

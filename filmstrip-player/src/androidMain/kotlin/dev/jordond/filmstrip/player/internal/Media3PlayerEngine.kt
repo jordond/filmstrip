@@ -4,8 +4,6 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.os.Handler
 import android.os.HandlerThread
-import android.view.SurfaceView
-import android.view.TextureView
 import androidx.media3.common.C
 import androidx.media3.common.Player
 import androidx.media3.common.util.ExperimentalApi
@@ -67,7 +65,10 @@ internal class Media3PlayerEngine(
   private var preview: Media3Preview? = null
   private var volume = 1f
 
-  private val scrubMode = Media3ScrubMode(handler) { player?.setScrubbingModeEnabled(it) }
+  private val scrubMode =
+    Media3ScrubMode(handler, holdsOff = { seeks.playedSinceSeek }, onEnded = { heldPin.scrubEnded() }) {
+      player?.setScrubbingModeEnabled(it)
+    }
 
   private val guard = WrapGuard()
 
@@ -98,7 +99,10 @@ internal class Media3PlayerEngine(
       setStalled = ::setStalled,
       setPlayWhenReady = ::setPlayWhenReady,
       reportExternalPlayWhenReady = ::reportExternalPlayWhenReady,
-      emitEvent = ::emitEvent,
+      emitEvent = { event ->
+        if (event is PlaybackEvent.Ended) pausedFrame.onEnded()
+        emitEvent(event)
+      },
     )
 
   internal val surfaces: Media3SurfaceManager =
@@ -111,6 +115,28 @@ internal class Media3PlayerEngine(
       onDetached = ::onSurfaceDetached,
       drawnOnto = { status.surfaceRendered },
       represent = { surfaceLost -> scope.launch { seeks.represent(surfaceLost) } },
+      onTargetMoved = ::surfaceLimitMoved,
+    )
+
+  private val pausedFrame: Media3PausedFrame =
+    Media3PausedFrame(
+      scope = scope,
+      renderedUs = { status.renderedUs },
+      isEnded = { status.isEnded },
+      isPlayWanted = { isPlayWanted },
+      landingOf = ::landingOf,
+      duration = { plan?.resolved?.duration ?: Duration.ZERO },
+      playhead = { seeks.position() },
+      emitPosition = ::emitPosition,
+    )
+
+  private val heldPin =
+    Media3HeldPin(
+      player = { player },
+      frameRate = { plan?.resolved?.frameRate },
+      firstSlotOf = { preview?.firstSlotOf(it) ?: it },
+      pinSlot = { preview?.pinSlot(it) },
+      drawn = pausedFrame::drawn,
     )
 
   private val seeks: Media3SeekCoordinator =
@@ -118,17 +144,24 @@ internal class Media3PlayerEngine(
       scope = scope,
       handler = handler,
       player = { player },
-      playbackLooper = { player?.playbackLooper },
+      playback = { player?.playbackLooper?.let(::Handler) },
       resolved = { plan?.resolved },
       guard = guard,
       platformPositionMs = { status.platformPositionMs },
       loopWrap = { loops.wrap() },
       showsFrames = ::showsFrames,
       scrubbing = { scrubMode.active },
-      onIssued = status::clearEnd,
+      inScrubbingMode = { scrubMode.entered },
+      enterScrubbingMode = scrubMode::enter,
+      onIssued = {
+        status.clearEnd()
+        status.renderedUs = NO_FRAME
+      },
       onRedirected = ::movePlayhead,
       firstSlotOf = { preview?.firstSlotOf(it) ?: it },
-      pinSlot = { preview?.pinSlot(it) },
+      pin = heldPin,
+      resting = pausedFrame::resting,
+      restingAt = { at -> if (isPlayWanted) at else landingOf(at) },
       onRepresented = ::onRepresented,
     )
 
@@ -157,7 +190,10 @@ internal class Media3PlayerEngine(
       seeks = seeks,
       loops = loops,
       surfaces = surfaces,
-      onFrame = redraws::frameDrawn,
+      onFrame = {
+        redraws.frameDrawn()
+        pausedFrame.onFrame()
+      },
       onBuilt = {
         engines[it] = this
         scrubMode.carry()
@@ -247,7 +283,7 @@ internal class Media3PlayerEngine(
 
   override val isGraphStanding: Boolean get() = preview != null
 
-  override fun readPosition(): Duration = seeks.position()
+  override fun readPosition(): Duration = pausedFrame.position()
 
   override fun isSeekReady(): Boolean = preview != null && status.platformState != Player.STATE_IDLE
 
@@ -276,6 +312,7 @@ internal class Media3PlayerEngine(
     val at = readPosition()
     // Pinned on the player's thread, behind every play asked for before it, which can no longer clear it.
     handler.post { seeks.pause(at) }
+    pausedFrame.onPaused()
   }
 
   override val shuttleRange: TimeRange? get() = loops.playbackRange
@@ -307,46 +344,6 @@ internal class Media3PlayerEngine(
     redraws.surfaceDetached()
     status.onSurfaceDetached()
     seeks.framesStopped()
-  }
-
-  /**
-   * Draws into [view] from now on, replacing whatever surface the player was pointed at.
-   *
-   * A player rebuilt for a different video graph takes the same view with it.
-   */
-  fun attachSurfaceView(view: SurfaceView) {
-    surfaces.attach(SurfaceViewTarget(view))
-    scope.launch { surfaceLimitMoved() }
-  }
-
-  /**
-   * Stops drawing into [view], leaving a view another surface has since attached alone.
-   *
-   * The next surface has to earn its own first frame, which media3 raises again as it takes over
-   * the player's video output.
-   */
-  fun detachSurfaceView(view: SurfaceView) {
-    surfaces.detach(view)
-    scope.launch { surfaceLimitMoved() }
-  }
-
-  /**
-   * Draws into [view] from now on, through a surface the engine owns over the view's texture.
-   *
-   * A texture shows SDR only, so an HDR edit is planned again as a tone map, and every frame is copied once more on
-   * its way to the screen.
-   */
-  fun attachTextureView(view: TextureView) {
-    surfaces.attach(TextureViewTarget(view, handler))
-    scope.launch { surfaceLimitMoved() }
-  }
-
-  /**
-   * Stops drawing into [view] and releases the surface over its texture, leaving a view attached since alone.
-   */
-  fun detachTextureView(view: TextureView) {
-    surfaces.detach(view)
-    scope.launch { surfaceLimitMoved() }
   }
 
   override val planBasis: Any? get() = true.takeIf { planner.sdrOnlySurface }
@@ -469,7 +466,7 @@ internal class Media3PlayerEngine(
         ?: next.resolved.heldPosition(readPosition(), loops.loopRange, isPlayWanted)
     val mediaStart = lowered.firstSlotOf(start)
     val startMs = mediaStart.toMediaMs()
-    val pinAt = start.takeIf { mediaStart != start && !isPlayWanted }
+    val pinAt = heldSlotOf(start, mediaStart, isPlayWanted, scrubMode.active)
     seeks.rest(start, mediaStart)
     status.platformPositionMs = startMs
     guard.reset()
@@ -480,12 +477,13 @@ internal class Media3PlayerEngine(
       // A player built for a different video graph starts paused at full volume, so it takes the transport from the one
       // it replaces and the volume the engine holds.
       val wanted = host.player?.playWhenReady == true
-      seeks.pin(pinAt)
       val target = host.playerFor(multipleInputs, lowered.composition.hdrMode)
       target.volume = level
       loads.handOver(load)
       target.setComposition(lowered.composition, startMs)
       target.playWhenReady = wanted
+      // Behind the transport, since a fresh player told to play says so and that lets go of the pin.
+      heldPin.pin(pinAt)
       target.prepare()
     }
     return null

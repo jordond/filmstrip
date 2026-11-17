@@ -84,6 +84,10 @@ internal class JvmEngineUnderTest(
   override suspend fun awaitQuiet() {
     engine.awaitQuiet()
   }
+
+  override suspend fun shownAt(): Duration? = engine.presentedAt
+
+  override val namesPictureShown: Boolean get() = true
 }
 
 /**

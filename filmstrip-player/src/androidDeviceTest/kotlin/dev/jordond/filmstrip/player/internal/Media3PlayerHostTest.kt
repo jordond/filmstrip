@@ -140,7 +140,7 @@ class Media3PlayerHostTest {
             scope = scope,
             handler = handler,
             player = { host.player },
-            playbackLooper = { host.player?.playbackLooper },
+            playback = { host.player?.playbackLooper?.let(::Handler) },
             resolved = { null },
             guard = guard,
             platformPositionMs = { 0L },

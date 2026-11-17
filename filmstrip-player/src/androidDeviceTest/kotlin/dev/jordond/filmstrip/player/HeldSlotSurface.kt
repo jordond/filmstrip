@@ -7,6 +7,7 @@ import android.view.PixelCopy
 import android.view.SurfaceView
 import androidx.media3.transformer.CompositionPlayer
 import androidx.test.core.app.ActivityScenario
+import dev.jordond.filmstrip.Cancellable
 import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.edit.Clip
@@ -21,7 +22,6 @@ import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.player.contract.awaitComposition
 import dev.jordond.filmstrip.player.internal.engineFor
 import dev.jordond.filmstrip.test.TestFrame
-import dev.jordond.filmstrip.test.assertFramesDiffer
 import dev.jordond.filmstrip.test.assertFramesSimilar
 import dev.jordond.filmstrip.test.compareFrames
 import dev.jordond.filmstrip.transform.internal.nearestSourceFrame
@@ -135,6 +135,10 @@ internal class HeldRig(
 ) {
   internal val frames = case.frames()
 
+  // The slot the second file of the edit opens on, or -1 where there is one file.
+  private val leadSlots: Int =
+    if (case.lead == Duration.ZERO) -1 else outputSlotOf(case.lead, FIXTURE_FRAME_RATE).toInt()
+
   fun brighter(): Composition = editWith(listOf(Brightness(BRIGHTER)))
 
   val engine
@@ -151,15 +155,32 @@ internal class HeldRig(
 
   fun lastSlot(): Int = frames.lastIndex
 
+  // What lets go of the surface the preview was attached to, or null before it was.
+  var attachment: Cancellable? = null
+    private set
+
   suspend fun ready() {
     if (player.state.value.status == PlaybackStatus.Ready && events.any { it is PlaybackEvent.FirstFrameRendered }) {
       return
     }
-    player.attachPreviewSurface(view)
+    attachment = player.attachPreviewSurface(view)
     awaitOrFail("the preview to become ready") { player.state.value.status == PlaybackStatus.Ready }
     player.play()
     awaitOrFail("the composition to render") { events.any { it is PlaybackEvent.FirstFrameRendered } }
     player.pause()
+    delay(SETTLE)
+  }
+
+  /**
+   * Lets go of the surface and hands the preview the same one again, as a view that is torn down and rebuilt does.
+   *
+   * @param whileDetached Runs once the surface has gone and before it is handed back.
+   */
+  suspend fun reattach(whileDetached: () -> Unit = {}) {
+    attachment?.cancel()
+    delay(SETTLE)
+    whileDetached()
+    attachment = player.attachPreviewSurface(view)
     delay(SETTLE)
   }
 
@@ -168,6 +189,35 @@ internal class HeldRig(
       outputSlotOf(player.currentPosition(), FIXTURE_FRAME_RATE) == slot.toLong() && !player.state.value.isStalled
     }
     delay(SETTLE)
+  }
+
+  /**
+   * Plays from the start until the playhead has passed slot [past], pauses, and lets the surface settle.
+   *
+   * @return the slot the playhead reports once it has settled.
+   */
+  suspend fun playThenPause(past: Int): Int {
+    playFromStart()
+    pausedAfter(past)
+    return reportedSlot()
+  }
+
+  /**
+   * Plays from the start until the playhead has passed slot [past], and leaves the player playing.
+   */
+  suspend fun playPast(past: Int) {
+    playFromStart()
+    awaitOrFail("the playhead to pass slot $past, which reads ${player.currentPosition()}") {
+      player.currentPosition() >= slotTime(past)
+    }
+  }
+
+  private suspend fun playFromStart() {
+    ready()
+    player.seekTo(Duration.ZERO, SeekAccuracy.Exact)
+    awaitOrFail("the seek back to the start") { player.currentPosition() == Duration.ZERO }
+    delay(SETTLE)
+    player.play()
   }
 
   /**
@@ -183,13 +233,10 @@ internal class HeldRig(
 
   fun reportedSlot(): Int = outputSlotOf(player.currentPosition(), FIXTURE_FRAME_RATE).toInt()
 
-  suspend fun seekAndShow(
-    slot: Int,
-    opening: Boolean = false,
-  ) {
+  suspend fun seekAndShow(slot: Int) {
     ready()
     seekAndSettle(slot)
-    shouldShow(slot, opening = opening)
+    shouldShow(slot)
   }
 
   /**
@@ -289,25 +336,22 @@ internal class HeldRig(
    * slots, drawn whole, in the order they are played.
    *
    * Each picture is matched to the export of the slot nearest it among the slots from the first of the hold [from] is
-   * in to the last of the clip. The hold's sample is drawn again from its first slot, so nothing before it is drawn,
-   * and a picture no slot of the window resembles is a half-drawn one or one of the sample before the hold. The first
-   * picture has to be a slot of that hold, which is the sample being drawn again and not the play carrying on from the
-   * slot after it. The matched slots then have to run forward, never back to an earlier one, and the last has to be a
-   * slot after [from], so the play drew on past the one it began on. A slot missing from the run is not held against
-   * the play, since the copies can miss a frame.
-   *
-   * How far past the slot the playhead reads the surface settles is not bounded here. A pause that left it ahead of
-   * the playhead was measured at three slots, past the hold's two, so the bound belongs to the change that makes a
-   * pause land on the slot it reports.
+   * in to [reported]. That window is the whole of what a play can show: the hold's sample is drawn again from its first
+   * slot, and a pause lands the surface on the slot the playhead reads, so nothing past it is drawn. A picture no slot
+   * in it resembles is a half-drawn one, or one of the sample before the hold. The first picture has to be a slot of
+   * that hold, which is the sample being drawn again and not the play carrying on from the slot after it. The matched
+   * slots then have to run forward, never back to an earlier one, and the last has to be [reported], a slot after
+   * [from]. A slot missing from the run is not held against the play, since the copies can miss a frame.
    *
    * @return the slot the surface settled on.
    */
   suspend fun shouldHavePlayedOn(
     pictures: List<TestFrame>,
     from: Int,
+    reported: Int,
   ): Int {
     val hold = holdOf(from)
-    val window = hold.first..frames.lastIndex
+    val window = hold.first..reported
     withClue("the play drew no picture") { pictures.isNotEmpty().shouldBeTrue() }
     val matched =
       pictures.map { picture ->
@@ -324,7 +368,8 @@ internal class HeldRig(
     withClue("the slots drawn after the play, in order, were $matched") {
       withClue("the first is no slot of the hold $hold") { (matched.first() in hold).shouldBeTrue() }
       matched.zipWithNext().all { (before, after) -> after >= before }.shouldBeTrue()
-      (matched.last() > from).shouldBeTrue()
+      matched.last() shouldBe reported
+      (reported > from).shouldBeTrue()
     }
     return matched.last()
   }
@@ -347,41 +392,33 @@ internal class HeldRig(
   ) = androidExportFrame(of, slotTime(slot))
 
   /**
-   * Holds the surface to the export of [of] at [slot], and apart from the export of the slot before it.
+   * Holds the surface to the export of [of] at [slot], and to being nearer it than the export of any slot within two
+   * either side.
+   *
+   * The floors are [surfaceFloorsAt]'s, which lets a slot the encoder opens a file or a cut with sit further off.
+   * Neither floor tells a slot from the one beside it: a neighbour reads up to 35 dB where the clip pans and 39.9 dB
+   * and 0.977 in the lead of the slower case, which does not, where the slot's own export reads 43 dB. So the nearest
+   * export being the slot's own is what holds off a surface a slot behind or ahead of the playhead.
    */
   suspend fun shouldShow(
     slot: Int,
     of: Composition = edit,
-    opening: Boolean = false,
   ) {
     val expected = exportAt(slot, of)
     val shown = view.copyPixels(FIXTURE_FRAME)
     val nearby =
-      (-2..2).map { offset ->
-        offset to
-          compareFrames(androidExportFrame(of, slotTime(slot + offset).coerceAtLeast(Duration.ZERO)), shown).psnrDb
+      (-2..2).filter { slot + it in frames.indices }.map { offset ->
+        offset to compareFrames(exportAt(slot + offset, of), shown).psnrDb
       }
-    // The software encoder writes the opening frames of a file further from the picture than it does later ones, so
-    // there the surface is held to being closest to the slot it rests on.
-    if (opening) {
-      withClue("the surface is nearest slot ${slot + nearby.maxBy { it.second }.first}, not slot $slot: $nearby") {
-        nearby.maxBy { it.second }.first shouldBe 0
-      }
-      return
-    }
+    val cuts = listOfNotNull(leadSlots.toLong().takeIf { it > 0 })
+    val (minPsnr, minSsim) = surfaceFloorsAt(slot.toLong(), cuts, MIN_PSNR_DB, MIN_SSIM)
     try {
-      assertFramesSimilar(expected, shown, MIN_PSNR_DB, MIN_SSIM, "the surface does not show slot $slot")
+      assertFramesSimilar(expected, shown, minPsnr, minSsim, "the surface does not show slot $slot")
     } catch (failed: AssertionError) {
       throw AssertionError("${failed.message}. PSNR against the export at each slot offset from it: $nearby")
     }
-    if (slot > 0) {
-      assertFramesDiffer(
-        exportAt(slot - 1, of),
-        shown,
-        MIN_PSNR_DB,
-        MIN_SSIM,
-        "the surface shows the slot before slot $slot",
-      )
+    withClue("the surface is nearest slot ${slot + nearby.maxBy { it.second }.first}, not slot $slot: $nearby") {
+      nearby.maxBy { it.second }.first shouldBe 0
     }
   }
 
@@ -434,4 +471,5 @@ internal val PATCH = Size(160, 90)
 internal val PLAY_WINDOW: Duration = 1200.milliseconds
 internal const val MIN_SHARE = 0.8
 internal const val MIN_PSNR_DB = 32.0
+
 internal const val MIN_SSIM = 0.975

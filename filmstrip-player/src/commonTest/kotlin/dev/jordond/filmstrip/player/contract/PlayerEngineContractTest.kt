@@ -16,8 +16,6 @@ import dev.jordond.filmstrip.player.PlaybackStatus
 import dev.jordond.filmstrip.player.SeekAccuracy
 import dev.jordond.filmstrip.player.SetCompositionResult
 import io.kotest.matchers.comparables.shouldBeGreaterThan
-import io.kotest.matchers.comparables.shouldBeGreaterThanOrEqualTo
-import io.kotest.matchers.comparables.shouldBeLessThanOrEqualTo
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.CoroutineScope
@@ -215,89 +213,15 @@ abstract class PlayerEngineContractTest {
     }
 
   @Test
-  fun everyIssuedSeekYieldsExactlyOneCompletion() =
-    contractTest { scope ->
-      val subject = createEngine(scope)
-      withEngine(subject.engine) { recorder ->
-        subject.engine.awaitComposition(fixture).shouldBeInstanceOf<SetCompositionResult.Success>()
-        awaitContract("the engine to become seekable") { recorder.lastState.hasComposition }
-        val duration = recorder.lastState.duration ?: fail("The engine reported no duration to seek within.")
-
-        // A burst of one, then bursts big enough that most requests are superseded before the
-        // platform reaches them. A superseded request still owes the caller a completion.
-        for (burst in BURST_SIZES) {
-          val before = recorder.seekCompletions.size
-          spreadOver(duration, burst).forEach { subject.engine.seekTo(it, SeekAccuracy.Exact) }
-
-          awaitContract("$burst seeks to complete") { recorder.seekCompletions.size - before >= burst }
-          awaitContract("the seeking axis to settle after $burst seeks") { !recorder.lastState.isSeeking }
-          subject.quiet()
-
-          recorder.seekCompletions.size - before shouldBe burst
-        }
-      }
-    }
+  fun everyIssuedSeekYieldsExactlyOneCompletion() = seekLandings.everySeekCompletesOnce()
 
   @Test
   fun anExactSeekBetweenTwoFramesReportsTheSlotItLandedOn() =
-    contractTest { scope ->
-      val subject = createEngine(scope)
-      withEngine(subject.engine) { recorder ->
-        subject.engine.awaitComposition(fixture).shouldBeInstanceOf<SetCompositionResult.Success>()
-        awaitContract("the engine to become seekable") { recorder.lastState.hasComposition }
-        val duration = recorder.lastState.duration ?: fail("The engine reported no duration to seek within.")
-        val rate = fixtureFrameRate
-
-        // One a third of a slot past its slot and one a third short of it, so a landing that rounds either way wrong
-        // lands a slot off.
-        val positions =
-          listOf(
-            offGrid(duration, ROUNDS_DOWN_AT, rate, thirds = 1),
-            offGrid(duration, ROUNDS_UP_AT, rate, thirds = -1),
-          )
-        for (at in positions) {
-          val landing = outputSlotTime(outputSlotOf(at, rate), rate)
-          val before = recorder.seekCompletions.size
-          subject.engine.seekTo(at, SeekAccuracy.Exact)
-          awaitContract("the seek to $at to complete") { recorder.seekCompletions.size > before }
-
-          recorder.seekCompletions.last().position shouldBe landing
-          recorder.playhead shouldBe landing
-
-          subject.quiet()
-          recorder.playhead shouldBe landing
-        }
-      }
-    }
+    seekLandings.anExactSeekReportsItsSlot(ROUNDS_DOWN_AT, ROUNDS_UP_AT)
 
   @Test
   fun aRelaxedSeekReportsASlotThePlayheadAgreesWith() =
-    contractTest { scope ->
-      val subject = createEngine(scope)
-      withEngine(subject.engine) { recorder ->
-        subject.engine.awaitComposition(fixture).shouldBeInstanceOf<SetCompositionResult.Success>()
-        awaitContract("the engine to become seekable") { recorder.lastState.hasComposition }
-        val duration = recorder.lastState.duration ?: fail("The engine reported no duration to seek within.")
-        val rate = fixtureFrameRate
-
-        val at = offGrid(duration, RELAXED_AT, rate, thirds = 1)
-        val tolerance = relaxedSeekTolerance
-        val earliest = outputSlotTime(outputSlotOf((at - tolerance).coerceAtLeast(Duration.ZERO), rate), rate)
-        val latest = outputSlotTime(outputSlotOf(at + tolerance, rate), rate)
-        val before = recorder.seekCompletions.size
-        subject.engine.seekTo(at, SeekAccuracy.Nearest)
-        awaitContract("the relaxed seek to $at to complete") { recorder.seekCompletions.size > before }
-
-        // The frame shown can sit on either side of the target, so the slot reported can too.
-        val reported = recorder.seekCompletions.last().position
-        outputSlotTime(outputSlotOf(reported, rate), rate) shouldBe reported
-        reported shouldBeGreaterThanOrEqualTo earliest
-        reported shouldBeLessThanOrEqualTo latest
-
-        subject.quiet()
-        recorder.playhead shouldBe reported
-      }
-    }
+    seekLandings.aRelaxedSeekReportsItsSlot(RELAXED_AT, relaxedSeekTolerance)
 
   @Test
   fun aShuttleRunsToEachEdgeAndHolds() = shuttles.runsToEachEdgeAndHolds()
@@ -318,6 +242,16 @@ abstract class PlayerEngineContractTest {
   @Test
   fun aPlayingRelaxedSeekHoldsTheRequestedSlotThenPlaysOnFromWhereItLanded() =
     relaxedSeeks.holdsThenPlaysOnFromWhereItLanded(ROUNDS_UP_AT)
+
+  @Test
+  fun aSettledPauseReportsASteadySlotAndTheOneOnScreenWhereTheBackendKnowsIt() =
+    pauses.reportsASteadySlotAndTheOneOnScreenWhereTheBackendKnowsIt()
+
+  @Test
+  fun aStepFromASettledPauseLandsOnTheNeighbours() = pauses.aStepFromThePauseLandsOnTheNeighbours()
+
+  @Test
+  fun aPlayAfterASettledPauseNeverReadsBehindIt() = pauses.aPlayAfterAPauseNeverReadsBehindIt()
 
   @Test
   fun anEqualCompositionDoesNoPlatformWork() =
@@ -450,13 +384,20 @@ abstract class PlayerEngineContractTest {
   fun aLoopRangeEndingPastTheDurationWrapsAtTheCompositionEnd() =
     loopEnds.wrapsAtTheCompositionEnd(thirds = -1) { start, duration -> TimeRange.of(start, duration + duration / 2) }
 
+  @Test
+  fun aPlayToTheEndReportsEndedAtTheDuration() = loopEnds.endsAtTheDuration()
+
   private suspend fun EngineUnderTest.quiet() {
     awaitStep("the engine to go quiet") { awaitQuiet() }
   }
 
   private val rebuilds: RebuildContract get() = RebuildContract(::createEngine, fixture, fixtureFrameRate)
 
+  private val seekLandings: SeekLandingContract get() = SeekLandingContract(::createEngine, fixture, fixtureFrameRate)
+
   private val relaxedSeeks: RelaxedSeekContract get() = RelaxedSeekContract(::createEngine, fixture, fixtureFrameRate)
+
+  private val pauses: PausePositionContract get() = PausePositionContract(::createEngine, fixture, fixtureFrameRate)
 
   private val shuttles: ShuttleContract get() = ShuttleContract(::createEngine, fixture, fixtureFrameRate)
 
@@ -470,19 +411,6 @@ abstract class PlayerEngineContractTest {
   private val fixtureParameters: Composition get() = fixture.withEffects(listOf(Brightness(RETUNED_BRIGHTNESS)))
 
   private companion object {
-    val BURST_SIZES = listOf(1, 2, 5, 9)
-
-    /**
-     * [count] positions spread evenly across `(0, duration)`, touching neither end.
-     *
-     * Zero and the duration are the two a backend special-cases, and a suite that visited only
-     * those would agree with an engine that handles nothing in between.
-     */
-    fun spreadOver(
-      duration: Duration,
-      count: Int,
-    ): List<Duration> = (1..count).map { step -> duration * (step / (count + 1.0)) }
-
     // Where across the composition the seeks in the landing tests aim. Well inside it, and the relaxed one mid GOP for
     // every fixture's keyframe interval.
     const val ROUNDS_DOWN_AT = 0.3

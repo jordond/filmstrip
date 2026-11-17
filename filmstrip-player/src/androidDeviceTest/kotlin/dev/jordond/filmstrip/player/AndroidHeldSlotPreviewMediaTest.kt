@@ -35,8 +35,7 @@ class AndroidHeldSlotPreviewMediaTest {
     onHeldSurface(Case.Half) { rig -> rig.seekAndShow(rig.firstSlot()) }
 
   @Test
-  fun aSeekIntoTheHoldAtTheStartOfTheClipDrawsThatSlot() =
-    onHeldSurface(Case.Half) { rig -> rig.seekAndShow(1, opening = true) }
+  fun aSeekIntoTheHoldAtTheStartOfTheClipDrawsThatSlot() = onHeldSurface(Case.Half) { rig -> rig.seekAndShow(1) }
 
   @Test
   fun aSeekIntoTheHoldAtTheEndOfTheClipDrawsThatSlot() =
@@ -89,7 +88,7 @@ class AndroidHeldSlotPreviewMediaTest {
       rig.player.seekTo(rig.slotTime(slot), SeekAccuracy.Exact)
       val pictures = rig.picturesPlayingUntilPast(slot + HOLD_PAST)
 
-      rig.shouldHavePlayedOn(pictures, from = slot)
+      rig.shouldHavePlayedOn(pictures, from = slot, reported = rig.reportedSlot())
     }
 
   // A pause that rested on a repeat left only that slot drawn, so playing on from it has to decode the sample again.
@@ -100,7 +99,7 @@ class AndroidHeldSlotPreviewMediaTest {
       rig.seekAndShow(slot)
       val pictures = rig.picturesPlayingUntilPast(slot + HOLD_PAST)
 
-      rig.shouldHavePlayedOn(pictures, from = slot)
+      rig.shouldHavePlayedOn(pictures, from = slot, reported = rig.reportedSlot())
     }
 
   // Every step of a scrub is one seek. A step onto a later slot of the hold the surface rests on is onto the

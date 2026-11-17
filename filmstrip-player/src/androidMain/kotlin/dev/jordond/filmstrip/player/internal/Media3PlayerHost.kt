@@ -149,8 +149,9 @@ internal class Media3PlayerHost(
   // The frame listener is called on media3's playback thread, once for each frame the video graph hands the surface.
   private fun CompositionPlayer.listenTo(generation: Int) {
     addListener(listenerFor(generation))
-    setVideoFrameMetadataListener { _, _, _, _ ->
+    setVideoFrameMetadataListener { presentationTimeUs, _, _, _ ->
       if (generation == epoch) {
+        status.renderedUs = presentationTimeUs
         seeks.frameDrawn()
         onFrame()
       }

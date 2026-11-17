@@ -499,9 +499,26 @@ internal class AvPlayerEngine(
     reachedEnd = true
     transport.stop()
     val duration = plan?.resolved?.duration ?: Duration.ZERO
+    val end = endReached(duration)
+    if (!seeks.inFlight) {
+      transport.jumpTo(end)
+      emitPosition(end)
+    }
     if (refusal == null) setStatus(PlaybackStatus.Ended)
     setPlayWhenReady(false)
-    emitEvent(PlaybackEvent.Ended(readPosition(), duration))
+    emitEvent(PlaybackEvent.Ended(end, duration))
+  }
+
+  /**
+   * Where the playhead reads once the item has played to its end, which is [duration] and never past it.
+   *
+   * AVFoundation's limit: the item's clock counts in ticks of the media timescale and stops on the tick nearest the end
+   * of the edit, short of it or past it. Only an end the playback range put before the end of the edit is read off the
+   * clock.
+   */
+  private fun endReached(duration: Duration): Duration {
+    val rangeEnd = playbackRange?.endExclusive
+    return if (rangeEnd != null && rangeEnd < duration) minOf(readPosition(), duration) else duration
   }
 
   /**

@@ -1,6 +1,8 @@
 package dev.jordond.filmstrip.player.internal
 
 import android.os.Handler
+import android.view.SurfaceView
+import android.view.TextureView
 import android.view.View
 import androidx.media3.common.Player
 import androidx.media3.common.util.ExperimentalApi
@@ -27,6 +29,8 @@ import kotlin.concurrent.Volatile
  * @param drawnOnto Whether a frame has reached the attached view. Read on the player's thread.
  * @param represent Seeks back to the slot the preview holds, and is told whether a surface going is why. Called on
  * the player's thread.
+ * @param onTargetMoved Called on the engine's dispatcher once a view is attached or let go of, which is when what the
+ * surface can show may have changed.
  */
 @ExperimentalApi
 internal class Media3SurfaceManager(
@@ -38,6 +42,7 @@ internal class Media3SurfaceManager(
   private val onDetached: () -> Unit,
   private val drawnOnto: () -> Boolean,
   private val represent: (surfaceLost: Boolean) -> Unit,
+  private val onTargetMoved: () -> Unit = {},
 ) {
   /**
    * The view the player draws into. Player thread only. The surface posts its attachment across rather than writing
@@ -81,6 +86,39 @@ internal class Media3SurfaceManager(
   @Volatile
   var represents: Int = 0
     private set
+
+  /**
+   * Draws into [view] from now on, replacing whatever surface the player was pointed at.
+   *
+   * A player rebuilt for a different video graph takes the same view with it.
+   */
+  fun attachSurfaceView(view: SurfaceView) {
+    attach(SurfaceViewTarget(view))
+    scope.launch { onTargetMoved() }
+  }
+
+  /**
+   * Draws into [view] from now on, through a surface the engine owns over the view's texture.
+   *
+   * A texture shows SDR only, so an HDR edit is planned again as a tone map, and every frame is copied once more on
+   * its way to the screen.
+   */
+  fun attachTextureView(view: TextureView) {
+    attach(TextureViewTarget(view, handler))
+    scope.launch { onTargetMoved() }
+  }
+
+  /**
+   * Stops drawing into [view], leaving a view another surface has since attached alone, and releases the surface over
+   * a texture.
+   *
+   * The next surface has to earn its own first frame, which media3 raises again as it takes over the player's video
+   * output.
+   */
+  fun detachView(view: View) {
+    detach(view)
+    scope.launch { onTargetMoved() }
+  }
 
   fun attach(target: PreviewTarget) {
     target.listen { change -> onChanged(target, change) }

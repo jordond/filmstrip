@@ -4,7 +4,12 @@ import android.os.Handler
 import androidx.media3.common.Player
 import dev.jordond.filmstrip.edit.outputSlotTime
 import dev.jordond.filmstrip.player.SeekAccuracy
+import dev.jordond.filmstrip.player.internal.HeldPinRig.Companion.ELSEWHERE_MS
+import dev.jordond.filmstrip.player.internal.HeldPinRig.Companion.FIRST_AT
+import dev.jordond.filmstrip.player.internal.HeldPinRig.Companion.HELD_AT
+import dev.jordond.filmstrip.player.internal.HeldPinRig.Companion.INTO_SLOT
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
+import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe
 import io.mockk.every
 import io.mockk.mockk
@@ -21,14 +26,14 @@ import kotlin.time.Duration.Companion.seconds
 /**
  * Which slot of a held sample a seek pins the preview to, with the player's thread run inline.
  *
- * Slot [HELD] shows the sample written on slot [FIRST], so a seek to it is handed to media3 at [FIRST].
+ * Slot [HELD_AT] shows the sample written on slot [FIRST_AT], so a seek to it is handed to media3 at [FIRST_AT].
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class Media3HeldPinTest {
   @Test
   fun `a paused seek into a hold pins the slot it is for`() =
     runTest {
-      val rig = Rig(this, playing = false)
+      val rig = HeldPinRig(this, playing = false)
 
       rig.seeks.seek(HELD_AT, SeekAccuracy.Exact, wrap = false) { }
       runCurrent()
@@ -39,7 +44,7 @@ class Media3HeldPinTest {
   @Test
   fun `a playing seek into a hold pins nothing`() =
     runTest {
-      val rig = Rig(this, playing = true)
+      val rig = HeldPinRig(this, playing = true)
 
       rig.seeks.seek(HELD_AT, SeekAccuracy.Exact, wrap = false) { }
       runCurrent()
@@ -47,10 +52,55 @@ class Media3HeldPinTest {
       rig.pins.last() shouldBe null
     }
 
+  // Scrubbing mode stops the player on the frame the seek lands on, so nothing draws the later slots of the sample.
+  @Test
+  fun `a playing seek into a hold in a scrub pins the slot it is for`() =
+    runTest {
+      val rig = HeldPinRig(this, playing = true, scrubbing = true, restingMs = ELSEWHERE_MS)
+
+      rig.seeks.seek(HELD_AT, SeekAccuracy.Exact, wrap = false) { }
+      runCurrent()
+
+      rig.pins.last() shouldBe HELD_AT
+    }
+
+  @Test
+  fun `a playing seek into a hold handed over once its scrub has ended pins nothing`() =
+    runTest {
+      val rig = HeldPinRig(this, playing = true, scrubbing = true, deferred = true, restingMs = ELSEWHERE_MS)
+
+      rig.seeks.seek(HELD_AT, SeekAccuracy.Exact, wrap = false) { }
+      rig.scrubbing = false
+      rig.runQueued()
+      runCurrent()
+
+      rig.pins.last() shouldBe null
+    }
+
+  @Test
+  fun `only a player that rests on the frame it is sent to is pinned to a later slot of a hold`() {
+    heldSlotOf(HELD_AT, FIRST_AT, playWanted = false, scrubbing = false) shouldBe HELD_AT
+    heldSlotOf(HELD_AT, FIRST_AT, playWanted = true, scrubbing = true) shouldBe HELD_AT
+    heldSlotOf(HELD_AT, FIRST_AT, playWanted = true, scrubbing = false) shouldBe null
+    heldSlotOf(FIRST_AT, FIRST_AT, playWanted = false, scrubbing = true) shouldBe null
+  }
+
+  // A rebuild starts the fresh graph on the slot the playhead holds and pins it by the rule a seek is pinned by.
+  @Test
+  fun `a player told to play that is rebuilt in a scrub onto a later slot of a hold is pinned to it`() =
+    runTest {
+      val rig = HeldPinRig(this, playing = true, scrubbing = true)
+
+      rig.pin.pin(heldSlotOf(HELD_AT, FIRST_AT, playWanted = rig.playing, scrubbing = rig.scrubbing))
+
+      rig.pins.last() shouldBe HELD_AT
+      rig.pin.slot shouldBe HELD_AT
+    }
+
   @Test
   fun `a seek into a hold followed by a play leaves no pin`() =
     runTest {
-      val rig = Rig(this, playing = false)
+      val rig = HeldPinRig(this, playing = false)
 
       rig.seeks.seek(HELD_AT, SeekAccuracy.Exact, wrap = false) { }
       // What the engine posts behind it, as the player starts to play.
@@ -63,7 +113,7 @@ class Media3HeldPinTest {
   @Test
   fun `a scrub onto a hold is one seek to the first slot of the sample`() =
     runTest {
-      val rig = Rig(this, playing = false, scrubbing = true, restingMs = ELSEWHERE_MS)
+      val rig = HeldPinRig(this, playing = false, scrubbing = true, restingMs = ELSEWHERE_MS)
 
       rig.seeks.seek(HELD_AT, SeekAccuracy.Nearest, wrap = false) { }
       runCurrent()
@@ -78,7 +128,7 @@ class Media3HeldPinTest {
   @Test
   fun `a scrub onto a later slot of the hold the player rests on goes through the millisecond beside it`() =
     runTest {
-      val rig = Rig(this, playing = false, scrubbing = true)
+      val rig = HeldPinRig(this, playing = false, scrubbing = true)
 
       rig.seeks.seek(HELD_AT, SeekAccuracy.Exact, wrap = false) { }
       runCurrent()
@@ -91,7 +141,7 @@ class Media3HeldPinTest {
   @Test
   fun `a seek issued while scrubbing goes unnudged though the scrub has ended by the time it is handed over`() =
     runTest {
-      val rig = Rig(this, playing = false, scrubbing = true, deferred = true, restingMs = ELSEWHERE_MS)
+      val rig = HeldPinRig(this, playing = false, scrubbing = true, deferred = true, restingMs = ELSEWHERE_MS)
 
       rig.seeks.seek(HELD_AT, SeekAccuracy.Nearest, wrap = false) { }
       rig.scrubbing = false
@@ -104,7 +154,7 @@ class Media3HeldPinTest {
   @Test
   fun `a paused seek into a hold the player rests on is nudged when the pin moves`() =
     runTest {
-      val rig = Rig(this, playing = false)
+      val rig = HeldPinRig(this, playing = false)
 
       rig.seeks.seek(HELD_AT, SeekAccuracy.Exact, wrap = false) { }
       runCurrent()
@@ -115,7 +165,7 @@ class Media3HeldPinTest {
   @Test
   fun `replaying a pause on a hold seeks fresh to the first slot with no pin and answers nothing`() =
     runTest {
-      val rig = Rig(this, playing = true)
+      val rig = HeldPinRig(this, playing = true)
 
       rig.seeks.replay(HELD_AT)
       runCurrent()
@@ -129,7 +179,7 @@ class Media3HeldPinTest {
   @Test
   fun `a pause pins the slot it rests on and no play queued before it lets go of it`() =
     runTest {
-      val rig = Rig(this, playing = false)
+      val rig = HeldPinRig(this, playing = false)
 
       rig.seeks.resume(at = FIRST_AT)
       rig.seeks.pause(HELD_AT)
@@ -142,7 +192,7 @@ class Media3HeldPinTest {
   @Test
   fun `a seek to the slot a seek already landed on is skipped, since that seek drew its frame`() =
     runTest {
-      val rig = Rig(this, playing = false)
+      val rig = HeldPinRig(this, playing = false)
 
       rig.seeks.seek(HELD_AT, SeekAccuracy.Exact, wrap = false) { }
       runCurrent()
@@ -156,7 +206,7 @@ class Media3HeldPinTest {
   @Test
   fun `a seek to the millisecond a pause rests on is carried out, since the player played its way there`() =
     runTest {
-      val rig = Rig(this, playing = true)
+      val rig = HeldPinRig(this, playing = true)
 
       rig.seeks.pause(HELD_AT)
       rig.seeks.seek(HELD_AT, SeekAccuracy.Exact, wrap = false) { }
@@ -168,7 +218,7 @@ class Media3HeldPinTest {
   @Test
   fun `a seek to the slot a seek landed on is carried out once the player has played since`() =
     runTest {
-      val rig = Rig(this, playing = false)
+      val rig = HeldPinRig(this, playing = false)
 
       rig.seeks.seek(FIRST_AT, SeekAccuracy.Exact, wrap = false) { }
       runCurrent()
@@ -183,7 +233,7 @@ class Media3HeldPinTest {
   @Test
   fun `a scrub onto the millisecond a pause rests on goes through the millisecond beside it`() =
     runTest {
-      val rig = Rig(this, playing = true, scrubbing = true)
+      val rig = HeldPinRig(this, playing = true, scrubbing = true)
 
       rig.seeks.pause(FIRST_AT)
       rig.seeks.seek(FIRST_AT, SeekAccuracy.Exact, wrap = false) { }
@@ -196,7 +246,7 @@ class Media3HeldPinTest {
   @Test
   fun `a play is let go of the pin and replays the held sample of a paused player`() =
     runTest {
-      val rig = Rig(this, playing = false)
+      val rig = HeldPinRig(this, playing = false)
 
       rig.seeks.pause(HELD_AT)
       rig.seeks.resume(at = HELD_AT)
@@ -211,7 +261,7 @@ class Media3HeldPinTest {
   @Test
   fun `a play from inside the first slot of a sample seeks nothing`() =
     runTest {
-      val rig = Rig(this, playing = true)
+      val rig = HeldPinRig(this, playing = true)
 
       rig.seeks.pause(FIRST_AT + INTO_SLOT)
       rig.seeks.resume(at = FIRST_AT + INTO_SLOT)
@@ -224,7 +274,7 @@ class Media3HeldPinTest {
   @Test
   fun `a play from inside a later slot of a held sample replays it from the slot the time lands on`() =
     runTest {
-      val rig = Rig(this, playing = true)
+      val rig = HeldPinRig(this, playing = true)
 
       rig.seeks.pause(HELD_AT + INTO_SLOT)
       rig.seeks.resume(at = HELD_AT + INTO_SLOT)
@@ -237,82 +287,11 @@ class Media3HeldPinTest {
   @Test
   fun `a play asked for while the player is already playing seeks nothing`() =
     runTest {
-      val rig = Rig(this, playing = true)
+      val rig = HeldPinRig(this, playing = true)
 
       rig.seeks.resume(at = HELD_AT)
       runCurrent()
 
       verify(exactly = 0) { rig.player.seekTo(any<Long>()) }
     }
-
-  private class Rig(
-    scope: TestScope,
-    var playing: Boolean,
-    var scrubbing: Boolean = false,
-    private val deferred: Boolean = false,
-    restingMs: Long = FIRST_AT.inWholeMilliseconds,
-  ) {
-    val pins = mutableListOf<Duration?>()
-    private val queued = ArrayDeque<Runnable>()
-
-    /**
-     * Runs what was posted to the player's thread, and what that posts, as the thread gets to it.
-     */
-    fun runQueued() {
-      while (queued.isNotEmpty()) queued.removeFirst().run()
-    }
-
-    private val handler =
-      mockk<Handler>().also {
-        every { it.post(any()) } answers {
-          if (deferred) queued += firstArg<Runnable>() else firstArg<Runnable>().run()
-          true
-        }
-      }
-
-    val player =
-      mockk<Player>().also {
-        every { it.currentPosition } returns restingMs
-        every { it.playbackState } returns Player.STATE_READY
-        every { it.isPlaying } returns false
-        every { it.playWhenReady } answers { playing }
-        every { it.playWhenReady = any() } answers { playing = firstArg() }
-        every { it.seekTo(any<Long>()) } returns Unit
-      }
-
-    private val composition =
-      mockk<ResolvedComposition>().also {
-        every { it.duration } returns LENGTH
-        every { it.frameRate } returns RATE
-      }
-
-    val seeks =
-      Media3SeekCoordinator(
-        scope = scope,
-        handler = handler,
-        player = { player },
-        playbackLooper = { null },
-        resolved = { composition },
-        guard = WrapGuard(),
-        platformPositionMs = { FIRST_AT.inWholeMilliseconds },
-        loopWrap = { null },
-        scrubbing = { this.scrubbing },
-        showsFrames = { true },
-        onIssued = { },
-        onRedirected = { },
-        firstSlotOf = { if (it in FIRST_AT..<AFTER_AT) FIRST_AT else it },
-        pinSlot = { pins += it },
-        onRepresented = { },
-      )
-  }
-
-  private companion object {
-    const val RATE = 30
-    val LENGTH = 3.seconds
-    val FIRST_AT = outputSlotTime(20, RATE)
-    val HELD_AT = outputSlotTime(21, RATE)
-    val AFTER_AT = outputSlotTime(22, RATE)
-    val INTO_SLOT = 10.milliseconds
-    const val ELSEWHERE_MS = 100L
-  }
 }

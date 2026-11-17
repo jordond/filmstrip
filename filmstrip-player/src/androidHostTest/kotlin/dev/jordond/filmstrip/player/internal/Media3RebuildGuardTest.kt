@@ -127,7 +127,7 @@ class Media3RebuildGuardTest {
   fun `a player started on the standing generation lets go of the slot a pause pinned`() =
     runTest {
       val rig = Rig(this)
-      rig.seeks.pin(HELD_MS.milliseconds)
+      rig.pin.pin(HELD_MS.milliseconds)
 
       rig.listener.onPlayWhenReadyChanged(true, Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST)
 
@@ -138,7 +138,7 @@ class Media3RebuildGuardTest {
   fun `a player of a generation since replaced starting leaves the pin alone`() =
     runTest {
       val rig = Rig(this)
-      rig.seeks.pin(HELD_MS.milliseconds)
+      rig.pin.pin(HELD_MS.milliseconds)
 
       rig.listenerOf(generation = STALE).onPlayWhenReadyChanged(true, Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST)
 
@@ -149,11 +149,44 @@ class Media3RebuildGuardTest {
   fun `a player stopping lets go of no pin`() =
     runTest {
       val rig = Rig(this)
-      rig.seeks.pin(HELD_MS.milliseconds)
+      rig.pin.pin(HELD_MS.milliseconds)
+      rig.playWhenReady = false
 
       rig.listener.onPlayWhenReadyChanged(false, Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST)
+      rig.runPosted()
 
       rig.pins shouldBe listOf<Duration?>(HELD_MS.milliseconds)
+    }
+
+  // No pause was asked for, so nothing else pins the slot the player stopped on.
+  @Test
+  fun `a player media3 stops itself is pinned to the frame it stopped on`() =
+    runTest {
+      val rig = Rig(this)
+      rig.playWhenReady = false
+      rig.drawn = HELD_MS.milliseconds
+
+      rig.listener.onPlayWhenReadyChanged(false, Player.PLAY_WHEN_READY_CHANGE_REASON_AUDIO_FOCUS_LOSS)
+      rig.pins.shouldBeEmpty()
+      rig.runPosted()
+
+      rig.pins shouldBe listOf<Duration?>(HELD_MS.milliseconds)
+    }
+
+  @Test
+  fun `a player of a generation since replaced stopping pins nothing`() =
+    runTest {
+      val rig = Rig(this)
+      rig.playWhenReady = false
+      rig.drawn = HELD_MS.milliseconds
+
+      rig
+        .listenerOf(
+          generation = STALE,
+        ).onPlayWhenReadyChanged(false, Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST)
+      rig.runPosted()
+
+      rig.pins.shouldBeEmpty()
     }
 
   @Test
@@ -243,6 +276,8 @@ class Media3RebuildGuardTest {
     val external = mutableListOf<Boolean>()
     val recorded = mutableListOf<Long>()
     val pins = mutableListOf<Duration?>()
+    var playWhenReady = true
+    var drawn: Duration? = null
     val loads = Media3GraphLoads(scope)
 
     private val posted = ArrayDeque<Runnable>()
@@ -257,7 +292,7 @@ class Media3RebuildGuardTest {
       mockk<Player>().also {
         every { it.currentPosition } returns READING_MS
         every { it.duration } returns C.TIME_UNSET
-        every { it.playWhenReady } returns true
+        every { it.playWhenReady } answers { playWhenReady }
         every { it.playbackState } returns Player.STATE_READY
         every { it.isPlaying } returns true
         every { it.seekTo(any<Long>()) } returns Unit
@@ -284,12 +319,14 @@ class Media3RebuildGuardTest {
         emitEvent = { events += it },
       )
 
+    val pin = Media3HeldPin(player = { player }, frameRate = { RATE }, pinSlot = { pins += it }, drawn = { drawn })
+
     val seeks =
       Media3SeekCoordinator(
         scope = scope,
         handler = handler,
         player = { player },
-        playbackLooper = { null },
+        playback = { null },
         resolved = { loaded },
         guard = guard,
         platformPositionMs = { status.platformPositionMs },
@@ -298,7 +335,7 @@ class Media3RebuildGuardTest {
         showsFrames = { false },
         onIssued = { },
         onRedirected = { },
-        pinSlot = { pins += it },
+        pin = pin,
         onRepresented = { },
       )
 

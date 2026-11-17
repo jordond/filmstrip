@@ -40,6 +40,9 @@ public class PlayerState
      *
      * Answers "is video advancing", so it drives analytics rather than buttons. It is false while
      * buffering even though the user pressed play.
+     *
+     * On Android it stays true through a scrub of a playing player, though media3 holds the picture on each frame the
+     * scrub seeks to until [PlayerTransport.endScrub].
      */
     public val isPlaying: Boolean
       get() = status == PlaybackStatus.Ready && playWhenReady && !isStalled

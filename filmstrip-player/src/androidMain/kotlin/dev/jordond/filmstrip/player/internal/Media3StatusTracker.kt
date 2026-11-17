@@ -51,6 +51,13 @@ internal class Media3StatusTracker(
   var platformDurationMs: Long = C.TIME_UNSET
     private set
 
+  /**
+   * The stamp of the last frame media3 handed the surface, in microseconds on the composition's timeline, or
+   * [NO_FRAME] from a load or a seek until the next frame is drawn.
+   */
+  @Volatile
+  var renderedUs: Long = NO_FRAME
+
   // Read on the player's thread and written on the engine's. media3 keeps a size read off the
   // holder only once it has a graph to hand it to, and this is the engine's view of whether it has.
   @Volatile
@@ -135,10 +142,16 @@ internal class Media3StatusTracker(
    * Forgets the surface's first frame once the player lets go of it, so the next surface earns its own.
    */
   fun onSurfaceDetached() {
+    renderedUs = NO_FRAME
     surfaceRendered = false
     firstFrameEmitted = false
     shutter.reveal()
   }
+
+  /**
+   * Whether the player has reached the end of the composition and nothing has moved it since.
+   */
+  val isEnded: Boolean get() = ended
 
   /**
    * Forgets the ending, so an end media3 reports after this is reported again.
@@ -162,6 +175,7 @@ internal class Media3StatusTracker(
    * Forgets everything the last graph reported, as a fresh one is built.
    */
   fun reset() {
+    renderedUs = NO_FRAME
     graphUp = false
     failure = null
     playerErrored = false
@@ -235,3 +249,8 @@ internal class Media3StatusTracker(
     emitEvent(PlaybackEvent.FirstFrameRendered)
   }
 }
+
+/**
+ * What [Media3StatusTracker.renderedUs] holds while no frame has been drawn since a load or a seek.
+ */
+internal const val NO_FRAME = Long.MIN_VALUE

@@ -45,6 +45,32 @@ interface EngineUnderTest {
   val platformDuration: Duration? get() = null
 
   /**
+   * The time stamp of the picture this backend has on screen, or last handed to what draws it, read off the platform
+   * and never off the position the engine reports, or null where the backend has no such measure.
+   *
+   * A suite that compares the reported position with the picture asks for this, and only claims what a backend that
+   * answers can show. A backend whose position is the platform's own clock and whose picture is whatever the platform
+   * draws at it has nothing to tell the two apart with, and leaves this null rather than answer with the position.
+   */
+  suspend fun shownAt(): Duration? = null
+
+  /**
+   * Whether this backend answers [shownAt] once a pause has settled.
+   *
+   * A suite asserts the answer is there exactly where this says so, so a backend that stops answering fails rather
+   * than passing on an absence.
+   */
+  val namesPictureShown: Boolean get() = false
+
+  /**
+   * Whether a pause moves the playhead onto the slot of the frame the player stopped on, which can sit up to one slot
+   * behind the last reading of its clock.
+   *
+   * A backend that pauses on its clock says no, and its playhead is held to never stepping back at a pause.
+   */
+  val pauseLandsOnSlot: Boolean get() = false
+
+  /**
    * Suspends until the work that could still report to a listener has reported, so an absence checked afterwards is a
    * finding rather than a race the check won.
    *

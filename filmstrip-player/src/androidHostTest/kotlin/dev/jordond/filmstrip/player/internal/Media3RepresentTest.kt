@@ -15,6 +15,7 @@ import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
+import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
@@ -172,6 +173,42 @@ class Media3RepresentTest {
       rig.seeks.target shouldBe null
     }
 
+  // media3's clock stops a slot or two behind the last frame it drew, and that frame is the one the playhead reports.
+  @Test
+  fun `a paused player is seeked back to the slot of the frame it shows and not to where its clock stopped`() =
+    runTest {
+      val rig = Rig(this)
+      rig.resting = SHOWN
+      rig.seeks.position() shouldBe SHOWN
+
+      rig.seeks.represent(surfaceLost = true)
+      runCurrent()
+
+      rig.seeks.position() shouldBe SHOWN
+      verifyOrder {
+        rig.player.seekTo(seekNudgeMs(SHOWN.inWholeMilliseconds))
+        rig.player.seekTo(SHOWN.inWholeMilliseconds)
+      }
+      verify(exactly = 0) { rig.player.seekTo(RESTING_MS) }
+    }
+
+  // The surface took its frame with it, and the clock the engine mirrors still reads from before the seek back.
+  @Test
+  fun `the playhead stays on the slot a paused player showed once the seek back for a lost surface has landed`() =
+    runTest {
+      val rig = Rig(this)
+      rig.resting = SHOWN
+      rig.seeks.position() shouldBe SHOWN
+
+      rig.seeks.represent(surfaceLost = true)
+      runCurrent()
+      rig.resting = null
+      rig.seeks.accepted(rig.seeks.playerSerial)
+
+      rig.represented shouldBe 1
+      rig.seeks.position() shouldBe SHOWN
+    }
+
   /**
    * A coordinator over a paused player, with every post run inline and frames reaching a surface.
    */
@@ -180,6 +217,7 @@ class Media3RepresentTest {
     loaded: Boolean = true,
   ) {
     var represented = 0
+    var resting: Duration? = null
 
     private val handler =
       mockk<Handler>().also {
@@ -209,7 +247,7 @@ class Media3RepresentTest {
         scope = scope,
         handler = handler,
         player = { player },
-        playbackLooper = { null },
+        playback = { null },
         resolved = { composition.takeIf { loaded } },
         guard = WrapGuard(),
         platformPositionMs = { RESTING_MS },
@@ -218,6 +256,7 @@ class Media3RepresentTest {
         showsFrames = { true },
         onIssued = { },
         onRedirected = { },
+        resting = { resting },
         onRepresented = { represented++ },
       )
   }
@@ -231,5 +270,8 @@ class Media3RepresentTest {
 
     // Slot 45, a second and a half in, which is also a whole millisecond.
     val ASKED = 1_500.milliseconds
+
+    // Slot 24, three slots on from where the clock stopped.
+    val SHOWN = 800.milliseconds
   }
 }

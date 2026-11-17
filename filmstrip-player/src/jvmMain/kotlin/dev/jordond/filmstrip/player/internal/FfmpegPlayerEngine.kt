@@ -52,6 +52,11 @@ internal class FfmpegPlayerEngine(
 ) : PlannedPlayerEngine<PreviewPlan>(parent, config.qualityPolicy, config.exportSpec, planner) {
   private var position: Duration = Duration.ZERO
   private var presented: PreviewFrame? = null
+
+  /**
+   * The stamp of the frame the transport last presented, or null before one has been.
+   */
+  internal val presentedAt: Duration? get() = presented?.position
   private var firstFrameEmitted = false
   private var redrawOwed = false
 

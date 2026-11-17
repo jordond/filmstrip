@@ -141,6 +141,17 @@ class Media3StatusTrackerTest {
     }
 
   @Test
+  fun `a surface let go of forgets the frame last drawn on it`() =
+    runTest {
+      val rig = Rig(this)
+      rig.tracker.renderedUs = STAMP_US
+
+      rig.tracker.onSurfaceDetached()
+
+      rig.tracker.renderedUs shouldBe NO_FRAME
+    }
+
+  @Test
   fun `a surface let go of earns its own first frame`() =
     runTest {
       val rig = Rig(this)
@@ -355,6 +366,7 @@ class Media3StatusTrackerTest {
 
   private companion object {
     val POSITION = 700.milliseconds
+    const val STAMP_US = 700_000L
     val DURATION = 1_500.milliseconds
     val ERROR = PlaybackError.UnsupportedFormat("The decoder refused the clip.")
   }

@@ -110,6 +110,48 @@ internal class LoopEndContract(
     }
 
   /**
+   * Plays from near the end of the composition with no loop range and checks the end is reported once, at the
+   * composition's duration.
+   *
+   * The end is the duration on every backend, whatever slot the last frame it drew was on, and the playhead reads it
+   * there too, both once the engine is quiet and after a pause at the end.
+   */
+  fun endsAtTheDuration(): TestResult =
+    contractTest { scope ->
+      val subject = createEngine(scope)
+      withEngine(subject.engine) { recorder ->
+        subject.engine.awaitComposition(fixture).shouldBeInstanceOf<SetCompositionResult.Success>()
+        awaitContract("the engine to become seekable") { recorder.lastState.hasComposition }
+        val duration = recorder.lastState.duration ?: fail("The engine reported no duration to play to the end of.")
+
+        val approach = outputSlotTime(outputSlotOf(duration * APPROACH_AT, rate), rate)
+        val seeks = recorder.seekCompletions.size
+        subject.engine.seekTo(approach, SeekAccuracy.Exact)
+        awaitContract("the seek to $approach to complete") { recorder.seekCompletions.size > seeks }
+
+        val eventsMark = recorder.events.size
+        subject.engine.play()
+        awaitContract("playback to reach the end") {
+          recorder.events.drop(eventsMark).any { it is PlaybackEvent.Ended }
+        }
+        awaitStep("the engine to go quiet") { subject.awaitQuiet() }
+
+        val ended =
+          recorder.events
+            .drop(eventsMark)
+            .filterIsInstance<PlaybackEvent.Ended>()
+            .single()
+        ended.finalPosition shouldBe duration
+        recorder.lastState.status shouldBe PlaybackStatus.Ended
+        recorder.playhead shouldBe duration
+
+        subject.engine.pause()
+        awaitStep("the engine to go quiet after a pause at the end") { subject.awaitQuiet() }
+        recorder.playhead shouldBe duration
+      }
+    }
+
+  /**
    * Waits for playback to have wrapped [count] times, with at least [count] drops recorded in the playhead since
    * [positionsMark].
    *

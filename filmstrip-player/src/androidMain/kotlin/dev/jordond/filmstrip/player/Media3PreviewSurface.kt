@@ -28,8 +28,8 @@ import dev.jordond.filmstrip.player.internal.engineFor
 @InternalFilmstripApi
 public fun VideoPlayer.attachPreviewSurface(view: SurfaceView): Cancellable {
   val engine = (nativePlayer as? CompositionPlayer)?.let(::engineFor) ?: return Cancellable { }
-  engine.attachSurfaceView(view)
-  return Cancellable { engine.detachSurfaceView(view) }
+  engine.surfaces.attachSurfaceView(view)
+  return Cancellable { engine.surfaces.detachView(view) }
 }
 
 /**
@@ -49,8 +49,8 @@ public fun VideoPlayer.attachPreviewSurface(view: SurfaceView): Cancellable {
 @InternalFilmstripApi
 public fun VideoPlayer.attachPreviewSurface(view: TextureView): Cancellable {
   val engine = (nativePlayer as? CompositionPlayer)?.let(::engineFor) ?: return Cancellable { }
-  engine.attachTextureView(view)
-  return Cancellable { engine.detachTextureView(view) }
+  engine.surfaces.attachTextureView(view)
+  return Cancellable { engine.surfaces.detachView(view) }
 }
 
 /**

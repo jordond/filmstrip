@@ -33,6 +33,8 @@ internal class AndroidEngineUnderTest(
 
   override val reportsPlatformDuration: Boolean = true
 
+  override val pauseLandsOnSlot: Boolean get() = true
+
   override suspend fun awaitQuiet() {
     engine.fence.awaitDrained()
   }
