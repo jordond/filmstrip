@@ -1,6 +1,7 @@
 package dev.jordond.filmstrip.avfoundation
 
 import dev.jordond.filmstrip.Filmstrip
+import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.Track
@@ -33,6 +34,7 @@ import platform.AVFoundation.tracksWithMediaType
 import platform.Foundation.NSFileManager
 import platform.Foundation.NSTemporaryDirectory
 import platform.Foundation.NSURL
+import kotlin.experimental.ExperimentalNativeApi
 import kotlin.test.Test
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.minutes
@@ -42,7 +44,7 @@ import kotlin.time.Duration.Companion.seconds
  * Which audio track of a source with three of them an export plays, heard by the tone each track carries, in an MP4
  * and in a transport stream whose tracks are named by their place.
  */
-@OptIn(ExperimentalForeignApi::class)
+@OptIn(ExperimentalForeignApi::class, ExperimentalNativeApi::class)
 class AppleAudioTrackMediaTest {
   private val filmstrip = Filmstrip { avFoundationBackend() }
   private val source = MediaSource.of(fixture(ThreeAudio.FILE_NAME))
@@ -57,10 +59,21 @@ class AppleAudioTrackMediaTest {
       }
     }
 
+  // On iOS AVFoundation opens no transport stream at all, which is that platform's limit, so the export is refused.
   @Test
   fun `a transport stream clip plays each track it names and none of the others`() =
     runTest(timeout = TIMEOUT) {
       val stream = MediaSource.of(fixture(ThreeAudioTs.fileName))
+      if (Platform.osFamily == OsFamily.IOS) {
+        val first = Clip(stream, effects = listOf(Brightness(0.1f)), audioTrack = ThreeAudioTs.tracks.first().id)
+        val output = NSTemporaryDirectory() + "filmstrip-apple-track-ts.mp4"
+
+        finished(Composition(listOf(Track(listOf(first)))), output)
+          .shouldBeInstanceOf<ExportStatus.Failure>()
+          .error
+          .shouldBeInstanceOf<FilmstripError.SourceUnreadable>()
+        return@runTest
+      }
       ThreeAudioTs.tracks.forEach { track ->
         val audio = exported(Clip(stream, effects = listOf(Brightness(0.1f)), audioTrack = track.id), "ts")
 
@@ -119,11 +132,19 @@ class AppleAudioTrackMediaTest {
   private suspend fun export(
     composition: Composition,
     output: String,
-  ) = withContext(Dispatchers.Default) {
-    NSFileManager.defaultManager.removeItemAtPath(output, error = null)
-    val finished = filmstrip.export(composition, ExportSpec(), MediaSink.of(output)).toList().last()
+  ) {
+    val finished = finished(composition, output)
     if (finished is ExportStatus.Failure) error(finished.error.message)
   }
+
+  private suspend fun finished(
+    composition: Composition,
+    output: String,
+  ): ExportStatus =
+    withContext(Dispatchers.Default) {
+      NSFileManager.defaultManager.removeItemAtPath(output, error = null)
+      filmstrip.export(composition, ExportSpec(), MediaSink.of(output)).toList().last()
+    }
 
   // The chosen tone stands well clear of the other two, which a track mixed in or swapped for another would not.
   private fun assertHears(

@@ -35,6 +35,9 @@ import kotlin.time.Duration.Companion.seconds
  *
  * The picture fills the frame, so the fill is reached only through the picture's own alpha. The source and the clear
  * fill are read off exports of the same picture at full and no alpha, so the codes carry the encoder's own rounding.
+ *
+ * The `appleHardwareTest` source set is shared by `macosArm64Test` and `iosArm64Test`. The simulator has no ProRes
+ * decoder, which AppleSimulatorDecoderHardwareTest holds on that target.
  */
 @OptIn(ExperimentalForeignApi::class)
 class AppleSourceAlphaHardwareTest {
