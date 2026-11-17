@@ -97,13 +97,14 @@ class AndroidHdrPreviewMediaTest {
 
   // A tone mapped frame cannot be read on the emulator, which has no ten-bit decoder, so this reads the lowering and
   // the owner's HDR phone reads the pixels. Below API 29 media3 decodes no HDR source, so the preview refuses the tone
-  // map with the reason an export gives.
+  // map with the reason an export gives. The emulator's OpenGL ES offers no EXT_YUV_target, which refuses the tone map
+  // as well, so the planner is given a device that has one and the tests below read the other answers.
   @Test
   fun aToneMapSpecLowersThePreviewToTheOpenGlToneMap() =
     runTest(timeout = TIMEOUT) {
       realTime {
         val planned =
-          Media3PreviewPlanner(CONTRACT_COMPONENTS).plan(
+          Media3PreviewPlanner(CONTRACT_COMPONENTS, drawsYuvTarget = { true }).plan(
             hdrComposition(),
             PreviewQualityPolicy.Full,
             ExportSpec(hdr = HdrMode.ToneMapToSdr),
