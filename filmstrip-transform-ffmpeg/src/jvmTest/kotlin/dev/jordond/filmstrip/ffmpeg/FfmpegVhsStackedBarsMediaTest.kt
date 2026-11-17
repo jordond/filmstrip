@@ -100,6 +100,7 @@ class FfmpegVhsStackedBarsMediaTest {
     const val BAR_COLUMN = 5
     const val CLOSE_BAR = 3.0
     const val MOVES = 4.0
+
     // The faint look shifts the head rows by up to 0.1042 * 0.02 * 1.15 of the 640 pixel width, which is 1.5 pixels.
     const val EDGE_PIXELS = 1.5
     const val SIDE = 360

@@ -92,7 +92,8 @@ class TapePictureFragmentGoldenTest {
         "betamax events" to "34e366a8bddfbd1a",
         "hi8 no band" to "660c0884a509bd08",
         "vhs rolling edges" to "21c9c1d6f878d14b",
-        // The exact read across the frame writes the alpha it reads, where it wrote none, so a look after another draws.
+        // The exact read across the frame writes the alpha it reads, where it wrote none, so a look after another
+        // draws.
         "vhs rolling anywhere" to "b8cc42b5e1adb6b6",
       )
   }

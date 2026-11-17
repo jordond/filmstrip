@@ -110,7 +110,9 @@ internal class Framing(
   val heightPx: Int?,
   val requestedSize: Size,
 ) {
-  /** The frame [natural] is measured in whole pixels. */
+  /**
+   * The frame [natural] is measured in whole pixels.
+   */
   val naturalSize: Size get() = natural.size
 }
 

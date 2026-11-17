@@ -111,7 +111,8 @@ public class TapePictureParams private constructor(
     // [scopeStart], the first frame of the scope the look is in, so it is the same band in whichever slot the scope
     // sits. A look that has no [scopeStart], as one drawn from a preview's own clock has none, draws a band from tick
     // 0 and draws a band that settles as it is once it has, gone. [colourShare] is the share of its colour loss the
-    // band keeps. [settleFrom] and [settleTo] are the strengths a settle runs between, which an event band's fade reads.
+    // band keeps. [settleFrom] and [settleTo] are the strengths a settle runs between, which an event band's fade
+    // reads.
     internal fun at(
       level: Double,
       stock: PictureStock,
