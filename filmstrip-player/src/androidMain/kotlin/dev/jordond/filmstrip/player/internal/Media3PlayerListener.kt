@@ -50,6 +50,9 @@ internal class Media3PlayerListener(
     playWhenReady: Boolean,
     reason: Int,
   ) {
+    // Whoever starts the player, the filmstrip engine or media3's own controls, the slot a pause pinned is let go of
+    // here on the player's thread, which owns the pin.
+    if (playWhenReady && generation == standingGeneration()) seeks.unpin()
     dispatch { status.onPlayWhenReadyChanged(playWhenReady, reason) }
   }
 

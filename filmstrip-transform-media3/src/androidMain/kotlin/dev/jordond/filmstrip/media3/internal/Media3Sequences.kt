@@ -23,6 +23,7 @@ import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedTrack
 import dev.jordond.filmstrip.transform.internal.videoSlots
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
 
 /**
  * Lays one plan's tracks onto media3 sequences, holding what every item of them is lowered against.
@@ -31,14 +32,23 @@ import kotlin.time.Duration
  * filmstrip's own [clipAudioSpeed]. Without it media3 changes the speed, which is what a player needs, since it refuses
  * a processor that changes an item's length.
  *
+ * With [exactLengths] set, an export lays a still or a gap by its exact length, where a player holds it for whole
+ * milliseconds and lays the clips after it by that.
+ *
  * With [liveGain] set, every clip's level sits on a [ClipGainProcessor] that a standing graph can hand a new curve.
+ *
+ * With [writesEverySlot] set, a clip's video opens on a [SlotRepeat] so every slot it covers is drawn. Without it a
+ * sample is drawn once, on the first slot that shows it. Each of them reads [slotPin].
  */
 internal class Lowering(
   private val plan: ResolvedComposition,
   private val wrapper: EffectWrapper,
   private val bounds: Media3ClipReads,
   private val ownsAudioSpeed: Boolean,
+  private val exactLengths: Boolean,
   private val liveGain: Boolean,
+  private val writesEverySlot: Boolean = false,
+  private val slotPin: SlotPin? = null,
 ) {
   /**
    * The video of [track] on the output frame grid, or null when none of its clips covers a slot.
@@ -52,6 +62,7 @@ internal class Lowering(
     val builder = EditedMediaItemSequence.Builder(setOf(C.TRACK_TYPE_VIDEO))
     val lead = outputSlotTime(outputSlotOf(track.start, rate), rate)
     if (lead > Duration.ZERO) builder.addItem(gapItem(lead, rate))
+    var at = if (lead > Duration.ZERO) lead.laidBy() else lead
 
     var laid = false
     track.clips.forEach { clip ->
@@ -60,14 +71,31 @@ internal class Lowering(
       val length = outputSlotTime(slots.last + 1, rate) - outputSlotTime(slots.first, rate)
       val still = clip.source as? MediaSource.Image
       when {
-        still != null -> builder.addItem(clip.imageItem(still, length, removeAudio = true, removeVideo = false))
-        clip.info.video == null -> builder.addItem(gapItem(length, rate))
-        else -> builder.addItem(clip.gridItem(length, rate))
+        still != null -> {
+          builder.addItem(clip.imageItem(still, length, removeAudio = true, removeVideo = false))
+          at += length.laidBy()
+        }
+        clip.info.video == null -> {
+          builder.addItem(gapItem(length, rate))
+          at += length.laidBy()
+        }
+        else -> {
+          builder.addItem(clip.gridItem(length, rate, at))
+          at += length
+        }
       }
       laid = true
     }
     return if (laid) builder.build() else null
   }
+
+  /**
+   * Where the item after a still or a gap this long starts, which a [SlotRepeat] keys its frames by.
+   *
+   * An export lays by the exact length, which is [exactLengths]. A player holds the item for [heldMilliseconds], so
+   * many of them in a row put the clips after them off the exact lengths.
+   */
+  private fun Duration.laidBy(): Duration = if (exactLengths) this else heldMilliseconds().milliseconds
 
   /**
    * [track] laid at the exact times the plan resolved, carrying only [trackTypes].
@@ -143,21 +171,22 @@ internal class Lowering(
    * time.
    *
    * With the samples its window decodes read, the item is laid by [ShownFrames] and played through a [SlotPace], so
-   * every sample a slot shows is written on the first slot showing it and media3's frame rate cap drops the rest. A
-   * clip whose samples were never read is clipped from its own start, cut to what its speed plays in [length], and run
-   * at that speed.
-   *
-   * `setFrameRate` is media3's limit on slow motion: it is a maximum and nothing duplicates a frame, so a clip slowed
-   * past its source's rate writes each frame it shows once, on the first of its slots, instead of filling every slot.
+   * every sample a slot shows is written on the first slot showing it and media3's frame rate cap drops the rest. With
+   * [writesEverySlot] set a [SlotRepeat] then writes it again on each later slot that shows it. A clip whose samples
+   * were never read is clipped from its own start, cut to what its speed plays in [length], and run at that speed.
+   * The item starts [startsAt] into the timeline.
    */
   private fun ResolvedClip.gridItem(
     length: Duration,
     rate: Int,
+    startsAt: Duration,
   ): EditedMediaItem {
     val shown = bounds[this]?.let { ShownFrames.of(this, it, rate) }
     val played = sourceLengthOf(length, speed)
     val opens = shown?.opens ?: start
     val closes = shown?.closes ?: if (end - start > played) start + played else end
+    // media3's limit: with no samples read there is no sample to name a slot for, so the item is cut from its own start
+    // and run at its speed, and no frame is written on a slot of its own.
     val pace = if (shown != null) SlotPace(shown, speed) else atSpeed(closes - opens, length)
 
     return EditedMediaItem
@@ -172,7 +201,17 @@ internal class Lowering(
       .setEffects(
         Effects(
           emptyList(),
-          clipVideoEffects(plan.fill, plan.output.size, wrapper, bounds.sdPrimariesOf(this), plan.hdrTransfer),
+          listOfNotNull(
+            shown
+              ?.takeIf {
+                writesEverySlot && it.repeatsUs.isNotEmpty()
+              }?.let {
+                wrapper.wrap(
+                  SlotRepeat(it.repeatsUs, startsAt.inWholeMicroseconds, slotRepeatToleranceUs(rate), slotPin),
+                )
+              },
+          ) +
+            clipVideoEffects(plan.fill, plan.output.size, wrapper, bounds.sdPrimariesOf(this), plan.hdrTransfer),
         ),
       ).build()
   }

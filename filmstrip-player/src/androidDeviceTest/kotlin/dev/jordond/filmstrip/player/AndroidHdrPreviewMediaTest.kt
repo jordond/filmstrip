@@ -42,6 +42,7 @@ import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
+import io.kotest.matchers.string.shouldNotContain
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -81,6 +82,7 @@ class AndroidHdrPreviewMediaTest {
         val planned =
           Media3PreviewPlanner(
             CONTRACT_COMPONENTS,
+            drawsYuvTarget = { true },
           ).plan(hdrComposition(), PreviewQualityPolicy.Full, ExportSpec())
         val plan = planned.shouldBeInstanceOf<PlanResult.Ready<Media3PreviewPlan>>().plan
 
@@ -127,7 +129,7 @@ class AndroidHdrPreviewMediaTest {
   fun aSurfaceThatShowsSdrOnlyLowersAKeptGradeToTheOpenGlToneMap() =
     runTest(timeout = TIMEOUT) {
       realTime {
-        val planner = Media3PreviewPlanner(CONTRACT_COMPONENTS)
+        val planner = Media3PreviewPlanner(CONTRACT_COMPONENTS, drawsYuvTarget = { true })
         val kept = planner.plan(hdrComposition(), PreviewQualityPolicy.Full, ExportSpec())
         assumeTrue(
           "this device does not keep the grade, so there is nothing for the surface to clamp",
@@ -152,6 +154,32 @@ class AndroidHdrPreviewMediaTest {
       }
     }
 
+  // The extension is asked of the planner, so each answer is read here on any device. A device with none draws no HDR
+  // source and the plan says why. One that could not be asked is not refused on a guess.
+  @Test
+  fun aDeviceWithNoYuvTargetRefusesAToneMapForThatReason() =
+    runTest(timeout = TIMEOUT) {
+      realTime {
+        val planned =
+          Media3PreviewPlanner(CONTRACT_COMPONENTS, drawsYuvTarget = { false })
+            .plan(hdrComposition(), PreviewQualityPolicy.Full, ExportSpec(hdr = HdrMode.ToneMapToSdr))
+
+        planned.shouldBeInstanceOf<PlanResult.Refused<PlaybackError>>().error.message shouldContain "EXT_YUV_target"
+      }
+    }
+
+  @Test
+  fun aDeviceThatCouldNotBeAskedAboutYuvTargetIsNotRefusedForIt() =
+    runTest(timeout = TIMEOUT) {
+      realTime {
+        val planned =
+          Media3PreviewPlanner(CONTRACT_COMPONENTS, drawsYuvTarget = { null })
+            .plan(hdrComposition(), PreviewQualityPolicy.Full, ExportSpec(hdr = HdrMode.ToneMapToSdr))
+
+        (planned as? PlanResult.Refused<PlaybackError>)?.error?.message.orEmpty() shouldNotContain "EXT_YUV_target"
+      }
+    }
+
   // The preview lowers through the resolver an export does, so an overlay on the kept grade carries
   // the same mapped texels at the same luminance multiplier and reports the same way. A preview
   // readback of HDR levels does not exist, so the export suite reads the levels and this reads the
@@ -171,6 +199,7 @@ class AndroidHdrPreviewMediaTest {
         val planned =
           Media3PreviewPlanner(
             CONTRACT_COMPONENTS,
+            drawsYuvTarget = { true },
           ).plan(composition, PreviewQualityPolicy.Full, ExportSpec())
         val resolved = planned.shouldBeInstanceOf<PlanResult.Ready<Media3PreviewPlan>>().plan.resolved
 

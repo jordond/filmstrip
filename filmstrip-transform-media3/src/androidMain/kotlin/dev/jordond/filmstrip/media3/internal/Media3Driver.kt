@@ -42,15 +42,20 @@ import kotlin.time.Duration.Companion.microseconds
  */
 internal class Media3Driver(
   private val prober: MediaProber,
+  private val drawsYuvTarget: () -> Boolean? = ::deviceDrawsYuvTarget,
 ) : ExportDriver {
-  override suspend fun capabilities(): DeviceCapabilities = processEncoders.read()
+  // One answer for this driver, known or not, so what it reports it can do and what it refuses to do never disagree.
+  private val yuvTarget: Boolean? by lazy(drawsYuvTarget)
+
+  override suspend fun capabilities(): DeviceCapabilities =
+    processEncoders.read().keepingGradeOnly(Build.VERSION.SDK_INT) { yuvTarget }
 
   override fun renderCapabilities(
     outputSize: Size,
     hdr: Boolean,
   ): RenderCapabilities = media3RenderCapabilities(hdr)
 
-  override fun toneMapLimit(sdrSources: List<MediaSource>): String? = hdrDecodeLimit(Build.VERSION.SDK_INT)
+  override fun toneMapLimit(sdrSources: List<MediaSource>): String? = hdrDrawLimit(Build.VERSION.SDK_INT) { yuvTarget }
 
   override fun unclaimed(specId: EffectId): String =
     "No resolver claimed $specId on the Android backend. Add the artifact that defines it, or a " +

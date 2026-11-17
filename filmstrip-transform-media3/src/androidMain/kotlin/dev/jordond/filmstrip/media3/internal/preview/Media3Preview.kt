@@ -6,6 +6,8 @@ import androidx.media3.common.MediaItem
 import androidx.media3.transformer.Composition
 import androidx.media3.transformer.EditedMediaItemSequence
 import dev.jordond.filmstrip.InternalFilmstripApi
+import dev.jordond.filmstrip.edit.outputSlotOf
+import dev.jordond.filmstrip.edit.outputSlotTime
 import dev.jordond.filmstrip.edit.sourceLengthOf
 import dev.jordond.filmstrip.edit.sourceOffsetAt
 import dev.jordond.filmstrip.media3.internal.ClipPace
@@ -13,6 +15,8 @@ import dev.jordond.filmstrip.media3.internal.CompositionClock
 import dev.jordond.filmstrip.media3.internal.EffectWrapper
 import dev.jordond.filmstrip.media3.internal.LiveSlot
 import dev.jordond.filmstrip.media3.internal.SlotPace
+import dev.jordond.filmstrip.media3.internal.SlotPin
+import dev.jordond.filmstrip.media3.internal.SlotRestamp
 import dev.jordond.filmstrip.media3.internal.SlotSwap
 import dev.jordond.filmstrip.media3.internal.UnwrappedEffects
 import dev.jordond.filmstrip.media3.internal.bounds.Media3ClipReads
@@ -27,6 +31,7 @@ import dev.jordond.filmstrip.transform.internal.resolve.drawsSameFormatAs
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.microseconds
 import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
 
 /**
  * Where one clip sits on the composition's timeline, and what its own chain draws.
@@ -102,6 +107,7 @@ public class Media3Preview internal constructor(
   private val slots: List<LiveSlot>,
   resolved: ResolvedComposition,
   private var bounds: Media3ClipReads,
+  private val slotPin: SlotPin,
 ) {
   /**
    * The plan the standing graph draws, which a swap replaces.
@@ -121,6 +127,37 @@ public class Media3Preview internal constructor(
    * logs a warning and draws the wrong picture instead of failing.
    */
   public val videoSequences: Int = composition.sequences.count { it.carriesVideo }
+
+  /**
+   * The slot the sample shown at [position] is written on, which is [position] itself where the slot is the first that
+   * shows its sample or where the timeline has nothing held there.
+   *
+   * media3 drops every decoded frame before a seek's position, so a paused seek into a later slot of a held sample has
+   * to go to this slot for the sample to be decoded at all.
+   */
+  public fun firstSlotOf(position: Duration): Duration {
+    val span = spanAt(position) ?: return position
+    if (span.shown.isEmpty()) return position
+    val rate = resolved.output.frameRate
+    val offset = position - span.start + (1.seconds / rate / SLOT_SHARE)
+    val found = span.shown.binarySearch { (written, _) -> written.compareTo(offset) }
+    val index = if (found >= 0) found else (-found - 2).coerceAtLeast(0)
+    return minOf(position, span.start + span.shown[index].first)
+  }
+
+  /**
+   * Holds the slot [position] lands on while the player rests there, or lets go where that slot is the first its sample
+   * is written on or [position] is null.
+   *
+   * A held slot is drawn at its own time whatever replays the frame, so a redraw of a paused repeat draws the repeat.
+   */
+  public fun pinSlot(position: Duration?) {
+    slotPin.atUs =
+      position
+        ?.let { outputSlotTime(outputSlotOf(it, resolved.output.frameRate), resolved.output.frameRate) }
+        ?.takeIf { firstSlotOf(it) != it }
+        ?.inWholeMicroseconds
+  }
 
   /**
    * The clip on screen at [position], or null where the timeline has a gap.
@@ -175,7 +212,7 @@ public class Media3Preview internal constructor(
   ): List<Media3Readback>? {
     val fresh =
       try {
-        resolved.toMedia3(UnwrappedEffects, bounds, ownsAudioSpeed = false)
+        resolved.toMedia3(UnwrappedEffects, bounds, ownsAudioSpeed = false, exactLengths = false)
       } catch (refused: Media3LoweringFailure) {
         // A plan this lowering refuses has no frame to read either.
         return null
@@ -185,27 +222,27 @@ public class Media3Preview internal constructor(
     if (laid.isEmpty()) return null
 
     val compositionEffects = fresh.effects.videoEffects
-    val readbacks =
+    val stamped =
       laid.map { span ->
-        val stamped =
-          Media3Span(
-            start = span.start,
-            end = span.end,
-            item =
-              span.item
-                .buildUpon()
-                .setMediaId(revision.toString())
-                .build(),
-            effects = span.effects,
-            still = span.still,
-            shown = span.shown,
-            speed = span.speed,
-          )
-        Media3Readback(stamped, stamped.readbackChain(compositionEffects))
+        Media3Span(
+          start = span.start,
+          end = span.end,
+          item =
+            span.item
+              .buildUpon()
+              .setMediaId(revision.toString())
+              .build(),
+          effects = span.effects,
+          still = span.still,
+          shown = span.shown,
+          speed = span.speed,
+        )
       }
 
+    val rate = resolved.output.frameRate
     return positions.map { position ->
-      readbacks[laid.indexOfFirst { it.covers(position) }.takeIf { it >= 0 } ?: laid.lastIndex]
+      val span = stamped[laid.indexOfFirst { it.covers(position) }.takeIf { it >= 0 } ?: laid.lastIndex]
+      Media3Readback(span, span.readbackChain(compositionEffects, span.restampOf(position, rate)))
     }
   }
 
@@ -239,7 +276,10 @@ public class Media3Preview internal constructor(
           EffectWrapper { effect -> effect.also(incoming::add) },
           bounds,
           ownsAudioSpeed = false,
+          exactLengths = false,
           liveGain = true,
+          writesEverySlot = true,
+          slotPin = slotPin,
         )
       } catch (refused: Media3LoweringFailure) {
         // A plan this lowering refuses is not one the standing graph can take either. The caller
@@ -305,10 +345,30 @@ public class Media3Readback(
  * the reader sees the item's time it seeks by. A photo needs neither: its reader draws one picture
  * and is handed the composition time it draws at directly.
  */
-private fun Media3Span.readbackChain(compositionEffects: List<Effect>): List<Effect> {
+private fun Media3Span.readbackChain(
+  compositionEffects: List<Effect>,
+  slot: SlotRestamp?,
+): List<Effect> {
   val chain = effects + compositionEffects
   if (still) return chain
-  return listOf(clock) + chain + clock.itemClock
+  val onSlot = slot?.let { listOf(it) + chain + it.inverse } ?: chain
+  return listOf(clock) + onSlot + clock.itemClock
+}
+
+/**
+ * The move that draws the sample shown at [position] on the slot [position] lands on, or null when that is the slot the
+ * clip writes the sample on, or the clip holds no samples to move.
+ *
+ * The effects of a held sample are drawn at each slot that shows it, so a frame read on a later slot is stamped there.
+ */
+private fun Media3Span.restampOf(
+  position: Duration,
+  frameRate: Int,
+): SlotRestamp? {
+  if (still || shown.isEmpty()) return null
+  val written = clock.compositionTimeOf(positionIn(position)).inWholeMicroseconds
+  val slot = outputSlotTime(outputSlotOf(position, frameRate), frameRate).inWholeMicroseconds
+  return SlotRestamp(written, slot).takeIf { written != slot }
 }
 
 /**
@@ -321,14 +381,18 @@ private fun Media3Span.readbackChain(compositionEffects: List<Effect>): List<Eff
 @InternalFilmstripApi
 public fun ResolvedComposition.toMedia3Preview(bounds: Media3ClipReads): Media3Preview {
   val slots = mutableListOf<LiveSlot>()
+  val slotPin = SlotPin()
   val composition =
     toMedia3(
       EffectWrapper { effect -> liveSlotFor(effect).also(slots::add).effect },
       bounds,
       ownsAudioSpeed = false,
+      exactLengths = false,
       liveGain = true,
+      writesEverySlot = true,
+      slotPin = slotPin,
     )
-  return Media3Preview(composition, composition.videoSpans(), slots, this, bounds)
+  return Media3Preview(composition, composition.videoSpans(), slots, this, bounds, slotPin)
 }
 
 /**
@@ -366,3 +430,6 @@ private fun Composition.videoSpans(withGaps: Boolean = false): List<Media3Span> 
 }
 
 private val EditedMediaItemSequence.carriesVideo: Boolean get() = C.TRACK_TYPE_VIDEO in trackTypes
+
+// A quarter of a slot, which covers a start and a written time each rounded to a microsecond.
+private const val SLOT_SHARE = 4

@@ -27,9 +27,9 @@ import dev.jordond.filmstrip.test.FrameCodes
 import dev.jordond.filmstrip.test.TestFrame
 import dev.jordond.filmstrip.test.compareFrames
 import dev.jordond.filmstrip.test.eightBitFrameCodesCovering
-import dev.jordond.filmstrip.test.videoSampleTimesOf
+import dev.jordond.filmstrip.transform.internal.nearestSourceFrame
+import dev.jordond.filmstrip.transform.internal.sourceTimeOfSlot
 import io.kotest.assertions.withClue
-import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.doubles.shouldBeGreaterThan
 import io.kotest.matchers.ints.shouldBeGreaterThanOrEqual
 import io.kotest.matchers.ints.shouldBeLessThanOrEqual
@@ -51,8 +51,7 @@ import kotlin.time.Duration.Companion.seconds
  * The bound takes the preview's chroma over the block and the pixels around it, which holds whether an encoder reads
  * one corner, a box average or MPEG-2 siting, and fails on a frame whose color is wrong. The contract in
  * [AndroidClipSpeedParityMediaTest] reads luma, so this is what covers the chroma it leaves out. The file is read at
- * the slot the preview is read at, as the sample a player shows there, since a slowed clip writes a frame only on the
- * first of the slots it holds.
+ * the slot the preview is read at, which every slot of a slowed clip holds a frame for.
  *
  * The software encoder's first [MEASURED_OPENING_FRAMES] frames of any file sit further off than that bound. That
  * follows the frame's place in the file, at speed 1 as at any other, whatever the bitrate or setting. So the edits held
@@ -153,7 +152,11 @@ class AndroidCaptionChromaMediaTest {
     val edit = captionedEdit(moving, clip, length)
     val file = androidExportedFile(edit)
     val matrix = limitedRangeMatrixOf(file)
-    val reads = listOf("plateau" to slotAt(LEAD + length / 2), "fade" to heldInTheFade(file, length))
+    val reads =
+      listOf(
+        "plateau" to slotAt(LEAD + length / 2),
+        "fade" to heldSlotFrom(LEAD + length / 4 + length / 16, speed, trim.start),
+      )
     val engine =
       Media3PlayerEngine(scope, contractContext(), Media3PreviewPlanner(CONTRACT_COMPONENTS), PlayerConfig())
 
@@ -183,24 +186,21 @@ class AndroidCaptionChromaMediaTest {
   private fun slotAt(position: Duration): Duration =
     outputSlotTime(outputSlotOf(position, FIXTURE_FRAME_RATE), FIXTURE_FRAME_RATE)
 
-  // media3's limit: a slowed clip writes each source frame once and holds it up to the next one it writes, so the
-  // caption steps at the samples the file writes. The fade is read off the middle of the slots holding the sample
-  // written nearest its middle, where the file still holds the caption that sample was written with and the preview
-  // has to draw that same one.
-  private fun heldInTheFade(
-    file: File,
-    length: Duration,
+  // The first slot at or after [position] that shows the same source frame as the slot before it, so a slowed clip's
+  // fade is read where the preview has to draw a held frame at a time of its own. A clip with no held frame reads
+  // [position]'s slot.
+  private fun heldSlotFrom(
+    position: Duration,
+    speed: Double,
+    trimStart: Duration,
   ): Duration {
-    val opens = LEAD + length / 4
-    val fade = opens..<opens + length / 8
-    val middle = opens + length / 16
-    val samples = videoSampleTimesOf(file)
-    val written = samples.filter { it in fade }
-    withClue("the file writes no sample inside the fade from $opens") { written.isNotEmpty().shouldBeTrue() }
-    val held = written.minBy { (it - middle).absoluteValue }
-    val first = outputSlotOf(held, FIXTURE_FRAME_RATE)
-    val next = samples.firstOrNull { it > held }?.let { outputSlotOf(it, FIXTURE_FRAME_RATE) } ?: (first + 1)
-    return outputSlotTime((first + next - 1) / 2, FIXTURE_FRAME_RATE)
+    val samples = (0L..SOURCE_FRAMES).map { FIXTURE_FRAME_STEP * it.toInt() }
+
+    fun frameOf(slot: Long) =
+      nearestSourceFrame(samples, sourceTimeOfSlot(trimStart, LEAD, speed, slot, FIXTURE_FRAME_RATE, trimStart))
+    val from = outputSlotOf(position, FIXTURE_FRAME_RATE)
+    val held = (from..from + HELD_SEARCH_SLOTS).firstOrNull { frameOf(it) == frameOf(it - 1) } ?: from
+    return outputSlotTime(held, FIXTURE_FRAME_RATE)
   }
 
   // The bound past the opening frames, which only the encoder it was measured on holds.
@@ -308,11 +308,17 @@ class AndroidCaptionChromaMediaTest {
     val SPEEDS =
       listOf(
         CLIP_SPEED_RANGE.start to TimeRange.of(LEAD, LEAD + 160.milliseconds),
+        0.25 to TimeRange.of(LEAD, LEAD + 900.milliseconds),
+        0.5 to TimeRange.of(LEAD, LEAD + 900.milliseconds),
         0.7 to TimeRange.of(LEAD, LEAD + 900.milliseconds),
         1.5 to TimeRange.of(LEAD, LEAD + 900.milliseconds),
         CLIP_SPEED_RANGE.endInclusive to
           TimeRange.of(LEAD + 1.seconds / 120, LEAD + 1.seconds / 120 + 10_240.milliseconds),
       )
+
+    // Source frames in the fixture's runs, and how far past a slot the search for a held one goes.
+    const val SOURCE_FRAMES = 450L
+    const val HELD_SEARCH_SLOTS = 8L
 
     // A quarter of a slot short of one slot past the opening frames.
     val SHORT_SLOW_LENGTH = outputSlotTime(MEASURED_OPENING_FRAMES + 1, FIXTURE_FRAME_RATE) - FIXTURE_FRAME_STEP / 4

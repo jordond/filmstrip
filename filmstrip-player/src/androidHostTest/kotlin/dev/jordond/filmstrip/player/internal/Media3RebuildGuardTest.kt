@@ -124,6 +124,39 @@ class Media3RebuildGuardTest {
     }
 
   @Test
+  fun `a player started on the standing generation lets go of the slot a pause pinned`() =
+    runTest {
+      val rig = Rig(this)
+      rig.seeks.pin(HELD_MS.milliseconds)
+
+      rig.listener.onPlayWhenReadyChanged(true, Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST)
+
+      rig.pins shouldBe listOf(HELD_MS.milliseconds, null)
+    }
+
+  @Test
+  fun `a player of a generation since replaced starting leaves the pin alone`() =
+    runTest {
+      val rig = Rig(this)
+      rig.seeks.pin(HELD_MS.milliseconds)
+
+      rig.listenerOf(generation = STALE).onPlayWhenReadyChanged(true, Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST)
+
+      rig.pins shouldBe listOf<Duration?>(HELD_MS.milliseconds)
+    }
+
+  @Test
+  fun `a player stopping lets go of no pin`() =
+    runTest {
+      val rig = Rig(this)
+      rig.seeks.pin(HELD_MS.milliseconds)
+
+      rig.listener.onPlayWhenReadyChanged(false, Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST)
+
+      rig.pins shouldBe listOf<Duration?>(HELD_MS.milliseconds)
+    }
+
+  @Test
   fun `a first frame queued before the rebuild still arms the surface`() =
     runTest {
       val rig = Rig(this)
@@ -203,12 +236,13 @@ class Media3RebuildGuardTest {
    * One listener and one mirror over a player reading [READING_MS], whose thread only runs what [runPosted] lets it.
    */
   private class Rig(
-    scope: TestScope,
+    private val scope: TestScope,
   ) {
     val statuses = mutableListOf<PlaybackStatus>()
     val events = mutableListOf<PlaybackEvent>()
     val external = mutableListOf<Boolean>()
     val recorded = mutableListOf<Long>()
+    val pins = mutableListOf<Duration?>()
     val loads = Media3GraphLoads(scope)
 
     private val posted = ArrayDeque<Runnable>()
@@ -264,6 +298,7 @@ class Media3RebuildGuardTest {
         showsFrames = { false },
         onIssued = { },
         onRedirected = { },
+        pinSlot = { pins += it },
         onRepresented = { },
       )
 
@@ -282,10 +317,12 @@ class Media3RebuildGuardTest {
         onLooped = { },
       )
 
-    val listener =
+    val listener = listenerOf(generation = STANDING)
+
+    fun listenerOf(generation: Int): Media3PlayerListener =
       Media3PlayerListener(
-        generation = 0,
-        standingGeneration = { 0 },
+        generation = generation,
+        standingGeneration = { STANDING },
         player = { player },
         scope = scope,
         loads = loads,
@@ -303,6 +340,8 @@ class Media3RebuildGuardTest {
     const val READING_MS = 640L
     const val HELD_MS = 800L
     const val RATE = 30
+    const val STANDING = 1
+    const val STALE = 0
     val LENGTH = 3.seconds
   }
 }

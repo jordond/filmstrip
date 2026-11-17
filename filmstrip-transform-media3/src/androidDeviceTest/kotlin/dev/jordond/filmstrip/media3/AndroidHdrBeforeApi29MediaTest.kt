@@ -9,7 +9,7 @@ import dev.jordond.filmstrip.export.HdrMode
 import dev.jordond.filmstrip.export.Verdict
 import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.HDR_CLIP
 import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.TIMEOUT
-import dev.jordond.filmstrip.media3.internal.hdrDecodeLimit
+import dev.jordond.filmstrip.media3.internal.hdrDrawLimit
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.test.runTest
@@ -19,7 +19,7 @@ import kotlin.test.Test
 /**
  * Media3's own refusal to decode an HDR source below API 29, which the limits page names.
  *
- * The plan refuses every way of handling an HDR clip that decodes it there, with [hdrDecodeLimit] as its reason, so
+ * The plan refuses every way of handling an HDR clip that decodes it there, with [hdrDrawLimit] as its reason, so
  * the export never starts and fails part way through.
  */
 class AndroidHdrBeforeApi29MediaTest {
@@ -35,7 +35,7 @@ class AndroidHdrBeforeApi29MediaTest {
         val verdict = probe.filmstrip.plan(composition, ExportSpec(heightPx = HEIGHT, hdr = mode))
 
         verdict.shouldBeInstanceOf<Verdict.Incapable>().reasons.map { it.message } shouldContain
-          hdrDecodeLimit(Build.VERSION.SDK_INT)
+          hdrDrawLimit(Build.VERSION.SDK_INT)
       }
     }
 

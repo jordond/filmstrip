@@ -31,8 +31,6 @@ import dev.jordond.filmstrip.player.SetCompositionRequest
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
-import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 
@@ -69,17 +67,20 @@ internal class Media3PlayerEngine(
   private var preview: Media3Preview? = null
   private var volume = 1f
 
-  @Volatile
-  private var scrubbing = false
-
-  @Volatile
-  private var shuttling = false
+  private val scrubMode = Media3ScrubMode(handler) { player?.setScrubbingModeEnabled(it) }
 
   private val guard = WrapGuard()
 
-  // Whether a redraw media3 was asked for has yet to hand its frame to the surface. Set on the engine's dispatcher
-  // and cleared on media3's playback thread.
-  private val redrawPending = AtomicBoolean(false)
+  private val redraws =
+    Media3Redraws(
+      scope = scope,
+      handler = handler,
+      playback = { player?.playbackLooper?.let(::Handler) },
+      redraw = { player?.experimentalRedrawLastFrame() },
+      paused = { player?.isPlaying != true },
+      showsFrames = ::showsFrames,
+      report = ::emitFrameRedrawn,
+    )
 
   private val shutter = PreviewShutter(scope)
 
@@ -123,9 +124,11 @@ internal class Media3PlayerEngine(
       platformPositionMs = { status.platformPositionMs },
       loopWrap = { loops.wrap() },
       showsFrames = ::showsFrames,
-      scrubbing = { scrubbing || shuttling },
+      scrubbing = { scrubMode.active },
       onIssued = status::clearEnd,
       onRedirected = ::movePlayhead,
+      firstSlotOf = { preview?.firstSlotOf(it) ?: it },
+      pinSlot = { preview?.pinSlot(it) },
       onRepresented = ::onRepresented,
     )
 
@@ -154,8 +157,11 @@ internal class Media3PlayerEngine(
       seeks = seeks,
       loops = loops,
       surfaces = surfaces,
-      onFrame = { redrawPending.set(false) },
-      onBuilt = { engines[it] = this },
+      onFrame = redraws::frameDrawn,
+      onBuilt = {
+        engines[it] = this
+        scrubMode.carry()
+      },
       onReleased = { engines.remove(it) },
     )
 
@@ -250,50 +256,44 @@ internal class Media3PlayerEngine(
     accuracy: SeekAccuracy,
     onComplete: (landed: Duration) -> Unit,
   ) {
-    redrawPending.set(false)
+    redraws.seekIssued()
     seeks.seek(position, accuracy, wrap = isWrapSeek, onComplete)
   }
 
   override fun onPlay() {
     status.clearEnd()
-    handler.post { player?.playWhenReady = true }
+    val at = readPosition()
+    // The pin has one owner, the player's thread, so this runs behind every play and pause asked for before it and
+    // ahead of the pause asked for next. A seek asked for just before reaches the player two hops later and can be
+    // handed over after this, where it finds the player playing and pins nothing. A pause on a later slot of a held
+    // sample left only that slot drawn, so playing from it draws the sample again. Only a player that was paused has
+    // drawn nothing but the slot it rests on, so a play asked for while one is already under way draws the sample as it
+    // goes and is not sent back to its first slot.
+    handler.post { seeks.resume(at) }
   }
 
   override fun onPause() {
-    handler.post { player?.playWhenReady = false }
+    val at = readPosition()
+    // Pinned on the player's thread, behind every play asked for before it, which can no longer clear it.
+    handler.post { seeks.pause(at) }
   }
 
   override val shuttleRange: TimeRange? get() = loops.playbackRange
 
   override val redrawsHeldFrames: Boolean get() = true
 
-  // The replayable cache draws the frame on the surface again at the presentation time it already has, so an effect
-  // on the preview clock is the only thing that moves. media3's limit: a redraw flushes the one before it, so asking
-  // again before a frame has come out leaves a device slower than the interval showing none. A redraw is skipped
-  // until the last one's frame is handed over.
   override fun redrawHeld() {
-    if (!showsFrames() || !redrawPending.compareAndSet(false, true)) return
-    handler.post { player?.experimentalRedrawLastFrame() }
+    redraws.requestHeld()
   }
 
   private fun showsFrames(): Boolean = status.surfaceRendered && preview?.let { it.videoSequences > 0 } == true
 
   override fun onScrubbingChanged(scrubbing: Boolean) {
-    this.scrubbing = scrubbing
-    applyScrubbingMode()
+    scrubMode.scrubbingChanged(scrubbing)
   }
 
-  // A shuttle is a run of exact seeks like a scrub is, and scrubbing mode drops the audio it has to mute.
   override fun onShuttleChanged(shuttling: Boolean) {
-    this.shuttling = shuttling
-    applyScrubbingMode()
-  }
-
-  private fun applyScrubbingMode() {
-    // Orthogonal to accuracy and free: it drops audio, raises the codec operating rate and skips
-    // the flush a seek would otherwise cost, which is what makes a burst of exact seeks affordable.
-    val enabled = scrubbing || shuttling
-    handler.post { player?.setScrubbingModeEnabled(enabled) }
+    scrubMode.shuttlingChanged(shuttling)
   }
 
   // media3's limit: the first frame it releases onto a buffer that changed size never shows, and only a redraw
@@ -304,7 +304,7 @@ internal class Media3PlayerEngine(
   }
 
   private fun onSurfaceDetached() {
-    redrawPending.set(false)
+    redraws.surfaceDetached()
     status.onSurfaceDetached()
     seeks.framesStopped()
   }
@@ -418,7 +418,7 @@ internal class Media3PlayerEngine(
         // takes them on the next frame the graph draws either way.
         status.liftRefusal()
         guard.reset()
-        handler.post { player?.experimentalRedrawLastFrame() }
+        redraws.requestChanged()
         request.startAt?.let { seekTo(it, SeekAccuracy.Exact) }
       }
       LoadCost.Rebuild -> {
@@ -432,7 +432,6 @@ internal class Media3PlayerEngine(
     plan = next
     setDuration(next.resolved.duration)
     emitPreviewInfo(next.info)
-    if (cost == LoadCost.Parameters) emitFrameRedrawn()
     if (request.playWhenReady) play()
     return null
   }
@@ -468,8 +467,10 @@ internal class Media3PlayerEngine(
     val start =
       startAt?.let(next.resolved::seekLandingOf)
         ?: next.resolved.heldPosition(readPosition(), loops.loopRange, isPlayWanted)
-    val startMs = start.toMediaMs()
-    seeks.landing = start
+    val mediaStart = lowered.firstSlotOf(start)
+    val startMs = mediaStart.toMediaMs()
+    val pinAt = start.takeIf { mediaStart != start && !isPlayWanted }
+    seeks.rest(start, mediaStart)
     status.platformPositionMs = startMs
     guard.reset()
     emitPosition(start)
@@ -479,6 +480,7 @@ internal class Media3PlayerEngine(
       // A player built for a different video graph starts paused at full volume, so it takes the transport from the one
       // it replaces and the volume the engine holds.
       val wanted = host.player?.playWhenReady == true
+      seeks.pin(pinAt)
       val target = host.playerFor(multipleInputs, lowered.composition.hdrMode)
       target.volume = level
       loads.handOver(load)
@@ -497,15 +499,3 @@ internal class Media3PlayerEngine(
     const val THREAD_NAME = "filmstrip-player"
   }
 }
-
-/**
- * The engine driving [player], or null when filmstrip did not build it.
- *
- * Engines register on construction and drop out on release, so a surface holding only the platform
- * player from [dev.jordond.filmstrip.player.VideoPlayer.nativePlayer] can find the engine behind
- * it. Registered on the player's thread and read from whichever thread a surface attaches on.
- */
-@androidx.annotation.OptIn(ExperimentalApi::class)
-internal fun engineFor(player: CompositionPlayer): Media3PlayerEngine? = engines[player]
-
-private val engines = ConcurrentHashMap<CompositionPlayer, Media3PlayerEngine>()

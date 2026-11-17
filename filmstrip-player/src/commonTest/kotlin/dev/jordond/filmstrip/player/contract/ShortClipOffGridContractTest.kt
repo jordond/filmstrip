@@ -50,7 +50,7 @@ abstract class ShortClipOffGridContractTest(
     withClue("no slot reads another frame when its source time is counted from the clip's first slot") {
       reads.any { read -> countedFromFirstSlot(run[1], read.slot) != read.sourceFrame }.shouldBeTrue()
     }
-    Cell(editOf(source, run), neighbourReads(run) + reads, writtenFrames = writtenFramesOf(run, reads))
+    Cell(editOf(source, run), neighbourReads(run) + reads)
   }
 
   private fun countedFromFirstSlot(

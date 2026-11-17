@@ -17,6 +17,7 @@ import dev.jordond.filmstrip.transform.internal.videoSlotsOf
 import io.kotest.assertions.withClue
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.ints.shouldBeInRange
+import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.toList
@@ -32,8 +33,7 @@ import kotlin.time.Duration.Companion.seconds
 
 /**
  * A clip at speed exported through media3: how long the file runs, where its frames land and whether the audio kept its
- * pitch. media3 duplicates no frame, so a slow clip's frames sit as far apart as its speed puts them, and its video
- * still ends on the last slot the clip covers.
+ * pitch. Its video holds one frame on every slot the clip covers, a slow clip's included, and ends on the last of them.
  */
 class AndroidClipSpeedMediaTest {
   private val probe = Media3ExportProbe()
@@ -221,11 +221,8 @@ class AndroidClipSpeedMediaTest {
     withClue("speed $speed video ran to $ends of a clip whose slots end at $lastSlotEnds") {
       ((ends - lastSlotEnds).absoluteValue <= TRACK_END_TOLERANCE).shouldBeTrue()
     }
-    // media3's limit: nothing duplicates a frame, so a slow clip's frames sit as far apart as its speed puts them.
-    times.zipWithNext { earlier, later -> later - earlier }.forEach { gap ->
-      withClue("speed $speed left a gap of $gap between frames") {
-        (gap <= maxOf(SOURCE_FRAME / speed, OUTPUT_FRAME + SOURCE_FRAME / speed) + SPARSE_TOLERANCE).shouldBeTrue()
-      }
+    withClue("speed $speed did not write a frame on every slot: $times") {
+      times shouldBe (0L until videoSlotsOf(length, OUTPUT_RATE)).map { outputSlotTime(it, OUTPUT_RATE) }
     }
 
     val audio = decodeAudio(file)
@@ -271,9 +268,6 @@ class AndroidClipSpeedMediaTest {
     const val LONG = "android_export_long.mp4"
     const val BED = "tone_bed_880.mp4"
     val BED_LENGTH = 3.seconds
-    val SOURCE_FRAME = 1.seconds / 30
-    val OUTPUT_FRAME = 1.seconds / OUTPUT_RATE
-    val SPARSE_TOLERANCE = 2.milliseconds
     val TAIL_TOLERANCE = 100.milliseconds
     val AUDIO_TOLERANCE = 1.milliseconds
 

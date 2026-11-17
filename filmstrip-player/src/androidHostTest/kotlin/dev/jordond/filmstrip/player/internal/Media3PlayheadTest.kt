@@ -39,6 +39,15 @@ class Media3PlayheadTest {
   }
 
   @Test
+  fun `a player resting on the slot a held sample is written on reports the later slot it was seeked for`() {
+    val written = outputSlotTime(MID_SLOT, RATE)
+    val later = outputSlotTime(MID_SLOT + 1, RATE)
+
+    playheadOf(written.toMediaMs(), later, mediaLanding = written) shouldBe later
+    playheadOf(later.toMediaMs() + 1, later, mediaLanding = written) shouldBe (later.toMediaMs() + 1).milliseconds
+  }
+
+  @Test
   fun `a reading with no seek behind it is reported as media3 gave it`() {
     playheadOf(READING_MS, landing = null) shouldBe READING_MS.milliseconds
   }

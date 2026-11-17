@@ -186,19 +186,23 @@ internal fun seekNudgeMs(positionMs: Long): Long = if (positionMs > 0) positionM
  * A paused player reports where it estimates it stopped, and media3 skips a seek by the millisecond it really rests
  * on. So a paused seek the report says media3 will carry out can still be skipped, and nothing is drawn for it. Going
  * through the millisecond beside the target rules that out. A scrub is left alone, since media3 draws every seek of
- * one and would show the nudge, and a seek that has to be carried out wherever the player rests always goes through.
+ * one and would show the nudge, except a seek onto the millisecond the player rests on. Scrubbing mode does not flush
+ * the decoder, which has already handed over that millisecond's frame, so the seek decodes nothing and draws nothing.
+ * A seek that has to be carried out wherever the player rests always goes through.
  *
  * @param fresh Whether the seek has to be carried out even where media3 already rests on its target.
  * @param skipped Whether the player reports resting on the target, so the seek is answered without a frame.
  * @param playing Whether the player is drawing frames on its own.
  * @param scrubbing Whether media3 is in its scrubbing mode.
+ * @param resting Whether the player reports resting on the millisecond the seek is for.
  */
 internal fun seekGoesThroughNudge(
   fresh: Boolean,
   skipped: Boolean,
   playing: Boolean,
   scrubbing: Boolean,
-): Boolean = fresh || (!skipped && !playing && !scrubbing)
+  resting: Boolean,
+): Boolean = fresh || (!skipped && !playing && (!scrubbing || resting))
 
 /**
  * The buffer a preview surface should be fixed to, or null to leave the one it has.

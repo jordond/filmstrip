@@ -83,14 +83,26 @@ class Media3PlayerLimitsTest {
    */
   @Test
   fun `a paused seek outside a scrub goes through the nudge unless the player reports resting on its target`() {
-    seekGoesThroughNudge(fresh = false, skipped = false, playing = false, scrubbing = false) shouldBe true
-    seekGoesThroughNudge(fresh = false, skipped = true, playing = false, scrubbing = false) shouldBe false
+    seekGoesThroughNudge(fresh = false, skipped = false, playing = false, scrubbing = false, resting = false) shouldBe
+      true
+    seekGoesThroughNudge(fresh = false, skipped = true, playing = false, scrubbing = false, resting = true) shouldBe
+      false
   }
 
   @Test
-  fun `a playing seek and a scrub are handed over as they are`() {
-    seekGoesThroughNudge(fresh = false, skipped = false, playing = true, scrubbing = false) shouldBe false
-    seekGoesThroughNudge(fresh = false, skipped = false, playing = false, scrubbing = true) shouldBe false
+  fun `a playing seek is handed over as it is`() {
+    seekGoesThroughNudge(fresh = false, skipped = false, playing = true, scrubbing = false, resting = true) shouldBe
+      false
+    seekGoesThroughNudge(fresh = false, skipped = false, playing = true, scrubbing = true, resting = true) shouldBe
+      false
+  }
+
+  @Test
+  fun `a scrub is handed over as it is unless it is onto the millisecond the player rests on`() {
+    seekGoesThroughNudge(fresh = false, skipped = false, playing = false, scrubbing = true, resting = false) shouldBe
+      false
+    seekGoesThroughNudge(fresh = false, skipped = false, playing = false, scrubbing = true, resting = true) shouldBe
+      true
   }
 
   @Test
@@ -98,7 +110,9 @@ class Media3PlayerLimitsTest {
     for (skipped in listOf(false, true)) {
       for (playing in listOf(false, true)) {
         for (scrubbing in listOf(false, true)) {
-          seekGoesThroughNudge(fresh = true, skipped, playing, scrubbing) shouldBe true
+          for (resting in listOf(false, true)) {
+            seekGoesThroughNudge(fresh = true, skipped, playing, scrubbing, resting) shouldBe true
+          }
         }
       }
     }

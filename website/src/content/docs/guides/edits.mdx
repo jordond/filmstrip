@@ -69,6 +69,9 @@ Speed has a cost:
 
 - Sources decode in full, so decoding scales with the speed. A clip at 32 decodes 32 source frames for every frame it
   writes, and a preview at 32 has to decode that fast to hold its frame rate.
+- On Android an export encodes every output slot, so a clip at 1/32 encodes 32 frames for every source frame. Encode
+  time scales with the output slots a clip covers, and file size follows the bitrate, not the number of distinct
+  pictures.
 - On Apple an export renders each sped clip's audio to temporary disk first, as 16-bit PCM for the clip's output length,
   and removes it when the run ends. A long clip at a slow speed needs that much space. See [Run](/guides/export/#run)
   for what a caller sees while it renders.

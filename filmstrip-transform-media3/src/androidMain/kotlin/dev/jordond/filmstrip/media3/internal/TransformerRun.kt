@@ -188,9 +188,9 @@ internal class TransformerRun(
    * media3's own muxer, told where the video track ends so its last frame lasts until the end of the last slot the
    * plan covers.
    *
-   * Without that end the muxer gives the last frame the gap before it. A slowed clip writes each frame it shows once,
-   * on the first of its slots, so that gap can be many slots long and the track would run past the plan by it. A longer
-   * audio track holds the last frame to the same end, which sits on the frame grid like every other frame's.
+   * Without that end the muxer gives the last frame the gap before it, which is a slot rounded to a whole number of
+   * microseconds and so can fall short of the end the plan's grid sits on. A longer audio track holds the last frame to
+   * the same end, which sits on the frame grid like every other frame's.
    */
   private fun videoEndingOnTheGrid(): InAppMp4Muxer.Factory {
     val rate = resolved.output.frameRate

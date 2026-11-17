@@ -12,10 +12,14 @@ import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.VideoTrackInfo
 import dev.jordond.filmstrip.media.trackCodecOf
 import dev.jordond.filmstrip.media3.internal.bounds.FrameBounds
+import dev.jordond.filmstrip.transform.internal.nearestSourceFrame
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedClip
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedGain
+import dev.jordond.filmstrip.transform.internal.sourceTimeOfSlot
 import io.kotest.assertions.withClue
+import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.comparables.shouldBeGreaterThan
+import io.kotest.matchers.longs.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import kotlin.test.Test
@@ -68,9 +72,77 @@ class ShownFramesTest {
     }
   }
 
+  @Test
+  fun `a source slower than the output repeats each sample on the slots after the one it is written on`() {
+    assertRepeatsFillEverySlot(sourceRate = 24, rate = 30, speed = 1.0)
+  }
+
+  @Test
+  fun `a source slower than an off grid output repeats on the slots its samples fall short of`() {
+    assertRepeatsFillEverySlot(sourceRate = 24, rate = 25, speed = 1.0)
+  }
+
+  @Test
+  fun `a clip slowed to half repeats each sample on every slot it holds`() {
+    assertRepeatsFillEverySlot(sourceRate = 30, rate = 30, speed = 0.5)
+  }
+
+  @Test
+  fun `a clip slowed inside the range repeats each sample on every slot it holds`() {
+    assertRepeatsFillEverySlot(sourceRate = 30, rate = 25, speed = 0.7)
+  }
+
+  @Test
+  fun `a clip that shows each sample once repeats none`() {
+    val frames = framesOf(sourceRate = 30, rate = 30, speed = 1.0).first
+
+    frames.repeatsUs shouldBe emptyMap()
+  }
+
+  // Every slot is either the one a sample is written on or one of that sample's repeats, and each repeat sits on a slot
+  // the shared rule says shows the sample written before it.
+  private fun assertRepeatsFillEverySlot(
+    sourceRate: Int,
+    rate: Int,
+    speed: Double,
+  ) {
+    val (frames, clip, samples) = framesOf(sourceRate, rate, speed)
+    val slots = outputSlotsOf(clip.span, rate)
+    val origin = outputSlotTime(slots.first, rate)
+    val shownAt =
+      slots.associate { slot ->
+        val time = sourceTimeOfSlot(clip.start, clip.span.start, clip.speed, slot, rate, clip.runStart)
+        (outputSlotTime(slot, rate) - origin).inWholeMicroseconds to checkNotNull(nearestSourceFrame(samples, time))
+      }
+
+    val written = frames.shown.map { (writtenUs, _) -> writtenUs }
+    val repeats = frames.repeatsUs.values.flatten()
+    withClue("$sourceRate fps source on a $rate fps grid at $speed") {
+      (written + repeats).sorted() shouldBe shownAt.keys.sorted()
+      frames.repeatsUs.forEach { (writtenUs, later) ->
+        later.forEach { shownAt.getValue(it) shouldBe shownAt.getValue(writtenUs) }
+        later.forEach { it shouldBeGreaterThan writtenUs }
+      }
+      repeats.shouldNotBeEmpty()
+    }
+  }
+
+  private fun framesOf(
+    sourceRate: Int,
+    rate: Int,
+    speed: Double,
+  ): Triple<ShownFrames, ResolvedClip, List<Duration>> {
+    val length = 1.seconds
+    val clip = clipOf(sourceRate, length, speed)
+    val samples = (0L..sourceRate * 2L).map { (it * MICROS_PER_SECOND / sourceRate).microseconds }
+    val bounds = FrameBounds(samples, samples.last() + (MICROS_PER_SECOND / sourceRate).microseconds)
+    return Triple(checkNotNull(ShownFrames.of(clip, bounds, rate)), clip, samples)
+  }
+
   private fun clipOf(
     rate: Int,
     length: Duration,
+    speed: Double = SPEED,
   ): ResolvedClip =
     ResolvedClip(
       source = MediaSource.of("clip.mp4"),
@@ -97,11 +169,11 @@ class ShownFramesTest {
       start = Duration.ZERO,
       end = length,
       effects = emptyList(),
-      gain = ResolvedGain.constant(1f, Duration.ZERO, outputLengthOf(length, SPEED)),
+      gain = ResolvedGain.constant(1f, Duration.ZERO, outputLengthOf(length, speed)),
       startsAtKeyFrame = false,
-      span = TimeRange.of(Duration.ZERO, outputLengthOf(length, SPEED)),
+      span = TimeRange.of(Duration.ZERO, outputLengthOf(length, speed)),
       sourceIndex = 0,
-      speed = SPEED,
+      speed = speed,
     )
 
   private companion object {

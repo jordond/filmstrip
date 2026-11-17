@@ -175,7 +175,7 @@ abstract class ShortClipSeamContractTest(
       val seam = outputSlotsOf(second.span, frameRate).first
       val reads = listOf(readOf(run[0], seam - 1), readOf(second, seam), readOf(second, seam + 1))
       val edit = Composition(listOf(Track(listOf(Clip(source, cuts[0].trim), Clip(other, cuts[1].trim)))))
-      Cell(edit, reads, writtenFrames = writtenFramesOf(run, reads))
+      Cell(edit, reads)
     }
 
   // Two clips of one source laid by [cuts], with the slots either side of where the second opens read as the run
@@ -188,7 +188,7 @@ abstract class ShortClipSeamContractTest(
     val seam = outputSlotsOf(run[1].span, frameRate).first
     withClue("the second clip does not play on from the first") { run[1].runStart shouldBe second.trim.start }
     val reads = listOf(readOf(run[0], seam - 1), readOf(run[1], seam), readOf(run[1], seam + 1))
-    Cell(editOf(source, run), reads, writtenFrames = writtenFramesOf(run, reads))
+    Cell(editOf(source, run), reads)
   }
 
   private fun assertSeam(
@@ -219,13 +219,11 @@ abstract class ShortClipSeamContractTest(
     // frames the file holds.
     val read = if (speed == 1.0) slots else outputSlotsOf(uncut.span, frameRate).toList()
     val reads = read.map { slot -> readOf(uncut, slot) }
-    val written = if (speed == 1.0) null else writtenFramesOf(run, reads)
     val seamReads = reads.filter { it.slot == seam - 1 || it.slot == seam }
     val plain = Composition(listOf(Track(listOf(Clip(source, TimeRange.of(a, c), speed = speed)))))
     Cell(
       editOf(source, run),
       reads,
-      writtenFrames = written,
       seam = Seam(seam, plain, differs = seamReads.first().sourceFrame != seamReads.last().sourceFrame),
     )
   }

@@ -17,6 +17,7 @@ import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaProber
 import dev.jordond.filmstrip.media3.internal.Media3Driver
 import dev.jordond.filmstrip.media3.internal.Media3Prober
+import dev.jordond.filmstrip.media3.internal.deviceDrawsYuvTarget
 import dev.jordond.filmstrip.transform.internal.PlannedExportEngine
 import dev.jordond.filmstrip.transform.internal.copy.Mp4Copy
 
@@ -54,15 +55,18 @@ internal class Media3Registrar : FilmstripRegistrar {
  * @param components The components the owning `Filmstrip` was built with, whose resolvers lower each
  *   effect spec to something media3 can run.
  * @param prober Reads what each source is. The probers in [components] by default.
+ * @param drawsYuvTarget Whether this device's OpenGL ES offers `EXT_YUV_target`, which media3 draws an HDR source
+ *   through, or null where that is not known. Asked of the device by default.
  * @return An engine that plans, resolves and exports on media3.
  */
 @InternalFilmstripApi
 public fun media3ExportEngine(
   components: EngineComponents,
   prober: MediaProber = chainedProber(components),
+  drawsYuvTarget: () -> Boolean? = ::deviceDrawsYuvTarget,
 ): PlannedExportEngine =
   PlannedExportEngine(
-    backend = Media3Driver(prober),
+    backend = Media3Driver(prober, drawsYuvTarget),
     prober = prober,
     resolvers = components.effectResolvers,
     audioResolvers = components.audioEffectResolvers,

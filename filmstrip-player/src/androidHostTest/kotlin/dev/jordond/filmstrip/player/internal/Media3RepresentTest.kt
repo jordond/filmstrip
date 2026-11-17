@@ -194,6 +194,7 @@ class Media3RepresentTest {
         every { it.currentPosition } returns RESTING_MS
         every { it.playbackState } returns Player.STATE_READY
         every { it.isPlaying } returns false
+        every { it.playWhenReady } returns false
         every { it.seekTo(any<Long>()) } returns Unit
       }
 

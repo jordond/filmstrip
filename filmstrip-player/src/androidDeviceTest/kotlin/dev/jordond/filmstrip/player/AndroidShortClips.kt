@@ -35,10 +35,6 @@ internal object AndroidShortClips : ShortClipBackend, ClipParityBackend by Andro
   // ends with the primary's own slots, as AndroidClipSpeedMediaTest reads it, and the preview's ends there too.
   override val writesHeldTail: Boolean get() = false
 
-  // media3's limit: its frame rate setting is a maximum and nothing duplicates a frame, so a slowed clip writes each
-  // frame it shows once, as AndroidClipSpeedMediaTest reads it.
-  override val writesEverySlowedSlot: Boolean get() = false
-
   override suspend fun writtenFrameCount(composition: Composition): Long {
     val extractor = MediaExtractorCompat().apply { setDataSource(Uri.fromFile(androidExportedFile(composition)), 0L) }
     try {

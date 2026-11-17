@@ -42,12 +42,16 @@ internal class Media3PreviewPlan(
  * @param components The components the owning `Filmstrip` was built with.
  * @param previewClock The clock handed to every effect the preview resolves, or null when the engine this planner
  * lowers for does not draw a held frame again.
+ * @param drawsYuvTarget Whether this device's OpenGL ES offers `EXT_YUV_target`, or null where that is not known. Asked
+ * of the device unless given.
  */
 internal open class Media3PreviewPlanner(
   components: FilmstripComponents,
   private val previewClock: PreviewClock? = null,
+  drawsYuvTarget: (() -> Boolean?)? = null,
 ) : PreviewPlanner<Media3PreviewPlan> {
-  private val engine = media3ExportEngine(components)
+  private val engine =
+    drawsYuvTarget?.let { media3ExportEngine(components, drawsYuvTarget = it) } ?: media3ExportEngine(components)
 
   /**
    * Whether the surface the preview draws into shows SDR only. Set by the engine as a surface is attached and let go.

@@ -12,9 +12,9 @@ import kotlin.time.Duration
  * The source samples one grid item writes, and the stretches [SlotPace] plays the item in to write each on its slot.
  *
  * Every slot the clip covers shows the sample [nearestSourceFrame] picks for its [sourceTimeOfSlot], and a sample is
- * written on the first slot that shows it. The item opens on the first sample shown and closes where the last one shown
- * stops showing, on the sample after it or the end of the track, so nothing past that is decoded. The last one holds
- * until the item has run for [lengthUs].
+ * written on the first slot that shows it. Each later slot showing it is a repeat, which [SlotRepeat] writes. The item
+ * opens on the first sample shown and closes where the last one shown stops showing, on the sample after it or the end
+ * of the track, so nothing past that is decoded. The last one holds until the item has run for [lengthUs].
  *
  * The samples between two shown ones are written in the microseconds right after the first of them. media3's frame
  * rate cap keeps a frame only at or past its next tick, a whole number of microseconds per output frame past the first
@@ -28,6 +28,8 @@ import kotlin.time.Duration
  * @property outputsUs Where each stretch is written, in microseconds into the item. The first is zero.
  * @property lengthUs How long the item runs for, in microseconds, which is the slots its clip covers.
  * @property shown Each sample shown, as how far into the item it is written paired with where it sits in the item.
+ * @property repeatsUs The later slots each sample shown fills, keyed by where the sample is written and holding how far
+ * into the item each of those slots is. A sample shown on one slot has no entry.
  */
 internal class ShownFrames(
   val opens: Duration,
@@ -36,6 +38,7 @@ internal class ShownFrames(
   val outputsUs: List<Long>,
   val lengthUs: Long,
   val shown: List<Pair<Long, Long>>,
+  val repeatsUs: Map<Long, List<Long>> = emptyMap(),
 ) {
   /**
    * How long the item decodes for, in microseconds.
@@ -56,21 +59,26 @@ internal class ShownFrames(
       if (slots.isEmpty()) return null
       val samples = bounds.samples
 
-      val firstSlots = LinkedHashMap<Int, Long>()
+      val slotsShowing = LinkedHashMap<Int, MutableList<Long>>()
       slots.forEach { slot ->
         val time = sourceTimeOfSlot(clip.start, clip.span.start, clip.speed, slot, frameRate, clip.runStart)
-        firstSlots.getOrPut(checkNotNull(nearestSourceFrame(samples, time))) { slot }
+        slotsShowing.getOrPut(checkNotNull(nearestSourceFrame(samples, time))) { mutableListOf() } += slot
       }
-      val indices = firstSlots.keys.toList()
+      val indices = slotsShowing.keys.toList()
       val opens = samples[indices.first()]
       val writtenFrom = outputSlotTime(slots.first, frameRate)
 
       val inputs = mutableListOf<Long>()
       val outputs = mutableListOf<Long>()
       val shown = mutableListOf<Pair<Long, Long>>()
+      val repeats = mutableMapOf<Long, List<Long>>()
+
+      fun intoItem(slot: Long) = (outputSlotTime(slot, frameRate) - writtenFrom).inWholeMicroseconds
       indices.forEachIndexed { order, index ->
         val position = (samples[index] - opens).inWholeMicroseconds
-        val written = (outputSlotTime(firstSlots.getValue(index), frameRate) - writtenFrom).inWholeMicroseconds
+        val showing = slotsShowing.getValue(index)
+        val written = intoItem(showing.first())
+        if (showing.size > 1) repeats[written] = showing.drop(1).map(::intoItem)
         inputs += position
         outputs += written
         shown += written to position
@@ -89,6 +97,7 @@ internal class ShownFrames(
         outputsUs = outputs,
         lengthUs = (outputSlotTime(slots.last + 1, frameRate) - writtenFrom).inWholeMicroseconds,
         shown = shown,
+        repeatsUs = repeats,
       )
     }
   }

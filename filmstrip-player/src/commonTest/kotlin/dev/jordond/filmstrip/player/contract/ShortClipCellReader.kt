@@ -69,15 +69,6 @@ interface ShortClipBackend : ClipParityBackend {
    * own slots alone.
    */
   val writesHeldTail: Boolean get() = true
-
-  /**
-   * Whether the file writes a sample on every slot of a clip, so a frame its slots show twice is written twice, as a
-   * slowed clip or a slower source shows them.
-   *
-   * A backend that writes each frame once overrides this and names that limit, and its file then holds one sample for
-   * each frame such a clip shows.
-   */
-  val writesEverySlowedSlot: Boolean get() = true
 }
 
 /**
@@ -156,19 +147,6 @@ abstract class ShortClipCellReader(
       readOf(run.first(), outputSlotsOf(run.first().span, frameRate).last),
       readOf(run.last(), outputSlotsOf(run.last().span, frameRate).first),
     )
-
-  /**
-   * How many frames the file of [run] holds, every slot less those of [reads] that show the frame the slot before them
-   * did, on a backend that writes such a frame once.
-   */
-  internal fun writtenFramesOf(
-    run: List<PlacedClip>,
-    reads: List<Read>,
-  ): Long {
-    val repeated = reads.zipWithNext().count { (before, read) -> before.sourceFrame == read.sourceFrame }
-    val unwritten = if (writesEverySlowedSlot) 0 else repeated
-    return videoSlotsOf(checkNotNull(run.last().span.endExclusive), frameRate) - unwritten
-  }
 
   private suspend fun assertRunsAt(
     source: MediaSource,

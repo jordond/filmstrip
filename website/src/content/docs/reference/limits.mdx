@@ -162,6 +162,12 @@ reports it as approximated. See [Overlays](/guides/overlays/) and [HDR](/guides/
 media3 refuses to decode an HDR source below API 29, so the plan refuses any export there that would decode one: a
 tone map to SDR, and a kept grade that re-encodes. A copy decodes nothing, so it still keeps the grade.
 
+## HDR on a device with no EXT_YUV_target
+
+media3 draws an HDR source through the `EXT_YUV_target` extension of OpenGL ES 3. A device that offers none, at any
+API level, gets the same refusal: a tone map to SDR and a kept grade that re-encodes both stop at the plan, and a copy
+still keeps the grade. A device that could not be asked is not refused, since the plan would be guessing.
+
 ## Overlay pictures on older Android
 
 Android's own decoders set what an overlay picture can land as, and the plan reports each way one lands short as a
@@ -226,8 +232,10 @@ costs more. See [Speed](/guides/edits/#speed).
 Each output frame shows the source frame nearest to its time. A clip too short to cover one output frame shows no
 picture but still plays its audio. If it's the whole primary track, it's refused as `InvalidComposition`.
 
-- **Android** doesn't duplicate frames in slow motion, so at 1/32 each frame holds for about a second. Its AAC encoder
-  adds up to 32 ms of audio at the end of any file.
+- **Android** encodes every output slot, so a clip at 1/32 encodes 32 frames for every source frame. Encode time scales
+  with the output slots, and file size follows the bitrate. It can only do so for a clip whose container its extractor
+  reads. For one it can't, a slowed clip or a slower source writes each frame once. Its AAC encoder adds up to 32 ms of
+  audio at the end of any file.
 - **Android** exports open a clip's audio on its trim start at every speed. Past that, Sonic, the stretcher media3
   ships, repeats or drops whole pitch periods of up to 1/65 s, so a sound can land up to max(1, 1/speed - 1) periods
   off. That's 15 ms at 0.5 and 2, and 477 ms at 1/32.

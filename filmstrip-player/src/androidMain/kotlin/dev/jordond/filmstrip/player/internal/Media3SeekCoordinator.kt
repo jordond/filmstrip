@@ -4,6 +4,7 @@ import android.os.Handler
 import android.os.Looper
 import androidx.media3.common.Player
 import androidx.media3.common.util.ExperimentalApi
+import dev.jordond.filmstrip.edit.outputSlotOf
 import dev.jordond.filmstrip.edit.outputSlotTime
 import dev.jordond.filmstrip.player.SeekAccuracy
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
@@ -21,17 +22,21 @@ import kotlin.time.Duration.Companion.milliseconds
  *
  * media3 accepts a seek long before it draws the frame, so while frames reach a surface a seek is answered by the
  * first frame drawn after media3's playback thread has handled it. A seek to the millisecond media3 already rests on
- * is one it skips and draws nothing for, so that one is answered by the frame the seek before it is still waiting on,
- * or at once when there is none. A paused player can rest on a millisecond other than the one it reports, so every
- * other paused seek outside a scrub goes through the millisecond beside its target, which media3 never skips. With
- * nothing to draw onto, a seek is answered when media3 accepts it.
+ * is one it skips and draws nothing for. Where the last seek put the player there and nothing has played since, the
+ * frame on the surface is the one that seek drew, so the seek is answered by the frame the seek before it is still
+ * waiting on, or at once when there is none. A player that played its way onto that millisecond shows whichever frame
+ * it stopped on, so there the seek is carried out. A paused player can rest on a millisecond other than the one it
+ * reports, so every other paused seek outside a scrub goes through the millisecond beside its target, which media3
+ * never skips, and so does a seek in a scrub onto the millisecond media3 rests on, which scrubbing mode would draw
+ * nothing for. With nothing to draw onto, a seek is answered when media3 accepts it.
  *
  * [represent] is the one seek nobody asked for. It goes back to the slot the preview already holds, through the
  * millisecond beside it so media3 carries it out, and lands without a word to the chase. One made as the surface
  * goes lands when media3 accepts it, and the frame it decoded is the first one the next surface is given.
  *
- * Everything here runs on the engine's dispatcher except [playerSerial], which the player's thread owns, and
- * [frameDrawn], which media3's playback thread calls.
+ * Everything here runs on the engine's dispatcher except what the player's thread owns, which is [playerSerial], the
+ * slot pinned on the preview and the mirror of it [pin], [unpin] and the hand-over of a seek keep, and [frameDrawn],
+ * which media3's playback thread calls.
  *
  * @param scope The engine's scope, on the dispatcher everything a listener sees is confined to.
  * @param handler Posts onto the player's thread.
@@ -42,9 +47,14 @@ import kotlin.time.Duration.Companion.milliseconds
  * @param platformPositionMs The last position media3 reported, in its own milliseconds.
  * @param loopWrap Where the loop range standing now wraps, or null when there is none.
  * @param showsFrames Whether the frames media3 draws reach a surface now.
- * @param scrubbing Whether media3 is in its scrubbing mode. Read on the player's thread.
+ * @param scrubbing Whether media3 is in its scrubbing mode. Read as each seek is issued, so a seek is handed over in
+ * the mode it was asked for in and not the one the player's thread finds by the time it gets to it.
  * @param onIssued Called as each seek is handed over, including a redirect.
  * @param onRedirected Reports the slot time a wrap was sent on to, which the playhead holds until it lands.
+ * @param firstSlotOf The slot a sample shown on a slot is written on. media3 drops every decoded frame before a seek's
+ * position, so a seek into a later slot of a held sample goes to that slot and the preview draws the frame it lands on
+ * on the slot asked for.
+ * @param pinSlot Tells the preview which later slot of a held sample a seek is for, or null for none.
  * @param onRepresented Called once a held slot has been drawn again.
  */
 @ExperimentalApi
@@ -61,6 +71,8 @@ internal class Media3SeekCoordinator(
   private val scrubbing: () -> Boolean,
   private val onIssued: () -> Unit,
   private val onRedirected: (Duration) -> Unit,
+  private val firstSlotOf: (Duration) -> Duration = { it },
+  private val pinSlot: (Duration?) -> Unit = {},
   private val onRepresented: () -> Unit,
 ) {
   private var completion: ((Duration) -> Unit)? = null
@@ -81,6 +93,27 @@ internal class Media3SeekCoordinator(
   // The slot time the last seek handed to media3 was aimed at, which the playhead reports while media3 reads the
   // floored millisecond it was given.
   var landing: Duration? = null
+
+  // The later slot of a held sample the last seek media3 was handed was for, or null. Read on the player's thread only.
+  private var pinnedSlot: Duration? = null
+
+  // The slot media3 was handed to read that landing from, which is the slot the sample shown there is written on.
+  private var mediaLanding: Duration? = null
+
+  // Whether the player rests where the last seek handed over put it, having played nothing since. Read and written on
+  // the player's thread only.
+  private var restsOnSeek = false
+
+  /**
+   * Rests the playhead on [slot], which media3 reads from [media], as a new graph starts there.
+   */
+  fun rest(
+    slot: Duration,
+    media: Duration,
+  ) {
+    landing = slot
+    mediaLanding = media
+  }
 
   // Counts the seeks handed to media3. A landing media3 reports is only taken for the latest of them.
   private var serial = 0
@@ -114,7 +147,7 @@ internal class Media3SeekCoordinator(
     private set
 
   // A seek in flight reads where it is going, since a reading media3 reports before it lands is from before the seek.
-  fun position(): Duration = target ?: playheadOf(platformPositionMs(), landing)
+  fun position(): Duration = target ?: playheadOf(platformPositionMs(), landing, mediaLanding)
 
   /**
    * Seeks to the slot [position] lands on and calls [onComplete] once media3 has landed there.
@@ -162,6 +195,70 @@ internal class Media3SeekCoordinator(
     }
   }
 
+  /**
+   * Pins the preview to [slot], the later slot of a held sample a paused player rests on, or lets go of it where [slot]
+   * is null or the first slot of its sample. Called on the player's thread, which is the only thread that writes the
+   * pin, so no pause can be wiped by a play or a seek asked for before it.
+   */
+  fun pin(slot: Duration?) {
+    pinSlot(slot)
+    val rate = resolved()?.frameRate
+    val onSlot = slot?.let { if (rate == null) it else outputSlotTime(outputSlotOf(it, rate), rate) }
+    pinnedSlot = onSlot?.takeIf { firstSlotOf(it) != it }
+  }
+
+  /**
+   * Starts the player, replaying the held sample it rests on where [at] is in a later slot of one and it was paused.
+   *
+   * Called on the player's thread, in the order it was asked for among the plays and pauses. A seek issued just before
+   * reaches the player two hops later, so it can be handed over after this, and pins nothing since the player is
+   * playing by then. Only a paused player has drawn nothing but the slot it rests on, so a play asked for while one is
+   * already under way draws the sample as it goes and is not sent back to the sample's first slot, which would be a
+   * seek that flushes what is playing.
+   *
+   * @param at Where the playhead read as the play was asked for. A player that played its way there reads a time inside
+   * a slot, so it is the slot [at] lands on that is looked up.
+   */
+  fun resume(at: Duration) {
+    val standing = player()
+    val wasPlaying = standing?.playWhenReady == true
+    unpin()
+    standing?.playWhenReady = true
+    val slot = resolved()?.seekLandingOf(at) ?: at
+    if (!wasPlaying && firstSlotOf(slot) != slot) scope.launch { replay(slot) }
+  }
+
+  /**
+   * Stops the player and pins the preview to [at], the slot it rests on. Called on the player's thread.
+   */
+  fun pause(at: Duration) {
+    pin(at)
+    player()?.playWhenReady = false
+  }
+
+  /**
+   * Lets go of the slot a paused player was pinned to, as it is about to play. Called on the player's thread. A seek
+   * handed over after it finds the player playing and pins nothing.
+   */
+  fun unpin() {
+    pinSlot(null)
+    pinnedSlot = null
+    restsOnSeek = false
+  }
+
+  /**
+   * Seeks back to the first slot of the sample the player rests on, so a player about to play draws every later slot of
+   * it. Nothing but the playhead hears it land. A seek in flight is left to carry on, since it is handed over after the
+   * pin was let go of.
+   */
+  fun replay(slot: Duration) {
+    if (target != null || representing) return
+    guard.seekIssued(wrap = false)
+    representing = true
+    completion = {}
+    issue(slot, fresh = true)
+  }
+
   private fun representFrom(
     restingMs: Long,
     surfaceLost: Boolean,
@@ -175,7 +272,7 @@ internal class Media3SeekCoordinator(
       landsUnseen = surfaceLost
       completion = { onRepresented() }
     }
-    issue(inFlight ?: loaded.seekLandingOf(playheadOf(restingMs, landing)), fresh = true)
+    issue(inFlight ?: loaded.seekLandingOf(playheadOf(restingMs, landing, mediaLanding)), fresh = true)
   }
 
   /**
@@ -192,6 +289,9 @@ internal class Media3SeekCoordinator(
     val issued = ++serial
     this.target = target
     landing = target
+    val media = firstSlotOf(target)
+    mediaLanding = media
+    val scrubbed = scrubbing()
     onIssued()
 
     handler.post {
@@ -199,15 +299,17 @@ internal class Media3SeekCoordinator(
       // position it estimated while playing, and media3 decides whether to skip a seek from the one it really holds,
       // which the player reads once everything the playback thread had to say has arrived.
       val playback = playbackLooper()?.let(::Handler)
-      playback.run { handler.post { handOver(issued, target, playback, fresh) } }
+      playback.run { handler.post { handOver(issued, target, media, playback, fresh, scrubbed) } }
     }
   }
 
   private fun handOver(
     issued: Int,
     target: Duration,
+    media: Duration,
     playback: Handler?,
     fresh: Boolean,
+    scrubbed: Boolean,
   ) {
     val standing = player()
     if (standing == null) {
@@ -216,17 +318,32 @@ internal class Media3SeekCoordinator(
     }
 
     playerSerial = issued
-    val positionMs = target.toMediaMs()
-    val skipped = !fresh && standing.skipsSeekTo(positionMs)
+    val positionMs = media.toMediaMs()
+    // A playing player draws every slot of a held sample itself, so only a paused one is pinned to a slot of it.
+    val pinned = target.takeIf { media != target && !standing.playWhenReady }
+    pinSlot(pinned)
+    // A seek to the millisecond the player rests on is still carried out when it moves which slot the sample is drawn
+    // on.
+    val moved = pinned != pinnedSlot
+    pinnedSlot = pinned
+    val skipped = !fresh && !moved && restsOnSeek && standing.skipsSeekTo(positionMs)
     // A paused player draws nothing but the frame a seek lands on, and can draw it before anything queued behind the
     // seek runs, so the wait opens ahead of the seek. A playing one is still drawing frames from before it, so there
     // the wait opens once the seek was handled.
     if (!standing.isPlaying) playback.run { awaitFrame(issued) }
     // media3's limit: it skips a seek to the millisecond it rests on. See [seekNudgeMs].
-    val nudged = seekGoesThroughNudge(fresh, skipped, standing.isPlaying, scrubbing())
+    val nudged =
+      seekGoesThroughNudge(
+        fresh,
+        skipped,
+        standing.isPlaying,
+        scrubbed,
+        standing.currentPosition == positionMs,
+      )
     nudgedMs = if (nudged) seekNudgeMs(positionMs) else NO_NUDGE
     if (nudged) standing.seekTo(nudgedMs)
     standing.seekTo(positionMs)
+    restsOnSeek = !standing.playWhenReady
     playback.run { onSeekHandled(issued, skipped) }
   }
 
@@ -342,11 +459,13 @@ private fun Player.skipsSeekTo(positionMs: Long): Boolean {
  *
  * A seek reaches media3 floored to a whole millisecond by [toMediaMs], so a player resting on the slot it landed on
  * reads up to a millisecond before that slot's time. A reading of exactly that floored millisecond reports [landing]
- * itself, and every other reading is reported as media3 gave it.
+ * itself, and every other reading is reported as media3 gave it. [mediaLanding] is the slot media3 was handed when that
+ * is not [landing], as it is for a later slot of a held sample.
  */
 internal fun playheadOf(
   positionMs: Long,
   landing: Duration?,
-): Duration = landing?.takeIf { it.toMediaMs() == positionMs } ?: positionMs.milliseconds
+  mediaLanding: Duration? = landing,
+): Duration = landing?.takeIf { (mediaLanding ?: it).toMediaMs() == positionMs } ?: positionMs.milliseconds
 
 private const val NO_NUDGE = Long.MIN_VALUE

@@ -39,7 +39,7 @@ abstract class ShortClipEverySlotContractTest(
       withClue("no slot reads a frame other than the one at or before its source time") {
         reads.any { read -> (sourceTimeAt(run[1], read.slot) / frame).toLong() != read.sourceFrame }.shouldBeTrue()
       }
-      Cell(editOf(source, run), neighbourReads(run) + reads, writtenFrames = writtenFramesOf(run, reads))
+      Cell(editOf(source, run), neighbourReads(run) + reads)
     }
 
   // The opening's source runs at the output's rate and the clip after it at a slower one, so the output keeps the
@@ -53,7 +53,7 @@ abstract class ShortClipEverySlotContractTest(
         reads.any { read -> (sourceTimeAt(run[1], read.slot) / frame).toLong() != read.sourceFrame }.shouldBeTrue()
       }
       val edit = Composition(listOf(Track(listOf(run[0].clipOf(movingSource()), run[1].clipOf(slower)))))
-      Cell(edit, reads, writtenFrames = writtenFramesOf(run, reads))
+      Cell(edit, reads)
     }
 
   private companion object {
