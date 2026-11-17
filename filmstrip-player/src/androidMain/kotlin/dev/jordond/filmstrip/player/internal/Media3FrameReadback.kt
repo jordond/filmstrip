@@ -10,6 +10,7 @@ import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media3.internal.preview.Media3Preview
 import dev.jordond.filmstrip.media3.internal.preview.Media3Readback
+import dev.jordond.filmstrip.media3.internal.preview.readbackSourceFactory
 import dev.jordond.filmstrip.player.PlaybackError
 import dev.jordond.filmstrip.player.PreviewFrameReadback
 import dev.jordond.filmstrip.player.ReadbackCallback
@@ -34,6 +35,9 @@ import kotlin.time.Duration
  * single video renderer and an image item has nothing there to decode it. A gap is laid as a
  * transparent still, so a position inside one takes that path too and reads the fill the export
  * paints there.
+ *
+ * The extractor builds its item's source with [readbackSourceFactory], so a clip trimmed before its source ends is read
+ * to its last frame the way the player shows it.
  *
  * Because the extractor is a separate player, no seek is observable, the playhead does not move, and
  * playback if running is unaffected, which is what [PreviewFrameReadback] requires.
@@ -79,6 +83,7 @@ internal class Media3FrameReadback(
       val extractor =
         FrameExtractor
           .Builder(context, span.item)
+          .setMediaSourceFactory(readbackSourceFactory(context))
           .setEffects(lowered.effects)
           .build()
       request.extractor = extractor

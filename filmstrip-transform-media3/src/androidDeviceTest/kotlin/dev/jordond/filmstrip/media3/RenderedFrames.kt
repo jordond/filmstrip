@@ -12,6 +12,7 @@ import dev.jordond.filmstrip.effects.BuiltInEffectResolver
 import dev.jordond.filmstrip.effects.filters.FilterEffectResolver
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.media3.internal.bounds.readClips
+import dev.jordond.filmstrip.media3.internal.preview.readbackSourceFactory
 import dev.jordond.filmstrip.media3.internal.preview.toMedia3Preview
 import dev.jordond.filmstrip.transform.internal.ResolveResult
 import io.kotest.matchers.nulls.shouldNotBeNull
@@ -75,7 +76,12 @@ internal class RenderedFrames(
     try {
       handler.post {
         try {
-          val opened = FrameExtractor.Builder(context, readback.span.item).setEffects(readback.effects).build()
+          val opened =
+            FrameExtractor
+              .Builder(context, readback.span.item)
+              .setMediaSourceFactory(readbackSourceFactory(context))
+              .setEffects(readback.effects)
+              .build()
           extractor = opened
           val future = opened.getFrame(readback.span.positionIn(at).inWholeMilliseconds)
           future.addListener(

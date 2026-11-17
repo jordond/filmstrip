@@ -11,6 +11,7 @@ import dev.jordond.filmstrip.Cancellable
 import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.media.PlatformImage
 import dev.jordond.filmstrip.media3.internal.preview.Media3Readback
+import dev.jordond.filmstrip.media3.internal.preview.readbackSourceFactory
 import dev.jordond.filmstrip.player.internal.Media3StillFrames
 import dev.jordond.filmstrip.player.internal.PlanResult
 import dev.jordond.filmstrip.thumbnail.ThumbnailBatchCallback
@@ -253,6 +254,7 @@ internal class Media3ThumbnailSource(
         withContext(reader) {
           FrameExtractor
             .Builder(context, readback.span.item)
+            .setMediaSourceFactory(readbackSourceFactory(context))
             .setEffects(readback.effects)
             .setSeekParameters(if (precise) SeekParameters.EXACT else SeekParameters.CLOSEST_SYNC)
             .build()

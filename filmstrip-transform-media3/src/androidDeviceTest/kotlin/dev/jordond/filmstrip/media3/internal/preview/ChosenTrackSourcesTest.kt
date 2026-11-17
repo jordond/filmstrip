@@ -4,12 +4,14 @@ import android.content.Context
 import android.net.Uri
 import androidx.media3.common.MediaItem
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.transformer.CompositionPlayer
 import com.google.common.base.Supplier
 import dev.jordond.filmstrip.media3.Media3ExportProbe
 import dev.jordond.filmstrip.media3.internal.bounds.ChosenTracks
 import io.kotest.matchers.maps.shouldNotBeEmpty
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeSameInstanceAs
 import java.lang.reflect.Modifier
 import java.util.IdentityHashMap
 import kotlin.test.Test
@@ -55,6 +57,36 @@ class ChosenTrackSourcesTest {
 
     assertFailsWith<ProviderAsked> { factory.createMediaSource(item) }.uri shouldBe uri
   }
+
+  @Test
+  fun everyFrameReaderIsHandedTheSameFactory() {
+    readbackSourceFactory(context) shouldBeSameInstanceAs readbackSourceFactory(context.applicationContext)
+  }
+
+  // media3 only lets a source take another trim in place when the trim is cut by the time each frame is shown at.
+  @Test
+  fun aFrameReadersSourceCutsATrimByTheTimeAFrameIsShownAt() {
+    val trimmed = trimmedItem(TRIM_END_MS)
+
+    val source = readbackSourceFactory(context).createMediaSource(trimmed)
+
+    source.canUpdateMediaItem(trimmedItem(TRIM_END_MS * 2)) shouldBe true
+    DefaultMediaSourceFactory(context)
+      .createMediaSource(trimmed)
+      .canUpdateMediaItem(trimmedItem(TRIM_END_MS * 2)) shouldBe false
+  }
+
+  private fun trimmedItem(endMs: Long): MediaItem =
+    MediaItem
+      .Builder()
+      .setUri(Uri.fromFile(probe.fixtureFile()))
+      .setTag(ChosenTracks(audioOrdinal = 0))
+      .setClippingConfiguration(
+        MediaItem.ClippingConfiguration
+          .Builder()
+          .setEndPositionMs(endMs)
+          .build(),
+      ).build()
 
   private class ProviderAsked(
     val uri: Uri?,
@@ -103,5 +135,6 @@ class ChosenTrackSourcesTest {
   private companion object {
     const val MEDIA3 = "androidx.media3."
     const val MAX_DEPTH = 4
+    const val TRIM_END_MS = 500L
   }
 }

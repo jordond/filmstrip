@@ -138,6 +138,31 @@ class AndroidPausedSurfaceMediaTest {
       }
     }
 
+  /**
+   * The fixture stores a frame past the panned clip's end ahead of the last ones shown before it, and a seek onto one
+   * of those still draws it.
+   */
+  @Test
+  fun aSeekToTheSlotsBeforeAClipsEndShowsThem() =
+    onSurface(androidPannedClipComposition()) { rig ->
+      rig.showPausedAt(PANNED_SLOT)
+      val length =
+        rig.player.state.value.duration
+          .shouldNotBeNull()
+      val last = outputSlotOf(length, FIXTURE_FRAME_RATE) - 1
+
+      for (back in SLOTS_BEFORE_LAST) {
+        val at = outputSlotTime(last - back, FIXTURE_FRAME_RATE)
+        val seeks = rig.seeksCompleted
+        rig.player.seekTo(at, SeekAccuracy.Exact)
+        awaitOrFail("the seek to $at to land") { rig.seeksCompleted > seeks }
+        awaitOrFail("the seek to stop buffering") { !rig.player.state.value.isStalled }
+        delay(SETTLE)
+
+        rig.shouldShow(at)
+      }
+    }
+
   private suspend fun SurfaceRig.shouldShowTheHeldSlot(seeksBefore: Int) {
     shouldShow(PANNED_SLOT)
     withClue("a seek nobody asked for was reported") { seeksCompleted shouldBe seeksBefore }
@@ -223,6 +248,9 @@ class AndroidPausedSurfaceMediaTest {
     // Another slot of the panned clip, a few frames on.
     val LATER_SLOT: Duration = PANNED_SLOT + FIXTURE_FRAME_STEP * LATER_FRAMES
     const val LATER_FRAMES = 6
+
+    // How far back from the last slot the seeks near a clip's end land, each with a slot after it to differ from.
+    val SLOTS_BEFORE_LAST = listOf(2, 1)
 
     // How far before the end a preview is started from to run out.
     val RUN_IN: Duration = 400.milliseconds

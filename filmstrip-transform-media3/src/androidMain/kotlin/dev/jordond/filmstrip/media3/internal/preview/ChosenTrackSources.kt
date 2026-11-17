@@ -84,6 +84,30 @@ public class ChosenTrackMediaSourceFactory private constructor(
 }
 
 /**
+ * The media source factory a frame reader builds a [Media3Readback]'s item with, which is the one a preview's player
+ * runs.
+ *
+ * It cuts a clip trimmed before its source ends by the time each frame is shown at. The factory media3's frame
+ * extraction builds for itself ends the clip on the first sample stored at or past the trim's end, and a source that
+ * stores its frames out of the order they are shown in holds that sample ahead of the last frames before the end.
+ *
+ * Every call hands back the same factory. Frame extraction runs on one player shared across the process, and media3
+ * rebuilds that player whenever a request names another factory.
+ *
+ * @param context Any context of the app the reader runs in.
+ */
+@InternalFilmstripApi
+public fun readbackSourceFactory(context: Context): MediaSource.Factory = ReadbackSources.factoryFor(context)
+
+private object ReadbackSources {
+  private var factory: MediaSource.Factory? = null
+
+  @Synchronized
+  fun factoryFor(context: Context): MediaSource.Factory =
+    factory ?: ChosenTrackMediaSourceFactory(context).also { factory = it }
+}
+
+/**
  * What `CompositionPlayer` builds when it is handed no factory, with the extractors narrowed to [chosen] when it is
  * set.
  */
