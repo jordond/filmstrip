@@ -1,7 +1,5 @@
 package dev.jordond.filmstrip.effects.filters.tape
 
-import android.opengl.EGL14
-import android.opengl.EGLConfig
 import android.opengl.GLES20
 import android.opengl.GLES30
 import androidx.media3.common.util.GlUtil
@@ -34,33 +32,15 @@ import kotlin.time.Duration.Companion.seconds
  * signal to well under one 8 bit code. A device with no float color target skips, since 8 bits cannot read 1e-4.
  */
 class TapePictureShaderProgramMediaTest {
-  private var display = EGL14.EGL_NO_DISPLAY
-  private var context = EGL14.EGL_NO_CONTEXT
-  private var surface = EGL14.EGL_NO_SURFACE
+  private val gl = FloatTargetContext()
 
   @BeforeTest
   fun makeContext() {
-    display = EGL14.eglGetDisplay(EGL14.EGL_DEFAULT_DISPLAY)
-    val version = IntArray(2)
-    EGL14.eglInitialize(display, version, 0, version, 1)
-    val configs = arrayOfNulls<EGLConfig>(1)
-    val found = IntArray(1)
-    EGL14.eglChooseConfig(display, CONFIG, 0, configs, 0, 1, found, 0)
-    context = EGL14.eglCreateContext(display, configs[0], EGL14.EGL_NO_CONTEXT, CONTEXT, 0)
-    surface = EGL14.eglCreatePbufferSurface(display, configs[0], PBUFFER, 0)
-    EGL14.eglMakeCurrent(display, surface, surface, context)
-    assumeTrue(
-      "this device renders to no 32 bit float target",
-      GLES20.glGetString(GLES20.GL_EXTENSIONS).orEmpty().contains("EXT_color_buffer_float"),
-    )
+    assumeTrue("this device renders to no 32 bit float target", gl.make())
   }
 
   @AfterTest
-  fun dropContext() {
-    EGL14.eglMakeCurrent(display, EGL14.EGL_NO_SURFACE, EGL14.EGL_NO_SURFACE, EGL14.EGL_NO_CONTEXT)
-    EGL14.eglDestroySurface(display, surface)
-    EGL14.eglDestroyContext(display, context)
-  }
+  fun dropContext() = gl.drop()
 
   @Test
   fun everyRowLandsOnTheSignalAtAMidIntensity() {
@@ -352,7 +332,7 @@ class TapePictureShaderProgramMediaTest {
     source: (Int) -> FloatArray = ::ramp,
     span: TimeRange = WHOLE_SPAN,
   ): FloatArray {
-    val input = sourceTexture(width, height, source)
+    val input = floatSourceTexture(width, height, source)
     val target = IntArray(1)
     val framebuffer = IntArray(1)
     GLES20.glGenTextures(1, target, 0)
@@ -384,41 +364,6 @@ class TapePictureShaderProgramMediaTest {
     GLES20.glDeleteFramebuffers(1, framebuffer, 0)
     GLES20.glDeleteTextures(2, intArrayOf(target[0], input), 0)
     return read
-  }
-
-  private fun sourceTexture(
-    width: Int,
-    height: Int,
-    source: (Int) -> FloatArray,
-  ): Int {
-    val texels = ByteBuffer.allocateDirect(width * height * CHANNELS * Float.SIZE_BYTES).order(ByteOrder.nativeOrder())
-    for (y in 0 until height) {
-      for (x in 0 until width) {
-        val rgb = source(x)
-        rgb.forEach(texels::putFloat)
-        if (rgb.size == RGB) texels.putFloat(1f)
-      }
-    }
-    texels.rewind()
-    val texture = IntArray(1)
-    GLES20.glGenTextures(1, texture, 0)
-    GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, texture[0])
-    GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_LINEAR)
-    GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_LINEAR)
-    GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_S, GLES20.GL_CLAMP_TO_EDGE)
-    GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_T, GLES20.GL_CLAMP_TO_EDGE)
-    GLES20.glTexImage2D(
-      GLES20.GL_TEXTURE_2D,
-      0,
-      GLES30.GL_RGBA16F,
-      width,
-      height,
-      0,
-      GLES20.GL_RGBA,
-      GLES20.GL_FLOAT,
-      texels,
-    )
-    return texture[0]
   }
 
   // A ramp whose step every half float from a quarter to one holds exactly, red and blue running opposite ways.
@@ -488,15 +433,5 @@ class TapePictureShaderProgramMediaTest {
     const val EXACT_ROW_STEP = 9
     val EDGE_LEFT = floatArrayOf(0.75f, 0.5f, 0.25f)
     val EDGE_RIGHT = floatArrayOf(0.25f, 0.5f, 0.75f)
-    val CONFIG =
-      intArrayOf(
-        EGL14.EGL_RENDERABLE_TYPE,
-        0x40,
-        EGL14.EGL_SURFACE_TYPE,
-        EGL14.EGL_PBUFFER_BIT,
-        EGL14.EGL_NONE,
-      )
-    val CONTEXT = intArrayOf(EGL14.EGL_CONTEXT_CLIENT_VERSION, 3, EGL14.EGL_NONE)
-    val PBUFFER = intArrayOf(EGL14.EGL_WIDTH, 1, EGL14.EGL_HEIGHT, 1, EGL14.EGL_NONE)
   }
 }

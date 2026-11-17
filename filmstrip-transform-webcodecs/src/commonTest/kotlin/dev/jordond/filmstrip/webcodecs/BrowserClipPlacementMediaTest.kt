@@ -164,8 +164,8 @@ class BrowserClipPlacementMediaTest {
     }
 
   // The canvas's aspect and the frame's height make the frame the browser renders, whichever clip is first, and it is
-  // the frame the plan sizes. The first clip's quad spans the frame's edges where the plan's placement does, so no row or
-  // column of the frame is left over or short. The pairs are the shapes an app's compositions failed on.
+  // the frame the plan sizes. The first clip's quad spans the frame's edges where the plan's placement does, so no row
+  // or column of the frame is left over or short. The pairs are the shapes an app's compositions failed on.
   @Test
   fun aCanvasCropAndAScaleRenderTheFrameOfTheAspectWhicheverClipComesFirst() =
     runTest {
