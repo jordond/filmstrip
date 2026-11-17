@@ -196,6 +196,10 @@ public class ResolvedTrack(
  * reads this and leaves every other audio track of the source out. Left unset, it is the source's default track.
  * @property audioEffects The clip's audio effects and then its track's, in the order they run on this clip's audio,
  * after its [speed] and before its [gain]. Empty for a clip nothing of which is heard.
+ * @property runStart Where on the source the run of clips this one plays on from opens. A clip plays on from the one
+ * before it when both play one source at one speed, that one ends where this one starts and its span ends where this
+ * one's opens. A clip that plays on from none opens its own run, so this is its [start]. A backend reads a slot with
+ * `sourceTimeOfSlot`, which lets the first slot of a clip ahead of its span read back from [start] as far as this.
  */
 @InternalFilmstripApi
 public class ResolvedClip(
@@ -213,6 +217,7 @@ public class ResolvedClip(
   public val speed: Double = 1.0,
   public val audioTrack: ResolvedAudioTrack? = resolvedAudioTrackOf(info.audio, info),
   public val audioEffects: List<ResolvedAudioEffect> = emptyList(),
+  public val runStart: Duration = start,
 ) {
   init {
     require(canvasEffectIndices.size == placement.canvases.size) {

@@ -78,6 +78,7 @@ internal class TrackLayer(
     // Where each pass lands on the composition timeline, derived here and nowhere else, since a
     // backend lays what this list says and an effect that reads the time has to be measured against
     // the same run on all of them.
+    var previous: ResolvedClip? = null
     val clips =
       passesCovering(lengths, runLength).map { pass ->
         val clip = track.clips[pass.index]
@@ -134,7 +135,8 @@ internal class TrackLayer(
           speed = window.speed,
           audioTrack = resolvedAudioTrackOf(clipAudioTrackOf(clip, info), info),
           audioEffects = audioEffects.mapNotNull { it.resolvedEffect },
-        )
+          runStart = previous?.takeIf { it.endsWhereOpens(clip.source, from, window.speed) }?.runStart ?: from,
+        ).also { previous = it }
       }
 
     return LaidTrack(
@@ -144,6 +146,14 @@ internal class TrackLayer(
     )
   }
 }
+
+// Whether this pass plays [source] at [speed] on from where [start] opens, which it does when it ends there.
+// The passes are laid end to end, so their spans abut.
+private fun ResolvedClip.endsWhereOpens(
+  source: MediaSource,
+  start: Duration,
+  speed: Double,
+): Boolean = this.source == source && end == start && this.speed == speed
 
 /**
  * This pass's slot on the composition timeline, for a track that starts at [trackStart].

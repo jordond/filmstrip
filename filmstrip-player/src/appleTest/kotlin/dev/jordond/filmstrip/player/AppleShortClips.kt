@@ -11,6 +11,7 @@ import dev.jordond.filmstrip.player.contract.MOVING_RUN
 import dev.jordond.filmstrip.player.contract.ShortClipBackend
 import dev.jordond.filmstrip.player.contract.ShortClipEverySlotContractTest
 import dev.jordond.filmstrip.player.contract.ShortClipOffGridContractTest
+import dev.jordond.filmstrip.player.contract.ShortClipSeamContractTest
 import dev.jordond.filmstrip.player.contract.ShortClipSlotContractTest
 import dev.jordond.filmstrip.player.contract.ShortClipTieContractTest
 import kotlinx.cinterop.ExperimentalForeignApi
@@ -86,3 +87,8 @@ class AppleShortClipTieHardwareTest : ShortClipTieContractTest(AppleShortClips)
  * The off grid span short clip cells on AVFoundation.
  */
 class AppleShortClipOffGridHardwareTest : ShortClipOffGridContractTest(AppleShortClips)
+
+/**
+ * The seam short clip cells on AVFoundation.
+ */
+class AppleShortClipSeamHardwareTest : ShortClipSeamContractTest(AppleShortClips)

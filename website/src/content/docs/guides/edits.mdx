@@ -61,6 +61,10 @@ other. That holds however short the clip is:
 - A trim holding no source frame, like 10 to 30 ms of a 30 fps source, shows the frame nearest its source time, here
   frame 0, even though that frame sits outside the trim.
 
+Two clips of one source, side by side at one speed, with the first trim ending where the second begins, play as the one
+clip over both trims would, at any speed and wherever the cut falls between frames. Any other clip never reads a source
+time before its own trim, though the frame nearest that time can sit just before it.
+
 Speed has a cost:
 
 - Sources decode in full, so decoding scales with the speed. A clip at 32 decodes 32 source frames for every frame it

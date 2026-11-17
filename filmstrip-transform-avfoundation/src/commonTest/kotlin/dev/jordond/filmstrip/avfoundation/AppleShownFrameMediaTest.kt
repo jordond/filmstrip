@@ -147,7 +147,7 @@ class AppleShownFrameMediaTest {
       val graph = graphOf(clipOf(source, trim, 1.0), ExportSpec(frameRate = TONE_MAP_RATE, hdr = HdrMode.ToneMapToSdr))
       val times = checkNotNull(videoTrackOf(source).sampleTimesAround(Duration.ZERO, 1.seconds)).times
       val slots = slotsOf(trim, 1.0, TONE_MAP_RATE)
-      val targets = slots.map { sourceTimeOfSlot(Duration.ZERO, Duration.ZERO, 1.0, it, TONE_MAP_RATE) }
+      val targets = slots.map { sourceTimeOfSlot(Duration.ZERO, Duration.ZERO, 1.0, it, TONE_MAP_RATE, Duration.ZERO) }
 
       graph.drawnByCompositor.shouldBeTrue()
       withClue("no slot reads a frame other than the one at or before its source time") {
@@ -223,7 +223,10 @@ class AppleShownFrameMediaTest {
   private fun targetsOf(
     trim: TimeRange,
     speed: Double,
-  ): List<Duration> = slotsOf(trim, speed).map { sourceTimeOfSlot(trim.start, Duration.ZERO, speed, it, RATE) }
+  ): List<Duration> =
+    slotsOf(trim, speed).map {
+      sourceTimeOfSlot(trim.start, Duration.ZERO, speed, it, RATE, trim.start)
+    }
 
   private fun slotsOf(
     trim: TimeRange,

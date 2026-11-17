@@ -55,6 +55,9 @@ import kotlin.time.DurationUnit
  * @property speed How fast the slots walk through the trim, which [sourceUsOf] and [outputUsOf] read.
  * @property spanStart Where the clip's span opens on the composition timeline, which its trim start plays at.
  * @property audioTrack The source's audio track a copy of this clip writes, or null when the source has none.
+ * @property runStart Where the run of clips this one plays on from opens on the source, which no slot reads before.
+ * @property readStartUs Where an export opens this clip's frames in the source, in microseconds. The trim start, or
+ *   earlier when the clip's first slot sits ahead of its span and reads back from it.
  */
 internal class RenderedClip(
   val source: MediaSource,
@@ -80,6 +83,8 @@ internal class RenderedClip(
   val speed: Double = 1.0,
   val spanStart: Duration,
   val audioTrack: ResolvedAudioTrack?,
+  val runStart: Duration = trimStart,
+  val readStartUs: Double = trimStart.microseconds(),
 ) {
   /**
    * Where the trim opens in the source, in microseconds.
@@ -93,7 +98,7 @@ internal class RenderedClip(
   fun sourceUsOf(
     slot: Long,
     frameRate: Int,
-  ): Double = sourceTimeOfSlot(trimStart, spanStart, speed, firstSlot + slot, frameRate).microseconds()
+  ): Double = sourceTimeOfSlot(trimStart, spanStart, speed, firstSlot + slot, frameRate, runStart).microseconds()
 
   /**
    * How far past where this clip's span opens, in microseconds, the source time [sourceUs] past the trim start lands.

@@ -6,8 +6,11 @@ import dev.jordond.filmstrip.player.contract.ClipParityBackend
 import dev.jordond.filmstrip.player.contract.ShortClipBackend
 import dev.jordond.filmstrip.player.contract.ShortClipEverySlotContractTest
 import dev.jordond.filmstrip.player.contract.ShortClipOffGridContractTest
+import dev.jordond.filmstrip.player.contract.ShortClipSeamContractTest
 import dev.jordond.filmstrip.player.contract.ShortClipSlotContractTest
 import dev.jordond.filmstrip.player.contract.ShortClipTieContractTest
+import io.kotest.matchers.types.shouldBeInstanceOf
+import java.io.File
 import kotlin.test.fail
 
 /**
@@ -45,7 +48,22 @@ internal object JvmShortClips : ShortClipBackend, ClipParityBackend by JvmClipPa
     return lines.count { it.isNotBlank() && !it.startsWith("#") }.toLong()
   }
 
-  override suspend fun sourceAt(rate: Int): MediaSource = JvmClipParity.movingSourceAt(rate)
+  private val copies = mutableMapOf<Int, MediaSource>()
+
+  // A copy of the moving source's file, so a clip cut from it is cut from another file than the moving source.
+  override suspend fun sourceAt(rate: Int): MediaSource =
+    copies.getOrPut(rate) {
+      val moving = JvmClipParity.movingSourceAt(rate).shouldBeInstanceOf<MediaSource.Path>()
+      MediaSource.of(
+        File(moving.path)
+          .copyTo(
+            File.createTempFile("filmstrip-jvm-copy", ".mp4").also {
+              it.deleteOnExit()
+            },
+            overwrite = true,
+          ).path,
+      )
+    }
 }
 
 /**
@@ -67,3 +85,8 @@ class JvmShortClipTieMediaTest : ShortClipTieContractTest(JvmShortClips)
  * The off grid span short clip cells on ffmpeg.
  */
 class JvmShortClipOffGridMediaTest : ShortClipOffGridContractTest(JvmShortClips)
+
+/**
+ * The seam short clip cells on ffmpeg.
+ */
+class JvmShortClipSeamMediaTest : ShortClipSeamContractTest(JvmShortClips)

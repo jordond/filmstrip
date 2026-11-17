@@ -62,6 +62,7 @@ import dev.jordond.filmstrip.transform.internal.geometry.backgroundGain
 import dev.jordond.filmstrip.transform.internal.geometry.blurPlan
 import dev.jordond.filmstrip.transform.internal.geometry.inWholePixelsOf
 import dev.jordond.filmstrip.transform.internal.geometry.placementOf
+import dev.jordond.filmstrip.transform.internal.nearestSourceFrame
 import dev.jordond.filmstrip.transform.internal.passesCovering
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedClip
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
@@ -69,6 +70,7 @@ import dev.jordond.filmstrip.transform.internal.resolve.ResolvedEffect
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedGain
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedHdr
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedTrack
+import dev.jordond.filmstrip.transform.internal.sourceTimeOfSlot
 import dev.jordond.filmstrip.transform.internal.videoSlotsOf
 import io.kotest.assertions.withClue
 import io.kotest.matchers.booleans.shouldBeTrue
@@ -510,8 +512,11 @@ class GraphLoweringTest {
     val invocation =
       invocationFor(Fill.Black, trackStart = opens, clipStart = frame * 10.6, clipEnd = frame * 10.6 + 500.milliseconds)
     val lead = (opens - outputSlotTime(outputSlotOf(opens, 30), 30)).inWholeMicroseconds * 30 / 1_000
-    val read = (frame * 11).inWholeMicroseconds.microseconds - frame / 2
+    val target = sourceTimeOfSlot(frame * 10.6, opens, 1.0, outputSlotOf(opens, 30), 30, frame * 10.6)
+    val shown = checkNotNull(nearestSourceFrame((0..40).map { frame * it }, target))
+    val read = (frame * shown).inWholeMicroseconds.microseconds - frame / 2
 
+    shown shouldBe 11
     invocation.filterGraph shouldContain "trim=start=${formatSeconds(read.toDouble(DurationUnit.SECONDS))}:"
     invocation.filterGraph shouldContain "/1.0)+($lead)-"
   }

@@ -594,7 +594,7 @@ class Media3FrameGridTest {
     frameRate: Int,
   ): Duration {
     val samples = samplesAround(clip.start, clip.end)
-    val time = sourceTimeOfSlot(clip.start, clip.span.start, clip.speed, slot, frameRate)
+    val time = sourceTimeOfSlot(clip.start, clip.span.start, clip.speed, slot, frameRate, clip.runStart)
     return samples[checkNotNull(nearestSourceFrame(samples, time))]
   }
 

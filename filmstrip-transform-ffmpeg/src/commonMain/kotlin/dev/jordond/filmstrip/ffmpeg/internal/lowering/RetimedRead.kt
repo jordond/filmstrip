@@ -61,7 +61,9 @@ internal fun ResolvedClip.retimes(frameRate: Int): Boolean =
  * count the tail cuts to is what holds the clip's length, so nothing here decides how long it runs.
  *
  * The clip's first slot is the clock's zero, and [trimStart] plays where the span opens, [spanLead] past that slot's
- * time, so every slot reads the source time `sourceTimeOfSlot` gives it.
+ * time, so a slot reads the source time `sourceTimeOfSlot` gives it. The first slot of a clip that continues the one
+ * before it sits at the clock's zero ahead of the trim start, and shows the frame nearest to the source time that
+ * puts it at.
  *
  * Each frame then moves onto the nearest whole microsecond, the time base a live input is stamped on, so an effect
  * reading the time and its live form read the same one.
@@ -128,7 +130,7 @@ internal fun ResolvedClip.restartShowsTheNearestFrames(outputRate: Int): Boolean
   val rate = sourceRateOr(outputRate)
   val opening = ceil(start.seconds() * rate).toLong()
   return (slots.first..minOf(slots.first + 1, slots.last)).all { slot ->
-    gridFrameNearest(sourceTimeOfSlot(start, span.start, speed, slot, outputRate), rate) ==
+    gridFrameNearest(sourceTimeOfSlot(start, span.start, speed, slot, outputRate, runStart), rate) ==
       opening + slot - slots.first
   }
 }
@@ -142,7 +144,7 @@ internal fun ResolvedClip.restartShowsTheNearestFrames(outputRate: Int): Boolean
 internal fun ResolvedClip.retimedReadOpens(outputRate: Int): Duration {
   val rate = sourceRateOr(outputRate)
   val first = outputSlotOf(span.start, outputRate)
-  val shown = gridFrameNearest(sourceTimeOfSlot(start, span.start, speed, first, outputRate), rate)
+  val shown = gridFrameNearest(sourceTimeOfSlot(start, span.start, speed, first, outputRate, runStart), rate)
   return (gridFrameTime(shown, rate) - 1.seconds / rate / 2).coerceAtLeast(Duration.ZERO)
 }
 

@@ -158,7 +158,7 @@ class ShownFramesMediaTest {
 
       val nearest =
         slots.map { slot ->
-          val target = sourceTimeOfSlot(Duration.ZERO, Duration.ZERO, 1.0, slot, PAIRED_RATE)
+          val target = sourceTimeOfSlot(Duration.ZERO, Duration.ZERO, 1.0, slot, PAIRED_RATE, Duration.ZERO)
           checkNotNull(nearestSourceFrame(PAIRED_TIMES, target))
         }
       withClue("slot 1's nearest frame is the earlier of the two in one tick") { nearest[1] shouldBe 1 }

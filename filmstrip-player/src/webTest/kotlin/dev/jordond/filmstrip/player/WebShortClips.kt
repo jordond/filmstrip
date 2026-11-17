@@ -15,6 +15,7 @@ import dev.jordond.filmstrip.player.contract.ClipParityBackend
 import dev.jordond.filmstrip.player.contract.ShortClipBackend
 import dev.jordond.filmstrip.player.contract.ShortClipEverySlotContractTest
 import dev.jordond.filmstrip.player.contract.ShortClipOffGridContractTest
+import dev.jordond.filmstrip.player.contract.ShortClipSeamContractTest
 import dev.jordond.filmstrip.player.contract.ShortClipSlotContractTest
 import dev.jordond.filmstrip.player.contract.ShortClipTieContractTest
 import dev.jordond.filmstrip.test.PREVIEW_PARITY_EXPORT_BITRATE
@@ -74,6 +75,11 @@ class WebShortClipTieMediaTest : ShortClipTieContractTest(WebShortClips)
  * The off grid span short clip cells in the browser.
  */
 class WebShortClipOffGridMediaTest : ShortClipOffGridContractTest(WebShortClips)
+
+/**
+ * The seam short clip cells in the browser.
+ */
+class WebShortClipSeamMediaTest : ShortClipSeamContractTest(WebShortClips)
 
 // The `stsz` entry count of the first track whose `hdlr` names video, walking moov, trak, mdia, minf and stbl.
 private fun videoSampleCount(file: DataView): Long? {

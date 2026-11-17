@@ -15,13 +15,25 @@ import kotlin.time.Duration.Companion.seconds
 
 /**
  * What a cell reads: the [edit], the source frame each slot should show, the speed the file's length is read at when
- * the cell holds one, and how many frames the file holds when that is not every slot of the edit.
+ * the cell holds one, how many frames the file holds when that is not every slot of the edit, and the [seam] it reads
+ * when it holds one.
  */
 internal class Cell(
   val edit: Composition,
   val reads: List<Read>,
   val writtenAtSpeed: Double? = null,
   val writtenFrames: Long? = null,
+  val seam: Seam? = null,
+)
+
+/**
+ * Where two clips of one source meet: the first [slot] the second clip covers, the [whole] edit that plays the same run
+ * as one clip, and whether the slots either side of the seam [differs] in the frame they show.
+ */
+internal class Seam(
+  val slot: Long,
+  val whole: Composition,
+  val differs: Boolean,
 )
 
 internal class Read(
@@ -37,6 +49,7 @@ internal class Cut(
 internal class PlacedClip(
   val cut: Cut,
   val span: TimeRange,
+  val runStart: Duration = cut.trim.start,
 ) {
   fun clipOf(source: MediaSource) = Clip(source, cut.trim, speed = cut.speed)
 }
@@ -83,13 +96,20 @@ internal suspend fun runSides(vararg sides: Pair<String, suspend () -> Unit>) {
 
 /**
  * [cuts] laid end to end from zero, each over the output length its trim plays for at its speed.
+ *
+ * Each is placed with where its run opens on the source: its own trim start, or the opening of the cut before it when
+ * that ends where this one starts at the same speed.
  */
 internal fun runOf(vararg cuts: Cut): List<PlacedClip> {
   var opens = Duration.ZERO
-  return cuts.map { cut ->
+  val placed = mutableListOf<PlacedClip>()
+  cuts.forEach { cut ->
     val closes = opens + outputLengthOf(checkNotNull(cut.trim.duration), cut.speed)
-    PlacedClip(cut, TimeRange.of(opens, closes)).also { opens = closes }
+    val before = placed.lastOrNull()?.takeIf { it.cut.trim.endExclusive == cut.trim.start && it.cut.speed == cut.speed }
+    placed += PlacedClip(cut, TimeRange.of(opens, closes), before?.runStart ?: cut.trim.start)
+    opens = closes
   }
+  return placed
 }
 
 /**

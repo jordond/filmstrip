@@ -20,6 +20,7 @@ import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.HdrTransfer
+import dev.jordond.filmstrip.transform.internal.earliestReadTime
 import dev.jordond.filmstrip.transform.internal.geometry.coverScale
 import dev.jordond.filmstrip.transform.internal.geometry.showsBlurredFill
 import dev.jordond.filmstrip.transform.internal.heldTail
@@ -166,6 +167,7 @@ internal fun browserRenderOf(
         heldFrames = if (index == holder) heldFrames else 0L,
         toneMaps = plan.hdr == ResolvedHdr.ToneMap,
         fill = plan.fill,
+        frameRate = frameRate,
       )
     }
 
@@ -234,6 +236,7 @@ private fun renderedClip(
   heldFrames: Long,
   toneMaps: Boolean,
   fill: Fill,
+  frameRate: Int,
 ): RenderedClip {
   resolved.effects.requireDrawable()
   val raw = track.clips[resolved.sourceIndex]
@@ -298,6 +301,8 @@ private fun renderedClip(
     speed = resolved.speed,
     spanStart = resolved.span.start,
     audioTrack = resolved.audioTrack,
+    runStart = resolved.runStart,
+    readStartUs = resolved.earliestReadTime(frameRate).microseconds(),
   )
 }
 

@@ -11,6 +11,7 @@ import dev.jordond.filmstrip.media.ProbeResult
 import dev.jordond.filmstrip.player.PreviewQualityPolicy
 import dev.jordond.filmstrip.player.SetCompositionResult
 import dev.jordond.filmstrip.test.TestFrame
+import dev.jordond.filmstrip.test.assertFramesDiffer
 import dev.jordond.filmstrip.test.assertFramesSimilar
 import dev.jordond.filmstrip.test.compareFrames
 import dev.jordond.filmstrip.transform.internal.nearestSourceFrame
@@ -46,6 +47,11 @@ interface ShortClipBackend : ClipParityBackend {
    * source, which can land elsewhere than a read forward from the head.
    */
   val readsEveryWindow: Boolean get() = false
+
+  /**
+   * The presentation times of the sync samples in [source], or null for a backend that cannot read them.
+   */
+  suspend fun syncSampleTimes(source: MediaSource): List<Duration>? = null
 
   /**
    * How far past a source frame's own time a read of a plain clip lands on that frame at [rate].
@@ -106,6 +112,7 @@ abstract class ShortClipCellReader(
       "file" to { assertFile(media, cell, references, rate) },
       "preview" to { assertPreview(scope, cell, references, shown, rate) },
       "agreement" to { assertAgreement(cell.edit, shown, rate) },
+      "seam" to { assertSeam(cell, shown, rate) },
     )
   }
 
@@ -131,7 +138,15 @@ abstract class ShortClipCellReader(
     placed: PlacedClip,
     slot: Long,
     rate: Int = frameRate,
-  ): Duration = sourceTimeOfSlot(placed.cut.trim.start, placed.span.start, placed.cut.speed, slot, rate)
+  ): Duration =
+    sourceTimeOfSlot(
+      placed.cut.trim.start,
+      placed.span.start,
+      placed.cut.speed,
+      slot,
+      rate,
+      placed.runStart,
+    )
 
   /**
    * The read of the last slot of the first clip of [run] and of the first slot of its last.
@@ -224,6 +239,42 @@ abstract class ShortClipCellReader(
         .map { (source, reference) -> source to compareFrames(comparedPart(reference), comparedPart(frame)) }
         .maxBy { (_, comparison) -> comparison.psnrDb }
     return "closest to source frame $source of ${references.keys.sorted()} at $comparison"
+  }
+
+  // The slots either side of the seam show different frames, in the file and the preview, and the file reads as the
+  // same run played as one clip over the slots around the seam.
+  private suspend fun assertSeam(
+    cell: Cell,
+    shown: Map<Long, TestFrame>,
+    rate: Int,
+  ) {
+    val seam = cell.seam ?: return
+    val before = seam.slot - 1
+    if (seam.differs) {
+      assertFramesDiffer(
+        comparedPart(exportFrame(cell.edit, outputSlotTime(before, rate))),
+        comparedPart(exportFrame(cell.edit, outputSlotTime(seam.slot, rate))),
+        message = "the file shows one frame either side of the seam",
+      )
+    }
+    val previewBefore = shown[before]
+    val previewAfter = shown[seam.slot]
+    if (seam.differs && previewBefore != null && previewAfter != null) {
+      assertFramesDiffer(
+        comparedPart(previewBefore),
+        comparedPart(previewAfter),
+        message = "the preview shows one frame either side of the seam",
+      )
+    }
+    (before - 1..seam.slot + 1).forEach { slot ->
+      val time = outputSlotTime(slot, rate)
+      assertSameFrame(
+        exportFrame(seam.whole, time),
+        exportFrame(cell.edit, time),
+        slot,
+        "the file at slot $slot, cut at the seam and played as one clip,",
+      )
+    }
   }
 
   private suspend fun assertAgreement(

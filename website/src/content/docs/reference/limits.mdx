@@ -180,6 +180,15 @@ On Android a file records the priming its AAC encoder writes, so its audio start
 encoders write 2048 frames, measured on emulators from API 26 to 36. A device that picks a vendor's own AAC encoder gets
 the delay media3 assumes for it, which no emulator can measure, so its audio can start off by the difference.
 
+Two clips of one source whose trims meet, `[a, b)` then `[b, c)`, export as one unbroken sound on ffmpeg, Apple, the
+browser and Android. The tests read a continuous 440 Hz tone across the join and hold its phase to a step of one frame
+of 48 kHz audio, 21 µs, and any silence to four frames, 83 µs. Measured, the step is under 10 µs on every backend and
+the silence two frames. A step is only read to within one period of the tone, 2.3 ms at 440 Hz. ffmpeg previews have no
+audio.
+
+On Android a preview of two such clips plays no less sound than the preview of the run as one clip, to a frame. It
+leaves a quiet run of about 3.2 ms at the join, which the tests hold to 4 ms, measured on an API 37 emulator.
+
 Only an MP4 or QuickTime file gives its tracks ids every backend reads alike. A Matroska or WebM file, an MPEG
 transport stream or a raw AAC stream names each audio track by its place among them, counted from one, so the first is
 `AudioTrackId(1)`. See [Choosing a track](/guides/audio/#choosing-a-track).

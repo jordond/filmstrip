@@ -87,6 +87,8 @@ abstract class ShortClipSlotContractTest(
   @Test
   fun cellETrimHoldingNoFrameInARunAtTheSlowEnd() = assertOneSlotInARun(NO_FRAME_AT_SLOW_END)
 
+  // The three clips cut one source in turn at one speed, so they play on from one another and the slot, which sits
+  // before the middle clip's span, reads the run's own opening, frame 0, as one clip over the three would.
   @Test
   fun cellFThreeClipsCoveringOneSlotBetweenThem() =
     assertCell { source ->

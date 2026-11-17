@@ -355,7 +355,15 @@ class AvCompositionTest {
       tail.isEmpty() shouldBe false
       val lastCovered = outputSlotTime(tail.first - 1, GRID_RATE)
       val frames = (0..SOURCE_FRAMES).map { frameTimeOf(it.toLong(), FRAME_RATE) }
-      val target = sourceTimeOfSlot(primary.start, primary.span.start, primary.speed, tail.first - 1, GRID_RATE)
+      val target =
+        sourceTimeOfSlot(
+          primary.start,
+          primary.span.start,
+          primary.speed,
+          tail.first - 1,
+          GRID_RATE,
+          primary.runStart,
+        )
       val heldFrame = frames[checkNotNull(nearestSourceFrame(frames, target))]
 
       val composition = resolved.toAvComposition()

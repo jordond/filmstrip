@@ -1,6 +1,7 @@
 package dev.jordond.filmstrip.player
 
 import android.media.MediaCodec
+import android.media.MediaExtractor
 import android.media.MediaFormat
 import android.media.MediaMuxer
 import android.net.Uri
@@ -11,6 +12,7 @@ import dev.jordond.filmstrip.player.contract.ClipParityBackend
 import dev.jordond.filmstrip.player.contract.ShortClipBackend
 import dev.jordond.filmstrip.player.contract.ShortClipEverySlotContractTest
 import dev.jordond.filmstrip.player.contract.ShortClipOffGridContractTest
+import dev.jordond.filmstrip.player.contract.ShortClipSeamContractTest
 import dev.jordond.filmstrip.player.contract.ShortClipSlotContractTest
 import dev.jordond.filmstrip.player.contract.ShortClipTieContractTest
 import io.kotest.matchers.types.shouldBeInstanceOf
@@ -18,6 +20,7 @@ import java.io.File
 import java.nio.ByteBuffer
 import kotlin.test.fail
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.microseconds
 
 /**
  * The short clip contract on media3, whose frame rate setting can't write faster than a source, so a source at another
@@ -46,6 +49,22 @@ internal object AndroidShortClips : ShortClipBackend, ClipParityBackend by Andro
         extractor.advance()
       }
       return frames
+    } finally {
+      extractor.release()
+    }
+  }
+
+  override suspend fun syncSampleTimes(source: MediaSource): List<Duration> {
+    val path = source.shouldBeInstanceOf<MediaSource.Path>().path
+    val extractor = MediaExtractorCompat().apply { setDataSource(Uri.fromFile(File(path)), 0L) }
+    try {
+      extractor.selectTrack(extractor.trackOf("video/") ?: fail("the source holds no video"))
+      val times = mutableListOf<Duration>()
+      while (extractor.sampleTrackIndex >= 0) {
+        if (extractor.sampleFlags and MediaExtractor.SAMPLE_FLAG_SYNC != 0) times += extractor.sampleTime.microseconds
+        extractor.advance()
+      }
+      return times
     } finally {
       extractor.release()
     }
@@ -108,3 +127,8 @@ class AndroidShortClipTieMediaTest : ShortClipTieContractTest(AndroidShortClips)
  * The off grid span short clip cells on media3.
  */
 class AndroidShortClipOffGridMediaTest : ShortClipOffGridContractTest(AndroidShortClips)
+
+/**
+ * The seam short clip cells on media3.
+ */
+class AndroidShortClipSeamMediaTest : ShortClipSeamContractTest(AndroidShortClips)

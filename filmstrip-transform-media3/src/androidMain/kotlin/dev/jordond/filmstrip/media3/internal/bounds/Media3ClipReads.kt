@@ -7,8 +7,10 @@ import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.edit.outputSlotsOf
 import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.media.MediaSource
+import dev.jordond.filmstrip.transform.internal.earliestReadTime
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedClip
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
+import kotlin.time.Duration
 
 /**
  * What every clip a composition lays reads off its source: the [FrameBounds] and SD color primaries of the clips on the
@@ -57,10 +59,10 @@ public class Media3ClipReads internal constructor(
  * Reads the samples every clip this plan lays on the output frame grid decodes and the SD color primaries it names, off
  * each source's own container.
  *
- * A clip is read once per window, however many passes of a looping track cut the same one. A clip whose container
- * cannot be read is left out, and the lowering lays it from its own start. A copy writes the source's own samples, so
- * nothing is read for one. No audio unit is read, since only a lowering that runs each clip's audio speed itself opens
- * on one.
+ * A clip is read once per window, however many passes of a looping track cut the same one, from the earliest any of
+ * them reads. A clip whose container cannot be read is left out, and the lowering lays it from its own start. A copy
+ * writes the source's own samples, so nothing is read for one. No audio unit is read, since only a lowering that runs
+ * each clip's audio speed itself opens on one.
  *
  * @return what every lowering of this plan lays its items by.
  */
@@ -81,7 +83,7 @@ internal suspend fun ResolvedComposition.readClips(ownsAudioSpeed: Boolean): Med
 
   val windows =
     if (audio == AudioSpec.AudioOnly) {
-      emptyList()
+      emptyMap()
     } else {
       clips
         .filter { (content, clip) ->
@@ -89,8 +91,8 @@ internal suspend fun ResolvedComposition.readClips(ownsAudioSpeed: Boolean): Med
             clip.source !is MediaSource.Image &&
             clip.info.video != null &&
             !outputSlotsOf(clip.span, rate).isEmpty()
-        }.map { (_, clip) -> clip.window }
-        .distinct()
+        }.map { (_, clip) -> clip }
+        .readsFrom(rate)
     }
   val audioWindows =
     if (!ownsAudioSpeed || output.audioCodec == AudioCodec.None) {
@@ -105,9 +107,9 @@ internal suspend fun ResolvedComposition.readClips(ownsAudioSpeed: Boolean): Med
   if (windows.isEmpty() && audioWindows.isEmpty()) return Media3ClipReads.None
   return Media3ClipReads(
     windows
-      .mapNotNull { window -> frameBoundsOf(window.source, window.start, window.end)?.let { window to it } }
+      .mapNotNull { (window, readFrom) -> frameBoundsOf(window.source, readFrom, window.end)?.let { window to it } }
       .toMap(),
-    windows
+    windows.keys
       .map { it.source }
       .distinct()
       .mapNotNull { source -> sdPrimariesNamedBy(source)?.let { source to it } }
@@ -118,6 +120,15 @@ internal suspend fun ResolvedComposition.readClips(ownsAudioSpeed: Boolean): Med
       }.toMap(),
   )
 }
+
+/**
+ * Where each window of [this] is read from on a grid of [frameRate], the earliest any clip over it reads.
+ *
+ * Clips with one trim share a window, and one that plays on from the clip before it can read ahead of that trim, so the
+ * window opens early enough for each of them.
+ */
+internal fun Collection<ResolvedClip>.readsFrom(frameRate: Int): Map<ClipWindow, Duration> =
+  groupBy { it.window }.mapValues { (_, clips) -> clips.minOf { it.earliestReadTime(frameRate) } }
 
 private val ResolvedClip.window: ClipWindow get() = ClipWindow(source, start, end)
 

@@ -5,7 +5,10 @@ import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.outputLengthOf
+import dev.jordond.filmstrip.edit.outputSlotOf
+import dev.jordond.filmstrip.edit.outputSlotTime
 import dev.jordond.filmstrip.edit.sourceLengthOf
+import dev.jordond.filmstrip.edit.sourceOffsetAt
 import dev.jordond.filmstrip.edit.stillHold
 import dev.jordond.filmstrip.effect.Attributes
 import dev.jordond.filmstrip.effect.EffectId
@@ -22,8 +25,10 @@ import dev.jordond.filmstrip.transform.internal.FakeResolver
 import dev.jordond.filmstrip.transform.internal.MAX_LAID_PASSES
 import dev.jordond.filmstrip.transform.internal.PlannerFixture
 import dev.jordond.filmstrip.transform.internal.composition
+import dev.jordond.filmstrip.transform.internal.earliestReadTime
 import dev.jordond.filmstrip.transform.internal.fakePlatformEffect
 import dev.jordond.filmstrip.transform.internal.geometry.frameAfter
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedClip
 import dev.jordond.filmstrip.transform.internal.resolve.curveOver
 import dev.jordond.filmstrip.transform.internal.resolve.fadeEnvelope
 import io.kotest.assertions.withClue
@@ -296,6 +301,111 @@ class TrackLayingTest {
 
     laidWindowOf(sliver, infoOf(sliver)).shouldBeNull()
   }
+
+  @Test
+  fun `a clip plays on from the one before it when both play one source at one speed with their trims meeting`() {
+    listOf(1.0, 0.5, 2.0).forEach { speed ->
+      val first = fixture.clip(duration = 6.seconds, trim = TimeRange.of(110.milliseconds, 600.milliseconds))
+      val second = Clip(first.source, TimeRange.of(600.milliseconds, 1.seconds)).withSpeed(speed)
+      val third = Clip(first.source, TimeRange.of(1.seconds, 1_300.milliseconds)).withSpeed(speed)
+
+      laidOver(first.withSpeed(speed), second, third).map { it.runStart } shouldBe
+        listOf(110.milliseconds, 110.milliseconds, 110.milliseconds)
+    }
+  }
+
+  @Test
+  fun `a run opens where its first clip's trim does however short that clip is`() {
+    val head = fixture.clip(duration = 6.seconds, trim = TimeRange.of(100.milliseconds, 101.milliseconds))
+    val tail = Clip(head.source, TimeRange.of(101.milliseconds, 900.milliseconds))
+
+    laidOver(head, tail).map { it.runStart } shouldBe listOf(100.milliseconds, 100.milliseconds)
+  }
+
+  @Test
+  fun `a clip opens its own run after another source a gap or a speed change`() {
+    val first = fixture.clip(duration = 6.seconds, trim = TimeRange.of(110.milliseconds, 600.milliseconds))
+    val other = fixture.clip(duration = 6.seconds, trim = TimeRange.of(600.milliseconds, 1.seconds))
+    val gapped = Clip(first.source, TimeRange.of(700.milliseconds, 1.seconds))
+    val faster = Clip(first.source, TimeRange.of(600.milliseconds, 1.seconds)).withSpeed(2.0)
+
+    listOf(other, gapped, faster).forEach { second ->
+      laidOver(first, second).map { it.runStart } shouldBe
+        listOf(110.milliseconds, checkNotNull(second.trim).start)
+    }
+  }
+
+  @Test
+  fun `a clip that is first opens its own run`() {
+    val clip = fixture.clip(duration = 6.seconds, trim = TimeRange.of(300.milliseconds, 600.milliseconds))
+
+    laidOver(clip).map { it.runStart } shouldBe listOf(300.milliseconds)
+  }
+
+  @Test
+  fun `a pass of a loop plays on from the one before it only where the trims meet across the wrap`() {
+    val early = fixture.clip(duration = 6.seconds, trim = TimeRange.of(Duration.ZERO, 500.milliseconds))
+    val late = Clip(early.source, TimeRange.of(500.milliseconds, 1.seconds))
+
+    // Late plays on from early, and early after late's end at 1 s opens a run of its own.
+    loopedOver(early, late).map { it.runStart } shouldBe List(4) { Duration.ZERO }
+    // Late's second pass plays on from early, which ends at 500 ms where late starts, across the wrap.
+    loopedOver(late, early).map { it.runStart } shouldBe
+      listOf(500.milliseconds, Duration.ZERO, Duration.ZERO, Duration.ZERO)
+  }
+
+  @Test
+  fun `a clip that plays on reads from before its trim by the lead its first slot sits ahead of its span`() {
+    listOf(1.0, 2.0, 4.0).forEach { speed ->
+      val first = fixture.clip(duration = 6.seconds, trim = TimeRange.of(110.milliseconds, 585.milliseconds))
+      val second = Clip(first.source, TimeRange.of(585.milliseconds, 1_100.milliseconds)).withSpeed(speed)
+      val other = fixture.clip(duration = 6.seconds, trim = TimeRange.of(585.milliseconds, 1_100.milliseconds))
+      val laid = laidOver(first.withSpeed(speed), second)
+      val reads = laid.map { it.earliestReadTime(30) }
+      val lead = outputSlotTime(outputSlotOf(laid[1].span.start, 30), 30) - laid[1].span.start
+
+      reads[0] shouldBe 110.milliseconds
+      reads[1] shouldBe minOf(585.milliseconds, 585.milliseconds + sourceOffsetAt(lead, speed))
+      if (lead.isNegative()) (reads[1] < 585.milliseconds) shouldBe true
+      laidOver(first, other).map { it.earliestReadTime(30) } shouldBe listOf(110.milliseconds, 585.milliseconds)
+    }
+  }
+
+  @Test
+  fun `a clip that plays on reads no earlier than the run it plays on from opens`() {
+    listOf(1.0, 32.0).forEach { speed ->
+      // The run's head covers no slot, so the slot the tail opens on sits ten milliseconds before its span.
+      val before = fixture.clip(duration = 6.seconds, trim = TimeRange.of(Duration.ZERO, 9.milliseconds))
+      val head =
+        Clip(fixture.clip(duration = 6.seconds).source, TimeRange.of(100.milliseconds, (100 + speed).milliseconds))
+          .withSpeed(speed)
+      val tail =
+        Clip(head.source, TimeRange.of((100 + speed).milliseconds, 900.milliseconds)).withSpeed(speed)
+
+      val laid = laidOver(before, head, tail)
+
+      laid.map { it.runStart } shouldBe listOf(Duration.ZERO, 100.milliseconds, 100.milliseconds)
+      laid.last().earliestReadTime(30) shouldBe 100.milliseconds
+    }
+  }
+
+  @Test
+  fun `a clip that plays on never reads before the start of its source`() {
+    val head = fixture.clip(duration = 6.seconds, trim = TimeRange.of(Duration.ZERO, 5.milliseconds))
+    val tail = Clip(head.source, TimeRange.of(5.milliseconds, 900.milliseconds))
+
+    laidOver(head, tail).map { it.earliestReadTime(30) } shouldBe listOf(Duration.ZERO, Duration.ZERO)
+  }
+
+  private fun laidOver(vararg clips: Clip): List<ResolvedClip> {
+    val run = clips.fold(Duration.ZERO) { total, clip -> total + outputLengthOf(clip.window, clip.speed) }
+    return layer(clips.toList()).lay(Track(clips.toList()), windows(*clips), run).track.clips
+  }
+
+  private fun loopedOver(vararg clips: Clip): List<ResolvedClip> =
+    layer(clips.toList()).lay(Track(clips.toList(), looping = true), windows(*clips), 2.seconds).track.clips
+
+  private val Clip.window: Duration get() = checkNotNull(trim?.duration)
 
   private fun infoOf(clip: Clip) = fixture.infos(composition(clip)).getValue(clip.source)
 

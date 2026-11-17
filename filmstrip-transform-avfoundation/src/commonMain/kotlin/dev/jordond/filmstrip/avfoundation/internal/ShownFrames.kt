@@ -55,7 +55,10 @@ internal suspend fun AVMutableCompositionTrack.insertShown(
   ) -> SampleTimes? = { from, to -> source.sampleTimesAround(from, to) },
 ) {
   val covered = outputSlotsOf(clip.span, grid)
-  val targets = covered.map { sourceTimeOfSlot(clip.start, clip.span.start, clip.speed, it, grid) }
+  val targets =
+    covered.map {
+      sourceTimeOfSlot(clip.start, clip.span.start, clip.speed, it, grid, clip.runStart)
+    }
   val samples = samplesOf(targets.first(), targets.last()) ?: throw AvLoweringFailure(unreadTimes(clip))
   val count = (slots.last - slots.first + 1).toInt()
   // AVFoundation's one timescale limit: frames inside one tick of it can't each be read, so a slot whose nearest is

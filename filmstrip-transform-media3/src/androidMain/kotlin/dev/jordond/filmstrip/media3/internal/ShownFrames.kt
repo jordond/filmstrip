@@ -58,7 +58,7 @@ internal class ShownFrames(
 
       val firstSlots = LinkedHashMap<Int, Long>()
       slots.forEach { slot ->
-        val time = sourceTimeOfSlot(clip.start, clip.span.start, clip.speed, slot, frameRate)
+        val time = sourceTimeOfSlot(clip.start, clip.span.start, clip.speed, slot, frameRate, clip.runStart)
         firstSlots.getOrPut(checkNotNull(nearestSourceFrame(samples, time))) { slot }
       }
       val indices = firstSlots.keys.toList()

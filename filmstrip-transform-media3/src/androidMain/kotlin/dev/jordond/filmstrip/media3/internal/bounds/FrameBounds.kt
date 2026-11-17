@@ -6,9 +6,9 @@ import kotlin.time.Duration
 /**
  * The video samples one clip's window can show, read off its source's container.
  *
- * Every time is on the source's own clock, in presentation order. They run from the sync sample before the clip's start
- * up to the second sync sample past its end, so the sample nearest either end is among them even when it sits outside
- * the window.
+ * Every time is on the source's own clock, in presentation order. They run from the sync sample before where the clip
+ * reads from, which is its start or earlier for a clip that plays on from the one before it, up to the second sync
+ * sample past its end. The sample nearest either end is among them even when it sits outside the window.
  *
  * @property samples Each sample's presentation time.
  * @property end Where the last of [samples] stops showing. That is the sample the read stopped on, or the end of the
@@ -46,7 +46,8 @@ internal class AudioPreroll(
 }
 
 /**
- * The window a clip cuts from its source, which is all its [FrameBounds] depend on.
+ * The window a clip cuts from its source, which with where the clips over it read from is all their [FrameBounds]
+ * depend on.
  */
 internal data class ClipWindow(
   val source: MediaSource,

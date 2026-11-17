@@ -21,7 +21,10 @@ internal class BrowserPipeline(
   private val render: BrowserRender,
   private val sources: SourceCache,
   private val framesOf: suspend (RenderedClip) -> FrameStream? = { clip ->
-    sources.open(clip.source)?.frames(clip.trimStartUs, clip.trimEndUs, tenBit = render.readsPlanes(clip))
+    sources
+      .open(
+        clip.source,
+      )?.frames(clip.readStartUs, clip.trimEndUs, tenBit = render.readsPlanes(clip))
   },
 ) {
   /**

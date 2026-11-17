@@ -1,6 +1,9 @@
 package dev.jordond.filmstrip.transform.internal
 
+import dev.jordond.filmstrip.edit.TimeRange
+import dev.jordond.filmstrip.edit.outputLengthOf
 import dev.jordond.filmstrip.edit.outputSlotTime
+import dev.jordond.filmstrip.edit.outputSlotsOf
 import dev.jordond.filmstrip.edit.sourceOffsetAt
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
@@ -83,12 +86,77 @@ class NearestFrameTest {
     val trimStart = 200.milliseconds
     val spanStart = outputSlotTime(15, 30)
 
-    sourceTimeOfSlot(trimStart, spanStart, 1.5, 22, 30) shouldBe
+    sourceTimeOfSlot(trimStart, spanStart, 1.5, 22, 30, trimStart) shouldBe
       trimStart + sourceOffsetAt(outputSlotTime(22, 30) - spanStart, 1.5)
   }
 
   @Test
-  fun `a slot before the span reads the trim's own start`() {
-    sourceTimeOfSlot(200.milliseconds, 600.milliseconds, 0.7, 17, 30) shouldBe 200.milliseconds
+  fun `a slot before the span of a clip that plays on reads back from the trim by the lead scaled by the speed`() {
+    val spanStart = 475.milliseconds
+    val lead = spanStart - outputSlotTime(14, 30)
+
+    listOf(1.0 / 32, 0.5, 1.0, 1.5, 7.0, 32.0).forEach { speed ->
+      sourceTimeOfSlot(585.milliseconds, spanStart, speed, 14, 30, runStart = 110.milliseconds) shouldBe
+        585.milliseconds + sourceOffsetAt(-lead, speed)
+    }
+  }
+
+  @Test
+  fun `a slot before the span of a clip that plays on from nothing reads the trim's own start at every speed`() {
+    listOf(1.0 / 32, 0.5, 1.0, 1.5, 7.0, 32.0).forEach { speed ->
+      sourceTimeOfSlot(585.milliseconds, 475.milliseconds, speed, 14, 30, runStart = 585.milliseconds) shouldBe
+        585.milliseconds
+    }
+  }
+
+  @Test
+  fun `a slot never reads before where the run it plays on from opens`() {
+    val lead = 475.milliseconds - outputSlotTime(14, 30)
+
+    listOf(0.5, 1.0, 4.0, 32.0).forEach { speed ->
+      val unclamped = 585.milliseconds + sourceOffsetAt(-lead, speed)
+      listOf(unclamped - 1.milliseconds, unclamped, unclamped + 1.milliseconds, 585.milliseconds).forEach { opens ->
+        val read = sourceTimeOfSlot(585.milliseconds, 475.milliseconds, speed, 14, 30, runStart = opens)
+
+        read shouldBe maxOf(opens, unclamped)
+      }
+    }
+  }
+
+  @Test
+  fun `a slot on or past the span reads the same whatever run the clip plays on from`() {
+    val spanStart = outputSlotTime(15, 30)
+
+    listOf(0.5, 1.0, 2.0).forEach { speed ->
+      listOf(15L, 16L, 22L).forEach { slot ->
+        sourceTimeOfSlot(200.milliseconds, spanStart, speed, slot, 30, runStart = 50.milliseconds) shouldBe
+          sourceTimeOfSlot(200.milliseconds, spanStart, speed, slot, 30, runStart = 200.milliseconds)
+      }
+    }
+  }
+
+  @Test
+  fun `two clips of one source whose trims meet read every slot as the whole run does at every speed`() {
+    val frameRate = 30
+    listOf(0.5, 1.0, 2.0).forEach { speed ->
+      listOf(0, 110, 117).forEach { startMs ->
+        listOf(500, 475, 466, 483, 510).forEach { seamMs ->
+          val start = startMs.milliseconds
+          val seam = start + (seamMs.milliseconds - start) * speed
+          val end = start + (1_000.milliseconds - start) * speed
+          val whole = outputLengthOf(end - start, speed)
+          val second = TimeRange.of(outputLengthOf(seam - start, speed), whole)
+          outputSlotsOf(TimeRange.of(Duration.ZERO, whole), frameRate).forEach { slot ->
+            val read =
+              if (slot in outputSlotsOf(second, frameRate)) {
+                sourceTimeOfSlot(seam, second.start, speed, slot, frameRate, runStart = start)
+              } else {
+                sourceTimeOfSlot(start, Duration.ZERO, speed, slot, frameRate, runStart = start)
+              }
+            read shouldBe start + sourceOffsetAt(outputSlotTime(slot, frameRate), speed)
+          }
+        }
+      }
+    }
   }
 }
