@@ -107,11 +107,13 @@ public fun placementOf(
   val chain = stages.flatMap { canonicalOrder(it) }
   val canvases = mutableListOf<CanvasPlacement>()
   // The frame the planner measures, the frame a backend really holds, and the canvas no effect has read yet.
-  var size = sourceSize
-  var held = sourceSize
+  var measured = MeasuredFrame(sourceSize)
+  var held = MeasuredFrame(sourceSize)
   var open: CanvasPlacement? = null
   chain.forEachIndexed { index, spec ->
-    val next = frameAfter(spec, size)
+    val size = measured.size
+    val nextMeasured = frameAfter(spec, measured)
+    val next = nextMeasured.size
     val pending = open
     when {
       spec.makesCanvas() -> {
@@ -119,12 +121,12 @@ public fun placementOf(
         open = CanvasPlacement(pending?.contentInCanvas?.placedIn(placed) ?: placed, next, index)
       }
       pending == null -> {
-        held = next
+        held = nextMeasured
       }
       spec.readsCanvas() -> {
         canvases += pending
         open = null
-        held = next
+        held = nextMeasured
       }
       else -> {
         if (spec is Flip) {
@@ -134,13 +136,14 @@ public fun placementOf(
         held = frameAfter(spec, held)
       }
     }
-    size = next
+    measured = nextMeasured
   }
+  val size = measured.size
   val fit = chain.filterIsInstance<Scale>().lastOrNull()?.fit ?: Fit.Contain
   val canvasInFrame = placeIn(size, naturalSize, fit)
   val drawnRect = open?.contentInCanvas?.placedIn(canvasInFrame) ?: canvasInFrame
   val leavesBars = !drawnRect.covers(naturalSize) || canvases.any { !it.contentInCanvas.covers(it.size) }
-  return ClipPlacement(fit, canvases, held, drawnRect, canvasInFrame, leavesBars)
+  return ClipPlacement(fit, canvases, held.size, drawnRect, canvasInFrame, leavesBars)
 }
 
 /**

@@ -204,7 +204,7 @@ internal fun <R : Any, T> assembled(
     }
   val graph =
     "[1:v]$reference[ref];[ref][0:v]xstack=inputs=2:layout=0_0|0_0," +
-      "crop=${canvas.size.width}:${canvas.size.height}:0:0,${assembly.post}"
+      "crop=${canvas.size.width}:${canvas.size.height}:0:0:exact=1,${assembly.post}"
   return try {
     val inputs = raw + listOf("-i", "-") + INPUT_OPTIONS + listOf("-f", first.format, "-i", file.path)
     val graphed = listOf("-frames:v", "1", "-filter_complex_threads", "1", "-filter_complex", graph)

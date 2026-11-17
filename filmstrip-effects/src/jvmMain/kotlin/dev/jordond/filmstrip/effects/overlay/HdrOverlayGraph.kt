@@ -10,6 +10,7 @@ import dev.jordond.filmstrip.effect.FilterFragment
 import dev.jordond.filmstrip.effect.FilterNode
 import dev.jordond.filmstrip.effect.PlaneLanes
 import dev.jordond.filmstrip.effect.Sidecar
+import dev.jordond.filmstrip.effect.exactCrop
 import dev.jordond.filmstrip.effects.GRADE_WITH_ALPHA_TO_FLOAT
 import dev.jordond.filmstrip.effects.HdrGradeTables
 import dev.jordond.filmstrip.effects.LINEAR
@@ -144,13 +145,7 @@ internal fun HdrOverlayLayout.windowNodes(
     if (!whole || !atOrigin) {
       val clock = rate?.let(::branchFrameClock).orEmpty()
       add(
-        FilterNode(
-          "crop",
-          "w" to region.width.toString(),
-          "h" to region.height.toString(),
-          "x" to window.x.on(clock),
-          "y" to window.y.on(clock),
-        ),
+        exactCrop(region.width.toString(), region.height.toString(), window.x.on(clock), window.y.on(clock)),
       )
     }
   }

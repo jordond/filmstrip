@@ -41,7 +41,7 @@ internal val VHS_FILTERS: Set<String> =
  * The filters a Vhs fragment adds beside a clear canvas bar, where it reads the tape exactly in windows around the
  * edge and merges them over the plain read.
  */
-internal val VHS_EDGE_FILTERS: Set<String> = setOf("extractplanes", "mergeplanes", "maskedmerge", "hstack")
+internal val VHS_EDGE_FILTERS: Set<String> = setOf("extractplanes", "mergeplanes", "maskedmerge", "hstack", "setsar")
 
 /**
  * The filters a Film fragment lowers onto at 720p, every name its own check has to find.

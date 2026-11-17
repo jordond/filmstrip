@@ -23,7 +23,8 @@ class BlurredLetterboxTest {
     val nodes = coverBlurNodes(OUTPUT, fill, PIXEL_FORMAT).render()
 
     nodes shouldContain
-      "scale=w=1280:h=720:force_original_aspect_ratio=increase,crop=w=1280:h=720," +
+      "scale=w=1280:h=720:force_original_aspect_ratio=increase," +
+      "crop=w=1280:h=720:x=(in_w-out_w)/2:y=(in_h-out_h)/2:exact=1," +
       SpatialBlurGraph.boxedDown(plan, plan, OUTPUT, COVER_FORMAT).render() + "," +
       SpatialBlurGraph.blurredUp(plan, plan, OUTPUT, COVER_FORMAT, COLOR_PLANES).render()
   }

@@ -113,7 +113,7 @@ internal fun greyFrame(
   )
 }
 
-private fun engine(): BrowserExportEngine =
+internal fun engine(): BrowserExportEngine =
   BrowserExportEngine(ComponentRegistry.Builder().addEffectResolver(BuiltInEffectResolver()).build(), BrowserProber())
 
 private const val GREY: Byte = 120

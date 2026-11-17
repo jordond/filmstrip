@@ -5,6 +5,8 @@ import dev.jordond.filmstrip.effect.FilterFragment
 import dev.jordond.filmstrip.effect.FilterNode
 import dev.jordond.filmstrip.effect.LiveBranches
 import dev.jordond.filmstrip.effect.LiveInput
+import dev.jordond.filmstrip.effect.exactCrop
+import dev.jordond.filmstrip.effect.fullChromaFormat
 import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.geometry.Size
 import kotlin.math.ceil
@@ -61,26 +63,18 @@ internal fun tapePictureFragment(
   // raster is a crop, which copies nothing. A frame narrower than the raster draws its maps at its own width, since a
   // wider map scaled down reads each sample off its pixel's centre.
   val rasterWidth = min(width, RASTER_WIDTH)
-  val raster = FilterNode("crop", "w" to "$rasterWidth", "h" to "$height", "x" to "0", "y" to "0")
+  val raster = exactCrop(rasterWidth, height)
   val upscale = FilterNode("scale", "w" to "$width", "h" to "$height", "flags" to "neighbor")
-  val unpad = FilterNode("crop", "w" to "$width", "h" to "$height", "x" to "$margin", "y" to "0")
+  val unpad = exactCrop(width, height, margin)
   // The snow's weight holds along a row, so its map is two samples wide, the narrowest 4:2:0 frame.
-  val maskRaster = FilterNode("crop", "w" to "$MASK_WIDTH", "h" to "$height", "x" to "0", "y" to "0")
-  // An odd raster puts the weight on an odd column, which crop rounds down to the chroma grid unless it is exact.
-  val weightColumns =
-    FilterNode("crop", "w" to "$MASK_WIDTH", "h" to "$height", "x" to "$rasterWidth", "y" to "0", "exact" to "1")
+  val maskRaster = exactCrop(MASK_WIDTH, height)
+  // An odd raster puts the weight on an odd column.
+  val weightColumns = exactCrop(MASK_WIDTH, height, rasterWidth)
   val planes =
     TapePicturePlanes(look.seed, params, rasterWidth, height, nodes.lumaGrainScale, nodes.chromaGrainScale)
   val edges = TapePictureEdgeReads(nodes, params, width)
-  val padding =
-    FilterNode(
-      "pad",
-      "w" to "${width + 2 * margin}",
-      "h" to "ih",
-      "x" to "$margin",
-      "y" to "0",
-      "color" to "black",
-    )
+  val tapeFormat = if (coverage is Coverage.Opaque) OPAQUE_TAPE_FORMATS else TAPE_FORMAT
+  val padding = marginNodes(frame, margin, tapeFormat)
   val blurred = { into: String ->
     listOf(
       FilterBranch(listOf("sharp"), emptyList(), listOf("near", "far")),
@@ -95,7 +89,7 @@ internal fun tapePictureFragment(
   val ringed = { from: String ->
     when (coverage) {
       is Coverage.Opaque -> {
-        val tape = listOf(padding, nodes.displace(width, margin)) + softened
+        val tape = padding + nodes.displace(width, margin) + softened
         listOf(FilterBranch(listOf(from), tape, listOf("sharp"))) + blurred("ringed")
       }
       is Coverage.Anywhere -> {
@@ -104,7 +98,7 @@ internal fun tapePictureFragment(
       is Coverage.Edges -> {
         val taps = listOf("tapeIn") + edges.reads(coverage, "edgeIn")
         listOf(FilterBranch(listOf(from), emptyList(), taps)) +
-          tapeBranches(nodes, width, margin, "tapeIn", softened) + blurred("ringedBase") +
+          tapeBranches(nodes, frame, margin, "tapeIn", softened) + blurred("ringedBase") +
           edges.branches(coverage, "edgeIn", "ringedBase", "ringed", height)
       }
     }
@@ -203,29 +197,25 @@ internal fun tapePictureFragment(
 // shift from luma.
 private fun tapeBranches(
   nodes: TapePictureExpressions,
-  width: Int,
+  frame: Size,
   margin: Int,
   from: String,
   softened: List<FilterNode>,
 ): List<FilterBranch> {
-  val pad =
-    FilterNode(
-      "pad",
-      "w" to "${width + 2 * margin}",
-      "h" to "ih",
-      "x" to "$margin",
-      "y" to "0",
-      "color" to "black",
-    )
+  val width = frame.width
+  val pad = marginNodes(frame, margin, TAPE_FORMAT)
   val alpha = FilterNode("extractplanes", "planes" to "a")
-  val half = FilterNode("scale", "w" to "iw/2", "h" to "ih/2", "flags" to "area")
+  val half = FilterNode("scale", "w" to "ceil(iw/2)", "h" to "ceil(ih/2)", "flags" to "area")
+  // A plane of odd size is scaled to its chroma's rounded up size, which changes the frame's pixel aspect, so it is set
+  // back to square.
+  val alphaHalved = if (frame.width % 2 == 0 && frame.height % 2 == 0) listOf(half) else listOf(half, SQUARE_PIXELS)
   val alphaFrame = FilterNode("mergeplanes", "mapping" to ALPHA_FRAME_MAPPING, "format" to "yuva420p")
   return listOf(
-    FilterBranch(listOf(from), listOf(pad), listOf("padded")),
+    FilterBranch(listOf(from), pad, listOf("padded")),
     FilterBranch(listOf("padded"), emptyList(), listOf("colour", "coverage")),
     FilterBranch(listOf("coverage"), listOf(alpha), listOf("alpha")),
     FilterBranch(listOf("alpha"), emptyList(), listOf("alphaLuma", "alphaHalf", "alphaCarry")),
-    FilterBranch(listOf("alphaHalf"), listOf(half), listOf("alphaChroma")),
+    FilterBranch(listOf("alphaHalf"), alphaHalved, listOf("alphaChroma")),
     FilterBranch(listOf("alphaChroma"), emptyList(), listOf("alphaCb", "alphaCr", "alphaShift")),
     FilterBranch(listOf("alphaLuma", "alphaCb", "alphaCr", "alphaCarry"), listOf(alphaFrame), listOf("weights")),
     FilterBranch(
@@ -241,6 +231,39 @@ private fun tapeBranches(
     FilterBranch(listOf("movedLuma", "movedCb", "movedCr", "movedCarry"), listOf(alphaFrame), listOf("movedWeights")),
     FilterBranch(listOf("movedColour", "movedWeights"), listOf(nodes.divide()) + softened, listOf("sharp")),
   )
+}
+
+// The black margin either side of the frame. `pad` rounds its size and offsets down to the chroma grid and copies a
+// whole chroma sample at a time, so on a frame of odd width or height it would drop the last column or row. Such a
+// frame is padded in 4:4:4 instead, taken there and back by neighbour with the chroma sited the same both ways, which
+// hands every sample back as it was.
+private fun marginNodes(
+  frame: Size,
+  margin: Int,
+  formats: String,
+): List<FilterNode> {
+  val pad =
+    FilterNode(
+      "pad",
+      "w" to "${frame.width + 2 * margin}",
+      "h" to "ih",
+      "x" to "$margin",
+      "y" to "0",
+      "color" to "black",
+    )
+  if (frame.width % 2 == 0 && frame.height % 2 == 0) return listOf(pad)
+
+  fun sited(format: String) =
+    listOf(
+      FilterNode(
+        "scale",
+        "flags" to "neighbor",
+        "in_chroma_loc" to CHROMA_SITING,
+        "out_chroma_loc" to CHROMA_SITING,
+      ),
+      FilterNode("format", "pix_fmts" to format),
+    )
+  return sited(formats.split('|').joinToString("|") { fullChromaFormat(it) }) + pad + sited(formats)
 }
 
 // Enough tape for four sigmas of the widest blur, on chroma's grid. A chroma sigma in its own plane covers twice as
@@ -269,6 +292,8 @@ private fun gblur(
 private const val GBLUR_STEPS = 6
 private const val MARGIN_SIGMAS = 4.0
 private const val TAPE_FORMAT = "yuva420p"
+private const val CHROMA_SITING = "left"
+private val SQUARE_PIXELS = FilterNode("setsar", "sar" to "1")
 private const val OPAQUE_TAPE_FORMATS = "yuv420p|yuva420p"
 
 // Four gray inputs laid onto the planes of a yuva420p frame in order, each plane from the first plane of its input.

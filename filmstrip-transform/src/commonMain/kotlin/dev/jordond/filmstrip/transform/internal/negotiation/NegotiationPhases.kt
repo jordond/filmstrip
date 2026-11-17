@@ -22,6 +22,7 @@ import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.VideoTrackInfo
 import dev.jordond.filmstrip.transform.internal.ExportPlanner
 import dev.jordond.filmstrip.transform.internal.copy.CopyPacket
+import dev.jordond.filmstrip.transform.internal.geometry.MeasuredFrame
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedHdr
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedTrack
 import kotlin.time.Duration
@@ -93,8 +94,9 @@ public class Ask(
  * @property firstVideo The video the output frame and cadence are measured from.
  * @property compositionInputSize The frame composition geometry measures against, after every clip
  *   and track effect of the clip framing the output.
- * @property naturalSize The frame the composition writes with no height asked of it and before any encoder ceiling.
- * @property heightPx The height the spec moves [naturalSize] to, or null when it keeps it, as
+ * @property natural The frame the composition writes with no height asked of it and before any encoder ceiling, with
+ *   the aspect it stands for, which a height asked of it follows.
+ * @property heightPx The height the spec moves [natural] to, or null when it keeps it, as
  *   [dev.jordond.filmstrip.geometry.effectiveHeight] reads it.
  * @property requestedSize The frame the composition asks for, before any encoder ceiling.
  */
@@ -104,10 +106,13 @@ internal class Framing(
   val framedByStill: Boolean,
   val compositionGeometry: List<EffectSpec>,
   val compositionInputSize: Size,
-  val naturalSize: Size,
+  val natural: MeasuredFrame,
   val heightPx: Int?,
   val requestedSize: Size,
-)
+) {
+  /** The frame [natural] is measured in whole pixels. */
+  val naturalSize: Size get() = natural.size
+}
 
 /**
  * Whether the streams copy across and what happens to an HDR grade.

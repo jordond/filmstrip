@@ -1,13 +1,13 @@
 package dev.jordond.filmstrip.ffmpeg
 
 import dev.jordond.filmstrip.effect.FilterNode
+import dev.jordond.filmstrip.effect.fullChromaFormat
 import dev.jordond.filmstrip.effects.geometry.Crop
 import dev.jordond.filmstrip.effects.geometry.KenBurns
 import dev.jordond.filmstrip.effects.geometry.Scale
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.ChromaGrid
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.canvasNodes
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.drawnAt
-import dev.jordond.filmstrip.ffmpeg.internal.lowering.fullChromaFormat
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.placedNodes
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.render
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.scaledInto
@@ -40,7 +40,7 @@ class PlacementNodesTest {
     val rect = placeIn(PORTRAIT, ODD_FRAME, Fit.Crop).inWholePixelsOf(ODD_FRAME)
     val graph = placedNodes(rect, ODD_FRAME, "black", ChromaGrid.Subsampled).joinToString(",") { it.render() }
 
-    graph shouldBe "scale=w=${rect.width}:h=${rect.height},crop=w=1366:h=768:x=0:y=${-rect.top}"
+    graph shouldBe "scale=w=${rect.width}:h=${rect.height},crop=w=1366:h=768:x=0:y=${-rect.top}:exact=1"
     graph shouldNotContain "pad="
   }
 

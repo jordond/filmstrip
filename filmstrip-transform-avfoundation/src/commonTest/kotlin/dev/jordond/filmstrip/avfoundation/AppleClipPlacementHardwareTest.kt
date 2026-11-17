@@ -1,8 +1,5 @@
 package dev.jordond.filmstrip.avfoundation
 
-import dev.jordond.filmstrip.Filmstrip
-import dev.jordond.filmstrip.edit.Composition
-import dev.jordond.filmstrip.edit.CompositionBuilder
 import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.effects.geometry.Crop
 import dev.jordond.filmstrip.effects.geometry.KenBurns
@@ -13,10 +10,7 @@ import dev.jordond.filmstrip.effects.geometry.turnedFrame
 import dev.jordond.filmstrip.effects.overlay.ImageOverlay
 import dev.jordond.filmstrip.effects.overlay.placedOn
 import dev.jordond.filmstrip.effects.overlay.rectOn
-import dev.jordond.filmstrip.export.ExportPlan
 import dev.jordond.filmstrip.export.ExportSpec
-import dev.jordond.filmstrip.export.ExportStatus
-import dev.jordond.filmstrip.export.Verdict
 import dev.jordond.filmstrip.geometry.AspectRatio
 import dev.jordond.filmstrip.geometry.Corner
 import dev.jordond.filmstrip.geometry.Fill
@@ -24,7 +18,6 @@ import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ImageSource
-import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.test.OverlayPixels
 import dev.jordond.filmstrip.transform.internal.geometry.placementOf
@@ -33,14 +26,8 @@ import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.floats.shouldBeLessThan
-import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.cinterop.ExperimentalForeignApi
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
-import kotlinx.coroutines.withContext
-import platform.Foundation.NSFileManager
-import platform.Foundation.NSTemporaryDirectory
 import kotlin.math.abs
 import kotlin.test.Test
 import kotlin.time.Duration.Companion.seconds
@@ -51,9 +38,7 @@ import kotlin.time.Duration.Companion.seconds
  * The fill is a color the fixture's bars never show, so a bar cannot be mistaken for the picture.
  */
 @OptIn(ExperimentalForeignApi::class)
-class AppleClipPlacementHardwareTest {
-  private val filmstrip = Filmstrip { avFoundationBackend() }
-
+class AppleClipPlacementHardwareTest : ApplePlacementCase() {
   @Test
   fun `a clip's own letterboxing crop writes the fill into its canvas bars`() =
     runTest(timeout = TIMEOUT) {
@@ -333,54 +318,19 @@ class AppleClipPlacementHardwareTest {
     return if (contentX in 0f..1f && contentY in 0f..1f) contentX to contentY else null
   }
 
-  private suspend fun exported(
-    name: String,
-    build: CompositionBuilder.() -> Unit,
-  ): Pair<String, ExportPlan> = exported(compositionOf(build), temporaryPath(name))
-
-  private suspend fun exported(
-    composition: Composition,
-    output: String,
-    spec: ExportSpec = SPEC,
-  ): Pair<String, ExportPlan> =
-    withContext(Dispatchers.Default) {
-      val plan =
-        when (val verdict = filmstrip.plan(composition, spec)) {
-          is Verdict.Capable -> verdict.plan
-          is Verdict.Degraded -> verdict.plan
-          is Verdict.Incapable -> error(verdict.reasons.joinToString { it.message })
-        }
-      val finished = filmstrip.export(plan, MediaSink.of(output)).toList().last()
-      if (finished is ExportStatus.Failure) error(finished.error.message)
-      finished.shouldBeInstanceOf<ExportStatus.Success>()
-      output to plan
-    }
-
-  private fun isSlate(pixel: Triple<Int, Int, Int>): Boolean = distance(pixel, SLATE) <= COLOR_TOLERANCE
-
   private fun isNearerSlate(
     pixel: Triple<Int, Int, Int>,
     picture: Triple<Int, Int, Int>,
   ): Boolean = distance(pixel, SLATE) < distance(pixel, picture)
 
-  private fun temporaryPath(name: String): String = NSTemporaryDirectory() + "filmstrip-apple-placement-$name.mp4"
-
-  private fun remove(path: String) {
-    NSFileManager.defaultManager.removeItemAtPath(path, error = null)
-  }
-
   private companion object {
-    const val LANDSCAPE = "apple_export_a.mp4"
-    val TIMEOUT = 2.seconds * 60
-    val SPEC = ExportSpec(heightPx = 360, bitrate = COLOR_READ_BITRATE)
-
     // A height a preview lowers the edit at, under the export's own.
     const val PREVIEW_HEIGHT = 180
-    val SLATE = Triple(0x20, 0x40, 0x60)
 
     // Read two percent in from an edge, clear of the encoder's own edge blocks.
     const val EDGE = 0.02f
     const val QUARTER_TURN = 90
+
     val SQUARE = Crop(AspectRatio.Square, Fit.Contain)
     val PAN = KenBurns(NormalizedRect(0.05f, 0.1f, 0.85f, 0.9f), NormalizedRect(0.05f, 0.1f, 0.85f, 0.9f))
 

@@ -7,7 +7,9 @@ import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.geometry.effectiveHeight
 import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSource
+import dev.jordond.filmstrip.transform.internal.geometry.MeasuredFrame
 import dev.jordond.filmstrip.transform.internal.geometry.frameThrough
+import dev.jordond.filmstrip.transform.internal.geometry.measuredThrough
 import kotlin.math.roundToInt
 
 /**
@@ -36,7 +38,8 @@ internal fun framingOf(
   val clipStage = frameClip.effects + primary.effects
   val compositionGeometry = edit.effects.filter { it.stage == EffectStage.Geometry }
   val compositionInputSize = frameThrough(firstVideo.displaySize, listOf(clipStage))
-  val naturalSize = frameThrough(compositionInputSize, listOf(compositionGeometry))
+  val natural = measuredThrough(MeasuredFrame(firstVideo.displaySize), listOf(clipStage, compositionGeometry))
+  val naturalSize = natural.size
   val framedByStill = frameClip.source is MediaSource.Image
   val heightPx = effectiveHeight(ask.spec.heightPx, naturalSize.height, framedByStill)
 
@@ -47,21 +50,23 @@ internal fun framingOf(
       framedByStill = framedByStill,
       compositionGeometry = compositionGeometry,
       compositionInputSize = compositionInputSize,
-      naturalSize = naturalSize,
+      natural = natural,
       heightPx = heightPx,
-      requestedSize = atHeight(naturalSize, heightPx),
+      requestedSize = atHeight(natural, heightPx),
     ),
   )
 }
 
+// The height moves the frame along its own aspect, the exact one a crop asked for, so the width does not follow the
+// pixel rounding the first clip's size left on the frame.
 private fun atHeight(
-  size: Size,
+  frame: MeasuredFrame,
   heightPx: Int?,
 ): Size =
-  if (heightPx != null && size.height > 0) {
-    Size((heightPx * size.aspect).roundToInt().coerceAtLeast(1), heightPx)
+  if (heightPx != null && frame.size.height > 0) {
+    Size((heightPx * frame.aspect).roundToInt().coerceAtLeast(1), heightPx)
   } else {
-    size
+    frame.size
   }
 
 /**

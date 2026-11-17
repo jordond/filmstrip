@@ -10,6 +10,7 @@ import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.MediaInfo
+import dev.jordond.filmstrip.transform.internal.geometry.MeasuredFrame
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedHdr
 import kotlin.time.Duration
 
@@ -46,7 +47,7 @@ internal fun framingOf(
   framedByStill = false,
   compositionGeometry = emptyList(),
   compositionInputSize = requestedSize,
-  naturalSize = requestedSize,
+  natural = MeasuredFrame(requestedSize),
   heightPx = null,
   requestedSize = requestedSize,
 )

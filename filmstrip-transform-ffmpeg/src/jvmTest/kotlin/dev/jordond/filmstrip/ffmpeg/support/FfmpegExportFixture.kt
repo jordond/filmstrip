@@ -4,6 +4,7 @@ import dev.jordond.filmstrip.CapabilitiesResult
 import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.compositionOf
+import dev.jordond.filmstrip.effect.EffectResolver
 import dev.jordond.filmstrip.effects.BuiltInEffectResolver
 import dev.jordond.filmstrip.effects.color.brightness
 import dev.jordond.filmstrip.effects.geometry.crop
@@ -134,6 +135,7 @@ internal class FfmpegExportFixture {
     composition: Composition,
     spec: ExportSpec,
     sources: List<MediaSource>,
+    resolvers: List<EffectResolver> = listOf(BuiltInEffectResolver()),
   ): LoweredExport<Invocation> {
     val located = ToolchainLocator(FfmpegConfig(), ProcessRunner()).toolchain()
     val toolchain = located.shouldBeInstanceOf<ToolchainResult.Available>().toolchain
@@ -144,7 +146,7 @@ internal class FfmpegExportFixture {
       copyOpenings(composition) { source, cut ->
         runtime.syncSampleAtOrBefore(toolchain, readablePath(source).shouldNotBeNull(), cut).answer()
       }
-    val planner = FfmpegPlanner(toolchain, listOf(BuiltInEffectResolver()))
+    val planner = FfmpegPlanner(toolchain, resolvers)
     val ask = Ask(spec, device, infos, openings)
     // Read the way the engine reads them, so a copy ending before its source does is counted by the same packets.
     val packets =

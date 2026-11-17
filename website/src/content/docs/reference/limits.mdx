@@ -87,6 +87,10 @@ See [Fit](/guides/effects/#fit).
 - Android and ffmpeg round to whole pixels, the same way, so they land on the same pixels.
 - On an 8-bit ffmpeg export, an overlay or a cropped region at an odd pixel offset lands one pixel up and left of the
   other backends.
+- On an 8-bit ffmpeg export, a clip's `crop` cuts exactly where it was asked to, even at an odd offset, so its picture
+  sits where the other backends put it. The cut's chroma then sits half a chroma sample off on a 4:2:0 frame, which is
+  invisible except on a hard coloured edge. The effect regions above snap to the even pixel instead, since the overlay
+  they go through can only land there.
 
 ## Source alpha
 

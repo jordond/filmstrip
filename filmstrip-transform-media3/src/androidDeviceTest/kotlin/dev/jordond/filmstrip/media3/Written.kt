@@ -41,6 +41,33 @@ internal class Written(
     return Triple(red, green, blue)
   }
 
+  /**
+   * The color of the one pixel at [column] and [row] of the frame as shown, with no patch to average. Chroma is the
+   * sample the pixel's own 2x2 block stores, so this reads what a single stray row or column of the frame holds.
+   */
+  fun pixelAt(
+    column: Int,
+    row: Int,
+  ): Triple<Int, Int, Int> {
+    val turned = rotationDegrees == QUARTER_TURN || rotationDegrees == THREE_QUARTER_TURN
+    val shownWidth = if (turned) codes.size.height else codes.size.width
+    val shownHeight = if (turned) codes.size.width else codes.size.height
+    val (fx, fy) = storedPointOf((column + 0.5f) / shownWidth, (row + 0.5f) / shownHeight)
+    val storedX = (fx * codes.size.width).toInt().coerceIn(0, codes.size.width - 1)
+    val storedY = (fy * codes.size.height).toInt().coerceIn(0, codes.size.height - 1)
+    val (red, green, blue) =
+      ycbcrToRgb(
+        codes.lumaAt(storedX, storedY),
+        codes.cbAt(storedX / 2, storedY / 2),
+        codes.crAt(storedX / 2, storedY / 2),
+        matrix,
+        UNSPECIFIED,
+        UNSPECIFIED,
+        fullRange,
+      )
+    return Triple(red, green, blue)
+  }
+
   // Turning the stored frame a quarter clockwise takes its point (x, y) to (1 - y, x) of the shown one.
   private fun storedPointOf(
     fx: Float,

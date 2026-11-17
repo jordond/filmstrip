@@ -51,6 +51,23 @@ A clip with non-square pixels, like anamorphic footage, is cropped and rotated a
 
 <Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Effects.kt" region="crop-rect" />
 
+### The output frame
+
+The output frame is the first clip's display size after its own and its track's effects, then after the composition's
+geometry. A `crop` gives that frame exactly its aspect, a canvas or a cut alike, and a `scale` or an
+`ExportSpec.heightPx` after it takes the width from that aspect and not from the frame's whole pixels. So
+`crop(aspect, Fit.Contain)` followed by `scale(height)` is the recipe for a fixed frame: the size is the same whichever
+clip comes first, however small it is, with each side rounded down to the encoder's alignment.
+
+A height cap alone does not make the frame independent of the first clip. `ExportSpec.heightPx` never scales a frame
+up, so a cap at or above the first clip's height leaves the composition's own height, and that is the first clip's.
+Under `crop(AspectRatio(4, 3), Fit.Contain)` a 180x320 clip then a 320x180 one with a cap of 250 writes 332x250, and
+the same clips the other way round write 240x180. Only `scale` sets the height whichever clip is first.
+
+This changed from the last release. A single clip whose canvas width is not whole at its height, followed by a `scale`,
+now writes the width the aspect gives and not the width of the rounded canvas. An 86x50 clip under
+`crop(AspectRatio(4, 3), Fit.Contain)` and `scale(324)` writes 432 wide where it wrote 434.
+
 ### Fit
 
 `Fit` says how a frame lands in a shape it doesn't match. `Contain` letterboxes, writing real bars into the file. `Crop`

@@ -5,6 +5,7 @@ import dev.jordond.filmstrip.effect.FilterFragment
 import dev.jordond.filmstrip.effect.FilterNode
 import dev.jordond.filmstrip.effect.LiveBranches
 import dev.jordond.filmstrip.effect.LiveInput
+import dev.jordond.filmstrip.effect.exactCrop
 import dev.jordond.filmstrip.effects.RgbRoundTrip
 import dev.jordond.filmstrip.effects.filters.internal.HASH_RANGE
 import dev.jordond.filmstrip.effects.filters.internal.HashExpression
@@ -176,7 +177,7 @@ internal fun grainMap(
     return listOf(FilmExpressions.grainMap(FilmSignal.grainCellSpan(frame.width, frame.height), seed = seed))
   }
   return listOf(
-    FilterNode("crop", "w" to "${raster.width}", "h" to "${raster.height}", "x" to "0", "y" to "0"),
+    exactCrop(raster.width, raster.height),
     FilmExpressions.grainMap(GRAIN_CELL_SCALE, seed = seed),
   ) + raster.widen(frame)
 }

@@ -4,6 +4,7 @@ import dev.jordond.filmstrip.color.authoredHdrNits
 import dev.jordond.filmstrip.color.signalFromNits
 import dev.jordond.filmstrip.color.tenBitCodesFromSignal
 import dev.jordond.filmstrip.effect.FilterNode
+import dev.jordond.filmstrip.effect.fullChromaFormat
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition

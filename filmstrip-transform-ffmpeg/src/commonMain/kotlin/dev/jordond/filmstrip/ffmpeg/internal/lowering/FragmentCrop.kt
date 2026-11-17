@@ -4,6 +4,7 @@ import dev.jordond.filmstrip.effect.AuxInput
 import dev.jordond.filmstrip.effect.FilterCrop
 import dev.jordond.filmstrip.effect.FilterFragment
 import dev.jordond.filmstrip.effect.FilterNode
+import dev.jordond.filmstrip.effect.fullChromaFormat
 
 /**
  * Runs [fragment] on the region [crop] cuts out of [read] and lays the result back where it was cut from, on a pad

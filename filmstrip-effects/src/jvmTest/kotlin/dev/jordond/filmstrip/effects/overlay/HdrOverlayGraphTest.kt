@@ -7,6 +7,7 @@ import dev.jordond.filmstrip.effect.FilterArgument
 import dev.jordond.filmstrip.effect.FilterCrop
 import dev.jordond.filmstrip.effect.FilterFragment
 import dev.jordond.filmstrip.effect.FilterNode
+import dev.jordond.filmstrip.effect.exactCrop
 import dev.jordond.filmstrip.effects.FRAME
 import dev.jordond.filmstrip.effects.attributes
 import dev.jordond.filmstrip.geometry.Corner
@@ -114,7 +115,7 @@ class HdrOverlayGraphTest {
         .value
     ) shouldBe "frame"
     nodes.last() shouldBe
-      FilterNode("crop", "w" to "86", "h" to "58", "x" to moving.on(branchFrameClock(RATE)), "y" to "0")
+      exactCrop("86", "58", moving.on(branchFrameClock(RATE)), "0")
   }
 
   @Test

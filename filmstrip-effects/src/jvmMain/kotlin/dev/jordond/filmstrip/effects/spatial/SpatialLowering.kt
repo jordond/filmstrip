@@ -6,6 +6,7 @@ import dev.jordond.filmstrip.color.vignetteGain
 import dev.jordond.filmstrip.effect.FilterBranch
 import dev.jordond.filmstrip.effect.FilterFragment
 import dev.jordond.filmstrip.effect.FilterNode
+import dev.jordond.filmstrip.effect.exactCrop
 import dev.jordond.filmstrip.effects.GainMaps
 import dev.jordond.filmstrip.effects.RgbRoundTrip
 import dev.jordond.filmstrip.geometry.Size
@@ -134,13 +135,7 @@ public object SpatialBlurGraph {
       add(convolution(down, planes))
       add(TRANSPOSE)
       add(
-        FilterNode(
-          "crop",
-          "w" to "iw-${2 * across.taps}",
-          "h" to "ih-${2 * down.taps}",
-          "x" to "${across.taps}",
-          "y" to "${down.taps}",
-        ),
+        exactCrop("iw-${2 * across.taps}", "ih-${2 * down.taps}", "${across.taps}", "${down.taps}"),
       )
       add(FilterNode("scale", "w" to "${stored.width}", "h" to "${stored.height}", "flags" to "bilinear"))
       add(format(wide))

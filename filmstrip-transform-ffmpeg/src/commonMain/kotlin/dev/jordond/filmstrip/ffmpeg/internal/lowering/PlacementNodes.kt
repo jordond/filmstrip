@@ -1,6 +1,8 @@
 package dev.jordond.filmstrip.ffmpeg.internal.lowering
 
 import dev.jordond.filmstrip.effect.FilterNode
+import dev.jordond.filmstrip.effect.exactCrop
+import dev.jordond.filmstrip.effect.fullChromaFormat
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.transform.internal.geometry.CanvasPlacement
 import dev.jordond.filmstrip.transform.internal.geometry.PixelRect
@@ -33,13 +35,7 @@ internal fun scaledInto(
     val keptHeight = minOf(rect.bottom, frame.height) - maxOf(rect.top, 0)
     if (keptWidth != rect.width || keptHeight != rect.height) {
       add(
-        FilterNode(
-          "crop",
-          "w" to keptWidth.toString(),
-          "h" to keptHeight.toString(),
-          "x" to cropX.toString(),
-          "y" to cropY.toString(),
-        ),
+        exactCrop(keptWidth, keptHeight, cropX, cropY),
       )
     }
   }
@@ -165,18 +161,3 @@ internal fun clearCanvasNodes(
 ): List<FilterNode> =
   listOf(FilterNode("scale", "out_range" to "limited")) +
     canvasNodes(canvas, transparentColor(), alphaPixelFormat(pixelFormat))
-
-/**
- * The format with [pixelFormat]'s bit depth and alpha but a chroma sample for every pixel.
- *
- * Fails loudly on a format this has no equivalent for, the way [alphaPixelFormat] does, so a new output format shows
- * up as a build failure rather than a canvas a row short.
- */
-internal fun fullChromaFormat(pixelFormat: String): String =
-  when (pixelFormat) {
-    "yuv420p" -> "yuv444p"
-    "yuva420p" -> "yuva444p"
-    "yuv420p10le", "p010le" -> "yuv444p10le"
-    "yuva420p10le" -> "yuva444p10le"
-    else -> error("No 4:4:4 pixel format known for $pixelFormat.")
-  }

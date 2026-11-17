@@ -6,6 +6,9 @@ import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effects.geometry.Crop
 import dev.jordond.filmstrip.effects.geometry.CropRect
+import dev.jordond.filmstrip.effects.geometry.Scale
+import dev.jordond.filmstrip.effects.geometry.applyTo
+import dev.jordond.filmstrip.effects.geometry.retainedRect
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.geometry.AspectRatio
 import dev.jordond.filmstrip.geometry.Fill
@@ -15,6 +18,7 @@ import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.TIMEOUT
 import dev.jordond.filmstrip.transform.internal.geometry.placementOf
 import io.kotest.assertions.withClue
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
@@ -106,6 +110,94 @@ class AndroidClipPlacementMediaTest {
       isSlate(written.rgbAt(0.5f, 0.75f)) shouldBe false
     }
 
+  // A cut of the fixture that is 640 by 359.44 pixels, so the whole pixels it keeps are the planner's to say. The frame
+  // written is the one the plan reports, whatever the encoder has to align it to.
+  @Test
+  fun aClipCropToAFrameThatIsNotWholeIsWrittenAtThePlannedSize() =
+    runTest(timeout = TIMEOUT) {
+      val crop = Crop(AspectRatio(CUT_WIDE, CUT_HIGH))
+      val cut = crop.retainedRect(SOURCE).applyTo(SOURCE)
+      withClue("the cut has to be a whole pixel short of a fraction for this to tell") {
+        cut shouldBe Size(SOURCE.width, SOURCE.height - 1)
+      }
+
+      val plan = probe.plan(composition(clipEffects = listOf(crop)), ExportSpec())
+      val finished = probe.finish(plan)
+
+      val written =
+        finished.info.video
+          .shouldNotBeNull()
+          .displaySize
+      withClue("planned ${plan.output.size}, cut $cut, written $written") { written shouldBe plan.output.size }
+    }
+
+  // The canvas's aspect and the frame's height make the frame, whichever of a landscape and a portrait clip is first.
+  // The frame is the plan's, the same for both orders, and its edges hold what the plan places there: a bar where the
+  // content stays clear of the edge and the picture where it reaches it.
+  @Test
+  fun aCanvasCropAndAScaleWriteTheFrameOfTheAspectWhicheverClipComesFirst() =
+    runTest(timeout = TIMEOUT) {
+      for (aspect in listOf(AspectRatio(4, 3), AspectRatio(9, 16))) {
+        val plans = mutableListOf<Size>()
+        for (order in listOf(listOf(CLIP, ROTATED), listOf(ROTATED, CLIP))) {
+          val effects = listOf(Crop(aspect, Fit.Contain), Scale(FRAME_HEIGHT))
+          val composition =
+            Composition(
+              tracks = listOf(Track(order.map { Clip(probe.fixture(it)) })),
+              effects = effects,
+              fill = Fill.Solid(SLATE_ARGB),
+            )
+
+          val plan = probe.plan(composition, ExportSpec())
+          val finished = probe.finish(plan)
+          val size =
+            finished.info.video
+              .shouldNotBeNull()
+              .displaySize
+          val first =
+            probe
+              .infoOf(probe.fixture(order.first()))
+              .video
+              .shouldNotBeNull()
+              .displaySize
+          val content = placementOf(first, listOf(emptyList(), effects), plan.output.size).drawnRect
+
+          withClue("$aspect from ${order.first()}: planned ${plan.output.size}, written $size") {
+            size shouldBe plan.output.size
+          }
+          assertEdges("$aspect from ${order.first()}", probe.writtenBy(finished), plan.output.size, content)
+          plans += plan.output.size
+        }
+        withClue("$aspect over both orders planned $plans") { plans.toSet().size shouldBe 1 }
+      }
+    }
+
+  // The first row, last row, first column and last column of the frame, each one pixel wide, each a bar where the
+  // content stays two pixels or more clear of it and the picture where the content reaches it. A column or row of
+  // padding the frame should not have, or one it lost, flips one of the four.
+  private fun assertEdges(
+    name: String,
+    written: Written,
+    frame: Size,
+    content: NormalizedRect,
+  ) {
+    val edges =
+      listOf(
+        Triple("first row", content.top * frame.height, written.pixelAt(frame.width / 2, 0)),
+        Triple("last row", (1 - content.bottom) * frame.height, written.pixelAt(frame.width / 2, frame.height - 1)),
+        Triple("first column", content.left * frame.width, written.pixelAt(0, frame.height / 2)),
+        Triple("last column", (1 - content.right) * frame.width, written.pixelAt(frame.width - 1, frame.height / 2)),
+      )
+    for ((edge, barPixels, read) in edges) {
+      withClue("$name, $edge read $read with a bar of $barPixels pixels") {
+        when {
+          barPixels >= BAR_PIXELS -> isSlate(read) shouldBe true
+          barPixels < REACHED_PIXELS -> isSlate(read) shouldBe false
+        }
+      }
+    }
+  }
+
   private fun composition(
     clipEffects: List<EffectSpec>,
     effects: List<EffectSpec> = emptyList(),
@@ -120,6 +212,19 @@ class AndroidClipPlacementMediaTest {
   private companion object {
     // The fixture's own frame.
     val SOURCE = Size(640, 360)
+
+    // An aspect a hair wider than the fixture's, which keeps its whole width and all but a pixel of its height.
+    const val CUT_WIDE = 641
+    const val CUT_HIGH = 360
+
+    const val CLIP = Media3ExportProbe.CLIP
+    const val ROTATED = "android_export_rotated.mp4"
+    const val FRAME_HEIGHT = 324
+
+    // A bar this many pixels deep covers the edge pixel and the chroma it shares, and a bar under the second is the
+    // content's.
+    const val BAR_PIXELS = 2f
+    const val REACHED_PIXELS = 0.5f
 
     // The middle of the fixture's fourth bar, clear of the seam between two.
     const val X = 0.4375f

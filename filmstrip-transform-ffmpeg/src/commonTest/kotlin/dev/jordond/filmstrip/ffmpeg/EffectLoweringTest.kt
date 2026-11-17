@@ -27,6 +27,8 @@ import dev.jordond.filmstrip.effects.geometry.Flip
 import dev.jordond.filmstrip.effects.geometry.KenBurns
 import dev.jordond.filmstrip.effects.geometry.Rotate
 import dev.jordond.filmstrip.effects.geometry.Scale
+import dev.jordond.filmstrip.effects.geometry.applyTo
+import dev.jordond.filmstrip.effects.geometry.retainedRect
 import dev.jordond.filmstrip.effects.geometry.turnedFrame
 import dev.jordond.filmstrip.effects.overlay.ImageOverlay
 import dev.jordond.filmstrip.effects.overlay.OverlayAnimation
@@ -122,12 +124,23 @@ class EffectLoweringTest {
   fun `crops in real pixels from the top left`() {
     val rect = NormalizedRect(left = 0f, top = 0.5f, right = 0.5f, bottom = 1f)
 
-    chainOf(CropRect(rect), attributes(Size(1920, 1080))) shouldBe "crop=w=960:h=540:x=0:y=540"
+    chainOf(CropRect(rect), attributes(Size(1920, 1080))) shouldBe "crop=w=960:h=540:x=0:y=540:exact=1"
   }
 
   @Test
   fun `lowers an aspect crop through the same rectangle`() {
-    chainOf(Crop(AspectRatio.Portrait), attributes(Size(1920, 1080))) shouldBe "crop=w=607:h=1080:x=656:y=0"
+    chainOf(Crop(AspectRatio.Portrait), attributes(Size(1920, 1080))) shouldBe "crop=w=607:h=1080:x=656:y=0:exact=1"
+  }
+
+  // Every figure comes from the shared size, and the crop is exact so a 4:2:0 frame is not cut a row short of it.
+  @Test
+  fun `cuts an odd frame to the size the planner reports`() {
+    val frame = Size(180, 320)
+    val crop = Crop(AspectRatio(4, 3))
+    val cut = crop.retainedRect(frame).applyTo(frame)
+
+    cut shouldBe Size(180, 135)
+    chainOf(crop, attributes(frame)) shouldBe "crop=w=${cut.width}:h=${cut.height}:x=0:y=92:exact=1"
   }
 
   // The size stage is the tail the backend pins to the resolved output frame, so the effect that

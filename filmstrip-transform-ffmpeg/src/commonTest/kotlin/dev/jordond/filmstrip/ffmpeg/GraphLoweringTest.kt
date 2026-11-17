@@ -124,7 +124,8 @@ class GraphLoweringTest {
     val rect = containedRect(output)
 
     graph shouldContain "split=2"
-    graph shouldContain "scale=w=100:h=200:force_original_aspect_ratio=increase,crop=w=100:h=200,scale="
+    graph shouldContain
+      "scale=w=100:h=200:force_original_aspect_ratio=increase,crop=w=100:h=200:x=(in_w-out_w)/2:y=(in_h-out_h)/2:exact=1,scale="
     val (x, y) = rect.drawnAt(ChromaGrid.Subsampled)
 
     graph shouldContain "[v0fg]scale=w=${rect.width}:h=${rect.height}[v0sharp]"

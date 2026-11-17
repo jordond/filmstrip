@@ -10,6 +10,9 @@ import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effects.geometry.Crop
 import dev.jordond.filmstrip.effects.geometry.CropRect
+import dev.jordond.filmstrip.effects.geometry.Scale
+import dev.jordond.filmstrip.effects.geometry.applyTo
+import dev.jordond.filmstrip.effects.geometry.retainedRect
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.Verdict
 import dev.jordond.filmstrip.geometry.AspectRatio
@@ -18,9 +21,11 @@ import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.MediaSource
+import dev.jordond.filmstrip.transform.internal.ResolveResult
 import dev.jordond.filmstrip.transform.internal.geometry.coverScale
 import dev.jordond.filmstrip.transform.internal.geometry.placeIn
 import dev.jordond.filmstrip.transform.internal.geometry.placementOf
+import dev.jordond.filmstrip.webcodecs.internal.browserRenderOf
 import dev.jordond.filmstrip.webcodecs.internal.render.MAX_CANVASES
 import io.kotest.assertions.withClue
 import io.kotest.matchers.shouldBe
@@ -137,6 +142,63 @@ class BrowserClipPlacementMediaTest {
       clip.coverHalfH shouldBe leaves.height * cover / output.height
     }
 
+  // A cut of a 640 by 360 clip that is 640 by 359.44 pixels, so the whole pixels it keeps are the planner's to say. The
+  // browser draws the clip across the frame the plan reports, with no bar, however the plan aligned that frame.
+  @Test
+  fun aClipCropToAFrameThatIsNotWholeFillsTheFrameThePlanReports() =
+    runTest {
+      val crop = Crop(AspectRatio(641, 360))
+      val cut = crop.retainedRect(WIDE_CLIP).applyTo(WIDE_CLIP)
+      withClue("the cut has to be a whole pixel short of a fraction for this to tell") {
+        cut shouldBe Size(WIDE_CLIP.width, WIDE_CLIP.height - 1)
+      }
+
+      val render = renderOf(single(WIDE_CLIP, listOf(crop)))
+      val output = Size(render.width, render.height)
+
+      withClue("planned $output, cut $cut") {
+        render.clips.single().quadHalfW shouldBe 1f
+        render.clips.single().quadHalfH shouldBe 1f
+        render.clips.single().hasBars shouldBe false
+      }
+    }
+
+  // The canvas's aspect and the frame's height make the frame the browser renders, whichever clip is first, and it is the
+  // frame the plan sizes. The first clip's quad spans the frame's edges where the plan's placement does, so no row or
+  // column of the frame is left over or short. The pairs are the shapes an app's compositions failed on.
+  @Test
+  fun aCanvasCropAndAScaleRenderTheFrameOfTheAspectWhicheverClipComesFirst() =
+    runTest {
+      for (sizes in APP_PAIRS) {
+        for (aspect in listOf(AspectRatio(4, 3), AspectRatio(9, 16))) {
+          val planned = mutableSetOf<Size>()
+          for (order in listOf(sizes, sizes.reversed())) {
+            val effects = listOf(Crop(aspect, Fit.Contain), Scale(FRAME_HEIGHT))
+            val composition =
+              Composition(
+                tracks = listOf(Track(order.map { clipOf(it) })),
+                audio = AudioSpec.Remove,
+                fill = Fill.Solid(SLATE),
+                effects = effects,
+              )
+            val resolved =
+              engine().resolve(composition, SPEC).shouldBeInstanceOf<ResolveResult.Resolved>().composition
+            val render = browserRenderOf(resolved, composition)
+            val frame = resolved.output.size
+            val content = placementOf(order.first(), listOf(emptyList(), effects), frame).drawnRect
+
+            withClue("$aspect from $order") {
+              Size(render.width, render.height) shouldBe frame
+              render.clips.first().quadHalfW shouldBe content.width
+              render.clips.first().quadHalfH shouldBe content.height
+            }
+            planned += frame
+          }
+          withClue("$aspect over both orders of $sizes planned $planned") { planned.size shouldBe 1 }
+        }
+      }
+    }
+
   private suspend fun single(
     size: Size,
     effects: List<EffectSpec>,
@@ -158,10 +220,16 @@ class BrowserClipPlacementMediaTest {
 
   private companion object {
     val WIDE = Size(64, 36)
+    val WIDE_CLIP = Size(640, 360)
     val PORTRAIT = Size(32, 40)
     val GREY = Rgb(128, 128, 128)
+
+    // The app's shapes. Its 4K clip is 1080p here: a headless browser has no H.264 encoder for a 4K frame, which the
+    // plan asks it about at the first clip's size, and the shape is the same 16:9.
+    val APP_PAIRS = listOf(listOf(Size(180, 320), Size(320, 180)), listOf(Size(1920, 1080), Size(640, 480)))
     const val SLATE = 0xFF204060.toInt()
     const val FRAMES = 2
+    const val FRAME_HEIGHT = 324
     val RECT = NormalizedRect(0.1f, 0.2f, 0.7f, 0.9f)
     val SPEC = ExportSpec(videoCodec = VideoCodec.H264, audioCodec = AudioCodec.None)
   }

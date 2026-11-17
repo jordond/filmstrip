@@ -1,8 +1,8 @@
 package dev.jordond.filmstrip.ffmpeg
 
+import dev.jordond.filmstrip.effect.fullChromaFormat
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.FFMPEG_ENCODERS
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.alphaPixelFormat
-import dev.jordond.filmstrip.ffmpeg.internal.lowering.fullChromaFormat
 import io.kotest.matchers.shouldBe
 import kotlin.test.Test
 import kotlin.test.assertFailsWith

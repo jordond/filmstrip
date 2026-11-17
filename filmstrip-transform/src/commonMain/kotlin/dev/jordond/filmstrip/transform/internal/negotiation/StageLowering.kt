@@ -19,6 +19,7 @@ import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.HdrTransfer
+import dev.jordond.filmstrip.transform.internal.geometry.MeasuredFrame
 import dev.jordond.filmstrip.transform.internal.geometry.OpaqueTracker
 import dev.jordond.filmstrip.transform.internal.geometry.frameAfter
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedEffect
@@ -81,8 +82,8 @@ internal class StageLowering(
     storedSize: Size = inputSize,
     sourceHasAlpha: Boolean = false,
   ): List<LoweredEffect> {
-    var size = inputSize
-    var layout = layoutSize
+    var measured = MeasuredFrame(inputSize)
+    var layout = MeasuredFrame(layoutSize)
     var stored = storedSize
     // A kept grade is written in BT.2020, so a resolver reading the color space off an HDR export
     // sees the one the encoder is handed rather than the SDR default.
@@ -111,15 +112,16 @@ internal class StageLowering(
 
     return chain.entries.mapIndexed { position, entry ->
       val spec = entry.spec
-      stored = storedAt(spec, size, stored)
-      val attributes = attributesAt(size, layout, stored, tracker.before(spec))
+      stored = storedAt(spec, measured.size, stored)
+      val attributes = attributesAt(measured.size, layout.size, stored, tracker.before(spec))
       val resolution =
         chain.resolutions[position]
           ?: resolvers.firstNotNullOfOrNull { it.resolve(spec, target.capabilities, attributes) }
 
-      stored = storedAfter(spec, size, stored)
-      tracker.advance(spec, size, frameAfter(spec, size))
-      size = frameAfter(spec, size)
+      val after = frameAfter(spec, measured)
+      stored = storedAfter(measured.size, after.size, stored)
+      tracker.advance(spec, measured.size, after.size)
+      measured = after
       layout = frameAfter(spec, layout)
 
       when (resolution) {
@@ -163,21 +165,22 @@ internal class StageLowering(
 
     val color = ordered.map { colorMatrixOf(it) != null }
     val claimed = mutableMapOf<Int, EffectResolution>()
-    var size = inputSize
-    var layout = layoutSize
+    var measured = MeasuredFrame(inputSize)
+    var layout = MeasuredFrame(layoutSize)
     var stored = storedSize
     val tracker = OpaqueTracker(sourceHasAlpha)
 
     ordered.forEachIndexed { index, spec ->
       val folds = color[index] && (color.getOrElse(index - 1) { false } || color.getOrElse(index + 1) { false })
-      stored = storedAt(spec, size, stored)
+      stored = storedAt(spec, measured.size, stored)
       if (folds) {
-        val attributes = attributesAt(size, layout, stored, tracker.before(spec))
+        val attributes = attributesAt(measured.size, layout.size, stored, tracker.before(spec))
         overriding.firstNotNullOfOrNull { it.resolve(spec, capabilities, attributes) }?.let { claimed[index] = it }
       }
-      stored = storedAfter(spec, size, stored)
-      tracker.advance(spec, size, frameAfter(spec, size))
-      size = frameAfter(spec, size)
+      val after = frameAfter(spec, measured)
+      stored = storedAfter(measured.size, after.size, stored)
+      tracker.advance(spec, measured.size, after.size)
+      measured = after
       layout = frameAfter(spec, layout)
     }
 
@@ -194,10 +197,10 @@ private fun storedAt(
 
 // An effect that changes the frame's size writes the size it was asked for, so the stored frame is that size after it.
 private fun storedAfter(
-  spec: EffectSpec,
   size: Size,
+  after: Size,
   stored: Size,
-): Size = frameAfter(spec, size).let { after -> if (after == size) stored else after }
+): Size = if (after == size) stored else after
 
 /**
  * The chain a backend lowers: every run of color effects folded, except around the effects an

@@ -2,6 +2,7 @@ package dev.jordond.filmstrip.ffmpeg.internal.lowering
 
 import dev.jordond.filmstrip.effect.FilterNode
 import dev.jordond.filmstrip.effect.Sidecar
+import dev.jordond.filmstrip.effect.exactCrop
 import dev.jordond.filmstrip.effects.spatial.SpatialBlurGraph
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.Size
@@ -33,7 +34,7 @@ internal fun coverBlurNodes(
     val width = outputSize.width.toString()
     val height = outputSize.height.toString()
     add(FilterNode("scale", "w" to width, "h" to height, "force_original_aspect_ratio" to "increase"))
-    add(FilterNode("crop", "w" to width, "h" to height))
+    add(exactCrop(width, height, "(in_w-out_w)/2", "(in_h-out_h)/2"))
     val plan = fill.blurPlan(outputSize)
     if (transfer != null) {
       val kept = SpatialBlurGraph.onKeptGrade(plan, outputSize, transfer, fill.backgroundGain, hasAlpha)

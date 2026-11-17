@@ -115,14 +115,14 @@ public actual class BuiltInEffectResolver : EffectResolver {
           if (spec.fit ==
             Fit.Crop
           ) {
-            crop(spec.retainedRect(attributes.inputSize), attributes.inputSize)
+            listOf(spec.retainedRect(attributes.inputSize).cropNode(attributes.inputSize))
           } else {
             emptyList()
           },
         )
       }
       is CropRect -> {
-        fragment(crop(spec.rect, attributes.inputSize))
+        fragment(listOf(spec.rect.cropNode(attributes.inputSize)))
       }
       is KenBurns -> {
         EffectResolution.Unsupported(spec.id, PAN_PENDING)
@@ -296,25 +296,6 @@ public actual class BuiltInEffectResolver : EffectResolver {
   // Fixed decimals in the root locale. A comma for the decimal point, or an exponent on a small
   // enough entry, is a file ffmpeg reads as something else.
   private fun entry(value: Double): String = String.format(Locale.ROOT, CUBE_ENTRY_FORMAT, value)
-
-  // Pixels are multiplied out here with the planner's own arithmetic, so plan() and the export
-  // agree about the output frame.
-  private fun crop(
-    rect: NormalizedRect,
-    inputSize: Size,
-  ): List<FilterNode> {
-    val width = (inputSize.width * rect.width).toInt().coerceAtLeast(1)
-    val height = (inputSize.height * rect.height).toInt().coerceAtLeast(1)
-    return listOf(
-      FilterNode(
-        "crop",
-        "w" to width.toString(),
-        "h" to height.toString(),
-        "x" to (inputSize.width * rect.left).toInt().toString(),
-        "y" to (inputSize.height * rect.top).toInt().toString(),
-      ),
-    )
-  }
 }
 
 // Two points a side is the whole of an affine map, and every entry between them is interpolated

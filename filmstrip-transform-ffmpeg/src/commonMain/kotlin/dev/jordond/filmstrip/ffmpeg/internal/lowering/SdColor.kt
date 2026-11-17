@@ -5,6 +5,7 @@ import dev.jordond.filmstrip.color.SMPTE_C_PRIMARIES
 import dev.jordond.filmstrip.edit.outputSlotsOf
 import dev.jordond.filmstrip.effect.FilterFragment
 import dev.jordond.filmstrip.effect.FilterNode
+import dev.jordond.filmstrip.effect.exactCrop
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedClip
@@ -58,7 +59,7 @@ internal data class SdColor(
       listOf(
         FilterNode("pad", "w" to "ceil(iw/2)*2", "h" to "ceil(ih/2)*2"),
         toBt709,
-        FilterNode("crop", "w" to frame.width.toString(), "h" to frame.height.toString(), "x" to "0", "y" to "0"),
+        exactCrop(frame.width, frame.height),
       )
     }
 }

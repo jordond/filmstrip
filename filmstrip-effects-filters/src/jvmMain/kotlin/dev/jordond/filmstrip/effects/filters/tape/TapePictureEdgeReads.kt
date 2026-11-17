@@ -2,6 +2,7 @@ package dev.jordond.filmstrip.effects.filters.tape
 
 import dev.jordond.filmstrip.effect.FilterBranch
 import dev.jordond.filmstrip.effect.FilterNode
+import dev.jordond.filmstrip.effect.exactCrop
 import kotlin.math.ceil
 
 /**
@@ -39,7 +40,7 @@ internal class TapePictureEdgeReads(
   ): List<FilterBranch> {
     val pieces = coverage.pieces(width)
     val cut = { span: Coverage.Span ->
-      FilterNode("crop", "w" to "${span.width}", "h" to "$height", "x" to "${span.from}", "y" to "0")
+      exactCrop(span.width, height, span.from)
     }
     val lays =
       pieces.flatMapIndexed { at, piece ->
