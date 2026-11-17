@@ -174,29 +174,50 @@ class AndroidClipPlacementMediaTest {
 
   // The first row, last row, first column and last column of the frame, each one pixel wide, each a bar where the
   // content stays two pixels or more clear of it and the picture where the content reaches it. A column or row of
-  // padding the frame should not have, or one it lost, flips one of the four.
+  // padding the frame should not have, or one it lost, flips one of the four. The picture is read against the pixel
+  // inside it, since a stray bar pixel shares its chroma with the picture and lands well off the bar's colour but not
+  // off the slate's.
   private fun assertEdges(
     name: String,
     written: Written,
     frame: Size,
     content: NormalizedRect,
   ) {
+    val middleX = frame.width / 2
+    val middleY = frame.height / 2
     val edges =
       listOf(
-        Triple("first row", content.top * frame.height, written.pixelAt(frame.width / 2, 0)),
-        Triple("last row", (1 - content.bottom) * frame.height, written.pixelAt(frame.width / 2, frame.height - 1)),
-        Triple("first column", content.left * frame.width, written.pixelAt(0, frame.height / 2)),
-        Triple("last column", (1 - content.right) * frame.width, written.pixelAt(frame.width - 1, frame.height / 2)),
+        Edge("first row", content.top * frame.height, written.pixelAt(middleX, 0), written.pixelAt(middleX, 1)),
+        Edge(
+          "last row",
+          (1 - content.bottom) * frame.height,
+          written.pixelAt(middleX, frame.height - 1),
+          written.pixelAt(middleX, frame.height - 2),
+        ),
+        Edge("first column", content.left * frame.width, written.pixelAt(0, middleY), written.pixelAt(1, middleY)),
+        Edge(
+          "last column",
+          (1 - content.right) * frame.width,
+          written.pixelAt(frame.width - 1, middleY),
+          written.pixelAt(frame.width - 2, middleY),
+        ),
       )
-    for ((edge, barPixels, read) in edges) {
-      withClue("$name, $edge read $read with a bar of $barPixels pixels") {
+    for ((edge, barPixels, read, inside) in edges) {
+      withClue("$name, $edge read $read beside $inside with a bar of $barPixels pixels") {
         when {
           barPixels >= BAR_PIXELS -> isSlate(read) shouldBe true
-          barPixels < REACHED_PIXELS -> isSlate(read) shouldBe false
+          barPixels < REACHED_PIXELS -> (distance(read, inside) < COLOR_TOLERANCE) shouldBe true
         }
       }
     }
   }
+
+  private data class Edge(
+    val name: String,
+    val barPixels: Float,
+    val read: Triple<Int, Int, Int>,
+    val inside: Triple<Int, Int, Int>,
+  )
 
   private fun composition(
     clipEffects: List<EffectSpec>,
