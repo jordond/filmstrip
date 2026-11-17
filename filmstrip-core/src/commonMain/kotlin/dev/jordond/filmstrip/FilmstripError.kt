@@ -55,7 +55,10 @@ public sealed interface FilmstripError {
   ) : FilmstripError
 
   /**
-   * A decoder rejected the source while being configured, before any transcoding started.
+   * A decoder rejected the source.
+   *
+   * It is reported when a decoder is configured or when a frame fails to decode. On Apple a source the device has no
+   * decoder for passes the plan and its export then fails with this.
    *
    * @property codec The source codec the decoder was configured for.
    * @property message A human-readable description of the failure.

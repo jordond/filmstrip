@@ -1,8 +1,11 @@
 package dev.jordond.filmstrip.player
 
+import android.opengl.EGL14
+import android.opengl.GLES20
 import android.os.Build
 import android.os.ParcelFileDescriptor
 import android.view.Display
+import androidx.media3.common.util.GlUtil
 import androidx.test.core.app.ActivityScenario
 import androidx.test.platform.app.InstrumentationRegistry
 import dev.jordond.filmstrip.Filmstrip
@@ -52,6 +55,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import org.junit.Assume.assumeTrue
 import java.io.File
+import kotlin.concurrent.thread
 import kotlin.test.Test
 import kotlin.test.fail
 import kotlin.time.Duration
@@ -165,7 +169,41 @@ class AndroidHdrPreviewMediaTest {
           Media3PreviewPlanner(CONTRACT_COMPONENTS, drawsYuvTarget = { false })
             .plan(hdrComposition(), PreviewQualityPolicy.Full, ExportSpec(hdr = HdrMode.ToneMapToSdr))
 
-        planned.shouldBeInstanceOf<PlanResult.Refused<PlaybackError>>().error.message shouldContain "EXT_YUV_target"
+        val refused = planned.shouldBeInstanceOf<PlanResult.Refused<PlaybackError>>()
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+          refused.error.message shouldContain "below API 29"
+          return@realTime
+        }
+        refused.error.message shouldContain "EXT_YUV_target"
+      }
+    }
+
+  // Every planner above is told what the device draws, so this one asks the device itself. The test reads the
+  // extension off a context of the kind the planner's own probe makes, and the plan has to agree with it. A probe
+  // that could not ask would let a device with no extension through, which is what the emulator reads here.
+  @Test
+  fun aPlannerThatAsksTheDeviceAgreesWithItsOpenGlAboutTheYuvTarget() =
+    runTest(timeout = TIMEOUT) {
+      realTime {
+        assumeTrue(
+          "media3 decodes no HDR source below API 29, so the extension is never asked there",
+          Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q,
+        )
+        val offered = withClue("this device's OpenGL ES 3 could not be asked") { offersYuvTarget().shouldNotBeNull() }
+
+        val planned =
+          Media3PreviewPlanner(CONTRACT_COMPONENTS)
+            .plan(hdrComposition(), PreviewQualityPolicy.Full, ExportSpec(hdr = HdrMode.ToneMapToSdr))
+
+        withClue("the device's OpenGL ES 3 offers EXT_YUV_target: $offered") {
+          if (offered) {
+            val plan = planned.shouldBeInstanceOf<PlanResult.Ready<Media3PreviewPlan>>().plan
+            plan.resolved.hdr shouldBe ResolvedHdr.ToneMap
+          } else {
+            val refused = planned.shouldBeInstanceOf<PlanResult.Refused<PlaybackError>>()
+            refused.error.message shouldContain "EXT_YUV_target"
+          }
+        }
       }
     }
 
@@ -297,6 +335,30 @@ class AndroidHdrPreviewMediaTest {
    */
   private suspend fun realTime(body: suspend () -> Unit) = withContext(Dispatchers.Default) { body() }
 
+  /**
+   * Whether this device's OpenGL ES 3 lists `EXT_YUV_target`, or null when no context could be made to ask it.
+   *
+   * The context is made on a thread of its own, so nothing the test runner has current is read or unbound.
+   */
+  private fun offersYuvTarget(): Boolean? {
+    var offered: Boolean? = null
+    thread(name = "filmstrip-test-yuv-target") {
+      offered =
+        runCatching {
+          val display = GlUtil.getDefaultEglDisplay()
+          val gl =
+            GlUtil.createEglContext(EGL14.EGL_NO_CONTEXT, display, 3, GlUtil.EGL_CONFIG_ATTRIBUTES_RGBA_1010102)
+          try {
+            GlUtil.createFocusedPlaceholderEglSurface(gl, display)
+            GLES20.glGetString(GLES20.GL_EXTENSIONS)?.contains(YUV_TARGET_EXTENSION)
+          } finally {
+            GlUtil.destroyEglContext(display, gl)
+          }
+        }.getOrNull()
+    }.join()
+    return offered
+  }
+
   private suspend fun awaitOrFail(
     description: String,
     condition: () -> Boolean,
@@ -375,6 +437,7 @@ class AndroidHdrPreviewMediaTest {
     const val SDR_HEADROOM = 1f
 
     const val HDR_CLIP = "android_export_hdr.mp4"
+    const val YUV_TARGET_EXTENSION = "GL_EXT_YUV_target"
     const val WHITE = 0xFFFFFFFF.toInt()
     const val MARK_PX = 16
     const val PACKAGE = "dev.jordond.filmstrip.player"

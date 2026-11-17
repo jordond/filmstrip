@@ -95,7 +95,8 @@ See [Fit](/guides/effects/#fit).
 ## Source alpha
 
 A source with transparent pixels draws over the fill, solid or blurred, even when it covers the whole frame. A track
-reports `hasAlpha` only for alpha its backend can decode, and a source whose alpha a backend drops is treated as opaque.
+reports `hasAlpha` only for alpha its backend keeps, and a source whose alpha a backend drops is treated as opaque. On
+Apple that is read from the track's format, not from whether the device can decode it.
 
 - Android video decoders hand back opaque pictures, so a video with alpha, such as VP9 in WebM or HEVC with alpha,
   reads as opaque there. A PNG or WebP still keeps its alpha.
@@ -103,11 +104,16 @@ reports `hasAlpha` only for alpha its backend can decode, and a source whose alp
   ProRes 4444 and other formats whose pixel format has an alpha plane keep it.
 - A GIF, AVIF, HEIC or JPEG XL still reads as opaque everywhere except Apple.
 - On Apple, a ProRes 4444 clip draws through the compositor, which asks for BGRA frames so the alpha arrives. A graded
-  HDR export blends in Core Image's own space, not on stored codes. The iOS simulator has no ProRes decoder, so an
-  export of one fails there as `DecoderRejectedInput`.
+  HDR export blends in Core Image's own space, not on stored codes.
 - The browser decodes VP9 alpha through WebCodecs and composites it over the fill. Images are not a browser source.
 - The ffmpeg and Android blends are rounded to the nearest code on the stored channels, so a half transparent pixel can
   differ from another backend by a few codes.
+
+## Sources Apple cannot decode
+
+Apple does not check at plan time yet that the device can decode a track. A source whose decoder the device lacks
+probes, plans `Capable`, and its export then fails with `DecoderRejectedInput`. The iOS simulator has no ProRes
+decoder, so a ProRes clip does this there, and the failure is the export's only status, with no `Started`.
 
 ## Preview against the file
 

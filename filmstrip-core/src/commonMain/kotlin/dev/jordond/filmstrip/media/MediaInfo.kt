@@ -54,7 +54,8 @@ public class MediaInfo(
  * @property hdrTransfer The HDR transfer function, or null for SDR.
  * @property bitrate The track's bitrate, or null when the container does not report one.
  * @property hasAlpha Whether the track's pictures can carry transparent pixels. A target reports true only for alpha
- *   it can decode, so a codec whose alpha the target drops reads false.
+ *   it keeps, so a codec whose alpha the target drops reads false. Apple reads it from the track's format, whether or
+ *   not the device has a decoder for it.
  */
 @Poko
 public class VideoTrackInfo(

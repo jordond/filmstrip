@@ -7,6 +7,7 @@ import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
+import io.kotest.matchers.string.shouldNotContain
 import kotlin.test.Test
 
 class HdrDrawLimitTest {
@@ -23,6 +24,18 @@ class HdrDrawLimitTest {
   @Test
   fun `a device with no YUV target extension draws no HDR at any level`() {
     listOf(29, 33, 36).forEach { hdrDrawLimit(it) { false }.shouldNotBeNull() shouldContain "EXT_YUV_target" }
+  }
+
+  @Test
+  fun `below API 29 the level is the reason given, whatever the YUV target answers`() {
+    (26..28).forEach { level ->
+      listOf(true, false, null).forEach { answer ->
+        val limit = hdrDrawLimit(level) { answer }.shouldNotBeNull()
+
+        limit shouldContain "below API 29"
+        limit shouldNotContain "EXT_YUV_target"
+      }
+    }
   }
 
   @Test

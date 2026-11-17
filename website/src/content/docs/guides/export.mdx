@@ -86,7 +86,8 @@ See [Limits](/reference/limits/#key-frames) for the encoders that add key frames
 
 <Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Export.kt" region="plan" />
 
-- `Capable` runs the edit exactly as written.
+- `Capable` runs the edit exactly as written. On Apple a source the device has no decoder for still plans `Capable`
+  and its export then fails, see [Limits](/reference/limits/#sources-apple-cannot-decode).
 - `Degraded` runs it with changes, each listed as an `Adjustment`. Show the ones that change how the output looks,
   like a tone map or a dropped effect, before the user commits.
 - `Incapable` can't run it and lists why. When the only problem is effects this device can't render,
