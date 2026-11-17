@@ -36,10 +36,11 @@ abstract class BrowserTapePictureFrames {
   internal suspend fun drawn(
     composition: Composition,
     spec: ExportSpec = SPEC,
+    at: Duration = READ_TIME,
   ): PreviewFrame {
     val preview = previewOf(composition, spec)
     try {
-      return preview.frameAt(READ_TIME).shouldNotBeNull()
+      return preview.frameAt(at).shouldNotBeNull()
     } finally {
       preview.release()
     }
@@ -91,13 +92,15 @@ abstract class BrowserTapePictureFrames {
     frame: PreviewFrame,
     picture: PreviewFrame,
     look: TapeLook,
+    tick: Int = TICK,
+    params: TapePictureParams = TapePictureParams.of(look),
   ): Double {
     val width = frame.size.width
     val height = frame.size.height
     var worst = 0.0
     listOf(height / 4, height / 2, height * 5 / 8, height - 1).forEach { y ->
       listOf(0, width / 4, width / 2, width * 3 / 4, width - 1).forEach { column ->
-        worst = max(worst, codesAt(frame, picture, look, y, column))
+        worst = max(worst, codesAt(frame, picture, look, y, column, tick, params))
       }
     }
     return worst
@@ -110,13 +113,15 @@ abstract class BrowserTapePictureFrames {
     look: TapeLook,
     y: Int,
     column: Int,
+    tick: Int = TICK,
+    params: TapePictureParams = TapePictureParams.of(look),
   ): Double {
     val width = frame.size.width
     val height = frame.size.height
     val row = TapePictureSignal.virtualRow(y, height)
     val texel = { at: Int -> picture.at((at + 0.5) / width, (y + 0.5) / height).channels() }
     val x = (column + 0.5) / width
-    val expected = TapePictureSignal.pixelAt(x, row, TICK, look.seed, width, TapePictureParams.of(look), texel)
+    val expected = TapePictureSignal.pixelAt(x, row, tick, look.seed, width, params, texel)
     val read = frame.at(x, (y + 0.5) / height).channels()
     return (0 until RGB).maxOf { channel -> abs(read[channel] - expected[channel]) * FULL }
   }

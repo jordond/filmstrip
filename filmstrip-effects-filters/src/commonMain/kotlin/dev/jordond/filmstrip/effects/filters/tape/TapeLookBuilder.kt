@@ -7,6 +7,8 @@ import dev.jordond.filmstrip.effects.filters.camcorder.CamcorderBuilder
 import dev.jordond.filmstrip.effects.filters.vhs.TapeClock
 import dev.jordond.filmstrip.effects.filters.vhs.Tracking
 import dev.jordond.filmstrip.effects.filters.vhs.TrackingBuilder
+import dev.jordond.filmstrip.effects.filters.vhs.TrackingSettle
+import dev.jordond.filmstrip.motion.Easing
 import kotlin.time.Duration
 
 /**
@@ -16,6 +18,7 @@ import kotlin.time.Duration
  * @property seed Picks the pattern of noise and events. Equal seeds draw the same tape.
  * @property tracking The band of mistracked tape, built with [events] or [rolling], or [Tracking.Off].
  * @property clock What the pattern moves with in a preview. [TapeClock.Wall] keeps it moving while paused.
+ * @property settle How the look eases to its intensity from another strength, set with [settle] or left null.
  */
 @FilmstripDsl
 public abstract class TapeLookBuilder internal constructor(
@@ -25,6 +28,7 @@ public abstract class TapeLookBuilder internal constructor(
   public var seed: Int = TapeLook.DEFAULT_SEED
   public var tracking: Tracking = Tracking.Events()
   public var clock: TapeClock = TapeClock.Composition
+  public var settle: TapeSettle? = null
   internal var camcorder: Camcorder? = null
     private set
 
@@ -39,6 +43,20 @@ public abstract class TapeLookBuilder internal constructor(
   }
 
   /**
+   * Starts the look at the strength [from] on the first frame of its scope and eases it to [intensity] over [over],
+   * paced by [easing].
+   *
+   * @throws IllegalArgumentException when [from] is outside `0f..1f`, or [over] is not positive and finite.
+   */
+  public fun settle(
+    from: Float,
+    over: Duration,
+    easing: Easing = Easing.EaseInOut,
+  ) {
+    settle = TapeSettle(from, over, easing)
+  }
+
+  /**
    * Bands that turn up now and then with [chance] in each four second window, shaped by [block].
    */
   public fun events(
@@ -50,14 +68,17 @@ public abstract class TapeLookBuilder internal constructor(
   }
 
   /**
-   * One band rolling top to bottom every [period], shaped by [block].
+   * One band rolling top to bottom every [period], at the top of the frame [at] after the first frame of the look's
+   * scope and easing off as [settle] says from there, shaped by [block].
    */
   public fun rolling(
     period: Duration = Tracking.DEFAULT_PERIOD,
+    at: Duration = Duration.ZERO,
+    settle: TrackingSettle? = null,
     block: TrackingBuilder.() -> Unit = {},
   ): Tracking.Rolling {
     val band = TrackingBuilder().apply(block)
-    return Tracking.Rolling(period, band.height, band.shift, band.snow)
+    return Tracking.Rolling(period, band.height, band.shift, band.snow, at, settle)
   }
 
   internal abstract fun build(): TapeLook

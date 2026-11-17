@@ -13,17 +13,22 @@ import dev.jordond.filmstrip.effects.filters.internal.KB
 import dev.jordond.filmstrip.effects.filters.internal.KR
 import dev.jordond.filmstrip.effects.filters.tape.TAPE_PICTURE_KERNEL_LIMIT
 import dev.jordond.filmstrip.effects.filters.tape.TapeLook
+import dev.jordond.filmstrip.effects.filters.tape.TapePictureFrame
 import dev.jordond.filmstrip.effects.filters.tape.TapePictureParams
+import dev.jordond.filmstrip.effects.filters.tape.TapePictureRamp
 import dev.jordond.filmstrip.effects.filters.tape.TapePictureSignal
+import dev.jordond.filmstrip.effects.filters.tape.TapeSettle
 import dev.jordond.filmstrip.effects.filters.tape.tapePictureKernelLimit
 import dev.jordond.filmstrip.effects.filters.tape.tapePictureResolution
 import dev.jordond.filmstrip.effects.filters.tape.tapePictureStep
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ColorSpace
+import dev.jordond.filmstrip.motion.Easing
 import io.kotest.assertions.withClue
 import io.kotest.matchers.doubles.plusOrMinus
 import io.kotest.matchers.doubles.shouldBeGreaterThan
 import io.kotest.matchers.nulls.shouldBeNull
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.cinterop.BetaInteropApi
@@ -369,73 +374,6 @@ class VhsCoreImageHardwareTest {
     error("no dropout in the middle of its fall in $SEEDS seeds")
   }
 
-  private fun assertRowMatches(
-    frame: FloatArray,
-    vhs: TapeLook,
-    y: Int,
-    height: Int,
-    width: Int,
-    source: (Int) -> DoubleArray,
-    columns: List<Int> = READ_COLUMNS,
-  ) {
-    val params = TapePictureParams.of(vhs)
-    val tick = TapePictureSignal.tickAt(SECONDS)
-    val row = TapePictureSignal.virtualRow(y, height)
-    columns.forEach { column ->
-      val x = (column + 0.5) / width
-      val expected = TapePictureSignal.pixelAt(x, row, tick, vhs.seed, width, params, source)
-      val at = (y * width + column) * CHANNELS
-      expected.forEachIndexed { channel, value ->
-        withClue("row $y column $column channel $channel") {
-          frame[at + channel].toDouble() shouldBe (value plusOrMinus TOLERANCE)
-        }
-      }
-    }
-  }
-
-  private fun drawn(
-    vhs: TapeLook,
-    image: CIImage,
-    width: Int,
-    height: Int,
-    seconds: Double = SECONDS,
-  ): FloatArray =
-    rendered(tapePictureStep(vhs).apply(image, FrameInfo(attributes(width, height), seconds.seconds)), width, height)
-
-  private fun rendered(
-    image: CIImage,
-    width: Int,
-    height: Int,
-  ): FloatArray {
-    val values = FloatArray(width * height * CHANNELS)
-    val space = ColorSpace.Bt709.createCodeSpace()
-    try {
-      values.usePinned { pinned ->
-        floatContext().render(
-          image,
-          toBitmap = pinned.addressOf(0),
-          rowBytes = (width * CHANNELS * Float.SIZE_BYTES).toLong(),
-          bounds = CGRectMake(0.0, 0.0, width.toDouble(), height.toDouble()),
-          format = kCIFormatRGBAf,
-          colorSpace = space,
-        )
-      }
-    } finally {
-      CGColorSpaceRelease(space)
-    }
-    return values
-  }
-
-  // Core Image works in half floats unless told otherwise, whose rounding around 0.5 is wider than a read of 1e-4.
-  private fun floatContext(): CIContext {
-    val options =
-      NSDictionary.dictionaryWithObject(
-        NSNumber(int = kCIFormatRGBAf),
-        forKey = NSString.create(string = checkNotNull(kCIContextWorkingFormat)),
-      )
-    return CIContext.contextWithOptions(options)
-  }
-
   private fun renderedBytes(
     image: CIImage,
     width: Int,
@@ -459,50 +397,6 @@ class VhsCoreImageHardwareTest {
     }
     return values
   }
-
-  private fun ramp(
-    width: Int,
-    height: Int,
-  ): CIImage = imageOf(width, height) { x, _ -> rampPixel(x, width) }
-
-  private fun imageOf(
-    width: Int,
-    height: Int,
-    pixel: (Int, Int) -> FloatArray,
-  ): CIImage {
-    val values = FloatArray(width * height * CHANNELS)
-    for (y in 0 until height) {
-      for (x in 0 until width) {
-        pixel(x, y).copyInto(values, (y * width + x) * CHANNELS)
-      }
-    }
-    val space = ColorSpace.Bt709.createCodeSpace()
-    try {
-      val data =
-        values.usePinned { pinned ->
-          NSData.create(bytes = pinned.addressOf(0), length = (values.size * Float.SIZE_BYTES).convert())
-        }
-      return CIImage.imageWithBitmapData(
-        data,
-        bytesPerRow = (width * CHANNELS * Float.SIZE_BYTES).convert(),
-        size = CGSizeMake(width.toDouble(), height.toDouble()),
-        format = kCIFormatRGBAf,
-        colorSpace = space,
-      )
-    } finally {
-      CGColorSpaceRelease(space)
-    }
-  }
-
-  private fun rampPixel(
-    column: Int,
-    width: Int,
-  ): FloatArray {
-    val t = column.toFloat() / (width - 1)
-    return floatArrayOf(RAMP_RED + RAMP_SPAN * t, RAMP_GREEN - RAMP_SPAN * t / 2, RAMP_BLUE + RAMP_SPAN * t, 1f)
-  }
-
-  private fun rampTexel(column: Int): DoubleArray = DoubleArray(RGB) { rampPixel(column, WIDTH)[it].toDouble() }
 
   @Suppress("UNUSED_PARAMETER")
   private fun edge(
@@ -531,31 +425,10 @@ class VhsCoreImageHardwareTest {
     return cross / sqrt(a.sumOf { (it - meanA).pow(2) } * b.sumOf { (it - meanB).pow(2) })
   }
 
-  private fun attributes(
-    width: Int,
-    height: Int,
-  ): Attributes {
-    val size = Size(width, height)
-    return Attributes(
-      inputSize = size,
-      outputSize = size,
-      layoutSize = size,
-      colorSpace = ColorSpace.Bt709,
-      hdrTransfer = null,
-      frameRate = 30f,
-      span = TimeRange(0.seconds, 4.seconds),
-    )
-  }
-
   private companion object {
     // Mid snow in a tall band that rolls through the frame once every two read times, so it sits mid frame at the read.
     val SNOWY = Vhs(tracking = Tracking.Rolling((2 * SECONDS).seconds, height = 0.3f, snow = 0.5f))
-    const val WIDTH = 640
-    const val HEIGHT = 360
-    const val CHANNELS = 4
-    const val RGB = 3
-    const val SECONDS = 1.5
-    const val TOLERANCE = 1e-4
+
     const val SEEDS = 200
     val MID_FALL = 0.3..0.7
     const val HALF_ALPHA = 0.5
@@ -563,14 +436,8 @@ class VhsCoreImageHardwareTest {
     const val STEP_READS = 2
     const val MOVED_X = 40.0
     const val MOVED_Y = 25.0
-    val READ_ROWS = listOf(40, HEIGHT / 2, HEIGHT - 3, HEIGHT - 1)
-    val READ_COLUMNS = listOf(0, WIDTH / 4, WIDTH / 2, WIDTH * 3 / 4, WIDTH - 1)
     const val TALL_HEIGHT = 1080
     const val EXACT_ROW_STEP = 9
-    const val RAMP_RED = 0.25f
-    const val RAMP_GREEN = 0.6f
-    const val RAMP_BLUE = 0.3f
-    const val RAMP_SPAN = 0.4f
     val EDGE_LEFT = floatArrayOf(0.5f, 0.3f, 0.2f, 1f)
     val EDGE_RIGHT = floatArrayOf(0.25f, 0.5f, 0.6f, 1f)
     const val CANVAS_LEFT = 160

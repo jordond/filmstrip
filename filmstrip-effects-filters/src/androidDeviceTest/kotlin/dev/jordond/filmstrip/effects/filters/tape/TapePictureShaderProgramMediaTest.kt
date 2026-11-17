@@ -5,14 +5,19 @@ import android.opengl.EGLConfig
 import android.opengl.GLES20
 import android.opengl.GLES30
 import androidx.media3.common.util.GlUtil
+import dev.jordond.filmstrip.edit.TimeRange
+import dev.jordond.filmstrip.effects.filters.WHOLE_SPAN
 import dev.jordond.filmstrip.effects.filters.betamax.Betamax
 import dev.jordond.filmstrip.effects.filters.hi8.Hi8
 import dev.jordond.filmstrip.effects.filters.toDoubles
 import dev.jordond.filmstrip.effects.filters.vhs.Tracking
+import dev.jordond.filmstrip.effects.filters.vhs.TrackingSettle
 import dev.jordond.filmstrip.effects.filters.vhs.Vhs
+import dev.jordond.filmstrip.motion.Easing
 import io.kotest.assertions.withClue
 import io.kotest.matchers.doubles.plusOrMinus
 import io.kotest.matchers.doubles.shouldBeGreaterThan
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import org.junit.Assume.assumeTrue
 import java.nio.ByteBuffer
@@ -89,6 +94,95 @@ class TapePictureShaderProgramMediaTest {
       ).weight shouldBeGreaterThan
       0.25
     listOf(HEIGHT * 2 / 5, HEIGHT / 2, HEIGHT * 3 / 5).forEach { y -> assertRowMatches(frame, SNOWY, y, HEIGHT) }
+  }
+
+  @Test
+  fun aRollingBandSetToBeAtTheTopTwoSecondsInReadsTheSignalOnThatFrame() {
+    val params = TapePictureParams.of(ANCHORED_AFTER, SLOT.start)
+    val top = { seconds: Double -> TapePictureSignal.trackingWeight(0, TapePictureSignal.tickAt(seconds), 2, params) }
+
+    top(OPENS + ANCHOR_AT) shouldBeGreaterThan 0.5
+    listOf(OPENS, OPENS + ANCHOR_AT).forEach { seconds ->
+      val frame = draw(ANCHORED_AFTER, seconds = seconds, width = WIDTH, height = HEIGHT, span = SLOT)
+      listOf(2, HEIGHT / 4, HEIGHT / 2, HEIGHT - 3).forEach { y ->
+        assertRowMatches(frame, ANCHORED_AFTER, y, HEIGHT, seconds = seconds, span = SLOT)
+      }
+    }
+  }
+
+  @Test
+  fun aRollingBandOnAClipThatOpensLateIsAtTheTopOnItsFirstFrame() {
+    val weights = { seconds: Double, y: Int ->
+      val params = TapePictureParams.of(ANCHORED, SLOT.start)
+      TapePictureSignal.trackingWeight(
+        ANCHORED.seed,
+        TapePictureSignal.tickAt(seconds),
+        TapePictureSignal.virtualRow(y, HEIGHT),
+        params,
+      )
+    }
+
+    weights(OPENS, 2) shouldBeGreaterThan 0.5
+    weights(OPENS, HEIGHT - 3) shouldBeGreaterThan 0.5
+    weights(OPENS + ANCHORED_PERIOD / 4, HEIGHT / 4) shouldBeGreaterThan 0.5
+    listOf(OPENS, OPENS + ANCHORED_PERIOD / 4).forEach { seconds ->
+      val frame = draw(ANCHORED, seconds = seconds, width = WIDTH, height = HEIGHT, span = SLOT)
+      listOf(2, HEIGHT / 4, HEIGHT / 2, HEIGHT - 3).forEach { y ->
+        assertRowMatches(frame, ANCHORED, y, HEIGHT, seconds = seconds, span = SLOT)
+      }
+    }
+  }
+
+  @Test
+  fun aSettlingBandReadsTheSignalAtTheStartTheMiddleAndTheEndOfItsSettleAndAfterIt() {
+    val params = TapePictureParams.of(SETTLING, SLOT.start)
+    val strengths =
+      SETTLE_READS.map { (seconds, y) ->
+        val frame = draw(SETTLING, seconds = seconds, width = WIDTH, height = HEIGHT, span = SLOT)
+        assertRowMatches(frame, SETTLING, y, HEIGHT, seconds = seconds, span = SLOT)
+        TapePictureSignal.bandSettle(TapePictureSignal.tickAt(seconds), params)
+      }
+
+    strengths[0] shouldBe 1.0
+    strengths[1] shouldBe (0.5 plusOrMinus 0.01)
+    strengths[2] shouldBe 0.0
+    strengths[3] shouldBe 0.0
+  }
+
+  @Test
+  fun aSettlingLookReadsTheSignalBeforeAtTheStartInTheMiddleAtTheEndAndAfterItsSettle() {
+    val slot = TimeRange(OPENS.seconds, 60.seconds)
+    val levels =
+      LOOK_READS.map { seconds ->
+        val frame = draw(LOCKING, seconds = seconds, width = WIDTH, height = HEIGHT, span = slot)
+        READ_ROWS.forEach { y -> assertRowMatches(frame, LOCKING, y, HEIGHT, seconds = seconds, span = slot) }
+        TapePictureRamp.of(LOCKING, slot).shouldNotBeNull().levelAt(TapePictureSignal.tickAt(seconds))
+      }
+
+    levels[0] shouldBe 1.0
+    levels[1] shouldBe 1.0
+    levels[2] shouldBe (0.65 plusOrMinus 0.01)
+    levels[3] shouldBe 0.3.toFloat().toDouble()
+    levels[4] shouldBe 0.3.toFloat().toDouble()
+  }
+
+  @Test
+  fun aSettlingLookDrawsTheSameFrameAsTheConstantLookAtItsLevel() {
+    val slot = TimeRange(OPENS.seconds, 60.seconds)
+    val seconds = OPENS + 2.0
+    val level = TapePictureRamp.of(LOCKING, slot).shouldNotBeNull().levelAt(TapePictureSignal.tickAt(seconds))
+
+    val settling = draw(LOCKING, seconds = seconds, width = WIDTH, height = HEIGHT, span = slot)
+    val constant = draw(Vhs(intensity = level.toFloat()), seconds = seconds, width = WIDTH, height = HEIGHT)
+
+    READ_ROWS.forEach { y ->
+      READ_COLUMNS.forEach { column ->
+        val at = ((HEIGHT - 1 - y) * WIDTH + column) * CHANNELS
+        (0 until RGB).forEach { channel ->
+          settling[at + channel].toDouble() shouldBe (constant[at + channel].toDouble() plusOrMinus SAME_LEVEL)
+        }
+      }
+    }
   }
 
   @Test
@@ -230,9 +324,12 @@ class TapePictureShaderProgramMediaTest {
     height: Int,
     source: (Int) -> FloatArray = ::ramp,
     columns: List<Int> = READ_COLUMNS,
+    seconds: Double = SECONDS,
+    span: TimeRange = WHOLE_SPAN,
   ) {
-    val params = TapePictureParams.of(vhs)
-    val tick = TapePictureSignal.tickAt(SECONDS)
+    val at = TapePictureFrame.of(vhs, seconds, span, null)
+    val params = at.params
+    val tick = at.tick
     val row = TapePictureSignal.virtualRow(y, height)
     columns.forEach { column ->
       val x = (column + 0.5) / WIDTH
@@ -253,6 +350,7 @@ class TapePictureShaderProgramMediaTest {
     width: Int,
     height: Int,
     source: (Int) -> FloatArray = ::ramp,
+    span: TimeRange = WHOLE_SPAN,
   ): FloatArray {
     val input = sourceTexture(width, height, source)
     val target = IntArray(1)
@@ -271,7 +369,7 @@ class TapePictureShaderProgramMediaTest {
     )
     GLES20.glViewport(0, 0, width, height)
 
-    val program = TapePictureShaderProgram(vhs)
+    val program = TapePictureShaderProgram(vhs, span)
     program.configure(width, height)
     program.drawFrame(input, (seconds * 1_000_000.0).toLong())
 
@@ -338,6 +436,39 @@ class TapePictureShaderProgramMediaTest {
   private companion object {
     // Mid snow in a tall band that rolls through the frame once every two read times, so it sits mid frame at the read.
     val SNOWY = Vhs(tracking = Tracking.Rolling((2 * SECONDS).seconds, height = 0.3f, snow = 0.5f))
+    const val OPENS = 10.0
+    const val ANCHORED_PERIOD = 8.0
+    val SLOT = TimeRange(OPENS.seconds, 60.seconds)
+    val ANCHORED = Vhs(tracking = Tracking.Rolling(ANCHORED_PERIOD.seconds, height = 0.3f, snow = 0.5f))
+    const val ANCHOR_AT = 2.0
+    val ANCHORED_AFTER =
+      Vhs(tracking = Tracking.Rolling(ANCHORED_PERIOD.seconds, height = 0.3f, snow = 0.5f, at = ANCHOR_AT.seconds))
+
+    // The same band falling to nothing over four seconds, read at its start, its middle, its end and after it, each on
+    // a row the band is on.
+    val SETTLING =
+      Vhs(
+        tracking =
+          Tracking.Rolling(
+            ANCHORED_PERIOD.seconds,
+            height = 0.3f,
+            snow = 0.5f,
+            settle = TrackingSettle(4.seconds, Easing.Linear),
+          ),
+      )
+    val SETTLE_READS =
+      listOf(
+        OPENS to 2,
+        OPENS + 2.0 to HEIGHT / 4,
+        OPENS + 4.0 to HEIGHT / 2,
+        OPENS + 6.0 to HEIGHT * 3 / 4,
+      )
+
+    // A look that opens at OPENS on the composition's clock, starts at full strength and settles to 0.3 over four
+    // seconds, read before it, on its first frame, in its middle, on its last and after it.
+    val LOCKING = Vhs(intensity = 0.3f, settle = TapeSettle(1f, 4.seconds, Easing.Linear))
+    val LOOK_READS = listOf(OPENS - 1.0, OPENS, OPENS + 2.0, OPENS + 4.0, OPENS + 9.0)
+    const val SAME_LEVEL = 5e-3
     const val WIDTH = 512
     const val HEIGHT = 480
     const val CHANNELS = 4

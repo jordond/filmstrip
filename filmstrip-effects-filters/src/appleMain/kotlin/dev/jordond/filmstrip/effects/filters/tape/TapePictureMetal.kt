@@ -61,6 +61,7 @@ internal fun tapePictureMetal(): String =
     float trackNoise;
     float trackSnow;
     float dropoutLength;
+    float trackChromaLoss;
   };
 
 $HASH_MSL
@@ -172,7 +173,7 @@ $HASH_MSL
     [[stitchable]] float4 $TAPE_PICTURE_KERNEL(
       sampler frame,
       float4 rect,
-      float2 clock,
+      float3 clock,
       float4 blur,
       float4 shifts,
       float4 noise,
@@ -187,7 +188,8 @@ $HASH_MSL
         shifts.x, shifts.y, shifts.z, shifts.w,
         noise.x, noise.y, noise.z, noise.w,
         track.x, track.y, track.z, track.w,
-        band.x, band.y, band.z, band.w
+        band.x, band.y, band.z, band.w,
+        clock.z
       };
       float2 at = dest.coord();
       float u = (at.x - tape.originX) / tape.width;
@@ -214,7 +216,7 @@ $HASH_MSL
       }
       uint chromaRow = row / ${CHROMA_NOISE_ROWS}u;
       float chromaCell = ${metal(STREAK * CHROMA_COARSENESS)};
-      float chromaGain = (1.0f - ${metal(TRACK_CHROMA_LOSS)} * weight) * (1.0f - drop) * (1.0f - tape.desaturation) *
+      float chromaGain = (1.0f - tape.trackChromaLoss * weight) * (1.0f - drop) * (1.0f - tape.desaturation) *
         (1.0f - snowWeight);
 
       float luma = sharp + tape.haloGain * (sharp - wide);

@@ -40,7 +40,7 @@ public object TapePictureShader {
   public val FRAGMENT: String by lazy { fragmentSource() }
 
   /**
-   * The float uniforms that draw [look] on a frame at [seconds] of composition time, by name.
+   * The float uniforms that draw [look] on [frame], by name.
    *
    * [RESOLUTION], [FLIP_V] and [TEXTURE] belong to whoever runs the pass. Seed and tick travel as
    * floats, since each fits the 24 bits a float holds exactly once masked. The tracking band's place on the frame is
@@ -48,10 +48,10 @@ public object TapePictureShader {
    */
   public fun uniforms(
     look: TapeLook,
-    seconds: Double,
+    frame: TapePictureFrame,
   ): Map<String, Float> {
-    val params = TapePictureParams.of(look)
-    val tick = TapePictureSignal.tickAt(seconds)
+    val params = frame.params
+    val tick = frame.tick
     val band = TapePictureSignal.trackingBand(look.seed, tick, params)
     return mapOf(
       "uSeed" to (look.seed and HASH_MASK).toFloat(),
@@ -74,6 +74,7 @@ public object TapePictureShader {
       "uTrackShift" to uniformFloat(params.trackingShift),
       "uTrackNoise" to uniformFloat(params.trackingNoise),
       "uTrackSnow" to uniformFloat(params.trackingSnow),
+      "uTrackChromaLoss" to uniformFloat(params.trackingChromaLoss),
       "uDesaturation" to uniformFloat(params.desaturation),
       "uLift" to uniformFloat(params.lift),
     )
@@ -96,7 +97,7 @@ private fun fragmentSource(): String =
   uniform float uLumaSigma, uChromaSigma, uWideSigma, uHaloGain;
   uniform float uJitter, uWave, uHeadShift, uChromaShift;
   uniform float uLumaNoise, uChromaNoise, uDropoutChance, uDropoutLength;
-  uniform float uTrackCentre, uTrackStrength, uTrackHalfHeight, uTrackShift, uTrackNoise, uTrackSnow;
+  uniform float uTrackCentre, uTrackStrength, uTrackHalfHeight, uTrackShift, uTrackNoise, uTrackSnow, uTrackChromaLoss;
   uniform float uDesaturation, uLift;
 
   const float KR = ${glslFloat(KR)};
@@ -227,7 +228,7 @@ $STRAIGHT_READ_GLSL
     }
     uint chromaRow = row / ${CHROMA_NOISE_ROWS}u;
     float chromaCell = ${glslFloat(STREAK * CHROMA_COARSENESS)};
-    float chromaGain = (1.0 - ${glslFloat(TRACK_CHROMA_LOSS)} * band) * (1.0 - drop) * (1.0 - uDesaturation) *
+    float chromaGain = (1.0 - uTrackChromaLoss * band) * (1.0 - drop) * (1.0 - uDesaturation) *
       (1.0 - snowWeight);
 
     float luma = sharp + uHaloGain * (sharp - wide);

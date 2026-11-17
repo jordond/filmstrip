@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip.effects.filters.tape
 
+import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.effect.FilterBranch
 import dev.jordond.filmstrip.effect.FilterFragment
 import dev.jordond.filmstrip.effect.FilterNode
@@ -12,6 +13,7 @@ import dev.jordond.filmstrip.geometry.Size
 import kotlin.math.ceil
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.time.Duration
 
 /**
  * The filter graph that draws a [TapeLook] on ffmpeg, every figure read from [TapePictureSignal].
@@ -31,17 +33,39 @@ import kotlin.math.min
  * and one adding the weighted snow back, and only when the band has any. On live planes the snow and its weight come
  * in as one frame, the weight in the columns past the raster, so a snowy clip opens three inputs.
  *
+ * A look that settles runs the nodes of the constant look at each end of its settle, each switched on by the frame's
+ * tick, and between them the `geq` and `blend` of [TapePictureRampNodes], which read the level off the frame's time.
+ * A look that settles to nothing switches its `geq`, `gblur`, `lut2` and `blend` nodes off from the end tick, which
+ * hand on the picture, and its live planes hold one frame from there. The nodes that pad, crop and scale stay on.
+ *
  * `gblur` is a recursive approximation of a Gaussian, which is ffmpeg's own limit, and a test pins how close it lands.
  */
 internal fun tapePictureFragment(
   look: TapeLook,
   frame: Size,
   opaque: NormalizedRect? = NormalizedRect.Full,
+  span: TimeRange = TimeRange(Duration.ZERO),
 ): FilterFragment {
-  val params = TapePictureParams.of(look)
+  // A look that settles is drawn at the highest level it reaches wherever the graph is sized, and the nodes that hold a
+  // figure fixed are drawn for each end of the ramp, with the nodes of TapePictureRampNodes between.
+  val ramp = TapePictureRamp.of(look, span)
+  val params = if (ramp == null) TapePictureParams.of(look, span.start) else look.pictureParams(ramp.peak, span.start)
+  val figures =
+    if (ramp ==
+      null
+    ) {
+      TapePictureFigures.constant(params)
+    } else {
+      TapePictureFigures(params, look.pictureParams(1.0, span.start), ramp)
+    }
   val width = frame.width
   val height = frame.height
-  val nodes = TapePictureExpressions(look.seed, params)
+  val nodes = TapePictureExpressions(look.seed, params, figures)
+  val atStart = ramp?.let { look.pictureParams(it.from, span.start) }
+  val atEnd = ramp?.let { look.pictureParams(it.to, span.start) }
+  val moving = ramp?.let { TapePictureRampNodes(figures, nodes, width) }
+  val startNodes = atStart?.let { TapePictureExpressions(look.seed, it) }
+  val endNodes = atEnd?.let { TapePictureExpressions(look.seed, it) }
   val coverage = coverageOf(opaque, width, edgeReach(params, width))
   val normalised =
     listOf(
@@ -50,14 +74,17 @@ internal fun tapePictureFragment(
     )
   val margin = tapeMargin(params, width)
   // A sigma is taken per plane in that plane's own pixels. gblur reads sigmaV=0 as no blur down the column.
+  val blurs = { at: TapePictureParams ->
+    listOf(gblur(at.lumaSigma * width, LUMA_PLANE), gblur(at.chromaSigma * width / 2.0, CHROMA_PLANES))
+  }
   val softened =
-    listOf(
-      gblur(params.lumaSigma * width, LUMA_PLANE),
-      gblur(params.chromaSigma * width / 2.0, CHROMA_PLANES),
-    )
+    if (moving == null || atStart == null || atEnd == null) {
+      blurs(params)
+    } else {
+      blurs(atStart).map(moving::before) + moving.during(moving.blur()) + blurs(atEnd).map(moving::after)
+    }
   // lut2 does not clamp, and writes a result of -1 or lower as the top code, so black would wrap to white.
-  val halo =
-    FilterNode("lut2", "c0" to "max(0,0.5+x+${params.haloGain}*(x-y))")
+  val halo = { gain: Double -> FilterNode("lut2", "c0" to "max(0,0.5+x+$gain*(x-y))") }
   // Only the width drops. A neighbour scale reads a row at its centre, and virtualRow reads it at its top, so a map
   // scaled down the column would land up to a third of its rows on the wrong virtual row. A map reads no input, so its
   // raster is a crop, which copies nothing. A frame narrower than the raster draws its maps at its own width, since a
@@ -70,17 +97,33 @@ internal fun tapePictureFragment(
   val maskRaster = exactCrop(MASK_WIDTH, height)
   // An odd raster puts the weight on an odd column.
   val weightColumns = exactCrop(MASK_WIDTH, height, rasterWidth)
+  val paramsAt = { tick: Int -> if (ramp == null) params else look.pictureParams(ramp.levelAt(tick), span.start) }
   val planes =
-    TapePicturePlanes(look.seed, params, rasterWidth, height, nodes.lumaGrainScale, nodes.chromaGrainScale)
+    TapePicturePlanes(look.seed, figures, paramsAt, rasterWidth, height, nodes.lumaGrainScale, nodes.chromaGrainScale)
   val edges = TapePictureEdgeReads(nodes, params, width)
   val tapeFormat = if (coverage is Coverage.Opaque) OPAQUE_TAPE_FORMATS else TAPE_FORMAT
   val padding = marginNodes(frame, margin, tapeFormat)
   val blurred = { into: String ->
-    listOf(
-      FilterBranch(listOf("sharp"), emptyList(), listOf("near", "far")),
-      FilterBranch(listOf("far"), listOf(gblur(HALO_SIGMA * width, LUMA_PLANE)), listOf("wide")),
-      FilterBranch(listOf("near", "wide"), listOf(halo, unpad), listOf(into)),
-    )
+    if (moving == null || atStart == null || atEnd == null) {
+      listOf(
+        FilterBranch(listOf("sharp"), emptyList(), listOf("near", "far")),
+        FilterBranch(listOf("far"), listOf(gblur(HALO_SIGMA * width, LUMA_PLANE)), listOf("wide")),
+        FilterBranch(listOf("near", "wide"), listOf(halo(params.haloGain), unpad), listOf(into)),
+      )
+    } else {
+      // The frames between the two ends are rung by the blur, so the wide blur and the ring only run outside them.
+      listOf(
+        FilterBranch(listOf("sharp"), emptyList(), listOf("near", "far")),
+        FilterBranch(listOf("far"), listOf(moving.outside(gblur(HALO_SIGMA * width, LUMA_PLANE))), listOf("wide")),
+        FilterBranch(listOf("wide"), emptyList(), listOf("wideStart", "wideEnd")),
+        FilterBranch(listOf("near", "wideStart"), listOf(moving.before(halo(atStart.haloGain))), listOf("ringedStart")),
+        FilterBranch(
+          listOf("ringedStart", "wideEnd"),
+          listOf(moving.after(halo(atEnd.haloGain)), unpad),
+          listOf(into),
+        ),
+      )
+    }
   }
   // Everything from the frame in [from] to the tape after its blur and halo, written to `ringed`. A frame with no clear
   // column runs the plain displace and the blurs. One with clear columns beside its picture takes the exact read in the
@@ -109,11 +152,35 @@ internal fun tapePictureFragment(
       width = planeWidth,
       height = height,
       ticksPerSecond = TICK_RATE,
-      key = "tape.$pad:$look",
+      key = "tape.$pad:$look${ramp?.let { ":${it.startTick}" }.orEmpty()}",
       planeAt = planeAt,
       tickOpening = TapePictureSignal::tickOpening,
       carriesChroma = true,
     )
+  }
+  val graded = { stopsWithFrame: Boolean ->
+    if (moving == null || startNodes == null || endNodes == null) {
+      listOf(FilterBranch(listOf("ringed", "grain"), listOf(nodes.grade(stopsWithFrame)), listOf("graded")))
+    } else {
+      listOf(
+        FilterBranch(listOf("grain"), emptyList(), listOf("grainStart", "grainRamp", "grainEnd")),
+        FilterBranch(
+          listOf("ringed", "grainStart"),
+          listOf(moving.before(startNodes.grade(stopsWithFrame))),
+          listOf("gradedStart"),
+        ),
+        FilterBranch(
+          listOf("gradedStart", "grainRamp"),
+          listOf(moving.during(moving.grade(stopsWithFrame))),
+          listOf("gradedRamp"),
+        ),
+        FilterBranch(
+          listOf("gradedRamp", "grainEnd"),
+          listOf(moving.after(endNodes.grade(stopsWithFrame))),
+          listOf("graded"),
+        ),
+      )
+    }
   }
   val snows = params.trackingSnow > 0.0
   val landed = if (snows) "landed" else "out"
@@ -146,10 +213,21 @@ internal fun tapePictureFragment(
     } else {
       emptyList()
     }
+  // A look that settles to nothing draws the picture as it is from the end of its settle, so its nodes are switched off
+  // there and the planes it reads stop being drawn.
+  val idle = ramp != null && ramp.to == 0.0 && moving != null
+  val idled = { branch: FilterBranch ->
+    if (idle) FilterBranch(branch.reads, branch.nodes.map { checkNotNull(moving).idle(it) }, branch.writes) else branch
+  }
+  val held = { planeAt: (Int) -> ByteArray ->
+    val end = ramp?.endTick
+    val kept by lazy { planeAt(checkNotNull(end)) }
+    if (idle) { tick: Int -> if (tick < checkNotNull(end)) planeAt(tick) else kept } else planeAt
+  }
   val snowInputs =
     if (snows) {
       listOf(
-        liveInput(SNOW_PLANE, { tick -> planes.snowAt(tick, MASK_WIDTH) }, rasterWidth + MASK_WIDTH),
+        liveInput(SNOW_PLANE, held { tick -> planes.snowAt(tick, MASK_WIDTH) }, rasterWidth + MASK_WIDTH),
       )
     } else {
       emptyList()
@@ -157,36 +235,46 @@ internal fun tapePictureFragment(
   return FilterFragment(
     readsCompositionClock = true,
     branches =
-      listOf(
-        FilterBranch(listOf(FilterBranch.INPUT), normalised, listOf("frame")),
-        FilterBranch(
-          listOf("frame"),
-          emptyList(),
-          listOf("tape", "grainIn", "dropIn") + if (snows) listOf("maskIn", "snowIn") else emptyList(),
-        ),
-      ) + ringed("tape") +
+      (
         listOf(
-          FilterBranch(listOf("grainIn"), listOf(raster, nodes.grainMap(), upscale), listOf("grain")),
-          FilterBranch(listOf("ringed", "grain"), listOf(nodes.grade()), listOf("graded")),
-          FilterBranch(listOf("dropIn"), listOf(raster, nodes.dropMap(), upscale), listOf("drop")),
-          FilterBranch(listOf("graded", "drop"), listOf(nodes.landDropout()), listOf(landed)),
-        ) + drawnSnow + snowBranches(false),
+          FilterBranch(listOf(FilterBranch.INPUT), normalised, listOf("frame")),
+          FilterBranch(
+            listOf("frame"),
+            emptyList(),
+            listOf("tape", "grainIn", "dropIn") + if (snows) listOf("maskIn", "snowIn") else emptyList(),
+          ),
+        ) + ringed("tape") +
+          listOf(
+            FilterBranch(listOf("grainIn"), listOf(raster, nodes.grainMap(), upscale), listOf("grain")),
+          ) + graded(false) +
+          listOf(
+            FilterBranch(listOf("dropIn"), listOf(raster, nodes.dropMap(), upscale), listOf("drop")),
+            FilterBranch(listOf("graded", "drop"), listOf(nodes.landDropout()), listOf(landed)),
+          ) + drawnSnow + snowBranches(false)
+      ).map(idled),
     // A live plane runs on past the frames it lands on, so its lut2s stop with the shorter of their inputs.
     live =
       LiveBranches(
         inputs =
           listOf(
-            liveInput(GRAIN_PLANE, planes::grainAt, rasterWidth),
-            liveInput(DROP_PLANE, planes::dropAt, rasterWidth),
+            liveInput(GRAIN_PLANE, held(planes::grainAt), rasterWidth),
+            liveInput(DROP_PLANE, held(planes::dropAt), rasterWidth),
           ) + snowInputs,
         branches =
-          listOf(FilterBranch(listOf(FilterBranch.INPUT), normalised, listOf("frame"))) + ringed("frame") +
-            listOf(
-              FilterBranch(listOf(GRAIN_PLANE), listOf(upscale), listOf("grain")),
-              FilterBranch(listOf("ringed", "grain"), listOf(nodes.grade(stopsWithFrame = true)), listOf("graded")),
-              FilterBranch(listOf(DROP_PLANE), listOf(upscale), listOf("drop")),
-              FilterBranch(listOf("graded", "drop"), listOf(nodes.landDropout(stopsWithFrame = true)), listOf(landed)),
-            ) + liveSnow + snowBranches(true),
+          (
+            listOf(FilterBranch(listOf(FilterBranch.INPUT), normalised, listOf("frame"))) + ringed("frame") +
+              listOf(
+                FilterBranch(listOf(GRAIN_PLANE), listOf(upscale), listOf("grain")),
+              ) + graded(true) +
+              listOf(
+                FilterBranch(listOf(DROP_PLANE), listOf(upscale), listOf("drop")),
+                FilterBranch(
+                  listOf("graded", "drop"),
+                  listOf(nodes.landDropout(stopsWithFrame = true)),
+                  listOf(landed),
+                ),
+              ) + liveSnow + snowBranches(true)
+          ).map(idled),
         needsBt709Frames = true,
       ),
   )

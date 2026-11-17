@@ -5,11 +5,14 @@ package dev.jordond.filmstrip.effects.filters.tape
  * [TapePictureExpressions.snowMask] straight from [TapePictureSignal], at the codes those expressions write, as whole
  * 4:2:0 frames [width] by [height]. The snow and its weight share one frame, side by side.
  *
- * A pixel's position reads the way a `geq` reads it, its own plane's fraction across and its own plane's row.
+ * A pixel's position reads the way a `geq` reads it, its own plane's fraction across and its own plane's row. The band,
+ * the dropouts and the snow are drawn at the strengths [paramsAt] gives a tick, and the noise at the strengths of
+ * [figures], which are the same where the look holds one strength.
  */
 internal class TapePicturePlanes(
   private val seed: Int,
-  private val params: TapePictureParams,
+  private val figures: TapePictureFigures,
+  private val paramsAt: (tick: Int) -> TapePictureParams,
   private val width: Int,
   private val height: Int,
   private val lumaGrainScale: Double,
@@ -24,23 +27,25 @@ internal class TapePicturePlanes(
    * The added noise at [tick], as an offset from mid scale in each plane.
    */
   fun grainAt(tick: Int): ByteArray {
+    val params = paramsAt(tick)
+    val noise = figures.noise
     val frame = newFrame()
     var at = 0
     for (y in 0 until height) {
       val row = TapePictureSignal.virtualRow(y, height)
       val band = TapePictureSignal.trackingWeight(seed, tick, row, params)
       for (x in lumaAcross) {
-        var grain = params.lumaNoise * TapePictureSignal.streak(seed, PASS_LUMA_NOISE, tick, row, x, STREAK)
+        var grain = noise.lumaNoise * TapePictureSignal.streak(seed, PASS_LUMA_NOISE, tick, row, x, STREAK)
         if (band > 0.0) {
           grain +=
-            params.trackingNoise * band *
+            noise.trackingNoise * band *
             TapePictureSignal.streak(seed, PASS_TRACK_NOISE, tick, row, x, TRACK_NOISE_CELL)
         }
         frame[at++] = (MID_CODE + lumaGrainScale * LUMA_CODES * grain).toInt().toByte()
       }
     }
-    at = chromaGrain(frame, at, PASS_CB_NOISE, tick)
-    chromaGrain(frame, at, PASS_CR_NOISE, tick)
+    at = chromaGrain(frame, at, PASS_CB_NOISE, tick, noise)
+    chromaGrain(frame, at, PASS_CR_NOISE, tick, noise)
     return frame
   }
 
@@ -48,6 +53,7 @@ internal class TapePicturePlanes(
    * The dropouts at [tick], in luma, and what is left of chroma in the chroma planes.
    */
   fun dropAt(tick: Int): ByteArray {
+    val params = paramsAt(tick)
     val frame = newFrame()
     var at = 0
     for (y in 0 until height) {
@@ -60,7 +66,7 @@ internal class TapePicturePlanes(
       for (y in 0 until chromaHeight) {
         val row = TapePictureSignal.virtualRow(y, chromaHeight)
         val band = TapePictureSignal.trackingWeight(seed, tick, row, params)
-        val kept = (1.0 - TRACK_CHROMA_LOSS * band) * (1.0 - params.trackingSnow * band)
+        val kept = (1.0 - params.trackingChromaLoss * band) * (1.0 - params.trackingSnow * band)
         for (x in chromaAcross) {
           val gain = kept * (1.0 - TapePictureSignal.dropout(seed, tick, row, x, params))
           frame[at++] = (ROUNDING + FULL_SCALE * gain).toInt().toByte()
@@ -81,6 +87,7 @@ internal class TapePicturePlanes(
     tick: Int,
     weightWidth: Int,
   ): ByteArray {
+    val params = paramsAt(tick)
     val wide = width + weightWidth
     val frame = ByteArray(wide * height + 2 * ((wide + 1) / 2) * chromaHeight)
     for (y in 0 until height) {
@@ -104,6 +111,7 @@ internal class TapePicturePlanes(
     from: Int,
     pass: Int,
     tick: Int,
+    noise: TapePictureParams,
   ): Int {
     var at = from
     val cell = STREAK * CHROMA_COARSENESS
@@ -111,7 +119,7 @@ internal class TapePicturePlanes(
       val row = TapePictureSignal.virtualRow(y, chromaHeight) / CHROMA_NOISE_ROWS
       for (x in chromaAcross) {
         val streak = TapePictureSignal.streak(seed, pass, tick, row, x, cell)
-        frame[at++] = (MID_CODE + chromaGrainScale * CHROMA_CODES * params.chromaNoise * streak).toInt().toByte()
+        frame[at++] = (MID_CODE + chromaGrainScale * CHROMA_CODES * noise.chromaNoise * streak).toInt().toByte()
       }
     }
     return at

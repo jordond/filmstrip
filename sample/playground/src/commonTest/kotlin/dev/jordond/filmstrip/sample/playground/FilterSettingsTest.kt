@@ -6,6 +6,7 @@ import dev.jordond.filmstrip.effects.filters.camcorder.Camcorder
 import dev.jordond.filmstrip.effects.filters.glitch.Glitch
 import dev.jordond.filmstrip.effects.filters.hi8.Hi8
 import dev.jordond.filmstrip.effects.filters.hi8.Hi8Speed
+import dev.jordond.filmstrip.effects.filters.tape.TapeSettle
 import dev.jordond.filmstrip.effects.filters.vhs.TapeSpeed
 import dev.jordond.filmstrip.effects.filters.vhs.Tracking
 import dev.jordond.filmstrip.effects.filters.vhs.Vhs
@@ -17,6 +18,7 @@ import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.string.shouldNotContain
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlin.test.Test
+import kotlin.time.Duration.Companion.seconds
 
 class FilterSettingsTest {
   @Test
@@ -29,6 +31,15 @@ class FilterSettingsTest {
     val code = codeText(filtersCode(FilterSettings().withIntensity(0.6f).copy(tape = TapeSpeed.LP)))
     code shouldContain "  vhs {\n    intensity = 0.6f\n    tape = TapeSpeed.LP\n  }"
     code shouldNotContain "tracking"
+  }
+
+  @Test
+  fun `a settle reaches the code and the look only when it is on`() {
+    codeText(filtersCode(FilterSettings())) shouldNotContain "settle"
+    codeText(filtersCode(FilterSettings(settle = true))) shouldContain "    settle(from = 1f, over = 3.seconds)"
+    filtersEffects(FilterSettings().withIntensity(0.4f)).single().shouldBeInstanceOf<Vhs>().settle shouldBe null
+    filtersEffects(FilterSettings(settle = true).withIntensity(0.4f)).single().shouldBeInstanceOf<Vhs>().settle shouldBe
+      TapeSettle(1f, 3.seconds)
   }
 
   @Test

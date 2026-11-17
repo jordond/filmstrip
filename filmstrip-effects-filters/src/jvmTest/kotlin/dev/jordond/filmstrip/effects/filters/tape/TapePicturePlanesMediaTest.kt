@@ -1,14 +1,17 @@
 package dev.jordond.filmstrip.effects.filters.tape
 
+import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.effects.filters.hi8.Hi8
 import dev.jordond.filmstrip.effects.filters.hostFfmpeg
 import dev.jordond.filmstrip.effects.filters.vhs.Tracking
 import dev.jordond.filmstrip.effects.filters.vhs.Vhs
 import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.motion.Easing
 import io.kotest.assertions.withClue
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import kotlin.test.Test
+import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
 /**
@@ -50,6 +53,51 @@ class TapePicturePlanesMediaTest {
             val weight = drawn(nodes.snowMask().arguments.associate { it.key to it.value }, tick, MASK)
             differing(inputs[2].planeAt(tick), beside(snow, RASTER, weight, MASK)) shouldBe 0
           }
+        }
+      }
+    }
+  }
+
+  @Test
+  fun `the planes equal the geq's at every tick of a settle and either side of it`() {
+    listOf(SETTLING_ROLLING, SETTLING_EVENTS, SETTLING_EVENTS_UP).forEach { vhs ->
+      val span = TimeRange(Duration.ZERO)
+      val ramp = TapePictureRamp.of(vhs, span).shouldNotBeNull()
+      val params = vhs.pictureParams(ramp.peak, span.start)
+      val nodes =
+        TapePictureExpressions(vhs.seed, params, TapePictureFigures(params, vhs.pictureParams(1.0, span.start), ramp))
+      val inputs = tapePictureFragment(vhs, Size(WIDTH, HEIGHT), span = span).live.shouldNotBeNull().inputs
+      val ticks =
+        listOf(
+          0,
+          1,
+          ramp.endTick / 3,
+          ramp.endTick / 2,
+          MID_FADE_TICK,
+          ramp.endTick - 1,
+          ramp.endTick,
+          ramp.endTick + 500,
+        )
+
+      ticks.forEach { tick ->
+        withClue("the grain of $vhs at tick $tick") {
+          differing(
+            inputs[0].planeAt(tick),
+            drawn(nodes.grainMap().arguments.associate { it.key to it.value }, tick),
+          ) shouldBe
+            0
+        }
+        withClue("the dropouts of $vhs at tick $tick") {
+          differing(
+            inputs[1].planeAt(tick),
+            drawn(nodes.dropMap().arguments.associate { it.key to it.value }, tick),
+          ) shouldBe
+            0
+        }
+        withClue("the snow and its weight of $vhs at tick $tick") {
+          val snow = drawn(nodes.snowMap().arguments.associate { it.key to it.value }, tick)
+          val weight = drawn(nodes.snowMask().arguments.associate { it.key to it.value }, tick, MASK)
+          differing(inputs[2].planeAt(tick), beside(snow, RASTER, weight, MASK)) shouldBe 0
         }
       }
     }
@@ -171,6 +219,15 @@ class TapePicturePlanesMediaTest {
     const val DROPOUT_TICKS = 200
     val TICKS = listOf(0, 1, 37, 240, 241, 500, 719, 3596, 9001, 20011)
     val ROLLING_SNOW = Vhs(intensity = 0.6f, tracking = Tracking.Rolling(2.5.seconds, height = 0.15f, snow = 0.6f))
+    val SETTLE = TapeSettle(1f, 4.seconds, Easing.EaseInOut)
+    val SETTLING_ROLLING =
+      Vhs(intensity = 0.3f, tracking = Tracking.Rolling(2.5.seconds, height = 0.15f, snow = 0.6f), settle = SETTLE)
+    val SETTLING_EVENTS = Vhs(intensity = 0.5f, tracking = Tracking.Events(chance = 1f, snow = 0.4f), settle = SETTLE)
+    val SETTLING_EVENTS_UP =
+      Vhs(intensity = 1f, tracking = Tracking.Events(chance = 1f, snow = 0.4f), settle = TapeSettle(0.5f, 4.seconds))
+
+    // A tick of a settle up where the band of the default seed is part way in, so the fade arm is read mid range.
+    const val MID_FADE_TICK = 160
     val EVENT_SNOW = Vhs(tracking = Tracking.Events(chance = 1f, height = 0.12f, snow = 0.4f))
   }
 }

@@ -7,9 +7,11 @@ import dev.jordond.filmstrip.effect.EffectStage
 import dev.jordond.filmstrip.effects.filters.tape.TapeAudioFigures
 import dev.jordond.filmstrip.effects.filters.tape.TapeLook
 import dev.jordond.filmstrip.effects.filters.tape.TapePictureParams
+import dev.jordond.filmstrip.effects.filters.tape.TapeSettle
 import dev.jordond.filmstrip.effects.filters.tape.TapeStock
 import dev.jordond.filmstrip.effects.filters.tape.audioFiguresOf
 import dev.jordond.filmstrip.effects.filters.tape.pictureStock
+import kotlin.time.Duration
 
 /**
  * Makes the frame look like it was played back from a VHS tape.
@@ -18,6 +20,10 @@ import dev.jordond.filmstrip.effects.filters.tape.pictureStock
  * and adds streaky noise, dropouts and a [Tracking] band. The pattern is a function of the frame's composition time
  * and its height as a fraction, so a seek or a smaller preview shows the same tape. With [TapeClock.Wall] a preview
  * draws the pattern from its own clock instead, so the tape keeps moving while the preview is paused.
+ *
+ * A [settle] starts the look weaker or stronger on the first frame of its scope and eases it to [intensity], the way a
+ * deck locks onto a recording. The look at any frame is the look at the strength it has then. A settle counts from
+ * where a frame sits in its run, so on a track it starts again on every clip, and on a looping track on every lap.
  *
  * The effect runs over the fill and under any overlay at the same scope, so a caption added next to it stays clean. A
  * clip overlay under a composition [Vhs] is part of the clip's frame by then, and is burned in with it.
@@ -34,6 +40,8 @@ import dev.jordond.filmstrip.effects.filters.tape.pictureStock
  * @property seed Picks the pattern of noise and events. Equal seeds draw the same tape.
  * @property tracking The band of mistracked tape that runs through the picture.
  * @property clock What the pattern moves with in a preview. An export draws the same tape for either.
+ * @property settle How the look eases to its intensity from another strength, or null when it keeps one strength
+ * throughout.
  * @throws IllegalArgumentException when [intensity] is outside `0f..1f`.
  */
 @Poko
@@ -43,6 +51,7 @@ public class Vhs(
   override val seed: Int = DEFAULT_SEED,
   override val tracking: Tracking = Tracking.Events(),
   override val clock: TapeClock = TapeClock.Composition,
+  override val settle: TapeSettle? = null,
 ) : TapeLook {
   init {
     require(intensity in 0f..1f) { "A VHS intensity has to be within 0 to 1, not $intensity." }
@@ -56,13 +65,15 @@ public class Vhs(
 
   override val requiresSdr: Boolean get() = true
 
-  override val isInert: Boolean get() = intensity == 0f
+  override val isInert: Boolean get() = intensity == 0f && (settle?.from ?: 0f) == 0f
 
   override val redrawsWhileHeld: Boolean get() = clock == TapeClock.Wall
 
   @InternalFilmstripApi
-  override fun pictureParams(): TapePictureParams =
-    TapePictureParams.at(intensity.toDouble(), tape.pictureStock, tracking)
+  override fun pictureParams(
+    level: Double,
+    scopeStart: Duration?,
+  ): TapePictureParams = TapePictureParams.at(level, tape.pictureStock, this, scopeStart)
 
   public companion object {
     /**

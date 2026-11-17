@@ -12,7 +12,8 @@ import dev.jordond.filmstrip.effects.filters.tape.addTapeLook
  * vhs {
  *   intensity = 0.6f
  *   tape = TapeSpeed.SP
- *   tracking = rolling(period = 6.seconds) { snow = 0.8f }
+ *   tracking = rolling(period = 6.seconds, at = 2.seconds) { snow = 0.8f }
+ *   settle(from = 1f, over = 3.seconds)
  *   camcorder { rec() }
  * }
  * ```
@@ -31,7 +32,7 @@ public fun EffectsBuilder.vhs(block: VhsBuilder.() -> Unit = {}): EffectsBuilder
 public class VhsBuilder internal constructor() : TapeLookBuilder("vhs") {
   public var tape: TapeSpeed = TapeSpeed.EP
 
-  override fun build(): Vhs = Vhs(intensity, tape, seed, tracking, clock)
+  override fun build(): Vhs = Vhs(intensity, tape, seed, tracking, clock, settle)
 }
 
 /**

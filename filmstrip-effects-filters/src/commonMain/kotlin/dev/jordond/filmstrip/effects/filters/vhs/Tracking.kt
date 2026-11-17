@@ -9,6 +9,9 @@ import kotlin.time.Duration.Companion.seconds
  *
  * Inside the band rows slide sideways, streaky noise rises, colour fades and the picture mixes toward black and white
  * snow. [Vhs.intensity] scales the slide, the noise and the snow, and at `0f` no band runs at all.
+ *
+ * The kinds are closed, so a `when` over a [Tracking] covers [Off], [Events] and [Rolling] and a new kind is a
+ * breaking change.
  */
 public sealed interface Tracking {
   /**
@@ -40,14 +43,22 @@ public sealed interface Tracking {
   }
 
   /**
-   * One band that is always there, rolling from the top of the frame to the bottom every [period], the look of a tape
-   * that needs tracking.
+   * One band rolling from the top of the frame to the bottom every [period], the look of a tape that needs tracking. It
+   * rolls for as long as the look is drawn unless it has a [settle].
    *
    * @property period How long the band takes to roll through the frame once.
    * @property height How tall the band is, as a fraction of the frame height from `0.02f` to `0.5f`.
    * @property shift The largest sideways slide inside the band, as a fraction of the frame width from `0f` to `0.1f`.
    * @property snow How far the middle of the band mixes toward snow, from `0f` which keeps the picture to `1f`.
-   * @throws IllegalArgumentException when [period] is not positive and finite, or a value is outside its range.
+   * @property at How long after the first frame of the scope the look is in the band is at the top of the frame, which
+   * is the first frame itself unless it is given one. The scope is the clip's slot for a look on a clip, each clip of
+   * the track for a look on a track and the composition for a look on the composition, so a clip that sits later in the
+   * composition, or is reordered or trimmed, has the band at the top at the same point of its own run. The band is at
+   * the top again every [period] before and after it. A [TapeClock.Wall] preview draws from its own clock and ignores
+   * it.
+   * @property settle How the band eases off from [at] until it is gone, or null when it keeps rolling at full strength.
+   * @throws IllegalArgumentException when [period] is not positive and finite, [at] is negative or not
+   * finite, or a value is outside its range.
    */
   @Poko
   public class Rolling(
@@ -55,9 +66,12 @@ public sealed interface Tracking {
     public val height: Float = DEFAULT_HEIGHT,
     public val shift: Float = DEFAULT_SHIFT,
     public val snow: Float = DEFAULT_SNOW,
+    public val at: Duration = Duration.ZERO,
+    public val settle: TrackingSettle? = null,
   ) : Tracking {
     init {
       require(period.isPositive() && period.isFinite()) { "A tracking period has to be positive, not $period." }
+      require(at.isFinite() && !at.isNegative()) { "A tracking anchor has to be zero or more and finite, not $at." }
       requireBand(height, shift, snow)
     }
   }

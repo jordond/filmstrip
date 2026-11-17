@@ -3,6 +3,7 @@ package dev.jordond.filmstrip.effects.filters.tape
 import dev.jordond.filmstrip.edit.EffectsBuilder
 import dev.jordond.filmstrip.effect.PreviewClock
 import dev.jordond.filmstrip.effects.filters.vhs.TapeClock
+import dev.jordond.filmstrip.effects.filters.vhs.Tracking
 import dev.jordond.filmstrip.effects.filters.vhs.Vhs
 import dev.jordond.filmstrip.effects.filters.vhs.VhsBuilder
 import dev.jordond.filmstrip.effects.filters.vhs.vhs
@@ -53,13 +54,28 @@ class TapePictureClockTest {
     val clock = PreviewClock { now }
     val held = 2.5
 
-    val first = TapePictureShader.uniforms(wall, TapePictureSignal.tapeSeconds(wall, held, clock))
+    val first = TapePictureShader.uniforms(wall, TapePictureFrame.of(wall, held, WHOLE, clock))
     now += ONE_TICK
-    val second = TapePictureShader.uniforms(wall, TapePictureSignal.tapeSeconds(wall, held, clock))
+    val second = TapePictureShader.uniforms(wall, TapePictureFrame.of(wall, held, WHOLE, clock))
 
     second.getValue("uTick") shouldBe first.getValue("uTick") + 1f
-    TapePictureShader.uniforms(composition, TapePictureSignal.tapeSeconds(composition, held, clock)) shouldBe
-      TapePictureShader.uniforms(composition, held)
+    TapePictureShader.uniforms(composition, TapePictureFrame.of(composition, held, WHOLE, clock)) shouldBe
+      TapePictureShader.uniforms(composition, TapePictureFrame.of(composition, held, WHOLE, null))
+  }
+
+  @Test
+  fun `a wall tape draws its rolling band from tick zero whatever it is anchored to`() {
+    val anchored = Vhs(tracking = Tracking.Rolling(at = 5.seconds), clock = TapeClock.Wall)
+    val clock = PreviewClock { 2.seconds }
+
+    val onWall = TapePictureFrame.of(anchored, 9.0, WHOLE, clock)
+    val plain = TapePictureFrame.of(Vhs(tracking = Tracking.Rolling(), clock = TapeClock.Wall), 9.0, WHOLE, clock)
+
+    onWall.params.trackingAnchorTicks shouldBe 0
+    TapePictureSignal.trackingBand(anchored.seed, onWall.tick, onWall.params).centre shouldBe
+      TapePictureSignal.trackingBand(anchored.seed, plain.tick, plain.params).centre
+    TapePictureFrame.of(anchored, 9.0, WHOLE, null).params.trackingAnchorTicks shouldBe
+      TapePictureSignal.tickAt(5.0)
   }
 
   @Test

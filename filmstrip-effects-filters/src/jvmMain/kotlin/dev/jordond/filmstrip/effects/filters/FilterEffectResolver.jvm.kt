@@ -39,7 +39,9 @@ public actual class FilterEffectResolver actual constructor() : EffectResolver {
         camcorderResolution(spec, attributes)
       }
       is TapeLook -> {
-        EffectResolution.Resolved(PlatformEffect(tapePictureFragment(spec, attributes.inputSize, attributes.opaque)))
+        EffectResolution.Resolved(
+          PlatformEffect(tapePictureFragment(spec, attributes.inputSize, attributes.opaque, attributes.span)),
+        )
       }
       is Film -> {
         EffectResolution.Resolved(PlatformEffect(filmFragment(spec, attributes.inputSize)))

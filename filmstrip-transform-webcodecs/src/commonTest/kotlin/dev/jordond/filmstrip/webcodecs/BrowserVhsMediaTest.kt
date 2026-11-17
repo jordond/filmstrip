@@ -6,12 +6,16 @@ import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.Composition
+import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.outputSlotTime
 import dev.jordond.filmstrip.effects.filters.filters
 import dev.jordond.filmstrip.effects.filters.tape.TapePictureParams
+import dev.jordond.filmstrip.effects.filters.tape.TapePictureRamp
 import dev.jordond.filmstrip.effects.filters.tape.TapePictureSignal
+import dev.jordond.filmstrip.effects.filters.tape.TapeSettle
 import dev.jordond.filmstrip.effects.filters.vhs.Tracking
+import dev.jordond.filmstrip.effects.filters.vhs.TrackingSettle
 import dev.jordond.filmstrip.effects.filters.vhs.Vhs
 import dev.jordond.filmstrip.effects.geometry.Crop
 import dev.jordond.filmstrip.effects.geometry.Scale
@@ -28,6 +32,7 @@ import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
+import dev.jordond.filmstrip.motion.Easing
 import dev.jordond.filmstrip.test.OverlayPixels
 import dev.jordond.filmstrip.test.encodesHdr
 import dev.jordond.filmstrip.webcodecs.internal.clipFrameError
@@ -43,6 +48,9 @@ import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
 import kotlin.math.abs
 import kotlin.test.Test
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.seconds
+import kotlin.time.DurationUnit
 
 /**
  * A [Vhs] drawn through the real browser compositor, read against [TapePictureSignal].
@@ -381,6 +389,7 @@ private const val HDR_HEIGHT = 96
 
 // Mid snow in a tall band that rolls through the frame once every two read times, so it sits mid frame at the read.
 private val SNOWY = Vhs(tracking = Tracking.Rolling(BrowserTapePictureFrames.READ_TIME * 2, height = 0.3f, snow = MID))
+
 private const val SLATE_ARGB = 0xFF204060.toInt()
 private const val BAR_ROW_OF_HEIGHT = 0.05
 private const val SWATCH_CODE = 0x20

@@ -23,6 +23,7 @@ import dev.jordond.filmstrip.effects.filters.pixel.pixel
 import dev.jordond.filmstrip.effects.filters.tape.Wobble
 import dev.jordond.filmstrip.effects.filters.tape.tapeAudio
 import dev.jordond.filmstrip.effects.filters.vhs.TapeSpeed
+import dev.jordond.filmstrip.effects.filters.vhs.TrackingSettle
 import dev.jordond.filmstrip.effects.filters.vhs.vhs
 import dev.jordond.filmstrip.media.MediaSource
 import kotlin.time.Duration.Companion.seconds
@@ -109,6 +110,27 @@ internal fun vhsLook(): Composition {
           intensity = 0.6f
           tape = TapeSpeed.LP
           tracking = rolling(period = 6.seconds) { snow = 0.5f }
+        }
+      }
+    }
+  // endregion
+  return composition
+}
+
+internal fun settlingVhsLook(): Composition {
+  // region vhs-settle
+  val composition =
+    compositionOf {
+      clip(MediaSource.of("/path/to/intro.mp4"))
+      clip(MediaSource.of("/path/to/home-movie.mp4")) {
+        effects {
+          vhs {
+            intensity = 0.5f
+            // Starts at full strength on the clip's first frame and eases to the intensity over four seconds.
+            settle(from = 1f, over = 4.seconds)
+            // A band that rolls down once from the clip's first frame and is gone after six seconds.
+            tracking = rolling(period = 6.seconds, settle = TrackingSettle(over = 6.seconds))
+          }
         }
       }
     }

@@ -43,7 +43,7 @@ internal fun tapePictureResolution(
 /**
  * The Core Image step that draws [look], on the frame's own codes.
  *
- * A frame's pattern comes from [TapePictureSignal.tapeSeconds] of its composition time, under [previewClock], and its
+ * A frame's pattern comes from a [TapePictureFrame] at its composition time, under [previewClock], and its
  * extent alone, so without a clock a seek or a smaller render shows the same tape. The kernel reads only as far along
  * its row as [TapePictureParams.widestReach] goes, and the frame is held at its last column past that edge, where
  * [tapePictureMetal] paints black.
@@ -55,30 +55,34 @@ internal fun tapePictureStep(
   look: TapeLook,
   previewClock: PreviewClock? = null,
 ): CoreImageEffect {
-  val params = TapePictureParams.of(look)
-  val blur = CIVector.vectorWithX(params.lumaSigma, Y = params.chromaSigma, Z = params.wideSigma, W = params.haloGain)
-  val shifts = CIVector.vectorWithX(params.jitter, Y = params.wave, Z = params.headShift, W = params.chromaShift)
-  val noise =
-    CIVector.vectorWithX(params.lumaNoise, Y = params.chromaNoise, Z = params.dropoutChance, W = params.desaturation)
-  val band =
-    CIVector.vectorWithX(
-      params.trackingShift,
-      Y = params.trackingNoise,
-      Z = params.trackingSnow,
-      W = params.dropoutLength,
-    )
   val seed = (look.seed and HASH_MASK).toDouble()
 
   return CoreImageEffect { image, frame ->
     val kernel = KERNEL ?: error(TAPE_PICTURE_KERNEL_LIMIT)
     val extent = image.extent
     val (x, y, width, height) = extent.useContents { listOf(origin.x, origin.y, size.width, size.height) }
+    val at =
+      TapePictureFrame.of(
+        look,
+        frame.compositionTime.toDouble(DurationUnit.SECONDS),
+        frame.attributes.span,
+        previewClock,
+      )
+    val params = at.params
     val reach = params.widestReach * width + SAMPLE_MARGIN
-    val frameSeconds = frame.compositionTime.toDouble(DurationUnit.SECONDS)
-    val seconds = TapePictureSignal.tapeSeconds(look, frameSeconds, previewClock)
-    val exactTick = TapePictureSignal.tickAt(seconds)
-    val tick = exactTick and HASH_MASK
-    val place = TapePictureSignal.trackingBand(look.seed, exactTick, params)
+    val tick = at.tick and HASH_MASK
+    val place = TapePictureSignal.trackingBand(look.seed, at.tick, params)
+    val blur = CIVector.vectorWithX(params.lumaSigma, Y = params.chromaSigma, Z = params.wideSigma, W = params.haloGain)
+    val shifts = CIVector.vectorWithX(params.jitter, Y = params.wave, Z = params.headShift, W = params.chromaShift)
+    val noise =
+      CIVector.vectorWithX(params.lumaNoise, Y = params.chromaNoise, Z = params.dropoutChance, W = params.desaturation)
+    val band =
+      CIVector.vectorWithX(
+        params.trackingShift,
+        Y = params.trackingNoise,
+        Z = params.trackingSnow,
+        W = params.dropoutLength,
+      )
     val track =
       CIVector.vectorWithX(place.centre, Y = place.strength, Z = params.trackingHalfHeight, W = params.lift)
 
@@ -90,7 +94,7 @@ internal fun tapePictureStep(
           listOf(
             toCodes(image).imageByClampingToExtent(),
             CIVector.vectorWithX(x, Y = y, Z = width, W = height),
-            CIVector.vectorWithX(seed, Y = tick.toDouble()),
+            CIVector.vectorWithX(seed, Y = tick.toDouble(), Z = params.trackingChromaLoss),
             blur,
             shifts,
             noise,

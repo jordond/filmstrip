@@ -171,8 +171,9 @@ class TapePictureTrackingTest {
   fun `the shader declares every uniform it is handed`() {
     val vhs = Vhs(tracking = Tracking.Rolling(snow = 0.5f))
 
-    TapePictureShader.uniforms(vhs, 3.0).keys.forEach { TapePictureShader.FRAGMENT.contains(it) shouldBe true }
-    TapePictureShader.uniforms(vhs, 3.0)["uTrackSnow"] shouldBe 0.5f
+    val uniforms = TapePictureShader.uniforms(vhs, TapePictureFrame.of(vhs, 3.0, WHOLE, null))
+    uniforms.keys.forEach { TapePictureShader.FRAGMENT.contains(it) shouldBe true }
+    uniforms["uTrackSnow"] shouldBe 0.5f
   }
 
   private fun rolling(

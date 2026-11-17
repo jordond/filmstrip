@@ -66,7 +66,8 @@ fades in. Each ramp is linear, and a range shorter than the two ramps takes the 
 
 <Aside type="caution">
 A clip's `fadeIn` and `fadeOut` ramp its audio, not its picture, and they aren't available inside `effects { }`. To fade
-an overlay, pass `fade` as its `animation`. See [Audio](/guides/audio/#fades).
+an overlay, pass `fade` as its `animation`. See [Audio](/guides/audio/#fades). A tape look that eases to its intensity
+from another strength is its own `settle`, see [Filters](/guides/filters/#vhs).
 </Aside>
 
 `slideIn` and `slideOut` move the overlay between its authored position and an offset. `+` runs two animations together.

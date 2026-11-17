@@ -30,5 +30,5 @@ public fun EffectsBuilder.hi8(block: Hi8Builder.() -> Unit = {}): EffectsBuilder
 public class Hi8Builder internal constructor() : TapeLookBuilder("hi8") {
   public var tape: Hi8Speed = Hi8Speed.SP
 
-  override fun build(): Hi8 = Hi8(intensity, tape, seed, tracking, clock)
+  override fun build(): Hi8 = Hi8(intensity, tape, seed, tracking, clock, settle)
 }

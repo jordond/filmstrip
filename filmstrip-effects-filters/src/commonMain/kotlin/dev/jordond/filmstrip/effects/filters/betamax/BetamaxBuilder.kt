@@ -30,5 +30,5 @@ public fun EffectsBuilder.betamax(block: BetamaxBuilder.() -> Unit = {}): Effect
 public class BetamaxBuilder internal constructor() : TapeLookBuilder("betamax") {
   public var tape: BetaSpeed = BetaSpeed.II
 
-  override fun build(): Betamax = Betamax(intensity, tape, seed, tracking, clock)
+  override fun build(): Betamax = Betamax(intensity, tape, seed, tracking, clock, settle)
 }

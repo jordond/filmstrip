@@ -23,6 +23,7 @@ import dev.jordond.filmstrip.effects.filters.vhs.Tracking
 import dev.jordond.filmstrip.effects.filters.vhs.vhs
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.sample.TEAL_AND_ORANGE_CUBE
+import kotlin.time.Duration.Companion.seconds
 
 /**
  * The look the filters sample puts on its clip, one at a time.
@@ -86,10 +87,10 @@ internal enum class PixelColours(
 internal val tealAndOrange: CubeLut by lazy { CubeLut.parse(TEAL_AND_ORANGE_CUBE) }
 
 /**
- * The look the filters sample applies, how strong each look is, the format, speed, tracking band, snow and camcorder
- * display the tape look plays with, the colours the pixel look snaps to and whether Film takes its Super 8 preset.
- * Each look keeps its own intensity and each tape format its own speed, so switching away and back finds it where it
- * was.
+ * The look the filters sample applies, how strong each look is, the format, speed, tracking band, snow, settle and
+ * camcorder display the tape look plays with, the colours the pixel look snaps to and whether Film takes its Super 8
+ * preset. Each look keeps its own intensity and each tape format its own speed, so switching away and back finds it
+ * where it was.
  */
 internal data class FilterSettings(
   val look: FilterLook = FilterLook.Tape,
@@ -100,6 +101,7 @@ internal data class FilterSettings(
   val hi8: Hi8Speed = Hi8Speed.SP,
   val tracking: TrackingMode = TrackingMode.Events,
   val snow: Float = Tracking.DEFAULT_SNOW,
+  val settle: Boolean = false,
   val camcorder: CamcorderSettings = CamcorderSettings(),
   val colours: PixelColours = PixelColours.GameBoy,
   val super8: Boolean = false,
@@ -155,6 +157,7 @@ private fun EffectsBuilder.tapeEffects(settings: FilterSettings) {
         TrackingMode.Rolling -> rolling { snow = settings.snow }
         TrackingMode.Off -> Tracking.Off
       }
+    if (settings.settle) settle(from = 1f, over = SETTLE_OVER)
     if (display.shown && display.mode == CamcorderMode.OnTape) camcorder { display.addTo(this) }
   }
   when (settings.format) {
@@ -248,6 +251,7 @@ private fun tapeCode(settings: FilterSettings): List<List<CodePart>> {
       if (intensity != FilterSettings.FULL) add(settingCode("intensity", floatLiteral(intensity)))
       speedCode(settings)?.let { add(settingCode("tape", it)) }
       trackingCode(settings)?.let { add(settingCode("tracking", it)) }
+      if (settings.settle) add(listOf(CodePart("    settle(from = 1f, over = 3.seconds)", CodeKind.Call)))
       if (display.shown && display.mode == CamcorderMode.OnTape) addAll(camcorderCode(display, "    "))
     }
   return buildList {
@@ -317,3 +321,6 @@ internal fun filterSummary(settings: FilterSettings): String {
   val camcorder = if (settings.camcorder.shown) " · ${settings.camcorder.mode.label}" else ""
   return "${settings.format.label}$strength · ${speedName(settings)}$tracking$camcorder"
 }
+
+// How long the tape look takes to settle when the sample asks it to.
+private val SETTLE_OVER = 3.seconds

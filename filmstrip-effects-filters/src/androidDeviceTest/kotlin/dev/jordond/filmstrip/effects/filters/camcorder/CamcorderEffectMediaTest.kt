@@ -6,6 +6,7 @@ import android.opengl.GLES20
 import android.opengl.GLES30
 import androidx.media3.common.util.GlUtil
 import androidx.media3.effect.BaseGlShaderProgram
+import dev.jordond.filmstrip.effects.filters.WHOLE_SPAN
 import dev.jordond.filmstrip.effects.filters.tape.TapePictureParams
 import dev.jordond.filmstrip.effects.filters.tape.TapePictureShaderProgram
 import dev.jordond.filmstrip.effects.filters.tape.TapePictureSignal
@@ -110,7 +111,13 @@ class CamcorderEffectMediaTest {
   fun aDisplayAheadOfVhsIsRecordedOnTheTape() {
     val vhs = Vhs(intensity = 0.5f)
     val recorded = drawn(listOf(display()), WIDTH, HEIGHT, listOf(BLINK_ON)).single()
-    val burned = drawn(listOf(display(), TapePictureShaderProgram(vhs)), WIDTH, HEIGHT, listOf(BLINK_ON)).single()
+    val burned =
+      drawn(
+        listOf(display(), TapePictureShaderProgram(vhs, WHOLE_SPAN)),
+        WIDTH,
+        HEIGHT,
+        listOf(BLINK_ON),
+      ).single()
     val params = TapePictureParams.of(vhs)
     val tick = TapePictureSignal.tickAt(BLINK_ON.inWholeMicroseconds / 1e6)
     val raster = OSD.rasterAt(BLINK_ON, WIDTH, HEIGHT)
@@ -136,7 +143,13 @@ class CamcorderEffectMediaTest {
   @Test
   fun aDisplayAfterVhsStaysClean() {
     val vhs = Vhs(intensity = 0.5f)
-    val frame = drawn(listOf(TapePictureShaderProgram(vhs), display()), WIDTH, HEIGHT, listOf(BLINK_ON)).single()
+    val frame =
+      drawn(
+        listOf(TapePictureShaderProgram(vhs, WHOLE_SPAN), display()),
+        WIDTH,
+        HEIGHT,
+        listOf(BLINK_ON),
+      ).single()
     val raster = OSD.rasterAt(BLINK_ON, WIDTH, HEIGHT)
 
     var lit = 0

@@ -5,13 +5,24 @@ import android.opengl.EGLConfig
 import androidx.media3.common.VideoFrameProcessingException
 import androidx.media3.common.util.GlUtil
 import androidx.test.platform.app.InstrumentationRegistry
+import dev.jordond.filmstrip.edit.TimeRange
+import dev.jordond.filmstrip.effect.Attributes
+import dev.jordond.filmstrip.effect.EffectResolution
+import dev.jordond.filmstrip.effect.Media3Handle
 import dev.jordond.filmstrip.effect.PreviewClock
+import dev.jordond.filmstrip.effect.RenderApi
+import dev.jordond.filmstrip.effect.RenderCapabilities
+import dev.jordond.filmstrip.effects.filters.FilterEffectResolver
+import dev.jordond.filmstrip.effects.filters.WHOLE_SPAN
 import dev.jordond.filmstrip.effects.filters.hi8.Hi8
 import dev.jordond.filmstrip.effects.filters.internal.requireGles3
 import dev.jordond.filmstrip.effects.filters.vhs.Vhs
+import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.media.ColorSpace
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.string.shouldContain
+import io.kotest.matchers.types.shouldBeInstanceOf
 import org.junit.Assume.assumeTrue
 import kotlin.test.Test
 import kotlin.test.assertFailsWith
@@ -44,7 +55,9 @@ class TapePictureEffectLimitsTest {
     onContext(version = 2) {
       assumeTrue("this device hands back a newer context for ES 2", GlUtil.getContextMajorVersion() < 3)
       val refused =
-        assertFailsWith<VideoFrameProcessingException> { TapePictureEffect(Vhs()).toGlShaderProgram(context, false) }
+        assertFailsWith<VideoFrameProcessingException> {
+          TapePictureEffect(Vhs(), WHOLE_SPAN).toGlShaderProgram(context, false)
+        }
 
       refused.message.orEmpty() shouldContain "filmstrip.filters.vhs needs OpenGL ES 3"
     }
@@ -54,7 +67,12 @@ class TapePictureEffectLimitsTest {
   fun aFrameProcessorInHdrIsRefusedByName() {
     onContext(version = 3) {
       val refused =
-        assertFailsWith<VideoFrameProcessingException> { TapePictureEffect(Hi8()).toGlShaderProgram(context, true) }
+        assertFailsWith<VideoFrameProcessingException> {
+          TapePictureEffect(
+            Hi8(),
+            WHOLE_SPAN,
+          ).toGlShaderProgram(context, true)
+        }
 
       refused.message.orEmpty() shouldContain "filmstrip.filters.hi8 requires SDR"
     }
@@ -63,17 +81,39 @@ class TapePictureEffectLimitsTest {
   @Test
   fun anSdrFrameProcessorOnGles3BuildsThePass() {
     onContext(version = 3) {
-      TapePictureEffect(Vhs()).toGlShaderProgram(context, false).release()
+      TapePictureEffect(Vhs(), WHOLE_SPAN).toGlShaderProgram(context, false).release()
     }
+  }
+
+  @Test
+  fun theResolverHandsATapeTheSlotOfItsClip() {
+    val late = TimeRange(10.seconds, 40.seconds)
+    val resolve = { span: TimeRange ->
+      FilterEffectResolver()
+        .resolve(Vhs(settle = TapeSettle(1f, 2.seconds)), CAPABILITIES, attributesOf(span))
+        .shouldBeInstanceOf<EffectResolution.Resolved>()
+        .effect.handle
+        .shouldBeInstanceOf<Media3Handle.Video>()
+        .effect
+    }
+
+    resolve(late) shouldBe TapePictureEffect(Vhs(settle = TapeSettle(1f, 2.seconds)), late)
+    resolve(late) shouldNotBe resolve(WHOLE_SPAN)
+  }
+
+  private fun attributesOf(span: TimeRange): Attributes {
+    val size = Size(WIDTH, HEIGHT)
+    return Attributes(size, size, size, ColorSpace.Bt709, null, 30f, span)
   }
 
   @Test
   fun twoPassesOfOneTapeOnOnePreviewClockAreEqual() {
     val clock = PreviewClock { 2.seconds }
 
-    TapePictureEffect(Vhs(), clock) shouldBe TapePictureEffect(Vhs(), clock)
-    TapePictureEffect(Vhs()) shouldBe TapePictureEffect(Vhs())
-    TapePictureEffect(Vhs(), clock).hashCode() shouldBe TapePictureEffect(Vhs(), clock).hashCode()
+    TapePictureEffect(Vhs(), WHOLE_SPAN, clock) shouldBe TapePictureEffect(Vhs(), WHOLE_SPAN, clock)
+    TapePictureEffect(Vhs(), WHOLE_SPAN) shouldBe TapePictureEffect(Vhs(), WHOLE_SPAN)
+    TapePictureEffect(Vhs(), WHOLE_SPAN, clock).hashCode() shouldBe
+      TapePictureEffect(Vhs(), WHOLE_SPAN, clock).hashCode()
   }
 
   @Test
@@ -81,9 +121,9 @@ class TapePictureEffectLimitsTest {
     val clock = PreviewClock { 2.seconds }
     val readsTheSame = PreviewClock { 2.seconds }
 
-    TapePictureEffect(Vhs(), clock) shouldNotBe TapePictureEffect(Vhs(), readsTheSame)
-    TapePictureEffect(Vhs(), clock) shouldNotBe TapePictureEffect(Vhs())
-    TapePictureEffect(Vhs(), clock) shouldNotBe TapePictureEffect(Vhs(seed = 7), clock)
+    TapePictureEffect(Vhs(), WHOLE_SPAN, clock) shouldNotBe TapePictureEffect(Vhs(), WHOLE_SPAN, readsTheSame)
+    TapePictureEffect(Vhs(), WHOLE_SPAN, clock) shouldNotBe TapePictureEffect(Vhs(), WHOLE_SPAN)
+    TapePictureEffect(Vhs(), WHOLE_SPAN, clock) shouldNotBe TapePictureEffect(Vhs(seed = 7), WHOLE_SPAN, clock)
   }
 
   private fun onContext(
@@ -109,5 +149,21 @@ class TapePictureEffectLimitsTest {
       EGL14.eglDestroySurface(display, surface)
       EGL14.eglDestroyContext(display, gl)
     }
+  }
+
+  private companion object {
+    const val WIDTH = 640
+    const val HEIGHT = 360
+    const val MAX_TEXTURE = 4096
+    val CAPABILITIES =
+      RenderCapabilities(
+        api = RenderApi.OpenGlEs,
+        supportsFragmentShader = true,
+        supportsComputeShader = false,
+        supportsHdr = false,
+        colorSpaces = emptySet(),
+        maxTextureSize = MAX_TEXTURE,
+        features = emptySet(),
+      )
   }
 }

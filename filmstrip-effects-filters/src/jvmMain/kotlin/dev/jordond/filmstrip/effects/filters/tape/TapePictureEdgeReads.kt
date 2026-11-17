@@ -23,6 +23,7 @@ internal class TapePictureEdgeReads(
   private val params: TapePictureParams,
   private val width: Int,
 ) {
+  private val figures = nodes.figures
   private val lumaReach = tapReach(params, width, chroma = false)
   private val chromaReach = tapReach(params, width, chroma = true) / 2.0 + EDGE_CHROMA_ROOM
 
@@ -98,7 +99,9 @@ internal class TapePictureEdgeReads(
   ): List<String> = coverage.cores.indices.flatMap { listOf("$frame$it", "$frame${it}Mask") }
 
   /**
-   * The `geq` that reads every pixel of the frame exactly, for a frame that can be clear anywhere.
+   * The `geq` that reads every pixel of the frame exactly, for a frame that can be clear anywhere. It writes the alpha
+   * the frame has at the shifted column, as [TapePictureSignal.pixelAt] does, so a look after it reads the picture
+   * where the picture is. The cores of an edge read leave alpha to the plain tape they merge over.
    */
   fun everywhere(): FilterNode = read(0, null)
 
@@ -125,7 +128,14 @@ internal class TapePictureEdgeReads(
         "${nodes.shiftOpening(
           chromaShift(),
         )};if(${near(origin / 2, edges, CHROMA_SCALE)},${chromaTaps(chroma("cr"))},0)",
-      "a" to "0",
+      "a" to
+        if (edges ==
+          null
+        ) {
+          "${nodes.shiftOpening(lumaShift())};0.5+alpha(clip(X+$origin-ld(7),0,${width - 1}),Y)"
+        } else {
+          "0"
+        },
     )
   }
 
@@ -156,33 +166,58 @@ internal class TapePictureEdgeReads(
 
   private fun lumaShift() = "st(7,ld(8)*$width)"
 
-  private fun chromaShift() = "st(7,(ld(8)+${params.chromaShift})*$width*$CHROMA_SCALE)"
+  private fun chromaShift() = "st(7,(ld(8)+${figures.linear(OPENING_LEVEL) { chromaShift }})*$width*$CHROMA_SCALE)"
 
   // The luma blur in register 6 and the wide blur in 9, each as a sum over the table, then the ring they make.
   private fun lumaTaps(plane: Plane): String {
-    val near = taps(plane, params.lumaSigma, LUMA_TAPS, LUMA_TAP_STEP, 6)
-    val far = taps(plane, params.wideSigma, LUMA_TAPS, LUMA_TAP_STEP, 9)
+    val near = taps(plane, lumaSigma(), LUMA_TAPS, LUMA_TAP_STEP, 6)
+    val far = taps(plane, wideSigma(), LUMA_TAPS, LUMA_TAP_STEP, 9)
     val sum = TapePictureSignal.tapSum(LUMA_TAPS, LUMA_TAP_STEP)
-    return "$near;$far;st(6,ld(6)/$sum);st(9,ld(9)/$sum);max(0,0.5+ld(6)+${params.haloGain}*(ld(6)-ld(9)))"
+    val gain = figures.linear(PIXEL_LEVEL) { haloGain }
+    return "$near;$far;st(6,ld(6)/$sum);st(9,ld(9)/$sum);max(0,0.5+ld(6)+$gain*(ld(6)-ld(9)))"
   }
 
   private fun chromaTaps(plane: Plane): String =
-    "${taps(plane, params.chromaSigma, CHROMA_TAPS, CHROMA_TAP_STEP, 6)};" +
+    "${taps(plane, chromaSigma(), CHROMA_TAPS, CHROMA_TAP_STEP, 6)};" +
       "0.5+ld(6)/${TapePictureSignal.tapSum(CHROMA_TAPS, CHROMA_TAP_STEP)}"
+
+  // A blur's sigma as a fraction of the width, as a number for a look that holds one strength and as an expression of
+  // the level in register 0 for one that settles.
+  private fun lumaSigma(): Sigma =
+    if (figures.moves) {
+      Sigma.Moving(
+        figures.linear(PIXEL_LEVEL) {
+          lumaSigma
+        },
+      )
+    } else {
+      Sigma.Fixed(params.lumaSigma)
+    }
+
+  private fun chromaSigma(): Sigma =
+    if (figures.moves) Sigma.Moving(figures.linear(PIXEL_LEVEL) { chromaSigma }) else Sigma.Fixed(params.chromaSigma)
+
+  private fun wideSigma(): Sigma =
+    if (figures.moves) {
+      val luma = figures.linear(PIXEL_LEVEL) { lumaSigma }
+      Sigma.Moving("sqrt($luma*$luma+${HALO_SIGMA * HALO_SIGMA})")
+    } else {
+      Sigma.Fixed(params.wideSigma)
+    }
 
   private fun taps(
     plane: Plane,
-    sigma: Double,
+    sigma: Sigma,
     count: Int,
     step: Double,
     sum: Int,
   ): String {
-    val reads = mutableListOf("st($sum,0)", tap(plane, 0.0, sum, 1.0))
+    val reads = mutableListOf("st($sum,0)", tap(plane, "0.0", sum, 1.0))
     for (index in 1..count) {
-      val offset = index * step * sigma * width * plane.scale
+      val offset = sigma.offset(index, step, width, plane.scale)
       val weight = TapePictureSignal.tapWeight(index, step)
       reads += tap(plane, offset, sum, weight)
-      reads += tap(plane, -offset, sum, weight)
+      reads += tap(plane, sigma.opposite(offset), sum, weight)
     }
     return reads.joinToString(";")
   }
@@ -192,7 +227,7 @@ internal class TapePictureEdgeReads(
   // is one term, its steps added together and scaled to nothing.
   private fun tap(
     plane: Plane,
-    offset: Double,
+    offset: String,
     sum: Int,
     weight: Double,
   ): String {
@@ -221,6 +256,44 @@ internal class TapePictureEdgeReads(
   private fun meanAlpha(column: String): String =
     "(alpha(2*($column),2*Y)+alpha(2*($column)+1,2*Y)+alpha(2*($column),2*Y+1)+alpha(2*($column)+1,2*Y+1))/4"
 
+  // How far a tap sits from its pixel in the samples of a plane, per tap's share of the sigma.
+  private sealed interface Sigma {
+    fun offset(
+      index: Int,
+      step: Double,
+      width: Int,
+      scale: Double,
+    ): String
+
+    fun opposite(offset: String): String
+
+    class Fixed(
+      private val sigma: Double,
+    ) : Sigma {
+      override fun offset(
+        index: Int,
+        step: Double,
+        width: Int,
+        scale: Double,
+      ): String = (index * step * sigma * width * scale).toString()
+
+      override fun opposite(offset: String): String = (-offset.toDouble()).toString()
+    }
+
+    class Moving(
+      private val sigma: String,
+    ) : Sigma {
+      override fun offset(
+        index: Int,
+        step: Double,
+        width: Int,
+        scale: Double,
+      ): String = "(${index * step * width * scale}*$sigma)"
+
+      override fun opposite(offset: String): String = "-$offset"
+    }
+  }
+
   // A plane's samples per luma pixel, where its window starts in its own samples, its black code and its two readers,
   // each taking a column of the window.
   private class Plane(
@@ -235,5 +308,9 @@ internal class TapePictureEdgeReads(
     const val CHROMA_SCALE = 0.5
     const val EDGE_CHROMA_ROOM = 4
     const val MERGED_PLANES = 7
+
+    // Where a settling look's level is while a row opens, and while a pixel is drawn.
+    const val OPENING_LEVEL = "ld(9)"
+    const val PIXEL_LEVEL = "ld(0)"
   }
 }

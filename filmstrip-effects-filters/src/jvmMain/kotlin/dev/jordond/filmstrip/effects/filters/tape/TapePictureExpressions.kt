@@ -4,7 +4,9 @@ import dev.jordond.filmstrip.effect.FilterNode
 import dev.jordond.filmstrip.effects.filters.internal.FilterNoise
 import dev.jordond.filmstrip.effects.filters.internal.HASH_RANGE
 import dev.jordond.filmstrip.effects.filters.internal.HashExpression
+import dev.jordond.filmstrip.motion.Easing
 import kotlin.math.max
+import kotlin.math.min
 
 /**
  * Writes [TapePictureSignal]'s functions as ffmpeg expressions.
@@ -12,10 +14,14 @@ import kotlin.math.max
  * An expression's ten registers last across its pixels, so a value that holds along a row is worked out on the row's
  * first pixel and a streak's two hashes on the first pixel of each cell. Registers 0 and 1 hold a hash being computed,
  * and most expressions keep the tick in 2 and the row in 3. The rest belong to whichever expression is running.
+ *
+ * Where a look settles, [figures] writes each figure as an expression of the level at the frame's tick, which the
+ * expressions that draw a row of the tape keep in register 9 from the row's first sample.
  */
 internal class TapePictureExpressions(
   private val seed: Int,
   private val params: TapePictureParams,
+  val figures: TapePictureFigures = TapePictureFigures.constant(params),
 ) {
   /**
    * The `geq` that shifts every row and carries chroma with it, black past either edge of the picture.
@@ -36,9 +42,9 @@ internal class TapePictureExpressions(
     return FilterNode(
       "geq",
       "lum" to shifted("lum", "0", LUMA_BLACK, width, margin),
-      "cb" to shifted("cb", "${params.chromaShift}", CHROMA_ZERO, width, margin),
-      "cr" to shifted("cr", "${params.chromaShift}", CHROMA_ZERO, width, margin),
-      "a" to "${onEachRow(prelude(), "st(8,${rowShift()})")};0.5+alpha($alpha,Y)",
+      "cb" to shifted("cb", chromaShift(), CHROMA_ZERO, width, margin),
+      "cr" to shifted("cr", chromaShift(), CHROMA_ZERO, width, margin),
+      "a" to "${rowOpening("st(8,${rowShift()})")};0.5+alpha($alpha,Y)",
     )
   }
 
@@ -77,21 +83,22 @@ internal class TapePictureExpressions(
     width: Int,
     margin: Int,
   ): FilterNode {
-    val row =
-      onEachRow(
-        prelude(),
-        "st(8,${rowShift()})",
-        "st(7,(ld(8)+${params.chromaShift})*$width*$CHROMA_SCALE)",
-      )
+    val row = rowOpening("st(8,${rowShift()})", "st(7,(ld(8)+${chromaShift()})*$width*$CHROMA_SCALE)")
     val picture = "clip(X-ld(7),${margin / 2},${(margin + width - 1) / 2})"
     return FilterNode("geq", "lum" to "$row;0.5+lum($picture,Y)")
   }
 
   /**
    * The steps that open each row of a `geq` that reads the shift, which leave the row's shift in register 8 as a
-   * fraction of the width, then run [more] on the row's first sample.
+   * fraction of the width, then run [more] on the row's first sample. Where the level moves, the row's level is left in
+   * register 0, which the shift's hashes are done with by then.
    */
-  fun shiftOpening(vararg more: String): String = onEachRow(prelude(), "st(8,${rowShift()})", *more)
+  fun shiftOpening(vararg more: String): String =
+    if (figures.moves) {
+      rowOpening("st(8,${rowShift()})", *more, "st(0,ld($LEVEL_REGISTER))")
+    } else {
+      rowOpening("st(8,${rowShift()})", *more)
+    }
 
   private fun dividedBy(black: Int) =
     "if(gt(y,0),clip($black+floor((x-$black)*$FULL_SCALE/y+0.5),0,$FULL_SCALE),$black)"
@@ -112,11 +119,34 @@ internal class TapePictureExpressions(
    * The `geq` that draws a dropout in luma and what is left of chroma in the chroma planes, full scale at 1.
    */
   fun dropMap(): FilterNode {
+    if (figures.moves) return movingDropMap()
     val chromaRow = onEachRow(prelude(), "st(4,${dropEvent()})", "st(7,${band()})")
-    val gain = "(1-$TRACK_CHROMA_LOSS*ld(7))*(1-${params.trackingSnow}*ld(7))*(1-(${dropout()}))"
+    val gain = "(1-${params.trackingChromaLoss}*ld(7))*(1-${params.trackingSnow}*ld(7))*(1-(${dropout()}))"
     return FilterNode(
       "geq",
       "lum" to "${onEachRow(prelude(), "st(4,${dropEvent()})")};0.5+$FULL_SCALE*(${dropout()})",
+      "cb" to "$chromaRow;0.5+$FULL_SCALE*$gain",
+      "cr" to "$chromaRow;0.5+$FULL_SCALE*$gain",
+    )
+  }
+
+  // A row holds a dropout while its roll is under the chance at the row's level, so register 4 keeps the roll less the
+  // chance and a compare against 0 reads the same as the compare of the roll against the chance. Register 8 keeps the
+  // snow's weight on the row, which the band's weight and the level's snow make.
+  private fun movingDropMap(): FilterNode {
+    val level = figures.levelAt("ld(2)")
+    val roll = "st(4,${dropEvent()}-${figures.squared(level) { dropoutChance }})"
+    val chromaRow =
+      onEachRow(
+        prelude(),
+        roll,
+        "st(7,${band(level = level)})",
+        "st(8,${figures.linear(level) { trackingSnow }}*ld(7))",
+      )
+    val gain = "(1-${figures.chromaLoss(level)}*ld(7))*(1-ld(8))*(1-(${dropout("0")}))"
+    return FilterNode(
+      "geq",
+      "lum" to "${onEachRow(prelude(), roll)};0.5+$FULL_SCALE*(${dropout("0")})",
       "cb" to "$chromaRow;0.5+$FULL_SCALE*$gain",
       "cr" to "$chromaRow;0.5+$FULL_SCALE*$gain",
     )
@@ -126,13 +156,16 @@ internal class TapePictureExpressions(
    * The `geq` that draws how far each luma row mixes toward the snow, full scale at 1, with the chroma planes at mid
    * scale.
    */
-  fun snowMask(): FilterNode =
-    FilterNode(
+  fun snowMask(): FilterNode {
+    val level = if (figures.moves) figures.levelAt("ld(2)") else ROW_LEVEL
+    val snow = figures.linear(level) { trackingSnow }
+    return FilterNode(
       "geq",
-      "lum" to "${onEachRow(prelude(), "st(5,${band()})")};0.5+$FULL_SCALE*(${params.trackingSnow}*ld(5))",
+      "lum" to "${onEachRow(prelude(), "st(5,${band(level = level)})")};0.5+$FULL_SCALE*($snow*ld(5))",
       "cb" to "$MID_SCALE",
       "cr" to "$MID_SCALE",
     )
+  }
 
   /**
    * The `geq` that draws the snow in luma as the lifted code it lands on times its weight, 0 on a row the band misses,
@@ -141,15 +174,19 @@ internal class TapePictureExpressions(
    */
   fun snowMap(): FilterNode {
     val cell = Cell(4, 7, 8, state = 6)
+    val level = if (figures.moves) figures.levelAt("ld(2)") else ROW_LEVEL
+    // Where the level moves, register 2 holds the row's lift once the row's tick has been read.
+    val liftOpening = if (figures.moves) listOf("st(2,${figures.linear(level) { lift }})") else emptyList()
     val row =
       onEachRow(
         prelude(),
-        "st(5,${params.trackingSnow}*(${band()}))",
+        "st(5,${figures.linear(level) { trackingSnow }}*(${band(level = level)}))",
         "st(4,${streakPhase(PASS_SNOW)})",
         stateOf(PASS_SNOW, cell),
+        *liftOpening.toTypedArray(),
       )
     val value = "st(9,${streakAt(PASS_SNOW, SNOW_CELL, cell)});clip(0.5+${SNOW_CONTRAST * 0.5}*ld(9),0,1)"
-    val snow = "(${params.lift}+($value)*${1.0 - params.lift})"
+    val snow = if (figures.moves) "(ld(2)+($value)*(1-ld(2)))" else "(${params.lift}+($value)*${1.0 - params.lift})"
     return FilterNode(
       "geq",
       "lum" to "$row;if(gt(ld(5),0),0.5+ld(5)*($LUMA_BLACK+$LUMA_CODES*$snow),0)",
@@ -179,6 +216,7 @@ internal class TapePictureExpressions(
    * @param stopsWithFrame Whether the frame ending ends this `lut2`, for a map that runs on past it.
    */
   fun grade(stopsWithFrame: Boolean = false): FilterNode {
+    check(!figures.moves) { "A look that settles is graded by the rampGrade." }
     val lift = params.lift
     val chroma = "0.5+$CHROMA_ZERO+(x-$CHROMA_ZERO+(y-$MID_SCALE)/$chromaGrainScale)*(1-${params.desaturation})"
     return lut2(
@@ -219,9 +257,12 @@ internal class TapePictureExpressions(
 
   private val hasher = HashExpression(seed)
 
+  // The strengths the noise maps are drawn at, which are the ones at full strength where the level moves.
+  private val noise = figures.noise
+
   // Map codes to a plane's code, so the most noise a plane takes reaches GRAIN_REACH either side of mid scale.
-  val lumaGrainScale = grainScale(LUMA_CODES * (params.lumaNoise + params.trackingNoise))
-  val chromaGrainScale = grainScale(CHROMA_CODES * params.chromaNoise)
+  val lumaGrainScale = grainScale(LUMA_CODES * (noise.lumaNoise + noise.trackingNoise))
+  val chromaGrainScale = grainScale(CHROMA_CODES * noise.chromaNoise)
 
   private fun grainScale(mostCodes: Double) = GRAIN_REACH / max(mostCodes, MIN_GRAIN_CODES)
 
@@ -230,9 +271,17 @@ internal class TapePictureExpressions(
   private fun signed(hashExpression: String) = "(${unit(hashExpression)}*2-1)"
 
   // TapePictureSignal.tickAt of the frame's time.
-  private val clockTick =
-    "floor((floor(T*$TICK_CLOCK_BASE+$TICK_CLOCK_ROUNDING)+$TICK_CLOCK_ROUNDING)/$TICK_CLOCK_BASE*$TICK_RATE+" +
-      "$TICK_ROUNDING+$TICK_MARGIN)"
+  private val clockTick = tickExpression("T")
+
+  // The steps that open a row of a `geq` that writes the tape: the tick and the row, then where the level moves the
+  // row's level in register 9, then [more].
+  private fun rowOpening(vararg more: String): String {
+    val level = if (figures.moves) listOf("st($LEVEL_REGISTER,${figures.levelAt("ld(2)")})") else emptyList()
+    return onEachRow(prelude(), *level.toTypedArray(), *more)
+  }
+
+  // Figures that carry the row's level through register 9, written for a look that holds one strength as a number.
+  private fun chromaShift() = figures.linear(ROW_LEVEL) { chromaShift }
 
   // The tick and the row of this pixel, from the sample's own position in its plane.
   private fun prelude() = "st(2,$clockTick);st(3,floor(Y*$VIRTUAL_ROWS/H))"
@@ -261,8 +310,7 @@ internal class TapePictureExpressions(
     val inside = "(clip($at*$width+0.5,0,1)*clip((1-$at)*$width+0.5,0,1))"
     val read = "$plane(X-ld(7),Y)"
     val row =
-      onEachRow(
-        prelude(),
+      rowOpening(
         "st(8,${rowShift()})",
         "st(7,(ld(8)+$chromaShift)*$width*SW)",
         "st(5,$margin*SW+ld(7)+0.5*SW-0.5)",
@@ -276,34 +324,48 @@ internal class TapePictureExpressions(
     val seconds = "(ld(2)/$TICK_RATE)"
     val y = "((ld(3)+0.5)/$VIRTUAL_ROWS)"
     val wave =
-      "${params.wave}*($WAVE_FIRST*sin($TAU*($WAVE_CYCLES*$y+$WAVE_HZ*$seconds+$phase))" +
+      "${figures.linear(ROW_LEVEL) { wave }}*($WAVE_FIRST*sin($TAU*($WAVE_CYCLES*$y+$WAVE_HZ*$seconds+$phase))" +
         "+${1.0 - WAVE_FIRST}*sin($TAU*(${WAVE_SECOND_CYCLES * WAVE_CYCLES}*$y+${WAVE_SECOND_HZ * WAVE_HZ}*$seconds" +
         "+2*$phase)))"
     val into = "(ld(3)-${VIRTUAL_ROWS - TapePictureSignal.headRows})"
     val head =
-      "if(gte($into,0),${params.headShift}*(1+$HEAD_WOBBLE*${signed(hash(PASS_HEAD, "ld(2)", "0"))})" +
+      "if(gte($into,0),${figures.linear(
+        ROW_LEVEL,
+      ) { headShift }}*(1+$HEAD_WOBBLE*${signed(hash(PASS_HEAD, "ld(2)", "0"))})" +
         "*pow(($into+$HEAD_OFFSET)/${TapePictureSignal.headRows},$HEAD_POWER),0)"
-    val jitter = "${params.jitter}*${signed(hash(PASS_JITTER, "ld(2)", "ld(3)"))}"
+    val jitter = "${figures.linear(ROW_LEVEL) { jitter }}*${signed(hash(PASS_JITTER, "ld(2)", "ld(3)"))}"
     return listOf(
       "st(4,$jitter)",
       "st(4,ld(4)+$wave)",
       "st(4,ld(4)+$head)",
-      "st(5,${band()})",
-      "if(gt(ld(5),0),st(4,ld(4)+${params.trackingShift}*ld(5)*${signed(hash(PASS_TRACK_SHIFT, "ld(2)", "ld(3)"))}),0)",
+      "st(5,${band(level = ROW_LEVEL)})",
+      "if(gt(ld(5),0),st(4,ld(4)+${figures.linear(
+        ROW_LEVEL,
+      ) { trackingShift }}*ld(5)*${signed(hash(PASS_TRACK_SHIFT, "ld(2)", "ld(3)"))}),0)",
       "ld(4)",
     ).joinToString(";")
   }
 
   // TapePictureSignal.trackingWeight of the tick in [tick] and the row in [row], as the value of the expression.
+  // Where the level moves a band only runs while the level is above 0, as a look at 0 runs none, and [level] is the
+  // expression for the level at the tick.
   private fun band(
     tick: String = "ld(2)",
     row: String = "ld(3)",
+    level: String = ROW_LEVEL,
   ): String {
+    val on = if (figures.moves) "*gt($level,0)" else ""
     val distance = "st(1,abs(($row+0.5)/$VIRTUAL_ROWS-ld(1)));st(1,min(ld(1),1-ld(1)))"
     val edge = "clip(ld(1)/${params.trackingHalfHeight},0,1)"
     val fade = "(1-$edge*$edge*(3-2*$edge))"
     if (params.trackingRolls) {
-      return "st(1,$tick/${params.trackingPeriodTicks});st(1,ld(1)-floor(ld(1)));$distance;$fade"
+      val anchor = params.trackingAnchorTicks
+      val elapsed = if (anchor == 0) tick else "($tick-$anchor)"
+      val centre = "st(1,$elapsed/${params.trackingPeriodTicks});st(1,ld(1)-floor(ld(1)))"
+      if (params.trackingSettleTicks == 0.0) return "$centre;$distance;$fade$on"
+      // Register 0 holds how far through its settle the band is, which the hash does not use while the band is drawn.
+      val progress = "st(0,clip(($tick-$anchor)/${params.trackingSettleTicks},0,1))"
+      return "$progress;$centre;$distance;$fade*(1-${pacedExpression(params.trackingSettleEasing, "ld(0)")})$on"
     }
     val windowTicks = TapePictureSignal.trackWindowTicks
     val window = "floor($tick/$windowTicks)"
@@ -311,7 +373,19 @@ internal class TapePictureExpressions(
     val roll = unit(hash(PASS_TRACK_EVENT, window, "0"))
     val start = unit(hash(PASS_TRACK_EVENT, window, "1"))
     val centre = "st(1,$start);st(1,ld(1)+${TRACK_DRIFT * TRACK_WINDOW_SECONDS}*$phase);st(1,ld(1)-floor(ld(1)))"
-    return "if(gte($roll,${params.trackingChance}),0,$centre;$distance;sin(PI*$phase)*$fade)"
+    val chance = figures.squared(level) { trackingChance }
+    val from = params.trackingChanceFrom
+    val to = params.trackingChanceTo
+    if (from == to) return "if(gte($roll,$chance),0,$centre;$distance;sin(PI*$phase)*$fade)"
+    // The roll is read once into register 0, after the band's place, which leaves the registers it works through free
+    // until then. It is the band's presence as TapePictureSignal.trackingBand gives it: whole under the smaller chance,
+    // gone from the larger, and between them fading in along the settle.
+    val low = min(from, to)
+    val high = max(from, to)
+    val progress = "clip(($chance-$low)/${high - low},0,1)"
+    val arrival = "(ld(0)-$low)/${high - low}*${1.0 - EVENT_FADE}"
+    val presence = "if(lt(ld(0),$low),1,clip(($progress-$arrival)/$EVENT_FADE,0,1))"
+    return "$centre;$distance;sin(PI*$phase)*$fade*(st(0,$roll);if(lt(ld(0),$high),$presence,0))"
   }
 
   // A plane of luma noise, with the tracking band's own noise over it on the rows the band reaches. The tick and the
@@ -321,16 +395,17 @@ internal class TapePictureExpressions(
   private fun lumaGrainPlane(): String {
     val tick = clockTick
     val row = "floor(Y*$VIRTUAL_ROWS/H)"
+    val level = if (figures.moves) figures.levelAt(tick) else ROW_LEVEL
     val start =
       onEachRow(
         "st(4,${streakPhase(PASS_LUMA_NOISE, tick, row)})",
-        "st(5,${band(tick, row)})",
+        "st(5,${band(tick, row, level)})",
         "if(gt(ld(5),0),st(2,${streakPhase(PASS_TRACK_NOISE, tick, row)}),0)",
       )
-    val noise = "${params.lumaNoise}*(${streakAt(PASS_LUMA_NOISE, STREAK, Cell(4, 7, 8), tick, row)})"
+    val lumaTerm = "${noise.lumaNoise}*(${streakAt(PASS_LUMA_NOISE, STREAK, Cell(4, 7, 8), tick, row)})"
     val tracking =
-      "${params.trackingNoise}*ld(5)*(${streakAt(PASS_TRACK_NOISE, TRACK_NOISE_CELL, Cell(2, 3, 9), tick, row)})"
-    val grain = "if(gt(ld(5),0),st(6,$noise);ld(6)+$tracking,$noise)"
+      "${noise.trackingNoise}*ld(5)*(${streakAt(PASS_TRACK_NOISE, TRACK_NOISE_CELL, Cell(2, 3, 9), tick, row)})"
+    val grain = "if(gt(ld(5),0),st(6,$lumaTerm);ld(6)+$tracking,$lumaTerm)"
     return "$start;$MID_SCALE+0.5+$lumaGrainScale*$LUMA_CODES*($grain)"
   }
 
@@ -338,7 +413,7 @@ internal class TapePictureExpressions(
     val cell = Cell(4, 7, 8, state = 5)
     val row = onEachRow(chromaPrelude(), "st(4,${streakPhase(pass)})", stateOf(pass, cell))
     val streak = streakAt(pass, chromaCell(), cell)
-    return "$row;$MID_SCALE+0.5+$chromaGrainScale*$CHROMA_CODES*${params.chromaNoise}*($streak)"
+    return "$row;$MID_SCALE+0.5+$chromaGrainScale*$CHROMA_CODES*${noise.chromaNoise}*($streak)"
   }
 
   // TapePictureSignal.streak's phase on [row] at [tick].
@@ -392,7 +467,7 @@ internal class TapePictureExpressions(
   private fun dropEvent() = unit(hash(PASS_DROP_EVENT, "ld(2)", "ld(3)"))
 
   // TapePictureSignal.dropout on the row in register 3 at the raster sample's x, with the row's roll in register 4.
-  private fun dropout(): String {
+  private fun dropout(threshold: String = "${params.dropoutChance}"): String {
     val start = unit(hash(PASS_DROP_POS, "ld(2)", "ld(3)"))
     val length = "(${params.dropoutLength}*($DROPOUT_LENGTH_MIN+$DROPOUT_LENGTH_SPREAD*${unit(
       hash(PASS_DROP_LEN, "ld(2)", "ld(3)"),
@@ -400,7 +475,7 @@ internal class TapePictureExpressions(
     val rise = smoothstep("0", "$DROPOUT_RISE*ld(5)", "ld(6)")
     val fall = smoothstep("$DROPOUT_FALL*ld(5)", "ld(5)", "ld(6)")
     val body = "st(6,$x-$start);st(5,$length);if(lt(ld(6),0)+gt(ld(6),ld(5)),0,$rise*(1-$fall))"
-    return "if(gte(ld(4),${params.dropoutChance}),0,$body)"
+    return "if(gte(ld(4),$threshold),0,$body)"
   }
 
   private fun smoothstep(
@@ -413,6 +488,8 @@ internal class TapePictureExpressions(
   }
 
   private companion object {
+    const val LEVEL_REGISTER = 9
+    const val ROW_LEVEL = "ld($LEVEL_REGISTER)"
     const val TAU = 6.283185307179586
     const val CHROMA_SCALE = 0.5
   }

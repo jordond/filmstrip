@@ -268,6 +268,28 @@ one, it's refused by name.
 - **ffmpeg** reads a `vhs` beside a clear canvas bar tap by tap where its blur lands across the bar's edge, which runs
   about 0.9 fps at 1080p on the same server where a frame with no bar runs 5.2 fps. A source with its own alpha can be
   clear anywhere, so it is read tap by tap over the whole frame, which is slower still.
+- **ffmpeg** draws a `vhs` that settles with the nodes of the constant look at either end, and between the two ends of
+  the settle blurs and rings with the signal's own taps in a `geq` and grades in a `blend`, which read the level off each
+  frame's time, since `gblur` and `lut2` hold their figures fixed. A frame inside the settle is the frame of the constant
+  look at its level, with the blur taken from the taps where the constant look takes it from `gblur`, so the two meet
+  within `gblur`'s limit. Those per-pixel expressions cost about five times what the constant look does on a 1080p
+  frame, measured on an Apple Silicon Mac at 0.29 s a frame inside the settle against 0.06 s outside it, and only the
+  frames inside the settle pay it. That adds about a minute to an export of a four second settle at 60 frames a second.
+  A preview inside the settle draws about three frames a second at 1080p, so a desktop preview of a settle at that size
+  stutters until the settle ends, and a shorter settle or a smaller preview size shortens it.
+- **ffmpeg** switches the `geq`, `gblur`, `lut2` and `blend` nodes of a `vhs` that settles to nothing off from the end of
+  its settle, so they hand on the picture, and holds its noise planes on one frame there. Those frames are byte for byte
+  the frame with no look and cost 0.03 s a frame at 1080p. The nodes that pad, crop and scale the frame stay on, since
+  they change its size and a node switched off cannot change it halfway.
+- **ffmpeg** writes a settle's easing as an expression in double where the other backends pace it through a float, so
+  a sample of tens of millions can land one code off between the live planes and the drawn graph.
+- A `vhs` that settles with `events()` tracking fades in or out each band whose roll lies between the chance at the
+  start of the settle and the chance at its end, along the settle, so no band switches on or off in a step. A band
+  arrives, or leaves when the look settles down, over a quarter of the chance's travel between the two ends, and is
+  whole or gone by the end of it, so after the settle the bands are the plain look's. The chance goes with the square
+  of the level, so that share is not of the time: the last band of a linear settle from 0 to 1 starts at about 87% of
+  it, and of an ease in at about 93%. An ease in steps a band by up to 16 / N of its strength on a tick, N being the
+  ticks of the settle at 59.94 a second, so a settle shorter than about 0.3 s can switch a band in one tick.
 - **ffmpeg** plays `tapeAudio`'s band and hiss with the same arithmetic as the other backends, and bends the pitch
   with `vibrato`. That filter reads between two samples where the others read four, rounds a rate to a whole number
   of samples, starts each bend at the head of the stream instead of where the seed puts it, and swings by 2.5 ms at

@@ -7,12 +7,14 @@ import dev.jordond.filmstrip.effect.EffectStage
 import dev.jordond.filmstrip.effects.filters.tape.TapeAudioFigures
 import dev.jordond.filmstrip.effects.filters.tape.TapeLook
 import dev.jordond.filmstrip.effects.filters.tape.TapePictureParams
+import dev.jordond.filmstrip.effects.filters.tape.TapeSettle
 import dev.jordond.filmstrip.effects.filters.tape.TapeStock
 import dev.jordond.filmstrip.effects.filters.tape.audioFiguresOf
 import dev.jordond.filmstrip.effects.filters.tape.pictureStock
 import dev.jordond.filmstrip.effects.filters.vhs.TapeClock
 import dev.jordond.filmstrip.effects.filters.vhs.Tracking
 import dev.jordond.filmstrip.effects.filters.vhs.Vhs
+import kotlin.time.Duration
 
 /**
  * Makes the frame look like it was played back from a Betamax tape.
@@ -30,6 +32,8 @@ import dev.jordond.filmstrip.effects.filters.vhs.Vhs
  * @property seed Picks the pattern of noise and events. Equal seeds draw the same tape.
  * @property tracking The band of mistracked tape that runs through the picture.
  * @property clock What the pattern moves with in a preview. An export draws the same tape for either.
+ * @property settle How the look eases to its intensity from another strength, or null when it keeps one strength
+ * throughout.
  * @throws IllegalArgumentException when [intensity] is outside `0f..1f`.
  */
 @Poko
@@ -39,6 +43,7 @@ public class Betamax(
   override val seed: Int = TapeLook.DEFAULT_SEED,
   override val tracking: Tracking = Tracking.Events(),
   override val clock: TapeClock = TapeClock.Composition,
+  override val settle: TapeSettle? = null,
 ) : TapeLook {
   init {
     require(intensity in 0f..1f) { "A Betamax intensity has to be within 0 to 1, not $intensity." }
@@ -52,13 +57,15 @@ public class Betamax(
 
   override val requiresSdr: Boolean get() = true
 
-  override val isInert: Boolean get() = intensity == 0f
+  override val isInert: Boolean get() = intensity == 0f && (settle?.from ?: 0f) == 0f
 
   override val redrawsWhileHeld: Boolean get() = clock == TapeClock.Wall
 
   @InternalFilmstripApi
-  override fun pictureParams(): TapePictureParams =
-    TapePictureParams.at(intensity.toDouble(), tape.pictureStock, tracking)
+  override fun pictureParams(
+    level: Double,
+    scopeStart: Duration?,
+  ): TapePictureParams = TapePictureParams.at(level, tape.pictureStock, this, scopeStart)
 
   public companion object {
     /**

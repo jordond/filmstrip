@@ -127,6 +127,12 @@ internal fun FiltersPlayground(
             onReset = { settings = settings.copy(snow = Tracking.DEFAULT_SNOW) },
           )
         }
+        Group("SETTLE", "starts at full strength and eases to the intensity") {
+          ChipRow {
+            Chip("OFF", !settings.settle) { settings = settings.copy(settle = false) }
+            Chip("LOCK ON", settings.settle) { settings = settings.copy(settle = true) }
+          }
+        }
         Group("CAMCORDER", "recorded on tape or drawn clean") {
           ChipRow {
             CamcorderMode.entries.forEach { mode ->

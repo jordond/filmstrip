@@ -16,6 +16,7 @@ import kotlin.math.abs
 import kotlin.math.ceil
 import kotlin.math.exp
 import kotlin.math.floor
+import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.pow
 import kotlin.math.sin
@@ -168,19 +169,54 @@ public object TapePictureSignal {
    * Where the tracking band sits at [tick] and how strong it is.
    *
    * An event band rolls once per window for whether it runs and where it starts, then drifts and fades in and out over
-   * the window. A rolling band is always at full strength and crosses the frame top to bottom once a period.
+   * the window. A band whose roll is under the chance runs. Over a settle the chance moves between
+   * [TapePictureParams.trackingChanceFrom] and [TapePictureParams.trackingChanceTo], and a band whose roll lies between
+   * them fades in or out along the settle, so it does not switch on or off, and is whole or gone where the settle ends.
+   * A rolling band crosses the frame top to bottom once a period, at the top of the frame on
+   * [TapePictureParams.trackingAnchorTicks] and every period either side of it, and is at full strength unless it
+   * settles, which [bandSettle] reads.
    */
   public fun trackingBand(
     seed: Int,
     tick: Int,
     params: TapePictureParams,
   ): TrackingBand {
-    if (params.trackingRolls) return TrackingBand(fract(tick / params.trackingPeriodTicks), 1.0)
+    if (params.trackingRolls) {
+      val centre = fract((tick.toLong() - params.trackingAnchorTicks) / params.trackingPeriodTicks)
+      return TrackingBand(centre, bandSettle(tick, params))
+    }
     val window = tick / trackWindowTicks
-    if (unorm(hash24(seed, PASS_TRACK_EVENT, window, 0)) >= params.trackingChance) return TrackingBand(0.0, 0.0)
+    val roll = unorm(hash24(seed, PASS_TRACK_EVENT, window, 0))
+    val high = max(params.trackingChanceFrom, params.trackingChanceTo)
+    if (roll >= high) return TrackingBand(0.0, 0.0)
+    val low = min(params.trackingChanceFrom, params.trackingChanceTo)
+    val presence =
+      if (roll < low) {
+        1.0
+      } else {
+        val progress = ((params.trackingChance - low) / (high - low)).coerceIn(0.0, 1.0)
+        val arrival = (roll - low) / (high - low) * (1.0 - EVENT_FADE)
+        ((progress - arrival) / EVENT_FADE).coerceIn(0.0, 1.0)
+      }
     val phase = (tick % trackWindowTicks).toDouble() / trackWindowTicks
     val start = unorm(hash24(seed, PASS_TRACK_EVENT, window, 1))
-    return TrackingBand(fract(start + TRACK_DRIFT * TRACK_WINDOW_SECONDS * phase), sin(PI * phase))
+    return TrackingBand(fract(start + TRACK_DRIFT * TRACK_WINDOW_SECONDS * phase), presence * sin(PI * phase))
+  }
+
+  /**
+   * How much of its strength a rolling band keeps at [tick], from 1 for a band that does not settle to 0.
+   *
+   * A settling band is at full strength up to [TapePictureParams.trackingAnchorTicks] and falls from there along the
+   * easing over [TapePictureParams.trackingSettleTicks], so its progress is the ticks since the anchor over the
+   * settle's length. It is exactly 0 once the settle has run, and stays there.
+   */
+  public fun bandSettle(
+    tick: Int,
+    params: TapePictureParams,
+  ): Double {
+    if (params.trackingSettleTicks == 0.0) return 1.0
+    val progress = (tick.toLong() - params.trackingAnchorTicks) / params.trackingSettleTicks
+    return 1.0 - params.trackingSettleEasing.paced(progress.coerceIn(0.0, 1.0).toFloat()).toDouble()
   }
 
   /**
@@ -320,7 +356,7 @@ public object TapePictureSignal {
     val drop = dropout(seed, tick, row, x, params)
     val snow = snowOver(band, seed, tick, row, x, params)
     val chromaGain =
-      (1.0 - TRACK_CHROMA_LOSS * band) * (1.0 - drop) * (1.0 - params.desaturation) * (1.0 - snow.weight)
+      (1.0 - params.trackingChromaLoss * band) * (1.0 - drop) * (1.0 - params.desaturation) * (1.0 - snow.weight)
     val noisy =
       luma + params.lumaNoise * streak(seed, PASS_LUMA_NOISE, tick, row, x, STREAK) +
         params.trackingNoise * band * streak(seed, PASS_TRACK_NOISE, tick, row, x, TRACK_NOISE_CELL)

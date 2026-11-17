@@ -26,8 +26,8 @@ public final class dev/jordond/filmstrip/effects/filters/betamax/BetaSpeed : jav
 public final class dev/jordond/filmstrip/effects/filters/betamax/Betamax : dev/jordond/filmstrip/effects/filters/tape/TapeLook {
 	public static final field Companion Ldev/jordond/filmstrip/effects/filters/betamax/Betamax$Companion;
 	public fun <init> ()V
-	public fun <init> (FLdev/jordond/filmstrip/effects/filters/betamax/BetaSpeed;ILdev/jordond/filmstrip/effects/filters/vhs/Tracking;Ldev/jordond/filmstrip/effects/filters/vhs/TapeClock;)V
-	public synthetic fun <init> (FLdev/jordond/filmstrip/effects/filters/betamax/BetaSpeed;ILdev/jordond/filmstrip/effects/filters/vhs/Tracking;Ldev/jordond/filmstrip/effects/filters/vhs/TapeClock;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (FLdev/jordond/filmstrip/effects/filters/betamax/BetaSpeed;ILdev/jordond/filmstrip/effects/filters/vhs/Tracking;Ldev/jordond/filmstrip/effects/filters/vhs/TapeClock;Ldev/jordond/filmstrip/effects/filters/tape/TapeSettle;)V
+	public synthetic fun <init> (FLdev/jordond/filmstrip/effects/filters/betamax/BetaSpeed;ILdev/jordond/filmstrip/effects/filters/vhs/Tracking;Ldev/jordond/filmstrip/effects/filters/vhs/TapeClock;Ldev/jordond/filmstrip/effects/filters/tape/TapeSettle;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun equals (Ljava/lang/Object;)Z
 	public fun getBeneathOverlays ()Z
 	public fun getClock ()Ldev/jordond/filmstrip/effects/filters/vhs/TapeClock;
@@ -37,6 +37,7 @@ public final class dev/jordond/filmstrip/effects/filters/betamax/Betamax : dev/j
 	public fun getRequiresSdr ()Z
 	public fun getScope ()Ldev/jordond/filmstrip/effect/EffectScope;
 	public fun getSeed ()I
+	public fun getSettle ()Ldev/jordond/filmstrip/effects/filters/tape/TapeSettle;
 	public fun getStage ()Ldev/jordond/filmstrip/effect/EffectStage;
 	public final fun getTape ()Ldev/jordond/filmstrip/effects/filters/betamax/BetaSpeed;
 	public fun getTracking ()Ldev/jordond/filmstrip/effects/filters/vhs/Tracking;
@@ -351,8 +352,8 @@ public final class dev/jordond/filmstrip/effects/filters/glitch/GlitchKt {
 public final class dev/jordond/filmstrip/effects/filters/hi8/Hi8 : dev/jordond/filmstrip/effects/filters/tape/TapeLook {
 	public static final field Companion Ldev/jordond/filmstrip/effects/filters/hi8/Hi8$Companion;
 	public fun <init> ()V
-	public fun <init> (FLdev/jordond/filmstrip/effects/filters/hi8/Hi8Speed;ILdev/jordond/filmstrip/effects/filters/vhs/Tracking;Ldev/jordond/filmstrip/effects/filters/vhs/TapeClock;)V
-	public synthetic fun <init> (FLdev/jordond/filmstrip/effects/filters/hi8/Hi8Speed;ILdev/jordond/filmstrip/effects/filters/vhs/Tracking;Ldev/jordond/filmstrip/effects/filters/vhs/TapeClock;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (FLdev/jordond/filmstrip/effects/filters/hi8/Hi8Speed;ILdev/jordond/filmstrip/effects/filters/vhs/Tracking;Ldev/jordond/filmstrip/effects/filters/vhs/TapeClock;Ldev/jordond/filmstrip/effects/filters/tape/TapeSettle;)V
+	public synthetic fun <init> (FLdev/jordond/filmstrip/effects/filters/hi8/Hi8Speed;ILdev/jordond/filmstrip/effects/filters/vhs/Tracking;Ldev/jordond/filmstrip/effects/filters/vhs/TapeClock;Ldev/jordond/filmstrip/effects/filters/tape/TapeSettle;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun equals (Ljava/lang/Object;)Z
 	public fun getBeneathOverlays ()Z
 	public fun getClock ()Ldev/jordond/filmstrip/effects/filters/vhs/TapeClock;
@@ -362,6 +363,7 @@ public final class dev/jordond/filmstrip/effects/filters/hi8/Hi8 : dev/jordond/f
 	public fun getRequiresSdr ()Z
 	public fun getScope ()Ldev/jordond/filmstrip/effect/EffectScope;
 	public fun getSeed ()I
+	public fun getSettle ()Ldev/jordond/filmstrip/effects/filters/tape/TapeSettle;
 	public fun getStage ()Ldev/jordond/filmstrip/effect/EffectStage;
 	public final fun getTape ()Ldev/jordond/filmstrip/effects/filters/hi8/Hi8Speed;
 	public fun getTracking ()Ldev/jordond/filmstrip/effects/filters/vhs/Tracking;
@@ -576,6 +578,7 @@ public abstract interface class dev/jordond/filmstrip/effects/filters/tape/TapeL
 	public abstract fun getClock ()Ldev/jordond/filmstrip/effects/filters/vhs/TapeClock;
 	public abstract fun getIntensity ()F
 	public abstract fun getSeed ()I
+	public abstract fun getSettle ()Ldev/jordond/filmstrip/effects/filters/tape/TapeSettle;
 	public abstract fun getTracking ()Ldev/jordond/filmstrip/effects/filters/vhs/Tracking;
 }
 
@@ -599,13 +602,28 @@ public abstract class dev/jordond/filmstrip/effects/filters/tape/TapeLookBuilder
 	public final fun getClock ()Ldev/jordond/filmstrip/effects/filters/vhs/TapeClock;
 	public final fun getIntensity ()F
 	public final fun getSeed ()I
+	public final fun getSettle ()Ldev/jordond/filmstrip/effects/filters/tape/TapeSettle;
 	public final fun getTracking ()Ldev/jordond/filmstrip/effects/filters/vhs/Tracking;
-	public final fun rolling-VtjQ1oo (JLkotlin/jvm/functions/Function1;)Ldev/jordond/filmstrip/effects/filters/vhs/Tracking$Rolling;
-	public static synthetic fun rolling-VtjQ1oo$default (Ldev/jordond/filmstrip/effects/filters/tape/TapeLookBuilder;JLkotlin/jvm/functions/Function1;ILjava/lang/Object;)Ldev/jordond/filmstrip/effects/filters/vhs/Tracking$Rolling;
+	public final fun rolling-O4J4VbY (JJLdev/jordond/filmstrip/effects/filters/vhs/TrackingSettle;Lkotlin/jvm/functions/Function1;)Ldev/jordond/filmstrip/effects/filters/vhs/Tracking$Rolling;
+	public static synthetic fun rolling-O4J4VbY$default (Ldev/jordond/filmstrip/effects/filters/tape/TapeLookBuilder;JJLdev/jordond/filmstrip/effects/filters/vhs/TrackingSettle;Lkotlin/jvm/functions/Function1;ILjava/lang/Object;)Ldev/jordond/filmstrip/effects/filters/vhs/Tracking$Rolling;
 	public final fun setClock (Ldev/jordond/filmstrip/effects/filters/vhs/TapeClock;)V
 	public final fun setIntensity (F)V
 	public final fun setSeed (I)V
+	public final fun setSettle (Ldev/jordond/filmstrip/effects/filters/tape/TapeSettle;)V
 	public final fun setTracking (Ldev/jordond/filmstrip/effects/filters/vhs/Tracking;)V
+	public final fun settle-8Mi8wO0 (FJLdev/jordond/filmstrip/motion/Easing;)V
+	public static synthetic fun settle-8Mi8wO0$default (Ldev/jordond/filmstrip/effects/filters/tape/TapeLookBuilder;FJLdev/jordond/filmstrip/motion/Easing;ILjava/lang/Object;)V
+}
+
+public final class dev/jordond/filmstrip/effects/filters/tape/TapeSettle {
+	public synthetic fun <init> (FJLdev/jordond/filmstrip/motion/Easing;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (FJLdev/jordond/filmstrip/motion/Easing;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getEasing ()Ldev/jordond/filmstrip/motion/Easing;
+	public final fun getFrom ()F
+	public final fun getOver-UwyO8pc ()J
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
 }
 
 public abstract interface class dev/jordond/filmstrip/effects/filters/tape/TapeStock {
@@ -687,11 +705,13 @@ public final class dev/jordond/filmstrip/effects/filters/vhs/Tracking$Off : dev/
 
 public final class dev/jordond/filmstrip/effects/filters/vhs/Tracking$Rolling : dev/jordond/filmstrip/effects/filters/vhs/Tracking {
 	public fun <init> ()V
-	public synthetic fun <init> (JFFFILkotlin/jvm/internal/DefaultConstructorMarker;)V
-	public synthetic fun <init> (JFFFLkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (JFFFJLdev/jordond/filmstrip/effects/filters/vhs/TrackingSettle;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (JFFFJLdev/jordond/filmstrip/effects/filters/vhs/TrackingSettle;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAt-UwyO8pc ()J
 	public final fun getHeight ()F
 	public final fun getPeriod-UwyO8pc ()J
+	public final fun getSettle ()Ldev/jordond/filmstrip/effects/filters/vhs/TrackingSettle;
 	public final fun getShift ()F
 	public final fun getSnow ()F
 	public fun hashCode ()I
@@ -707,12 +727,22 @@ public final class dev/jordond/filmstrip/effects/filters/vhs/TrackingBuilder {
 	public final fun setSnow (F)V
 }
 
+public final class dev/jordond/filmstrip/effects/filters/vhs/TrackingSettle {
+	public synthetic fun <init> (JLdev/jordond/filmstrip/motion/Easing;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (JLdev/jordond/filmstrip/motion/Easing;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getEasing ()Ldev/jordond/filmstrip/motion/Easing;
+	public final fun getOver-UwyO8pc ()J
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
 public final class dev/jordond/filmstrip/effects/filters/vhs/Vhs : dev/jordond/filmstrip/effects/filters/tape/TapeLook {
 	public static final field Companion Ldev/jordond/filmstrip/effects/filters/vhs/Vhs$Companion;
 	public static final field DEFAULT_SEED I
 	public fun <init> ()V
-	public fun <init> (FLdev/jordond/filmstrip/effects/filters/vhs/TapeSpeed;ILdev/jordond/filmstrip/effects/filters/vhs/Tracking;Ldev/jordond/filmstrip/effects/filters/vhs/TapeClock;)V
-	public synthetic fun <init> (FLdev/jordond/filmstrip/effects/filters/vhs/TapeSpeed;ILdev/jordond/filmstrip/effects/filters/vhs/Tracking;Ldev/jordond/filmstrip/effects/filters/vhs/TapeClock;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (FLdev/jordond/filmstrip/effects/filters/vhs/TapeSpeed;ILdev/jordond/filmstrip/effects/filters/vhs/Tracking;Ldev/jordond/filmstrip/effects/filters/vhs/TapeClock;Ldev/jordond/filmstrip/effects/filters/tape/TapeSettle;)V
+	public synthetic fun <init> (FLdev/jordond/filmstrip/effects/filters/vhs/TapeSpeed;ILdev/jordond/filmstrip/effects/filters/vhs/Tracking;Ldev/jordond/filmstrip/effects/filters/vhs/TapeClock;Ldev/jordond/filmstrip/effects/filters/tape/TapeSettle;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun equals (Ljava/lang/Object;)Z
 	public fun getBeneathOverlays ()Z
 	public fun getClock ()Ldev/jordond/filmstrip/effects/filters/vhs/TapeClock;
@@ -722,6 +752,7 @@ public final class dev/jordond/filmstrip/effects/filters/vhs/Vhs : dev/jordond/f
 	public fun getRequiresSdr ()Z
 	public fun getScope ()Ldev/jordond/filmstrip/effect/EffectScope;
 	public fun getSeed ()I
+	public fun getSettle ()Ldev/jordond/filmstrip/effects/filters/tape/TapeSettle;
 	public fun getStage ()Ldev/jordond/filmstrip/effect/EffectStage;
 	public final fun getTape ()Ldev/jordond/filmstrip/effects/filters/vhs/TapeSpeed;
 	public fun getTracking ()Ldev/jordond/filmstrip/effects/filters/vhs/Tracking;

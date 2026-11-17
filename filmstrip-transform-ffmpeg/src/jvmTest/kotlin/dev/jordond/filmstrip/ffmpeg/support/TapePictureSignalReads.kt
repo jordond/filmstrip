@@ -21,11 +21,11 @@ internal fun lumaPlaneOf(
   source: (Double) -> DoubleArray,
   width: Int = VHS_WIDTH,
   height: Int = VHS_HEIGHT,
+  params: TapePictureParams = TapePictureParams.of(vhs),
 ): Double {
   val x = (column + 0.5) / width
   val row = TapePictureSignal.virtualRow(y, height)
-  val ycc =
-    yccOf(TapePictureSignal.pixelAt(x, row, tick, vhs.seed, width, TapePictureParams.of(vhs), source.texelsOver(width)))
+  val ycc = yccOf(TapePictureSignal.pixelAt(x, row, tick, vhs.seed, width, params, source.texelsOver(width)))
   return VHS_LUMA_BLACK + VHS_LUMA_SPAN * ycc[0]
 }
 
@@ -35,6 +35,7 @@ internal fun chromaPlanesOf(
   column: Int,
   planeRow: Int,
   source: (Double) -> DoubleArray,
+  params: TapePictureParams = TapePictureParams.of(vhs),
 ): DoubleArray {
   val x = (column + 0.5) / (VHS_WIDTH / 2)
   val row = TapePictureSignal.virtualRow(planeRow, VHS_HEIGHT / 2)
@@ -46,7 +47,7 @@ internal fun chromaPlanesOf(
         tick,
         vhs.seed,
         VHS_WIDTH,
-        TapePictureParams.of(vhs),
+        params,
         source.texelsOver(VHS_WIDTH),
       ),
     )

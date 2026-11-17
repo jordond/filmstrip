@@ -27,15 +27,41 @@ same picture. The look is tuned on home camcorder tapes, so it is soft and a lit
 
 | Setting     | What it does                                                                                 |
 | ----------- | -------------------------------------------------------------------------------------------- |
-| `intensity` | How strong the look is. `0f` leaves the frame alone and is listed as an inert notice         |
+| `intensity` | How strong the look is. `0f` is an inert notice, unless a `settle` starts above it          |
 | `tape`      | `TapeSpeed.SP`, `LP` or `EP`, from sharpest to softest. Defaults to `EP`                     |
 | `seed`      | Picks the pattern of noise and events. Equal seeds draw the same tape                        |
 | `tracking`  | The band of mistracked tape, `events()`, `rolling()` or `Tracking.Off`. Defaults to `events()` |
 | `clock`     | `TapeClock.Composition` or `TapeClock.Wall`, what the pattern moves with in a preview         |
+| `settle`    | `settle(from, over, easing)`, starts the look at another strength and eases it to `intensity`  |
 
 `events(chance)` runs a band now and then, each one drifting down the frame and fading out over four seconds.
-`rolling(period)` runs one band that is always there, rolling from top to bottom every `period`, the look of a tape that
-needs tracking. Both take a block that shapes the band.
+`rolling(period)` runs one band, rolling from top to bottom every `period` for as long as the look is drawn unless it
+settles, the look of a tape that needs tracking. Both take a block that shapes the band.
+
+A rolling band is at the top of the frame on the first frame of the scope the look is in, which is the clip's slot for a
+look on a clip, each clip of the track for a look on a track, and the composition for a look on the composition, and again
+every `period` after it. Pass `at`, which cannot be negative, to put it there that long after the first frame instead. `rolling(period = 6.seconds,
+at = 2.seconds)` is at the top two seconds into the run and keeps rolling on the same period either side. Because it
+counts from the first frame, a clip has the same band wherever it sits in the composition, and reordering or trimming it
+does not move the band. A preview set to `TapeClock.Wall` draws from its own clock and ignores `at`.
+
+A look can settle, the way a deck does when it locks onto a recording. `settle(from = 1f, over = 4.seconds)` starts
+the look at the strength `from` on the first frame of its scope and eases it to `intensity` over `over`, paced by the
+easing. Every figure of the look follows that one level together, the colour a tracking band takes included, so the look
+on any frame is the look at the strength it has there. After the settle the look is the plain one. A preview set to
+`TapeClock.Wall` draws its pattern and its band from its own clock and settles on the frame's own time, so it shows the
+same settle an export does, with a band that settles already gone.
+
+A settle counts from where a frame sits in its run, so it starts again each time a run starts. A look on a track settles
+on every clip of the track, and on every lap of a looping track. Put a settle that should happen once on the clip, or
+on the composition, that holds the first frame.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Filters.kt" region="vhs-settle" />
+
+A rolling band can ease off too. Pass `settle = TrackingSettle(over, easing)` and the band's slide, noise, colour fade
+and snow fall together from full strength at `at` to nothing after `over`, paced by the easing, while the band keeps
+rolling. The band is at full strength before `at`, is gone once the settle has run, and does not come back, so a band
+that settles over one `period` rolls once and is gone. A `TapeClock.Wall` preview draws the band gone.
 
 | Band setting | What it does                                                                                 |
 | ------------ | -------------------------------------------------------------------------------------------- |
