@@ -26,11 +26,15 @@ import dev.jordond.filmstrip.media3.internal.bounds.ChosenTracks
 import dev.jordond.filmstrip.media3.internal.bounds.chosenTracks
 
 /**
- * The media source factory a preview's `CompositionPlayer` builds each item's source with.
+ * The media source factory a preview's `CompositionPlayer` builds each item's source with, and a frame reader its
+ * item's.
  *
  * An item carrying [ChosenTracks] reads its container through extractors that hand the player only the tracks it
  * names, so the player has no other audio track to pick. Every other item goes to a factory built the way the player
  * builds its own. Every setting handed to this factory reaches both, and every factory built for a chosen item after.
+ *
+ * A player's host builds an instance of its own. A frame reader takes the one [readbackSourceFactory] shares, which
+ * narrows a readback or a thumbnail to the first video track, as the player and an export read it.
  */
 @InternalFilmstripApi
 public class ChosenTrackMediaSourceFactory private constructor(
@@ -84,15 +88,17 @@ public class ChosenTrackMediaSourceFactory private constructor(
 }
 
 /**
- * The media source factory a frame reader builds a [Media3Readback]'s item with, which is the one a preview's player
- * runs.
+ * The media source factory a frame reader builds a [Media3Readback]'s item with, a [ChosenTrackMediaSourceFactory] of
+ * the reader's own beside the one each preview's player builds for itself.
  *
+ * It narrows a readback or a thumbnail to the item's first video track, as the player and an export read it.
  * It cuts a clip trimmed before its source ends by the time each frame is shown at. The factory media3's frame
  * extraction builds for itself ends the clip on the first sample stored at or past the trim's end, and a source that
  * stores its frames out of the order they are shown in holds that sample ahead of the last frames before the end.
  *
  * Every call hands back the same factory. Frame extraction runs on one player shared across the process, and media3
- * rebuilds that player whenever a request names another factory.
+ * rebuilds that player whenever a request names another factory. The factory is shared by every reader, so no caller
+ * may change a setting on it.
  *
  * @param context Any context of the app the reader runs in.
  */

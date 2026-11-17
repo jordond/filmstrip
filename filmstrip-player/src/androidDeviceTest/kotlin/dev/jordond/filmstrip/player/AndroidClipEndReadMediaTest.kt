@@ -25,8 +25,11 @@ import dev.jordond.filmstrip.test.videoSampleTimesOf
 import dev.jordond.filmstrip.thumbnail.ThumbnailRequest
 import dev.jordond.filmstrip.thumbnail.ThumbnailResult
 import dev.jordond.filmstrip.thumbnail.ThumbnailSource
+import dev.jordond.filmstrip.transform.internal.seekTolerance
 import io.kotest.assertions.withClue
 import io.kotest.matchers.collections.shouldBeEmpty
+import io.kotest.matchers.comparables.shouldBeLessThanOrEqualTo
+import io.kotest.matchers.longs.shouldBeLessThanOrEqual
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -50,8 +53,11 @@ class AndroidClipEndReadMediaTest {
   @Test
   fun aReadbackShowsEverySlotOfAClipWhoseFramesAreStoredOutOfOrder() =
     contractTest(BODY_BUDGET) { scope ->
-      withClue("the fixture stores its frames in the order they are shown") {
-        storedSampleTimesOf(androidFixtureClip()).isAscending() shouldBe false
+      val stored = storedSampleTimesOf(androidFixtureClip())
+      ENDS.forEach { end ->
+        withClue("the fixture stores no frame shown before $end behind the first one at or past it") {
+          (stored.indexOfFirst { it >= end } < stored.indexOfLast { it < end }) shouldBe true
+        }
       }
       val misses =
         ENDS.flatMap { end ->
@@ -84,14 +90,34 @@ class AndroidClipEndReadMediaTest {
           val thumbnail =
             source.awaitThumbnail(ThumbnailRequest(edit, at, FIXTURE_FRAME.height, REVISION, precise = true))
           try {
-            val drawn = TestFrame(thumbnail.image.toRgba8888(), Size(thumbnail.image.widthPx, thumbnail.image.heightPx))
-            misses += missesAt(edit, slot, thumbnail.presentationTime, drawn)
+            misses += missesAt(edit, slot, thumbnail.presentationTime, thumbnail.drawn())
           } finally {
             thumbnail.image.close()
           }
         }
       }
       misses.shouldAllBeRead()
+    }
+
+  @Test
+  fun aRelaxedThumbnailOfTheLastSlotShowsAFrameOfAClipWhoseFramesAreStoredOutOfOrder() =
+    contractTest(BODY_BUDGET) { scope ->
+      val source = Media3ThumbnailSource(scope, contractContext(), Media3ThumbnailPlanner(CONTRACT_COMPONENTS))
+      val edit = reorderedEdit(ENDS.last())
+      val last = slotsOf(edit).last()
+      val at = outputSlotTime(last, FIXTURE_FRAME_RATE)
+      val thumbnail = source.awaitThumbnail(ThumbnailRequest(edit, at, FIXTURE_FRAME.height, REVISION, precise = false))
+      try {
+        val landed = outputSlotOf(thumbnail.presentationTime, FIXTURE_FRAME_RATE)
+        withClue("asked for slot $last at $at, it landed on slot $landed at ${thumbnail.presentationTime}") {
+          landed shouldBeLessThanOrEqual last
+          (at - thumbnail.presentationTime).absoluteValue shouldBeLessThanOrEqualTo
+            seekTolerance(precise = false, FIXTURE_FRAME_STEP, FIXTURE_SYNC_INTERVAL)
+        }
+        missesAt(edit, landed, thumbnail.presentationTime, thumbnail.drawn()).shouldAllBeRead()
+      } finally {
+        thumbnail.image.close()
+      }
     }
 
   @Test
@@ -186,6 +212,9 @@ class AndroidClipEndReadMediaTest {
     }
   }
 
+  private fun ThumbnailResult.Success.drawn(): TestFrame =
+    TestFrame(image.toRgba8888(), Size(image.widthPx, image.heightPx))
+
   private fun List<Duration>.isAscending(): Boolean = zipWithNext().all { (earlier, later) -> earlier < later }
 
   private suspend fun ThumbnailSource.awaitThumbnail(request: ThumbnailRequest): ThumbnailResult.Success =
@@ -205,7 +234,7 @@ class AndroidClipEndReadMediaTest {
     // Each end falls where the fixture stores a later frame ahead of the last ones shown before it.
     val ENDS: List<Duration> = listOf(500.milliseconds, 1_500.milliseconds)
 
-    // As many slots as the fixture stores behind the first sample past either end.
+    // One more than the most slots the fixture stores behind the first sample past either end.
     const val LAST_SLOTS = 4
 
     const val REVISION = 1L
