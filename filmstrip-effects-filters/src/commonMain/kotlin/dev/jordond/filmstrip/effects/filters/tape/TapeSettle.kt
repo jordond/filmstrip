@@ -14,9 +14,9 @@ import kotlin.time.Duration
  * of them follow it in their own way. The colour a tracking band takes is its whole loss at the strength the look
  * settles to, or at the strength it starts from when it settles to nothing, and less below that, in proportion. An
  * event band whose roll lies between the chance at the start and the chance at the end fades in or out along the
- * settle, so it does not switch on or off, and is whole or gone where the settle ends, so after it the bands are the
- * plain look's. A tracking band that rolls keeps its own place and its own [Tracking.Rolling.settle], and runs at the
- * strength the look has.
+ * settle, so it does not switch on or off bar in a settle of a few ticks, and is whole or gone where the settle ends,
+ * so after it the bands are the plain look's. A tracking band that rolls keeps its own place and its own
+ * [Tracking.Rolling.settle], and runs at the strength the look has.
  *
  * The look runs wherever it is added, so a settle on a track starts again on every clip of the track and on every lap
  * of a looping track, since each is a run of its own with a first frame. A settle that should happen once belongs on

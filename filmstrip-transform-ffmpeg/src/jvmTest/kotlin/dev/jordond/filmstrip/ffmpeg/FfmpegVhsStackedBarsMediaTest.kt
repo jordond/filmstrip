@@ -49,8 +49,9 @@ class FfmpegVhsStackedBarsMediaTest {
     }
 
   // The alpha the exact read writes is the source's at the shifted column, so the edge of the picture moves with each
-  // row's shift as the plain read's does. A look too faint to shift the edge itself goes first, so the stacked edge is
-  // the plain one, and an alpha that was constant or not shifted puts it in the same place on every row.
+  // row's shift as the plain read's does. A look faint enough to shift the edge by little goes first, so the stacked
+  // edge is the plain one, give or take the shift of its head rows, and an alpha that was constant or not shifted
+  // puts it in the same place on every row.
   @Test
   fun `the edge of the picture after another look moves with the rows' shift as it does without one`() =
     runBlocking<Unit> {
@@ -99,6 +100,7 @@ class FfmpegVhsStackedBarsMediaTest {
     const val BAR_COLUMN = 5
     const val CLOSE_BAR = 3.0
     const val MOVES = 4.0
+    // The faint look shifts the head rows by up to 0.1042 * 0.02 * 1.15 of the 640 pixel width, which is 1.5 pixels.
     const val EDGE_PIXELS = 1.5
     const val SIDE = 360
     const val FILL = 0xFF20C040.toInt()

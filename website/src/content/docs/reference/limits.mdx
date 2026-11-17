@@ -89,8 +89,8 @@ See [Fit](/guides/effects/#fit).
   other backends.
 - On an 8-bit ffmpeg export, a clip's `crop` cuts exactly where it was asked to, even at an odd offset, so its picture
   sits where the other backends put it. The cut's chroma then sits half a chroma sample off on a 4:2:0 frame, which is
-  invisible except on a hard coloured edge. The effect regions above snap to the even pixel instead, since the overlay
-  they go through can only land there.
+  invisible except on a hard coloured edge. The overlay and the cropped region in the bullet above snap to the even
+  pixel instead, since the overlay they go through can only land there.
 
 ## Source alpha
 
@@ -284,12 +284,13 @@ one, it's refused by name.
 - **ffmpeg** writes a settle's easing as an expression in double where the other backends pace it through a float, so
   a sample of tens of millions can land one code off between the live planes and the drawn graph.
 - A `vhs` that settles with `events()` tracking fades in or out each band whose roll lies between the chance at the
-  start of the settle and the chance at its end, along the settle, so no band switches on or off in a step. A band
-  arrives, or leaves when the look settles down, over a quarter of the chance's travel between the two ends, and is
-  whole or gone by the end of it, so after the settle the bands are the plain look's. The chance goes with the square
-  of the level, so that share is not of the time: the last band of a linear settle from 0 to 1 starts at about 87% of
-  it, and of an ease in at about 93%. An ease in steps a band by up to 16 / N of its strength on a tick, N being the
-  ticks of the settle at 59.94 a second, so a settle shorter than about 0.3 s can switch a band in one tick.
+  start of the settle and the chance at its end, along the settle, so no band switches on or off in a step, bar a
+  settle of a few ticks. A band arrives, or leaves when the look settles down, over a quarter of the chance's travel
+  between the two ends, and is whole or gone by the end of it, so after the settle the bands are the plain look's. The
+  chance goes with the square of the level, so that share is not of the time: the last band of a linear settle from 0
+  to 1 starts at about 87% of it, and of an ease in at about 93%. An ease in steps a band by up to 16 / N of its
+  strength on a tick, N being the ticks of the settle at 59.94 a second, so a settle shorter than about 0.3 s can
+  switch a band in one tick.
 - **ffmpeg** plays `tapeAudio`'s band and hiss with the same arithmetic as the other backends, and bends the pitch
   with `vibrato`. That filter reads between two samples where the others read four, rounds a rate to a whole number
   of samples, starts each bend at the head of the stream instead of where the seed puts it, and swings by 2.5 ms at
