@@ -17,8 +17,9 @@ import kotlin.time.Duration.Companion.seconds
  * Pins the graph text a tape look with no settle lowers to, so adding a settle changes none of it. Each look is lowered
  * on a scope that opens with the composition, where a rolling band's anchor is the one it always had, and its graph is
  * held as a digest of every branch, node and argument the fragment holds, and the pad and size of each live input. The
- * digests were taken before a look could settle, so they are the graph of the look as it was, bar the exact read across
- * the whole frame, which now writes the alpha it reads and took a new digest.
+ * digests were taken before a look could settle, so they are the graph of the look as it was, bar the crop that takes
+ * the padding off, which is now an exact crop and changed every entry, and the exact read across the whole frame, which
+ * now writes the alpha it reads. Its entry, vhs rolling anywhere, took a second change.
  *
  * A look that is meant to lower differently takes its new digests from the failure message, which prints them all.
  */
@@ -85,14 +86,14 @@ class TapePictureFragmentGoldenTest {
 
     val GOLDEN =
       mapOf(
-        "vhs" to "0e89017d2aed11e2",
-        "vhs rolling" to "b12333e231eb60d0",
-        "vhs rolling anchored" to "51fca0fb46d7c966",
-        "betamax events" to "06832aca6ccba9ec",
-        "hi8 no band" to "32f6b6374c8fa97b",
-        "vhs rolling edges" to "c6084192dcd327fb",
+        "vhs" to "d6bc47bc737a1217",
+        "vhs rolling" to "8c7eeeb4c7ca1a1c",
+        "vhs rolling anchored" to "19034aff460178ad",
+        "betamax events" to "34e366a8bddfbd1a",
+        "hi8 no band" to "660c0884a509bd08",
+        "vhs rolling edges" to "21c9c1d6f878d14b",
         // The exact read across the frame writes the alpha it reads, where it wrote none, so a look after another draws.
-        "vhs rolling anywhere" to "80b1acdbd36a2414",
+        "vhs rolling anywhere" to "b8cc42b5e1adb6b6",
       )
   }
 }

@@ -8,8 +8,12 @@ import dev.jordond.filmstrip.effects.filters.vhs.Vhs
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.motion.Easing
 import io.kotest.assertions.withClue
+import io.kotest.matchers.doubles.shouldBeGreaterThan
+import io.kotest.matchers.doubles.shouldBeLessThan
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
+import kotlin.math.PI
+import kotlin.math.sin
 import kotlin.test.Test
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
@@ -54,6 +58,22 @@ class TapePicturePlanesMediaTest {
             differing(inputs[2].planeAt(tick), beside(snow, RASTER, weight, MASK)) shouldBe 0
           }
         }
+      }
+    }
+  }
+
+  @Test
+  fun `the band of a look that settles up is part way into its fade at the tick the settle is read mid range`() {
+    listOf(SETTLING_EVENTS_UP).forEach { vhs ->
+      val span = TimeRange(Duration.ZERO)
+      val ramp = TapePictureRamp.of(vhs, span).shouldNotBeNull()
+      val params = vhs.pictureParams(ramp.levelAt(MID_FADE_TICK), span.start)
+      val phase = (MID_FADE_TICK % TapePictureSignal.trackWindowTicks).toDouble() / TapePictureSignal.trackWindowTicks
+      val presence = TapePictureSignal.trackingBand(vhs.seed, MID_FADE_TICK, params).strength / sin(PI * phase)
+
+      withClue("the presence of the band of $vhs at tick $MID_FADE_TICK") {
+        presence shouldBeGreaterThan 0.0
+        presence shouldBeLessThan 1.0
       }
     }
   }
