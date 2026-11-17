@@ -59,6 +59,22 @@ public fun Rotate.turnedFrame(size: Size): Size {
   )
 }
 
+/**
+ * The aspect this rotation leaves out of a frame whose exact width over height is [aspect].
+ *
+ * A quarter turn turns the aspect over and a half turn keeps it. Any other angle takes the bounding box of the turned
+ * picture from the exact aspect, so the pixel rounding [turnedFrame] does is not carried into it.
+ */
+@InternalFilmstripApi
+public fun Rotate.turnedAspect(aspect: Float): Float {
+  if (degrees % HALF_TURN_DEGREES == 0) return aspect
+  if (degrees % QUARTER_TURN_DEGREES == 0) return 1f / aspect
+  val radians = degrees * PI / HALF_TURN_DEGREES
+  val cos = abs(cos(radians))
+  val sin = abs(sin(radians))
+  return ((aspect * cos + sin) / (aspect * sin + cos)).toFloat()
+}
+
 private fun evenSide(side: Double): Int {
   val rounded = side.roundToInt()
   return (rounded - rounded % EVEN).coerceAtLeast(EVEN)

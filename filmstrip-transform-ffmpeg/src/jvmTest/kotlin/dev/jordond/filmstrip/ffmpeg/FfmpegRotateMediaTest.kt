@@ -1,7 +1,9 @@
 package dev.jordond.filmstrip.ffmpeg
 
 import dev.jordond.filmstrip.edit.compositionOf
+import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effects.geometry.Rotate
+import dev.jordond.filmstrip.effects.geometry.Scale
 import dev.jordond.filmstrip.effects.geometry.turnedFrame
 import dev.jordond.filmstrip.export.ExportPlan
 import dev.jordond.filmstrip.export.ExportSpec
@@ -54,11 +56,22 @@ class FfmpegRotateMediaTest {
       assertTurned(FORTY_FIVE)
     }
 
+  @Test
+  fun `a thirty degree turn followed by a scale writes the planned size`() =
+    runTest(timeout = TIMEOUT) {
+      if (!fixture.available()) return@runTest
+      val (plan, output) = exported(listOf(Rotate(THIRTY), Scale(SCALED_HEIGHT)), "rotate-scale")
+
+      plan.output.size.height shouldBe SCALED_HEIGHT
+      fixture.sourceSize(output) shouldBe plan.output.size
+      output.delete()
+    }
+
   private suspend fun assertTurned(degrees: Int) {
     val source = fixture.landscape
     val sourceSize = fixture.sourceSize(source)
     val rotate = Rotate(degrees)
-    val (plan, output) = exported(rotate, "rotate-$degrees")
+    val (plan, output) = exported(listOf(rotate), "rotate-$degrees")
     val frame = rotate.turnedFrame(sourceSize)
 
     plan.output.size shouldBe frame
@@ -141,14 +154,14 @@ class FfmpegRotateMediaTest {
   ): Boolean = a.toList().zip(b.toList()).all { (x, y) -> abs(x - y) <= CHANNEL_DRIFT }
 
   private suspend fun exported(
-    rotate: Rotate,
+    effects: List<EffectSpec>,
     name: String,
   ): Pair<ExportPlan, File> {
     val output = File.createTempFile("filmstrip-$name", ".mp4").also { it.delete() }
     val composition =
       compositionOf {
         clip(MediaSource.of(fixture.landscape.absolutePath))
-        effects { add(rotate) }
+        effects { effects.forEach { add(it) } }
       }
     val plan =
       when (val verdict = fixture.filmstrip.plan(composition, ExportSpec())) {
@@ -202,6 +215,7 @@ class FfmpegRotateMediaTest {
   private companion object {
     const val THIRTY = 30
     const val FORTY_FIVE = 45
+    const val SCALED_HEIGHT = 1080
     const val HALF_TURN = 180.0
     const val PROBE = 8
     const val FLAT = 12

@@ -7,6 +7,7 @@ import dev.jordond.filmstrip.effects.geometry.Crop
 import dev.jordond.filmstrip.effects.geometry.CropRect
 import dev.jordond.filmstrip.effects.geometry.Rotate
 import dev.jordond.filmstrip.effects.geometry.Scale
+import dev.jordond.filmstrip.effects.geometry.turnedAspect
 import dev.jordond.filmstrip.effects.geometry.turnedFrame
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.geometry.AspectRatio
@@ -89,9 +90,12 @@ class FrameRuleTest {
   }
 
   // 86x50 holds a 4:3 canvas of 67x50, which stands for 4:3 exactly: 324 high is 432 wide, where 67x50 rounds to 434.
-  private fun turnedCanvas(turn: Rotate): Size {
+  private fun turnedCanvas(
+    turn: Rotate,
+    height: Int = SCALED,
+  ): Size {
     val clip = fixture.clip(size = Size(86, 50), effects = listOf(Crop(AspectRatio(4, 3), Fit.Contain)))
-    val composition = Composition(listOf(Track(listOf(clip))), effects = listOf(turn, Scale(SCALED)))
+    val composition = Composition(listOf(Track(listOf(clip))), effects = listOf(turn, Scale(height)))
     return fixture.resolve(composition).naturalSize
   }
 
@@ -110,12 +114,17 @@ class FrameRuleTest {
     turnedCanvas(Rotate(0)) shouldBe Size(432, SCALED)
   }
 
+  // At 1080 high the exact aspect writes 1166 wide, where the aspect of the turned 67x50 frame's rounded pixels writes
+  // 1165.
   @Test
-  fun `a turn that is not a quarter follows the turned frame's own aspect`() {
+  fun `a turn that is not a quarter follows the exact aspect of the turned canvas and not its rounded pixels`() {
     val turn = Rotate(30)
-    val turned = turn.turnedFrame(Size(67, 50))
+    val exact = turn.turnedAspect(AspectRatio(4, 3).value)
+    val rounded = turn.turnedFrame(Size(67, 50)).aspect
 
-    turnedCanvas(turn) shouldBe Size((SCALED * turned.aspect).roundToInt(), SCALED)
+    (TURNED_HEIGHT * rounded).roundToInt() shouldBe 1165
+    turnedCanvas(turn, TURNED_HEIGHT) shouldBe Size((TURNED_HEIGHT * exact).roundToInt(), TURNED_HEIGHT)
+    turnedCanvas(turn, TURNED_HEIGHT).width shouldBe 1166
   }
 
   // A height the spec asks for moves the frame along the aspect the canvas was asked for, whichever clip is first.
@@ -282,6 +291,7 @@ class FrameRuleTest {
     val HEIGHTS = listOf(192, 324, 1080, 1920)
     val APP_PAIRS = listOf(listOf(Size(180, 320), Size(320, 180)), listOf(Size(3840, 2160), Size(640, 480)))
     const val SCALED = 324
+    const val TURNED_HEIGHT = 1080
     const val QUARTER_TURN = 90
   }
 }

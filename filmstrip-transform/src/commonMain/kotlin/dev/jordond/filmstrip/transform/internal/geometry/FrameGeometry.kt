@@ -10,14 +10,11 @@ import dev.jordond.filmstrip.effects.geometry.Rotate
 import dev.jordond.filmstrip.effects.geometry.Scale
 import dev.jordond.filmstrip.effects.geometry.applyTo
 import dev.jordond.filmstrip.effects.geometry.retainedRect
+import dev.jordond.filmstrip.effects.geometry.turnedAspect
 import dev.jordond.filmstrip.effects.geometry.turnedFrame
 import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.geometry.Size
-import kotlin.math.PI
-import kotlin.math.abs
-import kotlin.math.cos
 import kotlin.math.roundToInt
-import kotlin.math.sin
 
 // The frame a chain of geometry effects leaves behind, derived once. Every backend has to agree on
 // the frame a clip's own effects hand to the composition's, and on the frame the composition's own
@@ -67,15 +64,7 @@ public fun frameAfter(
   val size = frame.size
   return when (spec) {
     is Rotate -> {
-      val turned = spec.turnedFrame(size)
-      MeasuredFrame(
-        turned,
-        when {
-          spec.degrees % HALF_TURN == 0 -> frame.aspect
-          spec.degrees % QUARTER_TURN == 0 -> 1f / frame.aspect
-          else -> turnedAspect(frame.aspect, spec.degrees)
-        },
-      )
+      MeasuredFrame(spec.turnedFrame(size), spec.turnedAspect(frame.aspect))
     }
     is Flip -> {
       frame
@@ -101,23 +90,6 @@ public fun frameAfter(
     }
   }
 }
-
-/**
- * The aspect of the bounding box of a picture of [aspect] turned by a free angle, from the exact aspect so the pixel
- * rounding [turnedFrame] does is not carried into it.
- */
-private fun turnedAspect(
-  aspect: Float,
-  degrees: Int,
-): Float {
-  val radians = degrees * PI / HALF_TURN
-  val cos = abs(cos(radians))
-  val sin = abs(sin(radians))
-  return ((aspect * cos + sin) / (aspect * sin + cos)).toFloat()
-}
-
-private const val HALF_TURN = 180
-private const val QUARTER_TURN = 90
 
 /**
  * The frame that comes out of [sourceSize] once every stage in [stages] has run.

@@ -17,7 +17,7 @@ import kotlin.time.Duration
  * below the composition's own scales it down, and one at or above it keeps the composition's height, so a frame is
  * never scaled up. Use the `Scale` effect for an exact size. A composition framed by a still takes this height as it
  * is. Null keeps the composition's own height. A height of zero or less is refused. The composition's own frame is the
- * first clip's display size after its effects, then the composition's geometry. A `Crop` and a `Scale` give a
+ * first clip's display size after its effects, then the composition's geometry. A `Crop` followed by a `Scale` gives a
  * frame that does not depend on which clip is first. A height here alone does not, because it never scales up: where
  * it is at or above the composition's own height that is the first clip's, so only `Scale` makes the frame independent
  * of the first clip.
