@@ -68,16 +68,22 @@ class TapePictureEventSettleTest {
         var before: Double? = null
         for (tick in ramp.startTick - 2..ramp.endTick + 2) {
           val params = look.pictureParams(ramp.levelAt(tick), slot.start)
-          // A band's own envelope moves little over a tick, so the steps here are the fade's.
-          val strength = TapePictureSignal.trackingBand(seed, tick, params).strength
-          before?.let { worst = maxOf(worst, abs(strength - it)) }
-          before = strength
+          // The band's strength is its fade times the sine envelope of its window, so the fade is the strength over it.
+          val phase = (tick % TapePictureSignal.trackWindowTicks).toDouble() / TapePictureSignal.trackWindowTicks
+          val envelope = sin(PI * phase)
+          if (envelope < 1e-6) {
+            before = null
+          } else {
+            val fade = TapePictureSignal.trackingBand(seed, tick, params).strength / envelope
+            before?.let { worst = maxOf(worst, abs(fade - it)) }
+            before = fade
+          }
         }
       }
       val bound = 16.0 / ticks
       withClue("$over over $ticks ticks, worst step $worst, bound $bound") {
         worst shouldBeLessThan minOf(1.0, bound) + SLACK
-        worst shouldBeGreaterThan minOf(1.0, bound) / 2
+        worst shouldBeGreaterThan minOf(1.0, bound) * 0.85
       }
     }
   }
@@ -151,7 +157,7 @@ class TapePictureEventSettleTest {
     val Duration10 = 10.seconds
     const val SEEDS = 400
     const val STEP = 0.2
-    const val SLACK = 0.05
+    const val SLACK = 0.001
     const val WINDOWS_TICKS = 2400
   }
 }
