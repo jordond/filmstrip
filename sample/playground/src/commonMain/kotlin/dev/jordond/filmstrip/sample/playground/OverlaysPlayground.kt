@@ -45,6 +45,7 @@ private enum class OverlayTab(
   Caption("CAPTION"),
   Logo("LOGO"),
   Spinner("SPINNER"),
+  Sticker("STICKER"),
   Motion("MOTION"),
 }
 
@@ -55,6 +56,7 @@ private enum class OverlayTab(
  * @param filmstrip Opens the player.
  * @param logo The picture the logo overlay draws.
  * @param sheet The sprite sheet the spinner draws, a 4 by 3 grid of frames.
+ * @param sticker The animated picture the sticker draws in each format.
  * @param copy Puts the code listing on the clipboard.
  */
 @Composable
@@ -62,6 +64,7 @@ internal fun OverlaysPlayground(
   filmstrip: Filmstrip,
   logo: ImageSource,
   sheet: ImageSource,
+  sticker: (StickerFormat) -> ImageSource,
   copy: (String) -> Unit,
 ) {
   var settings by remember { mutableStateOf(OverlaySettings()) }
@@ -74,7 +77,7 @@ internal fun OverlaysPlayground(
       verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
       StatusLine(compare = false, overlaySummary(settings), "OUT 16:9")
-      Picture(filmstrip, tearsOfSteel) { overlaysEdit(it, logo, sheet, settings) }
+      Picture(filmstrip, tearsOfSteel) { overlaysEdit(it, logo, sheet, sticker, settings) }
       tearsOfSteel.attribution?.let { credit ->
         Text("${tearsOfSteel.name} · $credit", style = MaterialTheme.typography.bodySmall, color = Tokens.muted)
       }
@@ -83,6 +86,7 @@ internal fun OverlaysPlayground(
         OverlayTab.Caption -> CaptionControls(settings, columns) { settings = it }
         OverlayTab.Logo -> LogoControls(settings, columns) { settings = it }
         OverlayTab.Spinner -> SpinnerControls(settings) { settings = it }
+        OverlayTab.Sticker -> StickerControls(settings) { settings = it }
         OverlayTab.Motion -> MotionControls(settings, columns) { settings = it }
       }
       CodePanel(overlaysCode(settings), copy)
@@ -199,6 +203,24 @@ private fun SpinnerControls(
 }
 
 @Composable
+private fun StickerControls(
+  settings: OverlaySettings,
+  onChange: (OverlaySettings) -> Unit,
+) {
+  Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
+    LedSwitch("STICKER", settings.sticker) { onChange(settings.copy(sticker = it)) }
+    if (!settings.sticker) return@Column
+    Group("FORMAT", "frames and timing come from the file") {
+      ChipRow {
+        StickerFormat.entries.forEach { format ->
+          Chip(format.label, settings.stickerFormat == format) { onChange(settings.copy(stickerFormat = format)) }
+        }
+      }
+    }
+  }
+}
+
+@Composable
 private fun MotionControls(
   settings: OverlaySettings,
   columns: Int,
@@ -263,6 +285,7 @@ private fun tabColour(tab: OverlayTab): Color =
     OverlayTab.Caption -> Tokens.amber
     OverlayTab.Logo -> Tokens.cyan
     OverlayTab.Spinner -> Tokens.coral
+    OverlayTab.Sticker -> Tokens.vcrHeader
     OverlayTab.Motion -> Tokens.pink
   }
 

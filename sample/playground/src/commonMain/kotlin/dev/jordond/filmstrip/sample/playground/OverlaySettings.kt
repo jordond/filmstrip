@@ -60,8 +60,20 @@ internal enum class SpinnerPlays(
 }
 
 /**
- * What the overlays sample draws: a caption, a logo in a corner, a spinner drawn from a sprite sheet, how the caption
- * and logo move and when they show.
+ * The file the sticker is read from. Each holds the same 24 frame bouncing star, so only the format changes.
+ */
+internal enum class StickerFormat(
+  val label: String,
+  val file: String,
+) {
+  Gif("GIF", "sticker.gif"),
+  Webp("WEBP", "sticker.webp"),
+  Apng("APNG", "sticker.png"),
+}
+
+/**
+ * What the overlays sample draws: a caption, a logo in a corner, a spinner drawn from a sprite sheet, an animated
+ * sticker, how the caption and logo move and when they show.
  */
 internal data class OverlaySettings(
   val caption: Boolean = true,
@@ -77,6 +89,8 @@ internal data class OverlaySettings(
   val spinner: Boolean = false,
   val spinnerPlays: SpinnerPlays = SpinnerPlays.Forever,
   val spinnerFrameMs: Int = DEFAULT_SPINNER_FRAME_MS,
+  val sticker: Boolean = false,
+  val stickerFormat: StickerFormat = StickerFormat.Gif,
   val motion: OverlayMotion = OverlayMotion.Fade,
   val window: OverlayWindow = OverlayWindow.Timed,
 ) {
@@ -122,13 +136,14 @@ internal fun animationOf(motion: OverlayMotion): OverlayAnimation? =
   }
 
 /**
- * The edit [settings] describe over [source], with [logo] as the picture in the corner and [sheet] as the sprite
- * sheet the spinner draws.
+ * The edit [settings] describe over [source], with [logo] as the picture in the corner, [sheet] as the sprite sheet
+ * the spinner draws and [sticker] giving the animated picture for each format.
  */
 internal fun overlaysEdit(
   source: MediaSource,
   logo: ImageSource,
   sheet: ImageSource,
+  sticker: (StickerFormat) -> ImageSource,
   settings: OverlaySettings,
 ): Composition =
   compositionOf {
@@ -169,6 +184,13 @@ internal fun overlaysEdit(
             ),
         )
       }
+      if (settings.sticker) {
+        imageOverlay(
+          image = sticker(settings.stickerFormat),
+          corner = Corner.BottomEnd,
+          visibleDuring = window,
+        )
+      }
     }
   }
 
@@ -188,13 +210,12 @@ internal fun overlaysCode(settings: OverlaySettings): List<List<CodePart>> {
   return buildList {
     if (settings.logo) add(frame("val logo = ImageSource.ofUri(\"logo.png\")"))
     if (settings.spinner) add(frame("val spinner = ImageSource.ofUri(\"sheet.png\")"))
+    if (settings.sticker) add(frame("val sticker = ImageSource.ofUri(\"${settings.stickerFormat.file}\")"))
     addAll(animationCode(settings.motion))
     add(frame("clip(tearsOfSteel)"))
     add(frame("effects {"))
-    if (!settings.caption && !settings.logo &&
-      !settings.spinner
-    ) {
-      add(listOf(CodePart("  // Turn on a caption, a logo or a spinner", CodeKind.Comment)))
+    if (!settings.caption && !settings.logo && !settings.spinner && !settings.sticker) {
+      add(listOf(CodePart("  // Turn on a caption, a logo, a spinner or a sticker", CodeKind.Comment)))
     }
     if (settings.caption) {
       add(call("  textOverlay("))
@@ -221,6 +242,13 @@ internal fun overlaysCode(settings: OverlaySettings): List<List<CodePart>> {
       add(argument("corner", "Corner.BottomStart"))
       at?.let { add(argument("at", it)) }
       add(argument("sheet", spinnerSheetCode(settings)))
+      add(call("  )"))
+    }
+    if (settings.sticker) {
+      add(call("  imageOverlay("))
+      add(argument("image", "sticker"))
+      add(argument("corner", "Corner.BottomEnd"))
+      at?.let { add(argument("at", it)) }
       add(call("  )"))
     }
     add(frame("}"))
@@ -322,6 +350,7 @@ internal fun overlaySummary(settings: OverlaySettings): String {
       if (settings.caption) add("CAPTION")
       if (settings.logo) add("LOGO")
       if (settings.spinner) add("SPINNER")
+      if (settings.sticker) add("STICKER")
       if (isEmpty()) return "NO OVERLAYS"
       if (settings.motion != OverlayMotion.None) add(settings.motion.label)
     }

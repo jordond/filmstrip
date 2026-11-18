@@ -96,6 +96,7 @@ class OverlaySettingsTest {
         MediaSource.of("clip.mp4"),
         ImageSource.ofUri("logo.png"),
         sheet,
+        ::stickerOf,
         settings.copy(spinnerPlays = SpinnerPlays.Once),
       )
     val overlay = edit.effects.filterIsInstance<ImageOverlay>().single()
@@ -114,8 +115,38 @@ class OverlaySettingsTest {
         MediaSource.of("clip.mp4"),
         ImageSource.ofUri("logo.png"),
         ImageSource.ofUri("sheet.png"),
+        ::stickerOf,
         OverlaySettings(),
       )
     edit.effects.filterIsInstance<ImageOverlay>().map { it.sheet } shouldBe listOf(null)
   }
+
+  @Test
+  fun `a sticker reaches the code and the summary`() {
+    val settings = OverlaySettings(sticker = true, stickerFormat = StickerFormat.Webp)
+    val code = codeText(overlaysCode(settings))
+    code shouldContain "val sticker = ImageSource.ofUri(\"sticker.webp\")"
+    code shouldContain "    image = sticker,"
+    code shouldContain "    corner = Corner.BottomEnd,"
+    overlaySummary(settings) shouldBe "CAPTION · LOGO · STICKER · FADE"
+  }
+
+  @Test
+  fun `the edit draws the sticker in the format the settings pick with no sheet`() {
+    val settings = OverlaySettings(caption = false, logo = false, sticker = true, stickerFormat = StickerFormat.Apng)
+    val edit =
+      overlaysEdit(
+        MediaSource.of("clip.mp4"),
+        ImageSource.ofUri("logo.png"),
+        ImageSource.ofUri("sheet.png"),
+        ::stickerOf,
+        settings,
+      )
+    val overlay = edit.effects.filterIsInstance<ImageOverlay>().single()
+    overlay.image shouldBe stickerOf(StickerFormat.Apng)
+    overlay.corner shouldBe Corner.BottomEnd
+    overlay.sheet shouldBe null
+  }
+
+  private fun stickerOf(format: StickerFormat): ImageSource = ImageSource.ofUri(format.file)
 }
