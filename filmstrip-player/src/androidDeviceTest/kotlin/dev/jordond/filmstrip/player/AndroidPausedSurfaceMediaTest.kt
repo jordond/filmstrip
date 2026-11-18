@@ -18,6 +18,7 @@ import dev.jordond.filmstrip.player.internal.surfaceRepresents
 import dev.jordond.filmstrip.test.TestFrame
 import dev.jordond.filmstrip.test.assertFramesDiffer
 import dev.jordond.filmstrip.test.assertFramesSimilar
+import dev.jordond.filmstrip.test.compareFrames
 import io.kotest.assertions.withClue
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.nulls.shouldNotBeNull
@@ -29,6 +30,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import java.util.concurrent.CopyOnWriteArrayList
 import kotlin.coroutines.resume
 import kotlin.test.Test
@@ -36,6 +38,7 @@ import kotlin.test.fail
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.minutes
+import kotlin.time.Duration.Companion.seconds
 
 /**
  * What a `SurfaceView` shows once its surface changes under a preview that is not playing.
@@ -103,6 +106,10 @@ class AndroidPausedSurfaceMediaTest {
 
   /**
    * A preview that ran to its end holds its last slot, with nothing queued behind it for a new surface to be given.
+   *
+   * The new surface is read until it shows the last slot, since a loaded emulator can take a while to draw it. A
+   * preview that played its last frames out again ends on that slot too, so the end is held to having been reported
+   * once and never left.
    */
   @Test
   fun aSurfaceHiddenAndShownUnderAPreviewThatRanToItsEndShowsTheLastSlot() =
@@ -117,26 +124,38 @@ class AndroidPausedSurfaceMediaTest {
       rig.player.play()
       awaitOrFail("the preview to run to its end") { rig.player.state.value.status == PlaybackStatus.Ended }
       delay(SETTLE)
+      val endings = rig.endings
+      val statuses = CopyOnWriteArrayList<PlaybackStatus>()
+      val watch = launch { rig.player.state.collect { statuses += it.status } }
 
       rig.activity.hideSurface()
       awaitOrFail("the surface to be destroyed") { !rig.view.holder.surface.isValid }
       rig.activity.showSurface()
       awaitOrFail("the view to be given a surface again") { rig.view.holder.surface.isValid }
-      delay(SETTLE)
 
       val last = outputSlotTime(outputSlotOf(length, FIXTURE_FRAME_RATE) - 1, FIXTURE_FRAME_RATE)
       val exported = androidExportFrame(androidPannedClipComposition(), last)
-      assertFramesSimilar(
-        exported,
-        rig.view.copyPixels(FIXTURE_FRAME),
-        MIN_PSNR_DB,
-        MIN_SSIM,
-        "the surface does not show the last slot",
-      )
+      var shown = rig.view.copyPixels(FIXTURE_FRAME)
+      withTimeoutOrNull(DRAW_BUDGET) {
+        while (!exported.looksLike(shown)) {
+          delay(SETTLE)
+          shown = rig.view.copyPixels(FIXTURE_FRAME)
+        }
+      }
+      assertFramesSimilar(exported, shown, MIN_PSNR_DB, MIN_SSIM, "the surface does not show the last slot")
+      delay(SETTLE)
+      watch.cancel()
+      withClue("the preview left its end: $statuses") { statuses.all { it == PlaybackStatus.Ended } shouldBe true }
+      withClue("the end was reported again") { rig.endings shouldBe endings }
       withClue("the preview stopped saying it had ended") {
         rig.player.state.value.status shouldBe PlaybackStatus.Ended
       }
     }
+
+  private fun TestFrame.looksLike(shown: TestFrame): Boolean {
+    val comparison = compareFrames(this, shown)
+    return comparison.psnrDb >= MIN_PSNR_DB && comparison.ssim >= MIN_SSIM
+  }
 
   /**
    * The fixture stores a frame past the panned clip's end ahead of the last ones shown before it, and a seek onto one
@@ -215,6 +234,7 @@ class AndroidPausedSurfaceMediaTest {
   ) {
     val view: SurfaceView get() = activity.surfaceView
     val seeksCompleted: Int get() = events.count { it is PlaybackEvent.SeekCompleted }
+    val endings: Int get() = events.count { it is PlaybackEvent.Ended }
     val engine: Media3PlayerEngine
       get() = withClue("no engine") { engineFor(player.nativePlayer as CompositionPlayer).shouldNotBeNull() }
 
@@ -240,6 +260,9 @@ class AndroidPausedSurfaceMediaTest {
 
     // Past the 250 ms an emulator takes to composite what the player drew.
     val SETTLE: Duration = 700.milliseconds
+
+    // How long a surface handed back is given to draw the slot it holds, on an emulator slowed by the runner.
+    val DRAW_BUDGET: Duration = 10.seconds
 
     // A slot inside the panned clip, where the frames either side are a different picture.
     val PANNED_SLOT: Duration =
