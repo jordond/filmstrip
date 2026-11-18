@@ -34,7 +34,7 @@ internal suspend fun exifOrientationOf(
  * recognises it.
  *
  * Read off the magic bytes, because a source handed over as bytes carries no name and no type of its
- * own for anything to read one out of. A JPEG, PNG or WebP is named from its [PictureContainer], and a GIF or BMP,
+ * own for anything to read one out of. A JPEG, PNG, WebP or GIF is named from its [PictureContainer], and a BMP,
  * which no reader in core steps through, from its own signature. Any other container is left unnamed.
  */
 internal fun imageMediaTypeOf(header: ByteArray): String {
@@ -49,18 +49,16 @@ internal fun imageMediaTypeOf(header: ByteArray): String {
     PictureContainer.Webp -> {
       "image/webp"
     }
+    PictureContainer.Gif -> {
+      "image/gif"
+    }
     PictureContainer.Tiff, PictureContainer.JxlCodestream, PictureContainer.JxlBoxed, PictureContainer.Heif -> {
       ""
     }
     null -> {
-      when {
-        view.matches(0, GIF_SIGNATURE) -> "image/gif"
-        view.matches(0, BMP_SIGNATURE) -> "image/bmp"
-        else -> ""
-      }
+      if (view.matches(0, BMP_SIGNATURE)) "image/bmp" else ""
     }
   }
 }
 
-private val GIF_SIGNATURE = ascii("GIF8")
 private val BMP_SIGNATURE = ascii("BM")

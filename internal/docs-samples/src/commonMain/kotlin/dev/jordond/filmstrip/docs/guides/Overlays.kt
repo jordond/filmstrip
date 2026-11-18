@@ -5,6 +5,7 @@ import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.effects.overlay.OverlayAnimation
 import dev.jordond.filmstrip.effects.overlay.OverlayFrame
 import dev.jordond.filmstrip.effects.overlay.OverlayOffset
+import dev.jordond.filmstrip.effects.overlay.SpriteSheet
 import dev.jordond.filmstrip.effects.overlay.fade
 import dev.jordond.filmstrip.effects.overlay.imageOverlay
 import dev.jordond.filmstrip.effects.overlay.plus
@@ -12,6 +13,7 @@ import dev.jordond.filmstrip.effects.overlay.slideIn
 import dev.jordond.filmstrip.effects.overlay.textOverlay
 import dev.jordond.filmstrip.geometry.Anchor
 import dev.jordond.filmstrip.geometry.Corner
+import dev.jordond.filmstrip.media.FramePlays
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.style.FontWeight
@@ -106,4 +108,86 @@ internal fun pulse(): OverlayAnimation {
     }
   // endregion
   return pulse
+}
+
+internal fun spinner(): Composition {
+  // region sheet
+  val composition =
+    compositionOf {
+      clip(MediaSource.of("/path/to/clip.mp4"))
+      effects {
+        imageOverlay(
+          image = ImageSource.of("/path/to/spinner.png"),
+          corner = Corner.TopEnd,
+          scale = 0.1f,
+          sheet = SpriteSheet(columns = 4, rows = 3, frameDuration = 80.milliseconds),
+        )
+      }
+    }
+  // endregion
+  return composition
+}
+
+internal fun burst(): Composition {
+  // region sheetOnce
+  val composition =
+    compositionOf {
+      clip(MediaSource.of("/path/to/clip.mp4"))
+      effects {
+        imageOverlay(
+          image = ImageSource.of("/path/to/burst.png"),
+          corner = Corner.BottomStart,
+          at = 2.seconds..5.seconds,
+          sheet =
+            SpriteSheet(
+              columns = 4,
+              rows = 3,
+              frameDuration = 60.milliseconds,
+              frameCount = 10,
+              plays = FramePlays.Once,
+            ),
+        )
+      }
+    }
+  // endregion
+  return composition
+}
+
+internal fun timedSheet(): Composition {
+  // region sheetDurations
+  val sheet =
+    SpriteSheet(
+      columns = 4,
+      rows = 3,
+      frameDurations = listOf(100.milliseconds, 30.milliseconds, 250.milliseconds, 40.milliseconds, 70.milliseconds),
+      plays = FramePlays.Times(3),
+    )
+
+  val composition =
+    compositionOf {
+      clip(MediaSource.of("/path/to/clip.mp4"))
+      effects {
+        imageOverlay(image = ImageSource.of("/path/to/blink.png"), corner = Corner.TopStart, sheet = sheet)
+      }
+    }
+  // endregion
+  return composition
+}
+
+internal fun sticker(): Composition {
+  // region sticker
+  val composition =
+    compositionOf {
+      clip(MediaSource.of("/path/to/clip.mp4"))
+      effects {
+        imageOverlay(
+          image = ImageSource.of("/path/to/sticker.gif"),
+          corner = Corner.BottomEnd,
+          scale = 0.25f,
+          at = 2.seconds..6.seconds,
+        )
+      }
+    }
+  // endregion
+  return composition
 }

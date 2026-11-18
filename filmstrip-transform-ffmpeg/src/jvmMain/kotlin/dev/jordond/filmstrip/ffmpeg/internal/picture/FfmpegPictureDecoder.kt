@@ -64,6 +64,11 @@ internal actual fun decodingOverlayPictures(
  * untouched into ffmpeg's `framecrc` muxer, which decodes the frame and writes its size without encoding a picture, so
  * it is the size the decode hands back at a fraction of its cost.
  *
+ * A still WebP is decoded by [decodedWebpStills], and [decodeAll] reads any number of them in one child. A lossless one
+ * is handed back as a PNG as any other picture is. A lossy one is read as the decoder's own `yuv420p` or `yuva420p`
+ * planes and converted by core, since swscale's conversion moves its colors and can lose the last column of an odd
+ * width. [decodeAll] reads every other picture with [decode].
+ *
  * A picture whose file carries an alpha item, as [heifAlpha] reads it, runs one more read that decodes that item's
  * coded images straight out of the file, alone or put together by [alphaAssembly], as a sixteen-bit grey PNG, and its
  * codes become the alpha of every texel either route hands back. A file that records its color as premultiplied by the
@@ -105,6 +110,10 @@ internal class FfmpegPictureDecoder(
   override fun decode(image: ImageSource): OverlayPictureDecode<DecodedPicture> {
     val deadline = deadlineFromNow()
     val bytes = encodedBytes(image)
+    val still = bytes?.let(::webpStillOf)
+    if (bytes != null && still is WebpStill.Lossy) {
+      return decodedWebpStills(ffmpeg, listOf(bytes to still), deadline, timeoutMillis, scratch, write).single()
+    }
     val alpha = bytes?.let(::heifAlpha)
     alpha?.refusal?.let { return OverlayPictureRead.Refused(it) }
     val route = pictureRoute(bytes?.let(::pictureYcbcrCoding))
@@ -124,6 +133,18 @@ internal class FfmpegPictureDecoder(
         }
       }
     }
+  }
+
+  override fun decodeAll(images: List<ImageSource>): List<OverlayPictureDecode<DecodedPicture>> {
+    val deadline = deadlineFromNow()
+    val stills =
+      images.map { image ->
+        val bytes = encodedBytes(image)
+        bytes?.let(::webpStillOf)?.let { bytes to it }
+      }
+    val decoded =
+      decodedWebpStills(ffmpeg, stills.filterNotNull(), deadline, timeoutMillis, scratch, write).iterator()
+    return images.mapIndexed { index, image -> if (stills[index] == null) decode(image) else decoded.next() }
   }
 
   // The first frame of [image] decoded the way [read] says, with the plane of [alpha] drawn over it by [draw]. Its

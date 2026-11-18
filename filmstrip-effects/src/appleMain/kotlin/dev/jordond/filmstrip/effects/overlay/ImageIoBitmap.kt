@@ -1,20 +1,24 @@
 package dev.jordond.filmstrip.effects.overlay
 
 import dev.jordond.filmstrip.picture.PICTURE_PEAK_CEILING
+import dev.jordond.filmstrip.picture.animated.FrameSamples
 import dev.jordond.filmstrip.picture.picturePeakBytes
 import kotlinx.cinterop.ByteVar
 import kotlinx.cinterop.CPointer
 import kotlinx.cinterop.ExperimentalForeignApi
+import kotlinx.cinterop.addressOf
 import kotlinx.cinterop.convert
 import kotlinx.cinterop.get
 import kotlinx.cinterop.reinterpret
 import kotlinx.cinterop.set
+import kotlinx.cinterop.usePinned
 import platform.CoreFoundation.CFDataCreateWithBytesNoCopy
 import platform.CoreFoundation.CFDataGetBytePtr
 import platform.CoreFoundation.CFDataGetLength
 import platform.CoreFoundation.CFDataRef
 import platform.CoreFoundation.CFRelease
 import platform.CoreFoundation.kCFAllocatorMalloc
+import platform.CoreGraphics.CGColorRenderingIntent
 import platform.CoreGraphics.CGColorSpaceCreateDeviceRGB
 import platform.CoreGraphics.CGColorSpaceGetNumberOfComponents
 import platform.CoreGraphics.CGColorSpaceRelease
@@ -50,6 +54,7 @@ import platform.ImageIO.CGImageSourceGetPrimaryImageIndex
 import platform.ImageIO.CGImageSourceRef
 import platform.posix.free
 import platform.posix.malloc
+import platform.posix.memcpy
 
 /**
  * What reading an overlay picture got, either the value read or why it could not be read.
@@ -294,6 +299,59 @@ internal fun CGImageRef.imageOf(
   CGColorSpaceRelease(space)
   CGDataProviderRelease(provider)
   return image?.let { PictureRead.Read(it) } ?: PictureRead.Refused(NO_COPY)
+}
+
+/**
+ * These composited samples as one frame's codes, straight alpha and with no color space, at eight bits a sample or at
+ * sixteen when [FrameSamples.sixteenBit] says the file stores them, or refused when the bytes cannot be allocated.
+ *
+ * The samples are copied into a buffer of their own, since the compositor draws over [FrameSamples] once the frame is
+ * handed on. Core Graphics reads that buffer for as long as the image lives and frees it after.
+ */
+@OptIn(ExperimentalForeignApi::class)
+internal fun FrameSamples.frameCodes(): PictureRead<HeldCodes> {
+  val depth = if (sixteenBit) SIXTEEN else EIGHT
+  val count = rgba.size
+  val size = bytesOf(count.toLong() * (depth / BYTE_BITS), 1L) ?: return PictureRead.Refused(NO_COPY)
+  val buffer: CPointer<ByteVar> = malloc(size.convert())?.reinterpret() ?: return PictureRead.Refused(NO_COPY)
+  if (sixteenBit) {
+    rgba.usePinned { memcpy(buffer, it.addressOf(0), size.convert()) }
+  } else {
+    for (index in 0 until count) {
+      buffer[index] = (((rgba[index].toInt() and SAMPLE_MASK) + EIGHT_BIT_STEP / 2) / EIGHT_BIT_STEP).toByte()
+    }
+  }
+  val data = CFDataCreateWithBytesNoCopy(null, buffer.reinterpret(), size, kCFAllocatorMalloc)
+  if (data == null) {
+    free(buffer)
+    return PictureRead.Refused(NO_COPY)
+  }
+  val straightLast = CGImageAlphaInfo.kCGImageAlphaLast.value
+  val info = if (sixteenBit) straightLast or kCGBitmapByteOrder16Little else straightLast
+  try {
+    val provider = CGDataProviderCreateWithCFData(data) ?: return PictureRead.Refused(NO_COPY)
+    val space = CGColorSpaceCreateDeviceRGB()
+    val image =
+      CGImageCreate(
+        width = width.toULong(),
+        height = height.toULong(),
+        bitsPerComponent = depth.toULong(),
+        bitsPerPixel = (RGBA * depth).toULong(),
+        bytesPerRow = (width.toLong() * RGBA * (depth / BYTE_BITS)).toULong(),
+        space = space,
+        bitmapInfo = info,
+        provider = provider,
+        decode = null,
+        shouldInterpolate = false,
+        intent = CGColorRenderingIntent.kCGRenderingIntentDefault,
+      )
+    CGColorSpaceRelease(space)
+    CGDataProviderRelease(provider)
+    if (image == null) return PictureRead.Refused(NO_COPY)
+    return PictureRead.Read(image.heldCodes()).also { CGImageRelease(image) }
+  } finally {
+    CFRelease(data)
+  }
 }
 
 /**

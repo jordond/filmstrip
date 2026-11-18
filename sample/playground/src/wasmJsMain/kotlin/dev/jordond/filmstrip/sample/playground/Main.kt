@@ -25,13 +25,14 @@ fun main() {
   val filmstrip = Filmstrip()
   val copy: (String) -> Unit = { window.navigator.clipboard.writeText(it) }
   val logo = ImageSource.ofUri(URL("logo.png", window.location.href).href)
+  val sheet = ImageSource.ofUri(URL("sheet.png", window.location.href).href)
   val sample = URLSearchParams(window.location.search.toJsString()).get("sample")
   ComposeViewport(document.body!!) {
     SampleTheme {
       when (sample) {
         "effects" -> EffectsPlayground(filmstrip, copy)
         "filters" -> FiltersPlayground(filmstrip, copy)
-        "overlays" -> OverlaysPlayground(filmstrip, logo, copy)
+        "overlays" -> OverlaysPlayground(filmstrip, logo, sheet, copy)
         else -> Text("No sample called $sample", style = MaterialTheme.typography.bodyMedium, color = Tokens.red)
       }
     }

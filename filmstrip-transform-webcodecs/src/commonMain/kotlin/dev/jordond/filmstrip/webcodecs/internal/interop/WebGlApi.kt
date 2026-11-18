@@ -141,6 +141,22 @@ internal external interface WebGl2 : JsAny {
     pixels: JsAny?,
   )
 
+  /**
+   * Overwrites a rectangle of the bound texture from [pixels], so a texture too large to hand over in one piece is
+   * uploaded band by band.
+   */
+  fun texSubImage2D(
+    target: Int,
+    level: Int,
+    xoffset: Int,
+    yoffset: Int,
+    width: Int,
+    height: Int,
+    format: Int,
+    type: Int,
+    pixels: JsAny,
+  )
+
   fun deleteTexture(texture: JsAny?)
 
   fun isTexture(texture: JsAny?): Boolean

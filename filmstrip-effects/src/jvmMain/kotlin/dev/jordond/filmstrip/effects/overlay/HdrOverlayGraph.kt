@@ -76,6 +76,9 @@ internal fun PlacedPicture.gradedOverlay(
     return AuxInput(
       ImageSource.ofBytes(graded.raster.png),
       buildList {
+        if (flipbook != null && rate != null) {
+          addAll(cellNodes(flipbook, animated, rate, attributes.span, HDR_OVERLAY_RGBA))
+        }
         if (window.sized) add(FilterNode("format", "pix_fmts" to HDR_OVERLAY_RGBA))
         if (fadesFirst) addAll(alpha)
         add(scaleNode(window.width, window.height, rate))
@@ -85,11 +88,14 @@ internal fun PlacedPicture.gradedOverlay(
         addAll(layout.windowNodes(window, rate))
       },
       if (moving) attributes.auxTimeline() else null,
+      repeatOf(flipbook),
     )
   }
 
-  val picture = branch(mask = false, moving = window.moves)
-  val mask = branch(mask = true, moving = window.moves || fading || gate.isNotEmpty())
+  // A flipbook's cell moves the picture and the mask both, and each has to be repeated for the frames it cuts.
+  val moves = window.moves || flipbook != null
+  val picture = branch(mask = false, moving = moves)
+  val mask = branch(mask = true, moving = moves || fading || gate.isNotEmpty())
 
   return hdrOverlayFragment(graded.transfer, layout, picture, mask)
 }
@@ -197,8 +203,8 @@ internal fun hdrOverlayFragment(
     // sixteen-bit RGBA right before its lanes, and the mask's colorchannelmixer runs where the alpha it reads still is.
     auxInputs =
       listOf(
-        AuxInput(picture.image, picture.chain + OPAQUE_TO_FLOAT + light, picture.timeline),
-        AuxInput(mask.image, mask.chain + ALPHA_TO_RGB + RGBA_TO_FLOAT, mask.timeline),
+        AuxInput(picture.image, picture.chain + OPAQUE_TO_FLOAT + light, picture.timeline, picture.repeat),
+        AuxInput(mask.image, mask.chain + ALPHA_TO_RGB + RGBA_TO_FLOAT, mask.timeline, mask.repeat),
       ),
     merge = FilterNode("maskedmerge"),
     post = listOf(encode) + tables.shiftedSignalToGrade(alpha = true),

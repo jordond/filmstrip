@@ -46,6 +46,7 @@ import java.io.File
 import kotlin.io.path.createTempDirectory
 import kotlin.test.AfterTest
 import kotlin.test.Test
+import kotlin.time.Duration.Companion.milliseconds
 
 /**
  * An overlay picture named by path is read when the export lowers, and that read is what the export draws.
@@ -359,7 +360,7 @@ class FfmpegOverlayPictureAtExportMediaTest {
   }
 
   @Test
-  fun `an animated GIF draws its first frame on every frame of the export`() =
+  fun `an animated GIF plays its first frame and then holds its last`() =
     runTest(timeout = TIMEOUT) {
       if (!fixture.available()) return@runTest
       val gif =
@@ -373,7 +374,12 @@ class FfmpegOverlayPictureAtExportMediaTest {
       val output = exported(engine, plan)
       val size = plan.output.size
       val probe = centreOf(badge.placedOn(size, OVERLAY_SIZE).rectOn(size), size)
-      assertReads(writtenFrames(output.path, probe = probe), channelsOf(OVERLAY_COLOR), "the GIF")
+      val frames = writtenFrames(output.path, probe = probe)
+      assertReads(frames.filter { it.time < GIF_FIRST_ENDS }, channelsOf(OVERLAY_COLOR), "the GIF's first frame")
+      assertReads(frames.filter { it.time >= GIF_HELD_FROM }, channelsOf(SWAPPED_COLOR), "the GIF's held last frame")
+      withClue("frames read on both sides of the change") {
+        (frames.any { it.time < GIF_FIRST_ENDS } && frames.any { it.time >= GIF_HELD_FROM }) shouldBe true
+      }
     }
 
   private fun encodedAs(
@@ -463,6 +469,11 @@ class FfmpegOverlayPictureAtExportMediaTest {
 
   private companion object {
     const val SWAPPED_COLOR = 0xFF20C040.toInt()
+
+    // The two-frame GIF shows its first frame for 40 ms, so a frame written before 30 ms is the first and one from
+    // 80 ms on is the held second.
+    val GIF_FIRST_ENDS = 30.milliseconds
+    val GIF_HELD_FROM = 80.milliseconds
     val SWAPPED_SIZE = Size(128, 32)
     const val LOSSY_TOLERANCE = 8
     const val WHITE = 0xFFFFFFFF.toInt()

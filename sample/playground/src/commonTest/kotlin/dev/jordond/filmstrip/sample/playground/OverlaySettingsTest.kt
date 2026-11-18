@@ -1,11 +1,16 @@
 package dev.jordond.filmstrip.sample.playground
 
+import dev.jordond.filmstrip.effects.overlay.ImageOverlay
 import dev.jordond.filmstrip.geometry.Corner
+import dev.jordond.filmstrip.media.FramePlays
+import dev.jordond.filmstrip.media.ImageSource
+import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.style.FontWeight
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.string.shouldNotContain
 import kotlin.test.Test
+import kotlin.time.Duration.Companion.milliseconds
 
 class OverlaySettingsTest {
   @Test
@@ -61,5 +66,56 @@ class OverlaySettingsTest {
     overlaySummary(OverlaySettings()) shouldBe "CAPTION · LOGO · FADE"
     overlaySummary(OverlaySettings(logo = false, motion = OverlayMotion.None)) shouldBe "CAPTION"
     overlaySummary(OverlaySettings(caption = false, logo = false)) shouldBe "NO OVERLAYS"
+  }
+
+  @Test
+  fun `a spinner reaches the code and the summary`() {
+    val settings = OverlaySettings(spinner = true, spinnerPlays = SpinnerPlays.Once, spinnerFrameMs = 40)
+    val code = codeText(overlaysCode(settings))
+    code shouldContain "val spinner = ImageSource.ofUri(\"sheet.png\")"
+    code shouldContain "    image = spinner,"
+    code shouldContain "    corner = Corner.BottomStart,"
+    code shouldContain
+      "    sheet = SpriteSheet(columns = 4, rows = 3, frameDuration = 40.milliseconds, plays = FramePlays.Once),"
+    overlaySummary(settings) shouldBe "CAPTION · LOGO · SPINNER · FADE"
+  }
+
+  @Test
+  fun `a looping spinner leaves plays out`() {
+    val code = codeText(overlaysCode(OverlaySettings(spinner = true)))
+    code shouldContain "frameDuration = 80.milliseconds)"
+    code shouldNotContain "plays ="
+  }
+
+  @Test
+  fun `the edit carries the spinner sheet with the settings duration and plays`() {
+    val sheet = ImageSource.ofUri("sheet.png")
+    val settings = OverlaySettings(caption = false, logo = false, spinner = true, spinnerFrameMs = 160)
+    val edit =
+      overlaysEdit(
+        MediaSource.of("clip.mp4"),
+        ImageSource.ofUri("logo.png"),
+        sheet,
+        settings.copy(spinnerPlays = SpinnerPlays.Once),
+      )
+    val overlay = edit.effects.filterIsInstance<ImageOverlay>().single()
+    overlay.image shouldBe sheet
+    overlay.sheet?.columns shouldBe 4
+    overlay.sheet?.rows shouldBe 3
+    overlay.sheet?.frameCount shouldBe 12
+    overlay.sheet?.frameDurations?.toSet() shouldBe setOf(160.milliseconds)
+    overlay.sheet?.plays shouldBe FramePlays.Once
+  }
+
+  @Test
+  fun `a spinner that is off leaves no sheet in the edit`() {
+    val edit =
+      overlaysEdit(
+        MediaSource.of("clip.mp4"),
+        ImageSource.ofUri("logo.png"),
+        ImageSource.ofUri("sheet.png"),
+        OverlaySettings(),
+      )
+    edit.effects.filterIsInstance<ImageOverlay>().map { it.sheet } shouldBe listOf(null)
   }
 }

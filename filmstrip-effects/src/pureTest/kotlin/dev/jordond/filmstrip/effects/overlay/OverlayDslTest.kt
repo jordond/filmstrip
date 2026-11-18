@@ -4,11 +4,13 @@ import dev.jordond.filmstrip.edit.EffectsBuilder
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.geometry.Corner
+import dev.jordond.filmstrip.media.FramePlays
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaSource
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlin.test.Test
+import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
 class OverlayDslTest {
@@ -23,6 +25,31 @@ class OverlayDslTest {
         .build()
 
     ranged shouldBe timed
+  }
+
+  @Test
+  fun bothImageOverlayOverloadsBuildTheSameSpecForASheet() {
+    val sheet = ImageSource.Path("/fixtures/sheet.png")
+    val flipbook = SpriteSheet(4, 3, 100.milliseconds, frameCount = 10, plays = FramePlays.Times(2))
+
+    val ranged =
+      EffectsBuilder()
+        .imageOverlay(
+          sheet,
+          Corner.TopEnd,
+          at = 1.seconds..3.seconds,
+          sheet = flipbook,
+        ).build()
+    val timed =
+      EffectsBuilder()
+        .imageOverlay(sheet, Corner.TopEnd, visibleDuring = TimeRange.of(1.seconds, 3.seconds), sheet = flipbook)
+        .build()
+    val direct =
+      listOf(ImageOverlay(sheet, Corner.TopEnd, visibleDuring = TimeRange.of(1.seconds, 3.seconds), sheet = flipbook))
+
+    ranged shouldBe timed
+    timed shouldBe direct
+    ranged.single().shouldBeInstanceOf<ImageOverlay>().sheet shouldBe flipbook
   }
 
   @Test

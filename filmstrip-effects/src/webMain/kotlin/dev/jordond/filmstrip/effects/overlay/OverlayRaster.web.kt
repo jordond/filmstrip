@@ -56,6 +56,13 @@ internal sealed interface OverlayDecode {
   ) : OverlayDecode
 
   /**
+   * The image is an animated picture, composited into [atlas].
+   */
+  class Animated(
+    val atlas: AnimatedAtlas,
+  ) : OverlayDecode
+
+  /**
    * The image could not be read or decoded.
    */
   data object Undecodable : OverlayDecode
@@ -248,6 +255,7 @@ private suspend fun pictureOf(
   bytes: ByteArray,
   ceiling: Long,
 ): OverlayDecode {
+  animatedAtlasOf(bytes, ceiling)?.let { return it }
   val orientation = pictureOrientationOf(bytes)
   if (pictureContainerOf(bytes) == PictureContainer.Png) {
     val extent = pngExtent(bytes) ?: return OverlayDecode.Undecodable
@@ -335,17 +343,11 @@ internal fun tooLargeToDecode(
 }
 
 /**
- * The codes of [bitmap] as a canvas reads them back, four bytes a texel, red, green, blue then alpha, row by row from
- * the top left, or null when no canvas context is to be had.
+ * The straight codes of [bitmap], four bytes a texel, red, green, blue then alpha, row by row from the top left, or
+ * null when no WebGL2 context is to be had. A bitmap decoded by [bitmapOf] keeps its codes unpremultiplied, so they are
+ * the ones the picture stores at any alpha.
  */
-internal fun codesOf(bitmap: ImageBitmap): ByteArray? {
-  val context = OffscreenCanvas(bitmap.width, bitmap.height).getContext(CONTEXT_2D) ?: return null
-  context.drawImage(bitmap, 0.0, 0.0)
-  return context
-    .getImageData(0, 0, bitmap.width, bitmap.height)
-    .data.buffer
-    .toByteArray()
-}
+internal fun codesOf(bitmap: ImageBitmap): ByteArray? = straightCodesOf(bitmap)
 
 /**
  * The most time one fetch of an overlay picture may take, from the request to the last byte of its body.

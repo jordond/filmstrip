@@ -111,7 +111,7 @@ internal fun Bitmap.rasterFor(
 }
 
 // Straight sixteen-bit RGBA samples of a raster of size, read at their full depth.
-private fun rasterOf(
+internal fun rasterOf(
   samples: ShortArray,
   size: Size,
   transfer: HdrTransfer?,
@@ -129,7 +129,7 @@ private fun sdrRaster(
 
 // getPixels answers unpremultiplied colors whatever the bitmap stores, and setPixels on a bitmap that is not
 // premultiplied keeps the colors it is handed that way.
-private fun straightBitmap(
+internal fun straightBitmap(
   size: Size,
   argb: IntArray,
 ): Bitmap {

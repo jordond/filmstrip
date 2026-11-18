@@ -61,7 +61,7 @@ private suspend fun PictureWalk.extent(): Size? =
     PictureContainer.Tiff -> tiffExtent()
     PictureContainer.JxlCodestream, PictureContainer.JxlBoxed -> jxlHeaderOf(jxlCodestreamHead(container)).size
     PictureContainer.Heif -> heifMeta()?.let(::heifExtent)
-    null -> null
+    PictureContainer.Gif, null -> null
   }
 
 private val PngExtent.size: Size get() = Size(width, height)

@@ -155,3 +155,7 @@ public fun OverlayPlacement.animatedBy(frame: OverlayFrame): OverlayPlacement {
 // neither is clamped into anything a backend can draw. Both read as the value that leaves the
 // property as it was authored.
 private fun Float.orUnchanged(unchanged: Float): Float = if (isFinite()) this else unchanged
+
+// The output rate the planner resolved, which it carries as a Float holding a whole number.
+internal val Attributes.gridRate: Int?
+  get() = frameRate?.takeIf { it > 0f }?.roundToInt()

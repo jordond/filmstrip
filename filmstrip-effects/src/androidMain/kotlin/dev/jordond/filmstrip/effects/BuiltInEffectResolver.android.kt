@@ -28,10 +28,14 @@ import dev.jordond.filmstrip.effects.geometry.KenBurnsTransformation
 import dev.jordond.filmstrip.effects.geometry.Rotate
 import dev.jordond.filmstrip.effects.geometry.Scale
 import dev.jordond.filmstrip.effects.geometry.retainedRect
+import dev.jordond.filmstrip.effects.overlay.AnimatedCellsRead
+import dev.jordond.filmstrip.effects.overlay.AnimatedFlipbookRead
+import dev.jordond.filmstrip.effects.overlay.CellBitmaps
 import dev.jordond.filmstrip.effects.overlay.ContextlessPicture
 import dev.jordond.filmstrip.effects.overlay.DecodedPicture
 import dev.jordond.filmstrip.effects.overlay.DecoderLimit
 import dev.jordond.filmstrip.effects.overlay.EncodedPicture
+import dev.jordond.filmstrip.effects.overlay.FlipbookRead
 import dev.jordond.filmstrip.effects.overlay.HalfFloatCurve
 import dev.jordond.filmstrip.effects.overlay.ImageOverlay
 import dev.jordond.filmstrip.effects.overlay.LoweringPictures
@@ -42,13 +46,19 @@ import dev.jordond.filmstrip.effects.overlay.PictureRead
 import dev.jordond.filmstrip.effects.overlay.Raster
 import dev.jordond.filmstrip.effects.overlay.RasterOverlay
 import dev.jordond.filmstrip.effects.overlay.RefusedPicture
+import dev.jordond.filmstrip.effects.overlay.SharedAnimations
+import dev.jordond.filmstrip.effects.overlay.SpriteSheet
 import dev.jordond.filmstrip.effects.overlay.TextOverlay
 import dev.jordond.filmstrip.effects.overlay.TextRaster
 import dev.jordond.filmstrip.effects.overlay.UnreadablePicture
+import dev.jordond.filmstrip.effects.overlay.cutCells
 import dev.jordond.filmstrip.effects.overlay.drawnRangeWithin
 import dev.jordond.filmstrip.effects.overlay.drawnTextSize
 import dev.jordond.filmstrip.effects.overlay.encoded
 import dev.jordond.filmstrip.effects.overlay.fitsTextureSide
+import dev.jordond.filmstrip.effects.overlay.flipbookOver
+import dev.jordond.filmstrip.effects.overlay.flipbookRefusal
+import dev.jordond.filmstrip.effects.overlay.gridRate
 import dev.jordond.filmstrip.effects.overlay.halfFloatCurve
 import dev.jordond.filmstrip.effects.overlay.media3OverlayResolution
 import dev.jordond.filmstrip.effects.overlay.picturePastTextureSide
@@ -57,6 +67,9 @@ import dev.jordond.filmstrip.effects.overlay.rasterFor
 import dev.jordond.filmstrip.effects.overlay.rasterizeText
 import dev.jordond.filmstrip.effects.overlay.read
 import dev.jordond.filmstrip.effects.overlay.resolvedFrom
+import dev.jordond.filmstrip.effects.overlay.sharedAnimation
+import dev.jordond.filmstrip.effects.overlay.sheetAllocationFailed
+import dev.jordond.filmstrip.effects.overlay.sheetCellsRefusal
 import dev.jordond.filmstrip.effects.overlay.size
 import dev.jordond.filmstrip.effects.spatial.GaussianBlur
 import dev.jordond.filmstrip.effects.spatial.SpatialGlEffect
@@ -67,6 +80,7 @@ import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.describe
+import dev.jordond.filmstrip.picture.PictureCrop
 import androidx.media3.effect.Crop as Media3Crop
 
 /**
@@ -74,12 +88,15 @@ import androidx.media3.effect.Crop as Media3Crop
  */
 public actual class BuiltInEffectResolver actual constructor() : EffectResolver {
   private val pictures = LoweringPictures<EncodedPicture> { it.encoded(FilmstripContext.get()) }
+  private val animations = SharedAnimations()
 
   /**
-   * Reads every overlay picture [composition] names by path or URI, so one named twice is one read for this lowering.
+   * Reads every overlay picture [composition] names by path or URI, so one named twice is one read for this lowering,
+   * and holds the frames of every animated picture it names, so one named twice is held once.
    */
   override suspend fun prepare(composition: Composition) {
     pictures.readFor(composition)
+    animations.readFor(composition)
   }
 
   actual override fun resolve(
@@ -141,7 +158,49 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
   private fun ImageOverlay.toOverlay(
     capabilities: RenderCapabilities,
     attributes: Attributes,
-  ): EffectResolution = toOverlay(pictures[image].read(), attributes, capabilities.maxTextureSize)
+  ): EffectResolution {
+    val encoded = pictures[image]
+    if (encoded is EncodedPicture.Read) {
+      val shared = sharedAnimation(animations, encoded.bytes, capabilities.maxTextureSize, attributes)
+      when (val animated = shared.read) {
+        AnimatedFlipbookRead.Still -> Unit
+        is AnimatedFlipbookRead.Refused -> return unsupported(id, animated.message)
+        is AnimatedFlipbookRead.Drawn -> return toAnimatedOverlay(animated, checkNotNull(shared.cells), attributes)
+      }
+    }
+    return toOverlay(encoded.read(), attributes, capabilities.maxTextureSize)
+  }
+
+  private fun ImageOverlay.toAnimatedOverlay(
+    drawn: AnimatedFlipbookRead.Drawn,
+    cells: AnimatedCellsRead,
+    attributes: Attributes,
+  ): EffectResolution {
+    val canvas = drawn.picture.shown
+    val made =
+      when (cells) {
+        is AnimatedCellsRead.Refused -> return unsupported(id, cells.message)
+        is AnimatedCellsRead.Made -> cells
+      }
+    val drawnRange = drawnRangeWithin(attributes.span)
+    val rate = checkNotNull(attributes.gridRate)
+    val timed = made.cells.timedAs(drawnRange.start, rate)
+    val spec = this
+    val placement = placedOn(attributes.inputSize, canvas)
+    val effect =
+      PlatformEffect {
+        RasterOverlay(
+          timed.bitmaps.getValue(made.first),
+          spec,
+          placement,
+          canvas,
+          drawnRange,
+          made.firstLuminance,
+          timed,
+        )
+      }
+    return media3OverlayResolution(effect, attributes.hdrTransfer)
+  }
 
   /**
    * Resolves this overlay onto a frame of [attributes] from its already [read] [picture], or refuses it when the
@@ -156,6 +215,7 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
     attributes: Attributes,
     maxSide: Int,
   ): EffectResolution {
+    sheet?.let { flipbookRefusal(attributes) }?.let { return unsupported(id, it) }
     val decoded =
       when (picture) {
         UnreadablePicture -> return unsupported(id, unreadableImage(image))
@@ -165,10 +225,55 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
       }
     if (decoded.bitmap.halfFloatCurve() == HalfFloatCurve.Unknown) return unsupported(id, UNKNOWN_HALF_FLOAT_SPACE)
     val shown = decoded.shownSize
+    if (sheet != null) return toSheetOverlay(sheet, decoded, attributes, maxSide)
     if (!fitsTextureSide(shown.width, shown.height, maxSide)) {
       return unsupported(id, picturePastTextureSide(shown.width, shown.height, maxSide, OPEN_GL_ES))
     }
     return resolved(decoded, this, placedOn(attributes.inputSize, shown), attributes)
+  }
+
+  // Every cell is cut from the sheet once, here, and the sheet's own raster is recycled with the last cut. What the
+  // overlay holds from then on is a bitmap per cell, and a graph makes a texture for each cell it draws.
+  private fun ImageOverlay.toSheetOverlay(
+    sheet: SpriteSheet,
+    decoded: DecodedPicture,
+    attributes: Attributes,
+    maxSide: Int,
+  ): EffectResolution {
+    val shown = decoded.shownSize
+    val read = sheet.flipbookOver(shown)
+    val flipbook = (read as? FlipbookRead.Drawn)?.flipbook
+    val crops: List<PictureCrop> =
+      when (read) {
+        is FlipbookRead.Refused -> return unsupported(id, read.message)
+        is FlipbookRead.Still -> listOf(read.cell)
+        is FlipbookRead.Drawn -> read.flipbook.cells
+      }
+    val cell = crops.first().size
+    sheetCellsRefusal(shown, cell, crops.size, maxSide)?.let { return unsupported(id, it) }
+
+    val raster =
+      try {
+        decoded.bitmap.rasterFor(attributes.hdrTransfer, decoded.color, decoded.orientation, decoded.crop)
+      } catch (_: OutOfMemoryError) {
+        return unsupported(id, sheetAllocationFailed(shown, crops.size))
+      }
+    val cut =
+      try {
+        raster.cutCells(crops)
+      } catch (_: OutOfMemoryError) {
+        return unsupported(id, sheetAllocationFailed(shown, crops.size))
+      }
+    val drawnRange = drawnRangeWithin(attributes.span)
+    val rate = checkNotNull(attributes.gridRate)
+    val cells = flipbook?.let { CellBitmaps(cut, cell, it, drawnRange.start, rate) }
+    val spec = this
+    val placement = placedOn(attributes.inputSize, cell)
+    val effect =
+      PlatformEffect {
+        RasterOverlay(cut.getValue(crops.first()), spec, placement, cell, drawnRange, raster.hdrLuminance, cells)
+      }
+    return media3OverlayResolution(effect, attributes.hdrTransfer, decoded.limits)
   }
 
   private fun TextOverlay.toOverlay(

@@ -9,7 +9,13 @@ import dev.jordond.filmstrip.effect.FilterArgument
 import dev.jordond.filmstrip.effect.FilterFragment
 import dev.jordond.filmstrip.effect.FilterNode
 import dev.jordond.filmstrip.effect.PlatformEffect
+import dev.jordond.filmstrip.effect.StillRepeat
+import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.media.HdrTransfer
+import dev.jordond.filmstrip.picture.PICTURE_PEAK_CEILING
 import dev.jordond.filmstrip.picture.PictureOrientation
+import dev.jordond.filmstrip.picture.animated.AnimatedCopies
+import dev.jordond.filmstrip.picture.pictureColor
 
 /**
  * Lowers [spec] onto a filter graph fragment that draws it over the frames it merges onto.
@@ -24,6 +30,10 @@ import dev.jordond.filmstrip.picture.PictureOrientation
  * animation that cannot be driven at all, is refused before the graph is built. A decode stopped at its deadline fails
  * with the [FilmstripError.TimedOut] it was stopped with.
  *
+ * A GIF, an APNG or an animated WebP is drawn as one atlas of its frames, composited by core and cut into cells by the
+ * graph the way a sprite sheet is. [atlases] holds the atlas a lowering built, so one picture named by several overlays
+ * is composited and decoded once.
+ *
  * @param read The picture's bytes as this lowering read them, or the refusal when this process cannot read them.
  *
  * @return The fragment, [EffectResolution.Degraded] by each limit the decode of its picture reports, or
@@ -35,11 +45,36 @@ internal fun filterGraphOverlay(
   attributes: Attributes,
   decoder: OverlayPictureDecoder?,
   read: HeldBytes = spec.image.encodedRead(),
+  ceiling: Long = PICTURE_PEAK_CEILING,
+  frameLimit: Long = FFMPEG_FRAME_LIMIT,
+  atlases: LoweringShare<HdrTransfer?, AnimatedGraph> = LoweringShare(),
 ): EffectResolution {
   read.refusal?.let { return spec.refused(it) }
   val bytes = read.bytes
   val drawnOn = attributes.inputSize
-  spec.animationRefusal(attributes, spec.drawnRangeWithin(attributes.span))?.let { return spec.refused(it) }
+  val drawnRange = spec.drawnRangeWithin(attributes.span)
+  spec.sheetRefusal(attributes, drawnRange)?.let { return spec.refused(it) }
+  spec.animationRefusal(attributes, drawnRange)?.let { return spec.refused(it) }
+  if (bytes != null) {
+    val held =
+      when {
+        attributes.hdrTransfer != null -> AnimatedCopies.FfmpegHdr
+        pictureColor(bytes) != null -> AnimatedCopies.FfmpegTagged
+        else -> AnimatedCopies.Ffmpeg
+      }
+    when (val animated = animatedRead(bytes, held, sheet = spec.sheet != null, ceiling = ceiling)) {
+      AnimatedFlipbookRead.Still -> Unit
+      is AnimatedFlipbookRead.Refused -> return spec.refused(animated.message)
+      is AnimatedFlipbookRead.Drawn -> return spec.animatedOverlay(
+        animated,
+        attributes,
+        decoder,
+        atlases,
+        ceiling,
+        frameLimit,
+      )
+    }
+  }
   val transfer = attributes.hdrTransfer
   if (transfer != null) {
     val picture =
@@ -52,9 +87,17 @@ internal fun filterGraphOverlay(
         StoredRead.Unseen -> return spec.refused(UNSEEN_COLOR)
       }
     val graded = hdrOverlayRaster(picture, transfer)
-    val placement = spec.placedOn(drawnOn, graded.size)
-    return PlacedPicture(spec, GraphPicture.Graded(graded, transfer), placement, spec.opacity, picture.limits)
-      .lowered(attributes)
+    val cells = spec.cellsOf(graded.size, HDR_TEXEL_BYTES, ceiling, frameLimit)
+    if (cells is Cells.Refused) return spec.refused(cells.message)
+    val placement = spec.placedOn(drawnOn, cells.drawnSize(graded.size))
+    return PlacedPicture(
+      spec,
+      GraphPicture.Graded(graded, transfer),
+      placement,
+      spec.opacity,
+      picture.limits,
+      cells.flipbook(),
+    ).lowered(attributes)
   }
   val drawn =
     when (val read = sdrOverlayImage(spec.image, decoder, bytes)) {
@@ -63,10 +106,79 @@ internal fun filterGraphOverlay(
       is SdrOverlayImage.Expired -> return EffectResolution.Failed(read.timedOut)
     }
   val shown = drawn.size ?: drawn.image.shownSize { return spec.refused(it) }
-  val placement = spec.placedOn(drawnOn, shown)
+  val cells = spec.cellsOf(shown, SDR_TEXEL_BYTES, ceiling, frameLimit)
+  if (cells is Cells.Refused) return spec.refused(cells.message)
+  val placement = spec.placedOn(drawnOn, cells.drawnSize(shown))
   val opened = GraphPicture.Opened(drawn.image, drawn.orientation)
-  return PlacedPicture(spec, opened, placement, spec.opacity, drawn.limits).lowered(attributes)
+  return PlacedPicture(spec, opened, placement, spec.opacity, drawn.limits, cells.flipbook()).lowered(attributes)
 }
+
+// An animated picture is one atlas of its frames, drawn the way a sprite sheet is. The atlas is built for the grade the
+// overlay lands on, and only once for every overlay of a lowering that names the picture.
+private fun ImageOverlay.animatedOverlay(
+  read: AnimatedFlipbookRead.Drawn,
+  attributes: Attributes,
+  decoder: OverlayPictureDecoder?,
+  atlases: LoweringShare<HdrTransfer?, AnimatedGraph>,
+  ceiling: Long,
+  frameLimit: Long,
+): EffectResolution {
+  flipbookRefusal(attributes, ANIMATED_NO_GRID)?.let { return refused(it) }
+  if (drawnRangeWithin(attributes.span).endExclusive == null || attributes.span.endExclusive == null) {
+    return refused(ANIMATED_NO_END)
+  }
+  val transfer = attributes.hdrTransfer
+  val bytesPerTexel = if (transfer == null) SDR_TEXEL_BYTES else HDR_TEXEL_BYTES
+  val atlas = read.grid.size
+  // ffmpeg's own limit on a frame's size, which an atlas within the byte ceiling can still pass.
+  if (!sheetWithinFrameLimit(atlas, frameLimit)) return refused(animatedPastFrameLimit(atlas))
+  if (!sheetFits(atlas, bytesPerTexel, ceiling)) return refused(animatedAtlasTooLarge(atlas, bytesPerTexel, ceiling))
+  val built = atlases.valueFor(image, transfer) { animatedGraph(read, decoder, transfer) }
+  val ready =
+    when (built) {
+      is AnimatedGraph.Ready -> built
+      is AnimatedGraph.Refused -> return refused(built.message)
+      is AnimatedGraph.Failed -> return EffectResolution.Failed(built.timedOut)
+    }
+  val placement = placedOn(attributes.inputSize, read.flipbook.cell)
+  return PlacedPicture(this, ready.picture, placement, opacity, ready.limits, read.flipbook).lowered(attributes)
+}
+
+// What an overlay's picture is cut into: nothing for a picture drawn whole, or the cells of its sprite sheet.
+private sealed interface Cells {
+  object Whole : Cells
+
+  class Sheet(
+    val flipbook: Flipbook,
+  ) : Cells
+
+  class Refused(
+    val message: String,
+  ) : Cells
+}
+
+private fun ImageOverlay.cellsOf(
+  shown: Size,
+  bytesPerTexel: Int,
+  ceiling: Long,
+  frameLimit: Long,
+): Cells {
+  val sheet = sheet ?: return Cells.Whole
+  // ffmpeg's own limit on a frame's size, which a sheet within the byte ceiling can still pass.
+  if (!sheetWithinFrameLimit(shown, frameLimit)) return Cells.Refused(sheetPastFrameLimit(shown))
+  if (!sheetFits(shown, bytesPerTexel, ceiling)) {
+    return Cells.Refused(sheetTooLargeToDraw(shown, bytesPerTexel, ceiling))
+  }
+  return when (val read = sheet.flipbookOver(shown)) {
+    is FlipbookRead.Refused -> Cells.Refused(read.message)
+    is FlipbookRead.Still -> Cells.Sheet(Flipbook(sheet.timeline, read.cell.size, listOf(read.cell)))
+    is FlipbookRead.Drawn -> Cells.Sheet(read.flipbook)
+  }
+}
+
+private fun Cells.drawnSize(shown: Size): Size = if (this is Cells.Sheet) flipbook.cell else shown
+
+private fun Cells.flipbook(): Flipbook? = (this as? Cells.Sheet)?.flipbook
 
 /**
  * Lowers this picture onto a filter graph fragment that draws it over the frames it merges onto.
@@ -127,6 +239,7 @@ private fun PlacedPicture.openedOverlay(
   val prepare =
     buildList {
       addAll(orientationNodes(picture.orientation))
+      if (flipbook != null && rate != null) addAll(cellNodes(flipbook, animated, rate, attributes.span, SDR_RGBA))
       // A size that moves is read by a scale already handed RGBA and asked for RGBA, so no converter sits after it. A
       // converter there is configured at the first frame's size and pins every frame to it.
       if (sized) add(FilterNode("format", "pix_fmts" to SDR_RGBA))
@@ -152,10 +265,20 @@ private fun PlacedPicture.openedOverlay(
     }
 
   return FilterFragment(
-    auxInputs = listOf(AuxInput(picture.image, prepare, attributes.auxTimeline())),
+    auxInputs = listOf(AuxInput(picture.image, prepare, attributes.auxTimeline(), repeatOf(flipbook))),
     merge = FilterNode("overlay", merge),
   )
 }
+
+// A sheet is opened once and repeated by the graph, since the demuxer would decode it again for every output frame.
+internal fun repeatOf(flipbook: Flipbook?): StillRepeat =
+  if (flipbook ==
+    null
+  ) {
+    StillRepeat.Demuxer
+  } else {
+    StillRepeat.Graph
+  }
 
 // A held series is written as its value and never reads a clock, so one with no rate to key on is still written.
 private fun mergeClockOf(rate: Int?): String = rate?.let(::mergeFrameClock).orEmpty()
@@ -188,6 +311,10 @@ private val PER_FRAME_SIZE =
 
 // Eight-bit RGBA, the format an SDR overlay's picture is drawn from, and the planar form geq reads it in.
 private const val SDR_RGBA = "rgba"
+
+// The bytes ffmpeg holds a texel of a decoded sheet in, which is rgba for an SDR grade and rgba64le for an HDR one.
+private const val SDR_TEXEL_BYTES = 4
+private const val HDR_TEXEL_BYTES = 8
 private val SDR_PLANES = OpacityPlanes("gbrap", SDR_RGBA)
 
 private const val UNREADABLE_HDR_IMAGE =

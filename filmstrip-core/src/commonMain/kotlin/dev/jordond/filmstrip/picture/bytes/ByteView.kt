@@ -62,8 +62,23 @@ internal class ByteView(
     stop: Int,
   ): Long {
     span(start, (stop - start).toLong())
+    val data = bytes
+    val table = CRC_TABLE
     var crc = -1
-    for (at in start until stop) crc = CRC_TABLE[(crc xor bytes[at].toInt()) and 0xFF] xor (crc ushr 8)
+    var at = start
+    while (at + 4 <= stop) {
+      crc = crc xor
+        (
+          (data[at].toInt() and 0xFF) or
+            ((data[at + 1].toInt() and 0xFF) shl 8) or
+            ((data[at + 2].toInt() and 0xFF) shl 16) or
+            ((data[at + 3].toInt() and 0xFF) shl 24)
+        )
+      crc = table[768 + (crc and 0xFF)] xor table[512 + ((crc ushr 8) and 0xFF)] xor
+        table[256 + ((crc ushr 16) and 0xFF)] xor table[crc ushr 24]
+      at += 4
+    }
+    while (at < stop) crc = table[(crc xor data[at++].toInt()) and 0xFF] xor (crc ushr 8)
     return crc.inv().toLong() and 0xFFFFFFFFL
   }
 
@@ -108,9 +123,20 @@ internal fun fourcc(name: String): Int = name.fold(0) { code, char -> (code shl 
 
 internal fun ascii(text: String): ByteArray = ByteArray(text.length) { text[it].code.toByte() }
 
+// Four 256 entry tables back to back, the first the plain CRC-32 table and each next one the effect of a further zero
+// byte, so four bytes are folded in at a time.
 private val CRC_TABLE =
-  IntArray(256) { index ->
-    (0 until 8).fold(index) { crc, _ -> if (crc and 1 != 0) (crc ushr 1) xor 0xEDB88320.toInt() else crc ushr 1 }
+  IntArray(1024).also { table ->
+    for (index in 0 until 256) {
+      table[index] =
+        (0 until 8).fold(index) { crc, _ -> if (crc and 1 != 0) (crc ushr 1) xor 0xEDB88320.toInt() else crc ushr 1 }
+    }
+    for (index in 0 until 256) {
+      for (slice in 1 until 4) {
+        val previous = table[(slice - 1) * 256 + index]
+        table[slice * 256 + index] = table[previous and 0xFF] xor (previous ushr 8)
+      }
+    }
   }
 
 internal const val MAX_PROFILE_SIZE = 16 * 1024 * 1024

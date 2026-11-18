@@ -17,15 +17,8 @@ import dev.jordond.filmstrip.picture.jpegWithoutProfile
 import dev.jordond.filmstrip.picture.orientedSamples
 import dev.jordond.filmstrip.picture.pictureColor
 import dev.jordond.filmstrip.picture.pictureContainerOf
-import java.awt.Transparency
-import java.awt.color.ColorSpace
 import java.awt.image.BufferedImage
-import java.awt.image.ComponentColorModel
-import java.awt.image.DataBuffer
-import java.awt.image.DataBufferUShort
-import java.awt.image.Raster
 import java.io.ByteArrayInputStream
-import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.IOException
 import javax.imageio.ImageIO
@@ -120,7 +113,8 @@ internal fun storedPicture(
  * refused by the demuxer that opens an AVIF or HEIC, and the decode is what converts one with the YCbCr matrix and
  * range its `nclx` box records and assembles a tiled one. Without a [decoder] an AVIF or HEIC is refused, since the
  * graph could not open it. A GIF's demuxer refuses `-loop` too, so a GIF goes the same way and draws its first frame
- * on its logical screen.
+ * on its logical screen. A lossy WebP with a [decoder] is decoded as well, since the decoder reads its planes and
+ * converts them the way libwebp does, which the graph's own read does not.
  *
  * A file whose bytes ffmpeg cannot recognise without its extension, such as a TGA, is decoded by [decoder] from a copy
  * of those bytes named for its format, and drawn as an untagged PNG of its decode, since the scratch file is not named
@@ -147,7 +141,9 @@ internal fun sdrOverlayImage(
   val opensAsBytes = bytes != null && probedByContent(bytes, container)
   val unprobed = bytes != null && !opensAsBytes
   if (unprobed && decoder == null) return SdrOverlayImage.Refused(unprobedWithoutDecoder(image))
-  val decoded = decoder != null && (codestream || heif || unprobed || (bytes == null && image.toolchainOnly))
+  val lossyWebp = decoder != null && bytes != null && isLossyWebp(bytes)
+  val decoded =
+    decoder != null && (codestream || heif || unprobed || lossyWebp || (bytes == null && image.toolchainOnly))
   // ffmpeg's limit: a URI only ffmpeg opens, such as an https URL, has no bytes this process can read, so core reads
   // no orientation or clap for it. It is drawn unturned and cropped however that ffmpeg build crops it as it decodes
   // with -noautorotate. 8.0.1 and 9.0.2 crop an AVIF or HEIC by its clap.
@@ -190,7 +186,7 @@ internal fun sdrOverlayImage(
     }
   val codes = picture.samples.srgbCodes(picture.color)
   val asStored = codes.contentEquals(picture.samples.srgbCodes(null))
-  if (bytes != null && !heif && asStored && opensAsBytes) {
+  if (bytes != null && !heif && !lossyWebp && asStored && opensAsBytes) {
     return SdrOverlayImage.Drawn(opened, picture.size, picture.limits, orientation)
   }
   val deep = (picture.samples as? StoredSamples.Rgba16)?.takeIf { asStored }
@@ -378,49 +374,6 @@ private fun BufferedImage.stored(color: PictureColor?): StoredPicture {
     ?: StoredPicture(StoredSamples.Argb(getRGB(0, 0, width, height, null, 0, width)), size, null)
 }
 
-// An eight-bit RGBA PNG of [argb] with no color description in it.
-private fun argbPng(
-  argb: IntArray,
-  size: Size,
-): ByteArray {
-  val image = BufferedImage(size.width, size.height, BufferedImage.TYPE_INT_ARGB)
-  image.setRGB(0, 0, size.width, size.height, argb, 0, size.width)
-  return ByteArrayOutputStream()
-    .also { check(ImageIO.write(image, "png", it)) { "The JDK has no PNG writer for an eight-bit picture." } }
-    .toByteArray()
-}
-
-// A sixteen-bit RGBA PNG of [rgba], four samples a texel, with no color description in it.
-private fun rgba16Png(
-  rgba: ShortArray,
-  size: Size,
-): ByteArray {
-  val model =
-    ComponentColorModel(
-      ColorSpace.getInstance(ColorSpace.CS_sRGB),
-      true,
-      false,
-      Transparency.TRANSLUCENT,
-      DataBuffer.TYPE_USHORT,
-    )
-  val buffer = DataBufferUShort(rgba, rgba.size)
-  val raster =
-    Raster.createInterleavedRaster(
-      buffer,
-      size.width,
-      size.height,
-      size.width * RGBA_BANDS.size,
-      RGBA_BANDS.size,
-      RGBA_BANDS,
-      null,
-    )
-  val image = BufferedImage(model, raster, false, null)
-  return ByteArrayOutputStream()
-    .also { check(ImageIO.write(image, "png", it)) { "The JDK has no PNG writer for a sixteen-bit picture." } }
-    .toByteArray()
-}
-
-private val RGBA_BANDS = intArrayOf(0, 1, 2, 3)
 private const val COPY_PREFIX = "filmstrip-overlay-copy"
 private const val PNM_FIRST_FIELD = 3
 

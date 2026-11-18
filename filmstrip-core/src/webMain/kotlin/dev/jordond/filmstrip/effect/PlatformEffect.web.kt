@@ -6,6 +6,7 @@ import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.color.PictureColor
 import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.picture.PictureCrop
 import dev.jordond.filmstrip.picture.PictureOrientation
 import kotlin.js.ExperimentalWasmJsInterop
 import kotlin.js.JsAny
@@ -223,7 +224,8 @@ public class WebGlOverlay(
 /**
  * What a [WebGlOverlay] is uploaded from.
  *
- * Samples are sixteen-bit RGBA, four a texel as [dev.jordond.filmstrip.picture.png.pngSamples] reads a PNG's. A PNG
+ * Samples are sixteen-bit RGBA, four a texel as [dev.jordond.filmstrip.picture.png.pngSamples] reads a PNG's. Codes are
+ * the eight-bit form of the same, so a raster that stores eight bits is not held at twice its size. A PNG
  * carries its stored samples at their full depth, an AVIF the color core's YCbCr evaluator turns its samples into,
  * and text the straight color laid over its plate. The compositor converts samples wherever a raster carries them, in
  * place of an image's eight-bit codes.
@@ -250,6 +252,17 @@ public sealed interface OverlaySource {
   public class Samples(
     public val samples: ShortArray,
   ) : OverlaySource
+
+  /**
+   * A raster drawn straight into eight-bit [codes], with no image behind it.
+   *
+   * The codes are straight alpha RGBA, four a texel in rows, and the raster is uploaded from them whole.
+   *
+   * @property codes The raster's codes.
+   */
+  public class Codes(
+    public val codes: ByteArray,
+  ) : OverlaySource
 }
 
 /**
@@ -258,13 +271,16 @@ public sealed interface OverlaySource {
  * @property rect The rectangle the raster covers, as a fraction of the frame it is drawn on. It may
  *   reach outside `0f..1f` when the overlay hangs over an edge.
  * @property opacity The alpha applied to the whole raster, in `0f..1f`.
+ * @property cell The part of the raster to draw, or null to draw all of it. It is a rectangle of the raster as it is
+ *   shown, so a sprite sheet draws one of its cells.
  */
 @InternalFilmstripApi
 public class WebGlOverlayDraw(
   public val rect: NormalizedRect,
   public val opacity: Float,
+  public val cell: PictureCrop? = null,
 ) {
-  override fun toString(): String = "WebGlOverlayDraw($rect, opacity=$opacity)"
+  override fun toString(): String = "WebGlOverlayDraw($rect, opacity=$opacity, cell=$cell)"
 }
 
 private const val OVERLAY_PROGRAM = "filmstrip.overlay"

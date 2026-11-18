@@ -5,6 +5,7 @@ import dev.jordond.filmstrip.edit.outputSlotOf
 import dev.jordond.filmstrip.edit.outputSlotTime
 import dev.jordond.filmstrip.effect.Attributes
 import dev.jordond.filmstrip.effect.WINDOW_CLOCK
+import dev.jordond.filmstrip.picture.PictureCrop
 import java.util.Locale
 
 /**
@@ -13,11 +14,13 @@ import java.util.Locale
  * @property index The frame's place on the branch's own clock, counted from the slot the span opens on.
  * @property frame What [OverlayEffect.frameWithin] answers for the frame.
  * @property drawn Where [drawnRect] puts the placement [frame] moves.
+ * @property cell The cell of a sprite sheet the frame shows, or null for a picture drawn whole.
  */
 internal class SampledFrame(
   val index: Int,
   val frame: OverlayFrame,
   val drawn: PixelRect,
+  val cell: PictureCrop? = null,
 )
 
 /**
@@ -61,18 +64,29 @@ internal fun OverlayEffect.animationRefusal(
     else -> null
   }
 
+// Why this sprite sheet cannot be counted onto output frames, or null when it can or the overlay has none. A flipbook
+// is repeated across the span, so the span needs an end as well as the drawn range.
+internal fun ImageOverlay.sheetRefusal(
+  attributes: Attributes,
+  drawnRange: TimeRange,
+): String? {
+  if (sheet == null) return null
+  flipbookRefusal(attributes)?.let { return it }
+  return if (drawnRange.endExclusive == null || attributes.span.endExclusive == null) FLIPBOOK_NO_END else null
+}
+
 /**
- * Samples this picture's animation once per output frame of [drawnRange].
+ * Samples this picture once per output frame of [drawnRange], for its animation and for the cell it shows.
  *
  * Each frame's placement is the still placement moved by what [OverlayEffect.frameWithin] answers at the frame's slot,
- * and [drawnRect] rounds it to whole pixels. A frame the sampler draws nothing on is left out, so the value before it
- * carries on across it.
+ * and [drawnRect] rounds it to whole pixels. A sprite sheet's cell is the one [Flipbook.cellOnSlot] gives for the same
+ * slot. A frame the sampler draws nothing on is left out, so the value before it carries on across it.
  */
 internal fun PlacedPicture.sampledFrames(
   attributes: Attributes,
   drawnRange: TimeRange,
 ): Sampling {
-  if (effect.animation == null) return Sampling.Still
+  if (effect.animation == null && flipbook == null) return Sampling.Still
   val rate = attributes.gridRate ?: return Sampling.Refused(ANIMATION_NO_GRID)
   val end = drawnRange.endExclusive ?: return Sampling.Refused(ANIMATION_NO_END)
   val span = attributes.span
@@ -81,7 +95,8 @@ internal fun PlacedPicture.sampledFrames(
   val frames =
     (frameIndexAt(drawnRange.start, span, rate) until frameIndexAt(end, span, rate)).mapNotNull { index ->
       effect.frameWithin(drawnRange, outputSlotTime(firstSlot + index, rate))?.let { frame ->
-        SampledFrame(index, frame, drawnRect(placement.animatedBy(frame), attributes.inputSize))
+        val cell = flipbook?.cellOnSlot(drawnRange.start, firstSlot + index, rate)
+        SampledFrame(index, frame, drawnRect(placement.animatedBy(frame), attributes.inputSize), cell)
       }
     }
   // A drawn range reaching no output frame, which is a window falling outside the span or one shorter than a frame.
@@ -196,6 +211,10 @@ internal const val ANIMATION_NO_GRID =
   "An animated overlay is sampled once per output frame, and this composition resolved no frame " +
     "rate to sample it onto. Give the export a frame rate, or drop the animation to draw the " +
     "overlay still."
+
+internal const val FLIPBOOK_NO_END =
+  "A sprite sheet is drawn one cell per output frame across the range it is drawn over, and this composition names " +
+    "no end for that range. Give the export a duration."
 
 internal const val ANIMATION_NO_END =
   "An animated overlay is sampled across the range it is drawn over, and this composition names no " +

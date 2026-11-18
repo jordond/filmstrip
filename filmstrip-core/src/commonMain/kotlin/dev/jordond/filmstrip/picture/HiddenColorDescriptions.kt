@@ -57,7 +57,12 @@ public fun ByteArray.withColorDescriptionsHidden(keepNclxPrimaries: Boolean = fa
       PictureContainer.Jpeg -> edit.hideJpeg(picture)
       PictureContainer.Webp -> edit.hideWebp(picture)
       PictureContainer.Heif -> edit.hideHeif(picture, keepNclxPrimaries)
-      PictureContainer.Tiff, PictureContainer.JxlCodestream, PictureContainer.JxlBoxed, null -> Unit
+      PictureContainer.Tiff,
+      PictureContainer.JxlCodestream,
+      PictureContainer.JxlBoxed,
+      PictureContainer.Gif,
+      null,
+      -> Unit
     }
   }
   return edit.result

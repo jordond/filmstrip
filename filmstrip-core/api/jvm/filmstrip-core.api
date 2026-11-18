@@ -789,11 +789,12 @@ public final class dev/jordond/filmstrip/effect/Attributes {
 }
 
 public final class dev/jordond/filmstrip/effect/AuxInput {
-	public fun <init> (Ldev/jordond/filmstrip/media/ImageSource;Ljava/util/List;Ldev/jordond/filmstrip/effect/AuxTimeline;)V
-	public synthetic fun <init> (Ldev/jordond/filmstrip/media/ImageSource;Ljava/util/List;Ldev/jordond/filmstrip/effect/AuxTimeline;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Ldev/jordond/filmstrip/media/ImageSource;Ljava/util/List;Ldev/jordond/filmstrip/effect/AuxTimeline;Ldev/jordond/filmstrip/effect/StillRepeat;)V
+	public synthetic fun <init> (Ldev/jordond/filmstrip/media/ImageSource;Ljava/util/List;Ldev/jordond/filmstrip/effect/AuxTimeline;Ldev/jordond/filmstrip/effect/StillRepeat;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getChain ()Ljava/util/List;
 	public final fun getImage ()Ldev/jordond/filmstrip/media/ImageSource;
+	public final fun getRepeat ()Ldev/jordond/filmstrip/effect/StillRepeat;
 	public final fun getTimeline ()Ldev/jordond/filmstrip/effect/AuxTimeline;
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
@@ -1072,6 +1073,14 @@ public final class dev/jordond/filmstrip/effect/Sidecar {
 	public final fun getPlaceholder ()Ljava/lang/String;
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/jordond/filmstrip/effect/StillRepeat : java/lang/Enum {
+	public static final field Demuxer Ldev/jordond/filmstrip/effect/StillRepeat;
+	public static final field Graph Ldev/jordond/filmstrip/effect/StillRepeat;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Ldev/jordond/filmstrip/effect/StillRepeat;
+	public static fun values ()[Ldev/jordond/filmstrip/effect/StillRepeat;
 }
 
 public final class dev/jordond/filmstrip/export/Adjustment {
@@ -1549,6 +1558,29 @@ public final class dev/jordond/filmstrip/media/FormatHint : java/lang/Enum {
 	public static fun getEntries ()Lkotlin/enums/EnumEntries;
 	public static fun valueOf (Ljava/lang/String;)Ldev/jordond/filmstrip/media/FormatHint;
 	public static fun values ()[Ldev/jordond/filmstrip/media/FormatHint;
+}
+
+public abstract interface class dev/jordond/filmstrip/media/FramePlays {
+	public static final field Companion Ldev/jordond/filmstrip/media/FramePlays$Companion;
+}
+
+public final class dev/jordond/filmstrip/media/FramePlays$Companion {
+	public final fun getOnce ()Ldev/jordond/filmstrip/media/FramePlays;
+}
+
+public final class dev/jordond/filmstrip/media/FramePlays$Forever : dev/jordond/filmstrip/media/FramePlays {
+	public static final field INSTANCE Ldev/jordond/filmstrip/media/FramePlays$Forever;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/jordond/filmstrip/media/FramePlays$Times : dev/jordond/filmstrip/media/FramePlays {
+	public fun <init> (I)V
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getCount ()I
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
 }
 
 public abstract interface class dev/jordond/filmstrip/media/FrameResult {

@@ -132,7 +132,7 @@ internal fun embeddedColor(bytes: ByteArray): EmbeddedColor? {
       PictureContainer.Webp -> webpColor(picture)
       PictureContainer.Heif -> heifColor(picture)
       PictureContainer.Tiff -> tiffColor(picture)
-      PictureContainer.JxlCodestream, PictureContainer.JxlBoxed, null -> null
+      PictureContainer.JxlCodestream, PictureContainer.JxlBoxed, PictureContainer.Gif, null -> null
     }
   } catch (_: MalformedPicture) {
     null

@@ -58,23 +58,23 @@ import platform.CoreImage.CIImage
  * landed them as stored.
  * @param readColor Reads how the picture describes its color, or null when it is untagged. It runs the first time
  * something asks for [color].
- * @param reader Gives the context the stored samples are read back through, or null when none can be built.
+ * @property reader Gives the context the stored samples are read back through, or null when none can be built.
  * @param bandTexels How many texels one band of [StoredBands] holds at most.
  * @param ceiling The most bytes [drawnPeakBytes] may count for a draw that makes floats, [PICTURE_PEAK_CEILING]
  * by default.
- * @param orientation The turn the picture's own tag asks for, which no Apple decoder applies.
- * @param crop The texels of the stored codes an AVIF or HEIC's `clap` keeps, or null to keep them all. No Apple decoder
- * is handed a `clap`, so [held] is the whole stored frame. It has to lie within it.
+ * @property orientation The turn the picture's own tag asks for, which no Apple decoder applies.
+ * @property crop The texels of the stored codes an AVIF or HEIC's `clap` keeps, or null to keep them all. No Apple
+ * decoder is handed a `clap`, so [held] is the whole stored frame. It has to lie within it.
  */
 internal class OverlayPixels(
   val held: HeldCodes,
   readColor: () -> PictureColor? = { null },
-  private val reader: () -> CIContext? = { codeReader },
+  val reader: () -> CIContext? = { codeReader },
   val limits: List<Degradation> = emptyList(),
   private val bandTexels: Int = BAND_TEXELS,
   private val ceiling: Long = PICTURE_PEAK_CEILING,
-  orientation: PictureOrientation = PictureOrientation.Normal,
-  crop: PictureCrop? = null,
+  val orientation: PictureOrientation = PictureOrientation.Normal,
+  val crop: PictureCrop? = null,
 ) {
   val codes: CIImage = held.image.cropped(crop).oriented(orientation)
 
@@ -85,10 +85,24 @@ internal class OverlayPixels(
    */
   val color: PictureColor? by lazy(readColor)
 
-  private val srgb: Lazy<Result<CIImage>> = lazy { refusable { color?.let { inSrgbCodes(it) } ?: codes } }
+  private var srgb: Lazy<Result<CIImage>> = srgbForm()
 
-  private val graded: Map<HdrTransfer, Lazy<Result<CIImage?>>> =
+  private var graded: Map<HdrTransfer, Lazy<Result<CIImage?>>> = gradedForms()
+
+  private fun srgbForm(): Lazy<Result<CIImage>> = lazy { refusable { color?.let { inSrgbCodes(it) } ?: codes } }
+
+  private fun gradedForms(): Map<HdrTransfer, Lazy<Result<CIImage?>>> =
     HdrTransfer.entries.associateWith { transfer -> lazy { refusable { inPictureLight(transfer) } } }
+
+  /**
+   * Lets go of every float image made so far, so the next frame that needs one makes it again.
+   *
+   * An image a frame already holds stays valid until Core Image is done with it.
+   */
+  fun dropFloats() {
+    srgb = srgbForm()
+    graded = gradedForms()
+  }
 
   /**
    * The image to draw onto a frame written in [colorSpace] with [transfer], or with none when the

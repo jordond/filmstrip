@@ -7,6 +7,7 @@ import dev.jordond.filmstrip.effects.overlay.ImageOverlay
 import dev.jordond.filmstrip.effects.overlay.OverlayAnimation
 import dev.jordond.filmstrip.effects.overlay.OverlayFrame
 import dev.jordond.filmstrip.effects.overlay.OverlayOffset
+import dev.jordond.filmstrip.effects.overlay.SpriteSheet
 import dev.jordond.filmstrip.effects.overlay.fade
 import dev.jordond.filmstrip.effects.overlay.imageOverlay
 import dev.jordond.filmstrip.effects.overlay.plus
@@ -14,6 +15,7 @@ import dev.jordond.filmstrip.effects.overlay.slideIn
 import dev.jordond.filmstrip.effects.overlay.slideOut
 import dev.jordond.filmstrip.effects.overlay.textOverlay
 import dev.jordond.filmstrip.geometry.Corner
+import dev.jordond.filmstrip.media.FramePlays
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.style.FontWeight
@@ -46,7 +48,20 @@ internal enum class OverlayWindow(
 }
 
 /**
- * What the overlays sample draws: a caption, a logo in a corner, how both move and when they show.
+ * How many times the spinner's sprite sheet plays before its last frame holds.
+ */
+internal enum class SpinnerPlays(
+  val label: String,
+  val plays: FramePlays,
+  val code: String,
+) {
+  Forever("FOREVER", FramePlays.Forever, "FramePlays.Forever"),
+  Once("ONCE", FramePlays.Once, "FramePlays.Once"),
+}
+
+/**
+ * What the overlays sample draws: a caption, a logo in a corner, a spinner drawn from a sprite sheet, how the caption
+ * and logo move and when they show.
  */
 internal data class OverlaySettings(
   val caption: Boolean = true,
@@ -59,6 +74,9 @@ internal data class OverlaySettings(
   val corner: Corner = Corner.TopEnd,
   val logoScale: Float = DEFAULT_LOGO_SCALE,
   val logoOpacity: Float = DEFAULT_LOGO_OPACITY,
+  val spinner: Boolean = false,
+  val spinnerPlays: SpinnerPlays = SpinnerPlays.Forever,
+  val spinnerFrameMs: Int = DEFAULT_SPINNER_FRAME_MS,
   val motion: OverlayMotion = OverlayMotion.Fade,
   val window: OverlayWindow = OverlayWindow.Timed,
 ) {
@@ -66,6 +84,8 @@ internal data class OverlaySettings(
     val DEFAULT_FONT_SIZE: Float = TextStyle.Default.fontSize
     const val DEFAULT_LOGO_SCALE: Float = 0.1f
     const val DEFAULT_LOGO_OPACITY: Float = 0.8f
+    const val DEFAULT_SPINNER_FRAME_MS: Int = 80
+    val SPINNER_FRAME_MS: List<Int> = listOf(40, DEFAULT_SPINNER_FRAME_MS, 160)
     const val PLATE: Int = 0x80000000.toInt()
     const val MAX_TEXT: Int = 48
   }
@@ -74,6 +94,9 @@ internal data class OverlaySettings(
 private val Ramp = 500.milliseconds
 private val Drop = OverlayOffset(0f, 0.1f)
 private val Timed = 1.seconds..9.seconds
+
+private const val SPINNER_COLUMNS = 4
+private const val SPINNER_ROWS = 3
 
 /**
  * Grows an overlay by up to 8% and back once a second. It's one instance so every rebuilt composition compares equal.
@@ -99,11 +122,13 @@ internal fun animationOf(motion: OverlayMotion): OverlayAnimation? =
   }
 
 /**
- * The edit [settings] describe over [source], with [logo] as the picture in the corner.
+ * The edit [settings] describe over [source], with [logo] as the picture in the corner and [sheet] as the sprite
+ * sheet the spinner draws.
  */
 internal fun overlaysEdit(
   source: MediaSource,
   logo: ImageSource,
+  sheet: ImageSource,
   settings: OverlaySettings,
 ): Composition =
   compositionOf {
@@ -130,6 +155,20 @@ internal fun overlaysEdit(
           animation = animation,
         )
       }
+      if (settings.spinner) {
+        imageOverlay(
+          image = sheet,
+          corner = Corner.BottomStart,
+          visibleDuring = window,
+          sheet =
+            SpriteSheet(
+              columns = SPINNER_COLUMNS,
+              rows = SPINNER_ROWS,
+              frameDuration = settings.spinnerFrameMs.milliseconds,
+              plays = settings.spinnerPlays.plays,
+            ),
+        )
+      }
     }
   }
 
@@ -148,10 +187,15 @@ internal fun overlaysCode(settings: OverlaySettings): List<List<CodePart>> {
   val at = if (settings.window == OverlayWindow.Timed) "1.seconds..9.seconds" else null
   return buildList {
     if (settings.logo) add(frame("val logo = ImageSource.ofUri(\"logo.png\")"))
+    if (settings.spinner) add(frame("val spinner = ImageSource.ofUri(\"sheet.png\")"))
     addAll(animationCode(settings.motion))
     add(frame("clip(tearsOfSteel)"))
     add(frame("effects {"))
-    if (!settings.caption && !settings.logo) add(listOf(CodePart("  // Turn on a caption or a logo", CodeKind.Comment)))
+    if (!settings.caption && !settings.logo &&
+      !settings.spinner
+    ) {
+      add(listOf(CodePart("  // Turn on a caption, a logo or a spinner", CodeKind.Comment)))
+    }
     if (settings.caption) {
       add(call("  textOverlay("))
       add(argument("text", "\"${kotlinString(settings.text)}\""))
@@ -171,8 +215,22 @@ internal fun overlaysCode(settings: OverlaySettings): List<List<CodePart>> {
       if (animated) add(argument("animation", "animation"))
       add(call("  )"))
     }
+    if (settings.spinner) {
+      add(call("  imageOverlay("))
+      add(argument("image", "spinner"))
+      add(argument("corner", "Corner.BottomStart"))
+      at?.let { add(argument("at", it)) }
+      add(argument("sheet", spinnerSheetCode(settings)))
+      add(call("  )"))
+    }
     add(frame("}"))
   }
+}
+
+private fun spinnerSheetCode(settings: OverlaySettings): String {
+  val plays = if (settings.spinnerPlays == SpinnerPlays.Forever) "" else ", plays = ${settings.spinnerPlays.code}"
+  val grid = "columns = $SPINNER_COLUMNS, rows = $SPINNER_ROWS"
+  return "SpriteSheet($grid, frameDuration = ${settings.spinnerFrameMs}.milliseconds$plays)"
 }
 
 private fun textStyleCode(settings: OverlaySettings): String? {
@@ -263,6 +321,7 @@ internal fun overlaySummary(settings: OverlaySettings): String {
     buildList {
       if (settings.caption) add("CAPTION")
       if (settings.logo) add("LOGO")
+      if (settings.spinner) add("SPINNER")
       if (isEmpty()) return "NO OVERLAYS"
       if (settings.motion != OverlayMotion.None) add(settings.motion.label)
     }

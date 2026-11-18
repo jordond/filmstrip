@@ -16,12 +16,16 @@ import dev.jordond.filmstrip.effect.EffectIds
 import dev.jordond.filmstrip.effect.EffectResolution
 import dev.jordond.filmstrip.effect.EffectResolver
 import dev.jordond.filmstrip.effect.EffectSpec
+import dev.jordond.filmstrip.effect.RenderApi
 import dev.jordond.filmstrip.effect.RenderCapabilities
 import dev.jordond.filmstrip.effect.RenderFeature
+import dev.jordond.filmstrip.effect.WebGlOverlay
 import dev.jordond.filmstrip.effects.BuiltInEffectResolver
 import dev.jordond.filmstrip.effects.color.Sepia
 import dev.jordond.filmstrip.effects.overlay.ImageOverlay
+import dev.jordond.filmstrip.effects.overlay.SpriteSheet
 import dev.jordond.filmstrip.effects.overlay.TextOverlay
+import dev.jordond.filmstrip.effects.overlay.drawnRangeWithin
 import dev.jordond.filmstrip.effects.overlay.fade
 import dev.jordond.filmstrip.effects.overlay.frameAt
 import dev.jordond.filmstrip.effects.overlay.placedOn
@@ -32,16 +36,44 @@ import dev.jordond.filmstrip.export.Verdict
 import dev.jordond.filmstrip.geometry.Corner
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ColorSpace
+import dev.jordond.filmstrip.media.FramePlays
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.VideoTrackInfo
 import dev.jordond.filmstrip.media.trackCodecOf
+import dev.jordond.filmstrip.picture.FrameTimeline
+import dev.jordond.filmstrip.picture.PictureCrop
+import dev.jordond.filmstrip.picture.animated.ANIMATED_AVIF_REFUSED
+import dev.jordond.filmstrip.picture.animated.AnimatedRead
+import dev.jordond.filmstrip.picture.animated.animatedPictureOf
+import dev.jordond.filmstrip.picture.animated.atlasGrid
+import dev.jordond.filmstrip.test.AnimatedGifs
+import dev.jordond.filmstrip.test.AnimatedPictures
 import dev.jordond.filmstrip.test.AuthoredColors
 import dev.jordond.filmstrip.test.OverlayPixels
+import dev.jordond.filmstrip.test.SpriteSheets
 import dev.jordond.filmstrip.transform.internal.LoweredExport
 import dev.jordond.filmstrip.transform.internal.negotiation.Ask
+import dev.jordond.filmstrip.webcodecs.BrowserPlanSupport.CLIP_FRAME
+import dev.jordond.filmstrip.webcodecs.BrowserPlanSupport.CLIP_LENGTH
+import dev.jordond.filmstrip.webcodecs.BrowserPlanSupport.DEVICE
+import dev.jordond.filmstrip.webcodecs.BrowserPlanSupport.FILLER
+import dev.jordond.filmstrip.webcodecs.BrowserPlanSupport.HALF
+import dev.jordond.filmstrip.webcodecs.BrowserPlanSupport.HDR_DEVICE
+import dev.jordond.filmstrip.webcodecs.BrowserPlanSupport.HDR_SPEC
+import dev.jordond.filmstrip.webcodecs.BrowserPlanSupport.IMAGE
+import dev.jordond.filmstrip.webcodecs.BrowserPlanSupport.OUTPUT_FRAME
+import dev.jordond.filmstrip.webcodecs.BrowserPlanSupport.PNG
+import dev.jordond.filmstrip.webcodecs.BrowserPlanSupport.RAMP
+import dev.jordond.filmstrip.webcodecs.BrowserPlanSupport.SOURCE
+import dev.jordond.filmstrip.webcodecs.BrowserPlanSupport.SPEC
+import dev.jordond.filmstrip.webcodecs.BrowserPlanSupport.compositionOf
+import dev.jordond.filmstrip.webcodecs.BrowserPlanSupport.infoOf
+import dev.jordond.filmstrip.webcodecs.BrowserPlanSupport.infosOf
+import dev.jordond.filmstrip.webcodecs.BrowserPlanSupport.lower
+import dev.jordond.filmstrip.webcodecs.BrowserPlanSupport.stripOf
 import dev.jordond.filmstrip.webcodecs.internal.BrowserPlanner
 import dev.jordond.filmstrip.webcodecs.internal.BrowserRender
 import dev.jordond.filmstrip.webcodecs.internal.browserMaxTextureSide
@@ -49,10 +81,12 @@ import dev.jordond.filmstrip.webcodecs.internal.browserParityOf
 import io.kotest.assertions.withClue
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
 /**
@@ -239,88 +273,4 @@ class BrowserOverlayPlanTest {
         seen.all { RenderFeature.TextRendering in it.features } shouldBe true
       }
     }
-
-  private suspend fun lower(
-    composition: Composition,
-    infos: Map<MediaSource, MediaInfo> = infosOf(composition),
-    spec: ExportSpec = SPEC,
-    device: DeviceCapabilities = DEVICE,
-  ): LoweredExport<BrowserRender> {
-    val resolver = BuiltInEffectResolver()
-    resolver.prepare(composition)
-    return BrowserPlanner(listOf(resolver)).lower(composition, Ask(spec, device, infos))
-  }
-
-  private fun stripOf(size: Size): ImageSource =
-    ImageSource.ofBytes(OverlayPixels.pngOf(size, AuthoredColors.MID_GREEN))
-
-  private fun compositionOf(
-    clipEffects: List<EffectSpec> = emptyList(),
-    effects: List<EffectSpec> = emptyList(),
-  ): Composition =
-    Composition(
-      tracks = listOf(Track(listOf(Clip(SOURCE, effects = clipEffects)))),
-      effects = effects,
-      audio = AudioSpec.Remove,
-    )
-
-  private fun infosOf(composition: Composition): Map<MediaSource, MediaInfo> =
-    composition.clips.associate { it.source to infoOf(OUTPUT_FRAME) }
-
-  private fun infoOf(
-    size: Size,
-    transfer: HdrTransfer? = null,
-  ): MediaInfo =
-    MediaInfo(
-      duration = CLIP_LENGTH,
-      video =
-        VideoTrackInfo(
-          codedSize = size,
-          displaySize = size,
-          rotationDegrees = 0,
-          pixelAspectRatio = 1f,
-          frameRate = 30f,
-          codec = trackCodecOf(if (transfer == null) "avc1" else "vp09"),
-          bitDepth = if (transfer == null) 8 else 10,
-          colorSpace = if (transfer == null) ColorSpace.Bt709 else ColorSpace.Bt2020,
-          hdrTransfer = transfer,
-          bitrate = null,
-          hasAlpha = false,
-        ),
-      audioTracks = emptyList(),
-      isExportable = true,
-    )
-
-  private companion object {
-    val SOURCE: MediaSource = MediaSource.Bytes("a".encodeToByteArray())
-    val FILLER: MediaSource = MediaSource.Bytes("filler".encodeToByteArray())
-    val PNG = Size(8, 4)
-    val IMAGE: ImageSource = ImageSource.ofBytes(OverlayPixels.pngOf(PNG, AuthoredColors.MID_GREEN))
-    val OUTPUT_FRAME = Size(1280, 720)
-    val CLIP_FRAME = Size(640, 720)
-    val CLIP_LENGTH = 4.seconds
-    val RAMP = 2.seconds
-    const val HALF = 0.5f
-
-    val SPEC = ExportSpec(videoCodec = VideoCodec.H264, audioCodec = AudioCodec.None)
-    val DEVICE =
-      DeviceCapabilities(
-        video = listOf(VideoEncoderCapability(VideoCodec.H264, null, Size(3840, 2160), null, null, false, 2)),
-        audio = emptyList(),
-        supportsHdrEncoding = false,
-        concurrentSessionBudget = null,
-      )
-
-    val HDR_SPEC = ExportSpec(audioCodec = AudioCodec.None, hdr = HdrMode.KeepHdr)
-    val HDR_DEVICE =
-      DeviceCapabilities(
-        video =
-          listOf(VideoCodec.H264, VideoCodec.Vp9).map {
-            VideoEncoderCapability(it, null, Size(3840, 2160), null, null, false, 2)
-          },
-        audio = emptyList(),
-        supportsHdrEncoding = true,
-        concurrentSessionBudget = null,
-      )
-  }
 }

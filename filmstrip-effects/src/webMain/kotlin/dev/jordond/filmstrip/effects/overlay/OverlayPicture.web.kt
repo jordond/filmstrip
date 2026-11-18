@@ -79,7 +79,9 @@ internal external fun createImageBitmap(
 // The image's own codes go to the texture, with no conversion into the canvas's color space. A
 // tagged picture is converted from those codes by the compositor, as its color describes them. The
 // texels stay in the order they are stored, whatever orientation the file names.
-// What every overlay picture is decoded and cut with: no color conversion and no turn.
+// What every overlay picture is decoded and cut with: no color conversion, no turn and no premultiplying, so the
+// bitmap holds the straight codes a read gives back at any alpha.
 internal fun bitmapOptions(): JsAny = JSON.parse(BITMAP_OPTIONS)
 
-private const val BITMAP_OPTIONS = """{"colorSpaceConversion":"none","imageOrientation":"none"}"""
+private const val BITMAP_OPTIONS =
+  """{"colorSpaceConversion":"none","imageOrientation":"none","premultiplyAlpha":"none"}"""

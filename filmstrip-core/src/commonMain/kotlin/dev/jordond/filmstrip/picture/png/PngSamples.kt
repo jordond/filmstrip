@@ -165,6 +165,7 @@ private fun ByteView.readPng(maxBytes: Long): PngSamples? {
   val stored = inflateImageData(imageData, header) ?: return null
   val pixels = PixelReader(this, header, palette, transparency)
   val rgba = ShortArray(header.width * header.height * 4)
+  val rgba8 = header.colorType == RGBA && header.depth == 8
   var offset = 0
   for (pass in header.passes) {
     if (pass.width == 0 || pass.height == 0) continue
@@ -173,6 +174,10 @@ private fun ByteView.readPng(maxBytes: Long): PngSamples? {
     for (row in 0 until pass.height) {
       val line = offset + row * (rowBytes + 1) + 1
       val y = pass.y + row * pass.yStep
+      if (rgba8) {
+        readRgba8Row(stored, line, pass.width, rgba, (y * header.width + pass.x) * 4, pass.xStep * 4)
+        continue
+      }
       for (column in 0 until pass.width) {
         val at = (y * header.width + pass.x + column * pass.xStep) * 4
         if (!pixels.read(stored, line, column, rgba, at)) return null
@@ -243,51 +248,24 @@ private fun ByteView.inflateImageData(
   return inflatePngImage(joined, ends, header.imageDataSize.toInt())
 }
 
-// Undoes each row's filter in place, or returns false for a filter type PNG does not define.
-private fun unfilter(
+// Writes one row of an 8-bit RGBA picture, whose samples need only scaling, every step shorts from at.
+private fun readRgba8Row(
   data: ByteArray,
-  start: Int,
-  rowBytes: Int,
-  rows: Int,
-  stride: Int,
-): Boolean {
-  for (row in 0 until rows) {
-    val line = start + row * (rowBytes + 1) + 1
-    val above = if (row == 0) -1 else line - rowBytes - 1
-    val filter = data[line - 1].toInt()
-    if (filter !in 0..4) return false
-    if (filter == 0) continue
-    for (i in 0 until rowBytes) {
-      val a = if (i >= stride) data[line + i - stride].unsigned else 0
-      val b = if (above >= 0) data[above + i].unsigned else 0
-      val c = if (above >= 0 && i >= stride) data[above + i - stride].unsigned else 0
-      val predicted =
-        when (filter) {
-          SUB -> a
-          UP -> b
-          AVERAGE -> (a + b) ushr 1
-          else -> paeth(a, b, c)
-        }
-      data[line + i] = (data[line + i] + predicted).toByte()
-    }
-  }
-  return true
-}
-
-// PNG's Paeth predictor, which breaks ties toward a, then b, then c.
-private fun paeth(
-  a: Int,
-  b: Int,
-  c: Int,
-): Int {
-  val estimate = a + b - c
-  val fromA = abs(estimate - a)
-  val fromB = abs(estimate - b)
-  val fromC = abs(estimate - c)
-  return when {
-    fromA <= fromB && fromA <= fromC -> a
-    fromB <= fromC -> b
-    else -> c
+  line: Int,
+  pixels: Int,
+  rgba: ShortArray,
+  at: Int,
+  step: Int,
+) {
+  var from = line
+  var to = at
+  repeat(pixels) {
+    rgba[to] = ((data[from].toInt() and 0xFF) * EIGHT_BIT_SCALE).toShort()
+    rgba[to + 1] = ((data[from + 1].toInt() and 0xFF) * EIGHT_BIT_SCALE).toShort()
+    rgba[to + 2] = ((data[from + 2].toInt() and 0xFF) * EIGHT_BIT_SCALE).toShort()
+    rgba[to + 3] = ((data[from + 3].toInt() and 0xFF) * EIGHT_BIT_SCALE).toShort()
+    from += 4
+    to += step
   }
 }
 
@@ -387,8 +365,6 @@ private fun ShortArray.put(
 
 private val Byte.unsigned: Int get() = toInt() and 0xFF
 
-private fun abs(value: Int): Int = if (value < 0) -value else value
-
 private const val RGBA16_BYTES = 8
 
 /**
@@ -401,9 +377,6 @@ private const val RGB = 2
 private const val PALETTE = 3
 private const val GREY_ALPHA = 4
 private const val RGBA = 6
-private const val SUB = 1
-private const val UP = 2
-private const val AVERAGE = 3
 private const val MAX_PALETTE_ENTRIES = 256
 private const val FULL_SCALE = 65535
 private const val EIGHT_BIT_SCALE = 257

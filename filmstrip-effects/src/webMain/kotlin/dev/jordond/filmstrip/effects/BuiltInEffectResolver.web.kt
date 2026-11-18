@@ -32,6 +32,9 @@ import dev.jordond.filmstrip.effects.geometry.Rotate
 import dev.jordond.filmstrip.effects.geometry.Scale
 import dev.jordond.filmstrip.effects.geometry.regionAt
 import dev.jordond.filmstrip.effects.geometry.retainedRect
+import dev.jordond.filmstrip.effects.overlay.ANIMATED_NO_GRID
+import dev.jordond.filmstrip.effects.overlay.AnimatedAtlas
+import dev.jordond.filmstrip.effects.overlay.FlipbookRead
 import dev.jordond.filmstrip.effects.overlay.ImageOverlay
 import dev.jordond.filmstrip.effects.overlay.OverlayDecode
 import dev.jordond.filmstrip.effects.overlay.OverlayEffect
@@ -43,13 +46,17 @@ import dev.jordond.filmstrip.effects.overlay.animatedBy
 import dev.jordond.filmstrip.effects.overlay.drawnRangeWithin
 import dev.jordond.filmstrip.effects.overlay.drawnTextSize
 import dev.jordond.filmstrip.effects.overlay.fitsTextureSide
+import dev.jordond.filmstrip.effects.overlay.flipbookOver
+import dev.jordond.filmstrip.effects.overlay.flipbookRefusal
 import dev.jordond.filmstrip.effects.overlay.frameWithin
+import dev.jordond.filmstrip.effects.overlay.gridRate
 import dev.jordond.filmstrip.effects.overlay.named
 import dev.jordond.filmstrip.effects.overlay.picturePastTextureSide
 import dev.jordond.filmstrip.effects.overlay.placedOn
 import dev.jordond.filmstrip.effects.overlay.preloadOverlays
 import dev.jordond.filmstrip.effects.overlay.rasterizeText
 import dev.jordond.filmstrip.effects.overlay.rectOn
+import dev.jordond.filmstrip.effects.overlay.refusalFor
 import dev.jordond.filmstrip.effects.overlay.resolvedFrom
 import dev.jordond.filmstrip.effects.spatial.GaussianBlur
 import dev.jordond.filmstrip.effects.spatial.Vignette
@@ -57,6 +64,7 @@ import dev.jordond.filmstrip.effects.spatial.toPass
 import dev.jordond.filmstrip.geometry.FlipAxis
 import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.media.ImageSource
+import dev.jordond.filmstrip.picture.PictureCrop
 import kotlin.js.ExperimentalWasmJsInterop
 import kotlin.time.Duration
 
@@ -136,12 +144,14 @@ public actual class BuiltInEffectResolver internal constructor(
     capabilities: RenderCapabilities,
     attributes: Attributes,
   ): EffectResolution {
+    sheet?.let { flipbookRefusal(attributes) }?.let { return EffectResolution.Unsupported(id, it) }
     if (image is ImageSource.Path) return EffectResolution.Unsupported(id, "${image.named()} $PATH_UNREADABLE")
     val picture =
       when (val decoded = images[image]) {
         null -> return EffectResolution.Unsupported(id, "${image.named()} $NOT_PRELOADED")
         OverlayDecode.Undecodable -> return EffectResolution.Unsupported(id, "${image.named()} $UNDECODABLE")
         is OverlayDecode.Refused -> return EffectResolution.Unsupported(id, decoded.message)
+        is OverlayDecode.Animated -> return animatedOverlay(decoded.atlas, capabilities, attributes)
         is OverlayDecode.Decoded -> decoded.picture
       }
     val shown = picture.shownSize
@@ -150,7 +160,27 @@ public actual class BuiltInEffectResolver internal constructor(
       return EffectResolution.Unsupported(id, reason)
     }
 
-    val drawAt = drawnBy(placedOn(attributes.inputSize, shown), attributes)
+    var placed = shown
+    var cellAt: (Duration) -> PictureCrop? = { null }
+    if (sheet != null) {
+      val drawnStart = drawnRangeWithin(attributes.span).start
+      val rate = checkNotNull(attributes.gridRate)
+      when (val read = sheet.flipbookOver(shown)) {
+        is FlipbookRead.Refused -> {
+          return EffectResolution.Unsupported(id, read.message)
+        }
+        is FlipbookRead.Still -> {
+          placed = read.cell.size
+          cellAt = { read.cell }
+        }
+        is FlipbookRead.Drawn -> {
+          placed = read.flipbook.cell
+          cellAt = { time -> read.flipbook.cellAt(drawnStart, time, rate) }
+        }
+      }
+    }
+
+    val drawAt = drawnBy(placedOn(attributes.inputSize, placed), attributes, cellAt)
     val source = OverlaySource.Image(picture.bitmap, picture.samples)
     val effect = PlatformEffect(WebGlOverlay(source, picture.size, drawAt, picture.color, picture.orientation))
     return if (picture.limits.isEmpty()) {
@@ -158,6 +188,27 @@ public actual class BuiltInEffectResolver internal constructor(
     } else {
       EffectResolution.Degraded(effect, picture.limits)
     }
+  }
+
+  // The atlas was composited when the picture was decoded, whatever the page's texture side, so the side is held here.
+  // Each output frame draws the cell the file's own timeline names, through the same cell window a sprite sheet uses.
+  private fun ImageOverlay.animatedOverlay(
+    atlas: AnimatedAtlas,
+    capabilities: RenderCapabilities,
+    attributes: Attributes,
+  ): EffectResolution {
+    val refusal =
+      atlas.read.refusalFor(sheet != null, capabilities.maxTextureSize)
+        ?: flipbookRefusal(attributes, ANIMATED_NO_GRID)
+    if (refusal != null) return EffectResolution.Unsupported(id, refusal)
+    val rate = checkNotNull(attributes.gridRate)
+    val drawnStart = drawnRangeWithin(attributes.span).start
+    val drawAt =
+      drawnBy(placedOn(attributes.inputSize, atlas.grid.cell), attributes) { time ->
+        atlas.flipbook.cellAt(drawnStart, time, rate)
+      }
+    val source = OverlaySource.Codes(atlas.codes)
+    return EffectResolution.Resolved(PlatformEffect(WebGlOverlay(source, atlas.grid.size, drawAt, atlas.color)))
   }
 
   // Laid out against the frame an export writes and only resampled to the frame entering it, so a
@@ -178,11 +229,14 @@ public actual class BuiltInEffectResolver internal constructor(
   private fun OverlayEffect.drawnBy(
     base: OverlayPlacement,
     attributes: Attributes,
+    cellAt: (Duration) -> PictureCrop? = { null },
   ): (Duration) -> WebGlOverlayDraw? {
     val drawnRange = drawnRangeWithin(attributes.span)
     val frame = attributes.inputSize
     return { time ->
-      frameWithin(drawnRange, time)?.let { WebGlOverlayDraw(base.animatedBy(it).rectOn(frame), it.opacity) }
+      frameWithin(drawnRange, time)?.let {
+        WebGlOverlayDraw(base.animatedBy(it).rectOn(frame), it.opacity, cellAt(time))
+      }
     }
   }
 

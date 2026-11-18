@@ -5,6 +5,7 @@ import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.effect.FilterNode
 import dev.jordond.filmstrip.effect.LiveInput
 import dev.jordond.filmstrip.effect.Sidecar
+import dev.jordond.filmstrip.effect.StillRepeat
 import dev.jordond.filmstrip.effect.WINDOW_CLOCK
 import dev.jordond.filmstrip.export.OutputFormat
 import dev.jordond.filmstrip.ffmpeg.FfmpegConfig
@@ -28,6 +29,8 @@ import kotlin.time.DurationUnit
  * @property loopFrameRate The rate a still is repeated at, or null to read it once. It turns one
  *   image into a stream, which is what keeps a filter on that branch running and stops the merge
  *   downstream seeing the branch end.
+ * @property repeat Who repeats the still across [loopFrameRate]: the demuxer reads it again for every frame, or the
+ *   graph repeats the one frame it read.
  * @property rebased Whether the branch this input feeds ends on a `setpts` back to its own first
  *   frame, which leaves the branch reaching the merge at zero wherever the input opened. A scrubbed
  *   preview moves such an input to the scrub with `-itsoffset`.
@@ -39,6 +42,7 @@ internal class InputSpec(
   val durationSeconds: Double? = null,
   val startSeconds: Double? = null,
   val loopFrameRate: Float? = null,
+  val repeat: StillRepeat = StillRepeat.Demuxer,
   val rebased: Boolean = false,
   val decoderThreads: Int? = null,
 )
@@ -284,12 +288,19 @@ internal fun List<String>.readingGraphFrom(scratch: Scratch): List<String> {
 /**
  * The demuxer options that turn a still into a stream, or nothing for an input read once.
  *
- * Both go ahead of `-i`, beside the seek and the bound, because they configure the demuxer rather
+ * They go ahead of `-i`, beside the seek and the bound, because they configure the demuxer rather
  * than the encoder. `-framerate` is the rate the repeated frames are stamped at, so a filter on the
  * branch runs once per output frame and a per-frame expression is read at every frame's own time.
+ * `-loop 1` makes the demuxer read the image again for every frame, so an input the graph repeats leaves it out.
  */
 internal fun InputSpec.loopArguments(): List<String> =
-  loopFrameRate?.let { listOf("-loop", "1", "-framerate", it.toString()) }.orEmpty()
+  loopFrameRate
+    ?.let { rate ->
+      buildList {
+        if (repeat == StillRepeat.Demuxer) addAll(listOf("-loop", "1"))
+        addAll(listOf("-framerate", rate.toString()))
+      }
+    }.orEmpty()
 
 /**
  * `-noautorotate` for an overlay picture, or nothing for any other input.

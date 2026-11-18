@@ -42,6 +42,16 @@ public interface OverlayPictureDecoder {
   public fun decode(image: ImageSource): OverlayPictureDecode<DecodedPicture>
 
   /**
+   * Decodes the first frame of every picture in [images], in order, each as [decode] does.
+   *
+   * A decoder that can read several pictures in one pass overrides this. The default calls [decode] once per picture.
+   *
+   * @return One result for each of [images], in the same order.
+   */
+  public fun decodeAll(images: List<ImageSource>): List<OverlayPictureDecode<DecodedPicture>> =
+    images.map { decode(it) }
+
+  /**
    * Reads the pixel size of [image]'s first frame as [decode] hands it back, as stored for every picture but a JPEG
    * XL.
    *

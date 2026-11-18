@@ -3,11 +3,14 @@ package dev.jordond.filmstrip.effects.overlay
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.outputSlotOf
 import dev.jordond.filmstrip.edit.outputSlotTime
+import dev.jordond.filmstrip.edit.outputSlotsOf
 import dev.jordond.filmstrip.effect.Attributes
 import dev.jordond.filmstrip.effect.AuxTimeline
 import dev.jordond.filmstrip.effect.FilterArgument
 import dev.jordond.filmstrip.effect.FilterNode
-import kotlin.math.roundToInt
+import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.picture.PICTURE_PEAK_CEILING
+import dev.jordond.filmstrip.picture.picturePeakBytes
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.microseconds
 import kotlin.time.DurationUnit
@@ -84,6 +87,84 @@ internal fun stillOpacityNodes(opacity: Float): List<FilterNode> =
   if (opacity < 1f) listOf(FilterNode("colorchannelmixer", "aa" to opacity.toString())) else emptyList()
 
 /**
+ * The nodes that cut a sprite sheet down to the cell each output frame shows, at [format] with its own alpha.
+ *
+ * The sheet is opened once, so `loop` repeats that one frame for every slot of the branch, and the cell's `x` and `y`
+ * are the runs of the cells [SampledFrame.cell] holds, read off the branch's own clock at [rate]. A cell is cut from
+ * the sheet as shown, so the nodes belong after the ones that orient it. The sheet is brought to [format] ahead of the
+ * cut, since a subsampled sheet blends its neighbouring cell's chroma into the edge of this one.
+ */
+internal fun cellNodes(
+  flipbook: Flipbook,
+  frames: List<SampledFrame>?,
+  rate: Int,
+  span: TimeRange,
+  format: String,
+): List<FilterNode> {
+  val x = frames?.runsOf { checkNotNull(it.cell).left.toString() } ?: heldAt(flipbook.cells.first().left)
+  val y = frames?.runsOf { checkNotNull(it.cell).top.toString() } ?: heldAt(flipbook.cells.first().top)
+  val clock = branchFrameClock(rate)
+  val slots = outputSlotsOf(span, rate).let { it.last - it.first + 1 }
+  return listOf(
+    // One more than the slots the branch covers, which the repeated input's own extra frame needs.
+    FilterNode("loop", "loop" to (slots + 1).toString(), "size" to "1"),
+    FilterNode("format", "pix_fmts" to format),
+    FilterNode(
+      "crop",
+      "w" to flipbook.cell.width.toString(),
+      "h" to flipbook.cell.height.toString(),
+      "x" to x.on(clock),
+      "y" to y.on(clock),
+    ),
+  )
+}
+
+/**
+ * Whether a sheet of [shown] size held at [bytesPerTexel] a texel fits under [ceiling] bytes.
+ *
+ * The sheet is one frame in memory, counted the way [picturePeakBytes] counts it.
+ */
+internal fun sheetFits(
+  shown: Size,
+  bytesPerTexel: Int,
+  ceiling: Long = PICTURE_PEAK_CEILING,
+): Boolean {
+  val bytes = picturePeakBytes(shown.width.toLong() * shown.height * bytesPerTexel, band = 0, made = 0)
+  return bytes != null && bytes <= ceiling
+}
+
+/**
+ * The most area ffmpeg accepts for one frame, counted the way its image size check does.
+ *
+ * A frame is refused when `(width + FRAME_LIMIT_PADDING) * (height + FRAME_LIMIT_PADDING)` is not below this. It is
+ * `Int.MAX_VALUE / 8`, and it is the same on ffmpeg 8.0.1 and 9.0.2 whatever the pixel format.
+ */
+internal const val FFMPEG_FRAME_LIMIT: Long = Int.MAX_VALUE.toLong() / 8
+
+internal const val FRAME_LIMIT_PADDING: Long = 128
+
+/**
+ * Whether ffmpeg accepts a frame of [shown] size at all, which is a limit of ffmpeg's own and separate from the bytes
+ * a sheet may hold.
+ */
+internal fun sheetWithinFrameLimit(
+  shown: Size,
+  limit: Long = FFMPEG_FRAME_LIMIT,
+): Boolean = (shown.width + FRAME_LIMIT_PADDING) * (shown.height + FRAME_LIMIT_PADDING) < limit
+
+internal fun sheetPastFrameLimit(shown: Size): String =
+  "The ${shown.width}x${shown.height} sprite sheet is past ffmpeg's frame size limit, so ffmpeg cannot open it. " +
+    "Split it into a smaller sheet."
+
+internal fun sheetTooLargeToDraw(
+  shown: Size,
+  bytesPerTexel: Int,
+  ceiling: Long,
+): String =
+  "The ${shown.width}x${shown.height} sprite sheet is too large to draw. ffmpeg holds it as one frame of " +
+    "$bytesPerTexel bytes a texel, and a frame may hold $ceiling bytes at most."
+
+/**
  * The scale that draws a picture at [width] by [height], re-read on every frame where either moves.
  */
 internal fun scaleNode(
@@ -143,10 +224,6 @@ internal fun Attributes.auxTimeline(): AuxTimeline? {
 
   return AuxTimeline(rate, length)
 }
-
-// The output rate the planner resolved, which it carries as a Float holding a whole number.
-internal val Attributes.gridRate: Int?
-  get() = frameRate?.takeIf { it > 0f }?.roundToInt()
 
 // The first output frame at or after a composition time, counted on the branch's own clock. The
 // branch's frames sit on the output slots from the one the span's start lands on, so this counts

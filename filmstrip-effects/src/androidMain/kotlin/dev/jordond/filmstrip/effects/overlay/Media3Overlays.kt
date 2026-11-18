@@ -69,14 +69,13 @@ internal fun StaticOverlaySettings.hidden(): StaticOverlaySettings = fixed(alpha
  * both of `drawFrame`'s reads of a frame happen inside that one call, so nothing holds the values
  * across the next frame's rewrite.
  *
- * Its HDR luminance multiplier is fixed for the overlay's life, since it belongs to the texels rather
- * than to the frame, and the HDR branch reading it sees no difference between an animated overlay
- * and a still one.
+ * Its HDR luminance multiplier belongs to the texels rather than to the frame, so it is fixed for the overlay's life
+ * unless the overlay draws a different picture on each frame, which sets it before it answers for that frame.
  *
  * @property hdrLuminance The multiplier media3 scales the overlay's light by on an HDR frame.
  */
 internal class AnimatedOverlaySettings(
-  private val hdrLuminance: Float = OverlaySettings.DEFAULT_HDR_LUMINANCE_MULTIPLIER,
+  var hdrLuminance: Float = OverlaySettings.DEFAULT_HDR_LUMINANCE_MULTIPLIER,
 ) : OverlaySettings {
   private var alpha: Float = OverlaySettings.DEFAULT_ALPHA_SCALE
   private var overlay: AndroidPair<Float, Float> = OverlaySettings.DEFAULT_OVERLAY_FRAME_ANCHOR

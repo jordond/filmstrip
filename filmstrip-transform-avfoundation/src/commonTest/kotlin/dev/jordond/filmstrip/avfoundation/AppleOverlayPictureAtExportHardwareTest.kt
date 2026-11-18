@@ -117,7 +117,7 @@ class AppleOverlayPictureAtExportHardwareTest {
     }
 
   @Test
-  fun `an animated GIF draws its first frame at time zero and later`() =
+  fun `an animated GIF plays its first frame and then holds its last`() =
     runTest(timeout = TIMEOUT) {
       val gif = OverlayPixels.twoFrameGifOf(PLANNED_SIZE, AuthoredColors.MID_GREEN, AuthoredColors.MID_GREY)
       gif.usePinned { NSData.create(bytes = it.addressOf(0), length = gif.size.toULong()) }.writeToFile(picture, true)
@@ -129,10 +129,13 @@ class AppleOverlayPictureAtExportHardwareTest {
           .shouldNotBeNull()
           .displaySize
       val rect = badge.placedOn(size, PLANNED_SIZE).rectOn(size)
-      for (at in listOf(Duration.ZERO, FRAME)) {
+      for ((at, shown, other) in listOf(
+        Triple(Duration.ZERO, AuthoredColors.MID_GREEN, AuthoredColors.MID_GREY),
+        Triple(FRAME, AuthoredColors.MID_GREY, AuthoredColors.MID_GREEN),
+      )) {
         val drawn = frameOf(output, at).average((rect.left + rect.right) / 2f, (rect.top + rect.bottom) / 2f)
         withClue("read $drawn at $at") {
-          (distance(drawn, AuthoredColors.MID_GREEN) < distance(drawn, AuthoredColors.MID_GREY)) shouldBe true
+          (distance(drawn, shown) < distance(drawn, other)) shouldBe true
         }
       }
     }

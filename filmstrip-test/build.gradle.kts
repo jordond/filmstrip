@@ -8,8 +8,11 @@ pureTests()
 
 kotlin {
   sourceSets {
-    // Core's tests compile this directory in too, so nothing in it may reach the rest of this module.
-    commonMain { kotlin.srcDir("src/primedAudio/kotlin") }
+    // Core's tests compile these directories in too, so nothing in them may reach the rest of this module.
+    commonMain {
+      kotlin.srcDir("src/primedAudio/kotlin")
+      kotlin.srcDir("src/animatedPictures/kotlin")
+    }
 
     commonMain.dependencies {
       api(projects.filmstripCore)

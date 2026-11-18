@@ -246,13 +246,30 @@ public class FilterArgument(
  * @property image The image to read.
  * @property chain Nodes applied to the image before it reaches [FilterFragment.merge].
  * @property timeline The run this input's branch has to cover, or null to read the image once.
+ * @property repeat Who repeats the image across [timeline], which is read only when [timeline] is not null.
  */
 @Poko
 public class AuxInput(
   public val image: ImageSource,
   public val chain: List<FilterNode> = emptyList(),
   public val timeline: AuxTimeline? = null,
+  public val repeat: StillRepeat = StillRepeat.Demuxer,
 )
+
+/**
+ * Who repeats the one frame of a still [AuxInput] across its [AuxTimeline].
+ */
+public enum class StillRepeat {
+  /**
+   * The demuxer reads the image again for every output frame.
+   */
+  Demuxer,
+
+  /**
+   * The image is read once and the filter graph repeats the frame, so a decoded picture is not read per output frame.
+   */
+  Graph,
+}
 
 /**
  * How long an [AuxInput]'s branch runs for, and at what rate it advances.

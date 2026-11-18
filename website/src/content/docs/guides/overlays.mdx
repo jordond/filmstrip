@@ -97,6 +97,73 @@ the thumbnail cache.
 An overlay at zero opacity, empty text or a window outside its scope draws nothing. The plan leaves it out and lists it
 on its [inert notices](/guides/export/#inert-notices).
 
+## Sprite sheets
+
+A `SpriteSheet` turns one picture into a flipbook. Give `imageOverlay` a picture laid out as a grid, and the overlay
+draws one cell of it at a time.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Overlays.kt" region="sheet" />
+
+The grid is uniform. Every cell is the same size, and the frames read left to right, then top to bottom. The grid
+divides the picture as it's shown, after any orientation its file carries. A grid that doesn't divide the picture evenly
+is refused by name, and never rounded. There is no padding, trim, rotation or atlas file.
+
+- `scale` and the aspect belong to one cell, not to the whole sheet. A 4 by 3 sheet of square cells draws as a square.
+- The frame count is the number of durations. When the last row isn't full, give `frameCount` or a shorter list, and the
+  empty cells never show.
+- `opacity`, `corner` and `margin` work as they do on a still.
+
+Each frame lasts its own duration, taken as written, so a frame of 5 milliseconds is kept as 5 milliseconds. A frame
+starts on the nearest output frame. A frame shorter than one output frame can land on the same one as the next frame and
+never show, so pick durations that are at least one output frame long.
+
+`plays` says how many times the frames run before the last one holds. It's `FramePlays.Forever` by default, and
+`FramePlays.Once` plays through one time.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Overlays.kt" region="sheetOnce" />
+
+After a finite `plays` the last frame stays on screen for as long as the overlay does. End it sooner with `at` or
+`visibleDuring`. That window also sets when frame 0 starts, so a sheet drawn from 2 seconds opens on its first cell
+at 2 seconds.
+
+Frames that don't last the same time take a list, one duration for each.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Overlays.kt" region="sheetDurations" />
+
+The short form, `SpriteSheet(columns, rows, frameDuration, frameCount, plays)`, builds the same sheet as a list that
+holds `frameDuration` `frameCount` times over.
+
+A sheet combines with an `animation`. They answer different questions, since the animation moves and fades the
+placement and the sheet picks the cell.
+
+## Animated pictures
+
+A GIF, an animated WebP or an APNG given to `imageOverlay` plays its own frames. There is nothing to set.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Overlays.kt" region="sticker" />
+
+The file says how long each frame lasts and how many times the picture plays. `scale`, `corner`, `margin` and `opacity`
+work as they do on a still, and `scale` is the width of the canvas the file draws on, after any orientation the file carries.
+Animated frames are turned the way a still is, on every backend. There is no `plays` to pass, so
+the file's own count is the one in force. A file that plays forever loops for as long as the overlay does.
+
+After a finite count the last frame stays on screen for as long as the overlay does, the way a browser holds it. End it
+sooner with `at` or `visibleDuring`. That window also sets when frame 0 starts, so a sticker drawn from 2 seconds opens
+on its first frame at 2 seconds.
+
+An animated picture takes no `sheet`. A sheet and an animated file are two ways to read one picture, so giving both is
+refused by name. An animated AVIF is refused by name too, and so is a file whose frames can't be read to the end.
+
+Delays follow what a browser shows, with one difference. A GIF's delay of 10 milliseconds or less plays as 100
+milliseconds. An APNG or a WebP plays its delays as stored, and only a stored zero reads as 100 milliseconds. A file
+with frames of 1 to 10 milliseconds therefore plays faster here than in a browser tab, so if one looks too quick, check
+its delays.
+
+Every frame is decoded and held once the overlay resolves, so scrubbing backwards costs nothing. What a backend holds
+for each frame differs, and a 16-bit APNG holds more of it than an 8-bit file. That count, with the canvases the decoder
+works on, is held against the picture memory ceiling, and a file that goes past it is refused by name, before it is
+decoded where the container allows. The same picture on two overlays is held once for an export or a preview.
+
 <Aside type="note" title="Limits">
 - A browser page can't read a file path, so an `ImageSource.Path` overlay is refused by name there. Pass bytes or a URI.
 - A path or URI picture's encoded bytes must fit in 1 GiB. Past that it's refused by name.
@@ -109,6 +176,20 @@ on its [inert notices](/guides/export/#inert-notices).
   gives that color, and an overlay alpha whose canvas shows under a matrix filmstrip can't read is refused by name.
 - media3 uploads each overlay as one texture, so a picture or text longer on a side than the device's
   `GL_MAX_TEXTURE_SIZE` is refused by name. The browser does the same with WebGL's `MAX_TEXTURE_SIZE`.
+- A sprite sheet's decoded picture counts against the picture memory ceiling on every backend.
+- An animated picture's frames count against the picture memory ceiling on every backend, as a sprite sheet does.
+- Every backend needs a known output frame rate to draw an animated picture, and refuses it by name without one.
+- ffmpeg also needs the range an animated picture is drawn over to end, whatever the file's play count. It draws every
+  frame as one atlas, so the atlas must fit both the picture memory ceiling and the frame size limit a sprite sheet
+  has, about 16000 pixels a side for a square one.
+- Android uploads one frame at a time, so the canvas the file draws on must fit the device's `GL_MAX_TEXTURE_SIZE`.
+- The browser needs all the frames as one atlas that fits WebGL's `MAX_TEXTURE_SIZE`, and refuses a longer picture by
+  name with the size in force. It also draws a 16-bit APNG at 8 bits.
+- ffmpeg needs a known output frame rate and a drawn range with an end to draw a sprite sheet. It also can't open a
+  frame past its own size limit, which for a square sheet is about 16000 pixels a side, and refuses a larger sheet by
+  name.
+- The browser needs the whole sprite sheet to fit WebGL's `MAX_TEXTURE_SIZE`. Android uploads one cell at a time, so it
+  needs the side of one cell to fit the device's `GL_MAX_TEXTURE_SIZE`.
 - media3 holds an overlay's position inside the frame, so one animated off the frame stops at the edge there.
 - On an 8-bit export ffmpeg draws an overlay in 4:2:0, so an odd `x` or `y` lands on the even pixel below it, one pixel
   up and left of the other backends. That holds for an animated overlay's position on every frame. See

@@ -11,7 +11,7 @@ import dev.jordond.filmstrip.picture.png.PNG_SIGNATURE
 
 // The containers a picture walk tells apart by their opening bytes, and the structures more than one walk steps
 // through: the marker segments of a JPEG, the first image directory of a TIFF and the top level boxes of an AVIF, HEIC
-// or JPEG XL.
+// or JPEG XL. A GIF is told apart here and stepped through by the animated readers.
 
 /**
  * A picture container the readers in core know how to step through, told apart by its opening bytes.
@@ -25,6 +25,7 @@ public enum class PictureContainer {
   JxlCodestream,
   JxlBoxed,
   Heif,
+  Gif,
 }
 
 /**
@@ -54,6 +55,7 @@ private inline fun containerOf(opensWith: (at: Long, signature: ByteArray) -> Bo
     opensWith(0, JXL_CODESTREAM) -> PictureContainer.JxlCodestream
     opensWith(0, JXL_CONTAINER) -> PictureContainer.JxlBoxed
     opensWith(4, FILE_TYPE) -> PictureContainer.Heif
+    GIF_SIGNATURES.any { opensWith(0, it) } -> PictureContainer.Gif
     else -> null
   }
 
@@ -231,6 +233,7 @@ private val JPEG_SIGNATURE = byteArrayOf(0xFF.toByte(), 0xD8.toByte(), 0xFF.toBy
 private val RIFF_TAG = ascii("RIFF")
 private val WEBP_TAG = ascii("WEBP")
 private val FILE_TYPE = ascii("ftyp")
+private val GIF_SIGNATURES = listOf(ascii("GIF87a"), ascii("GIF89a"))
 private val TIFF_ORDERS = listOf("II*\u0000", "MM\u0000*", "II+\u0000", "MM\u0000+").map(::ascii)
 private val LITTLE_ENDIAN = ascii("II")
 private val BIG_ENDIAN = ascii("MM")

@@ -3,6 +3,7 @@ package dev.jordond.filmstrip.effects.overlay
 import dev.jordond.filmstrip.color.PictureColor
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.picture.PICTURE_PEAK_CEILING
+import dev.jordond.filmstrip.picture.animated.FrameSamples
 import dev.jordond.filmstrip.picture.heif.heifWithExplicitCodestreamColor
 import dev.jordond.filmstrip.picture.pictureColor
 import dev.jordond.filmstrip.picture.pictureColorFromDecodedProfile
@@ -94,12 +95,19 @@ private fun NSURL.fileLength(): Long? {
 
 /**
  * Decodes one read of a picture, as [ImageSource.read] does, with null for a read that found nothing.
+ *
+ * @param asBitmap Whether every picture is decoded and copied by [overlayCodes] rather than left a recipe.
  */
-internal fun decodedPicture(bytes: ByteArray?): PictureRead<OverlayPixels> =
-  bytes?.let(::decoded) ?: PictureRead.Unreadable
+internal fun decodedPicture(
+  bytes: ByteArray?,
+  asBitmap: Boolean = false,
+): PictureRead<OverlayPixels> = bytes?.let { decoded(it, asBitmap) } ?: PictureRead.Unreadable
 
 @OptIn(ExperimentalForeignApi::class)
-private fun decoded(bytes: ByteArray): PictureRead<OverlayPixels> {
+private fun decoded(
+  bytes: ByteArray,
+  asBitmap: Boolean,
+): PictureRead<OverlayPixels> {
   if (bytes.isEmpty()) return PictureRead.Unreadable
   val original = bytes.nsData()
   val imageIo = original.withImageSource { it.typeIdentifier() } in IMAGE_IO_DECODED
@@ -110,7 +118,7 @@ private fun decoded(bytes: ByteArray): PictureRead<OverlayPixels> {
       is PictureRoute.Decoded -> route.bytes.nsData() to route.limits
       is PictureRoute.Evaluated -> route.bytes.nsData() to emptyList()
     }
-  val codes = if (route is PictureRoute.Evaluated) data.evaluatedCodes(route) else data.overlayCodes()
+  val codes = if (route is PictureRoute.Evaluated) data.evaluatedCodes(route) else data.overlayCodes(asBitmap)
   val held =
     when (codes) {
       is PictureRead.Read -> codes.value
@@ -126,6 +134,26 @@ private fun decoded(bytes: ByteArray): PictureRead<OverlayPixels> {
     OverlayPixels(held, { colorOf(bytes, original) }, limits = limits, orientation = orientation, crop = crop)
   return PictureRead.Read(pixels)
 }
+
+/**
+ * The straight samples of the still WebP in [bytes], or null when ImageIO decodes none or its samples cannot be read.
+ *
+ * ImageIO decodes the still once and hands its alpha straight, so the samples read back through [StoredBands] are the
+ * ones libwebp decodes. It is what [dev.jordond.filmstrip.picture.animated.compositeFrames] decodes each frame stored
+ * as a still WebP with.
+ */
+@OptIn(ExperimentalForeignApi::class)
+internal fun stillSamplesOf(bytes: ByteArray): FrameSamples? =
+  bytes.nsData().withImageSource { source ->
+    val held = (source.bitmapCodes() as? PictureRead.Read)?.value ?: return@withImageSource null
+    val reader = codeReader ?: return@withImageSource null
+    val size = held.image.pixelSize()
+    val rgba = ShortArray(size.width * size.height * STILL_SAMPLES)
+    StoredBands(held.image, size, reader).forEach { row, band -> band.copyInto(rgba, row * size.width * STILL_SAMPLES) }
+    FrameSamples(size.width, size.height, rgba, sixteenBit = false)
+  }
+
+private const val STILL_SAMPLES = 4
 
 /**
  * These bytes copied into an [NSData], the form ImageIO and Core Image read a picture from.
@@ -147,11 +175,14 @@ internal fun ByteArray.nsData(): NSData = usePinned { NSData.create(bytes = it.a
  * Any other picture is a Core Image recipe that decodes the first time a context renders it. That includes a HEIF coded
  * with H.264, which ImageIO names `public.avci`. How Core Image decodes one, and whether it reads the same samples
  * every time, is unmeasured, since ImageIO writes no such HEIF to measure it with.
+ *
+ * With [asBitmap] every picture is decoded and copied the way a HEIF is, which a sprite sheet needs to cut its cells
+ * from a bitmap.
  */
 @OptIn(ExperimentalForeignApi::class)
-internal fun NSData.overlayCodes(): PictureRead<HeldCodes> =
+internal fun NSData.overlayCodes(asBitmap: Boolean = false): PictureRead<HeldCodes> =
   withImageSource { source ->
-    if (source.typeIdentifier() in IMAGE_IO_DECODED) {
+    if (asBitmap || source.typeIdentifier() in IMAGE_IO_DECODED) {
       source.bitmapCodes()
     } else {
       val codes = CIImage.imageWithData(this, unmanagedOptions()) ?: return@withImageSource PictureRead.Unreadable

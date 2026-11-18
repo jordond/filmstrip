@@ -10,12 +10,15 @@ import dev.jordond.filmstrip.picture.heif.UnturnedHeif
 import dev.jordond.filmstrip.picture.heif.heifWithExplicitCodestreamColor
 import dev.jordond.filmstrip.picture.heif.heifWithRestatedColor
 import dev.jordond.filmstrip.picture.pictureColor
+import dev.jordond.filmstrip.picture.picturePeakBytes
 import dev.jordond.filmstrip.picture.pictureYcbcrCoding
 import dev.jordond.filmstrip.picture.withColorDescriptionsHidden
 import dev.jordond.filmstrip.test.AvifColorPictures
 import dev.jordond.filmstrip.test.ColorPictures
 import dev.jordond.filmstrip.test.OverlayPixels
+import dev.jordond.filmstrip.test.SpriteSheets
 import io.kotest.assertions.withClue
+import io.kotest.matchers.comparables.shouldBeLessThan
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
@@ -31,6 +34,9 @@ import kotlin.test.Test
  * with the matrix. One without an `nclx` reaches it stating its codestream's own range and transfer beside that matrix
  * and those primaries. Each lands as the codestream it reaches the decoder with says on that API level. A picture core
  * refuses reaches it as it is. [DecoderLimitHostTest] covers what a picture landed short of its file reports.
+ *
+ * A sprite sheet is drawn from one texture per cell, so the texture side is checked on the cell and the bytes the
+ * cells, the sheet and the textures hold are counted once against the picture ceiling.
  */
 class Media3OverlayResolutionHostTest {
   @Test
@@ -387,8 +393,82 @@ class Media3OverlayResolutionHostTest {
     withClue("$what") { got shouldBe listOf(want.matrix, want.fullRange, want.limits, want.refusal) }
   }
 
+  @Test
+  fun aCellAsLongAsTheTextureSideDrawsAndOnePastIsRefused() {
+    val side = SpriteSheets.CELL.width
+
+    sheetCellsRefusal(SHEET, CELL, CELLS, side).shouldBeNull()
+    withClue("one texel short of the cell's width") {
+      sheetCellsRefusal(SHEET, CELL, CELLS, side - 1) shouldBe cellPastTextureSide(CELL, side - 1)
+    }
+  }
+
+  // The longest side of a cell is its width here, so the height is checked on its own with a cell that is taller.
+  @Test
+  fun aCellTallerThanItIsWideIsMeasuredOnItsHeight() {
+    val tall = Size(CELL.height, CELL.width)
+
+    sheetCellsRefusal(Size(tall.width * 2, tall.height), tall, 2, tall.height).shouldBeNull()
+    sheetCellsRefusal(Size(tall.width * 2, tall.height), tall, 2, tall.height - 1) shouldBe
+      cellPastTextureSide(tall, tall.height - 1)
+  }
+
+  // Only cells are uploaded, so a sheet longer than any texture draws while its cells fit.
+  @Test
+  fun aSheetWiderThanTheTextureSideDrawsWhenItsCellsFit() {
+    val side = SpriteSheets.CELL.width
+
+    (SHEET.width > side) shouldBe true
+    sheetCellsRefusal(SHEET, CELL, CELLS, side).shouldBeNull()
+  }
+
+  @Test
+  fun theCountIsTheCellsTheSheetAndTheTexturesTogether() {
+    val cellBytes = CELL.width.toLong() * CELL.height * TEXEL_BYTES
+    val sheetBytes = SHEET.width.toLong() * SHEET.height * TEXEL_BYTES
+
+    cellsPeakBytes(SHEET, CELL, CELLS) shouldBe picturePeakBytes(CELLS * cellBytes, sheetBytes, CELLS * cellBytes)
+  }
+
+  // A sheet that holds fewer frames than it has cells cuts and uploads only those, so the count falls with them while
+  // the sheet it is cut from stays whole.
+  @Test
+  fun aSheetWithSomeEmptyCellsCountsOnlyTheCellsItDraws() {
+    val cellBytes = CELL.width.toLong() * CELL.height * TEXEL_BYTES
+    val sheetBytes = SHEET.width.toLong() * SHEET.height * TEXEL_BYTES
+    val half = CELLS / 2
+
+    val partial = cellsPeakBytes(SHEET, CELL, half).shouldNotBeNull()
+    val full = cellsPeakBytes(SHEET, CELL, CELLS).shouldNotBeNull()
+
+    partial shouldBe picturePeakBytes(half * cellBytes, sheetBytes, half * cellBytes)
+    partial shouldBeLessThan full
+  }
+
+  @Test
+  fun aSheetFitsTheCeilingAtItsEdgeAndNotOneByteOver() {
+    val peak = cellsPeakBytes(SHEET, CELL, CELLS).shouldNotBeNull()
+
+    sheetCellsRefusal(SHEET, CELL, CELLS, SIDE_LIMIT, peak).shouldBeNull()
+    sheetCellsRefusal(SHEET, CELL, CELLS, SIDE_LIMIT, peak - 1) shouldBe
+      sheetPastCeiling(SHEET, CELL, CELLS, peak - 1)
+  }
+
+  @Test
+  fun aSheetWhoseCountPassesALongIsRefused() {
+    val huge = Size(Int.MAX_VALUE, Int.MAX_VALUE)
+
+    cellsPeakBytes(huge, huge, 2).shouldBeNull()
+    sheetCellsRefusal(huge, huge, 2, Int.MAX_VALUE).shouldNotBeNull()
+  }
+
   private companion object {
     val SIDE = Size(4, 4)
+    val SHEET = SpriteSheets.SHEET
+    val CELL = SpriteSheets.CELL
+    const val CELLS = SpriteSheets.COLUMNS * SpriteSheets.ROWS
+    const val TEXEL_BYTES = 4
+    const val SIDE_LIMIT = 16384
     const val UNSPECIFIED = 2
     const val BT709 = 1
     const val BT601 = 6

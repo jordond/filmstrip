@@ -21,9 +21,13 @@ import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.ImageSource
+import dev.jordond.filmstrip.picture.animated.atlasGrid
 import dev.jordond.filmstrip.picture.pictureColor
+import dev.jordond.filmstrip.test.AnimatedPictures
+import dev.jordond.filmstrip.test.AnimatedWebps
 import dev.jordond.filmstrip.test.IccPictures
 import io.kotest.assertions.withClue
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.types.shouldBeInstanceOf
@@ -146,6 +150,29 @@ class FfmpegOverlayOneReadMediaTest {
     withClue("nothing but a measure spawned") { recording.size shouldBe 0 }
   }
 
+  // The frames of an animated picture are split from the bytes of the one read, so a file swapped while its frames
+  // decode still draws the atlas of the picture the lowering read first.
+  @Test
+  fun `an animated WebP swapped during its decode keeps the atlas of its first read`() {
+    val canvas = AnimatedPictures.COUNTER_CANVAS
+    val first = AnimatedWebps.bytes(canvas, AnimatedPictures.counterOps(), loops = 0)
+    val swapped = AnimatedWebps.bytes(canvas, AnimatedPictures.counterOps(COUNTER_SWAPPED_FRAMES), loops = 0)
+    val picture = File(root, "counters.webp").apply { writeBytes(first) }
+    val spec = ImageOverlay(ImageSource.of(picture.path), Corner.TopStart)
+    val swapping = SwappingDecoder(decoder) { picture.writeBytes(swapped) }
+    val grid = atlasGrid(AnimatedPictures.COUNTER_FRAMES, canvas, null).shouldNotBeNull()
+
+    val drawn =
+      fragmentOf(spec, swapping)
+        .auxInputs
+        .single()
+        .image
+        .shouldBeInstanceOf<ImageSource.Bytes>()
+
+    swapping.swaps shouldBe 1
+    pixelsOf(drawn.bytes).first shouldBe grid.size
+  }
+
   @Test
   fun `a corrupt PNG is refused by name at lowering`() {
     val bytes = pngOf(SWAPPED_COLOR, FIRST_SIZE)
@@ -245,6 +272,11 @@ class FfmpegOverlayOneReadMediaTest {
       return inner.decode(image)
     }
 
+    override fun decodeAll(images: List<ImageSource>): List<OverlayPictureDecode<DecodedPicture>> {
+      if (swaps++ == 0) swap()
+      return inner.decodeAll(images)
+    }
+
     override fun measure(image: ImageSource): OverlayPictureRead<Size> = inner.measure(image)
   }
 
@@ -266,6 +298,7 @@ class FfmpegOverlayOneReadMediaTest {
     val FIRST_SIZE = Size(48, 24)
     val SWAPPED_SIZE = Size(96, 16)
     const val RATE = 30f
+    const val COUNTER_SWAPPED_FRAMES = 12
     const val SWAPPED_COLOR = 0xFF20C040.toInt()
     const val TGA_TEXEL = 0xFF4080C0.toInt()
     const val TGA_HEADER = 18

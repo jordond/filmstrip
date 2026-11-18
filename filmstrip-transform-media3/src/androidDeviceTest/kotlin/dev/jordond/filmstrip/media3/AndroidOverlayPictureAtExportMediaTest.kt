@@ -100,7 +100,7 @@ class AndroidOverlayPictureAtExportMediaTest {
     }
 
   @Test
-  fun anAnimatedGifDrawsItsFirstFrameAtTimeZeroAndLater() =
+  fun anAnimatedGifDrawsItsFirstFrameAtTimeZeroAndItsLastOnceItHasPlayed() =
     runTest(timeout = TIMEOUT) {
       picture.writeBytes(OverlayPixels.twoFrameGifOf(PLANNED_SIZE, AuthoredColors.MID_GREEN, AuthoredColors.MID_GREY))
       val plan = probe.plan(composition())
@@ -120,7 +120,7 @@ class AndroidOverlayPictureAtExportMediaTest {
       val argb = bitmap.getPixel((middleX * bitmap.width).toInt(), (middleY * bitmap.height).toInt())
       val later = Triple((argb shr 16) and 0xFF, (argb shr 8) and 0xFF, argb and 0xFF)
       withClue("read $later at $GIF_LATER") {
-        (distance(later, AuthoredColors.MID_GREEN) < distance(later, AuthoredColors.MID_GREY)) shouldBe true
+        (distance(later, AuthoredColors.MID_GREY) < distance(later, AuthoredColors.MID_GREEN)) shouldBe true
       }
     }
 

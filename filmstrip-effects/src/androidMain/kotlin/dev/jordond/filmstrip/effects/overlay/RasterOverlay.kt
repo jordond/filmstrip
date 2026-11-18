@@ -8,6 +8,7 @@ import androidx.media3.effect.StaticOverlaySettings
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.geometry.Size
 import kotlin.time.Duration.Companion.microseconds
+import androidx.media3.common.util.Size as Media3Size
 import androidx.media3.effect.OverlayEffect as Media3OverlayEffect
 import androidx.media3.effect.TextOverlay as Media3TextOverlay
 
@@ -51,6 +52,10 @@ import androidx.media3.effect.TextOverlay as Media3TextOverlay
  * @property drawnRange The composition time range the overlay is drawn over, from `drawnRangeWithin`.
  * @property hdrLuminance The multiplier media3 reads [bitmap] through on an HDR frame, the one
  *   [rasterFor] mapped its texels against.
+ * @property cells The cells of a sprite sheet or an animated picture, or null for an overlay that draws [bitmap] whole.
+ *   They are drawn from one texture per cell, each made when its cell is first drawn and deleted on [release], so
+ *   media3 clamps against the cell and never reads a neighbouring one. [bitmap] is then only the first cell, which
+ *   nothing uploads.
  */
 internal class RasterOverlay(
   private val bitmap: Bitmap,
@@ -59,7 +64,9 @@ internal class RasterOverlay(
   private val raster: Size,
   private val drawnRange: TimeRange,
   private val hdrLuminance: Float = OverlaySettings.DEFAULT_HDR_LUMINANCE_MULTIPLIER,
+  cells: CellBitmaps? = null,
 ) : Media3TextOverlay() {
+  private val textures: CellTextures? = cells?.let(::CellTextures)
   private val visible: StaticOverlaySettings = placement.toOverlaySettings(raster, 1f, hdrLuminance)
   private val hidden: StaticOverlaySettings = visible.hidden()
   private val animated = AnimatedOverlaySettings(hdrLuminance)
@@ -71,6 +78,17 @@ internal class RasterOverlay(
 
   override fun getBitmap(presentationTimeUs: Long): Bitmap = bitmap
 
+  override fun getTextureId(presentationTimeUs: Long): Int =
+    textures?.textureAt(presentationTimeUs) ?: super.getTextureId(presentationTimeUs)
+
+  override fun getTextureSize(presentationTimeUs: Long): Media3Size =
+    textures?.size ?: super.getTextureSize(presentationTimeUs)
+
+  override fun release() {
+    textures?.release()
+    super.release()
+  }
+
   override fun getOverlaySettings(presentationTimeUs: Long): OverlaySettings {
     if (presentationTimeUs != sampledAt) {
       sampled = settingsAt(presentationTimeUs)
@@ -81,8 +99,11 @@ internal class RasterOverlay(
 
   private fun settingsAt(presentationTimeUs: Long): OverlaySettings {
     val frame = spec.frameWithin(drawnRange, presentationTimeUs.microseconds) ?: return hidden
-    if (frame == OverlayFrame.Identity) return visible
-    return animated.update(placement.animatedBy(frame), raster, frame.opacity)
+    val luminance = textures?.luminanceAt(presentationTimeUs)
+    if (frame == OverlayFrame.Identity && luminance == null) return visible
+    if (luminance != null) animated.hdrLuminance = luminance
+    val moved = if (frame == OverlayFrame.Identity) placement else placement.animatedBy(frame)
+    return animated.update(moved, raster, frame.opacity)
   }
 
   private companion object {

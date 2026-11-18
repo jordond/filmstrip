@@ -30,9 +30,11 @@ import dev.jordond.filmstrip.effects.geometry.Rotate
 import dev.jordond.filmstrip.effects.geometry.Scale
 import dev.jordond.filmstrip.effects.geometry.retainedRect
 import dev.jordond.filmstrip.effects.geometry.turnedFrame
+import dev.jordond.filmstrip.effects.overlay.AnimatedGraph
 import dev.jordond.filmstrip.effects.overlay.HeldBytes
 import dev.jordond.filmstrip.effects.overlay.ImageOverlay
 import dev.jordond.filmstrip.effects.overlay.LoweringPictures
+import dev.jordond.filmstrip.effects.overlay.LoweringShare
 import dev.jordond.filmstrip.effects.overlay.OverlayPictureDecoder
 import dev.jordond.filmstrip.effects.overlay.TextOverlay
 import dev.jordond.filmstrip.effects.overlay.encodedRead
@@ -64,6 +66,7 @@ import kotlin.math.PI
 public actual class BuiltInEffectResolver : EffectResolver {
   private val pictureDecoder: OverlayPictureDecoder?
   private val pictures = LoweringPictures<HeldBytes> { it.encodedRead() }
+  private val atlases = LoweringShare<HdrTransfer?, AnimatedGraph>()
 
   public actual constructor() {
     pictureDecoder = null
@@ -89,10 +92,12 @@ public actual class BuiltInEffectResolver : EffectResolver {
   }
 
   /**
-   * Reads every overlay picture [composition] names by path or URI, so one named twice is one read for this lowering.
+   * Reads every overlay picture [composition] names by path or URI, so one named twice is one read for this lowering,
+   * and holds the atlas of every animated picture it names, so one named twice is composited and decoded once.
    */
   override suspend fun prepare(composition: Composition) {
     pictures.readFor(composition)
+    atlases.readFor(composition)
   }
 
   actual override fun resolve(
@@ -155,7 +160,7 @@ public actual class BuiltInEffectResolver : EffectResolver {
         )
       }
       is ImageOverlay -> {
-        filterGraphOverlay(spec, attributes, pictureDecoder, pictures[spec.image])
+        filterGraphOverlay(spec, attributes, pictureDecoder, pictures[spec.image], atlases = atlases)
       }
       is TextOverlay -> {
         filterGraphText(spec, capabilities, attributes)

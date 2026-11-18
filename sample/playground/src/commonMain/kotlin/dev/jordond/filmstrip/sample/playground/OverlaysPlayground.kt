@@ -44,6 +44,7 @@ private enum class OverlayTab(
 ) {
   Caption("CAPTION"),
   Logo("LOGO"),
+  Spinner("SPINNER"),
   Motion("MOTION"),
 }
 
@@ -53,12 +54,14 @@ private enum class OverlayTab(
  *
  * @param filmstrip Opens the player.
  * @param logo The picture the logo overlay draws.
+ * @param sheet The sprite sheet the spinner draws, a 4 by 3 grid of frames.
  * @param copy Puts the code listing on the clipboard.
  */
 @Composable
 internal fun OverlaysPlayground(
   filmstrip: Filmstrip,
   logo: ImageSource,
+  sheet: ImageSource,
   copy: (String) -> Unit,
 ) {
   var settings by remember { mutableStateOf(OverlaySettings()) }
@@ -71,7 +74,7 @@ internal fun OverlaysPlayground(
       verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
       StatusLine(compare = false, overlaySummary(settings), "OUT 16:9")
-      Picture(filmstrip, tearsOfSteel) { overlaysEdit(it, logo, settings) }
+      Picture(filmstrip, tearsOfSteel) { overlaysEdit(it, logo, sheet, settings) }
       tearsOfSteel.attribution?.let { credit ->
         Text("${tearsOfSteel.name} · $credit", style = MaterialTheme.typography.bodySmall, color = Tokens.muted)
       }
@@ -79,6 +82,7 @@ internal fun OverlaysPlayground(
       when (tab) {
         OverlayTab.Caption -> CaptionControls(settings, columns) { settings = it }
         OverlayTab.Logo -> LogoControls(settings, columns) { settings = it }
+        OverlayTab.Spinner -> SpinnerControls(settings) { settings = it }
         OverlayTab.Motion -> MotionControls(settings, columns) { settings = it }
       }
       CodePanel(overlaysCode(settings), copy)
@@ -170,6 +174,31 @@ private fun LogoControls(
 }
 
 @Composable
+private fun SpinnerControls(
+  settings: OverlaySettings,
+  onChange: (OverlaySettings) -> Unit,
+) {
+  Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
+    LedSwitch("SPINNER", settings.spinner) { onChange(settings.copy(spinner = it)) }
+    if (!settings.spinner) return@Column
+    Group("PLAYS", "then the last frame holds") {
+      ChipRow {
+        SpinnerPlays.entries.forEach { plays ->
+          Chip(plays.label, settings.spinnerPlays == plays) { onChange(settings.copy(spinnerPlays = plays)) }
+        }
+      }
+    }
+    Group("FRAME", "12 frames from one sprite sheet") {
+      ChipRow {
+        OverlaySettings.SPINNER_FRAME_MS.forEach { ms ->
+          Chip("$ms MS", settings.spinnerFrameMs == ms) { onChange(settings.copy(spinnerFrameMs = ms)) }
+        }
+      }
+    }
+  }
+}
+
+@Composable
 private fun MotionControls(
   settings: OverlaySettings,
   columns: Int,
@@ -233,6 +262,7 @@ private fun tabColour(tab: OverlayTab): Color =
   when (tab) {
     OverlayTab.Caption -> Tokens.amber
     OverlayTab.Logo -> Tokens.cyan
+    OverlayTab.Spinner -> Tokens.coral
     OverlayTab.Motion -> Tokens.pink
   }
 

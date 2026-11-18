@@ -10,8 +10,6 @@ import java.awt.image.BufferedImage
 import java.awt.image.ComponentColorModel
 import java.awt.image.DataBuffer
 import java.awt.image.Raster
-import java.io.ByteArrayOutputStream
-import javax.imageio.ImageIO
 import kotlin.math.roundToInt
 
 /**
@@ -35,30 +33,44 @@ internal class HdrOverlayRaster(
  *
  * The picture comes from [storedPicture], so its texels reach the mapping as the samples it stores, at the depth it
  * stores them, with the color description that defines them, and [pictureLight] lands them in the grade's display
- * light. Every distinct color is mapped once, so a flat picture costs a single conversion.
+ * light. Every distinct color of a band of texels is mapped once, so a flat picture costs one conversion a band.
  */
 internal fun hdrOverlayRaster(
   picture: StoredPicture,
   transfer: HdrTransfer,
 ): HdrOverlayRaster {
-  val stored = picture.samples
-  val slots = HashMap<Long, Int>()
-  val firsts = mutableListOf<Int>()
-  val slotOf =
-    IntArray(stored.texelCount) { index ->
-      slots.getOrPut(stored.colorKey(index)) { firsts.size.also { firsts += index } }
-    }
-  val signals = signalCodes(stored.opaqueAt(firsts.toIntArray()).light(picture.color), firsts.size, transfer)
-
-  val samples = IntArray(slotOf.size * CHANNELS)
-  slotOf.forEachIndexed { index, slot ->
-    val offset = index * CHANNELS
-    signals.copyInto(samples, offset, slot * 3, slot * 3 + 3)
-    samples[offset + 3] = stored.wideAlpha(index)
-  }
-
   val size = picture.size
-  return HdrOverlayRaster(wideRgbaPng(samples, size.width, size.height), size)
+  return HdrOverlayRaster(rgba16Png(signalSamples(picture, transfer), size), size)
+}
+
+// The samples of the signal PNG, four unsigned sixteen-bit values a texel, written straight into the array the PNG is
+// encoded from. The texels are mapped in bands, and each band maps its own distinct colors once, so what is held beside
+// the samples is one band's table however many distinct colors the picture has.
+private fun signalSamples(
+  picture: StoredPicture,
+  transfer: HdrTransfer,
+): ShortArray {
+  val stored = picture.samples
+  val count = stored.texelCount
+  val samples = ShortArray(count * CHANNELS)
+  var start = 0
+  while (start < count) {
+    val end = minOf(count, start + BAND_TEXELS)
+    val slots = HashMap<Long, Int>()
+    val firsts = mutableListOf<Int>()
+    val slotOf =
+      IntArray(end - start) { offset ->
+        slots.getOrPut(stored.colorKey(start + offset)) { firsts.size.also { firsts += start + offset } }
+      }
+    val signals = signalCodes(stored.opaqueAt(firsts.toIntArray()).light(picture.color), firsts.size, transfer)
+    slotOf.forEachIndexed { offset, slot ->
+      val at = (start + offset) * CHANNELS
+      for (channel in 0 until 3) samples[at + channel] = signals[slot * 3 + channel].toShort()
+      samples[at + 3] = stored.wideAlpha(start + offset).toShort()
+    }
+    start = end
+  }
+  return samples
 }
 
 // The signal each of [count] colors' light is written at, as sixteen-bit codes, three per color.
@@ -100,11 +112,10 @@ internal fun wideRgbaPng(
     )
   val image = BufferedImage(model, raster, false, null)
 
-  return ByteArrayOutputStream()
-    .also { check(ImageIO.write(image, "png", it)) { "The JDK has no PNG writer for a sixteen-bit picture." } }
-    .toByteArray()
+  return pngBytes(image, "The JDK has no PNG writer for a sixteen-bit picture.")
 }
 
 private const val WIDE_CODE_MAX = 0xFFFF
 private const val CHANNELS = 4
+private const val BAND_TEXELS = 1 shl 16
 private const val TEXEL_FLOATS = 4

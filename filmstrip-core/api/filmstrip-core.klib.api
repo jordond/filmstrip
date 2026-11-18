@@ -962,6 +962,30 @@ sealed interface dev.jordond.filmstrip.geometry/Fill { // dev.jordond.filmstrip.
     }
 }
 
+sealed interface dev.jordond.filmstrip.media/FramePlays { // dev.jordond.filmstrip.media/FramePlays|null[0]
+    final class Times : dev.jordond.filmstrip.media/FramePlays { // dev.jordond.filmstrip.media/FramePlays.Times|null[0]
+        constructor <init>(kotlin/Int) // dev.jordond.filmstrip.media/FramePlays.Times.<init>|<init>(kotlin.Int){}[0]
+
+        final val count // dev.jordond.filmstrip.media/FramePlays.Times.count|{}count[0]
+            final fun <get-count>(): kotlin/Int // dev.jordond.filmstrip.media/FramePlays.Times.count.<get-count>|<get-count>(){}[0]
+
+        final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.media/FramePlays.Times.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.media/FramePlays.Times.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // dev.jordond.filmstrip.media/FramePlays.Times.toString|toString(){}[0]
+    }
+
+    final object Companion { // dev.jordond.filmstrip.media/FramePlays.Companion|null[0]
+        final val Once // dev.jordond.filmstrip.media/FramePlays.Companion.Once|{}Once[0]
+            final fun <get-Once>(): dev.jordond.filmstrip.media/FramePlays // dev.jordond.filmstrip.media/FramePlays.Companion.Once.<get-Once>|<get-Once>(){}[0]
+    }
+
+    final object Forever : dev.jordond.filmstrip.media/FramePlays { // dev.jordond.filmstrip.media/FramePlays.Forever|null[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.media/FramePlays.Forever.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.media/FramePlays.Forever.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // dev.jordond.filmstrip.media/FramePlays.Forever.toString|toString(){}[0]
+    }
+}
+
 sealed interface dev.jordond.filmstrip.media/FrameResult { // dev.jordond.filmstrip.media/FrameResult|null[0]
     final class Failure : dev.jordond.filmstrip.media/FrameResult { // dev.jordond.filmstrip.media/FrameResult.Failure|null[0]
         constructor <init>(dev.jordond.filmstrip/FilmstripError) // dev.jordond.filmstrip.media/FrameResult.Failure.<init>|<init>(dev.jordond.filmstrip.FilmstripError){}[0]

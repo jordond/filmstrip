@@ -16,9 +16,9 @@ internal val RESTART_PTS: FilterNode = FilterNode("setpts", "expr" to "PTS-START
 /**
  * The extra inputs a merging effect composites, each declared on [inputs] and prepared on a pad of its own.
  *
- * An input naming a timeline is looped for a frame longer than the run it covers. Overshooting
- * costs nothing, since the graph's own `trim=duration=` is what cuts the output, while
- * undershooting drops the overlay from the frame the branch runs out with no diagnostic at all.
+ * An input naming a timeline is looped for a frame longer than the run it covers, by the demuxer or by the graph as
+ * [AuxInput.repeat] says. Overshooting costs nothing, since the graph's own `trim=duration=` is what cuts the output,
+ * while undershooting drops the overlay from the frame the branch runs out with no diagnostic at all.
  *
  * Every branch closes on a `setpts` back to its own first frame. An export reads the input from
  * zero and the node changes nothing, while a preview opens the input at the scrub instead, so
@@ -37,6 +37,7 @@ internal fun FilterGraphBuilder.auxPads(
         source = InputSource.OfImage(aux.image),
         durationSeconds = aux.timeline?.let { it.duration.seconds() + 1.0 / it.frameRate },
         loopFrameRate = aux.timeline?.frameRate,
+        repeat = aux.repeat,
         rebased = true,
       )
     "${label}a$index".also { chain(listOf("$input:v"), aux.chain + RESTART_PTS, it) }

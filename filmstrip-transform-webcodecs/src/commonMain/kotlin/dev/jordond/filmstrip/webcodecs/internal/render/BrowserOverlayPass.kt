@@ -13,7 +13,7 @@ import dev.jordond.filmstrip.effects.color.displayLightGradeGlsl
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.webcodecs.internal.BrowserExportFailure
-import dev.jordond.filmstrip.webcodecs.internal.interop.ArrayBuffer
+import dev.jordond.filmstrip.webcodecs.internal.interop.JsOptions
 import dev.jordond.filmstrip.webcodecs.internal.interop.OffscreenCanvas
 import dev.jordond.filmstrip.webcodecs.internal.interop.Uint8Array
 import dev.jordond.filmstrip.webcodecs.internal.interop.WebGl2
@@ -22,7 +22,6 @@ import dev.jordond.filmstrip.webcodecs.internal.interop.toFloat32Array
 import dev.jordond.filmstrip.webcodecs.internal.interop.toUint8Array
 import kotlin.js.ExperimentalWasmJsInterop
 import kotlin.js.JsAny
-import kotlin.js.JsName
 import kotlin.time.Duration.Companion.microseconds
 
 /**
@@ -33,6 +32,13 @@ import kotlin.time.Duration.Companion.microseconds
  * composition time. The opacity multiplies color and alpha once, on the frame's own codes, and nothing here works
  * out a placement or an opacity of its own.
  *
+ * A draw that names a [dev.jordond.filmstrip.effect.WebGlOverlayDraw.cell] reads that rectangle of the one uploaded
+ * raster, stretched over the rect. The read is held half a texel inside the rectangle, so the texels of the cell beside
+ * it are never blended in at any scale.
+ *
+ * A raster of eight-bit [OverlaySource.Codes], which is how an animated picture's atlas arrives, is converted and
+ * uploaded a band of rows at a time, so it is never held in the page beside a converted copy of itself.
+ *
  * On a kept grade the raster is mapped to linear display light before it is uploaded, so each texel lands where a
  * fill of its color does, and it blends with the frame in the linear display light the compositor holds on either
  * transfer.
@@ -40,7 +46,7 @@ import kotlin.time.Duration.Companion.microseconds
  * A raster carrying a [WebGlOverlay.color] is converted from its stored codes before it is uploaded, to the sRGB codes
  * [pictureSrgbCodes] gives it on SDR and to the light [pictureLight] gives it on a kept grade. A raster whose
  * [WebGlOverlay.source] carries samples, a PNG tagged or not, an evaluated AVIF or text, is converted from them at
- * their full depth, and any other raster from its image's codes read back through a 2D canvas.
+ * their full depth, and any other raster from its image's codes read back through a WebGL2 framebuffer.
  */
 internal class BrowserOverlayPass private constructor(
   private val gl: WebGl2,
@@ -52,6 +58,8 @@ internal class BrowserOverlayPass private constructor(
   private val opacity: JsAny?,
   private val colorMatrix: JsAny?,
   private val textureMatrix: JsAny?,
+  private val window: JsAny?,
+  private val halfTexel: JsAny?,
 ) {
   private val textures = mutableMapOf<WebGlOverlay, JsAny>()
 
@@ -89,6 +97,9 @@ internal class BrowserOverlayPass private constructor(
       gl.uniform4f(rect, draw.rect.left, draw.rect.top, draw.rect.width, draw.rect.height)
       gl.uniform1f(opacity, draw.opacity)
       gl.uniformMatrix3fv(textureMatrix, false, textureMatrixOf(overlay.orientation, overlay.size).toFloat32Array())
+      val cell = cellWindowOf(draw.cell, overlay.orientation.orientedSize(overlay.size))
+      gl.uniform4f(window, cell[0], cell[1], cell[2], cell[3])
+      gl.uniform2f(halfTexel, cell[4], cell[5])
       gl.drawArrays(GL_TRIANGLE_STRIP, 0, QUAD_VERTICES)
     }
     gl.blendOntoFill()
@@ -126,7 +137,8 @@ internal class BrowserOverlayPass private constructor(
     }
 
   // With no color conversion, so an authored color lands as its own codes. A PNG's samples and a tagged picture's
-  // codes are converted first, and premultiplied by the same unpack flag on the way up.
+  // codes are converted first, and every raster is premultiplied by the same unpack flag on the way up. A bitmap is
+  // never handed to the texture itself, since an upload from one ignores that flag.
   private fun uploadCodes(overlay: WebGlOverlay) {
     gl.pixelStorei(GL_UNPACK_PREMULTIPLY_ALPHA_WEBGL, 1)
     gl.pixelStorei(GL_UNPACK_COLORSPACE_CONVERSION_WEBGL, GL_NONE)
@@ -137,12 +149,19 @@ internal class BrowserOverlayPass private constructor(
         is OverlaySource.Samples -> {
           uploadBytes(size, sdrOverlayCodes(source.samples, color))
         }
+        is OverlaySource.Codes -> {
+          uploadInBands(size, GL_RGBA, GL_UNSIGNED_BYTE) { row, rows ->
+            val band = source.codes.copyOfRange(row * size.width * TEXEL_BYTES, (row + rows) * size.width * TEXEL_BYTES)
+            (if (color == null) band else sdrOverlayCodes(band, color)).toUint8Array()
+          }
+        }
         is OverlaySource.Image -> {
           val samples = source.samples
-          when {
-            samples != null -> uploadBytes(size, sdrOverlayCodes(samples, color))
-            color != null -> uploadBytes(size, sdrOverlayCodes(readBack(source.image, size), color))
-            else -> gl.texImage2D(GL_TEXTURE_2D, 0, GL_RGBA, GL_RGBA, GL_UNSIGNED_BYTE, source.image)
+          if (samples != null) {
+            uploadBytes(size, sdrOverlayCodes(samples, color))
+          } else {
+            val codes = straightCodesOf(source.image, size)
+            uploadBytes(size, if (color == null) codes else sdrOverlayCodes(codes, color))
           }
         }
       }
@@ -164,30 +183,48 @@ internal class BrowserOverlayPass private constructor(
   // light the frame holds.
   private fun uploadLight(overlay: WebGlOverlay) {
     val size = overlay.size
-    val light =
-      when (val source = overlay.source) {
-        is OverlaySource.Samples -> {
-          hdrOverlayTexels(source.samples, overlay.color)
-        }
-        is OverlaySource.Image -> {
-          source.samples?.let { hdrOverlayTexels(it, overlay.color) }
-            ?: hdrOverlayTexels(readBack(source.image, size), overlay.color)
+    when (val source = overlay.source) {
+      is OverlaySource.Samples -> {
+        uploadLight(size, hdrOverlayTexels(source.samples, overlay.color))
+      }
+      is OverlaySource.Codes -> {
+        uploadInBands(size, GL_RGBA16F, GL_FLOAT) { row, rows ->
+          val band = source.codes.copyOfRange(row * size.width * TEXEL_BYTES, (row + rows) * size.width * TEXEL_BYTES)
+          hdrOverlayTexels(band, overlay.color).toFloat32Array()
         }
       }
-    val texels = light.toFloat32Array()
-    gl.texImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, size.width, size.height, 0, GL_RGBA, GL_FLOAT, texels)
+      is OverlaySource.Image -> {
+        val light =
+          source.samples?.let { hdrOverlayTexels(it, overlay.color) }
+            ?: hdrOverlayTexels(straightCodesOf(source.image, size), overlay.color)
+        uploadLight(size, light)
+      }
+    }
   }
 
-  // The image's straight codes, read back through a 2D canvas. A browser bitmap holds eight bits a channel, so a
-  // picture stored deeper in any format but PNG reaches here at eight bits. That is the browser's limit.
-  private fun readBack(
-    image: JsAny,
+  private fun uploadLight(
     size: Size,
-  ): ByteArray {
-    val canvas = ReadbackCanvas(size.width, size.height)
-    val context = canvas.getContext(CONTEXT_2D) ?: throw BrowserExportFailure(NO_READBACK)
-    context.drawImage(image, 0.0, 0.0)
-    return Uint8Array(context.getImageData(0, 0, size.width, size.height).data.buffer).toByteArray()
+    light: FloatArray,
+  ) {
+    gl.texImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, size.width, size.height, 0, GL_RGBA, GL_FLOAT, light.toFloat32Array())
+  }
+
+  // The texture is allocated whole and written a band of rows at a time, so a raster as large as an atlas never has
+  // more than one band converted and copied into the page at once.
+  private inline fun uploadInBands(
+    size: Size,
+    internalFormat: Int,
+    type: Int,
+    band: (row: Int, rows: Int) -> JsAny,
+  ) {
+    gl.texImage2D(GL_TEXTURE_2D, 0, internalFormat, size.width, size.height, 0, GL_RGBA, type, null)
+    val step = maxOf(1, BAND_TEXELS / size.width)
+    var row = 0
+    while (row < size.height) {
+      val rows = minOf(step, size.height - row)
+      gl.texSubImage2D(GL_TEXTURE_2D, 0, 0, row, size.width, rows, GL_RGBA, type, band(row, rows))
+      row += rows
+    }
   }
 
   companion object {
@@ -223,11 +260,47 @@ internal class BrowserOverlayPass private constructor(
         opacity = gl.getUniformLocation(program, "uOpacity"),
         colorMatrix = gl.getUniformLocation(program, "uColorMatrix"),
         textureMatrix = gl.getUniformLocation(program, "uTextureMatrix"),
+        window = gl.getUniformLocation(program, "uWindow"),
+        halfTexel = gl.getUniformLocation(program, "uHalfTexel"),
       )
     }
 
     private const val NO_TEXTURE = "WebGL2 refused to create a texture for an overlay."
-    private const val NO_READBACK = "The browser refused a 2D canvas to read an overlay's pixels back through."
+  }
+}
+
+/**
+ * The straight codes of [image], four bytes a texel, red, green, blue then alpha, row by row from the top left, for an
+ * image of [size].
+ *
+ * The image is uploaded to a texture of a context of its own with no premultiplying and read back through a
+ * framebuffer, so a bitmap decoded without premultiplying gives back the codes it stores at any alpha, and the
+ * compositor's own context is left as it was. A bitmap stores eight bits a channel, so a picture stored deeper in any
+ * format but PNG reaches here at eight bits. That is the browser's limit.
+ *
+ * @throws BrowserExportFailure when the browser refuses a context or a framebuffer for the read.
+ */
+internal fun straightCodesOf(
+  image: JsAny,
+  size: Size,
+): ByteArray {
+  val read = OffscreenCanvas(1, 1).getContext(WEBGL2, JsOptions().build()) ?: throw BrowserExportFailure(NO_READBACK)
+  try {
+    val texture = read.createTexture() ?: throw BrowserExportFailure(NO_READBACK)
+    read.bindTexture(GL_TEXTURE_2D, texture)
+    read.pixelStorei(GL_UNPACK_FLIP_Y_WEBGL, 0)
+    read.pixelStorei(GL_UNPACK_PREMULTIPLY_ALPHA_WEBGL, 0)
+    read.pixelStorei(GL_UNPACK_COLORSPACE_CONVERSION_WEBGL, GL_NONE)
+    read.texImage2D(GL_TEXTURE_2D, 0, GL_RGBA, GL_RGBA, GL_UNSIGNED_BYTE, image)
+    val framebuffer = read.createFramebuffer() ?: throw BrowserExportFailure(NO_READBACK)
+    read.bindFramebuffer(GL_FRAMEBUFFER, framebuffer)
+    read.framebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texture, 0)
+    if (read.checkFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) throw BrowserExportFailure(NO_READBACK)
+    val pixels = Uint8Array(size.width * size.height * TEXEL_BYTES)
+    read.readPixels(0, 0, size.width, size.height, GL_RGBA, GL_UNSIGNED_BYTE, pixels)
+    return pixels.toByteArray()
+  } finally {
+    read.getExtension(LOSE_CONTEXT)?.loseContext()
   }
 }
 
@@ -323,42 +396,6 @@ private fun code(
   index: Int,
 ): Int = codes[index].toInt() and BYTE_MASK
 
-/**
- * An OffscreenCanvas asked for a 2D context, which the compositor's own binding types as WebGL only.
- *
- * A raster that carries no samples is drawn into one to read its codes back.
- */
-@JsName("OffscreenCanvas")
-internal external class ReadbackCanvas(
-  width: Int,
-  height: Int,
-) : JsAny {
-  fun getContext(contextId: String): ReadbackContext?
-}
-
-internal external interface ReadbackContext : JsAny {
-  fun drawImage(
-    image: JsAny,
-    dx: Double,
-    dy: Double,
-  )
-
-  fun getImageData(
-    sx: Int,
-    sy: Int,
-    sw: Int,
-    sh: Int,
-  ): ReadbackImage
-}
-
-internal external interface ReadbackImage : JsAny {
-  val data: ReadbackBytes
-}
-
-internal external interface ReadbackBytes : JsAny {
-  val buffer: ArrayBuffer
-}
-
 // The quad is the picture's, and the frame matrix carries each of its points onto the frame the overlay was placed
 // on, in texture space with +Y up.
 private val OVERLAY_VERTEX_SHADER =
@@ -377,7 +414,9 @@ private val OVERLAY_VERTEX_SHADER =
 
 // The rect is measured from the top left with +Y down, the way every placement is, so the frame point is turned over
 // before it is read against it. The texture matrix carries the point in the shown picture to the one in the uploaded
-// raster, the way textureMatrixOf lays it out. A fragment outside the rect draws nothing, which is what cuts an
+// raster, the way textureMatrixOf lays it out. A sprite sheet draws one window of the shown picture, and the point is
+// held half a texel inside it before the matrix carries it over, so a texel beside the window is never blended in.
+// A fragment outside the rect draws nothing, which is what cuts an
 // overlay at the edge of the picture it was placed on. The texel is premultiplied, so the grade runs on the straight
 // color and the result is premultiplied again by the texel's alpha and the opacity together. On a kept grade the
 // straight color is light, and it goes through the arm a clip is graded with, in the light that arm grades in, which
@@ -412,13 +451,17 @@ private fun overlayFragmentShader(transfer: HdrTransfer?): String {
     uniform float uOpacity;
     uniform mat4 uColorMatrix;
     uniform mat3 uTextureMatrix;
+    uniform vec4 uWindow;
+    uniform vec2 uHalfTexel;
     in vec2 vFrame;
     out vec4 outColor;
     $declarations
     void main() {
       vec2 at = (vec2(vFrame.x, 1.0 - vFrame.y) - uRect.xy) / uRect.zw;
       if (any(lessThan(at, vec2(0.0))) || any(greaterThanEqual(at, vec2(1.0)))) discard;
-      vec4 texel = texture(uOverlay, (uTextureMatrix * vec3(at, 1.0)).xy);
+      vec2 low = uWindow.xy + uHalfTexel;
+      vec2 shown = clamp(uWindow.xy + at * uWindow.zw, low, uWindow.xy + uWindow.zw - uHalfTexel);
+      vec4 texel = texture(uOverlay, (uTextureMatrix * vec3(shown, 1.0)).xy);
       vec3 straight = texel.a > 0.0 ? texel.rgb / texel.a : vec3(0.0);
       vec3 graded = $grade;
       float alpha = texel.a * uOpacity;
@@ -427,9 +470,14 @@ private fun overlayFragmentShader(transfer: HdrTransfer?): String {
     """.trimIndent()
 }
 
-private const val CONTEXT_2D = "2d"
+private const val NO_READBACK = "The browser refused a WebGL2 context to read an overlay's pixels back through."
+private const val WEBGL2 = "webgl2"
+private const val LOSE_CONTEXT = "WEBGL_lose_context"
 private const val TEXEL_BYTES = 4
 private const val ALPHA_SHIFT = 24
 private const val RED_SHIFT = 16
 private const val GREEN_SHIFT = 8
 private const val BYTE_MASK = 0xFF
+
+// The texels of one band of an overlay upload, which holds a band of an atlas to about sixteen megabytes of floats.
+private const val BAND_TEXELS = 1 shl 20

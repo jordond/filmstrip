@@ -24,6 +24,8 @@ class PictureContainerOfTest {
         byteArrayOf(0, 0, 0, 0x0C) + ascii("JXL ") + byteArrayOf(0x0D, 0x0A, 0x87.toByte(), 0x0A) to
           PictureContainer.JxlBoxed,
         byteArrayOf(0, 0, 0, 0x18) + ascii("ftypavif") to PictureContainer.Heif,
+        ascii("GIF87a") to PictureContainer.Gif,
+        ascii("GIF89a") to PictureContainer.Gif,
       )
 
     for ((bytes, container) in cases) withClue(container.name) { pictureContainerOf(bytes) shouldBe container }
@@ -34,7 +36,7 @@ class PictureContainerOfTest {
     pictureContainerOf(ByteArray(0)).shouldBeNull()
     pictureContainerOf(PNG_SIGNATURE.copyOf(7)).shouldBeNull()
     pictureContainerOf(ascii("RIFF") + ByteArray(4) + ascii("WAVE")).shouldBeNull()
-    pictureContainerOf(ascii("GIF89a")).shouldBeNull()
+    pictureContainerOf(ascii("GIF88a")).shouldBeNull()
   }
 
   @Test

@@ -164,7 +164,7 @@ class BrowserOverlayPictureAtExportMediaTest {
     }
 
   @Test
-  fun anAnimatedGifDrawsItsFirstFrameAtTimeZeroAndLater() =
+  fun anAnimatedGifDrawsItsFirstFrameAtTimeZeroAndItsLastOnceItHasPlayed() =
     runTest {
       val gif = OverlayPixels.twoFrameGifOf(PLANNED_SIZE, AuthoredColors.MID_GREEN, AuthoredColors.MID_GREY)
       val uri = "https://filmstrip.test/animated.gif"
@@ -182,8 +182,11 @@ class BrowserOverlayPictureAtExportMediaTest {
 
       val size = Size(frames.first().width, frames.first().height)
       val rect = badge.placedOn(size, PLANNED_SIZE).rectOn(size)
-      val expected = rgbOf(AuthoredColors.MID_GREEN)
-      for (frame in listOf(frames.first(), frames.last())) {
+      for ((frame, color) in listOf(
+        frames.first() to AuthoredColors.MID_GREEN,
+        frames.last() to AuthoredColors.MID_GREY,
+      )) {
+        val expected = rgbOf(color)
         val drawn = frame.at(rect.middleX, rect.middleY)
         val off =
           maxOf(abs(drawn.red - expected.red), abs(drawn.green - expected.green), abs(drawn.blue - expected.blue))

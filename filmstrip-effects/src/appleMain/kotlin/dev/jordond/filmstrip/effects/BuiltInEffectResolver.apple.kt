@@ -21,21 +21,33 @@ import dev.jordond.filmstrip.effects.geometry.Rotate
 import dev.jordond.filmstrip.effects.geometry.Scale
 import dev.jordond.filmstrip.effects.geometry.regionAt
 import dev.jordond.filmstrip.effects.geometry.retainedRect
+import dev.jordond.filmstrip.effects.overlay.AnimatedFlipbookRead
+import dev.jordond.filmstrip.effects.overlay.Flipbook
+import dev.jordond.filmstrip.effects.overlay.FlipbookRead
 import dev.jordond.filmstrip.effects.overlay.HeldBytes
 import dev.jordond.filmstrip.effects.overlay.ImageOverlay
 import dev.jordond.filmstrip.effects.overlay.LoweringPictures
+import dev.jordond.filmstrip.effects.overlay.OverlayPixels
 import dev.jordond.filmstrip.effects.overlay.PictureRead
+import dev.jordond.filmstrip.effects.overlay.SharedAnimations
+import dev.jordond.filmstrip.effects.overlay.SheetPixels
+import dev.jordond.filmstrip.effects.overlay.SpriteSheet
 import dev.jordond.filmstrip.effects.overlay.TextOverlay
 import dev.jordond.filmstrip.effects.overlay.animatedBy
 import dev.jordond.filmstrip.effects.overlay.compositedOnto
+import dev.jordond.filmstrip.effects.overlay.cutInto
 import dev.jordond.filmstrip.effects.overlay.decodedPicture
 import dev.jordond.filmstrip.effects.overlay.drawnRangeWithin
 import dev.jordond.filmstrip.effects.overlay.drawnTextSize
 import dev.jordond.filmstrip.effects.overlay.encodedRead
+import dev.jordond.filmstrip.effects.overlay.flipbookOver
+import dev.jordond.filmstrip.effects.overlay.flipbookRefusal
 import dev.jordond.filmstrip.effects.overlay.frameWithin
+import dev.jordond.filmstrip.effects.overlay.gridRate
 import dev.jordond.filmstrip.effects.overlay.placedOn
 import dev.jordond.filmstrip.effects.overlay.rasterizeText
 import dev.jordond.filmstrip.effects.overlay.resolvedFrom
+import dev.jordond.filmstrip.effects.overlay.sharedAnimation
 import dev.jordond.filmstrip.effects.spatial.GaussianBlur
 import dev.jordond.filmstrip.effects.spatial.Vignette
 import dev.jordond.filmstrip.effects.spatial.toStep
@@ -43,6 +55,7 @@ import dev.jordond.filmstrip.geometry.FlipAxis
 import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.describe
+import dev.jordond.filmstrip.picture.PictureCrop
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.useContents
 import platform.CoreGraphics.CGAffineTransformMakeRotation
@@ -57,12 +70,15 @@ import kotlin.math.PI
 @OptIn(ExperimentalForeignApi::class)
 public actual class BuiltInEffectResolver actual constructor() : EffectResolver {
   private val pictures = LoweringPictures<HeldBytes> { it.encodedRead() }
+  private val animations = SharedAnimations()
 
   /**
-   * Reads every overlay picture [composition] names by path or URI, so one named twice is one read for this lowering.
+   * Reads every overlay picture [composition] names by path or URI, so one named twice is one read for this lowering,
+   * and holds the frames of every animated picture it names, so one named twice is composited and held once.
    */
   override suspend fun prepare(composition: Composition) {
     pictures.readFor(composition)
+    animations.readFor(composition)
   }
 
   actual override fun resolve(
@@ -112,13 +128,16 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
   private fun ImageOverlay.toOverlay(attributes: Attributes): EffectResolution {
     val held = pictures[image]
     held.refusal?.let { return EffectResolution.Unsupported(id, it) }
+    sheet?.let { flipbookRefusal(attributes) }?.let { return EffectResolution.Unsupported(id, it) }
+    held.bytes?.let { toAnimatedOverlay(it, attributes) }?.let { return it }
     val raster =
-      when (val read = decodedPicture(held.bytes)) {
+      when (val read = decodedPicture(held.bytes, asBitmap = sheet != null)) {
         is PictureRead.Read -> read.value
         is PictureRead.Unreadable -> return EffectResolution.Unsupported(id, unreadableImage(image))
         is PictureRead.Refused -> return EffectResolution.Unsupported(id, unreadSamples(read.reason))
         is PictureRead.Unsupported -> return EffectResolution.Unsupported(id, read.message)
       }
+    if (sheet != null) return toSheetOverlay(sheet, raster, attributes)
     val size = raster.size
     val drawnRange = drawnRangeWithin(attributes.span)
 
@@ -132,6 +151,87 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
         raster.enteringFrame(frame.attributes.hdrTransfer, frame.attributes.colorSpace).compositedOnto(
           image,
           placement,
+          input,
+          sampled.opacity,
+          frame.attributes.hdrTransfer,
+          frame.attributes.colorSpace,
+        )
+      }
+    }
+  }
+
+  // The cells are cut at resolve and each frame draws the one the flipbook names for its composition time, the way
+  // the export and the preview both do. The sheet's own image is let go once the cells are cut.
+  private fun ImageOverlay.toSheetOverlay(
+    sheet: SpriteSheet,
+    raster: OverlayPixels,
+    attributes: Attributes,
+  ): EffectResolution {
+    val read = sheet.flipbookOver(raster.size)
+    val flipbook = (read as? FlipbookRead.Drawn)?.flipbook
+    val crops =
+      when (read) {
+        is FlipbookRead.Refused -> return EffectResolution.Unsupported(id, read.message)
+        is FlipbookRead.Still -> listOf(read.cell)
+        is FlipbookRead.Drawn -> read.flipbook.cells
+      }
+    val atColor = raster.color != null || attributes.hdrTransfer != null
+    val cells =
+      when (val cut = raster.cutInto(crops, atColor)) {
+        is PictureRead.Read -> cut.value
+        is PictureRead.Unsupported -> return EffectResolution.Unsupported(id, cut.message)
+        is PictureRead.Refused -> return EffectResolution.Unsupported(id, cut.reason)
+        PictureRead.Unreadable -> return EffectResolution.Unsupported(id, unreadableImage(image))
+      }
+
+    return flipbookStep(cells, flipbook, crops, attributes, raster.limits)
+  }
+
+  // A GIF, an APNG or a WebP with more than one frame, or null when the picture is drawn the way a still is. Its frames
+  // are composited and held once for the lowering, however many overlays name the picture, and each output frame draws
+  // the one the flipbook names for its composition time.
+  private fun ImageOverlay.toAnimatedOverlay(
+    bytes: ByteArray,
+    attributes: Attributes,
+  ): EffectResolution? {
+    val shared = sharedAnimation(animations, bytes, attributes)
+    val read =
+      when (val read = shared.read) {
+        AnimatedFlipbookRead.Still -> return null
+        is AnimatedFlipbookRead.Refused -> return EffectResolution.Unsupported(id, read.message)
+        is AnimatedFlipbookRead.Drawn -> read
+      }
+    val cells =
+      when (val framed = checkNotNull(shared.cells)) {
+        is PictureRead.Read -> framed.value
+        is PictureRead.Unsupported -> return EffectResolution.Unsupported(id, framed.message)
+        is PictureRead.Refused -> return EffectResolution.Unsupported(id, unreadSamples(framed.reason))
+        PictureRead.Unreadable -> return EffectResolution.Unsupported(id, unreadableImage(image))
+      }
+
+    return flipbookStep(cells, read.flipbook, read.flipbook.cells, attributes, emptyList())
+  }
+
+  private fun ImageOverlay.flipbookStep(
+    cells: SheetPixels,
+    flipbook: Flipbook?,
+    crops: List<PictureCrop>,
+    attributes: Attributes,
+    limits: List<Degradation>,
+  ): EffectResolution {
+    val drawnRange = drawnRangeWithin(attributes.span)
+    val rate = checkNotNull(attributes.gridRate)
+
+    return resolution(limits) { image, frame ->
+      val sampled = frameWithin(drawnRange, frame.compositionTime)
+      if (sampled == null) {
+        image
+      } else {
+        val input = frame.attributes.inputSize
+        val shown = flipbook?.cellAt(drawnRange.start, frame.compositionTime, rate) ?: crops.first()
+        cells.enteringFrame(shown, frame.attributes.hdrTransfer, frame.attributes.colorSpace).compositedOnto(
+          image,
+          placedOn(input, cells.cell).animatedBy(sampled),
           input,
           sampled.opacity,
           frame.attributes.hdrTransfer,

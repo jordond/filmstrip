@@ -32,6 +32,9 @@ import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.style.TextStyle
+import dev.jordond.filmstrip.test.AnimatedApngs
+import dev.jordond.filmstrip.test.AnimatedPictures
+import dev.jordond.filmstrip.test.AnimatedPictures.Op
 import dev.jordond.filmstrip.test.HdrOverlayCells
 import dev.jordond.filmstrip.test.OverlayPixels
 import dev.jordond.filmstrip.test.encodesHdr
@@ -75,6 +78,14 @@ class BrowserOverlayHdrMediaTest {
       if (!Filmstrip { webCodecsBackend() }.encodesHdr()) return@runTest
 
       assertLandsOnTheRule(grids(::imageAt))
+    }
+
+  @Test
+  fun anAnimatedPictureLandsWhereAStillOfItsColorDoesOnBothTransfers() =
+    runTest {
+      if (!Filmstrip { webCodecsBackend() }.encodesHdr()) return@runTest
+
+      assertLandsOnTheRule(grids(::animatedAt))
     }
 
   @Test
@@ -337,6 +348,26 @@ class BrowserOverlayHdrMediaTest {
     val offset = OverlayFrame(offset = OverlayOffset(column * CELL_WIDTH, row * CELL_HEIGHT))
     return ImageOverlay(
       ImageSource.ofBytes(OverlayPixels.pngOf(PNG, color)),
+      Corner.TopStart,
+      margin = CELL_MARGIN,
+      scale = IMAGE_SCALE,
+      opacity = opacity,
+      animation = OverlayAnimation { offset },
+    )
+  }
+
+  // The badge of [imageAt] as an APNG of two frames of the one color, so it takes the animated route and nothing else.
+  private fun animatedAt(
+    color: Int,
+    opacity: Float,
+    column: Int,
+    row: Int,
+  ): EffectSpec {
+    val tile = AnimatedPictures.Tiles.solid(PNG.width, PNG.height, color)
+    val bytes = AnimatedApngs.bytes(PNG, listOf(Op(0, 0, tile), Op(0, 0, tile)))
+    val offset = OverlayFrame(offset = OverlayOffset(column * CELL_WIDTH, row * CELL_HEIGHT))
+    return ImageOverlay(
+      ImageSource.ofBytes(bytes),
       Corner.TopStart,
       margin = CELL_MARGIN,
       scale = IMAGE_SCALE,

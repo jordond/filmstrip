@@ -24,6 +24,12 @@ import kotlin.time.Duration
  * picture's colors to BT.709, and an HDR grade keeps them inside BT.2020. A platform decoder that
  * cannot land the picture that way resolves the overlay as degraded or unsupported, naming why.
  *
+ * A GIF, an APNG or an animated WebP plays its own frames. Each frame is shown for the delay the file stores, and the
+ * picture plays as many times as the file says, then holds its last frame. A GIF delay of 10 ms or less is shown as
+ * 100 ms, the way a browser shows it. An APNG or a WebP plays every delay as stored and only a stored zero is shown as
+ * 100 ms, so one with frames of 1 to 10 ms plays faster than in a browser tab. [visibleDuring] ends the picture sooner.
+ * An animated AVIF is refused by name, and so is any animated file given a [sheet].
+ *
  * @property image The image to composite.
  * @property corner Which corner the overlay sits in.
  * @property margin Inset from the corner, as a fraction of the shorter side of the frame it is drawn
@@ -33,6 +39,9 @@ import kotlin.time.Duration
  * @property opacity Alpha applied to the overlay, in `0f..1f`.
  * @property visibleDuring When the overlay is visible, or null for the whole composition.
  * @property animation How the overlay is drawn at each frame of its run, or null to hold it still.
+ * @property sheet How [image] is cut into frames, or null to draw the whole picture. The picture is then a grid of
+ * cells, one frame each, and the overlay draws one cell at a time. [scale] is the width of a cell, and the height
+ * follows the cell's aspect.
  */
 @Poko
 public class ImageOverlay(
@@ -43,6 +52,7 @@ public class ImageOverlay(
   public val opacity: Float = 1f,
   override val visibleDuring: TimeRange? = null,
   override val animation: OverlayAnimation? = null,
+  public val sheet: SpriteSheet? = null,
 ) : OverlayEffect {
   override val id: EffectId get() = EffectIds.IMAGE_OVERLAY
 
@@ -63,7 +73,7 @@ public class ImageOverlay(
  * Composite [image] into [corner], sized and inset as fractions of the frame it is drawn on.
  *
  * That frame is the clip's frame when this is called on a clip, and the output frame when it is called
- * on the composition.
+ * on the composition. A [sheet] draws [image] one cell at a time.
  */
 public fun EffectsBuilder.imageOverlay(
   image: ImageSource,
@@ -73,12 +83,13 @@ public fun EffectsBuilder.imageOverlay(
   opacity: Float = 1f,
   visibleDuring: TimeRange? = null,
   animation: OverlayAnimation? = null,
-): EffectsBuilder = add(ImageOverlay(image, corner, margin, scale, opacity, visibleDuring, animation))
+  sheet: SpriteSheet? = null,
+): EffectsBuilder = add(ImageOverlay(image, corner, margin, scale, opacity, visibleDuring, animation, sheet))
 
 /**
  * Composite [image] into [corner], visible only during [at].
  *
- * Sized and inset the same way as the overload that takes a [TimeRange].
+ * Sized and inset the same way as the overload that takes a [TimeRange], and a [sheet] is drawn the same way.
  */
 public fun EffectsBuilder.imageOverlay(
   image: ImageSource,
@@ -88,20 +99,22 @@ public fun EffectsBuilder.imageOverlay(
   scale: Float = ImageOverlay.DEFAULT_SCALE,
   opacity: Float = 1f,
   animation: OverlayAnimation? = null,
-): EffectsBuilder = add(ImageOverlay(image, corner, margin, scale, opacity, TimeRange(at), animation))
+  sheet: SpriteSheet? = null,
+): EffectsBuilder = add(ImageOverlay(image, corner, margin, scale, opacity, TimeRange(at), animation, sheet))
 
 /**
  * Resolves this overlay against the frame it is composited onto.
  *
  * The drawn width is [ImageOverlay.scale] of the frame's width and the height follows [image]'s
- * own aspect, so the image never stretches. The inset is measured off the frame's shorter side, so
- * the same margin reads as the same distance from the edge in portrait and in landscape.
+ * own aspect, so the image never stretches. For an overlay with a [ImageOverlay.sheet] that is the size of one cell.
+ * The inset is measured off the frame's shorter side, so the same margin reads as the same distance from the edge in
+ * portrait and in landscape.
  *
  * A margin large enough to carry the overlay past the middle of the frame is held at the middle
  * rather than allowed to cross to the far side.
  *
  * @param frame The frame the overlay is drawn on, in pixels.
- * @param image The overlay image's own pixel size.
+ * @param image The pixel size of what is drawn, which is one cell for an overlay with a sheet.
  * @return Where to draw it.
  */
 public fun ImageOverlay.placedOn(

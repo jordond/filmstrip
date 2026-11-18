@@ -14,6 +14,7 @@ import dev.jordond.filmstrip.picture.PICTURE_PEAK_CEILING
 import dev.jordond.filmstrip.picture.PictureContainer
 import dev.jordond.filmstrip.picture.PictureCrop
 import dev.jordond.filmstrip.picture.PictureOrientation
+import dev.jordond.filmstrip.picture.animated.FrameSamples
 import dev.jordond.filmstrip.picture.heif.RestatedHeif
 import dev.jordond.filmstrip.picture.heif.UnturnedHeif
 import dev.jordond.filmstrip.picture.heif.heifWithRestatedColor
@@ -184,6 +185,34 @@ private fun decoded(bytes: ByteArray): PictureRead {
   val crop = pictureCropOf(bytes)
   if (crop != null && !crop.liesWithin(bitmap.size())) return RefusedPicture(crop.refusalFor(bitmap.size()))
   return DecodedPicture(bitmap, pictureColor(bytes), limits, pictureOrientationOf(bytes), crop)
+}
+
+/**
+ * Decodes the standalone still WebP in [bytes] to its straight alpha samples, or null when Android's decoder hands back
+ * no frame.
+ *
+ * The decoder is asked for samples that are not premultiplied, so a texel with soft alpha keeps the color the file
+ * stores. The samples are eight bits a channel, each scaled to the full 16-bit range the way [FrameSamples] holds them.
+ */
+internal fun stillWebpSamples(bytes: ByteArray): FrameSamples? {
+  val options = BitmapFactory.Options().apply { inPremultiplied = false }
+  val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options) ?: return null
+  try {
+    val width = bitmap.width
+    val height = bitmap.height
+    val argb = IntArray(width * height)
+    bitmap.getPixels(argb, 0, width, 0, 0, width, height)
+    val samples = ShortArray(argb.size * SAMPLES_PER_TEXEL)
+    for ((at, texel) in argb.withIndex()) {
+      samples[at * SAMPLES_PER_TEXEL] = ((texel shr RED_SHIFT and BYTE) * EIGHT_BIT_UNIT).toShort()
+      samples[at * SAMPLES_PER_TEXEL + 1] = ((texel shr GREEN_SHIFT and BYTE) * EIGHT_BIT_UNIT).toShort()
+      samples[at * SAMPLES_PER_TEXEL + 2] = ((texel and BYTE) * EIGHT_BIT_UNIT).toShort()
+      samples[at * SAMPLES_PER_TEXEL + ALPHA] = ((texel ushr ALPHA_SHIFT) * EIGHT_BIT_UNIT).toShort()
+    }
+    return FrameSamples(width, height, samples, sixteenBit = false)
+  } finally {
+    bitmap.recycle()
+  }
 }
 
 /**
@@ -381,6 +410,14 @@ internal fun InputStream.readWithin(ceiling: Long): ByteArray? {
 }
 
 private const val READ_CHUNK = 64 * 1024
+
+private const val SAMPLES_PER_TEXEL = 4
+private const val ALPHA = 3
+private const val ALPHA_SHIFT = 24
+private const val RED_SHIFT = 16
+private const val GREEN_SHIFT = 8
+private const val BYTE = 0xFF
+private const val EIGHT_BIT_UNIT = 257
 
 private const val PNG_IHDR_TYPE = 12
 private const val PNG_BIT_DEPTH = 24

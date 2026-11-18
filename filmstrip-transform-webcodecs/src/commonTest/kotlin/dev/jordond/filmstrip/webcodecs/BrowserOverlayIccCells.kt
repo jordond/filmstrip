@@ -28,9 +28,8 @@ import dev.jordond.filmstrip.test.AuthoredColors
 import dev.jordond.filmstrip.test.ColorPictures
 import dev.jordond.filmstrip.test.IccPictures
 import dev.jordond.filmstrip.test.OverlayPixels
-import dev.jordond.filmstrip.webcodecs.internal.interop.Uint8Array
-import dev.jordond.filmstrip.webcodecs.internal.render.ReadbackCanvas
 import dev.jordond.filmstrip.webcodecs.internal.render.compositorLightOf
+import dev.jordond.filmstrip.webcodecs.internal.render.straightCodesOf
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlin.js.ExperimentalWasmJsInterop
@@ -238,8 +237,8 @@ internal fun halfFloat(
  * The packed ARGB codes at the middle of the overlay the browser resolver makes of [bytes], decoded with no color
  * conversion.
  *
- * They are read back through a 2D canvas the way the compositor reads a raster, so an AVIF Chrome lands through
- * another matrix than its own is read the way it is drawn.
+ * They are read back through a WebGL2 framebuffer the way the compositor reads a raster, so an AVIF Chrome lands
+ * through another matrix than its own is read the way it is drawn.
  */
 internal suspend fun decodedCodeOf(bytes: ByteArray): Int {
   val spec = ImageOverlay(ImageSource.ofBytes(bytes), Corner.TopStart)
@@ -253,11 +252,11 @@ internal suspend fun decodedCodeOf(bytes: ByteArray): Int {
     }
   val overlay = effect.overlay.shouldNotBeNull()
   val (width, height) = overlay.size.width to overlay.size.height
-  val context = ReadbackCanvas(width, height).getContext("2d").shouldNotBeNull()
-  context.drawImage(overlay.source.shouldBeInstanceOf<OverlaySource.Image>().image, 0.0, 0.0)
-  val data = Uint8Array(context.getImageData(0, 0, width, height).data.buffer)
+  val data = straightCodesOf(overlay.source.shouldBeInstanceOf<OverlaySource.Image>().image, overlay.size)
   val offset = ((height / 2) * width + width / 2) * 4
-  return (data.at(offset + 3) shl 24) or (data.at(offset) shl 16) or (data.at(offset + 1) shl 8) or data.at(offset + 2)
+
+  fun code(at: Int): Int = data[at].toInt() and 0xFF
+  return (code(offset + 3) shl 24) or (code(offset) shl 16) or (code(offset + 1) shl 8) or code(offset + 2)
 }
 
 /**

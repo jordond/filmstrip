@@ -19,6 +19,7 @@ import kotlin.math.roundToInt
  * @property placement Where the picture lands on a frame it holds still on.
  * @property opacity The alpha the overlay is authored at, in `0f..1f`.
  * @property limits Each way the picture was read short of what its file stores.
+ * @property flipbook The cells the picture is cut into when it is a sprite sheet, or null to draw it whole.
  */
 internal class PlacedPicture(
   val effect: OverlayEffect,
@@ -26,6 +27,7 @@ internal class PlacedPicture(
   val placement: OverlayPlacement,
   val opacity: Float = 1f,
   val limits: List<Degradation> = emptyList(),
+  val flipbook: Flipbook? = null,
 )
 
 /**
