@@ -51,10 +51,10 @@ internal class Media3PlayerListener(
     reason: Int,
   ) {
     // Whoever starts the player, the filmstrip engine or media3's own controls, the slot a pause pinned is let go of
-    // here on the player's thread, which owns the pin. Whoever stops it, a pause or media3 itself as the audio focus
-    // goes, the pin is put on the frame it stopped on.
+    // here on the player's thread, which owns the pin, unless a scrub holds it. Whoever stops it, a pause or media3
+    // itself as the audio focus goes, the pin is put on the frame it stopped on.
     if (generation == standingGeneration()) {
-      if (playWhenReady) seeks.unpin() else seeks.stopped()
+      if (playWhenReady) seeks.started() else seeks.stopped()
     }
     dispatch { status.onPlayWhenReadyChanged(playWhenReady, reason) }
   }

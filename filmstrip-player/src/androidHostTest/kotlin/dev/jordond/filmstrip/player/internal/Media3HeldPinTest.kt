@@ -131,6 +131,34 @@ class Media3HeldPinTest {
       rig.pins.last() shouldBe null
     }
 
+  // A play asked for in a scrub can start the player after the scrub's seek was handed over, and scrubbing mode still
+  // stops it on the frame that seek lands on.
+  @Test
+  fun `a player started in a scrub keeps the slot the scrub's seek pinned`() =
+    runTest {
+      val rig = HeldPinRig(this, playing = false, scrubbing = true, restingMs = ELSEWHERE_MS)
+
+      rig.seeks.seek(HELD_AT, SeekAccuracy.Exact, wrap = false) { }
+      runCurrent()
+      rig.seeks.started()
+
+      rig.pins.last() shouldBe HELD_AT
+      rig.pin.slot shouldBe HELD_AT
+    }
+
+  @Test
+  fun `a player started outside a scrub lets go of its pin`() =
+    runTest {
+      val rig = HeldPinRig(this, playing = false)
+
+      rig.seeks.seek(HELD_AT, SeekAccuracy.Exact, wrap = false) { }
+      runCurrent()
+      rig.seeks.started()
+
+      rig.pins.last() shouldBe null
+      rig.pin.slot shouldBe null
+    }
+
   @Test
   fun `a scrub onto a hold is one seek to the first slot of the sample`() =
     runTest {

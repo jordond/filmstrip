@@ -280,6 +280,17 @@ internal class Media3SeekCoordinator(
   }
 
   /**
+   * Hears that the player was started, by the engine or by media3's own controls. Called on the player's thread.
+   *
+   * A scrub under way keeps the pin its seeks set, since scrubbing mode stops the player on the frame each one lands
+   * on, and lets go of it as the scrub ends. A play asked for in a scrub can start the player after its seek was
+   * handed over, so letting go here would leave a later slot of a hold undrawn.
+   */
+  fun started() {
+    if (!scrubbing()) unpin()
+  }
+
+  /**
    * Lets go of the slot a paused player was pinned to, as it is about to play. Called on the player's thread. A seek
    * handed over after it finds the player playing and pins nothing.
    */
