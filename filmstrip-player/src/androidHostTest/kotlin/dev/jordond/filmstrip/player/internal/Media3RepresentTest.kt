@@ -108,7 +108,8 @@ class Media3RepresentTest {
       rig.seeks.target shouldBe null
     }
 
-  // media3 keeps playWhenReady on once it has ended, so a seek back would play the last slot out again.
+  // media3 keeps playWhenReady on once it has ended, so a seek back would play the last slot out again. A player that
+  // dropped its late frames at the end rests on an earlier slot, and is still sent to the last one.
   @Test
   fun `a player that ran to its end is stopped before the seek back draws its last slot`() =
     runTest {
@@ -119,8 +120,9 @@ class Media3RepresentTest {
 
       verifyOrder {
         rig.player.playWhenReady = false
-        rig.player.seekTo(RESTING_MS)
+        rig.player.seekTo(LAST_SLOT_MS)
       }
+      verify(exactly = 0) { rig.player.seekTo(RESTING_MS) }
     }
 
   @Test
@@ -323,5 +325,8 @@ class Media3RepresentTest {
 
     // Slot 27, three slots past the frame shown.
     const val AHEAD_MS = 900L
+
+    // Slot 89, the last of the three seconds, which media3 is handed floored to its millisecond.
+    const val LAST_SLOT_MS = 2_966L
   }
 }

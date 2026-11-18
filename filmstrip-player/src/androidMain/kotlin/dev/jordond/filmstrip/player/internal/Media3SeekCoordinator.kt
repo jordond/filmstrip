@@ -200,7 +200,9 @@ internal class Media3SeekCoordinator(
    *
    * @param surfaceLost Whether this is for a surface that just went, rather than one the player was handed.
    * @param ended Whether the player ran to its end. media3 still means to play there, and would play the last slot out
-   * again from the seek back, so it is stopped first and the seek only draws that slot.
+   * again from the seek back, so it is stopped first and the seek only draws that slot. The last slot is drawn whatever
+   * frame the play drew last, since a player too slow to keep up drops the frames late at the end and stops short of
+   * it, while the playhead of an ended player reads the end.
    */
   fun represent(
     surfaceLost: Boolean,
@@ -212,7 +214,7 @@ internal class Media3SeekCoordinator(
       playback.run {
         handler.post {
           val restingMs = player()?.currentPosition ?: return@post
-          scope.launch { representFrom(restingMs, surfaceLost) }
+          scope.launch { representFrom(restingMs, surfaceLost, ended) }
         }
       }
     }
@@ -329,6 +331,7 @@ internal class Media3SeekCoordinator(
   private fun representFrom(
     restingMs: Long,
     surfaceLost: Boolean,
+    ended: Boolean,
   ) {
     val loaded = resolved() ?: return
     if (representing) return
@@ -339,7 +342,8 @@ internal class Media3SeekCoordinator(
       landsUnseen = surfaceLost
       completion = { onRepresented() }
     }
-    issue(inFlight ?: loaded.seekLandingOf(positionAt(restingMs)), fresh = true, keepsCarry = true)
+    val resting = if (ended) loaded.duration else positionAt(restingMs)
+    issue(inFlight ?: loaded.seekLandingOf(resting), fresh = true, keepsCarry = !ended)
   }
 
   /**

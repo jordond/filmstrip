@@ -306,7 +306,8 @@ internal class HeldRig(
     past: Int,
   ): PlayedPictures {
     val hold = holdOf(from)
-    val held = cachedExport(hold.first)
+    // The clip pans, so each slot of the hold is a picture of its own, and only one unlike all of them is past it.
+    val held = hold.map { cachedExport(it) }
     val drawnPast = mutableListOf<TestFrame>()
     val played =
       picturesSeen { seen ->
@@ -318,7 +319,7 @@ internal class HeldRig(
           val pictures = synchronized(seen) { seen.toList() }
           pictures.drop(drawnPast.size).forEach { drawnPast += it }
           player.currentPosition() >= slotTime(past) &&
-            drawnPast.any { compareFrames(held, it).psnrDb < MIN_PSNR_DB }
+            drawnPast.any { picture -> held.all { compareFrames(it, picture).psnrDb < MIN_PSNR_DB } }
         }
         player.pause()
         delay(SETTLE)

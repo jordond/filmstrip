@@ -100,7 +100,10 @@ internal class Media3PlayerEngine(
       setPlayWhenReady = ::setPlayWhenReady,
       reportExternalPlayWhenReady = ::reportExternalPlayWhenReady,
       emitEvent = { event ->
-        if (event is PlaybackEvent.Ended) pausedFrame.onEnded()
+        if (event is PlaybackEvent.Ended) {
+          pausedFrame.onEnded()
+          drawLastSlotIfShort()
+        }
         emitEvent(event)
       },
     )
@@ -341,6 +344,21 @@ internal class Media3PlayerEngine(
   private fun onRepresented() {
     handler.post { player?.experimentalRedrawLastFrame() }
     emitFrameRedrawn()
+  }
+
+  /**
+   * Draws the last slot of a preview that ended on an earlier one.
+   *
+   * A player too slow to keep up drops the frames that come late, and at the end of a play nothing comes after them to
+   * draw, so the surface stays on a slot before the last while the playhead reads the end. The end is held through the
+   * seek that draws it, so the preview still reads as ended and the end is not reported twice.
+   */
+  private fun drawLastSlotIfShort() {
+    if (!showsFrames()) return
+    val drawn = pausedFrame.drawn() ?: return
+    val length = plan?.resolved?.duration ?: return
+    if (drawn >= landingOf(length)) return
+    scope.launch { seeks.represent(surfaceLost = false, ended = status.holdEnd()) }
   }
 
   private fun onSurfaceDetached() {

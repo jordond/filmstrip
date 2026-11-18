@@ -105,9 +105,11 @@ class AndroidPausedSurfaceMediaTest {
     }
 
   /**
-   * A preview that ran to its end holds its last slot, with nothing queued behind it for a new surface to be given.
+   * A preview that ran to its end shows its last slot, and holds it with nothing queued behind it for a new surface to
+   * be given.
    *
-   * The new surface is read until it shows the last slot, since a loaded emulator can take a while to draw it. A
+   * An emulator slowed by its host drops the frames late at the end of the play, so the end is drawn by a seek of its
+   * own. Each read is retried until it shows the last slot, since a loaded emulator can take a while to draw it. A
    * preview that played its last frames out again ends on that slot too, so the end is held to having been reported
    * once and never left.
    */
@@ -118,39 +120,47 @@ class AndroidPausedSurfaceMediaTest {
       val length =
         rig.player.state.value.duration
           .shouldNotBeNull()
+      val last = outputSlotTime(outputSlotOf(length, FIXTURE_FRAME_RATE) - 1, FIXTURE_FRAME_RATE)
+      val exported = androidExportFrame(androidPannedClipComposition(), last)
       val seeks = rig.seeksCompleted
       rig.player.seekTo(length - RUN_IN, SeekAccuracy.Exact)
       awaitOrFail("the seek near the end to land") { rig.seeksCompleted > seeks }
-      rig.player.play()
-      awaitOrFail("the preview to run to its end") { rig.player.state.value.status == PlaybackStatus.Ended }
-      delay(SETTLE)
       val endings = rig.endings
       val statuses = CopyOnWriteArrayList<PlaybackStatus>()
+      rig.player.play()
+      awaitOrFail("the preview to run to its end") { rig.player.state.value.status == PlaybackStatus.Ended }
       val watch = launch { rig.player.state.collect { statuses += it.status } }
+
+      rig.shouldShowEventually(exported, "the ended preview does not show the last slot")
 
       rig.activity.hideSurface()
       awaitOrFail("the surface to be destroyed") { !rig.view.holder.surface.isValid }
       rig.activity.showSurface()
       awaitOrFail("the view to be given a surface again") { rig.view.holder.surface.isValid }
 
-      val last = outputSlotTime(outputSlotOf(length, FIXTURE_FRAME_RATE) - 1, FIXTURE_FRAME_RATE)
-      val exported = androidExportFrame(androidPannedClipComposition(), last)
-      var shown = rig.view.copyPixels(FIXTURE_FRAME)
-      withTimeoutOrNull(DRAW_BUDGET) {
-        while (!exported.looksLike(shown)) {
-          delay(SETTLE)
-          shown = rig.view.copyPixels(FIXTURE_FRAME)
-        }
-      }
-      assertFramesSimilar(exported, shown, MIN_PSNR_DB, MIN_SSIM, "the surface does not show the last slot")
+      rig.shouldShowEventually(exported, "the surface does not show the last slot")
       delay(SETTLE)
       watch.cancel()
       withClue("the preview left its end: $statuses") { statuses.all { it == PlaybackStatus.Ended } shouldBe true }
-      withClue("the end was reported again") { rig.endings shouldBe endings }
+      withClue("the end was reported more than once") { rig.endings shouldBe endings + 1 }
       withClue("the preview stopped saying it had ended") {
         rig.player.state.value.status shouldBe PlaybackStatus.Ended
       }
     }
+
+  private suspend fun SurfaceRig.shouldShowEventually(
+    expected: TestFrame,
+    message: String,
+  ) {
+    var shown = view.copyPixelsIfDrawn(FIXTURE_FRAME)
+    withTimeoutOrNull(DRAW_BUDGET) {
+      while (shown?.let { expected.looksLike(it) } != true) {
+        delay(SETTLE)
+        shown = view.copyPixelsIfDrawn(FIXTURE_FRAME)
+      }
+    }
+    assertFramesSimilar(expected, shown ?: fail("$message, the surface drew nothing"), MIN_PSNR_DB, MIN_SSIM, message)
+  }
 
   private fun TestFrame.looksLike(shown: TestFrame): Boolean {
     val comparison = compareFrames(this, shown)
@@ -290,12 +300,22 @@ class AndroidPausedSurfaceMediaTest {
 /**
  * Copies what the view's surface shows, scaled to [size].
  */
-internal suspend fun SurfaceView.copyPixels(size: Size): TestFrame {
+internal suspend fun SurfaceView.copyPixels(size: Size): TestFrame =
+  copyPixelsIfDrawn(size) ?: fail("PixelCopy off the surface answered ${PixelCopy.ERROR_SOURCE_NO_DATA}")
+
+/**
+ * Copies what the view's surface shows, scaled to [size], or null when nothing has been drawn on it yet.
+ *
+ * A surface handed back to the view has no buffer until the player draws on it, which a loaded emulator can take a
+ * while to do.
+ */
+internal suspend fun SurfaceView.copyPixelsIfDrawn(size: Size): TestFrame? {
   val bitmap = Bitmap.createBitmap(size.width, size.height, Bitmap.Config.ARGB_8888)
   val status =
     suspendCancellableCoroutine { continuation ->
       PixelCopy.request(this, bitmap, { result -> continuation.resume(result) }, Handler(Looper.getMainLooper()))
     }
+  if (status == PixelCopy.ERROR_SOURCE_NO_DATA) return null
   if (status != PixelCopy.SUCCESS) fail("PixelCopy off the surface answered $status")
   return bitmap.toTestFrame()
 }
