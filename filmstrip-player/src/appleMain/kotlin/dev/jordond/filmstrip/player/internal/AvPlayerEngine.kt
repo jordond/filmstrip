@@ -181,6 +181,7 @@ internal class AvPlayerEngine(
       emitEvent = { emitEvent(it) },
       emitPosition = { emitPosition(it) },
       reportedPlayhead = { reportedPosition },
+      settle = ::settlePause,
     )
 
   /**
@@ -302,7 +303,19 @@ internal class AvPlayerEngine(
 
   override fun onPause() {
     player.pause()
-    transport.stop()
+    transport.stop(settle = true)
+  }
+
+  // Moves the picture of a pause on to [slot], the slot its clock rounds to, unless that slot is past the playback range
+  // or the loop range playing, where the pause stays on the picture it stopped on.
+  private fun settlePause(slot: Duration): Boolean {
+    val rate = plan?.resolved?.frameRate ?: return false
+    val rangeEnd = playbackRange?.endExclusive
+    if (rangeEnd != null && slot >= rangeEnd) return false
+    val wrap = loop.wrap()
+    if (wrap != null && slot > outputSlotTime(wrap.lastSlot, rate)) return false
+    seeks.present(slot, SeekTolerance.Exact) { }
+    return true
   }
 
   override fun onRelease() {

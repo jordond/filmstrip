@@ -62,10 +62,12 @@ public interface VideoPlayer :
    * to the frame it landed on, which can be before the target on the browser and Apple.
    *
    * While playing this is the playback clock, which on Android can read a slot or two off the frame on the surface.
-   * On Android and the JVM, once a pause has settled it is the time of the frame on the surface, so a frame read at it
-   * is that picture and a step of one frame either way lands on the frames beside it. That is held against the surface
-   * itself on Android, and against the frame last presented on the JVM. The other backends report their playback
-   * clock when paused too, and are not tested against their picture.
+   * On Android, Apple and the JVM, once a pause has settled it is the time of the frame on the surface, so a frame read
+   * at it is that picture and a step of one frame either way lands on the frames beside it. That is held against the
+   * surface itself on Android, against a frame read at it on Apple, and against the frame last presented on the JVM.
+   * Apple's clock can stop past the middle of a frame, where it rounds to the next slot, so a pause that stops there
+   * moves its picture on to that frame. The browser reports its playback clock when paused, and is not tested against
+   * its picture.
    *
    * Two readings are no frame's time. A player that has ended reads the duration, where the edit has no frame, so a
    * frame read at it and a step from it are not held to the above. And an Android player with no surface attached

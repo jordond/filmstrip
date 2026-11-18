@@ -46,6 +46,8 @@ import kotlin.time.Duration.Companion.microseconds
  * @param emitEvent Reports a playback event.
  * @param emitPosition Reports a playhead position.
  * @param reportedPlayhead The playhead the engine reports, which holds a seek's target until the seek lands.
+ * @param settle Moves the picture of a pause on to the slot given, landing there exactly, or answers false where that
+ * slot is not one the pause may move to.
  */
 @OptIn(ExperimentalForeignApi::class)
 internal class AvTransport(
@@ -65,6 +67,7 @@ internal class AvTransport(
   private val emitEvent: (PlaybackEvent) -> Unit,
   private val emitPosition: (Duration) -> Unit,
   private val reportedPlayhead: () -> Duration,
+  private val settle: (Duration) -> Boolean,
 ) {
   private var playing = false
   private var outsidePlayback = false
@@ -73,6 +76,9 @@ internal class AvTransport(
   // reason, and a pause anyone asked for posts one saying setRate was called.
   private var platformStopped = false
   private var stopReadingDue = false
+
+  // Whether the stop reading still due may move the picture on to the slot it rounds to. See [stop].
+  private var settleDue = false
   private val wrapTick = PositionTicker(scope, interval, read = itemTime, emit = ::onTick)
   private var stopToken: Any? = null
 
@@ -114,6 +120,7 @@ internal class AvTransport(
     playing = true
     outsidePlayback = false
     stopReadingDue = false
+    settleDue = false
     player.play()
     wrapTick.start()
   }
@@ -130,6 +137,7 @@ internal class AvTransport(
    */
   fun jumpTo(position: Duration) {
     stopReadingDue = false
+    settleDue = false
     playhead = position
   }
 
@@ -145,6 +153,7 @@ internal class AvTransport(
    */
   fun cancelStopReading() {
     stopReadingDue = false
+    settleDue = false
   }
 
   /**
@@ -177,8 +186,17 @@ internal class AvTransport(
    * can run on for a moment after it is paused, so the reading taken here is followed by the one the periodic observer
    * makes once it has stopped. A seek on its way reports where it lands once it completes, so nothing is reported here
    * while one is in flight.
+   *
+   * The item's clock stops between two frames as often as on one, and the picture it rests on is the frame of the slot
+   * it last reached. Where the clock stopped past the middle of that slot, the position it reads rounds to the next
+   * slot, while the picture is still the earlier one. With [settle] set, a reading like that reports the next slot and
+   * has [settle] move the picture on to it, so the position, the picture and a frame read at it are one slot. A
+   * reading before the middle of its slot already names the picture on screen, and is reported as it is.
+   *
+   * @param settle Whether the pause may move its picture on to the slot its clock rounds to. Only a pause asked for of
+   * the engine does, never an end or a pause made on the native player.
    */
-  fun stop() {
+  fun stop(settle: Boolean = false) {
     if (!playing && !outsidePlayback) return
     onPlayhead(itemTime())
     playing = false
@@ -186,6 +204,7 @@ internal class AvTransport(
     wrapTick.stop()
     if (seeks.inFlight) return
     stopReadingDue = true
+    settleDue = settle
     onStopReading(itemTime())
   }
 
@@ -221,8 +240,10 @@ internal class AvTransport(
    */
   fun onStopReading(position: Duration) {
     if (!stopReadingDue || position < playhead) return
-    playhead = position
-    emitPosition(position)
+    val next = if (settleDue) slotAhead(position) else null
+    // The settle's seek drops the stop reading, so a later reading of the clock it moves never follows the slot.
+    playhead = if (next != null && settle(next)) next else position
+    emitPosition(playhead)
   }
 
   /**
@@ -268,6 +289,12 @@ internal class AvTransport(
   private fun onTick(position: Duration) {
     onPlayhead(position)
     if (outsidePlayback) emitPosition(reportedPlayhead())
+  }
+
+  // The slot [position] rounds to, when that is ahead of it, so the picture on screen is the slot before.
+  private fun slotAhead(position: Duration): Duration? {
+    val landing = resolved()?.seekLandingOf(position) ?: return null
+    return landing.takeIf { it > position + CLOCK_SLACK }
   }
 
   private fun atItemEnd(): Boolean {

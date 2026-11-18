@@ -65,6 +65,62 @@ class AvTransportMediaTest {
       rig.transport.release()
     }
 
+  // Past the middle of slot 12 the clock rounds to slot 13, while the picture is still slot 12's frame.
+  @Test
+  fun `a pause past the middle of a slot reports the next slot and moves the picture on to it`() =
+    contractTest { scope ->
+      val resolved = appleExportLowering(appleFixtureComposition())
+      val rate = resolved.frameRate
+      val rig = Rig(scope, resolved)
+      rig.transport.play()
+      rig.clock = outputSlotTime(12, rate) + outputSlotTime(1, rate) * 3 / 4
+
+      rig.transport.stop(settle = true)
+
+      rig.settles shouldBe listOf(outputSlotTime(13, rate))
+      rig.positions shouldBe listOf(outputSlotTime(13, rate))
+      rig.transport.playhead shouldBe outputSlotTime(13, rate)
+      rig.transport.release()
+    }
+
+  @Test
+  fun `a pause before the middle of a slot reports the clock and leaves the picture`() =
+    contractTest { scope ->
+      val resolved = appleExportLowering(appleFixtureComposition())
+      val rate = resolved.frameRate
+      val rig = Rig(scope, resolved)
+      rig.transport.play()
+      val clock = outputSlotTime(12, rate) + outputSlotTime(1, rate) / 4
+      rig.clock = clock
+
+      rig.transport.stop(settle = true)
+
+      rig.settles.shouldBeEmpty()
+      rig.positions shouldBe listOf(clock)
+      rig.transport.release()
+    }
+
+  // An end, a pause made on the native player, and a slot the engine will not move to all keep the clock's reading.
+  @Test
+  fun `a stop that may not settle or a settle refused reports the clock`() =
+    contractTest { scope ->
+      val resolved = appleExportLowering(appleFixtureComposition())
+      val rate = resolved.frameRate
+      val rig = Rig(scope, resolved)
+      val clock = outputSlotTime(12, rate) + outputSlotTime(1, rate) * 3 / 4
+      rig.clock = clock
+      rig.transport.play()
+      rig.transport.stop()
+
+      rig.settleAllowed = false
+      rig.transport.play()
+      rig.transport.stop(settle = true)
+
+      rig.settles shouldBe listOf(outputSlotTime(13, rate))
+      rig.positions shouldBe listOf(clock, clock)
+      rig.transport.release()
+    }
+
   @Test
   fun `a stop reading is dropped once a jump or a play makes it stale`() =
     contractTest { scope ->
@@ -223,6 +279,8 @@ class AvTransportMediaTest {
     val events = mutableListOf<PlaybackEvent>()
     val positions = mutableListOf<Duration>()
     var reported: Duration = Duration.ZERO
+    val settles = mutableListOf<Duration>()
+    var settleAllowed = true
     val player = AVPlayer()
     private val guard = WrapGuard()
 
@@ -266,6 +324,10 @@ class AvTransportMediaTest {
         emitEvent = { events += it },
         emitPosition = { positions += it },
         reportedPlayhead = { reported },
+        settle = { slot ->
+          settles += slot
+          settleAllowed
+        },
       )
   }
 

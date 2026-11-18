@@ -6,15 +6,18 @@ import dev.jordond.filmstrip.edit.outputSlotTime
 import dev.jordond.filmstrip.player.contract.ContractRecorder
 import dev.jordond.filmstrip.player.contract.awaitComposition
 import dev.jordond.filmstrip.player.contract.awaitContract
+import dev.jordond.filmstrip.player.contract.awaitFrame
 import dev.jordond.filmstrip.player.contract.contractTest
 import dev.jordond.filmstrip.player.contract.withEngine
 import dev.jordond.filmstrip.player.internal.AvPlayerEngine
 import dev.jordond.filmstrip.player.internal.frameStepLanding
+import io.kotest.assertions.withClue
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.cinterop.ExperimentalForeignApi
 import platform.AVFoundation.currentItem
 import platform.AVFoundation.currentTime
+import platform.AVFoundation.rate
 import kotlin.test.Test
 import kotlin.test.fail
 import kotlin.time.Duration
@@ -85,6 +88,53 @@ class AppleSeekLandingMediaTest {
       recorder.playhead shouldBe landing
     }
 
+  // The native rate is slowed so the pause lands with the clock past the middle of a slot, where it rounds to the next
+  // slot while the picture on screen is still the earlier slot's frame.
+  @Test
+  fun `a pause past the middle of a slot reports the next slot and moves the picture on to it`() =
+    withLoadedEngine { engine, recorder ->
+      val from = PROBE_POSITIONS.first()
+      val slot = outputSlotOf(from, FIXTURE_FRAME_RATE)
+      val next = slotTime(slot + 1)
+      engine.seekAndAwait(recorder, from, SeekAccuracy.Exact)
+
+      engine.play()
+      engine.platformPlayer.rate = SLOW_RATE
+      awaitContract("the clock to pass the middle of slot $slot") { engine.itemTime() >= from + PAST_MIDDLE }
+      // Read just before the pause, since the settle's seek moves the item's clock as it is issued.
+      val stopping = engine.itemTime()
+      engine.pause()
+      engine.drainCallbacks()
+
+      withClue("The clock read $stopping as the pause was made, past the middle of slot $slot.") {
+        (stopping < next) shouldBe true
+        recorder.playhead shouldBe next
+        outputSlotOf(engine.itemTime(), FIXTURE_FRAME_RATE) shouldBe slot + 1
+        val read = engine.readback.awaitFrame(next)
+        outputSlotOf(read.presentationTime, FIXTURE_FRAME_RATE) shouldBe slot + 1
+      }
+    }
+
+  @Test
+  fun `a pause before the middle of a slot reports the clock and leaves the picture`() =
+    withLoadedEngine { engine, recorder ->
+      val from = PROBE_POSITIONS.first()
+      val slot = outputSlotOf(from, FIXTURE_FRAME_RATE)
+      engine.seekAndAwait(recorder, from, SeekAccuracy.Exact)
+
+      engine.play()
+      engine.platformPlayer.rate = SLOW_RATE
+      awaitContract("the clock to move into slot $slot") { engine.itemTime() >= from + BEFORE_MIDDLE }
+      engine.pause()
+      engine.drainCallbacks()
+      val stopped = engine.itemTime()
+
+      withClue("The clock stopped at $stopped, short of the middle of slot $slot.") {
+        outputSlotOf(stopped, FIXTURE_FRAME_RATE) shouldBe slot
+        recorder.playhead shouldBe stopped
+      }
+    }
+
   private fun withLoadedEngine(body: suspend (AvPlayerEngine, ContractRecorder) -> Unit) =
     contractTest { scope ->
       val engine = AppleEngineUnderTest(scope) { _, _ -> }.engine
@@ -109,4 +159,12 @@ class AppleSeekLandingMediaTest {
     platformPlayer.currentItem?.currentTime()?.toDuration() ?: fail("the player holds no item")
 
   private fun slotTime(slot: Long): Duration = outputSlotTime(slot, FIXTURE_FRAME_RATE)
+
+  private companion object {
+    // Slow enough that the clock spends most of a second in each slot, so the wait sees it inside the stretch it waits
+    // for before it moves on.
+    const val SLOW_RATE = 0.05f
+    val PAST_MIDDLE: Duration = FIXTURE_FRAME_STEP * 6 / 10
+    val BEFORE_MIDDLE: Duration = FIXTURE_FRAME_STEP / 10
+  }
 }
