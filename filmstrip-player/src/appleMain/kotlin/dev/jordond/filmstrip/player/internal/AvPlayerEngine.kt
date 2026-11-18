@@ -47,6 +47,7 @@ import platform.AVFoundation.videoComposition
 import platform.darwin.dispatch_queue_create
 import platform.darwin.dispatch_queue_t
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.microseconds
 import kotlin.time.Duration.Companion.milliseconds
 
 /**
@@ -292,12 +293,25 @@ internal class AvPlayerEngine(
     player.setMuted(shuttling || muted)
   }
 
+  // A frame a shuttle presented lands anywhere its tolerance allows and reports the slot that time rounds to. Past the
+  // middle of a slot that is the next one, while the clock a play starts from is still the earlier slot's. Before a
+  // play, that slot is presented exactly, so a play from it never reads behind the slot reported.
+  private fun settleBeforePlay() {
+    val resolved = plan?.resolved ?: return
+    if (seeks.inFlight) return
+    val clock = itemTime()
+    val slot = resolved.seekLandingOf(clock)
+    if (slot <= clock + SETTLE_SLACK || slot != reportedPosition) return
+    seeks.present(slot, SeekTolerance.Exact) { }
+  }
+
   override fun onPlay() {
     // A failed status is terminal for the item, so only a new load can play. The status read reports it if that read
     // hasn't landed yet.
     if (item?.status == AVPlayerItemStatusFailed) return
     reachedEnd = false
     failures.resumed()
+    settleBeforePlay()
     transport.play()
   }
 
@@ -586,5 +600,8 @@ internal class AvPlayerEngine(
   private companion object {
     // The rate BasePlayerEngine's ticker reads at, so the playhead it reports is at most one check behind the item.
     val POSITION_INTERVAL = 16.milliseconds
+
+    // How far a reading of the item's clock can come back short of the slot it sits on, through a Double of seconds.
+    val SETTLE_SLACK = 1.microseconds
   }
 }

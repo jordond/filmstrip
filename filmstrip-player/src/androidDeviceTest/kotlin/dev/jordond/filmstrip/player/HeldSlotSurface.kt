@@ -405,11 +405,32 @@ internal class HeldRig(
     try {
       assertFramesSimilar(expected, shown, minPsnr, minSsim, "the surface does not show slot $slot")
     } catch (failed: AssertionError) {
-      throw AssertionError("${failed.message}. PSNR against the export at each slot offset from it: $nearby")
+      throw AssertionError(
+        "${failed.message}. PSNR against the export at each slot offset from it: $nearby. ${lateDraw(
+          expected,
+          minPsnr,
+        )}",
+      )
     }
     withClue("the surface is nearest slot ${slot + nearby.maxBy { it.second }.first}, not slot $slot: $nearby") {
       nearby.maxBy { it.second }.first shouldBe 0
     }
+  }
+
+  // Tells a draw that came late from one that never comes, for a surface that failed its read: the surface is read
+  // again for a while, and the wait it took to show the slot is reported. The read still fails either way.
+  private suspend fun lateDraw(
+    expected: TestFrame,
+    minPsnr: Double,
+  ): String {
+    val start = TimeSource.Monotonic.markNow()
+    while (start.elapsedNow() < LATE_DRAW_WINDOW) {
+      delay(LATE_DRAW_POLL)
+      if (compareFrames(expected, view.copyPixels(FIXTURE_FRAME)).psnrDb >= minPsnr) {
+        return "The surface showed it ${start.elapsedNow()} later."
+      }
+    }
+    return "The surface still did not show it $LATE_DRAW_WINDOW later."
   }
 
   /**
@@ -449,6 +470,10 @@ internal class HeldRig(
 
 internal val TIMEOUT: Duration = 8.minutes
 internal val SETTLE: Duration = 700.milliseconds
+
+// How long a surface that failed its read is read again for, and how often, to tell a late draw from a lost one.
+private val LATE_DRAW_WINDOW: Duration = 3000.milliseconds
+private val LATE_DRAW_POLL: Duration = 100.milliseconds
 internal const val FIRST_SLOT = 8
 internal const val HOLD_PAST = 4
 internal const val STEPS = 3
