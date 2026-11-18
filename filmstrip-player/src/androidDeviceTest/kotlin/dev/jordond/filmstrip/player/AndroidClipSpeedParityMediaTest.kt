@@ -1,6 +1,5 @@
 package dev.jordond.filmstrip.player
 
-import android.os.Build
 import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.media.MediaSource
@@ -30,11 +29,12 @@ internal object AndroidClipParity : ClipParityBackend {
 
   override val frameRate: Int = FIXTURE_FRAME_RATE
 
-  // The encoder's limit: on API 30 c2.android.avc.encoder reads as low as 0.983 on luma against the preview, where
-  // API 36 holds 0.990, and 32 Mbps against 8 moves the file about 1% and leaves that figure where it was. The frames
-  // either side read at most 0.90, so a wrong frame still fails, and AndroidCaptionChromaMediaTest bounds the colour.
+  // The encoder's limit: an export on OMX.google.h264.encoder reads as low as 0.983 on luma against the preview, where
+  // c2.android.avc.encoder holds 0.990, and 32 Mbps against 8 moves the file about 1% and leaves that figure where it
+  // was. The frames either side read at most 0.90, so a wrong frame still fails, and AndroidCaptionChromaMediaTest
+  // bounds the colour.
   override val minSsim: Double
-    get() = if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.R) API_30_ENCODED_MIN_SSIM else ENCODED_MIN_SSIM
+    get() = if (exportVideoEncoder == OMX_ENCODER) OMX_ENCODED_MIN_SSIM else ENCODED_MIN_SSIM
 
   // The encoder's limit: c2.android.avc.encoder writes its opening frames further off, so a slot inside them holds the
   // opening floor.
@@ -65,5 +65,5 @@ internal object AndroidClipParity : ClipParityBackend {
     position: Duration,
   ): TestFrame = androidExportFrameCovering(composition, position)
 
-  private const val API_30_ENCODED_MIN_SSIM = 0.98
+  private const val OMX_ENCODED_MIN_SSIM = 0.98
 }

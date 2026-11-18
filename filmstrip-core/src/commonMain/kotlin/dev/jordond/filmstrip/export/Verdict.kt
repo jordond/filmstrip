@@ -152,6 +152,15 @@ public enum class AdjustmentKind {
    * apart where the recorded primaries differ from the requested ones.
    */
   ColorSpaceChanged,
+
+  /**
+   * Key frames a player can start decoding from sit further apart than [ExportSpec.keyFrameInterval] asked, because
+   * the encoder places them no closer than a spacing of its own.
+   *
+   * Every frame still decodes and plays. A seek lands on the frame asked for, though a player may decode from further
+   * back to reach it, and a cut copied from the file can only start on one of those key frames.
+   */
+  KeyFrameIntervalClamped,
 }
 
 /**

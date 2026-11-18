@@ -22,6 +22,7 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.CoroutineScope
 import kotlin.math.roundToInt
+import kotlin.test.fail
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
@@ -52,6 +53,17 @@ interface ShortClipBackend : ClipParityBackend {
    * The presentation times of the sync samples in [source], or null for a backend that cannot read them.
    */
   suspend fun syncSampleTimes(source: MediaSource): List<Duration>? = null
+
+  /**
+   * Ends a cell built on a sync sample at [at] in the moving source, which holds its sync samples at [times] only.
+   *
+   * Fails by default. A backend whose encoder can't write a sync sample there overrides this to skip the cell, naming
+   * that encoder's limit.
+   */
+  fun noSyncSampleAt(
+    at: Duration,
+    times: List<Duration>,
+  ): Nothing = fail("the source holds no sync sample at $at, only at $times")
 
   /**
    * How far past a source frame's own time a read of a plain clip lands on that frame at [rate].

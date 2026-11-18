@@ -199,9 +199,7 @@ abstract class ShortClipSeamContractTest(
     syncAt: Duration? = null,
   ) = assertCell { source ->
     syncAt?.let { at ->
-      syncSampleTimes(source)?.let { times ->
-        withClue("the source holds no sync sample at $at, only at $times") { times.contains(at).shouldBeTrue() }
-      }
+      syncSampleTimes(source)?.let { times -> if (at !in times) noSyncSampleAt(at, times) }
     }
     val run = runOf(Cut(TimeRange.of(a, b), speed), Cut(TimeRange.of(b, c), speed))
     val seam = seamSlotOf(run)

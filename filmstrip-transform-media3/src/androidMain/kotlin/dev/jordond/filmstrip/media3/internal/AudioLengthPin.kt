@@ -6,12 +6,15 @@ import androidx.media3.common.audio.BaseAudioProcessor
 import dev.jordond.filmstrip.edit.audioFramesOf
 import java.nio.ByteBuffer
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.microseconds
 
 /**
  * Holds a clip's audio to exactly [length], cutting what runs past it and padding with silence what falls short.
  *
- * It sits after the clip's speed change, whose output length is an estimate. The count runs from the first frame the
- * item plays, so a flush after that, which is a seek in a preview, leaves the rest of the item as it comes.
+ * It sits after the clip's speed change, whose output length is an estimate. Each flush starts the count again from
+ * where it opens the item, so a seek into the middle of a clip is held to what is left of the length past that point.
+ * A stream that ends before its first frame since a flush has no audio to fall short and ends with nothing written.
+ * media3 ends a stream that way to reconfigure its item, and reads nothing it writes until the item queues a frame.
  *
  * @param length How long the item's audio runs.
  * @param reportsLength Whether media3 lays the item after this one by [length]. An item media3 changes the speed of
@@ -25,7 +28,6 @@ internal class AudioLengthPin(
 ) : BaseAudioProcessor() {
   private var bytesLeft = 0L
   private var started = false
-  private var pinned = true
   private var ended = false
 
   override fun onConfigure(inputAudioFormat: AudioProcessor.AudioFormat): AudioProcessor.AudioFormat =
@@ -39,7 +41,7 @@ internal class AudioLengthPin(
     val available = inputBuffer.remaining()
     if (available == 0) return
     started = true
-    val taken = if (pinned) minOf(available.toLong(), bytesLeft).toInt() else available
+    val taken = minOf(available.toLong(), bytesLeft).toInt()
     val output = replaceOutputBuffer(taken)
     val limit = inputBuffer.limit()
     inputBuffer.limit(inputBuffer.position() + taken)
@@ -47,11 +49,11 @@ internal class AudioLengthPin(
     inputBuffer.limit(limit)
     inputBuffer.position(limit)
     output.flip()
-    if (pinned) bytesLeft -= taken
+    bytesLeft -= taken
   }
 
   override fun getOutput(): ByteBuffer {
-    if (pinned && ended && bytesLeft > 0 && !hasPendingOutput()) {
+    if (pads() && ended && !hasPendingOutput()) {
       val frameBytes = inputAudioFormat.bytesPerFrame
       val size = minOf(bytesLeft, PADDING_BLOCK_BYTES - PADDING_BLOCK_BYTES % frameBytes).toInt()
       val output = replaceOutputBuffer(size)
@@ -65,25 +67,27 @@ internal class AudioLengthPin(
   override fun getDurationAfterProcessorApplied(durationUs: Long): Long =
     if (reportsLength && durationUs != 0L) length.inWholeMicroseconds else durationUs
 
-  override fun isEnded(): Boolean = super.isEnded() && (!pinned || bytesLeft == 0L)
+  override fun isEnded(): Boolean = super.isEnded() && !pads()
+
+  private fun pads(): Boolean = started && bytesLeft > 0
 
   override fun onQueueEndOfStream() {
     ended = true
   }
 
+  // media3 hands each processor the offset in its own input, which past the speed change is the clip's output time.
   override fun onFlush(streamMetadata: AudioProcessor.StreamMetadata) {
     ended = false
-    if (started) {
-      pinned = false
-    } else {
-      bytesLeft = audioFramesOf(length, inputAudioFormat.sampleRate) * inputAudioFormat.bytesPerFrame
-    }
+    started = false
+    val format = inputAudioFormat
+    val opens = audioFramesOf(streamMetadata.positionOffsetUs.microseconds, format.sampleRate)
+    val frames = (audioFramesOf(length, format.sampleRate) - opens).coerceAtLeast(0L)
+    bytesLeft = frames * format.bytesPerFrame
   }
 
   override fun onReset() {
     bytesLeft = 0L
     started = false
-    pinned = true
     ended = false
   }
 

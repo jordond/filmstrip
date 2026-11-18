@@ -181,6 +181,40 @@ internal fun surfaceChangeAction(
 internal fun seekNudgeMs(positionMs: Long): Long = if (positionMs > 0) positionMs - 1 else positionMs + 1
 
 /**
+ * The millisecond the seek media3 was handed last went through on its way to its target, see [seekNudgeMs].
+ *
+ * media3 reports landing on that millisecond too, and that landing is not the seek's own. Read and written on the
+ * player's thread only.
+ */
+internal class Media3SeekNudge {
+  private var nudgedMs = NO_NUDGE
+
+  /**
+   * Notes the seek to [positionMs] being handed over, through the millisecond beside it where [nudged].
+   *
+   * @return The millisecond to seek through first, or null where the seek goes straight to [positionMs].
+   */
+  fun through(
+    nudged: Boolean,
+    positionMs: Long,
+  ): Long? {
+    nudgedMs = if (nudged) seekNudgeMs(positionMs) else NO_NUDGE
+    return nudgedMs.takeIf { nudged }
+  }
+
+  /**
+   * Whether a landing media3 reports on [positionMs] is the seek's own rather than the millisecond it went through.
+   */
+  fun landsOn(positionMs: Long): Boolean {
+    if (positionMs == nudgedMs) return false
+    nudgedMs = NO_NUDGE
+    return true
+  }
+}
+
+private const val NO_NUDGE = Long.MIN_VALUE
+
+/**
  * Whether a seek is handed to media3 through [seekNudgeMs] first.
  *
  * A paused player reports where it estimates it stopped, and media3 skips a seek by the millisecond it really rests

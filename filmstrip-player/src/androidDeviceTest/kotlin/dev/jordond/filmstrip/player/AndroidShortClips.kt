@@ -16,6 +16,7 @@ import dev.jordond.filmstrip.player.contract.ShortClipSeamContractTest
 import dev.jordond.filmstrip.player.contract.ShortClipSlotContractTest
 import dev.jordond.filmstrip.player.contract.ShortClipTieContractTest
 import io.kotest.matchers.types.shouldBeInstanceOf
+import org.junit.Assume.assumeFalse
 import java.io.File
 import java.nio.ByteBuffer
 import kotlin.test.fail
@@ -64,6 +65,16 @@ internal object AndroidShortClips : ShortClipBackend, ClipParityBackend by Andro
     } finally {
       extractor.release()
     }
+  }
+
+  // The encoder's limit: OMX.google.h264.encoder writes its one IDR at the start of the moving source, so a cell built
+  // on a later sync sample has nothing to stand on.
+  override fun noSyncSampleAt(
+    at: Duration,
+    times: List<Duration>,
+  ): Nothing {
+    assumeFalse("$OMX_ENCODER writes no sync sample at $at, only at $times", exportVideoEncoder == OMX_ENCODER)
+    fail("the source holds no sync sample at $at, only at $times")
   }
 
   override suspend fun sourceAt(rate: Int): MediaSource {

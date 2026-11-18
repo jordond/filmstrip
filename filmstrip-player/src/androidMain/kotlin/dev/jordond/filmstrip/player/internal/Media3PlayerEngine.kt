@@ -179,6 +179,7 @@ internal class Media3PlayerEngine(
       seekToWrap = ::seekToWrap,
       pause = ::pause,
       onLooped = { range -> emitEvent(PlaybackEvent.RangeLooped(range)) },
+      onRead = pausedFrame::onClockRead,
     )
 
   private val host =
@@ -475,8 +476,9 @@ internal class Media3PlayerEngine(
     val level = volume
     handler.post {
       // A player built for a different video graph starts paused at full volume, so it takes the transport from the one
-      // it replaces and the volume the engine holds.
-      val wanted = host.player?.playWhenReady == true
+      // it replaces, a play still waiting on its replay included, and the volume the engine holds.
+      val pending = seeks.takePendingPlay()
+      val wanted = host.player?.playWhenReady == true || pending
       val target = host.playerFor(multipleInputs, lowered.composition.hdrMode)
       target.volume = level
       loads.handOver(load)

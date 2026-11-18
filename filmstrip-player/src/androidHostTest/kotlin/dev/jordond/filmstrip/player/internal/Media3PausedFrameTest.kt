@@ -64,6 +64,21 @@ class Media3PausedFrameTest {
       rig.pushed shouldBe listOf(CLOCK_AT)
     }
 
+  // media3's playback thread stops a little after the pause read the clock, and the mirror's last reading is that later
+  // clock.
+  @Test
+  fun `a clock read after a pause pushes the playhead and one read while playing pushes nothing`() =
+    runTest {
+      val rig = Rig(this)
+
+      rig.frame.onClockRead()
+      rig.pushed shouldBe listOf(CLOCK_AT)
+
+      rig.playWanted = true
+      rig.frame.onClockRead()
+      rig.pushed shouldBe listOf(CLOCK_AT)
+    }
+
   // The last frame is a slot short of the duration, and the end is the duration.
   @Test
   fun `a frame drawn after the end pushes the duration and not the slot of the frame`() =

@@ -49,15 +49,68 @@ class AudioLengthPinTest {
     pin.isEnded shouldBe true
   }
 
+  // media3 ends the stream of an item to reconfigure it, and reads none of what that stream writes until the item
+  // has queued a frame, so silence written for a stream that never started would hold the item there for good.
   @Test
-  fun `a flush after the first frame leaves the rest of the item as it comes`() {
+  fun `a stream that ends before its first frame writes nothing and ends`() {
     val pin = configured()
-    pin.queue(FRAMES / 2)
+
+    pin.pass(0) shouldBe 0L
+    pin.isEnded shouldBe true
+  }
+
+  @Test
+  fun `a seek into the middle of the item cuts the rest on the length`() {
+    val pin = configured()
+    pin.queue(FRAMES / 4)
     pin.drain()
+
+    pin.flush(AudioProcessor.StreamMetadata(HALF.inWholeMicroseconds))
+
+    pin.pass(FRAMES) shouldBe (FRAMES / 2).toLong()
+    pin.isEnded shouldBe true
+  }
+
+  @Test
+  fun `a seek into the middle of the item pads only what is left of the length`() {
+    val pin = configured()
+
+    pin.flush(AudioProcessor.StreamMetadata(HALF.inWholeMicroseconds))
+
+    pin.pass(FRAMES / 2 - EXTRA_FRAMES) shouldBe (FRAMES / 2).toLong()
+    pin.isEnded shouldBe true
+  }
+
+  @Test
+  fun `a seek past the length writes nothing past it`() {
+    val pin = configured()
+
+    pin.flush(AudioProcessor.StreamMetadata(LENGTH.inWholeMicroseconds + INPUT_US))
+
+    pin.pass(EXTRA_FRAMES) shouldBe 0L
+    pin.isEnded shouldBe true
+  }
+
+  @Test
+  fun `a replay from the start after the item played pins the whole length again`() {
+    val pin = configured()
+    pin.pass(FRAMES)
 
     pin.flush(AudioProcessor.StreamMetadata.DEFAULT)
 
-    pin.pass(FRAMES + EXTRA_FRAMES) shouldBe (FRAMES + EXTRA_FRAMES).toLong()
+    pin.pass(FRAMES - EXTRA_FRAMES) shouldBe FRAMES.toLong()
+    pin.isEnded shouldBe true
+  }
+
+  @Test
+  fun `a stream that ends before its first frame since a seek writes nothing`() {
+    val pin = configured()
+    pin.queue(FRAMES / 4)
+    pin.drain()
+
+    pin.flush(AudioProcessor.StreamMetadata(HALF.inWholeMicroseconds))
+
+    pin.pass(0) shouldBe 0L
     pin.isEnded shouldBe true
   }
 
@@ -70,6 +123,7 @@ class AudioLengthPinTest {
         flush(AudioProcessor.StreamMetadata.DEFAULT)
       }
 
+    pin.queueInput(ByteBuffer.allocateDirect(surround.bytesPerFrame).order(ByteOrder.nativeOrder()))
     pin.queueEndOfStream()
 
     var frames = 0
@@ -142,6 +196,7 @@ class AudioLengthPinTest {
     const val CHANNELS = 2
     const val SURROUND_CHANNELS = 6
     val LENGTH = 500.milliseconds
+    val HALF = LENGTH / 2
     const val FRAMES = 24_000
     const val EXTRA_FRAMES = 1_000
     const val INPUT_US = 1_234_567L

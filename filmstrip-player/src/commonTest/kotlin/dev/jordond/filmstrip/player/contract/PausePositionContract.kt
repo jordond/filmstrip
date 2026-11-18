@@ -72,7 +72,8 @@ internal class PausePositionContract(
    * Pauses once the playhead has passed the middle of the composition, then steps a frame forward, back, and back
    * again.
    *
-   * Each step lands on the slot beside the one the pause reported, whichever it was.
+   * Each step lands on the slot beside the one the pause reported, whichever it was, read as soon as the engine is
+   * quiet.
    */
   fun aStepFromThePauseLandsOnTheNeighbours(): TestResult =
     pausedTest { subject, recorder, duration ->

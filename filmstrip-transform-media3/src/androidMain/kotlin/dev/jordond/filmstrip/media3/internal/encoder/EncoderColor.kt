@@ -71,12 +71,26 @@ internal class EncoderColor(
   var retag: Retag? = null
     private set
 
+  /**
+   * The name of the video encoder media3 was handed last, or null while it was handed none.
+   *
+   * Written when media3 creates the encoder, read after the export finishes.
+   */
+  @Volatile
+  var videoEncoder: String? = null
+    private set
+
   override fun createForAudioEncoding(
     format: Format,
     logSessionId: LogSessionId?,
   ): Codec = aacTailPadded(aacPrimed(delegate.createForAudioEncoding(format, logSessionId)), sdkInt)
 
   override fun createForVideoEncoding(
+    format: Format,
+    logSessionId: LogSessionId?,
+  ): Codec = videoEncoderFor(format, logSessionId).also { videoEncoder = it.name }
+
+  private fun videoEncoderFor(
     format: Format,
     logSessionId: LogSessionId?,
   ): Codec {
@@ -176,8 +190,8 @@ internal fun pinnedEncoderFactory(
  * there. That is media3's limit, not the plan's.
  *
  * `OMX.google.h264.encoder` writes an I frame every [keyFrameSeconds] and an IDR only every 1000 frames, so a file
- * from it holds a key frame every 1000 frames whatever is asked for. That is the encoder's limit, and it is the only
- * H.264 encoder on an API 30 emulator.
+ * from it holds a key frame every 1000 frames whatever is asked for. That is the encoder's limit, which
+ * [keyFrameReport] reports.
  */
 internal fun videoEncoderSettings(
   bitrate: Bitrate?,

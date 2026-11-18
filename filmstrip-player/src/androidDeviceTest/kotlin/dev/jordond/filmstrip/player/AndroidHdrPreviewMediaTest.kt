@@ -179,8 +179,9 @@ class AndroidHdrPreviewMediaTest {
     }
 
   // Every planner above is told what the device draws, so this one asks the device itself. The test reads the
-  // extension off a context of the kind the planner's own probe makes, and the plan has to agree with it. A probe
-  // that could not ask would let a device with no extension through, which is what the emulator reads here.
+  // extension off a context of the kind the planner's own probe makes, a ten-bit OpenGL ES 3 one or an eight-bit one
+  // where there is none, and the plan has to agree with it. A probe that could not ask would let a device with no
+  // extension through, which is what the emulator reads here.
   @Test
   fun aPlannerThatAsksTheDeviceAgreesWithItsOpenGlAboutTheYuvTarget() =
     runTest(timeout = TIMEOUT) {
@@ -344,17 +345,18 @@ class AndroidHdrPreviewMediaTest {
     var offered: Boolean? = null
     thread(name = "filmstrip-test-yuv-target") {
       offered =
-        runCatching {
-          val display = GlUtil.getDefaultEglDisplay()
-          val gl =
-            GlUtil.createEglContext(EGL14.EGL_NO_CONTEXT, display, 3, GlUtil.EGL_CONFIG_ATTRIBUTES_RGBA_1010102)
-          try {
-            GlUtil.createFocusedPlaceholderEglSurface(gl, display)
-            GLES20.glGetString(GLES20.GL_EXTENSIONS)?.contains(YUV_TARGET_EXTENSION)
-          } finally {
-            GlUtil.destroyEglContext(display, gl)
-          }
-        }.getOrNull()
+        listOf(GlUtil.EGL_CONFIG_ATTRIBUTES_RGBA_1010102, GlUtil.EGL_CONFIG_ATTRIBUTES_RGBA_8888).firstNotNullOfOrNull {
+          runCatching {
+            val display = GlUtil.getDefaultEglDisplay()
+            val gl = GlUtil.createEglContext(EGL14.EGL_NO_CONTEXT, display, 3, it)
+            try {
+              GlUtil.createFocusedPlaceholderEglSurface(gl, display)
+              GLES20.glGetString(GLES20.GL_EXTENSIONS)?.contains(YUV_TARGET_EXTENSION)
+            } finally {
+              GlUtil.destroyEglContext(display, gl)
+            }
+          }.getOrNull()
+        }
     }.join()
     return offered
   }

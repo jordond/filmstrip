@@ -120,36 +120,35 @@ internal class YuvTargetProbe(
 }
 
 // The extension is only readable with a context current, and the context media3 draws HDR on is an OpenGL ES 3 one, so
-// the probe makes one of that kind. It runs on a thread of its own, so it neither reads nor unbinds a context the
-// caller has current.
+// the probe makes one of that kind. media3 keeps a grade on a ten-bit config and tone maps on an eight-bit one, so a
+// device with no ten-bit config is asked on the eight-bit one. It runs on a thread of its own, so it neither reads nor
+// unbinds a context the caller has current.
 private fun probeYuvTarget(): Boolean? {
   var answer: Boolean? = null
   val probe =
     thread(name = PROBE_THREAD) {
       answer =
-        try {
-          val display = GlUtil.getDefaultEglDisplay()
-          val context =
-            GlUtil.createEglContext(
-              EGL14.EGL_NO_CONTEXT,
-              display,
-              OPEN_GL_ES_3,
-              GlUtil.EGL_CONFIG_ATTRIBUTES_RGBA_1010102,
-            )
+        PROBE_CONFIGS.firstNotNullOfOrNull { config ->
           try {
-            GlUtil.createFocusedPlaceholderEglSurface(context, display)
-            GLES20.glGetString(GLES20.GL_EXTENSIONS)?.contains(YUV_TARGET_EXTENSION)
-          } finally {
-            GlUtil.destroyEglContext(display, context)
+            val display = GlUtil.getDefaultEglDisplay()
+            val context = GlUtil.createEglContext(EGL14.EGL_NO_CONTEXT, display, OPEN_GL_ES_3, config)
+            try {
+              GlUtil.createFocusedPlaceholderEglSurface(context, display)
+              GLES20.glGetString(GLES20.GL_EXTENSIONS)?.contains(YUV_TARGET_EXTENSION)
+            } finally {
+              GlUtil.destroyEglContext(display, context)
+            }
+          } catch (unavailable: Exception) {
+            // Whatever stopped this config, the device was not asked on it, which is unknown and not a refusal.
+            null
           }
-        } catch (unavailable: Exception) {
-          // Whatever stopped the probe, the device was not asked, which is the answer of unknown and not a refusal.
-          null
         }
     }
   probe.join()
   return answer
 }
+
+private val PROBE_CONFIGS = listOf(GlUtil.EGL_CONFIG_ATTRIBUTES_RGBA_1010102, GlUtil.EGL_CONFIG_ATTRIBUTES_RGBA_8888)
 
 private const val PROBE_THREAD = "filmstrip-yuv-target-probe"
 private const val PROBE_ATTEMPTS = 3

@@ -54,6 +54,17 @@ class EncoderColorTest {
   }
 
   @Test
+  fun `the video encoder handed to media3 is the one named after a retag`() {
+    val factory = FakeFactory(names = listOf(SOFTWARE, SOFTWARE))
+    val color = color(factory, probe(BT601_LIMITED))
+    color.videoEncoder.shouldBeNull()
+
+    color.createForVideoEncoding(sdrFormat(), null)
+
+    color.videoEncoder shouldBe SOFTWARE
+  }
+
+  @Test
   fun `the encoder is configured at the export's frame rate and keeps it through a retag`() {
     val factory = FakeFactory(names = listOf(SOFTWARE, SOFTWARE))
     val color =

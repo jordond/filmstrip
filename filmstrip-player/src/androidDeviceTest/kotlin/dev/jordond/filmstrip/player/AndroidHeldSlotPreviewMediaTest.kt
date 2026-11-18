@@ -78,6 +78,27 @@ class AndroidHeldSlotPreviewMediaTest {
       rig.shouldShow(rig.repeatSlot())
     }
 
+  // A scrub and then a seek into the middle of a slowed clip end its audio stream before a frame of it was queued, as
+  // media3 reconfigures the item, and a play from there has to move the clock on through the rest of the clip.
+  @Test
+  fun aPlayAfterAScrubAndASeekIntoASlowedClipMovesTheClockOn() =
+    onHeldSurface(Case.Half) { rig ->
+      rig.ready()
+      rig.player.beginScrub()
+      rig.seekAndSettle(rig.firstSlot(), SeekAccuracy.Nearest)
+      rig.seekAndSettle(rig.repeatSlot(), SeekAccuracy.Nearest)
+      rig.player.endScrub()
+      val middle = rig.lastSlot() / 2
+      rig.seekAndSettle(middle)
+
+      rig.player.play()
+
+      val past = rig.slotTime(middle + PLAYED_ON)
+      awaitOrFail("the clock to move on from slot $middle, which reads ${rig.player.currentPosition()}") {
+        rig.player.currentPosition() >= past
+      }
+    }
+
   // The play is asked for right behind the seek, so the seek is handed to media3 once the player is playing and has
   // no slot of the hold to be pinned to.
   @Test
@@ -195,3 +216,6 @@ class AndroidHeldSlotPreviewMediaTest {
       rig.redrawnShows(slot, brighter)
     }
 }
+
+// How many slots past the seek a play has to carry the clock, half a second of the slowed clip.
+private const val PLAYED_ON = 15

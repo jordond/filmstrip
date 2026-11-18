@@ -19,6 +19,7 @@ import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.CLIP
 import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.HDR_CLIP
 import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.TIMEOUT
+import dev.jordond.filmstrip.test.PREVIEW_PARITY_EXPORT_BITRATE
 import dev.jordond.filmstrip.test.assumeDecodesTenBitHevc
 import dev.jordond.filmstrip.test.assumeEncodesHdr
 import dev.jordond.filmstrip.test.eightBitFrameAt
@@ -48,13 +49,13 @@ class AndroidEverySlotMediaTest {
   @Test
   fun aSourceSlowerThanTheOutputWritesEverySlot() =
     runTest(timeout = TIMEOUT) {
-      assertEverySlot(listOf(Clip(probe.fixture(CLIP_24FPS))), ExportSpec(heightPx = 240, frameRate = 30))
+      assertEverySlot(listOf(Clip(probe.fixture(CLIP_24FPS))), gridSpec(30))
     }
 
   @Test
   fun aSourceSlowerByLessThanOneFrameInFiveWritesEverySlot() =
     runTest(timeout = TIMEOUT) {
-      assertEverySlot(listOf(Clip(probe.fixture(CLIP_24FPS))), ExportSpec(heightPx = 240, frameRate = OFF_GRID_RATE))
+      assertEverySlot(listOf(Clip(probe.fixture(CLIP_24FPS))), gridSpec(OFF_GRID_RATE))
     }
 
   @Test
@@ -62,19 +63,19 @@ class AndroidEverySlotMediaTest {
     runTest(timeout = TIMEOUT) {
       val clips = listOf(Clip(probe.fixture(CLIP)), Clip(probe.fixture(CLIP_24FPS)))
 
-      assertEverySlot(clips, ExportSpec(heightPx = 240, frameRate = 30))
+      assertEverySlot(clips, gridSpec(30))
     }
 
   @Test
   fun aClipSlowedToHalfWritesEverySlot() =
     runTest(timeout = TIMEOUT) {
-      assertEverySlot(listOf(Clip(probe.fixture(CLIP), speed = 0.5)), ExportSpec(heightPx = 240, frameRate = 30))
+      assertEverySlot(listOf(Clip(probe.fixture(CLIP), speed = 0.5)), gridSpec(30))
     }
 
   @Test
   fun aClipSlowedInTheMiddleOfTheRangeWritesEverySlot() =
     runTest(timeout = TIMEOUT) {
-      assertEverySlot(listOf(Clip(probe.fixture(CLIP), speed = 0.7)), ExportSpec(heightPx = 240, frameRate = 30))
+      assertEverySlot(listOf(Clip(probe.fixture(CLIP), speed = 0.7)), gridSpec(30))
     }
 
   @Test
@@ -82,19 +83,19 @@ class AndroidEverySlotMediaTest {
     runTest(timeout = TIMEOUT) {
       val clip = Clip(probe.fixture(CLIP_24FPS), TimeRange.of(500.milliseconds, 1_500.milliseconds), speed = 0.5)
 
-      assertEverySlot(listOf(clip), ExportSpec(heightPx = 240, frameRate = 30))
+      assertEverySlot(listOf(clip), gridSpec(30))
     }
 
   @Test
   fun aSourceFasterThanTheOutputStillWritesOneFramePerSlot() =
     runTest(timeout = TIMEOUT) {
-      assertEverySlot(listOf(Clip(probe.fixture(CLIP))), ExportSpec(heightPx = 240, frameRate = 15))
+      assertEverySlot(listOf(Clip(probe.fixture(CLIP))), gridSpec(15))
     }
 
   @Test
   fun aClipSpedUpStillWritesOneFramePerSlot() =
     runTest(timeout = TIMEOUT) {
-      assertEverySlot(listOf(Clip(probe.fixture(CLIP), speed = 2.0)), ExportSpec(heightPx = 240, frameRate = 30))
+      assertEverySlot(listOf(Clip(probe.fixture(CLIP), speed = 2.0)), gridSpec(30))
     }
 
   @Test
@@ -133,7 +134,7 @@ class AndroidEverySlotMediaTest {
       val slow = retimeSamples(probe.fixtureFile(CLIP), File(probe.context.cacheDir, "one_a_second.mp4"), 1.seconds)
       val clip = Clip(MediaSource.of(slow.path), TimeRange.of(Duration.ZERO, 2.seconds), speed = 0.1)
 
-      assertEverySlot(listOf(clip), ExportSpec(heightPx = 240, frameRate = 30))
+      assertEverySlot(listOf(clip), gridSpec(30))
     }
 
   @Test
@@ -141,7 +142,7 @@ class AndroidEverySlotMediaTest {
     runTest(timeout = TIMEOUT) {
       val fast = retimeSamples(probe.fixtureFile(CLIP), File(probe.context.cacheDir, "sixty.mp4"), 1.seconds / 60)
 
-      assertEverySlot(listOf(Clip(MediaSource.of(fast.path))), ExportSpec(heightPx = 240, frameRate = 30))
+      assertEverySlot(listOf(Clip(MediaSource.of(fast.path))), gridSpec(30))
     }
 
   // At 1.5 times speed every slot skips one frame and a half, so slots alternate between skipping one and two.
@@ -150,7 +151,7 @@ class AndroidEverySlotMediaTest {
     runTest(timeout = TIMEOUT) {
       val fast = retimeSamples(probe.fixtureFile(CLIP), File(probe.context.cacheDir, "sixty.mp4"), 1.seconds / 60)
 
-      assertEverySlot(listOf(Clip(MediaSource.of(fast.path), speed = 1.5)), ExportSpec(heightPx = 240, frameRate = 30))
+      assertEverySlot(listOf(Clip(MediaSource.of(fast.path), speed = 1.5)), gridSpec(30))
     }
 
   /**
@@ -225,6 +226,15 @@ class AndroidEverySlotMediaTest {
         throw AssertionError("the edit would not lower: ${result.error.message}")
       }
     }
+
+  // The encoder's limit: at the rate media3 picks when none is asked, OMX.google.h264.encoder's rate control starves
+  // the last frames of a half speed export, slot 118 of 120 down to 176 bytes, until the band reads 148 from the
+  // sample shown and 148 from the one beside it. At this rate every slot of an export at half, 0.7, 1 and 2 times speed
+  // reads 35 or more nearer its own sample, half speed 45. A Codec2 hardware encoder on a phone at its default rate
+  // writes the opening slots so coarse they read 168 to 198 from both their own sample and the one beside it. The band
+  // counts the encode as noise, so a file it is read off is written at the rate the parity suites name.
+  private fun gridSpec(frameRate: Int) =
+    ExportSpec(heightPx = 240, frameRate = frameRate, bitrate = PREVIEW_PARITY_EXPORT_BITRATE)
 
   private fun Bitmap.band(): List<Triple<Int, Int, Int>> = FRAME_ACROSS.map { averageAt(it, MOVING_BAND) }
 

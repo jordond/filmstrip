@@ -248,7 +248,7 @@ abstract class PlayerEngineContractTest {
     pauses.reportsASteadySlotAndTheOneOnScreenWhereTheBackendKnowsIt()
 
   @Test
-  fun aStepFromASettledPauseLandsOnTheNeighbours() = pauses.aStepFromThePauseLandsOnTheNeighbours()
+  fun aStepFromAPauseLandsOnTheNeighbours() = pauses.aStepFromThePauseLandsOnTheNeighbours()
 
   @Test
   fun aPlayAfterASettledPauseNeverReadsBehindIt() = pauses.aPlayAfterAPauseNeverReadsBehindIt()

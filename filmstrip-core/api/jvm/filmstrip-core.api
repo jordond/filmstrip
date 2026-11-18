@@ -1094,6 +1094,7 @@ public final class dev/jordond/filmstrip/export/AdjustmentKind : java/lang/Enum 
 	public static final field EffectDropped Ldev/jordond/filmstrip/export/AdjustmentKind;
 	public static final field FrameRateClamped Ldev/jordond/filmstrip/export/AdjustmentKind;
 	public static final field HdrToneMapped Ldev/jordond/filmstrip/export/AdjustmentKind;
+	public static final field KeyFrameIntervalClamped Ldev/jordond/filmstrip/export/AdjustmentKind;
 	public static final field ResolutionClamped Ldev/jordond/filmstrip/export/AdjustmentKind;
 	public static final field SoftwareFallback Ldev/jordond/filmstrip/export/AdjustmentKind;
 	public static fun getEntries ()Lkotlin/enums/EnumEntries;

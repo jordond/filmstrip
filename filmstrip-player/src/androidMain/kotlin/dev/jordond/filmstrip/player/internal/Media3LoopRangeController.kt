@@ -27,6 +27,7 @@ import kotlin.time.Duration.Companion.milliseconds
  * @param seekToWrap Seeks to a wrap's landing through the chase, marked as a wrap.
  * @param pause Stops the transport.
  * @param onLooped Reports a lap of the range.
+ * @param onRead Hears that a reading taken off the player was recorded and checked against the ranges.
  */
 @ExperimentalApi
 internal class Media3LoopRangeController(
@@ -41,6 +42,7 @@ internal class Media3LoopRangeController(
   private val seekToWrap: (Duration) -> Unit,
   private val pause: () -> Unit,
   private val onLooped: (range: TimeRange) -> Unit,
+  private val onRead: () -> Unit = {},
 ) {
   /**
    * The range playback loops over, or null when it does not loop.
@@ -103,6 +105,7 @@ internal class Media3LoopRangeController(
     loads.report {
       recordPosition(reading)
       onPlayhead(reading.milliseconds, running)
+      onRead()
     }
     if (mirroring) handler.postDelayed(mirrorTick, MIRROR_INTERVAL_MS)
   }

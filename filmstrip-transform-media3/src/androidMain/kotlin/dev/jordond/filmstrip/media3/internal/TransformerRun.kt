@@ -29,6 +29,7 @@ import dev.jordond.filmstrip.media3.internal.bounds.ChosenTrackAssetLoaderFactor
 import dev.jordond.filmstrip.media3.internal.encoder.EncoderColor
 import dev.jordond.filmstrip.media3.internal.encoder.MeasuredEncoderColor
 import dev.jordond.filmstrip.media3.internal.encoder.encoderFactory
+import dev.jordond.filmstrip.media3.internal.encoder.keyFrameReport
 import dev.jordond.filmstrip.media3.internal.encoder.keyFrameSecondsOf
 import dev.jordond.filmstrip.media3.internal.encoder.pinnedEncoderFactory
 import dev.jordond.filmstrip.media3.internal.encoder.retagReport
@@ -263,7 +264,8 @@ internal class TransformerRun(
       }
       is ProbeResult.Success -> {
         val retagged = retagReport(resolved.path, encoders.retag)
-        val adjustments = resolved.adjustments + negotiatedAway() + listOfNotNull(retagged, copiedSilent())
+        val spaced = keyFrameReport(resolved.path, encoders.videoEncoder, resolved.output.keyFrameSpacing)
+        val adjustments = resolved.adjustments + negotiatedAway() + listOfNotNull(retagged, spaced, copiedSilent())
         ExportStatus.Success(sink, probe.info, adjustments)
       }
     }

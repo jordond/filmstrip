@@ -78,7 +78,8 @@ larger at the same quality.
 The interval rounds to a whole number of frames at the output frame rate, never fewer than one, and the plan's
 `output.keyFrameSpacing` is that count. An interval of zero or less is refused. A stream copy keeps the source's own
 key frames, so the interval doesn't apply to one and doesn't rule it out either, and `output.keyFrameSpacing` is null.
-See [Limits](/reference/limits/#key-frames) for the encoders that add key frames of their own.
+An encoder that places them further apart than asked reports a `KeyFrameIntervalClamped` adjustment on the export's
+result. See [Limits](/reference/limits/#key-frames) for the encoders that add or drop key frames of their own.
 
 ## Plan
 

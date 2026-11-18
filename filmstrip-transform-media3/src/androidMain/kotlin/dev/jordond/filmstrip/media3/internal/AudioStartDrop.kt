@@ -11,8 +11,8 @@ import kotlin.time.Duration
  * Drops the first [lead] of a clip's decoded audio, so the item opens on the source frame at its trim start.
  *
  * The item is clipped from the start of the access unit before the one holding the trim start, which media3 keeps
- * whole, and this cuts the frames between that unit's start and the trim start. Like [AudioLengthPin] the count runs
- * from the first frame the item plays, so a flush after that leaves the rest of the item as it comes.
+ * whole, and this cuts the frames between that unit's start and the trim start. The count runs from the first frame
+ * the item plays, so a flush after that leaves the rest of the item as it comes.
  *
  * @param lead How far the trim start sits past the first decoded frame.
  */

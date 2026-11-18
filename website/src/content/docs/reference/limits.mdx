@@ -42,7 +42,7 @@ that run in frames. See [Export](/guides/export/#key-frames).
 
 | Backend      | What the file holds                                                                           |
 | ------------ | --------------------------------------------------------------------------------------------- |
-| Media3       | A key frame every `keyFrameSpacing` frames.                                                   |
+| Media3       | A key frame every `keyFrameSpacing` frames. `OMX.google.h264.encoder` writes one only every 1000, and reports `KeyFrameIntervalClamped`. |
 | AVFoundation | A key frame at most every `keyFrameSpacing` frames. VideoToolbox adds more where it chooses.  |
 | WebCodecs    | A key frame every `keyFrameSpacing` frames.                                                   |
 | ffmpeg       | A key frame every `keyFrameSpacing` frames. Its VideoToolbox encoders behave as AVFoundation, and openh264 adds one at a scene cut. |

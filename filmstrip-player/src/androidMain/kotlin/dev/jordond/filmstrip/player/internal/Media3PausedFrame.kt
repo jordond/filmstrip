@@ -70,6 +70,17 @@ internal class Media3PausedFrame(
   }
 
   /**
+   * Pushes the playhead for a reading of media3's clock taken once the player was told to stop, after the reading was
+   * checked against the loop and playback ranges. Called on the engine's dispatcher.
+   *
+   * The pause reads the clock as it was asked for, and media3's playback thread stops a little later. A player with no
+   * frame to name reads the slot of that later clock, so the reading the mirror takes last is pushed too.
+   */
+  fun onClockRead() {
+    if (!isPlayWanted()) emitPosition(position())
+  }
+
+  /**
    * Pushes the playhead as the player pauses, where it moves from the clock to the frame on the surface.
    */
   fun onPaused() {

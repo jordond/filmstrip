@@ -6,10 +6,10 @@ name: Media
 # release goes out.
 #
 # Job budget. GitHub runs at most 20 jobs at once, five of them macOS, and a job past that waits for a free slot, so
-# the lane's wall time is its slowest job only while it stays inside both. It holds 20.
+# the lane's wall time is its slowest job only while it stays inside both. It holds 24, so four jobs wait for a slot.
 #
 #   macOS  4   ios 3, macos 1
-#   Linux 16   ffmpeg 8 in 5 and ffmpeg 9 in 3, browser 4, android device 4
+#   Linux 20   ffmpeg 8 in 5 and ffmpeg 9 in 3, browser 4, android device 4 on each of two API levels
 #
 # A new cell or shard has to come out of this budget. Shard counts follow gradle/test-weights.txt, written from a run
 # of this lane, so a shard's share of a cell's weight is close to its hosted time.
@@ -194,20 +194,26 @@ jobs:
       - *reports
 
   # The shard reaches the device run as a notClass runner argument, so each shard skips the classes the other owns.
+  # Every shard runs on two images. API 30 turns Codec2 off, so OMX.google.h264.encoder is its only H.264 encoder.
+  # API 36 encodes with c2.android.avc.encoder, the encoder most of the device bounds were measured on.
   device:
-    name: "Test android device ${{ matrix.suite }} ${{ matrix.shard }}"
+    name: "Test android device ${{ matrix.suite }} ${{ matrix.shard }} api${{ matrix.api }}"
     runs-on: ubuntu-latest
     timeout-minutes: 60
     env:
-      CELL: device-${{ matrix.suite }}-${{ matrix.shard }}
+      CELL: device-${{ matrix.suite }}-${{ matrix.shard }}-api${{ matrix.api }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          - { suite: media3, shard: 1/2, tasks: ":filmstrip-transform-media3:connectedAndroidDeviceTest", apks: ":filmstrip-transform-media3:packageAndroidDeviceTest" }
-          - { suite: media3, shard: 2/2, tasks: ":filmstrip-transform-media3:connectedAndroidDeviceTest", apks: ":filmstrip-transform-media3:packageAndroidDeviceTest" }
-          - { suite: rest, shard: 1/2, tasks: "connectedAndroidDeviceTest -x :filmstrip-transform-media3:connectedAndroidDeviceTest", apks: "packageAndroidDeviceTest -x :filmstrip-transform-media3:packageAndroidDeviceTest" }
-          - { suite: rest, shard: 2/2, tasks: "connectedAndroidDeviceTest -x :filmstrip-transform-media3:connectedAndroidDeviceTest", apks: "packageAndroidDeviceTest -x :filmstrip-transform-media3:packageAndroidDeviceTest" }
+          - { api: 30, suite: media3, shard: 1/2, tasks: ":filmstrip-transform-media3:connectedAndroidDeviceTest", apks: ":filmstrip-transform-media3:packageAndroidDeviceTest" }
+          - { api: 30, suite: media3, shard: 2/2, tasks: ":filmstrip-transform-media3:connectedAndroidDeviceTest", apks: ":filmstrip-transform-media3:packageAndroidDeviceTest" }
+          - { api: 30, suite: rest, shard: 1/2, tasks: "connectedAndroidDeviceTest -x :filmstrip-transform-media3:connectedAndroidDeviceTest", apks: "packageAndroidDeviceTest -x :filmstrip-transform-media3:packageAndroidDeviceTest" }
+          - { api: 30, suite: rest, shard: 2/2, tasks: "connectedAndroidDeviceTest -x :filmstrip-transform-media3:connectedAndroidDeviceTest", apks: "packageAndroidDeviceTest -x :filmstrip-transform-media3:packageAndroidDeviceTest" }
+          - { api: 36, suite: media3, shard: 1/2, tasks: ":filmstrip-transform-media3:connectedAndroidDeviceTest", apks: ":filmstrip-transform-media3:packageAndroidDeviceTest" }
+          - { api: 36, suite: media3, shard: 2/2, tasks: ":filmstrip-transform-media3:connectedAndroidDeviceTest", apks: ":filmstrip-transform-media3:packageAndroidDeviceTest" }
+          - { api: 36, suite: rest, shard: 1/2, tasks: "connectedAndroidDeviceTest -x :filmstrip-transform-media3:connectedAndroidDeviceTest", apks: "packageAndroidDeviceTest -x :filmstrip-transform-media3:packageAndroidDeviceTest" }
+          - { api: 36, suite: rest, shard: 2/2, tasks: "connectedAndroidDeviceTest -x :filmstrip-transform-media3:connectedAndroidDeviceTest", apks: "packageAndroidDeviceTest -x :filmstrip-transform-media3:packageAndroidDeviceTest" }
     steps:
       - *checkout
       - *java
@@ -236,10 +242,10 @@ jobs:
       - name: Run device tests
         uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
         with:
-          api-level: 30
+          api-level: ${{ matrix.api }}
           arch: x86_64
           target: google_apis
-          # The runner's defaults with two changes.
+          # The runner's defaults with two changes, on both images.
           # -HardwareDecoder leaves video to the software decoder. The API 30 image's host-backed
           # OMX.android.goldfish.h264.decoder drops frames it was told to render, and media3 waits
           # 20s for them on an emulator at every seek and release.
