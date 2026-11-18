@@ -199,9 +199,15 @@ internal class Media3SeekCoordinator(
    * it had to, since a player paused a moment ago still reports an estimate.
    *
    * @param surfaceLost Whether this is for a surface that just went, rather than one the player was handed.
+   * @param ended Whether the player ran to its end. media3 still means to play there, and would play the last slot out
+   * again from the seek back, so it is stopped first and the seek only draws that slot.
    */
-  fun represent(surfaceLost: Boolean) {
+  fun represent(
+    surfaceLost: Boolean,
+    ended: Boolean = false,
+  ) {
     handler.post {
+      if (ended) player()?.playWhenReady = false
       val playback = playback()
       playback.run {
         handler.post {

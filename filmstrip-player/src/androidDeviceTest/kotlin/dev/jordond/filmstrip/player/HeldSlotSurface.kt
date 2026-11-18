@@ -294,14 +294,37 @@ internal class HeldRig(
   }
 
   /**
-   * Plays on from here until the playhead passes slot [past], pauses, and returns each picture the surface showed
-   * meanwhile. See [picturesDuring].
+   * Plays on from slot [from] until the playhead passes slot [past] and the surface has drawn a picture of a slot after
+   * the hold [from] is in, pauses, and returns what the surface showed meanwhile. See [picturesDuring].
+   *
+   * The clock runs on audio, so on a slow emulator it can pass [past] before the surface has drawn anything after the
+   * hold. Waiting on the surface as well keeps that from reading as a play that never played on, and a play that draws
+   * nothing past the hold fails here, by the wait running out.
    */
-  suspend fun picturesPlayingUntilPast(past: Int): List<TestFrame> =
-    picturesDuring {
-      player.play()
-      pausedAfter(past)
-    }
+  suspend fun picturesPlayingUntilPast(
+    from: Int,
+    past: Int,
+  ): PlayedPictures {
+    val hold = holdOf(from)
+    val held = cachedExport(hold.first)
+    val drawnPast = mutableListOf<TestFrame>()
+    val played =
+      picturesSeen { seen ->
+        player.play()
+        awaitOrFail(
+          "the playhead to pass slot $past, which reads ${player.currentPosition()}, and the surface to draw a " +
+            "slot after the hold $hold",
+        ) {
+          val pictures = synchronized(seen) { seen.toList() }
+          pictures.drop(drawnPast.size).forEach { drawnPast += it }
+          player.currentPosition() >= slotTime(past) &&
+            drawnPast.any { compareFrames(held, it).psnrDb < MIN_PSNR_DB }
+        }
+        player.pause()
+        delay(SETTLE)
+      }
+    return played
+  }
 
   /**
    * Runs [block] and returns each picture the surface showed meanwhile, in order, with the one it settled on last.
@@ -310,73 +333,40 @@ internal class HeldRig(
    * standing when [block] began is not listed either, since nothing [block] did drew it. A picture drawn and replaced
    * between two copies is not seen, so this lists what was drawn at most.
    */
-  suspend fun picturesDuring(block: suspend () -> Unit): List<TestFrame> =
+  suspend fun picturesDuring(block: suspend () -> Unit): List<TestFrame> = picturesSeen { block() }.pictures
+
+  // [picturesDuring], with what was seen so far handed to [block], and whether the first copy was the standing picture.
+  private suspend fun picturesSeen(block: suspend (seen: List<TestFrame>) -> Unit): PlayedPictures =
     coroutineScope {
       val seen = mutableListOf<TestFrame>()
       val standing = view.copyPixels(FIXTURE_FRAME)
 
       fun note(frame: TestFrame) {
-        if (seen.lastOrNull()?.pixels?.contentEquals(frame.pixels) != true) seen += frame
+        synchronized(seen) {
+          if (seen.lastOrNull()?.pixels?.contentEquals(frame.pixels) != true) seen += frame
+        }
       }
       val sampler =
         launch(Dispatchers.Default) {
           while (isActive) note(view.copyPixels(FIXTURE_FRAME))
         }
       try {
-        block()
+        block(seen)
       } finally {
         sampler.cancelAndJoin()
       }
       note(view.copyPixels(FIXTURE_FRAME))
-      if (seen.firstOrNull()?.pixels?.contentEquals(standing.pixels) == true) seen.drop(1) else seen
+      val opensOnStanding = seen.firstOrNull()?.pixels?.contentEquals(standing.pixels) == true
+      PlayedPictures(
+        pictures = if (opensOnStanding) seen.drop(1) else seen.toList(),
+        standing = standing,
+        opensOnStanding = opensOnStanding,
+      )
     }
-
-  /**
-   * Holds [pictures], what the surface showed after a play from slot [from] that was paused, to being the clip's own
-   * slots, drawn whole, in the order they are played.
-   *
-   * Each picture is matched to the export of the slot nearest it among the slots from the first of the hold [from] is
-   * in to [reported]. That window is the whole of what a play can show: the hold's sample is drawn again from its first
-   * slot, and a pause lands the surface on the slot the playhead reads, so nothing past it is drawn. A picture no slot
-   * in it resembles is a half-drawn one, or one of the sample before the hold. The first picture has to be a slot of
-   * that hold, which is the sample being drawn again and not the play carrying on from the slot after it. The matched
-   * slots then have to run forward, never back to an earlier one, and the last has to be [reported], a slot after
-   * [from]. A slot missing from the run is not held against the play, since the copies can miss a frame.
-   *
-   * @return the slot the surface settled on.
-   */
-  suspend fun shouldHavePlayedOn(
-    pictures: List<TestFrame>,
-    from: Int,
-    reported: Int,
-  ): Int {
-    val hold = holdOf(from)
-    val window = hold.first..reported
-    withClue("the play drew no picture") { pictures.isNotEmpty().shouldBeTrue() }
-    val matched =
-      pictures.map { picture ->
-        window.maxBy { slot -> compareFrames(cachedExport(slot), picture).psnrDb }.also { slot ->
-          assertFramesSimilar(
-            cachedExport(slot),
-            picture,
-            MIN_PSNR_DB,
-            MIN_SSIM,
-            "a picture drawn after the play is no slot of $window, its nearest being slot $slot",
-          )
-        }
-      }
-    withClue("the slots drawn after the play, in order, were $matched") {
-      withClue("the first is no slot of the hold $hold") { (matched.first() in hold).shouldBeTrue() }
-      matched.zipWithNext().all { (before, after) -> after >= before }.shouldBeTrue()
-      matched.last() shouldBe reported
-      (reported > from).shouldBeTrue()
-    }
-    return matched.last()
-  }
 
   private val exports = mutableMapOf<Int, TestFrame>()
 
-  private suspend fun cachedExport(slot: Int): TestFrame = exports.getOrPut(slot) { exportAt(slot) }
+  suspend fun cachedExport(slot: Int): TestFrame = exports.getOrPut(slot) { exportAt(slot) }
 
   /**
    * The offset from [slot] of the slot whose export the surface is nearest, within two slots either side.

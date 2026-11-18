@@ -114,7 +114,7 @@ internal class Media3PlayerEngine(
       graphUp = { status.graphUp },
       onDetached = ::onSurfaceDetached,
       drawnOnto = { status.surfaceRendered },
-      represent = { surfaceLost -> scope.launch { seeks.represent(surfaceLost) } },
+      represent = { surfaceLost -> scope.launch { seeks.represent(surfaceLost, ended = status.holdEnd()) } },
       onTargetMoved = ::surfaceLimitMoved,
     )
 
@@ -154,7 +154,7 @@ internal class Media3PlayerEngine(
       inScrubbingMode = { scrubMode.entered },
       enterScrubbingMode = scrubMode::enter,
       onIssued = {
-        status.clearEnd()
+        status.onSeekIssued()
         status.renderedUs = NO_FRAME
       },
       onRedirected = ::movePlayhead,
@@ -295,6 +295,7 @@ internal class Media3PlayerEngine(
     onComplete: (landed: Duration) -> Unit,
   ) {
     redraws.seekIssued()
+    status.clearEnd()
     seeks.seek(position, accuracy, wrap = isWrapSeek, onComplete)
   }
 

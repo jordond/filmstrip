@@ -78,6 +78,9 @@ internal class Media3StatusTracker(
     private set
   private var ended = false
   private var endReported = false
+
+  // Whether the end stands through a seek that only draws the last frame again. See [holdEnd].
+  private var endHeld = false
   private var firstFrameEmitted = false
   private var failure: PlaybackError? = null
 
@@ -97,7 +100,7 @@ internal class Media3StatusTracker(
       Player.STATE_READY -> {
         presentable = true
         graphUp = true
-        ended = false
+        if (!endHeld) ended = false
       }
       Player.STATE_ENDED -> {
         ended = true
@@ -154,11 +157,31 @@ internal class Media3StatusTracker(
   val isEnded: Boolean get() = ended
 
   /**
-   * Forgets the ending, so an end media3 reports after this is reported again.
+   * Forgets the ending, so an end media3 reports after this is reported again. A play or a seek asked for lets go of an
+   * end [holdEnd] kept.
    */
   fun clearEnd() {
+    endHeld = false
     ended = false
     endReported = false
+  }
+
+  /**
+   * Keeps the end of a player that ran to it through the seek that draws its last frame again on a surface handed over
+   * after the end, so the preview still reads as ended and the end is not reported twice.
+   *
+   * @return Whether the player had ended, and so keeps its end until [clearEnd].
+   */
+  fun holdEnd(): Boolean {
+    endHeld = ended
+    return endHeld
+  }
+
+  /**
+   * Forgets the ending for a seek handed over, unless [holdEnd] keeps it.
+   */
+  fun onSeekIssued() {
+    if (!endHeld) clearEnd()
   }
 
   /**
@@ -180,6 +203,7 @@ internal class Media3StatusTracker(
     failure = null
     playerErrored = false
     presentable = false
+    endHeld = false
     ended = false
     endReported = false
     firstFrameEmitted = false

@@ -108,6 +108,32 @@ class Media3RepresentTest {
       rig.seeks.target shouldBe null
     }
 
+  // media3 keeps playWhenReady on once it has ended, so a seek back would play the last slot out again.
+  @Test
+  fun `a player that ran to its end is stopped before the seek back draws its last slot`() =
+    runTest {
+      val rig = Rig(this)
+
+      rig.seeks.represent(surfaceLost = true, ended = true)
+      runCurrent()
+
+      verifyOrder {
+        rig.player.playWhenReady = false
+        rig.player.seekTo(RESTING_MS)
+      }
+    }
+
+  @Test
+  fun `a player that has not ended is left as it was by the seek back`() =
+    runTest {
+      val rig = Rig(this)
+
+      rig.seeks.represent(surfaceLost = true)
+      runCurrent()
+
+      verify(exactly = 0) { rig.player.playWhenReady = any() }
+    }
+
   @Test
   fun `a second request adds nothing to a seek back in flight`() =
     runTest {
@@ -252,6 +278,7 @@ class Media3RepresentTest {
         every { it.playbackState } returns Player.STATE_READY
         every { it.isPlaying } returns false
         every { it.playWhenReady } returns false
+        every { it.playWhenReady = any() } returns Unit
         every { it.seekTo(any<Long>()) } returns Unit
       }
 

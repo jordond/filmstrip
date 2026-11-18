@@ -107,9 +107,9 @@ class AndroidHeldSlotPreviewMediaTest {
       rig.ready()
       val slot = rig.repeatSlot()
       rig.player.seekTo(rig.slotTime(slot), SeekAccuracy.Exact)
-      val pictures = rig.picturesPlayingUntilPast(slot + HOLD_PAST)
+      val pictures = rig.picturesPlayingUntilPast(from = slot, past = slot + HOLD_PAST)
 
-      rig.shouldHavePlayedOn(pictures, from = slot, reported = rig.reportedSlot())
+      rig.shouldHavePlayedOn(pictures, from = slot, reported = rig.reportedSlot(), seekLanding = true)
     }
 
   // A pause that rested on a repeat left only that slot drawn, so playing on from it has to decode the sample again.
@@ -118,7 +118,7 @@ class AndroidHeldSlotPreviewMediaTest {
     onHeldSurface(Case.Half) { rig ->
       val slot = rig.repeatSlot()
       rig.seekAndShow(slot)
-      val pictures = rig.picturesPlayingUntilPast(slot + HOLD_PAST)
+      val pictures = rig.picturesPlayingUntilPast(from = slot, past = slot + HOLD_PAST)
 
       rig.shouldHavePlayedOn(pictures, from = slot, reported = rig.reportedSlot())
     }

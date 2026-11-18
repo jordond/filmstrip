@@ -93,6 +93,51 @@ class Media3StatusTrackerTest {
     }
 
   @Test
+  fun `an end held through the seek that draws the last frame again stands and is not reported twice`() =
+    runTest {
+      val rig = Rig(this)
+      rig.state(Player.STATE_ENDED)
+
+      rig.tracker.holdEnd() shouldBe true
+      rig.tracker.onSeekIssued()
+      rig.state(Player.STATE_BUFFERING)
+      rig.state(Player.STATE_READY)
+      rig.state(Player.STATE_ENDED)
+
+      rig.tracker.isEnded shouldBe true
+      rig.statuses.last() shouldBe PlaybackStatus.Ended
+      rig.events.filterIsInstance<PlaybackEvent.Ended>().size shouldBe 1
+    }
+
+  @Test
+  fun `a play or a seek asked for lets go of a held end`() =
+    runTest {
+      val rig = Rig(this)
+      rig.state(Player.STATE_ENDED)
+      rig.tracker.holdEnd()
+
+      rig.tracker.clearEnd()
+      rig.tracker.onSeekIssued()
+      rig.state(Player.STATE_READY)
+
+      rig.tracker.isEnded shouldBe false
+      rig.statuses.last() shouldBe PlaybackStatus.Ready
+    }
+
+  @Test
+  fun `a player that has not ended holds no end`() =
+    runTest {
+      val rig = Rig(this)
+      rig.state(Player.STATE_READY)
+
+      rig.tracker.holdEnd() shouldBe false
+      rig.tracker.onSeekIssued()
+      rig.state(Player.STATE_READY)
+
+      rig.statuses.last() shouldBe PlaybackStatus.Ready
+    }
+
+  @Test
   fun `an end inside the loop range publishes nothing and asks whether the transport ran`() =
     runTest {
       val rig = Rig(this)

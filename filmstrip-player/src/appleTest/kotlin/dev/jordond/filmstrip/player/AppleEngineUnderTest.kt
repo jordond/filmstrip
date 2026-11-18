@@ -1,16 +1,23 @@
 package dev.jordond.filmstrip.player
 
 import dev.jordond.filmstrip.avfoundation.internal.composition.AvComposition
+import dev.jordond.filmstrip.avfoundation.internal.time.toDuration
 import dev.jordond.filmstrip.player.contract.EngineUnderTest
 import dev.jordond.filmstrip.player.contract.Interruption
 import dev.jordond.filmstrip.player.internal.AvPlayerEngine
 import dev.jordond.filmstrip.player.internal.AvPreviewPlanner
 import dev.jordond.filmstrip.player.internal.previewItem
+import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.delay
 import platform.AVFoundation.AVPlayerItem
 import platform.AVFoundation.AVURLAsset
+import platform.AVFoundation.currentItem
+import platform.AVFoundation.currentTime
+import platform.AVFoundation.rate
 import platform.Foundation.NSURL
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
 
 /**
  * The Apple engine wrapped so a contract suite can count what AVFoundation underneath it did.
@@ -44,8 +51,26 @@ internal class AppleEngineUnderTest(
 
   override val platformDuration: Duration? get() = engine.platformDuration
 
+  // A paused item can run on for a moment past the reading the pause took, and the engine reports where it came to
+  // rest once AVFoundation's time observer says so. Quiet waits for the item's clock to stand still across a check and
+  // for that report to have landed, so a reading taken after it no longer moves. A playing item is not waited on.
   override suspend fun awaitQuiet() {
     engine.fence.awaitDrained()
+    var last = restingClock() ?: return
+    while (true) {
+      delay(REST_CHECK)
+      engine.fence.awaitDrained()
+      val now = restingClock() ?: return
+      if (now == last) return
+      last = now
+    }
+  }
+
+  @OptIn(ExperimentalForeignApi::class)
+  private fun restingClock(): Duration? {
+    val player = engine.platformPlayer
+    if (player.rate != 0f) return null
+    return player.currentItem?.currentTime()?.toDuration()
   }
 
   override fun stage(interruption: Interruption) {
@@ -79,3 +104,6 @@ internal fun appleEngineFailingItsFirstItem(scope: CoroutineScope): AppleEngineU
  */
 internal fun missingFileItem(): AVPlayerItem =
   AVPlayerItem(asset = AVURLAsset(NSURL.fileURLWithPath(appleFixtureClip() + ".absent"), null))
+
+// Two of the engine's position reads apart, so a clock still running on moves between checks.
+private val REST_CHECK: Duration = 32.milliseconds
