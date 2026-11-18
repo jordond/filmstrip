@@ -198,7 +198,9 @@ internal class Media3SeekCoordinator(
    * stopped, and nothing but [onRepresented] hears it land. The player is read once the playback thread has said all
    * it had to, since a player paused a moment ago still reports an estimate.
    *
-   * @param surfaceLost Whether this is for a surface that just went, rather than one the player was handed.
+   * @param surfaceLost Whether this is for a surface that just went, rather than one the player was handed. A player told
+   * to play by the time the seek back would be issued is left to play, since it has no paused frame to keep and the
+   * seek would take it back to the slot it rested on.
    * @param ended Whether the player ran to its end. media3 still means to play there, and would play the last slot out
    * again from the seek back, so it is stopped first and the seek only draws that slot. The last slot is drawn whatever
    * frame the play drew last, since a player too slow to keep up drops the frames late at the end and stops short of
@@ -213,7 +215,9 @@ internal class Media3SeekCoordinator(
       val playback = playback()
       playback.run {
         handler.post {
-          val restingMs = player()?.currentPosition ?: return@post
+          val standing = player() ?: return@post
+          if (surfaceLost && !ended && (standing.playWhenReady || playPending)) return@post
+          val restingMs = standing.currentPosition
           scope.launch { representFrom(restingMs, surfaceLost, ended) }
         }
       }

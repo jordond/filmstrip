@@ -125,6 +125,22 @@ class Media3RepresentTest {
       verify(exactly = 0) { rig.player.seekTo(RESTING_MS) }
     }
 
+  // A play asked for right after the surface went reaches the player before the seek back is issued, which would take
+  // the playing player back to the slot it rested on.
+  @Test
+  fun `a seek back for a surface that went is dropped once the player was told to play`() =
+    runTest {
+      val rig = Rig(this)
+      every { rig.player.playWhenReady } returns true
+
+      rig.seeks.represent(surfaceLost = true)
+      runCurrent()
+
+      verify(exactly = 0) { rig.player.seekTo(any<Long>()) }
+      rig.seeks.target shouldBe null
+      rig.represented shouldBe 0
+    }
+
   @Test
   fun `a player that has not ended is left as it was by the seek back`() =
     runTest {
