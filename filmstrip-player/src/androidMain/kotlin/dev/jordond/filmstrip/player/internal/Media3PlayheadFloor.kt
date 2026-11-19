@@ -10,7 +10,8 @@ import kotlin.time.Duration.Companion.milliseconds
  *
  * A paused player reads the slot of the frame it shows, and its clock can read either side of that frame. The slot
  * stays the reading once nothing names the frame any more, as when the surface goes, and through the replay of a held
- * sample, where the clock starts again from the sample's first slot.
+ * sample, where the clock starts again from the sample's first slot. A play lets go of it once the clock has reached
+ * it, read while it plays or after it stopped, since a short play can stop before anything reads the playhead.
  *
  * Read and written by whichever thread reads the position.
  *
@@ -25,6 +26,9 @@ internal class Media3PlayheadFloor(
   @Volatile
   private var slot: Duration? = null
 
+  @Volatile
+  private var played = false
+
   /**
    * What the playhead reads where media3's clock reads [clockMs], which is [clock] on the timeline.
    */
@@ -34,11 +38,17 @@ internal class Media3PlayheadFloor(
   ): Duration {
     resting()?.let { rested ->
       slot = rested
+      played = false
       return rested
     }
     val floor = slot ?: return clock
-    // A paused player's clock can read past the frame it shows, and the frame is the one the playhead is on.
-    if (!playWanted()) return floor
+    // A paused player's clock can read past the frame it shows, and the frame is the one the playhead is on. Once a
+    // play has followed, a clock past the frame is where that play took it.
+    if (!playWanted()) {
+      if (!played || clockMs.milliseconds < floor) return floor
+      clear()
+      return clock
+    }
     // Let go once media3's own clock has reached it. A slot is seldom a whole millisecond, so the clock is held to the
     // slot's own time and not to the millisecond under it, which the clock reads before it has reached the slot. A
     // clock read as the landing it rests on stands for a slot the player is about to play on from, and so is not one
@@ -55,9 +65,17 @@ internal class Media3PlayheadFloor(
   }
 
   /**
+   * Hears that the player was told to play, so a clock read past the floor from now on is one the play reached.
+   */
+  fun played() {
+    played = true
+  }
+
+  /**
    * Lets go of the floor, as a seek or a new graph moves the playhead.
    */
   fun clear() {
     slot = null
+    played = false
   }
 }

@@ -241,6 +241,7 @@ internal class Media3SeekCoordinator(
    * nothing is replayed, though the last slot is the nearest one to land on.
    */
   fun resume(at: Duration) {
+    floor.played()
     val standing = player()
     val wasPlaying = standing?.playWhenReady == true || playPending
     unpin()
@@ -291,6 +292,7 @@ internal class Media3SeekCoordinator(
    * handed over, so letting go here would leave a later slot of a hold undrawn.
    */
   fun started() {
+    floor.played()
     if (!scrubbing()) unpin()
   }
 
