@@ -3,6 +3,7 @@ package dev.jordond.filmstrip.player.contract
 import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.CompositionDiff
+import dev.jordond.filmstrip.edit.OutputFrame
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.diff
@@ -11,6 +12,7 @@ import dev.jordond.filmstrip.edit.outputSlotTime
 import dev.jordond.filmstrip.effects.color.Brightness
 import dev.jordond.filmstrip.effects.geometry.Crop
 import dev.jordond.filmstrip.geometry.AspectRatio
+import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.player.PlaybackStatus
 import dev.jordond.filmstrip.player.SeekAccuracy
@@ -312,6 +314,13 @@ abstract class PlayerEngineContractTest {
   fun aParameterEditThatMovesTheFrameHoldsTheTransport() =
     rebuilds.frameMovingEditHoldsTheTransport(
       moved = fixture.withEffects(listOf(Crop(AspectRatio.Square))),
+      reportsFrame = reportsOutputFrame,
+    )
+
+  @Test
+  fun anOutputFrameChangeHoldsTheTransport() =
+    rebuilds.frameMovingEditHoldsTheTransport(
+      moved = fixture.withFrame(OutputFrame.Fixed(Size(640, 480))),
       reportsFrame = reportsOutputFrame,
     )
 

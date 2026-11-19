@@ -24,6 +24,7 @@ import kotlin.time.Duration
  * @property audio What to do with the composition's audio once every track has been mixed.
  * @property fill What fills the frame where no clip's pixels land.
  * @property audioEffects Audio effects run on the finished mix, after every level, in the order given.
+ * @property frame The frame the clips land in, before the composition's own geometry effects run on it.
  */
 @Immutable
 @Poko
@@ -33,6 +34,7 @@ public class Composition(
   public val audio: AudioSpec = AudioSpec.Keep,
   public val fill: Fill = Fill.Black,
   public val audioEffects: List<AudioEffectSpec> = emptyList(),
+  public val frame: OutputFrame = OutputFrame.Auto,
 ) {
   /**
    * The primary track's clips, which for a single-track edit is every clip there is.
@@ -60,46 +62,50 @@ public class Composition(
    */
   public fun withClips(clips: List<Clip>): Composition {
     val primary = tracks.firstOrNull()?.withClips(clips) ?: Track(clips)
-    return Composition(listOf(primary) + tracks.drop(1), effects, audio, fill, audioEffects)
+    return Composition(listOf(primary) + tracks.drop(1), effects, audio, fill, audioEffects, frame)
   }
 
   /**
    * A copy with different tracks.
    */
   public fun withTracks(tracks: List<Track>): Composition =
-    Composition(tracks = tracks, effects = effects, audio = audio, fill = fill, audioEffects = audioEffects)
+    Composition(tracks, effects, audio, fill, audioEffects, frame)
 
   /**
    * A copy with different composition-level effects.
    */
   public fun withEffects(effects: List<EffectSpec>): Composition =
-    Composition(tracks = tracks, effects = effects, audio = audio, fill = fill, audioEffects = audioEffects)
+    Composition(tracks, effects, audio, fill, audioEffects, frame)
 
   /**
    * A copy with a different audio treatment.
    */
-  public fun withAudio(audio: AudioSpec): Composition =
-    Composition(tracks = tracks, effects = effects, audio = audio, fill = fill, audioEffects = audioEffects)
+  public fun withAudio(audio: AudioSpec): Composition = Composition(tracks, effects, audio, fill, audioEffects, frame)
 
   /**
    * A copy with a different fill.
    */
-  public fun withFill(fill: Fill): Composition =
-    Composition(tracks = tracks, effects = effects, audio = audio, fill = fill, audioEffects = audioEffects)
+  public fun withFill(fill: Fill): Composition = Composition(tracks, effects, audio, fill, audioEffects, frame)
 
   /**
    * A copy with different audio effects on the finished mix.
    */
   public fun withAudioEffects(audioEffects: List<AudioEffectSpec>): Composition =
-    Composition(tracks = tracks, effects = effects, audio = audio, fill = fill, audioEffects = audioEffects)
+    Composition(tracks, effects, audio, fill, audioEffects, frame)
+
+  /**
+   * A copy whose clips land in [frame].
+   */
+  public fun withFrame(frame: OutputFrame): Composition = Composition(tracks, effects, audio, fill, audioEffects, frame)
 }
 
 /**
  * One layer of a composition: clips laid end to end, playing alongside the other tracks.
  *
- * Tracks run at the same time. The first track is the primary one, which sets the output frame and is the
- * only one that may carry video. Every later track is an audio-only bed, like music or a voice over, and
- * its audio is mixed with the rest. A later track that carries video is refused at plan time.
+ * Tracks run at the same time. The first track is the primary one, which sets the output frame unless
+ * [Composition.frame] says otherwise, and is the only one that may carry video. Every later track is an audio-only
+ * bed, like music or a voice over, and its audio is mixed with the rest. A later track that carries video is refused
+ * at plan time.
  *
  * Track effects apply to every clip on the track, which is the cheap way to grade a run of clips at
  * once. They are lowered onto each clip individually, so an effect whose result depends on where a

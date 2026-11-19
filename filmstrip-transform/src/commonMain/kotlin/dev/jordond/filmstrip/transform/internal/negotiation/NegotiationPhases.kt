@@ -92,8 +92,8 @@ public class Ask(
  *
  * @property firstClip The primary track's first clip, the only one a copy could ever cover.
  * @property firstVideo The video the output frame and cadence are measured from.
- * @property compositionInputSize The frame composition geometry measures against, after every clip
- *   and track effect of the clip framing the output.
+ * @property compositionInputSize The frame the clips land in and composition geometry measures against, as
+ *   [frameOf] answers it.
  * @property natural The frame the composition writes with no height asked of it and before any encoder ceiling, with
  *   the aspect it stands for, which a height asked of it follows.
  * @property heightPx The height the spec moves [natural] to, or null when it keeps it, as

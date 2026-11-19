@@ -1,5 +1,7 @@
 package dev.jordond.filmstrip.edit
 
+import dev.jordond.filmstrip.geometry.Fill
+import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.MediaSource
 import io.kotest.matchers.shouldBe
 import kotlin.test.Test
@@ -59,5 +61,24 @@ class WithersTest {
     track.withLooping(false) shouldBe copy(looping = false)
     track.withFadeIn(1.seconds) shouldBe copy(fadeIn = 1.seconds)
     track.withFadeOut(1.seconds) shouldBe copy(fadeOut = 1.seconds)
+  }
+
+  @Test
+  fun everyCompositionWitherKeepsTheOutputFrame() {
+    val frame = OutputFrame.Fixed(Size(640, 480))
+    val edit = Composition(listOf(track)).withFrame(frame)
+
+    edit.frame shouldBe frame
+    edit.withClips(listOf(clip)).frame shouldBe frame
+    edit.withTracks(edit.tracks).frame shouldBe frame
+    edit.withEffects(emptyList()).frame shouldBe frame
+    edit.withAudio(AudioSpec.Mute).frame shouldBe frame
+    edit.withFill(Fill.White).frame shouldBe frame
+    edit.withAudioEffects(emptyList()).frame shouldBe frame
+    CompositionBuilder()
+      .addTrack(track)
+      .frame(frame)
+      .build()
+      .frame shouldBe frame
   }
 }

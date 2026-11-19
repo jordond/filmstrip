@@ -102,15 +102,23 @@ internal fun jvmTrimmedComposition(length: Duration): Composition =
 internal suspend fun jvmExportFrame(
   composition: Composition,
   position: Duration,
-): TestFrame = decodeFrame(jvmExportedFile(composition), position, FIXTURE_FRAME)
+): TestFrame = exported(composition).let { decodeFrame(it.path, position, it.size) }
 
 /**
  * The file [composition] exports to, written once per composition.
  */
-internal suspend fun jvmExportedFile(composition: Composition): String =
+internal suspend fun jvmExportedFile(composition: Composition): String = exported(composition).path
+
+private suspend fun exported(composition: Composition): ExportedFile =
   exports.getOrPut(composition) { exportOf(composition) }
 
-private suspend fun exportOf(composition: Composition): String {
+// The frame size is the plan's, so a composition that sets its own output frame decodes at that frame.
+private class ExportedFile(
+  val path: String,
+  val size: Size,
+)
+
+private suspend fun exportOf(composition: Composition): ExportedFile {
   val engine = ffmpegExportEngine(CONTRACT_COMPONENTS)
   val plan =
     when (val verdict = engine.plan(composition, ExportSpec(bitrate = PREVIEW_PARITY_EXPORT_BITRATE))) {
@@ -122,7 +130,7 @@ private suspend fun exportOf(composition: Composition): String {
   val output = File.createTempFile("filmstrip-jvm-export", ".mp4").also { it.deleteOnExit() }
   val finished = engine.export(plan, MediaSink.of(output.absolutePath)).toList().last()
   if (finished is ExportStatus.Failure) fail("the export failed: ${finished.error.message}")
-  return output.absolutePath
+  return ExportedFile(output.absolutePath, plan.output.size)
 }
 
 /**
@@ -167,7 +175,7 @@ private fun decodeFrame(
   return TestFrame(pixels, size)
 }
 
-private val exports = mutableMapOf<Composition, String>()
+private val exports = mutableMapOf<Composition, ExportedFile>()
 
 private const val FIXTURES = "filmstrip.fixtures"
 private const val CLIP_NAME = "apple_export_a.mp4"

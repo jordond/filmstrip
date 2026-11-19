@@ -53,16 +53,25 @@ A clip with non-square pixels, like anamorphic footage, is cropped and rotated a
 
 ### The output frame
 
-The output frame is the first clip's display size after its own and its track's effects, then after the composition's
-geometry. A `crop` gives that frame exactly its aspect, a canvas or a cut alike, and a `scale` or an
-`ExportSpec.heightPx` after it takes the width from that aspect and not from the frame's whole pixels. So
-`crop(aspect, Fit.Contain)` followed by `scale(height)` is the recipe for a fixed frame: the size is the same whichever
-clip comes first, however small it is, with each side rounded down to the encoder's alignment.
+The output frame is the frame every clip lands in. The composition's `frame` sets it, and `OutputFrame.Auto`, the
+default, takes the first clip's display size after its own and its track's effects. `OutputFrame.Aspect(aspect)` keeps
+that height at another aspect, and `OutputFrame.Fixed(size)` is exactly that size whichever clip comes first, with each
+side rounded down to the encoder's alignment. Each clip then lands in the frame by its own [fit](#fit), the
+composition's geometry runs on the result, and `ExportSpec.heightPx` applies last. A side of zero or less, in either
+the size or the aspect, is refused as `InvalidComposition`.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Effects.kt" region="output-frame" />
+
+The frame can also be written as effects. A `crop` gives a frame exactly its aspect, a canvas or a cut alike, and a
+`scale` after it takes the width from that aspect and not from the frame's whole pixels. `Aspect(aspect)` is the same
+frame as `crop(aspect, Fit.Contain)` placed first among the composition's effects, and `Fixed` is the same as that crop
+followed by `scale(height)`.
 
 A height cap alone does not make the frame independent of the first clip. `ExportSpec.heightPx` never scales a frame
 up, so a cap at or above the first clip's height leaves the composition's own height, and that is the first clip's.
 Under `crop(AspectRatio(4, 3), Fit.Contain)` a 180x320 clip then a 320x180 one with a cap of 250 writes 332x250, and
-the same clips the other way round write 240x180. Only `scale` sets the height whichever clip is first.
+the same clips the other way round write 240x180. Under `OutputFrame.Fixed` the cap is taken as given, up or down, the
+way a composition of stills reads it.
 
 This changed from the last release. A single clip whose canvas width is not whole at its height, followed by a `scale`,
 now writes the width the aspect gives and not the width of the rounded canvas. An 86x50 clip under

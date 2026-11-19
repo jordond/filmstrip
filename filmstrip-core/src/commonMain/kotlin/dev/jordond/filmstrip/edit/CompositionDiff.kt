@@ -23,7 +23,7 @@ public enum class CompositionDiff {
   Equal,
 
   /**
-   * The timeline is unchanged, but an effect, an audio effect, the fill or the audio mix differs.
+   * The timeline is unchanged, but an effect, an audio effect, the fill, the output frame or the audio mix differs.
    */
   ParametersOnly,
 
@@ -39,7 +39,7 @@ public enum class CompositionDiff {
  * A null [previous] is always [CompositionDiff.Structural], since there is nothing yet to reuse.
  * Otherwise the timeline is checked first: every track's clips, their sources, their trims, the audio track each
  * plays and their timing. Any difference there is structural no matter what else changed. With the timeline
- * unchanged, a difference in an effect, an audio effect, the fill or the audio mix is
+ * unchanged, a difference in an effect, an audio effect, the fill, the output frame or the audio mix is
  * [CompositionDiff.ParametersOnly]. Effects are compared in their canonical pipeline order, so
  * declaring the same effects in a different order that resolves to the same pipeline reports no
  * difference at all. Audio effects run in the order declared, so reordering them is a difference.
@@ -59,7 +59,7 @@ public fun diff(
  * A hash of everything that decides what one rendered frame of [this] looks like.
  *
  * Folds in the timeline shape and the resolved effect chain, composition, track and clip effects
- * alike, each in canonical pipeline order, plus the fill. Audio never contributes, since nothing
+ * alike, each in canonical pipeline order, plus the fill and the output frame. Audio never contributes, since nothing
  * about it reaches a rendered frame. Pure and depends only on this composition's own values, so a
  * freshly rebuilt composition with the same edit hashes the same as the original, and a crop or
  * rotation committed to a new value hashes differently even though it changes no clip, track or
@@ -71,6 +71,7 @@ public fun Composition.effectsRevision(): Long {
   hash = hash.mixed(timeline())
   hash = hash.mixed(canonicalOrder(effects))
   hash = hash.mixed(fill)
+  hash = hash.mixed(frame)
   for (track in tracks) {
     hash = hash.mixed(canonicalOrder(track.effects))
     for (clip in track.clips) {
@@ -102,6 +103,7 @@ private fun Composition.rendering(): Rendering =
   Rendering(
     compositionEffects = canonicalOrder(effects),
     fill = fill,
+    frame = frame,
     audio = audio,
     audioEffects = audioEffects,
     tracks =
@@ -140,6 +142,7 @@ private data class TimelineClip(
 private data class Rendering(
   val compositionEffects: List<EffectSpec>,
   val fill: Fill,
+  val frame: OutputFrame,
   val audio: AudioSpec,
   val audioEffects: List<AudioEffectSpec>,
   val tracks: List<TrackRendering>,

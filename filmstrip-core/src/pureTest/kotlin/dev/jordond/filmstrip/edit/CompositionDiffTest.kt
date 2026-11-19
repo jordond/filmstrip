@@ -5,6 +5,7 @@ import dev.jordond.filmstrip.effect.EffectIds
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effect.EffectStage
 import dev.jordond.filmstrip.geometry.Fill
+import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.AudioTrackId
 import dev.jordond.filmstrip.media.MediaSource
 import io.kotest.matchers.shouldBe
@@ -127,6 +128,24 @@ class CompositionDiffTest {
     val next = composition(clip(), fill = Fill.White)
 
     diff(previous, next) shouldBe CompositionDiff.ParametersOnly
+  }
+
+  @Test
+  fun `changing the output frame is parameters only and moves the revision`() {
+    val previous = composition(clip())
+    val next = previous.withFrame(OutputFrame.Fixed(Size(640, 480)))
+
+    diff(previous, next) shouldBe CompositionDiff.ParametersOnly
+    (previous.effectsRevision() == next.effectsRevision()) shouldBe false
+  }
+
+  @Test
+  fun `the same output frame twice is equal`() {
+    val previous = composition(clip()).withFrame(OutputFrame.Fixed(Size(640, 480)))
+    val next = previous.withFill(Fill.Black).withFrame(OutputFrame.Fixed(Size(640, 480)))
+
+    diff(previous, next) shouldBe CompositionDiff.Equal
+    next.effectsRevision() shouldBe previous.effectsRevision()
   }
 
   @Test

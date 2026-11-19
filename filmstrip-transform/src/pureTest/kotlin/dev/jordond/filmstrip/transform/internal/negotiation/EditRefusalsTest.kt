@@ -5,13 +5,16 @@ import dev.jordond.filmstrip.codec.AudioCodec
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.CLIP_SPEED_RANGE
 import dev.jordond.filmstrip.edit.Composition
+import dev.jordond.filmstrip.edit.OutputFrame
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.effect.EffectIds
 import dev.jordond.filmstrip.effects.color.Brightness
 import dev.jordond.filmstrip.effects.geometry.KenBurns
 import dev.jordond.filmstrip.export.ExportSpec
+import dev.jordond.filmstrip.geometry.AspectRatio
 import dev.jordond.filmstrip.geometry.NormalizedRect
+import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.geometry.outputHeightRefusal
 import dev.jordond.filmstrip.media.AudioTrackId
 import dev.jordond.filmstrip.media.MediaInfo
@@ -88,6 +91,17 @@ class EditRefusalsTest {
     message(Composition(listOf(Track(listOf(fixture.clip()), start = (-1).milliseconds)))) shouldBe
       "A track's start is negative, so it would begin before the composition does. A start is measured from the " +
       "start of the composition and has to be zero or later."
+  }
+
+  @Test
+  fun `an output frame with a side of zero or less is refused with the frame it asked for`() {
+    for (size in listOf(Size(0, 480), Size(640, -1))) {
+      message(composition(fixture.clip()).withFrame(OutputFrame.Fixed(size))) shouldBe frameSizeNotPositive(size)
+    }
+    for (aspect in listOf(AspectRatio(0, 1), AspectRatio(4, 0))) {
+      message(composition(fixture.clip()).withFrame(OutputFrame.Aspect(aspect))) shouldBe
+        frameAspectNotPositive(aspect)
+    }
   }
 
   @Test

@@ -6,11 +6,14 @@ import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.CLIP_SPEED_RANGE
 import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.Composition
+import dev.jordond.filmstrip.edit.OutputFrame
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.edit.isValidClipSpeed
 import dev.jordond.filmstrip.effect.EffectScope
 import dev.jordond.filmstrip.export.ExportSpec
+import dev.jordond.filmstrip.geometry.AspectRatio
+import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.geometry.outputHeightRefusal
 import dev.jordond.filmstrip.media.AudioTrackId
 import dev.jordond.filmstrip.media.MediaInfo
@@ -61,6 +64,7 @@ internal fun structuralRefusal(
   if (edit.tracks.any { it.start < Duration.ZERO }) return invalid(TRACK_STARTS_EARLY)
   spec.frameRate?.let { if (it <= 0) return invalid(frameRateNotPositive(it)) }
   outputHeightRefusal(spec.heightPx)?.let { return it }
+  frameRefusal(edit.frame)?.let { return it }
   spec.keyFrameInterval?.let { if (it <= Duration.ZERO) return invalid(keyFrameIntervalNotPositive(it)) }
   if (spec.bitrate != null && spec.quality != null) return invalid(BITRATE_AND_QUALITY)
   if (edit.tracks.none { it.contributes(streams.keepAudio, streams.keepVideo) }) return invalid(NOTHING_TO_ENCODE)
@@ -102,6 +106,29 @@ internal fun structuralRefusal(
  * A refusal of the composition itself, worded by [message].
  */
 internal fun invalid(message: String): FilmstripError = FilmstripError.InvalidComposition(message)
+
+/**
+ * The refusal for an [OutputFrame] with a side that is not positive, or null when [frame] can be used.
+ */
+private fun frameRefusal(frame: OutputFrame): FilmstripError? =
+  when (frame) {
+    is OutputFrame.Fixed -> {
+      frame.size.takeIf { it.width <= 0 || it.height <= 0 }?.let { invalid(frameSizeNotPositive(it)) }
+    }
+    is OutputFrame.Aspect -> {
+      frame.aspect.takeIf { it.width <= 0 || it.height <= 0 }?.let { invalid(frameAspectNotPositive(it)) }
+    }
+    OutputFrame.Auto -> {
+      null
+    }
+  }
+
+internal fun frameSizeNotPositive(size: Size): String =
+  "The output frame is ${size.width}x${size.height} px, and both sides of a frame have to be positive."
+
+internal fun frameAspectNotPositive(aspect: AspectRatio): String =
+  "The output frame asks for an aspect of ${aspect.width}:${aspect.height}, and both sides of an aspect have to be " +
+    "positive."
 
 internal const val NO_PRIMARY_VIDEO = "The primary track contributes no video, so there is nothing to encode."
 

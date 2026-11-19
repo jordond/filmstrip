@@ -773,6 +773,36 @@ sealed interface dev.jordond.filmstrip.edit/AudioSpec { // dev.jordond.filmstrip
     }
 }
 
+sealed interface dev.jordond.filmstrip.edit/OutputFrame { // dev.jordond.filmstrip.edit/OutputFrame|null[0]
+    final class Aspect : dev.jordond.filmstrip.edit/OutputFrame { // dev.jordond.filmstrip.edit/OutputFrame.Aspect|null[0]
+        constructor <init>(dev.jordond.filmstrip.geometry/AspectRatio) // dev.jordond.filmstrip.edit/OutputFrame.Aspect.<init>|<init>(dev.jordond.filmstrip.geometry.AspectRatio){}[0]
+
+        final val aspect // dev.jordond.filmstrip.edit/OutputFrame.Aspect.aspect|{}aspect[0]
+            final fun <get-aspect>(): dev.jordond.filmstrip.geometry/AspectRatio // dev.jordond.filmstrip.edit/OutputFrame.Aspect.aspect.<get-aspect>|<get-aspect>(){}[0]
+
+        final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.edit/OutputFrame.Aspect.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.edit/OutputFrame.Aspect.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // dev.jordond.filmstrip.edit/OutputFrame.Aspect.toString|toString(){}[0]
+    }
+
+    final class Fixed : dev.jordond.filmstrip.edit/OutputFrame { // dev.jordond.filmstrip.edit/OutputFrame.Fixed|null[0]
+        constructor <init>(dev.jordond.filmstrip.geometry/Size) // dev.jordond.filmstrip.edit/OutputFrame.Fixed.<init>|<init>(dev.jordond.filmstrip.geometry.Size){}[0]
+
+        final val size // dev.jordond.filmstrip.edit/OutputFrame.Fixed.size|{}size[0]
+            final fun <get-size>(): dev.jordond.filmstrip.geometry/Size // dev.jordond.filmstrip.edit/OutputFrame.Fixed.size.<get-size>|<get-size>(){}[0]
+
+        final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.edit/OutputFrame.Fixed.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.edit/OutputFrame.Fixed.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // dev.jordond.filmstrip.edit/OutputFrame.Fixed.toString|toString(){}[0]
+    }
+
+    final object Auto : dev.jordond.filmstrip.edit/OutputFrame { // dev.jordond.filmstrip.edit/OutputFrame.Auto|null[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.edit/OutputFrame.Auto.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.edit/OutputFrame.Auto.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // dev.jordond.filmstrip.edit/OutputFrame.Auto.toString|toString(){}[0]
+    }
+}
+
 sealed interface dev.jordond.filmstrip.effect/EffectResolution { // dev.jordond.filmstrip.effect/EffectResolution|null[0]
     final class Degraded : dev.jordond.filmstrip.effect/EffectResolution { // dev.jordond.filmstrip.effect/EffectResolution.Degraded|null[0]
         constructor <init>(dev.jordond.filmstrip.effect/PlatformEffect, kotlin.collections/List<dev.jordond.filmstrip.effect/Degradation>) // dev.jordond.filmstrip.effect/EffectResolution.Degraded.<init>|<init>(dev.jordond.filmstrip.effect.PlatformEffect;kotlin.collections.List<dev.jordond.filmstrip.effect.Degradation>){}[0]
@@ -2049,7 +2079,7 @@ final class dev.jordond.filmstrip.edit/ClipBuilder { // dev.jordond.filmstrip.ed
 }
 
 final class dev.jordond.filmstrip.edit/Composition { // dev.jordond.filmstrip.edit/Composition|null[0]
-    constructor <init>(kotlin.collections/List<dev.jordond.filmstrip.edit/Track>, kotlin.collections/List<dev.jordond.filmstrip.effect/EffectSpec> = ..., dev.jordond.filmstrip.edit/AudioSpec = ..., dev.jordond.filmstrip.geometry/Fill = ..., kotlin.collections/List<dev.jordond.filmstrip.audio/AudioEffectSpec> = ...) // dev.jordond.filmstrip.edit/Composition.<init>|<init>(kotlin.collections.List<dev.jordond.filmstrip.edit.Track>;kotlin.collections.List<dev.jordond.filmstrip.effect.EffectSpec>;dev.jordond.filmstrip.edit.AudioSpec;dev.jordond.filmstrip.geometry.Fill;kotlin.collections.List<dev.jordond.filmstrip.audio.AudioEffectSpec>){}[0]
+    constructor <init>(kotlin.collections/List<dev.jordond.filmstrip.edit/Track>, kotlin.collections/List<dev.jordond.filmstrip.effect/EffectSpec> = ..., dev.jordond.filmstrip.edit/AudioSpec = ..., dev.jordond.filmstrip.geometry/Fill = ..., kotlin.collections/List<dev.jordond.filmstrip.audio/AudioEffectSpec> = ..., dev.jordond.filmstrip.edit/OutputFrame = ...) // dev.jordond.filmstrip.edit/Composition.<init>|<init>(kotlin.collections.List<dev.jordond.filmstrip.edit.Track>;kotlin.collections.List<dev.jordond.filmstrip.effect.EffectSpec>;dev.jordond.filmstrip.edit.AudioSpec;dev.jordond.filmstrip.geometry.Fill;kotlin.collections.List<dev.jordond.filmstrip.audio.AudioEffectSpec>;dev.jordond.filmstrip.edit.OutputFrame){}[0]
 
     final val audio // dev.jordond.filmstrip.edit/Composition.audio|{}audio[0]
         final fun <get-audio>(): dev.jordond.filmstrip.edit/AudioSpec // dev.jordond.filmstrip.edit/Composition.audio.<get-audio>|<get-audio>(){}[0]
@@ -2063,6 +2093,8 @@ final class dev.jordond.filmstrip.edit/Composition { // dev.jordond.filmstrip.ed
         final fun <get-effects>(): kotlin.collections/List<dev.jordond.filmstrip.effect/EffectSpec> // dev.jordond.filmstrip.edit/Composition.effects.<get-effects>|<get-effects>(){}[0]
     final val fill // dev.jordond.filmstrip.edit/Composition.fill|{}fill[0]
         final fun <get-fill>(): dev.jordond.filmstrip.geometry/Fill // dev.jordond.filmstrip.edit/Composition.fill.<get-fill>|<get-fill>(){}[0]
+    final val frame // dev.jordond.filmstrip.edit/Composition.frame|{}frame[0]
+        final fun <get-frame>(): dev.jordond.filmstrip.edit/OutputFrame // dev.jordond.filmstrip.edit/Composition.frame.<get-frame>|<get-frame>(){}[0]
     final val tracks // dev.jordond.filmstrip.edit/Composition.tracks|{}tracks[0]
         final fun <get-tracks>(): kotlin.collections/List<dev.jordond.filmstrip.edit/Track> // dev.jordond.filmstrip.edit/Composition.tracks.<get-tracks>|<get-tracks>(){}[0]
 
@@ -2074,6 +2106,7 @@ final class dev.jordond.filmstrip.edit/Composition { // dev.jordond.filmstrip.ed
     final fun withClips(kotlin.collections/List<dev.jordond.filmstrip.edit/Clip>): dev.jordond.filmstrip.edit/Composition // dev.jordond.filmstrip.edit/Composition.withClips|withClips(kotlin.collections.List<dev.jordond.filmstrip.edit.Clip>){}[0]
     final fun withEffects(kotlin.collections/List<dev.jordond.filmstrip.effect/EffectSpec>): dev.jordond.filmstrip.edit/Composition // dev.jordond.filmstrip.edit/Composition.withEffects|withEffects(kotlin.collections.List<dev.jordond.filmstrip.effect.EffectSpec>){}[0]
     final fun withFill(dev.jordond.filmstrip.geometry/Fill): dev.jordond.filmstrip.edit/Composition // dev.jordond.filmstrip.edit/Composition.withFill|withFill(dev.jordond.filmstrip.geometry.Fill){}[0]
+    final fun withFrame(dev.jordond.filmstrip.edit/OutputFrame): dev.jordond.filmstrip.edit/Composition // dev.jordond.filmstrip.edit/Composition.withFrame|withFrame(dev.jordond.filmstrip.edit.OutputFrame){}[0]
     final fun withTracks(kotlin.collections/List<dev.jordond.filmstrip.edit/Track>): dev.jordond.filmstrip.edit/Composition // dev.jordond.filmstrip.edit/Composition.withTracks|withTracks(kotlin.collections.List<dev.jordond.filmstrip.edit.Track>){}[0]
 }
 
@@ -2090,6 +2123,7 @@ final class dev.jordond.filmstrip.edit/CompositionBuilder { // dev.jordond.films
     final fun clip(dev.jordond.filmstrip.media/MediaSource, kotlin/Function1<dev.jordond.filmstrip.edit/ClipBuilder, kotlin/Unit> = ...): dev.jordond.filmstrip.edit/CompositionBuilder // dev.jordond.filmstrip.edit/CompositionBuilder.clip|clip(dev.jordond.filmstrip.media.MediaSource;kotlin.Function1<dev.jordond.filmstrip.edit.ClipBuilder,kotlin.Unit>){}[0]
     final fun effects(kotlin/Function1<dev.jordond.filmstrip.edit/EffectsBuilder, kotlin/Unit>): dev.jordond.filmstrip.edit/CompositionBuilder // dev.jordond.filmstrip.edit/CompositionBuilder.effects|effects(kotlin.Function1<dev.jordond.filmstrip.edit.EffectsBuilder,kotlin.Unit>){}[0]
     final fun fill(dev.jordond.filmstrip.geometry/Fill): dev.jordond.filmstrip.edit/CompositionBuilder // dev.jordond.filmstrip.edit/CompositionBuilder.fill|fill(dev.jordond.filmstrip.geometry.Fill){}[0]
+    final fun frame(dev.jordond.filmstrip.edit/OutputFrame): dev.jordond.filmstrip.edit/CompositionBuilder // dev.jordond.filmstrip.edit/CompositionBuilder.frame|frame(dev.jordond.filmstrip.edit.OutputFrame){}[0]
     final fun image(dev.jordond.filmstrip.media/ImageSource, kotlin.time/Duration, kotlin/Function1<dev.jordond.filmstrip.edit/ClipBuilder, kotlin/Unit> = ...): dev.jordond.filmstrip.edit/CompositionBuilder // dev.jordond.filmstrip.edit/CompositionBuilder.image|image(dev.jordond.filmstrip.media.ImageSource;kotlin.time.Duration;kotlin.Function1<dev.jordond.filmstrip.edit.ClipBuilder,kotlin.Unit>){}[0]
     final fun track(dev.jordond.filmstrip.edit/TrackContent = ..., kotlin/Function1<dev.jordond.filmstrip.edit/TrackBuilder, kotlin/Unit>): dev.jordond.filmstrip.edit/CompositionBuilder // dev.jordond.filmstrip.edit/CompositionBuilder.track|track(dev.jordond.filmstrip.edit.TrackContent;kotlin.Function1<dev.jordond.filmstrip.edit.TrackBuilder,kotlin.Unit>){}[0]
 }

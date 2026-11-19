@@ -15,9 +15,9 @@ import dev.jordond.filmstrip.geometry.Size
  *   Size the preview surface to this aspect rather than to the source's: the effect pipeline
  *   preserves the composition's aspect and lets the surface letterbox, so a container whose ratio
  *   does not match turns mostly black once effects are switched on. It is the composition's own frame, as
- *   `ExportSpec.heightPx` reads it: the first clip's display size after its effects, then the composition's geometry,
- *   so a `Crop` and a `Scale` give one size whichever clip is first. An export may write a frame a pixel or two off it,
- *   after its height cap and its encoder's size alignment.
+ *   `ExportSpec.heightPx` reads it: the frame its [dev.jordond.filmstrip.edit.OutputFrame] sets, then the composition's
+ *   geometry, so an `OutputFrame.Fixed` gives one size whichever clip is first. An export may write a frame a pixel or
+ *   two off it, after its height cap and its encoder's size alignment.
  * @property renderScale The preview's resolution as a fraction of the export's, `1f` when they
  *   match. Every scale-dependent parameter normalises against this.
  * @property parity The weakest [EffectParity] across the composition's effects.

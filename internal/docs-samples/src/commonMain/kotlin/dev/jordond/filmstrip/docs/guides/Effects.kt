@@ -2,6 +2,7 @@ package dev.jordond.filmstrip.docs.guides
 
 import dev.jordond.filmstrip.ExperimentalFilmstripApi
 import dev.jordond.filmstrip.edit.Composition
+import dev.jordond.filmstrip.edit.OutputFrame
 import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.effects.color.brightness
 import dev.jordond.filmstrip.effects.color.contrast
@@ -19,6 +20,7 @@ import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.geometry.FlipAxis
 import dev.jordond.filmstrip.geometry.NormalizedRect
+import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.MediaSource
 
 internal fun effectScopes(): Composition {
@@ -61,6 +63,20 @@ internal fun cropRect(): Composition {
       clip(MediaSource.of("/path/to/clip.mp4")) {
         effects { crop(NormalizedRect(left = 0.1f, top = 0.1f, right = 0.9f, bottom = 0.9f)) }
       }
+    }
+  // endregion
+  return composition
+}
+
+@OptIn(ExperimentalFilmstripApi::class)
+internal fun fixedFrame(): Composition {
+  // region output-frame
+  val composition =
+    compositionOf {
+      clip(MediaSource.of("/path/to/portrait.mp4"))
+      clip(MediaSource.of("/path/to/landscape.mp4"))
+      frame(OutputFrame.Fixed(Size(1920, 1080)))
+      fill(Fill.Blur)
     }
   // endregion
   return composition

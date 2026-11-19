@@ -15,12 +15,11 @@ import kotlin.time.Duration
  *
  * @property heightPx The most the output can be tall, in pixels. Width follows from the composition's aspect. A height
  * below the composition's own scales it down, and one at or above it keeps the composition's height, so a frame is
- * never scaled up. Use the `Scale` effect for an exact size. A composition framed by a still takes this height as it
- * is. Null keeps the composition's own height. A height of zero or less is refused. The composition's own frame is the
- * first clip's display size after its effects, then the composition's geometry. A `Crop` followed by a `Scale` gives a
- * frame that does not depend on which clip is first. A height here alone does not, because it never scales up: where
- * it is at or above the composition's own height that is the first clip's, so only `Scale` makes the frame independent
- * of the first clip.
+ * never scaled up. A composition framed by a still or by an [dev.jordond.filmstrip.edit.OutputFrame.Fixed] takes this
+ * height as it is, up or down. Null keeps the composition's own height. A height of zero or less is refused. The
+ * composition's own frame is the one its [dev.jordond.filmstrip.edit.Composition.frame] sets, then the composition's
+ * geometry. A height here alone does not make that frame independent of the first clip, because it never scales up, so
+ * use `OutputFrame.Fixed` for one size whichever clip is first.
  * @property bitrate The video bitrate to aim for, or null to let filmstrip pick one from [quality].
  * @property quality The quality tier filmstrip picks a bitrate from, or null for [VideoQuality.High] on a transcode.
  * Setting both this and [bitrate] is refused. Either one also blocks a stream copy.

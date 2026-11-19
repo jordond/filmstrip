@@ -44,6 +44,7 @@ public class CompositionBuilder public constructor() {
   private val audioEffects = mutableListOf<AudioEffectSpec>()
   private var audio: AudioSpec = AudioSpec.Keep
   private var fill: Fill = Fill.Black
+  private var frame: OutputFrame = OutputFrame.Auto
 
   /**
    * Appends a clip to the primary track, reading from [source] and configured by [block].
@@ -121,6 +122,11 @@ public class CompositionBuilder public constructor() {
   public fun fill(fill: Fill): CompositionBuilder = apply { this.fill = fill }
 
   /**
+   * Sets the frame the clips land in, which is [OutputFrame.Auto] until this is called.
+   */
+  public fun frame(frame: OutputFrame): CompositionBuilder = apply { this.frame = frame }
+
+  /**
    * Freezes what has been described.
    */
   public fun build(): Composition {
@@ -139,6 +145,7 @@ public class CompositionBuilder public constructor() {
       audio = audio,
       fill = fill,
       audioEffects = audioEffects.toList(),
+      frame = frame,
     )
   }
 }

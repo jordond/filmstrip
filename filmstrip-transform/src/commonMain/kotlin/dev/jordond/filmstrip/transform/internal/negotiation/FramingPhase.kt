@@ -2,13 +2,19 @@ package dev.jordond.filmstrip.transform.internal.negotiation
 
 import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.Composition
+import dev.jordond.filmstrip.edit.OutputFrame
+import dev.jordond.filmstrip.edit.OutputFrame.Aspect
+import dev.jordond.filmstrip.edit.OutputFrame.Fixed
+import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.effect.EffectStage
+import dev.jordond.filmstrip.effects.geometry.Crop
+import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.geometry.effectiveHeight
 import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.transform.internal.geometry.MeasuredFrame
-import dev.jordond.filmstrip.transform.internal.geometry.frameThrough
+import dev.jordond.filmstrip.transform.internal.geometry.frameAfter
 import dev.jordond.filmstrip.transform.internal.geometry.measuredThrough
 import kotlin.math.roundToInt
 
@@ -26,22 +32,15 @@ internal fun framingOf(
 ): Phase<Framing> {
   val primary = edit.tracks.first()
   val firstClip = primary.clips.first()
-  val frameClip =
-    firstClip.takeUnless { it.source is MediaSource.Image }
-      ?: primary.clips.firstOrNull { carriesVideo(it, ask.infos) }
-      ?: firstClip
+  val frameClip = frameClipOf(primary, ask.infos)
   val firstVideo =
     ask.infos.getValue(frameClip.source).video ?: return Phase.Refused(invalid(NO_PRIMARY_VIDEO))
+  val inputFrame = checkNotNull(frameOf(edit, ask.infos))
 
-  // Clip and track geometry always finishes before the composition's own runs, so the frame the
-  // composition's geometry reads is chained from these two scopes alone.
-  val clipStage = frameClip.effects + primary.effects
   val compositionGeometry = edit.effects.filter { it.stage == EffectStage.Geometry }
-  val compositionInputSize = frameThrough(firstVideo.displaySize, listOf(clipStage))
-  val natural = measuredThrough(MeasuredFrame(firstVideo.displaySize), listOf(clipStage, compositionGeometry))
-  val naturalSize = natural.size
+  val natural = measuredThrough(inputFrame, listOf(compositionGeometry))
   val framedByStill = frameClip.source is MediaSource.Image
-  val heightPx = effectiveHeight(ask.spec.heightPx, naturalSize.height, framedByStill)
+  val heightPx = effectiveHeight(ask.spec.heightPx, natural.size.height, framedByStill || edit.frame is Fixed)
 
   return Phase.Next(
     Framing(
@@ -49,12 +48,54 @@ internal fun framingOf(
       firstVideo = firstVideo,
       framedByStill = framedByStill,
       compositionGeometry = compositionGeometry,
-      compositionInputSize = compositionInputSize,
+      compositionInputSize = inputFrame.size,
       natural = natural,
       heightPx = heightPx,
       requestedSize = atHeight(natural, heightPx),
     ),
   )
+}
+
+/**
+ * The frame [edit]'s clips land in, before its own geometry effects run, or null when its [OutputFrame] measures a
+ * clip and the clip it measures carries no video.
+ *
+ * [OutputFrame.Auto] is the frame clip's video after that clip's and its track's effects, since clip and track
+ * geometry always finishes before the composition's starts. [OutputFrame.Aspect] is that frame after a
+ * [Fit.Contain] crop to its aspect, and [OutputFrame.Fixed] is its size with no clip measured.
+ */
+internal fun frameOf(
+  edit: Composition,
+  infos: Map<MediaSource, MediaInfo>,
+): MeasuredFrame? =
+  when (val frame = edit.frame) {
+    is Fixed -> MeasuredFrame(frame.size)
+    is Aspect -> autoFrameOf(edit, infos)?.let { frameAfter(Crop(frame.aspect, Fit.Contain), it) }
+    OutputFrame.Auto -> autoFrameOf(edit, infos)
+  }
+
+private fun autoFrameOf(
+  edit: Composition,
+  infos: Map<MediaSource, MediaInfo>,
+): MeasuredFrame? {
+  val primary = edit.tracks.first()
+  val frameClip = frameClipOf(primary, infos)
+  val video = infos.getValue(frameClip.source).video ?: return null
+  return measuredThrough(MeasuredFrame(video.displaySize), listOf(frameClip.effects + primary.effects))
+}
+
+/**
+ * The clip the frame is measured from: the primary track's first clip, or past a leading still to the first clip that
+ * decodes video, falling back to the first clip when none does.
+ */
+private fun frameClipOf(
+  primary: Track,
+  infos: Map<MediaSource, MediaInfo>,
+): Clip {
+  val firstClip = primary.clips.first()
+  return firstClip.takeUnless { it.source is MediaSource.Image }
+    ?: primary.clips.firstOrNull { carriesVideo(it, infos) }
+    ?: firstClip
 }
 
 // The height moves the frame along its own aspect, the exact one a crop asked for, so the width does not follow the

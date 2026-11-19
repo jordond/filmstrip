@@ -635,8 +635,8 @@ public final class dev/jordond/filmstrip/edit/ClipSpeedKt {
 }
 
 public final class dev/jordond/filmstrip/edit/Composition {
-	public fun <init> (Ljava/util/List;Ljava/util/List;Ldev/jordond/filmstrip/edit/AudioSpec;Ldev/jordond/filmstrip/geometry/Fill;Ljava/util/List;)V
-	public synthetic fun <init> (Ljava/util/List;Ljava/util/List;Ldev/jordond/filmstrip/edit/AudioSpec;Ldev/jordond/filmstrip/geometry/Fill;Ljava/util/List;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Ljava/util/List;Ljava/util/List;Ldev/jordond/filmstrip/edit/AudioSpec;Ldev/jordond/filmstrip/geometry/Fill;Ljava/util/List;Ldev/jordond/filmstrip/edit/OutputFrame;)V
+	public synthetic fun <init> (Ljava/util/List;Ljava/util/List;Ldev/jordond/filmstrip/edit/AudioSpec;Ldev/jordond/filmstrip/geometry/Fill;Ljava/util/List;Ldev/jordond/filmstrip/edit/OutputFrame;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getAudio ()Ldev/jordond/filmstrip/edit/AudioSpec;
 	public final fun getAudioEffects ()Ljava/util/List;
@@ -644,6 +644,7 @@ public final class dev/jordond/filmstrip/edit/Composition {
 	public final fun getDuration-FghU774 ()Lkotlin/time/Duration;
 	public final fun getEffects ()Ljava/util/List;
 	public final fun getFill ()Ldev/jordond/filmstrip/geometry/Fill;
+	public final fun getFrame ()Ldev/jordond/filmstrip/edit/OutputFrame;
 	public final fun getTracks ()Ljava/util/List;
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
@@ -652,6 +653,7 @@ public final class dev/jordond/filmstrip/edit/Composition {
 	public final fun withClips (Ljava/util/List;)Ldev/jordond/filmstrip/edit/Composition;
 	public final fun withEffects (Ljava/util/List;)Ldev/jordond/filmstrip/edit/Composition;
 	public final fun withFill (Ldev/jordond/filmstrip/geometry/Fill;)Ldev/jordond/filmstrip/edit/Composition;
+	public final fun withFrame (Ldev/jordond/filmstrip/edit/OutputFrame;)Ldev/jordond/filmstrip/edit/Composition;
 	public final fun withTracks (Ljava/util/List;)Ldev/jordond/filmstrip/edit/Composition;
 }
 
@@ -668,6 +670,7 @@ public final class dev/jordond/filmstrip/edit/CompositionBuilder {
 	public static synthetic fun clip$default (Ldev/jordond/filmstrip/edit/CompositionBuilder;Ldev/jordond/filmstrip/media/MediaSource;Lkotlin/jvm/functions/Function1;ILjava/lang/Object;)Ldev/jordond/filmstrip/edit/CompositionBuilder;
 	public final fun effects (Lkotlin/jvm/functions/Function1;)Ldev/jordond/filmstrip/edit/CompositionBuilder;
 	public final fun fill (Ldev/jordond/filmstrip/geometry/Fill;)Ldev/jordond/filmstrip/edit/CompositionBuilder;
+	public final fun frame (Ldev/jordond/filmstrip/edit/OutputFrame;)Ldev/jordond/filmstrip/edit/CompositionBuilder;
 	public final fun image-8Mi8wO0 (Ldev/jordond/filmstrip/media/ImageSource;JLkotlin/jvm/functions/Function1;)Ldev/jordond/filmstrip/edit/CompositionBuilder;
 	public static synthetic fun image-8Mi8wO0$default (Ldev/jordond/filmstrip/edit/CompositionBuilder;Ldev/jordond/filmstrip/media/ImageSource;JLkotlin/jvm/functions/Function1;ILjava/lang/Object;)Ldev/jordond/filmstrip/edit/CompositionBuilder;
 	public final fun track (Ldev/jordond/filmstrip/edit/TrackContent;Lkotlin/jvm/functions/Function1;)Ldev/jordond/filmstrip/edit/CompositionBuilder;
@@ -705,6 +708,32 @@ public final class dev/jordond/filmstrip/edit/EnvelopePoint {
 }
 
 public abstract interface annotation class dev/jordond/filmstrip/edit/FilmstripDsl : java/lang/annotation/Annotation {
+}
+
+public abstract interface class dev/jordond/filmstrip/edit/OutputFrame {
+}
+
+public final class dev/jordond/filmstrip/edit/OutputFrame$Aspect : dev/jordond/filmstrip/edit/OutputFrame {
+	public fun <init> (Ldev/jordond/filmstrip/geometry/AspectRatio;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAspect ()Ldev/jordond/filmstrip/geometry/AspectRatio;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/jordond/filmstrip/edit/OutputFrame$Auto : dev/jordond/filmstrip/edit/OutputFrame {
+	public static final field INSTANCE Ldev/jordond/filmstrip/edit/OutputFrame$Auto;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/jordond/filmstrip/edit/OutputFrame$Fixed : dev/jordond/filmstrip/edit/OutputFrame {
+	public fun <init> (Ldev/jordond/filmstrip/geometry/Size;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getSize ()Ldev/jordond/filmstrip/geometry/Size;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
 }
 
 public final class dev/jordond/filmstrip/edit/TimeRange {

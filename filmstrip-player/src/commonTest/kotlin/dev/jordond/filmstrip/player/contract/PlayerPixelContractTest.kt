@@ -2,7 +2,9 @@ package dev.jordond.filmstrip.player.contract
 
 import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.CompositionDiff
+import dev.jordond.filmstrip.edit.OutputFrame
 import dev.jordond.filmstrip.edit.diff
+import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.player.PlaybackStatus
 import dev.jordond.filmstrip.player.PlayerEngine
 import dev.jordond.filmstrip.player.PreviewQualityPolicy
@@ -15,6 +17,7 @@ import dev.jordond.filmstrip.test.TestFrame
 import dev.jordond.filmstrip.test.assertFramesDiffer
 import dev.jordond.filmstrip.test.assertFramesSimilar
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.CoroutineScope
 import kotlin.test.Test
@@ -145,6 +148,42 @@ abstract class PlayerPixelContractTest {
         )
       }
     }
+
+  @Test
+  fun aFrameChangeDrawsAtTheNewFrameAndMatchesTheExport() =
+    contractTest { scope ->
+      val framed = fixture.composition.withFrame(OutputFrame.Fixed(SWAPPED_FRAME))
+      diff(fixture.composition, framed) shouldBe CompositionDiff.ParametersOnly
+
+      val engine = createEngine(scope)
+      withEngine(engine) { recorder ->
+        engine.setQualityPolicy(PreviewQualityPolicy.Full)
+        engine.awaitComposition(fixture.composition).shouldBeInstanceOf<SetCompositionResult.Success>()
+        awaitContract("the preview to be presentable") { recorder.lastState.hasComposition }
+
+        val probe = fixture.positions.first()
+        engine.readback.awaitFrame(probe).size shouldNotBe SWAPPED_FRAME
+
+        engine.awaitComposition(framed).shouldBeInstanceOf<SetCompositionResult.Success>()
+        awaitContract("the edit to finish") { recorder.lastState.status == PlaybackStatus.Ready }
+
+        val preview = engine.readback.awaitFrame(probe)
+        preview.size shouldBe SWAPPED_FRAME
+        recorder.previewInfo.last().outputSize shouldBe SWAPPED_FRAME
+        assertFramesSimilar(
+          expected = exportFrame(framed, preview.presentationTime),
+          actual = preview.asTestFrame(),
+          minPsnrDb = minPsnrDb,
+          minSsim = minSsim,
+          message = "the preview and the export of the new frame disagree at ${preview.presentationTime}",
+        )
+      }
+    }
+
+  private companion object {
+    // A frame no pixel fixture has, so the swap always moves it.
+    val SWAPPED_FRAME = Size(640, 480)
+  }
 }
 
 /**
