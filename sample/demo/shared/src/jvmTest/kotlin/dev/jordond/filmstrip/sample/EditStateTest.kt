@@ -1,5 +1,9 @@
+@file:OptIn(ExperimentalFilmstripApi::class)
+
 package dev.jordond.filmstrip.sample
 
+import dev.jordond.filmstrip.ExperimentalFilmstripApi
+import dev.jordond.filmstrip.edit.OutputFrame
 import dev.jordond.filmstrip.effect.EffectIds
 import dev.jordond.filmstrip.effect.canonicalOrder
 import dev.jordond.filmstrip.effects.color.ColorMatrix
@@ -12,12 +16,15 @@ import dev.jordond.filmstrip.effects.filters.tape.TapeAudio
 import dev.jordond.filmstrip.effects.filters.vhs.TapeSpeed
 import dev.jordond.filmstrip.effects.filters.vhs.Tracking
 import dev.jordond.filmstrip.effects.filters.vhs.Vhs
+import dev.jordond.filmstrip.geometry.AspectRatio
+import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.MediaSource
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlin.test.Test
+import kotlin.time.Duration.Companion.seconds
 
 /**
  * What the editor's knobs author, checked without a composition on screen.
@@ -123,6 +130,53 @@ class EditStateTest {
     edit.reset(sourceDuration = null)
     edit.tapeFormat shouldBe TapeFormat.Vhs
     edit.tapeAudioStock shouldBe TapeSpeed.EP
+  }
+
+  @Test
+  fun `the end card holds its color after the clip and adds its length`() {
+    val edit =
+      EditState().apply {
+        endCardEnabled = true
+        endCardColor = 0xFF1A1A21.toInt()
+        endCardSeconds = 1.5f
+      }
+
+    val clips = edit.composition(SOURCE, sourceDuration = 10.seconds).clips
+    clips.map { it.source } shouldContainExactly listOf(SOURCE, clips.last().source)
+    val card = clips.last().source.shouldBeInstanceOf<MediaSource.Solid>()
+    card.color shouldBe 0xFF1A1A21.toInt()
+    card.duration shouldBe 1.5.seconds
+    edit.editedDuration(10.seconds) shouldBe 11.5.seconds
+    edit.composition(SOURCE, sourceDuration = 10.seconds, trimmed = false).clips.map { it.source } shouldContainExactly
+      listOf(SOURCE)
+  }
+
+  @Test
+  fun `the output frame reaches the composition and the stage's aspect`() {
+    val edit = EditState()
+    edit.composition(SOURCE, sourceDuration = null).frame shouldBe OutputFrame.Auto
+
+    edit.frameMode = FrameMode.Aspect
+    edit.frameAspect = AspectRatio.Square
+    edit
+      .composition(SOURCE, sourceDuration = null)
+      .frame
+      .shouldBeInstanceOf<OutputFrame.Aspect>()
+      .aspect shouldBe
+      AspectRatio.Square
+    edit.outputAspect(sourceAspect = 16f / 9f) shouldBe 1f
+
+    edit.frameMode = FrameMode.Fixed
+    edit.frameSize = Size(1080, 1920)
+    edit
+      .composition(SOURCE, sourceDuration = null)
+      .frame
+      .shouldBeInstanceOf<OutputFrame.Fixed>()
+      .size shouldBe
+      Size(1080, 1920)
+    edit.outputAspect(sourceAspect = 16f / 9f) shouldBe 1080f / 1920f
+    edit.outputAspect(sourceAspect = 16f / 9f, cropped = false) shouldBe 16f / 9f
+    edit.composition(SOURCE, sourceDuration = null, cropped = false).frame shouldBe OutputFrame.Auto
   }
 
   private companion object {

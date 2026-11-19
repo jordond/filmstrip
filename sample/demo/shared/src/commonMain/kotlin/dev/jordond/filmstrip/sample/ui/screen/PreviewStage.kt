@@ -248,7 +248,7 @@ private fun SampleAppState.stepLabel(compact: Boolean): String {
       "AUDIO"
     }
     EditorTool.Background -> {
-      "FILL"
+      "FRAME"
     }
   }
 }

@@ -1,13 +1,17 @@
+@file:OptIn(ExperimentalFilmstripApi::class)
+
 package dev.jordond.filmstrip.sample
 
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import dev.jordond.filmstrip.ExperimentalFilmstripApi
 import dev.jordond.filmstrip.edit.AudioLevel
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.EffectsBuilder
+import dev.jordond.filmstrip.edit.OutputFrame
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.effect.EffectSpec
@@ -112,6 +116,15 @@ public enum class TapeFormat(
 public enum class FillMode {
   Solid,
   Blurred,
+}
+
+/**
+ * Which arm of [OutputFrame] sets the frame the clip lands in.
+ */
+public enum class FrameMode {
+  Auto,
+  Aspect,
+  Fixed,
 }
 
 /**
@@ -221,6 +234,13 @@ public class EditState {
   var blurRadius: Float by mutableStateOf(0.04f)
   var blurDim: Float by mutableStateOf(0f)
 
+  var frameMode: FrameMode by mutableStateOf(FrameMode.Auto)
+  var frameAspect: AspectRatio by mutableStateOf(AspectRatio.Landscape)
+  var frameSize: Size by mutableStateOf(Size(1920, 1080))
+  var endCardEnabled: Boolean by mutableStateOf(false)
+  var endCardColor: Int by mutableStateOf(BLACK)
+  var endCardSeconds: Float by mutableStateOf(2f)
+
   val cropRect: NormalizedRect
     get() = NormalizedRect(cropLeft, cropTop, cropRight, cropBottom)
 
@@ -278,6 +298,20 @@ public class EditState {
         FillMode.Blurred -> Fill.Blurred(blurRadius, blurDim)
       }
 
+  val outputFrame: OutputFrame
+    get() =
+      when (frameMode) {
+        FrameMode.Auto -> OutputFrame.Auto
+        FrameMode.Aspect -> OutputFrame.Aspect(frameAspect)
+        FrameMode.Fixed -> OutputFrame.Fixed(frameSize)
+      }
+
+  /**
+   * How long the end card holds after the clip, or zero while it's off.
+   */
+  val endCardDuration: Duration
+    get() = if (endCardEnabled) endCardSeconds.toDouble().seconds else Duration.ZERO
+
   val audioSpec: AudioSpec
     get() =
       when (audioMode) {
@@ -329,21 +363,29 @@ public class EditState {
   }
 
   /**
-   * How long the edit runs, which is the trim when there is one and the whole source otherwise.
+   * How long the edit runs, which is the trim when there is one and the whole source otherwise, plus the end card.
    */
-  fun editedDuration(sourceDuration: Duration?): Duration? = trimRange(sourceDuration)?.duration ?: sourceDuration
+  fun editedDuration(sourceDuration: Duration?): Duration? =
+    (trimRange(sourceDuration)?.duration ?: sourceDuration)?.plus(endCardDuration)
 
   /**
    * The output frame's aspect after every geometry effect, so the preview can letterbox to the
    * shape the file will actually have.
    *
-   * @param cropped Whether the rectangle crop is folded in. False reports the frame before it,
-   *   which is what a crop overlay measures itself against.
+   * @param cropped Whether the rectangle crop and the output frame are folded in. False reports the frame before
+   *   them, which is what a crop overlay measures itself against.
    */
   fun outputAspect(
     sourceAspect: Float,
     cropped: Boolean = true,
   ): Float {
+    if (cropped) {
+      when (frameMode) {
+        FrameMode.Auto -> Unit
+        FrameMode.Aspect -> return frameAspect.value
+        FrameMode.Fixed -> return frameSize.width.toFloat() / frameSize.height
+      }
+    }
     val rotated = if (rotationDegrees == 90 || rotationDegrees == 270) 1f / sourceAspect else sourceAspect
     return when (cropMode) {
       CropMode.Off -> {
@@ -363,11 +405,12 @@ public class EditState {
   /**
    * Builds the value that `plan`, `export` and `preview` all take.
    *
-   * @param trimmed Whether to cut the clip to [trimRange]. False keeps the whole source, which is
-   *   what the timeline strip renders against so it covers the same ground no matter where the trim
-   *   handles sit.
-   * @param cropped Whether to apply the rectangle crop. False keeps the whole frame, which is what
-   *   a crop overlay renders against, since the rectangle it authors addresses the uncropped frame.
+   * @param trimmed Whether to cut the clip to [trimRange] and add the end card. False keeps the whole
+   *   source alone, which is what the timeline strip renders against so it covers the same ground no
+   *   matter where the trim handles sit.
+   * @param cropped Whether to apply the rectangle crop and the output frame. False keeps the whole
+   *   frame, which is what a crop overlay renders against, since the rectangle it authors addresses
+   *   the uncropped frame.
    */
   fun composition(
     source: MediaSource,
@@ -381,6 +424,8 @@ public class EditState {
         if (clipMuted) audio(AudioLevel.Mute)
         snapWithin(snapWithinSeconds.toDouble().seconds)
       }
+      if (trimmed && endCardEnabled) solid(endCardColor, endCardDuration)
+      if (cropped) frame(outputFrame)
 
       if (tapeAudioEnabled) audioEffects { tapeAudio { tape = tapeAudioStock } }
 
@@ -559,6 +604,12 @@ public class EditState {
     fillColor = BLACK
     blurRadius = 0.04f
     blurDim = 0f
+    frameMode = FrameMode.Auto
+    frameAspect = AspectRatio.Landscape
+    frameSize = Size(1920, 1080)
+    endCardEnabled = false
+    endCardColor = BLACK
+    endCardSeconds = 2f
   }
 
   public companion object {

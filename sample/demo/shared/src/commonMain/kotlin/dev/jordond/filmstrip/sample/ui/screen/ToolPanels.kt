@@ -56,6 +56,7 @@ import dev.jordond.filmstrip.sample.CropMode
 import dev.jordond.filmstrip.sample.EditState
 import dev.jordond.filmstrip.sample.EditorTool
 import dev.jordond.filmstrip.sample.FillMode
+import dev.jordond.filmstrip.sample.FrameMode
 import dev.jordond.filmstrip.sample.SampleAppState
 import dev.jordond.filmstrip.sample.TapeFormat
 import dev.jordond.filmstrip.sample.TapeTrackingMode
@@ -100,7 +101,7 @@ private val Tools =
     ToolSpec(EditorTool.Text, "Text", SampleIcons.TextGlyph),
     ToolSpec(EditorTool.Watermark, "Overlay", SampleIcons.Watermark),
     ToolSpec(EditorTool.Audio, "Audio", SampleIcons.Volume),
-    ToolSpec(EditorTool.Background, "Fill", SampleIcons.Layers),
+    ToolSpec(EditorTool.Background, "Frame", SampleIcons.Layers),
   )
 
 /**
@@ -240,7 +241,7 @@ public fun ToolPanel(
  * One group of a tool's controls, closed off from the next by a line.
  */
 @Composable
-private fun ToolSection(
+internal fun ToolSection(
   label: String,
   content: @Composable ColumnScope.() -> Unit,
 ) {
@@ -1409,6 +1410,8 @@ private fun BackgroundPanel(state: SampleAppState) {
       }
     }
   }
+
+  FrameSections(state)
 }
 
 /**
@@ -1416,15 +1419,33 @@ private fun BackgroundPanel(state: SampleAppState) {
  */
 private fun EditState.contributes(tool: EditorTool): Boolean =
   when (tool) {
-    EditorTool.Trim -> trimEnabled
-    EditorTool.Crop -> cropMode != CropMode.Off
-    EditorTool.Transform -> rotationDegrees != 0 || flipHorizontal || flipVertical
-    EditorTool.Scale -> scaleEnabled
-    EditorTool.Adjust -> gradeContributes
-    EditorTool.Text -> textEnabled && text.isNotBlank()
-    EditorTool.Watermark -> watermarkImage != null
-    EditorTool.Audio -> audioSpec != AudioSpec.Keep || clipMuted
-    EditorTool.Background -> fillMode != FillMode.Solid || fillColor != EditState.BLACK
+    EditorTool.Trim -> {
+      trimEnabled
+    }
+    EditorTool.Crop -> {
+      cropMode != CropMode.Off
+    }
+    EditorTool.Transform -> {
+      rotationDegrees != 0 || flipHorizontal || flipVertical
+    }
+    EditorTool.Scale -> {
+      scaleEnabled
+    }
+    EditorTool.Adjust -> {
+      gradeContributes
+    }
+    EditorTool.Text -> {
+      textEnabled && text.isNotBlank()
+    }
+    EditorTool.Watermark -> {
+      watermarkImage != null
+    }
+    EditorTool.Audio -> {
+      audioSpec != AudioSpec.Keep || clipMuted
+    }
+    EditorTool.Background -> {
+      fillMode != FillMode.Solid || fillColor != EditState.BLACK || frameMode != FrameMode.Auto || endCardEnabled
+    }
   }
 
 private val Palette =
@@ -1437,7 +1458,7 @@ private val Palette =
     0xFFFF6F6F.toInt(),
   )
 
-private val Plates =
+internal val Plates =
   listOf(
     0xFF000000.toInt(),
     0xFF1A1A21.toInt(),
