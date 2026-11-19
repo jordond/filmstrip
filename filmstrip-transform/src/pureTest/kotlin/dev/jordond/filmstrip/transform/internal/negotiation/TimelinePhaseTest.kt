@@ -216,6 +216,7 @@ class TimelinePhaseTest {
       lowering = StageLowering(listOf(FakeResolver()), { "nothing claimed $it" }),
       audioLowering = AudioEffectLowering(emptyList()),
       naturalSize = OUTPUT,
+      solidSize = OUTPUT,
     )
 
   private fun ask(edit: Composition): Ask =

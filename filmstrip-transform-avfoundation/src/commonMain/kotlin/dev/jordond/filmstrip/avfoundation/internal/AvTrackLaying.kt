@@ -25,6 +25,7 @@ import dev.jordond.filmstrip.internal.AppleScratch
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.describe
+import dev.jordond.filmstrip.media.heldFor
 import dev.jordond.filmstrip.transform.internal.copy.CopyRun
 import dev.jordond.filmstrip.transform.internal.heldTail
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedClip
@@ -84,14 +85,14 @@ internal class AssetCache(
   fun stretchedAudioOf(clip: ResolvedClip): AVAssetTrack? = stretched?.trackOf(clip)
 
   /**
-   * The SD colour [clip]'s frames decode with, read once per source, or null for a still, a clip with no video, an HDR
-   * clip and every clip of a plan that does not draw SD colour.
+   * The SD colour [clip]'s frames decode with, read once per source, or null for a still or a solid, a clip with no
+   * video, an HDR clip and every clip of a plan that does not draw SD colour.
    *
    * @throws AvLoweringFailure When the clip has SD primaries and this device cannot run the kernel that moves them.
    */
   fun sdColorOf(clip: ResolvedClip): SdSourceColor? {
     val video = clip.info.video
-    if (!drawsSd || clip.source is MediaSource.Image || video == null || video.hdrTransfer != null) return null
+    if (!drawsSd || clip.source.heldFor != null || video == null || video.hdrTransfer != null) return null
     // Null is an answer here too, and a read of it can decode a frame, so it is cached the same as a colour.
     val color =
       if (clip.source in sdColors) {
@@ -246,7 +247,7 @@ private suspend fun AVMutableCompositionTrack.insertClip(
   // clip opens on the tick this one ends on. A length rounded on its own lands a tick either side of
   // that at 48 fps, which leaves a hole or an overlap at the seam.
   val length = if (grid == null) clip.outputDuration.toCMTime() else ticksBetween(at, placement.end)
-  val still = clip.source is MediaSource.Image
+  val still = clip.source.heldFor != null
   val source =
     when {
       still -> null
@@ -485,5 +486,8 @@ internal fun MediaSource.toNSURL(bytesRoot: String = AppleScratch.defaultRoot): 
         "${image.describe()} is a still, which takes its slot from a generated segment and is " +
           "drawn by the filter handler rather than opened as an asset.",
       )
+    }
+    is MediaSource.Solid -> {
+      throw AvLoweringFailure("${describe()} has no file to open as an asset.")
     }
   }

@@ -3,6 +3,7 @@ package dev.jordond.filmstrip.internal
 import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.ProbeResult
+import dev.jordond.filmstrip.media.probeSolid
 
 // Android and Apple read metadata with an OS framework. Reading a container on the JVM means
 // driving an external toolchain, which lives in the module that already spawns one, so core
@@ -15,6 +16,9 @@ internal actual class PlatformProber actual constructor() {
     when (source) {
       is MediaSource.Image -> {
         probeImage(source)
+      }
+      is MediaSource.Solid -> {
+        probeSolid(source)
       }
       is MediaSource.Path, is MediaSource.Uri, is MediaSource.Bytes -> {
         ProbeResult.Failure(

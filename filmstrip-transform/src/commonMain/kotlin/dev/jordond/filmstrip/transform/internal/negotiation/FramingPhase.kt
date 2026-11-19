@@ -13,6 +13,7 @@ import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.geometry.effectiveHeight
 import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSource
+import dev.jordond.filmstrip.media.heldFor
 import dev.jordond.filmstrip.transform.internal.geometry.MeasuredFrame
 import dev.jordond.filmstrip.transform.internal.geometry.frameAfter
 import dev.jordond.filmstrip.transform.internal.geometry.measuredThrough
@@ -39,7 +40,7 @@ internal fun framingOf(
 
   val compositionGeometry = edit.effects.filter { it.stage == EffectStage.Geometry }
   val natural = measuredThrough(inputFrame, listOf(compositionGeometry))
-  val framedByStill = frameClip.source is MediaSource.Image
+  val framedByStill = frameClip.source.heldFor != null
   val heightPx = effectiveHeight(ask.spec.heightPx, natural.size.height, framedByStill || edit.frame is Fixed)
 
   return Phase.Next(
@@ -58,7 +59,7 @@ internal fun framingOf(
 
 /**
  * The frame [edit]'s clips land in, before its own geometry effects run, or null when its [OutputFrame] measures a
- * clip and the clip it measures carries no video.
+ * clip and the clip it measures carries no video or is a solid, which has no size to measure.
  *
  * [OutputFrame.Auto] is the frame clip's video after that clip's and its track's effects, since clip and track
  * geometry always finishes before the composition's starts. [OutputFrame.Aspect] is that frame after a
@@ -79,22 +80,23 @@ private fun autoFrameOf(
   infos: Map<MediaSource, MediaInfo>,
 ): MeasuredFrame? {
   val primary = edit.tracks.first()
-  val frameClip = frameClipOf(primary, infos)
+  val frameClip = frameClipOf(primary, infos).takeUnless { it.source is MediaSource.Solid } ?: return null
   val video = infos.getValue(frameClip.source).video ?: return null
   return measuredThrough(MeasuredFrame(video.displaySize), listOf(frameClip.effects + primary.effects))
 }
 
 /**
- * The clip the frame is measured from: the primary track's first clip, or past a leading still to the first clip that
- * decodes video, falling back to the first clip when none does.
+ * The clip the frame is measured from: the primary track's first clip, or past a leading still or solid to the first
+ * clip that decodes video, falling back to the first still and then to the first clip when none does.
  */
 private fun frameClipOf(
   primary: Track,
   infos: Map<MediaSource, MediaInfo>,
 ): Clip {
   val firstClip = primary.clips.first()
-  return firstClip.takeUnless { it.source is MediaSource.Image }
+  return firstClip.takeUnless { it.source.heldFor != null }
     ?: primary.clips.firstOrNull { carriesVideo(it, infos) }
+    ?: primary.clips.firstOrNull { it.source !is MediaSource.Solid }
     ?: firstClip
 }
 
@@ -116,4 +118,4 @@ private fun atHeight(
 private fun carriesVideo(
   clip: Clip,
   infos: Map<MediaSource, MediaInfo>,
-): Boolean = clip.source !is MediaSource.Image && infos.getValue(clip.source).video != null
+): Boolean = clip.source.heldFor == null && infos.getValue(clip.source).video != null

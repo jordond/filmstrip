@@ -7,6 +7,7 @@ import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.edit.outputSlotsOf
 import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.media.MediaSource
+import dev.jordond.filmstrip.media.heldFor
 import dev.jordond.filmstrip.transform.internal.earliestReadTime
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedClip
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
@@ -88,7 +89,7 @@ internal suspend fun ResolvedComposition.readClips(ownsAudioSpeed: Boolean): Med
       clips
         .filter { (content, clip) ->
           content != TrackContent.Audio &&
-            clip.source !is MediaSource.Image &&
+            clip.source.heldFor == null &&
             clip.info.video != null &&
             !outputSlotsOf(clip.span, rate).isEmpty()
         }.map { (_, clip) -> clip }

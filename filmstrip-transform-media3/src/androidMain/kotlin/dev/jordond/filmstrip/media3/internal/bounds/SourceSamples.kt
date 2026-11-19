@@ -220,7 +220,7 @@ internal fun MediaExtractor.open(source: MediaSource): Boolean {
       setDataSource(AndroidScratch.fileFor(FilmstripContext.get() ?: return false, source).path)
     }
     // A still carries no container, and so no sync sample of its own to read.
-    is MediaSource.Image -> {
+    is MediaSource.Image, is MediaSource.Solid -> {
       return false
     }
   }
@@ -249,7 +249,7 @@ internal fun MediaExtractorCompat.open(source: MediaSource): Boolean {
     is MediaSource.Bytes -> {
       setDataSource(Uri.fromFile(AndroidScratch.fileFor(FilmstripContext.get() ?: return false, source)), 0L)
     }
-    is MediaSource.Image -> {
+    is MediaSource.Image, is MediaSource.Solid -> {
       return false
     }
   }

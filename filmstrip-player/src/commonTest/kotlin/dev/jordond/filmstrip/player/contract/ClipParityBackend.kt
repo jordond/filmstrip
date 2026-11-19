@@ -78,6 +78,12 @@ interface ClipParityBackend {
   fun minSsimAt(slot: Long): Double = minSsim
 
   /**
+   * The SSIM a clip's frames hold to against the preview when the clip opens on a cut from a solid. It names that
+   * backend's limit where it overrides this.
+   */
+  val minSsimAfterSolid: Double get() = minSsim
+
+  /**
    * How close to a source frame's own time a preview read may land and show the frame either side of it, for a backend
    * that cannot read that finely. It names that backend's limit where it overrides this.
    */

@@ -6,6 +6,7 @@ import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.outputSlotOf
 import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.transform.internal.heldTail
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
 import dev.jordond.filmstrip.transform.internal.resolve.drawsSameFormatAs
@@ -21,6 +22,7 @@ import dev.jordond.filmstrip.webcodecs.internal.interop.Uint8Array
 import dev.jordond.filmstrip.webcodecs.internal.interop.VideoSample
 import dev.jordond.filmstrip.webcodecs.internal.interop.toByteArray
 import dev.jordond.filmstrip.webcodecs.internal.render.BrowserCompositor
+import dev.jordond.filmstrip.webcodecs.internal.solidSample
 import kotlinx.coroutines.await
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -297,15 +299,18 @@ public class BrowserPreview internal constructor(
     leadAt(position)?.let { return fillFrame(it) }
     val slot = slotAt(position) ?: return null
     val sourceUs = slot.sourceUs
+    // A solid draws one pixel of its colour and decodes nothing.
+    val solid = (slot.clip.source as? MediaSource.Solid)?.let(::solidSample)
 
     val ready =
-      if (window.holds(slot.index)) {
+      if (solid == null && window.holds(slot.index)) {
         window.advanceTo(sourceUs)
         if (window.reaches(sourceUs)) window.nearest(sourceUs) else null
       } else {
         null
       }
-    val own = if (ready == null) sampler(readbackSamplers, slot)?.nearestAt(sourceUs, slot.clip.trimEndUs) else null
+    val own =
+      solid ?: if (ready == null) sampler(readbackSamplers, slot)?.nearestAt(sourceUs, slot.clip.trimEndUs) else null
     val sample = ready ?: own ?: return null
     return try {
       composite(slot, sample)
@@ -318,6 +323,7 @@ public class BrowserPreview internal constructor(
     // Inside the leading gap this is the first clip's opening slot, so playback finds that clip
     // already decoded when it gets there.
     val slot = slotAt(from) ?: return
+    if (slot.clip.source is MediaSource.Solid) return
     if (!window.holds(slot.index) || window.startsAfter(slot.sourceUs)) {
       val sampler = sampler(playbackSamplers, slot) ?: return
       window.seat(slot.index, sampler.stream(slot.sourceUs, slot.clip.trimEndUs))
@@ -353,6 +359,8 @@ public class BrowserPreview internal constructor(
    * or cannot say.
    */
   private suspend fun syncSlotOf(slot: Slot): Long? {
+    // Every frame of a solid is the same picture, so each of its slots is a sync sample of its own.
+    if (slot.clip.source is MediaSource.Solid) return outputSlotOf(slot.writtenUs.microseconds, render.frameRate)
     val reader = sources.open(slot.clip.source) ?: return null
     val keyUs = reader.keyFrameAt(slot.sourceUs) ?: return null
     if (keyUs > slot.sourceUs) return null
@@ -483,15 +491,5 @@ public class BrowserPreview internal constructor(
 @InternalFilmstripApi
 public fun ResolvedComposition.toBrowserPreview(edit: Composition): BrowserPreview =
   BrowserPreview(this, browserRenderOf(this, edit))
-
-/**
- * How many decoded frames the look-ahead holds.
- *
- * A count of frames, so a clip at three frames a second holds four seconds of decoded video at
- * most. Under half a second at thirty frames a second, which is more than a preview polled at
- * display rate needs to stay ahead of its playhead, and few enough that a 4K clip's worth of
- * decoded frames does not swamp the tab.
- */
-internal const val PREVIEW_LOOK_AHEAD: Int = 12
 
 private const val STEREO_CHANNELS = 2

@@ -65,6 +65,9 @@ internal fun structuralRefusal(
   spec.frameRate?.let { if (it <= 0) return invalid(frameRateNotPositive(it)) }
   outputHeightRefusal(spec.heightPx)?.let { return it }
   frameRefusal(edit.frame)?.let { return it }
+  if (edit.frame !is OutputFrame.Fixed && primary.clips.all { it.source is MediaSource.Solid }) {
+    return invalid(SOLIDS_NEED_A_FRAME)
+  }
   spec.keyFrameInterval?.let { if (it <= Duration.ZERO) return invalid(keyFrameIntervalNotPositive(it)) }
   if (spec.bitrate != null && spec.quality != null) return invalid(BITRATE_AND_QUALITY)
   if (edit.tracks.none { it.contributes(streams.keepAudio, streams.keepVideo) }) return invalid(NOTHING_TO_ENCODE)
@@ -77,6 +80,9 @@ internal fun structuralRefusal(
     val info = infos[clip.source] ?: return FilmstripError.SourceUnreadable(clip.source.describe(), UNREADABLE)
     if (!info.isExportable) {
       return FilmstripError.SourceNotExportable("${clip.source.describe()} is protected and cannot be exported.")
+    }
+    (clip.source as? MediaSource.Solid)?.let { solid ->
+      if (solid.duration <= Duration.ZERO) return invalid(solidDurationNotPositive(solid))
     }
     clip.audioTrack?.let { id ->
       if (info.audioTracks.none { it.id == id }) return invalid(unknownAudioTrack(clip, id, info))
@@ -129,6 +135,13 @@ internal fun frameSizeNotPositive(size: Size): String =
 internal fun frameAspectNotPositive(aspect: AspectRatio): String =
   "The output frame asks for an aspect of ${aspect.width}:${aspect.height}, and both sides of an aspect have to be " +
     "positive."
+
+internal const val SOLIDS_NEED_A_FRAME =
+  "The primary track holds only solids, which have no size of their own. Give the composition an " +
+    "OutputFrame.Fixed frame to say how big the output is."
+
+internal fun solidDurationNotPositive(solid: MediaSource.Solid): String =
+  "A solid is held for ${solid.duration}, and a solid has to be held for longer than zero."
 
 internal const val NO_PRIMARY_VIDEO = "The primary track contributes no video, so there is nothing to encode."
 

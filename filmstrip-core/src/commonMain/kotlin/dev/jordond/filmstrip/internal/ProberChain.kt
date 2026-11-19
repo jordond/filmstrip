@@ -7,6 +7,7 @@ import dev.jordond.filmstrip.media.MediaProber
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.ProbeResult
 import dev.jordond.filmstrip.media.describe
+import dev.jordond.filmstrip.media.probeSolid
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 
@@ -18,7 +19,8 @@ import kotlinx.coroutines.ensureActive
  * the next one, and the reported failure is the first one, which comes from the prober registered last and therefore
  * knows the most. An answer that read no video and no audio track counts as a decline that the source is unreadable,
  * since there is nothing in it to edit. A prober that turns up twice in the chain is only asked once, and one a
- * registered [MediaProberDecorator] decorates is not asked at all, since the decorator has already asked it.
+ * registered [MediaProberDecorator] decorates is not asked at all, since the decorator has already asked it. A
+ * [MediaSource.Solid] is answered before any of them, since there is nothing in one to read.
  *
  * @param components The components registered on the owning [dev.jordond.filmstrip.Filmstrip].
  * @param last The prober asked after every registered one, for a backend that reads its sources its own way.
@@ -33,7 +35,7 @@ public fun chainedProber(
   val decorated = registered.filterIsInstance<MediaProberDecorator>().map { it.decorated }.toSet()
   val chain = (registered + last).distinct().filterNot { it in decorated }
 
-  return MediaProber { source -> chain.firstAnswerFor(source) }
+  return MediaProber { source -> if (source is MediaSource.Solid) probeSolid(source) else chain.firstAnswerFor(source) }
 }
 
 private suspend fun List<MediaProber>.firstAnswerFor(source: MediaSource): ProbeResult {

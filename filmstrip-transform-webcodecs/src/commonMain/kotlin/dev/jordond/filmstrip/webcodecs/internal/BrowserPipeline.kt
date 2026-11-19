@@ -1,6 +1,7 @@
 package dev.jordond.filmstrip.webcodecs.internal
 
 import dev.jordond.filmstrip.export.AudioFormat
+import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.webcodecs.internal.audio.BrowserAudioMix
 import dev.jordond.filmstrip.webcodecs.internal.interop.VideoSample
 import dev.jordond.filmstrip.webcodecs.internal.render.BrowserCompositor
@@ -136,14 +137,17 @@ internal class BrowserPipeline(
     onProgress: suspend (Long, Double) -> Unit,
   ): Long {
     if (clip.frames == 0L) return encodedSoFar
-    val stream = framesOf(clip) ?: throw BrowserExportFailure(unreadableMessage(clip.source))
+    // A solid shows one frame of its colour on every slot, so it opens no stream at all.
+    val solid = clip.source as? MediaSource.Solid
+    val stream =
+      if (solid == null) framesOf(clip) ?: throw BrowserExportFailure(unreadableMessage(clip.source)) else null
 
     var emitted = encodedSoFar
     var current: VideoSample? = null
-    var ahead: VideoSample? = null
+    var ahead: VideoSample? = solid?.let(::solidSample)
     try {
       compositor.clip(clip)
-      ahead = stream.next()
+      if (stream != null) ahead = stream.next()
       for (slot in 0 until clip.frames + clip.heldFrames) {
         currentCoroutineContext().ensureActive()
 
@@ -152,7 +156,7 @@ internal class BrowserPipeline(
         while (ahead != null && ahead.microsecondTimestamp <= sourceUs) {
           current?.close()
           current = ahead
-          ahead = stream.next()
+          ahead = stream?.next()
         }
 
         val chosen = nearerOf(current, ahead, sourceUs) ?: break
@@ -168,7 +172,7 @@ internal class BrowserPipeline(
     } finally {
       current?.close()
       ahead?.close()
-      stream.close()
+      stream?.close()
     }
     return emitted
   }

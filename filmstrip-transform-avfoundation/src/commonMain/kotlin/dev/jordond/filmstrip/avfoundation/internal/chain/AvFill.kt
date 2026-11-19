@@ -47,16 +47,30 @@ internal fun fillCIColor(
   ) ?: sdr
 }
 
+/**
+ * A solid's packed ARGB [color] as a Core Image color, landing as its own BT.709 codes the way an SDR [fillCIColor]
+ * does, with its alpha kept.
+ */
+@OptIn(ExperimentalForeignApi::class)
+internal fun solidCIColor(color: Int): CIColor {
+  val red = ((color shr 16) and 0xFF) / 255.0
+  val green = ((color shr 8) and 0xFF) / 255.0
+  val blue = (color and 0xFF) / 255.0
+  val alpha = (color ushr 24) / 255.0
+  return inCodes(red, green, blue, alpha) ?: CIColor.colorWithRed(red, green = green, blue = blue, alpha = alpha)
+}
+
 @OptIn(ExperimentalForeignApi::class)
 private fun inCodes(
   red: Double,
   green: Double,
   blue: Double,
+  alpha: Double = 1.0,
 ): CIColor? {
   val space = ColorSpace.Bt709.createCodeSpace() ?: return null
 
   try {
-    return CIColor.colorWithRed(red, green = green, blue = blue, alpha = 1.0, colorSpace = space)
+    return CIColor.colorWithRed(red, green = green, blue = blue, alpha = alpha, colorSpace = space)
   } finally {
     CGColorSpaceRelease(space)
   }

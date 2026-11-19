@@ -14,8 +14,8 @@ import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.HdrTransfer
-import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaSource
+import dev.jordond.filmstrip.media.heldFor
 import dev.jordond.filmstrip.transform.internal.geometry.ClipPlacement
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedClip
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
@@ -36,7 +36,7 @@ import kotlin.time.Duration
  *   here, since the flag that would apply it is ignored once a video composition is set.
  * @property attributes The frame this clip's effects were resolved against, which is the clip's own
  *   size, never the output's.
- * @property still The image every frame of this span draws, or null when the clip is video and what
+ * @property still The still or the solid every frame of this span draws, or null when the clip is video and what
  *   AVFoundation decoded is already the picture.
  * @property heldFrom The time every frame from here to the span's end is drawn at, or null when each
  * frame is drawn at its own. Set on the primary's last span when an audio track outlasts it, to the
@@ -56,7 +56,7 @@ internal class ClipSpan(
   val rotationDegrees: Int,
   val attributes: Attributes,
   val effects: List<ResolvedEffect>,
-  val still: ImageSource? = null,
+  val still: MediaSource? = null,
   val heldFrom: Duration? = null,
   val placement: ClipPlacement,
   val canvasEffectIndices: List<Int>,
@@ -147,7 +147,7 @@ internal fun ResolvedClip.spanning(
         previewClock = previewClock,
       ),
     effects = effects,
-    still = (source as? MediaSource.Image)?.image,
+    still = source.takeIf { it.heldFor != null },
     heldFrom = heldFrom,
     placement = placement,
     canvasEffectIndices = canvasEffectIndices,

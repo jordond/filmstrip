@@ -5,6 +5,7 @@ import androidx.media3.inspector.MediaExtractorCompat
 import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.media.MediaSource
+import dev.jordond.filmstrip.media.heldFor
 import dev.jordond.filmstrip.media3.internal.bounds.open
 import dev.jordond.filmstrip.media3.internal.bounds.videoTrackIndex
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
@@ -45,7 +46,7 @@ private suspend fun videoTrackEndOf(
   source: MediaSource,
   copyEnd: Duration,
 ): Duration? {
-  if (source is MediaSource.Image) return null
+  if (source.heldFor != null) return null
 
   return withContext(Dispatchers.IO) {
     val extractor = MediaExtractorCompat()

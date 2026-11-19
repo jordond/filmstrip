@@ -8,6 +8,7 @@ import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.media.AudioTrackId
 import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSource
+import dev.jordond.filmstrip.media.heldFor
 import kotlin.time.Duration
 
 /**
@@ -285,7 +286,7 @@ public class Clip(
    */
   public val duration: Duration?
     get() =
-      (source as? MediaSource.Image)?.let { stillHold(it.duration, trim) }
+      source.heldFor?.let { stillHold(it, trim) }
         ?: trim?.duration?.takeIf { isValidClipSpeed(speed) }?.let { outputLengthOf(it, speed) }
 
   /**

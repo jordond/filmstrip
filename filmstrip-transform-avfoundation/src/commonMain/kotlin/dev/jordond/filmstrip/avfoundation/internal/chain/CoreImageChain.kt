@@ -265,10 +265,10 @@ internal class CoreImageChain(
     val drawnAt = span?.heldFrom?.let { minOf(time, it) } ?: time
 
     if (span != null) {
-      // A still is what its whole span draws, so it stands in for the segment AVFoundation decoded
+      // A still or a solid is what its whole span draws, so it stands in for the segment AVFoundation decoded
       // before anything measures or grades the frame. Everything after this is the chain a video
       // clip already runs.
-      span.still?.let { image = stills.of(it) }
+      span.still?.let { image = stills.of(it, span.attributes.inputSize) }
       image = image.rotated(span.rotationDegrees)
       image = image.throughChain(span, FrameInfo(span.attributes, drawnAt), resolved.fill)
     } else {

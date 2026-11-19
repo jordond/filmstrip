@@ -22,6 +22,7 @@ import dev.jordond.filmstrip.media.VideoTrackInfo
 import dev.jordond.filmstrip.media.describe
 import dev.jordond.filmstrip.media.displaySizeOf
 import dev.jordond.filmstrip.media.movieDurationOf
+import dev.jordond.filmstrip.media.probeSolid
 import dev.jordond.filmstrip.media.trackCodecOf
 import dev.jordond.filmstrip.media.trackHeadersOf
 import kotlinx.coroutines.CancellationException
@@ -41,6 +42,9 @@ internal actual class PlatformProber actual constructor() {
       // an image file, so this is answered from the image's own header instead.
       is MediaSource.Image -> {
         probeImage(source)
+      }
+      is MediaSource.Solid -> {
+        probeSolid(source)
       }
       is MediaSource.Path -> {
         source.readContainer { setDataSource(source.path) }
@@ -150,7 +154,7 @@ internal actual class PlatformProber actual constructor() {
         }
         // A still names no container, and bytes reach the extractor as the path they were cached
         // to rather than as themselves.
-        is MediaSource.Bytes, is MediaSource.Image -> {
+        is MediaSource.Bytes, is MediaSource.Image, is MediaSource.Solid -> {
           return TrackRead.Skipped
         }
       }
@@ -187,7 +191,7 @@ internal actual class PlatformProber actual constructor() {
             it.movieHeaders(asset.startOffset, length ?: (it.size() - asset.startOffset))
           }
         }
-        is MediaSource.Bytes, is MediaSource.Image -> {
+        is MediaSource.Bytes, is MediaSource.Image, is MediaSource.Solid -> {
           MovieHeaders.None
         }
       }

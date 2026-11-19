@@ -25,6 +25,7 @@ import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.MediaSource
+import dev.jordond.filmstrip.media.heldFor
 import dev.jordond.filmstrip.transform.internal.geometry.ClipPlacement
 import dev.jordond.filmstrip.transform.internal.geometry.frameAfter
 import dev.jordond.filmstrip.transform.internal.geometry.frameThrough
@@ -345,12 +346,12 @@ private fun speedWithout(
   where: String,
   notices: MutableList<InertNotice>,
 ): Double {
-  if (clip.source !is MediaSource.Image || clip.speed == 1.0) return clip.speed
+  if (clip.source.heldFor == null || clip.speed == 1.0) return clip.speed
   notices +=
     InertNotice(
       SPEED,
       InertReason.NoChangeToFrame,
-      "The speed on $where changes nothing on a still, so it was left out.",
+      "The speed on $where changes nothing on a still or a solid, so it was left out.",
     )
   return 1.0
 }

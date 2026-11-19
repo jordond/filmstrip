@@ -5,6 +5,7 @@ import dev.jordond.filmstrip.avfoundation.photoFixture
 import dev.jordond.filmstrip.avfoundation.readBytes
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ImageSource
+import dev.jordond.filmstrip.media.MediaSource
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.types.shouldBeSameInstanceAs
@@ -12,6 +13,7 @@ import io.kotest.matchers.types.shouldNotBeSameInstanceAs
 import platform.Foundation.NSURL
 import kotlin.test.Test
 import kotlin.test.assertFailsWith
+import kotlin.time.Duration.Companion.seconds
 
 /**
  * The stills a chain holds open for as long as it runs, and what it says when one cannot be opened.
@@ -22,9 +24,9 @@ class CoreImageStillsTest {
     val stills = CoreImageStills()
     val path = photo()
 
-    val first = stills.of(ImageSource.of(path))
+    val first = stills.of(held(ImageSource.of(path)), PHOTO)
 
-    stills.of(ImageSource.of(path)) shouldBeSameInstanceAs first
+    stills.of(held(ImageSource.of(path)), PHOTO) shouldBeSameInstanceAs first
     assertNear(first.rect(), listOf(0.0, 0.0, PHOTO.width.toDouble(), PHOTO.height.toDouble()))
   }
 
@@ -33,9 +35,9 @@ class CoreImageStillsTest {
     val stills = CoreImageStills()
     val uri = NSURL.fileURLWithPath(photo()).absoluteString.shouldNotBeNull()
 
-    val image = stills.of(ImageSource.ofUri(uri))
+    val image = stills.of(held(ImageSource.ofUri(uri)), PHOTO)
 
-    stills.of(ImageSource.ofUri(uri)) shouldBeSameInstanceAs image
+    stills.of(held(ImageSource.ofUri(uri)), PHOTO) shouldBeSameInstanceAs image
     assertNear(image.rect(), listOf(0.0, 0.0, PHOTO.width.toDouble(), PHOTO.height.toDouble()))
   }
 
@@ -44,30 +46,44 @@ class CoreImageStillsTest {
     val stills = CoreImageStills()
     val bytes = readBytes(photo())
 
-    val first = stills.of(ImageSource.ofBytes(bytes))
+    val first = stills.of(held(ImageSource.ofBytes(bytes)), PHOTO)
 
-    stills.of(ImageSource.ofBytes(bytes)) shouldBeSameInstanceAs first
-    stills.of(ImageSource.ofBytes(bytes.copyOf())) shouldNotBeSameInstanceAs first
+    stills.of(held(ImageSource.ofBytes(bytes)), PHOTO) shouldBeSameInstanceAs first
+    stills.of(held(ImageSource.ofBytes(bytes.copyOf())), PHOTO) shouldNotBeSameInstanceAs first
     assertNear(first.rect(), listOf(0.0, 0.0, PHOTO.width.toDouble(), PHOTO.height.toDouble()))
   }
 
   @Test
+  fun `a solid is its colour over the size it was laid at`() {
+    val stills = CoreImageStills()
+    val solid = MediaSource.Solid(0xFF336699.toInt(), 1.seconds)
+
+    val image = stills.of(solid, PHOTO)
+
+    stills.of(solid, PHOTO) shouldBeSameInstanceAs image
+    stills.of(solid, Size(8, 8)) shouldNotBeSameInstanceAs image
+    assertNear(image.rect(), listOf(0.0, 0.0, PHOTO.width.toDouble(), PHOTO.height.toDouble()))
+  }
+
+  @Test
   fun `a missing file fails the lowering and names the path`() {
-    val failure = assertFailsWith<AvLoweringFailure> { CoreImageStills().of(ImageSource.of(MISSING)) }
+    val failure = assertFailsWith<AvLoweringFailure> { CoreImageStills().of(held(ImageSource.of(MISSING)), PHOTO) }
 
     failure.reason shouldContain MISSING
   }
 
   @Test
   fun `empty bytes fail the lowering rather than drawing nothing`() {
-    val failure = assertFailsWith<AvLoweringFailure> { CoreImageStills().of(ImageSource.ofBytes(ByteArray(0))) }
+    val empty = held(ImageSource.ofBytes(ByteArray(0)))
+    val failure = assertFailsWith<AvLoweringFailure> { CoreImageStills().of(empty, PHOTO) }
 
     failure.reason shouldContain "bytes[0]"
   }
 
   @Test
   fun `bytes no decoder reads fail the lowering`() {
-    assertFailsWith<AvLoweringFailure> { CoreImageStills().of(ImageSource.ofBytes(ByteArray(64) { it.toByte() })) }
+    val noise = held(ImageSource.ofBytes(ByteArray(64) { it.toByte() }))
+    assertFailsWith<AvLoweringFailure> { CoreImageStills().of(noise, PHOTO) }
   }
 
   private fun photo(): String = photoFixture("core-image-stills", PHOTO, Triple(200, 120, 40))
@@ -77,3 +93,5 @@ class CoreImageStillsTest {
     const val MISSING = "/filmstrip/does-not-exist.png"
   }
 }
+
+private fun held(image: ImageSource): MediaSource = MediaSource.Image(image, 1.seconds)

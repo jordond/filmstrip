@@ -28,6 +28,7 @@ internal fun timelineOf(
   lowering: StageLowering,
   audioLowering: AudioEffectLowering,
   naturalSize: Size,
+  solidSize: Size,
 ): Phase<Timeline> {
   // The structural refusals already turned away an edit where every track loops, so at least one
   // track bounds the composition.
@@ -47,6 +48,7 @@ internal fun timelineOf(
       layoutFrame = encoding.layoutFrame,
       compositionGeometry = compositionGeometry,
       naturalSize = naturalSize,
+      solidSize = solidSize,
       compositionGain = edit.audio.flatGain(),
       startsAtKeyFrame = grade.path == ExportPath.Copy,
       audioLowering = audioLowering,

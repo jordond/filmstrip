@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip.media3.internal
 
+import android.net.Uri
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.SpeedParameters
@@ -69,10 +70,10 @@ internal class Lowering(
       val slots = outputSlotsOf(clip.span, rate)
       if (slots.isEmpty()) return@forEach
       val length = outputSlotTime(slots.last + 1, rate) - outputSlotTime(slots.first, rate)
-      val still = clip.source as? MediaSource.Image
+      val picture = clip.picture()
       when {
-        still != null -> {
-          builder.addItem(clip.imageItem(still, length, removeAudio = true, removeVideo = false))
+        picture != null -> {
+          builder.addItem(clip.pictureItem(picture, length, removeAudio = true, removeVideo = false))
           at += length.laidBy()
         }
         clip.info.video == null -> {
@@ -117,13 +118,13 @@ internal class Lowering(
     // A lone clip at full volume is already the format the sequence outputs, so it doesn't need mixing.
     val mixesAudio = track.clips.size > 1
     track.clips.forEach { clip ->
-      val still = clip.source as? MediaSource.Image
+      val picture = clip.picture()
       when {
-        removeVideo && (still != null || clip.info.audio == null) -> {
+        removeVideo && (picture != null || clip.info.audio == null) -> {
           builder.addGap(clip.outputDuration.inWholeMicroseconds)
         }
-        still != null -> {
-          builder.addItem(clip.imageItem(still, clip.outputDuration, removeAudio, removeVideo))
+        picture != null -> {
+          builder.addItem(clip.pictureItem(picture, clip.outputDuration, removeAudio, removeVideo))
         }
         else -> {
           builder.addItem(clip.exactItem(removeAudio, removeVideo, mixesAudio))
@@ -333,18 +334,36 @@ internal class Lowering(
       }.build()
 
   /**
-   * The item a still lowers to, held for [length].
+   * The picture this clip holds for its span, or null when it is a clip with samples of its own.
    *
-   * media3 chooses its image loader by MIME type, and the loader wants both a duration and a rate to
-   * hold the picture at, since a still carries neither. The type is the one the probe read out of the
-   * image's own header rather than a guess from the URI, because neither a cached copy of a byte
-   * buffer nor a `content://` reference is guaranteed to carry a file extension.
+   * A still is read from where its source names, typed by the format the probe read out of the image's own header
+   * rather than a guess from the URI, because neither a cached copy of a byte buffer nor a `content://` reference is
+   * guaranteed to carry a file extension. A solid is a PNG of its colour at the size the plan laid it at.
+   */
+  private fun ResolvedClip.picture(): HeldPicture? =
+    when (val source = source) {
+      is MediaSource.Image -> {
+        HeldPicture(source.image.toAndroidUri(stillFormat), stillFormat?.let { "$IMAGE_MIME_PREFIX$it" })
+      }
+      is MediaSource.Solid -> {
+        HeldPicture(solidPngUri(source.color, checkNotNull(info.video).displaySize), PNG_MIME)
+      }
+      is MediaSource.Path, is MediaSource.Uri, is MediaSource.Bytes -> {
+        null
+      }
+    }
+
+  /**
+   * The item a held [picture] lowers to, held for [length].
+   *
+   * media3 chooses its image loader by MIME type, and the loader wants both a duration and a rate to hold the picture
+   * at, since a picture carries neither.
    *
    * The length comes from the resolved clip, whose trim the plan has already collapsed into its span. An image item has
    * no samples to clip, so there is no clipping configuration here for one to reach.
    */
-  private fun ResolvedClip.imageItem(
-    source: MediaSource.Image,
+  private fun ResolvedClip.pictureItem(
+    picture: HeldPicture,
     length: Duration,
     removeAudio: Boolean,
     removeVideo: Boolean,
@@ -354,8 +373,8 @@ internal class Lowering(
     val mediaItem =
       MediaItem
         .Builder()
-        .setUri(source.image.toAndroidUri(stillFormat))
-        .apply { stillFormat?.let { setMimeType("$IMAGE_MIME_PREFIX$it") } }
+        .setUri(picture.uri)
+        .apply { picture.mimeType?.let { setMimeType(it) } }
         .setImageDurationMs(length.heldMilliseconds())
         .build()
 
@@ -428,5 +447,13 @@ private const val GAP_FRAME_URI =
 private const val IMAGE_MIME_PREFIX = "image/"
 
 private const val GAP_FRAME_MIME = "${IMAGE_MIME_PREFIX}png"
+
+private const val PNG_MIME = GAP_FRAME_MIME
+
+// Where a held picture is read from, and the type that routes it to media3's image loader when there is one.
+private class HeldPicture(
+  val uri: Uri,
+  val mimeType: String?,
+)
 
 private const val MICROS_PER_MILLISECOND = 1000L

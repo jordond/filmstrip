@@ -28,6 +28,9 @@ internal fun MediaSource.toAndroidUri(): Uri =
       // Lowered by imageItem, which reaches the still through ImageSource.toAndroidUri instead.
       throw Media3LoweringFailure("${image.describe()} is a still, which is not lowered as a plain URI.")
     }
+    is MediaSource.Solid -> {
+      throw Media3LoweringFailure("${describe()} has no file to open as a URI.")
+    }
   }
 
 /**

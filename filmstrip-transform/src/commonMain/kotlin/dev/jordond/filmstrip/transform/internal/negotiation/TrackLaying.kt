@@ -12,6 +12,8 @@ import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.clipAudioTrackOf
+import dev.jordond.filmstrip.media.heldFor
+import dev.jordond.filmstrip.media.solidMediaInfoOf
 import dev.jordond.filmstrip.transform.internal.LaidPass
 import dev.jordond.filmstrip.transform.internal.MAX_LAID_PASSES
 import dev.jordond.filmstrip.transform.internal.geometry.placementOf
@@ -43,6 +45,7 @@ internal class LaidTrack(
  * effects, and which every clip's placement is folded through.
  * @param naturalSize The frame the composition writes with no height asked of it, which each placement is measured
  *   against.
+ * @param solidSize The frame clips land in, which a solid is drawn at so it covers that frame under any fit.
  * @param compositionGain The composition's own level, multiplied into every pass.
  * @param startsAtKeyFrame Whether every pass opens on a sync sample, which is true only on a copy.
  * @param isHeard Whether anything of a clip on a track is heard. A clip that is not runs no audio effect.
@@ -54,11 +57,15 @@ internal class TrackLayer(
   private val layoutFrame: Size,
   private val compositionGeometry: List<EffectSpec>,
   private val naturalSize: Size,
+  private val solidSize: Size,
   private val compositionGain: Float,
   private val startsAtKeyFrame: Boolean,
   private val audioLowering: AudioEffectLowering,
   private val isHeard: (Track, Clip) -> Boolean,
 ) {
+  private fun laidInfoOf(source: MediaSource): MediaInfo =
+    if (source is MediaSource.Solid) solidMediaInfoOf(source, solidSize) else infos.getValue(source)
+
   /**
    * Lays [track] over [runLength], each clip opening and closing on its window in [windows].
    */
@@ -82,7 +89,8 @@ internal class TrackLayer(
     val clips =
       passesCovering(lengths, runLength).map { pass ->
         val clip = track.clips[pass.index]
-        val info = infos.getValue(clip.source)
+        // A solid is laid at the frame it lands in, so every backend draws it from the one size.
+        val info = laidInfoOf(clip.source)
         val window = windows[pass.index]
         val from = window.from
         // The clip's own length on the timeline, which its curve and its fades are written over
@@ -245,7 +253,7 @@ internal fun laidWindowOf(
   openAt: Duration? = null,
 ): LaidWindow? {
   val (from, to) = trimWindow(clip, info, openAt) ?: return null
-  val speed = if (clip.source is MediaSource.Image) 1.0 else clip.speed
+  val speed = if (clip.source.heldFor != null) 1.0 else clip.speed
   val length = outputLengthOf(to - from, speed)
   return if (length <= Duration.ZERO) null else LaidWindow(from, to, length, speed)
 }
@@ -266,7 +274,7 @@ internal fun trimWindow(
   info: MediaInfo,
   openAt: Duration? = null,
 ): Pair<Duration, Duration>? {
-  if (clip.source is MediaSource.Image) {
+  if (clip.source.heldFor != null) {
     val hold = stillHold(info.duration, clip.trim)
     return if (hold <= Duration.ZERO) null else Duration.ZERO to hold
   }

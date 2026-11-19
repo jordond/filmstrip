@@ -18,6 +18,7 @@ import dev.jordond.filmstrip.media.audioTrackIdOf
 import dev.jordond.filmstrip.media.containerExtensionOf
 import dev.jordond.filmstrip.media.describe
 import dev.jordond.filmstrip.media.displaySizeOf
+import dev.jordond.filmstrip.media.probeSolid
 import dev.jordond.filmstrip.media.trackCodecOf
 import kotlinx.cinterop.COpaquePointer
 import kotlinx.cinterop.ExperimentalForeignApi
@@ -104,6 +105,9 @@ internal actual class PlatformProber internal constructor(
           // all, so this is answered from the image's own header instead.
           is MediaSource.Image -> {
             return@withContext probeImage(source)
+          }
+          is MediaSource.Solid -> {
+            return@withContext probeSolid(source)
           }
           is MediaSource.Path -> {
             NSURL.fileURLWithPath(source.path)

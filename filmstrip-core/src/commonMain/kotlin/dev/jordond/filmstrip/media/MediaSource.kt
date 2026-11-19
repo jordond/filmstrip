@@ -105,6 +105,24 @@ public sealed interface MediaSource {
     public val duration: Duration,
   ) : MediaSource
 
+  /**
+   * One colour held on screen for a fixed length of time, with silence under it.
+   *
+   * A gap of black, a slate or the ground of a title card. A solid has no size and no frame rate of its own. It is
+   * stretched over the whole output frame whatever the clip's fit asks for, so a composition made only of solids needs
+   * an [dev.jordond.filmstrip.edit.OutputFrame.Fixed] frame to say how big it is. A trim and a speed behave as they do
+   * on an [Image].
+   *
+   * @property color The colour as packed ARGB, as [dev.jordond.filmstrip.geometry.Fill.Solid] takes it.
+   * @property duration How long the colour is held.
+   */
+  @Poko
+  @ExperimentalFilmstripApi
+  public class Solid(
+    public val color: Int,
+    public val duration: Duration,
+  ) : MediaSource
+
   public companion object {
     /**
      * A source reading from [path].
@@ -132,6 +150,15 @@ public sealed interface MediaSource {
       image: ImageSource,
       duration: Duration,
     ): MediaSource = Image(image, duration)
+
+    /**
+     * A source holding the packed ARGB [color] on screen for [duration].
+     */
+    @ExperimentalFilmstripApi
+    public fun ofSolid(
+      color: Int,
+      duration: Duration,
+    ): MediaSource = Solid(color, duration)
   }
 }
 
@@ -157,4 +184,23 @@ public fun MediaSource.describe(): String =
     is MediaSource.Uri -> uri
     is MediaSource.Bytes -> "bytes[${bytes.size}]"
     is MediaSource.Image -> image.describe()
+    is MediaSource.Solid -> "solid #${color.toUInt().toString(HEX).padStart(ARGB_DIGITS, '0')} for $duration"
   }
+
+/**
+ * How long this source holds one picture for, or null when it is media with a cadence of its own.
+ *
+ * An [MediaSource.Image] and a [MediaSource.Solid] contribute the same pixels for their whole span, so neither is
+ * measured for a frame rate, slowed by a speed or copied.
+ */
+@InternalFilmstripApi
+public val MediaSource.heldFor: Duration?
+  get() =
+    when (this) {
+      is MediaSource.Image -> duration
+      is MediaSource.Solid -> duration
+      is MediaSource.Path, is MediaSource.Uri, is MediaSource.Bytes -> null
+    }
+
+private const val HEX = 16
+private const val ARGB_DIGITS = 8

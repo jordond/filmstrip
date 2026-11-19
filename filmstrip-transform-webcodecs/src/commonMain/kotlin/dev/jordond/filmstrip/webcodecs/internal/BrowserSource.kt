@@ -326,7 +326,7 @@ internal class SourceReader(
             null
           }
           // A still has no container for the demuxer to open.
-          is MediaSource.Image -> {
+          is MediaSource.Image, is MediaSource.Solid -> {
             null
           }
         }

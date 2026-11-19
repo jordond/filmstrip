@@ -39,6 +39,7 @@ import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.VideoTrackInfo
 import dev.jordond.filmstrip.media.imageMediaInfoOf
+import dev.jordond.filmstrip.media.solidMediaInfoOf
 import dev.jordond.filmstrip.media.trackCodecOf
 import dev.jordond.filmstrip.transform.internal.negotiation.Ask
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
@@ -263,6 +264,20 @@ internal class PlannerFixture {
     return Clip(source, trim)
   }
 
+  /**
+   * A solid of [color] held for [duration], reported the way core's probe reports one.
+   */
+  fun solidClip(
+    color: Int = BLACK,
+    duration: Duration = 2_000.milliseconds,
+    trim: TimeRange? = null,
+    speed: Double = 1.0,
+  ): Clip {
+    val source = MediaSource.Solid(color, duration)
+    registry[source] = solidMediaInfoOf(source)
+    return Clip(source, trim, speed = speed)
+  }
+
   fun device(
     video: List<VideoEncoderCapability> = listOf(encoder(VideoCodec.H264), encoder(VideoCodec.Hevc)),
     audio: List<AudioEncoderCapability> = listOf(AudioEncoderCapability(AudioCodec.Aac, listOf(48_000), 2)),
@@ -380,3 +395,5 @@ internal val CONVERTS_IT = Degradation(DegradationReason.ColorSpaceConverted, "t
  * A third cause a test can hand [FakeResolver], so a cause between the first and last can be checked.
  */
 internal val CLAMPS_IT = Degradation(DegradationReason.ResolutionClamped, "this resolver clamps its size")
+
+private const val BLACK = 0xFF000000.toInt()

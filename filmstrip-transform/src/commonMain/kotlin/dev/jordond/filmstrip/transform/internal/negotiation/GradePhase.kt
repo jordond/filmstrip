@@ -8,6 +8,7 @@ import dev.jordond.filmstrip.export.CopyBlocker
 import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.export.HdrMode
 import dev.jordond.filmstrip.media.MediaSource
+import dev.jordond.filmstrip.media.heldFor
 import dev.jordond.filmstrip.transform.internal.copy.CopySupport
 import dev.jordond.filmstrip.transform.internal.copy.copyBlockers
 import dev.jordond.filmstrip.transform.internal.copy.copyOpening
@@ -119,7 +120,7 @@ private fun drawnSdrSources(
     .map { it.source }
     .distinct()
     .filter { source ->
-      source !is MediaSource.Image && ask.infos[source]?.video?.let { it.hdrTransfer == null } == true
+      source.heldFor == null && ask.infos[source]?.video?.let { it.hdrTransfer == null } == true
     }
 
 /**

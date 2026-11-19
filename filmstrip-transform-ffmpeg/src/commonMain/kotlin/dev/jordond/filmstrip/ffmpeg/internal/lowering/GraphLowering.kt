@@ -161,14 +161,7 @@ internal class GraphLowering(
       val indices = mutableMapOf<Int, Int>()
       track.clips.forEach { clip ->
         indices.getOrPut(clip.sourceIndex) {
-          val path = checkNotNull(readablePath(clip.source, bytesRoot)) { UNREADABLE_SOURCE }
-          inputs.size.also {
-            inputs +=
-              InputSpec(
-                source = InputSource.OfPath(path, clip.source.describe()),
-                decoderThreads = if (runsLook) LOOK_DECODER_THREADS else null,
-              )
-          }
+          inputs.size.also { inputs += inputOf(clip) }
         }
       }
       clipInput += indices
@@ -202,6 +195,16 @@ internal class GraphLowering(
       sidecars = sidecars.distinct(),
       liveForm = liveForm,
       liveFallback = liveFallback,
+    )
+  }
+
+  private fun inputOf(clip: ResolvedClip): InputSpec {
+    val solid = clip.source as? MediaSource.Solid
+    if (solid != null) return InputSpec(source = solidInput(solid, clip, frameRate))
+    val path = checkNotNull(readablePath(clip.source, bytesRoot)) { UNREADABLE_SOURCE }
+    return InputSpec(
+      source = InputSource.OfPath(path, clip.source.describe()),
+      decoderThreads = if (runsLook) LOOK_DECODER_THREADS else null,
     )
   }
 

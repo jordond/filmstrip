@@ -43,3 +43,13 @@ public fun browserCanDecodeVideo(): Boolean = hasVideoDecoder()
  */
 @InternalFilmstripApi
 public fun browserCanDecodeAudio(): Boolean = hasAudioDecoder()
+
+/**
+ * How many decoded frames the look-ahead holds.
+ *
+ * A count of frames, so a clip at three frames a second holds four seconds of decoded video at
+ * most. Under half a second at thirty frames a second, which is more than a preview polled at
+ * display rate needs to stay ahead of its playhead, and few enough that a 4K clip's worth of
+ * decoded frames does not swamp the tab.
+ */
+internal const val PREVIEW_LOOK_AHEAD: Int = 12

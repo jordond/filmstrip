@@ -40,6 +40,12 @@ internal object AndroidClipParity : ClipParityBackend {
   // opening floor.
   override fun minSsimAt(slot: Long): Double = encodedMinSsimAt(slot, minSsim)
 
+  // The encoder's limit: c2.android.avc.encoder codes a cut from a flat frame with no key frame, so a clip after a
+  // solid reads 0.934 on luma against the preview on the cut and 0.957 to 0.968 for the rest of its span on the API 36
+  // AVD, where the same frames of the clip exported alone agree with that export at 0.988. A frame either side reads
+  // at most 0.90, so a wrong frame still fails.
+  override val minSsimAfterSolid: Double get() = minOf(minSsim, AFTER_SOLID_MIN_SSIM)
+
   // media3's limit: the player's getFrame takes whole milliseconds, so a read that close to a frame's own time can land
   // on either side of it.
   override val previewReadSlack: Duration get() = 1.milliseconds
@@ -66,4 +72,5 @@ internal object AndroidClipParity : ClipParityBackend {
   ): TestFrame = androidExportFrameCovering(composition, position)
 
   private const val OMX_ENCODED_MIN_SSIM = 0.98
+  private const val AFTER_SOLID_MIN_SSIM = 0.92
 }

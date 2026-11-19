@@ -661,6 +661,8 @@ public final class dev/jordond/filmstrip/edit/CompositionBuilder {
 	public final fun frame (Ldev/jordond/filmstrip/edit/OutputFrame;)Ldev/jordond/filmstrip/edit/CompositionBuilder;
 	public final fun image-8Mi8wO0 (Ldev/jordond/filmstrip/media/ImageSource;JLkotlin/jvm/functions/Function1;)Ldev/jordond/filmstrip/edit/CompositionBuilder;
 	public static synthetic fun image-8Mi8wO0$default (Ldev/jordond/filmstrip/edit/CompositionBuilder;Ldev/jordond/filmstrip/media/ImageSource;JLkotlin/jvm/functions/Function1;ILjava/lang/Object;)Ldev/jordond/filmstrip/edit/CompositionBuilder;
+	public final fun solid-8Mi8wO0 (IJLkotlin/jvm/functions/Function1;)Ldev/jordond/filmstrip/edit/CompositionBuilder;
+	public static synthetic fun solid-8Mi8wO0$default (Ldev/jordond/filmstrip/edit/CompositionBuilder;IJLkotlin/jvm/functions/Function1;ILjava/lang/Object;)Ldev/jordond/filmstrip/edit/CompositionBuilder;
 	public final fun track (Ldev/jordond/filmstrip/edit/TrackContent;Lkotlin/jvm/functions/Function1;)Ldev/jordond/filmstrip/edit/CompositionBuilder;
 	public static synthetic fun track$default (Ldev/jordond/filmstrip/edit/CompositionBuilder;Ldev/jordond/filmstrip/edit/TrackContent;Lkotlin/jvm/functions/Function1;ILjava/lang/Object;)Ldev/jordond/filmstrip/edit/CompositionBuilder;
 }
@@ -792,6 +794,8 @@ public final class dev/jordond/filmstrip/edit/TrackBuilder {
 	public static synthetic fun image-8Mi8wO0$default (Ldev/jordond/filmstrip/edit/TrackBuilder;Ldev/jordond/filmstrip/media/ImageSource;JLkotlin/jvm/functions/Function1;ILjava/lang/Object;)Ldev/jordond/filmstrip/edit/TrackBuilder;
 	public final fun looping (Z)Ldev/jordond/filmstrip/edit/TrackBuilder;
 	public static synthetic fun looping$default (Ldev/jordond/filmstrip/edit/TrackBuilder;ZILjava/lang/Object;)Ldev/jordond/filmstrip/edit/TrackBuilder;
+	public final fun solid-8Mi8wO0 (IJLkotlin/jvm/functions/Function1;)Ldev/jordond/filmstrip/edit/TrackBuilder;
+	public static synthetic fun solid-8Mi8wO0$default (Ldev/jordond/filmstrip/edit/TrackBuilder;IJLkotlin/jvm/functions/Function1;ILjava/lang/Object;)Ldev/jordond/filmstrip/edit/TrackBuilder;
 	public final fun startAt-LRDsOJo (J)Ldev/jordond/filmstrip/edit/TrackBuilder;
 }
 
@@ -1739,6 +1743,7 @@ public final class dev/jordond/filmstrip/media/MediaSource$Companion {
 	public final fun ofBytes ([BLdev/jordond/filmstrip/media/FormatHint;)Ldev/jordond/filmstrip/media/MediaSource;
 	public static synthetic fun ofBytes$default (Ldev/jordond/filmstrip/media/MediaSource$Companion;[BLdev/jordond/filmstrip/media/FormatHint;ILjava/lang/Object;)Ldev/jordond/filmstrip/media/MediaSource;
 	public final fun ofImage-HG0u8IE (Ldev/jordond/filmstrip/media/ImageSource;J)Ldev/jordond/filmstrip/media/MediaSource;
+	public final fun ofSolid-HG0u8IE (IJ)Ldev/jordond/filmstrip/media/MediaSource;
 	public final fun ofUri (Ljava/lang/String;)Ldev/jordond/filmstrip/media/MediaSource;
 }
 
@@ -1755,6 +1760,15 @@ public final class dev/jordond/filmstrip/media/MediaSource$Path : dev/jordond/fi
 	public fun <init> (Ljava/lang/String;)V
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getPath ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/jordond/filmstrip/media/MediaSource$Solid : dev/jordond/filmstrip/media/MediaSource {
+	public synthetic fun <init> (IJLkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getColor ()I
+	public final fun getDuration-UwyO8pc ()J
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
 }

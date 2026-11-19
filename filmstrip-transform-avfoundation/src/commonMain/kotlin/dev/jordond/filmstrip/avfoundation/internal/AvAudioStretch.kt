@@ -8,6 +8,7 @@ import dev.jordond.filmstrip.edit.audioFramesOf
 import dev.jordond.filmstrip.export.AudioFormat
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.describe
+import dev.jordond.filmstrip.media.heldFor
 import dev.jordond.filmstrip.transform.internal.audio.KernelChain
 import dev.jordond.filmstrip.transform.internal.audio.timelineFrameOf
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedAudioEffect
@@ -189,7 +190,7 @@ internal class StretchedAudio(
     tracks
       .filter { it.content != TrackContent.Video }
       .flatMap { it.clips }
-      .filter { it.source !is MediaSource.Image }
+      .filter { it.source.heldFor == null }
       .filter { it.speed != 1.0 || (bakesEffects && it.audioEffects.isNotEmpty()) }
 
   /**

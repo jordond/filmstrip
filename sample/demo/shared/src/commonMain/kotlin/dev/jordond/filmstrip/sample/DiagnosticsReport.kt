@@ -306,6 +306,7 @@ internal fun MediaSource.redactedName(): String =
     is MediaSource.Uri -> uri.redactLocation()
     is MediaSource.Bytes -> "bytes-${bytes.size}"
     is MediaSource.Image -> "image-${image.redactedName()}"
+    is MediaSource.Solid -> "solid"
   }
 
 private fun ImageSource.redactedName(): String =

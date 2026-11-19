@@ -27,6 +27,23 @@ since a photo's bounds are a sensor's and not a frame an encoder is built for. S
 Android and Apple put a still on the timeline. The JVM and browser backends decode their picture from a video track, so
 they refuse a still by name wherever it appears, an audio track included.
 
+## A solid colour
+
+`solid` adds one colour held for a duration, as packed ARGB like `Fill.Solid`. It's a gap of black, a slate, or the
+ground under a title. It's also `@ExperimentalFilmstripApi`, and every backend puts one on the timeline.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Stills.kt" region="solid" />
+
+A solid covers the whole frame whatever the clip's fit says, and its audio is silence. Like a photo it has no frame
+rate, a trim keeps only the length it names, and a speed on it changes nothing and shows up in `inertNotices`. Clip
+and track effects still run on it, so a colour grade or an overlay on a solid works. A colour with alpha below 255 is
+blended over the fill.
+
+A solid has no size, so the frame comes from the first clip that has one. An edit made only of solids needs an
+`OutputFrame.Fixed`, and without one the plan refuses it as `InvalidComposition`.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Stills.kt" region="solids-alone" />
+
 ## Write a frame to a file
 
 `still` renders a frame of a composition, encodes it and writes it to a sink. It decodes at the size it writes, so it

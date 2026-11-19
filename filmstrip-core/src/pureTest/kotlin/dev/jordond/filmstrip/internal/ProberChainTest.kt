@@ -13,6 +13,7 @@ import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.ProbeResult
 import dev.jordond.filmstrip.media.describe
 import dev.jordond.filmstrip.media.imageMediaInfoOf
+import dev.jordond.filmstrip.media.solidMediaInfoOf
 import dev.jordond.filmstrip.media.trackCodecOf
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
@@ -104,6 +105,20 @@ class ProberChainTest {
       val result = chainedProber(ComponentRegistry.Builder().build(), last = answering(AUDIO_ONLY)).probe(source)
 
       result.shouldBeInstanceOf<ProbeResult.Success>().info shouldBe AUDIO_ONLY
+    }
+
+  @Test
+  fun `a solid is answered before any prober is asked`() =
+    runTest {
+      val asked = mutableListOf<String>()
+      val components =
+        ComponentRegistry.Builder().addMediaProberFactory(MediaProberFactory { refusing("registered", asked) }).build()
+      val solid = MediaSource.Solid(0xFF000000.toInt(), 2.seconds)
+
+      val result = chainedProber(components, last = refusing("last", asked)).probe(solid)
+
+      result.shouldBeInstanceOf<ProbeResult.Success>().info shouldBe solidMediaInfoOf(solid)
+      asked shouldBe emptyList()
     }
 
   @Test

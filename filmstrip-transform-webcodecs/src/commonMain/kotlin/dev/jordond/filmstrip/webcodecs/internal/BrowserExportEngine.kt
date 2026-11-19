@@ -159,7 +159,8 @@ public class BrowserExportEngine(
     // render reads, the audio tracks' included.
     val readable =
       render.clips.map { it.source } + render.audioTracks.flatMap { track -> track.clips.map { it.source } }
-    readable.distinct().firstOrNull { sources.open(it) == null }?.let { source ->
+    // A solid is drawn from its colour and reads no source.
+    readable.distinct().filterNot { it is MediaSource.Solid }.firstOrNull { sources.open(it) == null }?.let { source ->
       emit(ExportStatus.Failure(unreadableSource(source)))
       return
     }

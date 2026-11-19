@@ -32,4 +32,6 @@ internal fun readablePath(
     // A still names a file, but not one this backend reads as a clip, and answering with its path
     // would have ffprobe report the file's own zero duration over the one the source declares.
     is MediaSource.Image -> null
+    // A solid is drawn by a generated input and names no file at all.
+    is MediaSource.Solid -> null
   }

@@ -27,12 +27,18 @@ internal fun fillArgb(fill: Fill): Int =
 
 private fun renderColor(argb: Int): String = "0x" + (argb and 0xFFFFFF).toString(16).padStart(HEX_DIGITS, '0')
 
+// A colour with its alpha, written as ffmpeg's 0xRRGGBBAA.
+internal fun solidColor(argb: Int): String =
+  renderColor(argb) + (argb ushr ALPHA_SHIFT).toString(16).padStart(ALPHA_DIGITS, '0')
+
 // The same vocabulary as fillColor, for a pad or tpad frame that has to render as empty rather than
 // as the fill: fully transparent, so a flatten further down the graph can tell an empty pixel from
 // one the fill actually painted.
 internal fun transparentColor(): String = "black@0"
 
 private const val HEX_DIGITS = 6
+private const val ALPHA_DIGITS = 2
+private const val ALPHA_SHIFT = 24
 private const val BLACK = 0xFF000000.toInt()
 
 /**

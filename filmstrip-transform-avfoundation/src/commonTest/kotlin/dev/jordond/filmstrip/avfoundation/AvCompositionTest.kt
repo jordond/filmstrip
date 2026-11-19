@@ -705,7 +705,7 @@ class AvCompositionTest {
       val composition = resolved(listOf(imageClip(PHOTO)), PHOTO)
 
       composition.composition.duration.toDuration() shouldBe PHOTO
-      composition.spans.single().still shouldBe PHOTO_IMAGE
+      composition.spans.single().still shouldBe MediaSource.Image(PHOTO_IMAGE, PHOTO)
       composition.spans.single().start shouldBe Duration.ZERO
     }
 
@@ -725,7 +725,7 @@ class AvCompositionTest {
       composition.composition.duration.toDuration() shouldBe 1.seconds + PHOTO
       composition.spans.size shouldBe 2
       composition.spans.first().still shouldBe null
-      composition.spans.last().still shouldBe PHOTO_IMAGE
+      composition.spans.last().still shouldBe MediaSource.Image(PHOTO_IMAGE, PHOTO)
       composition.spans.last().start shouldBe 1.seconds
     }
 
@@ -752,7 +752,7 @@ class AvCompositionTest {
 
       composition.chain?.updateParameters(resolvedComposition(clips, PHOTO))
 
-      composition.spans.single().still shouldBe PHOTO_IMAGE
+      composition.spans.single().still shouldBe MediaSource.Image(PHOTO_IMAGE, PHOTO)
     }
 
   // A crop or a scale changing a clip's fit moves nothing on the timeline, so a swap has to carry the clip's new

@@ -3,8 +3,10 @@ package dev.jordond.filmstrip.docs.guides
 import dev.jordond.filmstrip.ExperimentalFilmstripApi
 import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.edit.Composition
+import dev.jordond.filmstrip.edit.OutputFrame
 import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.export.ExportSpec
+import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.FrameResult
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaSink
@@ -24,6 +26,31 @@ internal fun photoOnTimeline(): Composition {
     compositionOf {
       image(ImageSource.of("/path/to/title.jpg"), duration = 3.seconds)
       clip(MediaSource.of("/path/to/clip.mp4"))
+    }
+  // endregion
+  return composition
+}
+
+@OptIn(ExperimentalFilmstripApi::class)
+internal fun solidOnTimeline(): Composition {
+  // region solid
+  val composition =
+    compositionOf {
+      solid(0xFF000000.toInt(), duration = 1.seconds)
+      clip(MediaSource.of("/path/to/clip.mp4"))
+      solid(0xFF1E3A5F.toInt(), duration = 2.seconds)
+    }
+  // endregion
+  return composition
+}
+
+@OptIn(ExperimentalFilmstripApi::class)
+internal fun solidsAlone(): Composition {
+  // region solids-alone
+  val composition =
+    compositionOf {
+      solid(0xFF1E3A5F.toInt(), duration = 3.seconds)
+      frame(OutputFrame.Fixed(Size(1920, 1080)))
     }
   // endregion
   return composition

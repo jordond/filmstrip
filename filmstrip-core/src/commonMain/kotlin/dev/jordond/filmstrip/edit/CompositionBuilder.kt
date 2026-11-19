@@ -65,6 +65,16 @@ public class CompositionBuilder public constructor() {
   ): CompositionBuilder = clip(MediaSource.Image(image, duration), block)
 
   /**
+   * Appends the packed ARGB [color] to the primary track, held for [duration] and configured by [block].
+   */
+  @ExperimentalFilmstripApi
+  public fun solid(
+    color: Int,
+    duration: Duration,
+    block: ClipBuilder.() -> Unit = {},
+  ): CompositionBuilder = clip(MediaSource.Solid(color, duration), block)
+
+  /**
    * Appends an already-built clip to the primary track.
    */
   public fun addClip(clip: Clip): CompositionBuilder = apply { primary += clip }
@@ -185,6 +195,16 @@ public class TrackBuilder public constructor(
     duration: Duration,
     block: ClipBuilder.() -> Unit = {},
   ): TrackBuilder = clip(MediaSource.Image(image, duration), block)
+
+  /**
+   * Appends the packed ARGB [color], held for [duration] and configured by [block].
+   */
+  @ExperimentalFilmstripApi
+  public fun solid(
+    color: Int,
+    duration: Duration,
+    block: ClipBuilder.() -> Unit = {},
+  ): TrackBuilder = clip(MediaSource.Solid(color, duration), block)
 
   /**
    * Appends an already-built clip.

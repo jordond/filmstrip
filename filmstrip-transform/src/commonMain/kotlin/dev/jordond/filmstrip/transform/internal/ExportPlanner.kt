@@ -259,6 +259,7 @@ public class ExportPlanner(
         lowering,
         audioLowering,
         framing.naturalSize,
+        framing.compositionInputSize,
       ).orElse { return refused(it) }
 
     val rest =

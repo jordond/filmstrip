@@ -14,6 +14,7 @@ import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.MediaProber
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
+import dev.jordond.filmstrip.media.heldFor
 import dev.jordond.filmstrip.media3.internal.bounds.Media3ClipReads
 import dev.jordond.filmstrip.media3.internal.bounds.open
 import dev.jordond.filmstrip.media3.internal.bounds.readClips
@@ -70,9 +71,9 @@ internal class Media3Driver(
     source: MediaSource,
     cut: Duration,
   ): Duration? {
-    // A still carries no container, and so no sync sample of its own to read. Checked ahead of the
+    // A still or a solid carries no container, and so no sync sample of its own to read. Checked ahead of the
     // dispatcher switch below, so asking about one costs nothing.
-    if (source is MediaSource.Image) return null
+    if (source.heldFor != null) return null
 
     return withContext(Dispatchers.IO) {
       val extractor = MediaExtractorCompat()

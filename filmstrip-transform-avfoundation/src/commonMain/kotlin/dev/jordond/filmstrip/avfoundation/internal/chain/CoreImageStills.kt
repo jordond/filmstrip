@@ -1,12 +1,15 @@
 package dev.jordond.filmstrip.avfoundation.internal.chain
 
 import dev.jordond.filmstrip.avfoundation.internal.failure.AvLoweringFailure
+import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ImageSource
+import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.describe
 import kotlinx.cinterop.BetaInteropApi
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.addressOf
 import kotlinx.cinterop.usePinned
+import platform.CoreGraphics.CGRectMake
 import platform.CoreImage.CIImage
 import platform.Foundation.NSData
 import platform.Foundation.NSLock
@@ -29,17 +32,20 @@ internal class CoreImageStills {
   private val opened = mutableMapOf<Any, CIImage>()
 
   /**
-   * [source] as a Core Image image.
+   * [source] as a Core Image image, a solid as its colour over [size].
    *
-   * @throws AvLoweringFailure when the image cannot be opened, since a span with nothing to draw
+   * @throws AvLoweringFailure when a still cannot be opened, since a span with nothing to draw
    *   would otherwise pass the seed's own frame off as the photo.
    */
-  fun of(source: ImageSource): CIImage {
-    val key = source.key()
+  fun of(
+    source: MediaSource,
+    size: Size,
+  ): CIImage {
+    val key = source.key(size)
     lock.lock()
     try {
       opened[key]?.let { return it }
-      val image = source.open() ?: throw AvLoweringFailure(unreadable(source))
+      val image = source.open(size)
       opened[key] = image
       return image
     } finally {
@@ -47,6 +53,13 @@ internal class CoreImageStills {
     }
   }
 }
+
+private fun MediaSource.key(size: Size): Any =
+  when (this) {
+    is MediaSource.Image -> image.key()
+    is MediaSource.Solid -> "solid:$color:$size"
+    is MediaSource.Path, is MediaSource.Uri, is MediaSource.Bytes -> error(NOT_HELD)
+  }
 
 /**
  * What this source is looked up by, which is the buffer itself for encoded bytes.
@@ -60,6 +73,22 @@ private fun ImageSource.key(): Any =
     is ImageSource.Path -> "path:$path"
     is ImageSource.Uri -> "uri:$uri"
     is ImageSource.Bytes -> bytes
+  }
+
+@OptIn(ExperimentalForeignApi::class)
+private fun MediaSource.open(size: Size): CIImage =
+  when (this) {
+    is MediaSource.Image -> {
+      image.open() ?: throw AvLoweringFailure(unreadable(image))
+    }
+    is MediaSource.Solid -> {
+      CIImage(color = solidCIColor(color)).imageByCroppingToRect(
+        CGRectMake(0.0, 0.0, size.width.toDouble(), size.height.toDouble()),
+      )
+    }
+    is MediaSource.Path, is MediaSource.Uri, is MediaSource.Bytes -> {
+      error(NOT_HELD)
+    }
   }
 
 /**
@@ -92,3 +121,5 @@ private fun ImageSource.open(): CIImage? =
 private fun unreadable(source: ImageSource): String =
   "${source.describe()} is held on the timeline as a still, and Core Image could not open it. It " +
     "is either missing or in a format this platform does not decode."
+
+private const val NOT_HELD = "Only a still or a solid is held for a span."

@@ -1159,6 +1159,19 @@ sealed interface dev.jordond.filmstrip.media/MediaSource { // dev.jordond.filmst
         final fun toString(): kotlin/String // dev.jordond.filmstrip.media/MediaSource.Path.toString|toString(){}[0]
     }
 
+    final class Solid : dev.jordond.filmstrip.media/MediaSource { // dev.jordond.filmstrip.media/MediaSource.Solid|null[0]
+        constructor <init>(kotlin/Int, kotlin.time/Duration) // dev.jordond.filmstrip.media/MediaSource.Solid.<init>|<init>(kotlin.Int;kotlin.time.Duration){}[0]
+
+        final val color // dev.jordond.filmstrip.media/MediaSource.Solid.color|{}color[0]
+            final fun <get-color>(): kotlin/Int // dev.jordond.filmstrip.media/MediaSource.Solid.color.<get-color>|<get-color>(){}[0]
+        final val duration // dev.jordond.filmstrip.media/MediaSource.Solid.duration|{}duration[0]
+            final fun <get-duration>(): kotlin.time/Duration // dev.jordond.filmstrip.media/MediaSource.Solid.duration.<get-duration>|<get-duration>(){}[0]
+
+        final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.media/MediaSource.Solid.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.media/MediaSource.Solid.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // dev.jordond.filmstrip.media/MediaSource.Solid.toString|toString(){}[0]
+    }
+
     final class Uri : dev.jordond.filmstrip.media/MediaSource { // dev.jordond.filmstrip.media/MediaSource.Uri|null[0]
         constructor <init>(kotlin/String) // dev.jordond.filmstrip.media/MediaSource.Uri.<init>|<init>(kotlin.String){}[0]
 
@@ -1174,6 +1187,7 @@ sealed interface dev.jordond.filmstrip.media/MediaSource { // dev.jordond.filmst
         final fun of(kotlin/String): dev.jordond.filmstrip.media/MediaSource // dev.jordond.filmstrip.media/MediaSource.Companion.of|of(kotlin.String){}[0]
         final fun ofBytes(kotlin/ByteArray, dev.jordond.filmstrip.media/FormatHint? = ...): dev.jordond.filmstrip.media/MediaSource // dev.jordond.filmstrip.media/MediaSource.Companion.ofBytes|ofBytes(kotlin.ByteArray;dev.jordond.filmstrip.media.FormatHint?){}[0]
         final fun ofImage(dev.jordond.filmstrip.media/ImageSource, kotlin.time/Duration): dev.jordond.filmstrip.media/MediaSource // dev.jordond.filmstrip.media/MediaSource.Companion.ofImage|ofImage(dev.jordond.filmstrip.media.ImageSource;kotlin.time.Duration){}[0]
+        final fun ofSolid(kotlin/Int, kotlin.time/Duration): dev.jordond.filmstrip.media/MediaSource // dev.jordond.filmstrip.media/MediaSource.Companion.ofSolid|ofSolid(kotlin.Int;kotlin.time.Duration){}[0]
         final fun ofUri(kotlin/String): dev.jordond.filmstrip.media/MediaSource // dev.jordond.filmstrip.media/MediaSource.Companion.ofUri|ofUri(kotlin.String){}[0]
     }
 }
@@ -2125,6 +2139,7 @@ final class dev.jordond.filmstrip.edit/CompositionBuilder { // dev.jordond.films
     final fun fill(dev.jordond.filmstrip.geometry/Fill): dev.jordond.filmstrip.edit/CompositionBuilder // dev.jordond.filmstrip.edit/CompositionBuilder.fill|fill(dev.jordond.filmstrip.geometry.Fill){}[0]
     final fun frame(dev.jordond.filmstrip.edit/OutputFrame): dev.jordond.filmstrip.edit/CompositionBuilder // dev.jordond.filmstrip.edit/CompositionBuilder.frame|frame(dev.jordond.filmstrip.edit.OutputFrame){}[0]
     final fun image(dev.jordond.filmstrip.media/ImageSource, kotlin.time/Duration, kotlin/Function1<dev.jordond.filmstrip.edit/ClipBuilder, kotlin/Unit> = ...): dev.jordond.filmstrip.edit/CompositionBuilder // dev.jordond.filmstrip.edit/CompositionBuilder.image|image(dev.jordond.filmstrip.media.ImageSource;kotlin.time.Duration;kotlin.Function1<dev.jordond.filmstrip.edit.ClipBuilder,kotlin.Unit>){}[0]
+    final fun solid(kotlin/Int, kotlin.time/Duration, kotlin/Function1<dev.jordond.filmstrip.edit/ClipBuilder, kotlin/Unit> = ...): dev.jordond.filmstrip.edit/CompositionBuilder // dev.jordond.filmstrip.edit/CompositionBuilder.solid|solid(kotlin.Int;kotlin.time.Duration;kotlin.Function1<dev.jordond.filmstrip.edit.ClipBuilder,kotlin.Unit>){}[0]
     final fun track(dev.jordond.filmstrip.edit/TrackContent = ..., kotlin/Function1<dev.jordond.filmstrip.edit/TrackBuilder, kotlin/Unit>): dev.jordond.filmstrip.edit/CompositionBuilder // dev.jordond.filmstrip.edit/CompositionBuilder.track|track(dev.jordond.filmstrip.edit.TrackContent;kotlin.Function1<dev.jordond.filmstrip.edit.TrackBuilder,kotlin.Unit>){}[0]
 }
 
@@ -2225,6 +2240,7 @@ final class dev.jordond.filmstrip.edit/TrackBuilder { // dev.jordond.filmstrip.e
     final fun fadeOut(kotlin.time/Duration): dev.jordond.filmstrip.edit/TrackBuilder // dev.jordond.filmstrip.edit/TrackBuilder.fadeOut|fadeOut(kotlin.time.Duration){}[0]
     final fun image(dev.jordond.filmstrip.media/ImageSource, kotlin.time/Duration, kotlin/Function1<dev.jordond.filmstrip.edit/ClipBuilder, kotlin/Unit> = ...): dev.jordond.filmstrip.edit/TrackBuilder // dev.jordond.filmstrip.edit/TrackBuilder.image|image(dev.jordond.filmstrip.media.ImageSource;kotlin.time.Duration;kotlin.Function1<dev.jordond.filmstrip.edit.ClipBuilder,kotlin.Unit>){}[0]
     final fun looping(kotlin/Boolean = ...): dev.jordond.filmstrip.edit/TrackBuilder // dev.jordond.filmstrip.edit/TrackBuilder.looping|looping(kotlin.Boolean){}[0]
+    final fun solid(kotlin/Int, kotlin.time/Duration, kotlin/Function1<dev.jordond.filmstrip.edit/ClipBuilder, kotlin/Unit> = ...): dev.jordond.filmstrip.edit/TrackBuilder // dev.jordond.filmstrip.edit/TrackBuilder.solid|solid(kotlin.Int;kotlin.time.Duration;kotlin.Function1<dev.jordond.filmstrip.edit.ClipBuilder,kotlin.Unit>){}[0]
     final fun startAt(kotlin.time/Duration): dev.jordond.filmstrip.edit/TrackBuilder // dev.jordond.filmstrip.edit/TrackBuilder.startAt|startAt(kotlin.time.Duration){}[0]
 }
 

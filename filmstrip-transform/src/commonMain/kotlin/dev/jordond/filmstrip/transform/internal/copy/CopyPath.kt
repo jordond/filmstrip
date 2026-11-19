@@ -17,6 +17,7 @@ import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.audioCodecOf
 import dev.jordond.filmstrip.media.clipAudioTrackOf
+import dev.jordond.filmstrip.media.heldFor
 import dev.jordond.filmstrip.media.videoCodecOf
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedHdr
 import kotlin.time.Duration
@@ -106,7 +107,7 @@ internal fun copyBlockers(
     if (clip.effects.isNotEmpty()) add(CopyBlocker.ClipHasEffects)
     if (clip.audioEffects.isNotEmpty()) add(CopyBlocker.ClipHasAudioEffects)
     if (clip.altersGain) add(CopyBlocker.ClipGainChanged)
-    if (clip.speed != 1.0 && clip.source !is MediaSource.Image) add(CopyBlocker.ClipSpeedChanged)
+    if (clip.speed != 1.0 && clip.source.heldFor == null) add(CopyBlocker.ClipSpeedChanged)
     if (copyOpening == null) add(CopyBlocker.TrimNotOnSyncSample)
     if (copyPackets?.lacksPresentationTimes() == true) add(CopyBlocker.SourceUntimed)
   }
@@ -142,7 +143,7 @@ public suspend fun copyOpenings(
       .singleOrNull()
       ?.clips
       ?.singleOrNull() ?: return emptyMap()
-  if (clip.source is MediaSource.Image) return emptyMap()
+  if (clip.source.heldFor != null) return emptyMap()
   val cut = clip.trim?.start?.takeIf { it > Duration.ZERO } ?: return emptyMap()
   return probe(clip.source, cut)?.let { mapOf(clip.source to it) } ?: emptyMap()
 }

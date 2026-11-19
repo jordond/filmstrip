@@ -3,6 +3,7 @@ package dev.jordond.filmstrip.internal
 import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.ProbeResult
+import dev.jordond.filmstrip.media.probeSolid
 
 // Android and Apple probe with a read-only OS API. Reading a container in a browser means demuxing
 // it, and the demuxer is an npm dependency of the webcodecs module that core's layering row rules
@@ -16,6 +17,9 @@ internal actual class PlatformProber actual constructor() {
     when (source) {
       is MediaSource.Image -> {
         probeImage(source)
+      }
+      is MediaSource.Solid -> {
+        probeSolid(source)
       }
       is MediaSource.Path, is MediaSource.Uri, is MediaSource.Bytes -> {
         ProbeResult.Failure(
