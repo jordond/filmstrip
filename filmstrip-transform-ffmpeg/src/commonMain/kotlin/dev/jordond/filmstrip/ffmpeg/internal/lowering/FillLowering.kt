@@ -4,26 +4,49 @@ import dev.jordond.filmstrip.color.authoredHdrNits
 import dev.jordond.filmstrip.color.signalFromNits
 import dev.jordond.filmstrip.color.tenBitCodesFromSignal
 import dev.jordond.filmstrip.effect.FilterNode
+import dev.jordond.filmstrip.effect.Sidecar
 import dev.jordond.filmstrip.effect.fullChromaFormat
+import dev.jordond.filmstrip.effects.hdrLightOver
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
+import dev.jordond.filmstrip.transform.internal.resolve.anyClipHasAlpha
 
 /**
  * Lays [read] over a frame of the fill's color and returns the opaque pad that leaves, in [pixelFormat].
  *
  * Every pixel no clip painted is still transparent here, so the fill shows through exactly there.
- * The fill source runs forever, so the overlay ends with the frames laid over it.
+ * The fill source runs forever, so the merge ends with the frames laid over it. On a kept HDR grade a clip with alpha
+ * blends over the fill in display light through [lightOver], adding the tables it reads to [sidecars].
  */
 internal fun FilterGraphBuilder.flattenOntoFill(
   read: String,
   negotiated: ResolvedComposition,
   frameRate: Int,
   pixelFormat: String,
+  sidecars: MutableList<Sidecar>,
 ): String {
   val background = "vbg"
   chain(emptyList(), fillSourceNodes(negotiated, frameRate), background)
 
   val flattened = "vflat"
+  val transfer = negotiated.hdrTransfer
+  if (transfer != null && negotiated.anyClipHasAlpha) {
+    // The fill runs forever and the light merge ends with its last branch, so the fill is cut to the frames laid over
+    // it first: a copy of them made fully clear is overlaid on it, which leaves the fill's codes as they are.
+    val clocked = "vbgclocked"
+    val laid = "vflatin"
+    val clock = "vflatclock"
+    val clear = "vflatclear"
+    split(read, listOf(laid, clock))
+    chain(listOf(clock), listOf(FilterNode("lut", "a" to "0")), clear)
+    chain(
+      listOf(background, clear),
+      listOf(overlayNode(pixelFormat, ChromaGrid.Subsampled, "shortest" to "1")),
+      clocked,
+    )
+    lightOver(clocked, laid, flattened, transfer, sidecars)
+    return restateGrade(flattened, "vflatgrade", transfer)
+  }
   chain(
     listOf(background, read),
     listOf(
@@ -37,6 +60,33 @@ internal fun FilterGraphBuilder.flattenOntoFill(
     flattened,
   )
   return flattened
+}
+
+/**
+ * Blends [over], a frame with alpha, onto the opaque [under] in display light on a grade on [transfer] and writes the
+ * result to [label], adding the tables it reads to [sidecars].
+ *
+ * Both frames have the same size. The result is the grade's ten-bit 4:2:0 with no color attributes set.
+ */
+internal fun FilterGraphBuilder.lightOver(
+  under: String,
+  over: String,
+  label: String,
+  transfer: HdrTransfer,
+  sidecars: MutableList<Sidecar>,
+) {
+  val merge = hdrLightOver(transfer)
+  sidecars += merge.sidecars
+  val color = "${label}color"
+  val alpha = "${label}alpha"
+  split(over, listOf(color, alpha))
+  val underLight = "${label}under"
+  val overLight = "${label}over"
+  val mask = "${label}mask"
+  chain(listOf(under), merge.under, underLight)
+  chain(listOf(color), merge.over, overLight)
+  chain(listOf(alpha), merge.mask, mask)
+  chain(listOf(underLight, overLight, mask), listOf(merge.merge) + merge.merged, label)
 }
 
 /**

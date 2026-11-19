@@ -19,8 +19,10 @@ import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.TIMEOUT
 import dev.jordond.filmstrip.media3.internal.bounds.gainmapLimit
 import dev.jordond.filmstrip.media3.internal.hdrDrawLimit
 import dev.jordond.filmstrip.test.AuthoredColors
+import dev.jordond.filmstrip.test.HdrOverlayCells
 import dev.jordond.filmstrip.test.assumeEncodesHdr
 import dev.jordond.filmstrip.test.firstTenBitFrame
+import dev.jordond.filmstrip.test.tenBitFrameCodesAt
 import io.kotest.assertions.withClue
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.shouldBe
@@ -29,6 +31,7 @@ import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.test.runTest
 import org.junit.Assume.assumeTrue
 import kotlin.math.abs
+import kotlin.math.roundToInt
 import kotlin.test.Test
 import kotlin.time.Duration.Companion.seconds
 
@@ -100,6 +103,56 @@ class AndroidSolidMediaTest {
       withClue(misses.joinToString("\n")) { misses.isEmpty().shouldBeTrue() }
     }
 
+  @Test
+  fun translucentSolidsOnAPqGradeBlendOverTheFillInLight() = runTest(timeout = TIMEOUT) { assertBlends(HdrTransfer.Pq) }
+
+  @Test
+  fun translucentSolidsOnAnHlgGradeBlendOverTheFillInLight() =
+    runTest(timeout = TIMEOUT) { assertBlends(HdrTransfer.Hlg) }
+
+  @Test
+  fun translucentSolidsOnAPqGradeBlendOverABlurredCoverInLight() =
+    runTest(timeout = TIMEOUT) {
+      assumeLaysSolidsOnHdr()
+      // Dimmed all the way, the cover is black, so each solid lands where it does over a black fill.
+      val cells = HdrOverlayCells.BLENDS.filter { it.background == HdrOverlayCells.BLACK }
+      val misses = blendMissesOf(HdrTransfer.Pq, cells, Fill.Blurred(dim = 1f))
+      withClue(misses.joinToString("\n")) { misses.isEmpty().shouldBeTrue() }
+    }
+
+  private suspend fun assertBlends(transfer: HdrTransfer) {
+    assumeLaysSolidsOnHdr()
+    val misses =
+      HdrOverlayCells.BLENDS.groupBy { it.background }.flatMap { (background, cells) ->
+        blendMissesOf(transfer, cells, Fill.Solid(background))
+      }
+    withClue(misses.joinToString("\n")) { misses.isEmpty().shouldBeTrue() }
+  }
+
+  // Each blend cell is a solid of its color with its opacity as the alpha, one second each ahead of the HDR fixture.
+  private suspend fun blendMissesOf(
+    transfer: HdrTransfer,
+    cells: List<HdrOverlayCells.Cell>,
+    fill: Fill,
+  ): List<String> {
+    val alphas = cells.map { (it.opacity * OPAQUE_ALPHA).roundToInt() }
+    val edit =
+      compositionOf {
+        cells.zip(alphas).forEach { (cell, alpha) -> solid((alpha shl ALPHA_SHIFT) or (cell.overlay and RGB), SLOT) }
+        clip(probe.fixture(if (transfer == HdrTransfer.Pq) HDR_CLIP else HLG_CLIP))
+        fill(fill)
+      }
+    val exported = probe.export(edit, HDR_LEVEL_SPEC)
+    return cells.zip(alphas).mapIndexedNotNull { index, (cell, alpha) ->
+      val laid = cell.copy(opacity = alpha / OPAQUE_ALPHA.toFloat())
+      val read = tenBitFrameCodesAt(exported, SLOT * index + SLOT / 2).codesAt(0.5f, 0.5f)
+      missOf(read, laid.codes(transfer), "$transfer $laid")?.plus(
+        ", a signal blend lands at ${laid.signalBlendCodes(transfer).toList()}, in scene light at " +
+          "${tenBitCodesFromSignal(laid.hlgSceneLightSignal()).toList()}",
+      )
+    }
+  }
+
   private fun missOf(
     read: IntArray,
     expected: IntArray,
@@ -155,5 +208,9 @@ class AndroidSolidMediaTest {
     val HALF_GREY = 0x80808080.toInt()
     val BLACK = 0xFF000000.toInt()
     val QUARTER_GREY = 0xFF404040.toInt()
+    val SLOT = 1.seconds
+    const val OPAQUE_ALPHA = 255
+    const val ALPHA_SHIFT = 24
+    const val RGB = 0xFFFFFF
   }
 }

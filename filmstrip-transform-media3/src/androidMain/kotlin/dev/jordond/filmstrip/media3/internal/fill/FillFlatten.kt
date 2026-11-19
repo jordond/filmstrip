@@ -3,6 +3,7 @@ package dev.jordond.filmstrip.media3.internal.fill
 import android.content.Context
 import androidx.media3.effect.GlEffect
 import androidx.media3.effect.GlShaderProgram
+import dev.jordond.filmstrip.effects.media3BlendLightGlsl
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media3.internal.FullFramePass
 
@@ -31,8 +32,9 @@ internal class FillFlatten(
     context: Context,
     useHdr: Boolean,
   ): GlShaderProgram {
-    val fill = fillComponents(color, transfer.takeIf { useHdr })
-    return FullFramePass(useHdr, FRAGMENT_SHADER) { setFloatsUniform("uFill", fill) }
+    val held = transfer.takeIf { useHdr }
+    val fill = fillComponents(color, held)
+    return FullFramePass(useHdr, fragmentShader(media3BlendLightGlsl(held))) { setFloatsUniform("uFill", fill) }
   }
 
   // Compared by value so a preview can tell a re-lowering that changed this pass from one that
@@ -47,17 +49,18 @@ internal class FillFlatten(
   }
 }
 
-// A pixel's alpha mixes its straight color over the fill, and the result is written back fully opaque. A clear pixel
-// shows the fill whatever color an earlier effect left on it.
-private val FRAGMENT_SHADER =
+// A pixel's alpha mixes its straight color over the fill in display light, and the result is written back fully
+// opaque. A clear pixel shows the fill whatever color an earlier effect left on it.
+private fun fragmentShader(blendLight: String): String =
   """
   #version 100
   precision highp float;
   uniform sampler2D uTexSampler;
   uniform vec3 uFill;
   varying vec2 vTexSamplingCoord;
+  $blendLight
   void main() {
     vec4 src = texture2D(uTexSampler, vTexSamplingCoord);
-    gl_FragColor = vec4(mix(uFill, src.rgb, src.a), 1.0);
+    gl_FragColor = vec4(fromBlendLight(mix(toBlendLight(uFill), toBlendLight(src.rgb), src.a)), 1.0);
   }
   """.trimIndent()

@@ -160,6 +160,9 @@ private fun placing(
  * before them. `CIBlendWithAlphaMask` lerps on the mask's alpha, so a graded pixel at alpha zero
  * adds none of its color to the background, the way every other backend's flatten discards it.
  *
+ * The lerp reads the frame's straight color, so a translucent pixel's alpha is counted once, and the result is opaque
+ * like the fill under it. Left translucent, the match out of the working space would read its color as premultiplied.
+ *
  * A solid fill is an image of infinite extent, so it is cropped to [size] before the blend reads
  * it and the result covers the render rect rather than everything beyond it too.
  */
@@ -172,7 +175,9 @@ internal fun CIImage.over(
 ): CIImage {
   val rect = CGRectMake(0.0, 0.0, size.width.toDouble(), size.height.toDouble())
   val blend: CIImage.(CIImage) -> CIImage = {
-    imageByApplyingFilter("CIBlendWithAlphaMask", mapOf("inputBackgroundImage" to it, "inputMaskImage" to mask))
+    imageByUnpremultiplyingAlpha()
+      .imageByApplyingFilter("CIBlendWithAlphaMask", mapOf("inputBackgroundImage" to it, "inputMaskImage" to mask))
+      .imageBySettingAlphaOneInExtent(rect)
   }
   val cropped = background.imageByCroppingToRect(rect)
   return if (inCodes) blendedInCodes(cropped) { imageByCompositingOverImage(it) } else blend(cropped)

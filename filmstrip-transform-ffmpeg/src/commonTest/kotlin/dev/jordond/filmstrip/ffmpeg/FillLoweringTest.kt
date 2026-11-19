@@ -6,6 +6,8 @@ import dev.jordond.filmstrip.color.authoredHdrNits
 import dev.jordond.filmstrip.color.signalFromNits
 import dev.jordond.filmstrip.color.tenBitCodesFromSignal
 import dev.jordond.filmstrip.edit.AudioSpec
+import dev.jordond.filmstrip.edit.TimeRange
+import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.effect.FilterNode
 import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.export.OutputFormat
@@ -21,15 +23,22 @@ import dev.jordond.filmstrip.ffmpeg.internal.lowering.restateGrade
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.HdrTransfer
+import dev.jordond.filmstrip.media.MediaSource
+import dev.jordond.filmstrip.media.solidMediaInfoOf
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedClip
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedGain
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedHdr
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedTrack
 import io.kotest.assertions.withClue
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.string.shouldContain
+import io.kotest.matchers.string.shouldNotContain
 import kotlin.test.Test
+import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
 class FillLoweringTest {
@@ -101,6 +110,27 @@ class FillLoweringTest {
   }
 
   @Test
+  fun `a translucent clip on a kept grade blends onto the fill in light`() {
+    val graph = flattened(Fill.Solid(MID_GREEN), HdrTransfer.Pq, pixelFormat = "yuv420p10le", clipAlpha = 0x80)
+
+    graph shouldContain "maskedmerge"
+    // The only overlay left lays a fully clear copy of the frames on the fill, to cut the fill to their length.
+    Regex("overlay").findAll(graph).count() shouldBe 1
+    graph shouldContain "lut=a=0"
+  }
+
+  @Test
+  fun `an opaque clip on a kept grade and a translucent one on sdr keep the overlay`() {
+    listOf(
+      flattened(Fill.Solid(MID_GREEN), HdrTransfer.Pq, pixelFormat = "yuv420p10le", clipAlpha = 0xFF),
+      flattened(Fill.Solid(MID_GREEN), hdrTransfer = null, pixelFormat = "yuv420p", clipAlpha = 0x80),
+    ).forEach { graph ->
+      graph shouldContain "overlay"
+      graph shouldNotContain "maskedmerge"
+    }
+  }
+
+  @Test
   fun `no grade restates nothing`() {
     gradeNodes(null).shouldBeEmpty()
   }
@@ -157,21 +187,42 @@ class FillLoweringTest {
     fill: Fill,
     hdrTransfer: HdrTransfer?,
     pixelFormat: String,
+    clipAlpha: Int? = null,
   ): String {
     val graph = FilterGraphBuilder()
     graph.chain(listOf("0:v"), listOf(FilterNode("null")), "read")
-    val out = graph.flattenOntoFill("read", negotiated(fill, hdrTransfer), frameRate = 25, pixelFormat = pixelFormat)
+    val negotiated = negotiated(fill, hdrTransfer, clipAlpha)
+    val out = graph.flattenOntoFill("read", negotiated, frameRate = 25, pixelFormat = pixelFormat, mutableListOf())
     return graph.build(out)
+  }
+
+  // A solid of [alpha] stands in for any clip, since the flatten reads only whether a clip carries alpha.
+  private fun trackOf(alpha: Int): ResolvedTrack {
+    val solid = MediaSource.Solid((alpha shl 24) or (MID_GREEN and 0xFFFFFF), 1.seconds)
+    val clip =
+      ResolvedClip(
+        source = solid,
+        info = solidMediaInfoOf(solid, Size(1280, 720)),
+        start = Duration.ZERO,
+        end = solid.duration,
+        effects = emptyList(),
+        gain = ResolvedGain.constant(1f, Duration.ZERO, solid.duration),
+        startsAtKeyFrame = true,
+        span = TimeRange.of(Duration.ZERO, solid.duration),
+        sourceIndex = 0,
+      )
+    return ResolvedTrack(TrackContent.AudioAndVideo, looping = false, start = Duration.ZERO, clips = listOf(clip))
   }
 
   // The flatten reads the output frame, the fill and the grade, so nothing else here is filled in.
   private fun negotiated(
     fill: Fill,
     hdrTransfer: HdrTransfer?,
+    clipAlpha: Int? = null,
   ): ResolvedComposition {
     val size = Size(1280, 720)
     return ResolvedComposition(
-      tracks = emptyList(),
+      tracks = listOfNotNull(clipAlpha?.let(::trackOf)),
       compositionEffects = emptyList(),
       output =
         OutputFormat(

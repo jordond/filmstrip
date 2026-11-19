@@ -11,6 +11,7 @@ import androidx.media3.effect.GlEffect
 import androidx.media3.effect.GlShaderProgram
 import dev.jordond.filmstrip.effects.color.HdrColorMatrixUniforms
 import dev.jordond.filmstrip.effects.color.IDENTITY_GRADE_LIGHT_GLSL
+import dev.jordond.filmstrip.effects.media3BlendLightGlsl
 import dev.jordond.filmstrip.effects.media3SignalUniforms
 import dev.jordond.filmstrip.effects.spatial.SpatialBlur
 import dev.jordond.filmstrip.geometry.Fill
@@ -56,7 +57,8 @@ internal class FillCoverBlur(
           "A blurred fill keeps no grade, and this frame processor runs in HDR.",
         )
       }
-    return FillCoverBlurShaderProgram(useHdr, fill, outputSize, rect.inWholePixelsOf(outputSize), domain)
+    val blendLight = media3BlendLightGlsl(transfer.takeIf { useHdr })
+    return FillCoverBlurShaderProgram(useHdr, fill, outputSize, rect.inWholePixelsOf(outputSize), domain, blendLight)
   }
 
   // Compared by value so a preview can tell a re-lowering that changed this pass from one that
@@ -95,6 +97,7 @@ private class FillCoverBlurShaderProgram(
   private val outputSize: Size,
   sharp: PixelRect,
   private val domain: HdrColorMatrixUniforms?,
+  blendLight: String,
 ) : GlShaderProgram {
   private var inputListener: GlShaderProgram.InputListener = object : GlShaderProgram.InputListener {}
   private var outputListener: GlShaderProgram.OutputListener = object : GlShaderProgram.OutputListener {}
@@ -116,7 +119,7 @@ private class FillCoverBlurShaderProgram(
   private val coverProgram = program(VERTEX_SHADER, COVER_FRAGMENT_SHADER)
   private val downProgram = program(STEP_VERTEX_SHADER, boxDownFragmentShader(signalGlsl))
   private val blurProgram = program(STEP_VERTEX_SHADER, SpatialBlur.GAUSSIAN_GLSL)
-  private val compositeProgram = program(STEP_VERTEX_SHADER, compositeFragmentShader(signalGlsl))
+  private val compositeProgram = program(STEP_VERTEX_SHADER, compositeFragmentShader(signalGlsl, blendLight))
 
   private var coverTexture = GlTextureInfo.UNSET
   private var downTexture = GlTextureInfo.UNSET
@@ -387,8 +390,11 @@ ${SpatialBlur.BOX_DOWN_GLSL.prependIndent("  ")}
 
 // Reads the blur back up to the output with linear filtering and dims its signal, under the sharp frame inside its
 // rect. The blurred frame holds colour multiplied by alpha, so it is divided back out before the dim. The sharp frame
-// holds straight colour, so its alpha mixes it over that cover, and the result is opaque.
-private fun compositeFragmentShader(signalGlsl: String): String =
+// holds straight colour, so its alpha mixes it over that cover in display light, and the result is opaque.
+private fun compositeFragmentShader(
+  signalGlsl: String,
+  blendLight: String,
+): String =
   """
   #version 300 es
   precision highp float;
@@ -400,6 +406,7 @@ private fun compositeFragmentShader(signalGlsl: String): String =
   uniform vec2 uSharpMax;
   uniform float uGain;
   $signalGlsl
+  $blendLight
 
   void main() {
     vec4 background = textureLod($FRAME, vUv, 0.0);
@@ -407,7 +414,7 @@ private fun compositeFragmentShader(signalGlsl: String): String =
     vec3 cover = fromSignal(straight * uGain);
     if (vUv.x >= uSharpMin.x && vUv.x < uSharpMax.x && vUv.y >= uSharpMin.y && vUv.y < uSharpMax.y) {
       vec4 sharp = texture(uSharpSampler, (vUv - uSharpMin) / (uSharpMax - uSharpMin));
-      fragColor = vec4(mix(cover, sharp.rgb, sharp.a), 1.0);
+      fragColor = vec4(fromBlendLight(mix(toBlendLight(cover), toBlendLight(sharp.rgb), sharp.a)), 1.0);
     } else {
       fragColor = vec4(cover, 1.0);
     }

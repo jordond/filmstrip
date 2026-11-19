@@ -40,9 +40,10 @@ and track effects still run on it, so a colour grade or an overlay on a solid wo
 blended over the fill.
 
 A solid never decides the grade. Beside an HDR clip the export keeps the clip's PQ or HLG grade, and the solid lands
-on it at the same light a `Fill.Solid` of that colour does, so white sits at paper white rather than the panel's peak.
-On Android below API 34, media3 cannot lay a solid on an HDR grade, so `HdrMode.Auto` tone maps the export to SDR
-and `HdrMode.KeepHdr` refuses it.
+on it at the same light a `Fill.Solid` of that colour does, so white sits at paper white rather than the panel's peak. A
+translucent solid blends over the fill in display light, the way an overlay does on that grade. On Android below API
+34, media3 cannot lay a solid on an HDR grade, so `HdrMode.Auto` tone maps the export to SDR and `HdrMode.KeepHdr`
+refuses it.
 
 A solid has no size, so the frame comes from the first clip that has one. An edit made only of solids needs an
 `OutputFrame.Fixed`, and without one the plan refuses it as `InvalidComposition`.

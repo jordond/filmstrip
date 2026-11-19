@@ -36,6 +36,10 @@ A stream copy keeps its grade without an encoder, so an untouched clip keeps HDR
 Sources that don't share one transfer, an HDR clip beside an SDR one included, have no single grade to keep. `Auto` tone
 maps them together, and `KeepHdr` refuses.
 
+A clip with alpha on a kept grade, a translucent solid or a video with an alpha channel, blends over the fill or the
+blurred cover under it in display light. Every backend lands it at the same codes, the ones an overlay on that grade
+lands at.
+
 ## Tone mapping
 
 Tone mapping is available on every backend. When `Auto` tone maps, the plan comes back `Degraded`, carrying an adjustment

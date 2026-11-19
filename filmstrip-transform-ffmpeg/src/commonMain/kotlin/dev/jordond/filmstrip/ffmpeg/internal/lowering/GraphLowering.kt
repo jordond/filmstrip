@@ -296,7 +296,7 @@ internal class GraphLowering(
     current = compositionEffects(effectsUnderFill, current, firstIndex = 0)
     if (deferFill) {
       val graded = graph.restateGrade(current, "vgrade", transfer)
-      current = graph.flattenOntoFill(graded, negotiated, frameRate, pixelFormat)
+      current = graph.flattenOntoFill(graded, negotiated, frameRate, pixelFormat, sidecars)
       current = compositionEffects(effectsOverFill, current, firstIndex = effectsUnderFill.size)
       if (effectsOverFill.isNotEmpty()) current = graph.restateGrade(current, "vgradeover", transfer)
     } else {

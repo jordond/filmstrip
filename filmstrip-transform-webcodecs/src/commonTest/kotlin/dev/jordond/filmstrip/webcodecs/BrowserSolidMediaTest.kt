@@ -19,6 +19,7 @@ import io.kotest.assertions.withClue
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.test.runTest
 import kotlin.math.abs
+import kotlin.math.roundToInt
 import kotlin.test.Test
 import kotlin.time.Duration.Companion.milliseconds
 import dev.jordond.filmstrip.edit.OutputFrame as Frame
@@ -60,17 +61,58 @@ class BrowserSolidMediaTest {
     }
 
   @Test
-  fun aTranslucentSolidOnAPqGradeLandsOnTheFillBlendedInLight() =
+  fun translucentSolidsBlendOverTheFillInLightOnBothTransfers() =
     runTest {
       if (!webCodecsFilmstrip().encodesHdr()) return@runTest
 
-      val transfer = HdrTransfer.Pq
-      val cell = HdrOverlayCells.Cell(HdrOverlayCells.WHITE, BLACK, HALF_OPACITY)
-      val what =
-        "half white over black, a signal blend lands at ${cell.signalBlendCodes(transfer).toList()} and an sRGB " +
-          "blend at ${cell.srgbBlendCodes(transfer).toList()}"
-      assertHdrSolid(transfer, HALF_WHITE, Fill.Solid(BLACK), cell.codes(transfer).toList(), what)
+      val misses =
+        HdrTransfer.entries.flatMap { transfer ->
+          HdrOverlayCells.BLENDS.groupBy { it.background }.flatMap { (background, cells) ->
+            blendMissesOf(transfer, cells, Fill.Solid(background))
+          }
+        }
+      withClue(misses.joinToString("\n")) { misses.isEmpty() shouldBe true }
     }
+
+  // Dimmed all the way, the cover is black, so each solid lands where it does over a black fill.
+  @Test
+  fun translucentSolidsOnAPqGradeBlendOverABlurredCoverInLight() =
+    runTest {
+      if (!webCodecsFilmstrip().encodesHdr()) return@runTest
+
+      val cells = HdrOverlayCells.BLENDS.filter { it.background == HdrOverlayCells.BLACK }
+      val misses = blendMissesOf(HdrTransfer.Pq, cells, Fill.Blurred(dim = 1f))
+      withClue(misses.joinToString("\n")) { misses.isEmpty() shouldBe true }
+    }
+
+  // Each cell is a solid of its color with its opacity as the alpha, one slot each ahead of the HDR clip.
+  private suspend fun blendMissesOf(
+    transfer: HdrTransfer,
+    cells: List<HdrOverlayCells.Cell>,
+    fill: Fill,
+  ): List<String> {
+    val alphas = cells.map { (it.opacity * OPAQUE_ALPHA).roundToInt() }
+    val solids =
+      cells.zip(alphas).map { (cell, alpha) ->
+        Clip(
+          MediaSource.Solid((alpha shl ALPHA_SHIFT) or (cell.overlay and RGB), SLOT),
+        )
+      }
+    val clip = Clip(MediaSource.Bytes(makeHdrClip(transfer) { CLIP_LIGHT }))
+    val composition = Composition(tracks = listOf(Track(solids + clip)), audio = AudioSpec.Remove, fill = fill)
+    val frames = decodeTenBitFrames(outputOf(hdrExportOf(composition, transfer)), transfer)
+    return cells.zip(alphas).mapIndexedNotNull { index, (cell, alpha) ->
+      val laid = cell.copy(opacity = alpha / OPAQUE_ALPHA.toFloat())
+      val frame = frames.minBy { abs(it.timestampUs - (SLOT * index + SLOT / 2).inWholeMicroseconds) }
+      val (cb, cr) = frame.chromaAt(x = 0.5, y = 0.5)
+      val read = listOf(frame.lumaAt(x = 0.5, y = 0.5), cb, cr)
+      val expected = laid.codes(transfer).toList()
+      if (read.zip(expected).all { (got, want) -> abs(got - want) <= HDR_CODE_TOLERANCE }) return@mapIndexedNotNull null
+      "$transfer $laid read $read, expected $expected, a signal blend lands at ${laid.signalBlendCodes(
+        transfer,
+      ).toList()}"
+    }
+  }
 
   private suspend fun assertHdrSolid(
     transfer: HdrTransfer,
@@ -122,7 +164,10 @@ class BrowserSolidMediaTest {
     const val CORNER = 0.03
     const val HALF_WHITE = 0x80FFFFFF.toInt()
     const val BLACK = 0xFF000000.toInt()
-    const val HALF_OPACITY = 128f / 255f
+    val SLOT = 300.milliseconds
+    const val OPAQUE_ALPHA = 255
+    const val ALPHA_SHIFT = 24
+    const val RGB = 0xFFFFFF
 
     // The middle of the solid's 300 ms, clear of the cut to the clip.
     const val SOLID_READ_US = 150_000.0

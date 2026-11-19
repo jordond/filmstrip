@@ -5,7 +5,9 @@ import dev.jordond.filmstrip.color.HDR_REFERENCE_WHITE_NITS
 import dev.jordond.filmstrip.color.HLG_NOMINAL_PEAK_NITS
 import dev.jordond.filmstrip.color.authoredHdrNits
 import dev.jordond.filmstrip.color.hlgSceneFromNits
+import dev.jordond.filmstrip.effects.color.HLG_OOTF_GLSL
 import dev.jordond.filmstrip.effects.color.HdrColorMatrixUniforms
+import dev.jordond.filmstrip.effects.color.glsl
 import dev.jordond.filmstrip.effects.color.hdrColorMatrixUniforms
 import dev.jordond.filmstrip.media.HdrTransfer
 
@@ -58,3 +60,28 @@ public val HdrTransfer.media3SignalUniforms: HdrColorMatrixUniforms
           },
       holdsSceneLight = this == HdrTransfer.Hlg,
     )
+
+/**
+ * GLSL for a pass that blends two colors media3 holds on a kept grade, defining `toBlendLight` and `fromBlendLight`.
+ *
+ * `toBlendLight` carries a color from media3's working space to display light, and `fromBlendLight` carries it back,
+ * so a mix between the two runs in display light the way every backend blends a source with alpha. PQ is display light
+ * already and both are identities, as they are with no [transfer]. HLG is scene light, which reaches display light
+ * through [HLG_OOTF_GLSL], with media3's scene light read as a fraction of [HLG_NOMINAL_PEAK_NITS] both ways.
+ *
+ * @param transfer The grade the frame is held on, or null when the frame is SDR.
+ */
+@InternalFilmstripApi
+public fun media3BlendLightGlsl(transfer: HdrTransfer?): String =
+  if (transfer != HdrTransfer.Hlg) {
+    """
+    vec3 toBlendLight(vec3 color) { return color; }
+    vec3 fromBlendLight(vec3 color) { return color; }
+    """.trimIndent()
+  } else {
+    """
+    $HLG_OOTF_GLSL
+    vec3 toBlendLight(vec3 color) { return hlgDisplayFromScene(color) / ${HLG_NOMINAL_PEAK_NITS.glsl()}; }
+    vec3 fromBlendLight(vec3 color) { return hlgSceneFromDisplay(color * ${HLG_NOMINAL_PEAK_NITS.glsl()}); }
+    """.trimIndent()
+  }

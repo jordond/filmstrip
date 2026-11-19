@@ -1,6 +1,5 @@
 package dev.jordond.filmstrip.effects.overlay
 
-import dev.jordond.filmstrip.color.BT2020_CHROMA_SHIFT
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.effect.Attributes
 import dev.jordond.filmstrip.effect.AuxInput
@@ -8,16 +7,18 @@ import dev.jordond.filmstrip.effect.FilterArgument
 import dev.jordond.filmstrip.effect.FilterCrop
 import dev.jordond.filmstrip.effect.FilterFragment
 import dev.jordond.filmstrip.effect.FilterNode
-import dev.jordond.filmstrip.effect.PlaneLanes
 import dev.jordond.filmstrip.effect.Sidecar
 import dev.jordond.filmstrip.effect.exactCrop
+import dev.jordond.filmstrip.effects.ALPHA_TO_RGB
 import dev.jordond.filmstrip.effects.GRADE_WITH_ALPHA_TO_FLOAT
+import dev.jordond.filmstrip.effects.HDR_RGBA
 import dev.jordond.filmstrip.effects.HdrGradeTables
-import dev.jordond.filmstrip.effects.LINEAR
 import dev.jordond.filmstrip.effects.PIXEL
-import dev.jordond.filmstrip.effects.displayLightFromHlgScene
+import dev.jordond.filmstrip.effects.RGBA_TO_FLOAT
+import dev.jordond.filmstrip.effects.displayLightFromSignal
 import dev.jordond.filmstrip.effects.geq
-import dev.jordond.filmstrip.effects.lut1d
+import dev.jordond.filmstrip.effects.keepingAlpha
+import dev.jordond.filmstrip.effects.shifted
 import dev.jordond.filmstrip.effects.shiftedSignalToGrade
 import dev.jordond.filmstrip.effects.signalFromDisplayLight
 import dev.jordond.filmstrip.effects.signalFromGrade
@@ -77,12 +78,12 @@ internal fun PlacedPicture.gradedOverlay(
       ImageSource.ofBytes(graded.raster.png),
       buildList {
         if (flipbook != null && rate != null) {
-          addAll(cellNodes(flipbook, animated, rate, attributes.span, HDR_OVERLAY_RGBA))
+          addAll(cellNodes(flipbook, animated, rate, attributes.span, HDR_RGBA))
         }
-        if (window.sized) add(FilterNode("format", "pix_fmts" to HDR_OVERLAY_RGBA))
+        if (window.sized) add(FilterNode("format", "pix_fmts" to HDR_RGBA))
         if (fadesFirst) addAll(alpha)
         add(scaleNode(window.width, window.height, rate))
-        if (!window.sized) add(FilterNode("format", "pix_fmts" to HDR_OVERLAY_RGBA))
+        if (!window.sized) add(FilterNode("format", "pix_fmts" to HDR_RGBA))
         if (!fadesFirst) addAll(alpha)
         if (mask) addAll(gate)
         addAll(layout.windowNodes(window, rate))
@@ -212,35 +213,9 @@ internal fun hdrOverlayFragment(
   )
 }
 
-// The nodes that decode each channel of a signal on planar float to linear display light, as a fraction of the
-// transfer's peak, adding the tables they read to this list. HLG's scene light reaches display light through a gain
-// read off all three channels, which lut1d's per-channel tables cannot apply, so geq applies it.
-private fun MutableList<Sidecar>.displayLightFromSignal(transfer: HdrTransfer): List<FilterNode> =
-  buildList {
-    add(lut1d(HdrGradeTables.LIGHT_WARP, LINEAR))
-    add(lut1d(HdrGradeTables.lightCurve(transfer), LINEAR))
-    if (transfer == HdrTransfer.Hlg) add(geq(displayLightFromHlgScene(PIXEL)).keepingAlpha())
-  }
-
-// geq writes an alpha it is given no expression for as opaque, so the frame's own is read back.
-private fun FilterNode.keepingAlpha(): FilterNode = FilterNode(name, arguments + FilterArgument("a", "alpha(X,Y)"))
-
-// A signal expression moved by its channel's share of the chroma offset, which the encode rows read it at.
-private fun shifted(
-  signal: String,
-  channel: Int,
-): String = "($signal)+(${BT2020_CHROMA_SHIFT[channel]})"
-
-// An overlay branch's sixteen-bit RGBA carried onto planar float RGBA one plane at a time.
-private val RGBA_TO_FLOAT =
-  listOf(
-    FilterNode("format", "pix_fmts" to HDR_OVERLAY_RGBA),
-    PlaneLanes.node(listOf("r", "g", "b", "a"), PlaneLanes.WITH_ALPHA.format),
-  )
-
 // The picture branch carried the same way with its alpha set opaque, so the merge lays the alpha the mask holds.
 private val OPAQUE_TO_FLOAT =
-  listOf(FilterNode("format", "pix_fmts" to HDR_OVERLAY_RGBA), FilterNode("lutrgb", "a" to "maxval")) +
+  listOf(FilterNode("format", "pix_fmts" to HDR_RGBA), FilterNode("lutrgb", "a" to "maxval")) +
     RGBA_TO_FLOAT.last()
 
 // The region's light weighed by its alpha for the merge, and the pixel the encode reads with it divided back out where
@@ -249,12 +224,7 @@ private val OPAQUE_TO_FLOAT =
 private val PREMULTIPLIED = geq(PIXEL.map { "$it*alpha(X,Y)" }).keepingAlpha()
 private val STRAIGHT = PIXEL.map { "if(gt(alpha(X,Y),0),$it/alpha(X,Y),$it)" }
 
-// Every color channel of the mask branch replaced by its alpha, which is what maskedmerge reads plane by plane.
-private val ALPHA_TO_RGB =
-  FilterNode("colorchannelmixer", "rr" to "0", "ra" to "1", "gg" to "0", "ga" to "1", "bb" to "0", "ba" to "1")
-
 private const val TRANSPARENT = "black@0"
 
 // Sixteen-bit RGBA, the depth an overlay carried onto a grade's signal is read at, and the planar form geq reads it in.
-private const val HDR_OVERLAY_RGBA = "rgba64le"
-private val HDR_PLANES = OpacityPlanes("gbrap16le", HDR_OVERLAY_RGBA)
+private val HDR_PLANES = OpacityPlanes("gbrap16le", HDR_RGBA)

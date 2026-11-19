@@ -78,7 +78,8 @@ internal class TrailingFrames(
  *
  * `tailNodes` writes a single chain, but this needs the frame twice, once for each copy, so [pending] is flushed
  * onto a pad of its own and fanned out with [FilterGraphBuilder.split] instead. The sharp copy lands on [grid], the
- * chroma grid of the chain both copies come from. The background adds the tables it reads to [sidecars].
+ * chroma grid of the chain both copies come from. The background adds the tables it reads to [sidecars]. On a kept HDR
+ * grade a frame with alpha is blended over the cover in display light, and that blend adds its tables there too.
  */
 internal fun FilterGraphBuilder.blurredTail(
   pad: String,
@@ -109,6 +110,19 @@ internal fun FilterGraphBuilder.blurredTail(
   chain(listOf(foreground), scaledInto(rect, outputSize), sharp)
 
   val (x, y) = rect.drawnAt(grid)
+  val transfer = tail.transfer
+  if (transfer != null && tail.hasAlpha) {
+    // On a kept grade a frame with alpha blends over its cover in display light, which needs both at the cover's size.
+    val placed = "${label}placed"
+    val size = "w" to outputSize.width.toString()
+    val height = "h" to outputSize.height.toString()
+    val at = arrayOf("x" to x.toString(), "y" to y.toString())
+    chain(listOf(sharp), listOf(FilterNode("pad", size, height, *at, "color" to "black@0")), placed)
+    val merged = "${label}merged"
+    lightOver(blurred, placed, merged, transfer, sidecars)
+    chain(listOf(merged), gradeNodes(transfer) + trailingNodes(tail.frameRate, tail.pixelFormat, tail.slots), label)
+    return label
+  }
   chain(
     listOf(blurred, sharp),
     overlayNodes(x, y, tail.pixelFormat, grid) + trailingNodes(tail.frameRate, tail.pixelFormat, tail.slots),
