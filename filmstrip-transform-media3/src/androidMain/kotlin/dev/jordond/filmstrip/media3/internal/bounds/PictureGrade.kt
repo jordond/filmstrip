@@ -24,6 +24,7 @@ import androidx.media3.transformer.SampleConsumer
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 import com.google.common.util.concurrent.MoreExecutors
+import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.media.HdrTransfer
 import java.util.concurrent.Executor
 
@@ -38,13 +39,14 @@ import java.util.concurrent.Executor
  *
  * @property transfer The transfer function the export keeps.
  */
-internal data class PictureGrade(
-  val transfer: HdrTransfer,
+@InternalFilmstripApi
+public data class PictureGrade(
+  public val transfer: HdrTransfer,
 ) {
   /**
    * The colour the picture is reported in, BT.2020 at limited range with this grade's transfer.
    */
-  val colorInfo: ColorInfo
+  public val colorInfo: ColorInfo
     get() =
       ColorInfo
         .Builder()
@@ -173,7 +175,21 @@ private class NeutralGainmapLoader(
   private fun ListenableFuture<Bitmap>.gainmapped(): ListenableFuture<Bitmap> =
     Futures.transform(
       this,
-      { bitmap -> bitmap.apply { gainmap = Gainmap(Bitmap.createBitmap(1, 1, Bitmap.Config.ALPHA_8)) } },
+      { bitmap -> bitmap.withNeutralGainmap() },
       MoreExecutors.directExecutor(),
     )
 }
+
+/**
+ * Gives this picture a gainmap that changes none of its pixels and returns it.
+ *
+ * media3 takes a picture onto an HDR output only when it carries a gainmap, so a picture headed for a kept grade goes
+ * through this first.
+ */
+@InternalFilmstripApi
+@TargetApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
+public fun Bitmap.withNeutralGainmap(): Bitmap =
+  apply {
+    gainmap =
+      Gainmap(Bitmap.createBitmap(1, 1, Bitmap.Config.ALPHA_8))
+  }

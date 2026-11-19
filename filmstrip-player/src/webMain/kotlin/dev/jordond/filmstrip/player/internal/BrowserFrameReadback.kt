@@ -11,6 +11,7 @@ import dev.jordond.filmstrip.player.ReadbackResult
 import dev.jordond.filmstrip.webcodecs.internal.preview.BrowserPreview
 import dev.jordond.filmstrip.webcodecs.internal.preview.PreviewFrame
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.time.Duration
@@ -35,7 +36,8 @@ internal class BrowserFrameReadback(
   private val preview: () -> BrowserPreview?,
   private val renderScale: () -> Float,
   private val held: (position: Duration) -> PreviewFrame? = { null },
-) : PreviewFrameReadback {
+) : PreviewFrameReadback,
+  HdrPreviewReadback {
   override fun requestFrame(
     position: Duration,
     callback: ReadbackCallback,
@@ -91,6 +93,27 @@ internal class BrowserFrameReadback(
     }
   }
 
+  override suspend fun hdrFrameAt(position: Duration): HdrPreviewResult = scope.async { readCodes(position) }.await()
+
+  private suspend fun readCodes(position: Duration): HdrPreviewResult {
+    val target = preview() ?: return HdrPreviewResult.Failure(PlaybackError.SourceUnreadable(NO_COMPOSITION))
+    if (target.hdrTransfer == null) return HdrPreviewResult.Failure(PlaybackError.SourceUnreadable(NO_HDR_GRADE))
+    return try {
+      val read =
+        target.codesAt(position)
+          ?: return HdrPreviewResult.Failure(FilmstripError.InvalidComposition(NO_READBACK_FRAME).toPlaybackError())
+      HdrPreviewResult.Success(HdrPreviewFrame(read.codes, read.size, read.presentationTime, read.transfer))
+    } catch (cancelled: CancellationException) {
+      throw cancelled
+    } catch (
+      @Suppress("TooGenericExceptionCaught") broken: Throwable,
+    ) {
+      HdrPreviewResult.Failure(
+        PlaybackError.Underlying(PlaybackError.Underlying.NO_PLATFORM_CODE, broken.message ?: broken.toString()),
+      )
+    }
+  }
+
   private fun refuse(
     callback: ReadbackCallback,
     message: String,
@@ -101,6 +124,7 @@ internal class BrowserFrameReadback(
 
   private companion object {
     const val NO_COMPOSITION = "No composition is loaded, so there is no frame to read back."
+    const val NO_HDR_GRADE = "The composition is on an SDR grade, so there are no HDR codes to read."
   }
 }
 

@@ -3,6 +3,7 @@ package dev.jordond.filmstrip.ffmpeg.support
 import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.PREVIEW_PIXEL_FORMAT
+import dev.jordond.filmstrip.ffmpeg.internal.lowering.PreviewPixels
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.previewArguments
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.previewFrameBytes
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.previewSeek
@@ -42,7 +43,7 @@ internal suspend fun FilterFrames.rawFrames(
         ).let(rewrite)
         .readingGraphFrom(scratch)
     val process = ProcessBuilder(command).redirectError(ProcessBuilder.Redirect.DISCARD).start()
-    val bytes = invocation.previewFrameBytes * count
+    val bytes = invocation.previewFrameBytes(PreviewPixels.Rgba) * count
     val read = process.inputStream.readNBytes(bytes)
     process.destroy()
     read.size shouldBe bytes

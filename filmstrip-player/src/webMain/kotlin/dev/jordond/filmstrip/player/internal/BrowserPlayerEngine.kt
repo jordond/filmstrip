@@ -175,13 +175,20 @@ internal class BrowserPlayerEngine(
       },
     )
 
-  override val readback: PreviewFrameReadback =
+  private val frames: BrowserFrameReadback =
     BrowserFrameReadback(
       scope = scope,
       preview = { preview },
       renderScale = { plan?.info?.renderScale ?: 1f },
       held = ::heldShuttleFrame,
     )
+
+  override val readback: PreviewFrameReadback get() = frames
+
+  /**
+   * Reads a kept HDR grade's frame as the codes the export encodes, off the compositor the surface's frames come from.
+   */
+  val hdrReadback: HdrPreviewReadback get() = frames
 
   // A page has no player object to attach to. The compositor renders into an OffscreenCanvas that
   // is never added to the document, and the surface draws the read-back bytes, so there is nothing

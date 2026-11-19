@@ -9,6 +9,7 @@ import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.ffmpeg.internal.preview.PreviewStreamResult
 import dev.jordond.filmstrip.ffmpeg.internal.preview.openPreview
+import dev.jordond.filmstrip.ffmpeg.internal.preview.openPreviewCodes
 import dev.jordond.filmstrip.ffmpeg.registeredFfmpegEngine
 import dev.jordond.filmstrip.player.PlaybackError
 import dev.jordond.filmstrip.player.PreviewInfo
@@ -82,6 +83,18 @@ internal open class FfmpegPreviewPlanner(
     at: Duration,
   ): PreviewStreamResult =
     engine?.openPreview(composition, plan.spec, plan.layoutSize, at, plan.resolved.hdr)
+      ?: PreviewStreamResult.Refused(MISSING_FFMPEG)
+
+  /**
+   * Spawns a pump like [open] whose frames come off the pipe as the ten-bit codes the export encodes, for a read of
+   * a kept HDR grade.
+   */
+  open suspend fun openCodes(
+    plan: PreviewPlan,
+    composition: Composition,
+    at: Duration,
+  ): PreviewStreamResult =
+    engine?.openPreviewCodes(composition, plan.spec, plan.layoutSize, at, plan.resolved.hdr)
       ?: PreviewStreamResult.Refused(MISSING_FFMPEG)
 }
 

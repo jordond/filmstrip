@@ -87,6 +87,18 @@ val playerFixtures =
           transfer = FixtureTransfer.Pq,
           patch = FixturePatch.Graded,
         ),
+        FixtureSpec(
+          "android_export_hdr_hlg",
+          1280,
+          720,
+          30,
+          2.0,
+          48000,
+          2,
+          bitrateKbps = 6_000,
+          transfer = FixtureTransfer.Hlg,
+          patch = FixturePatch.Graded,
+        ),
       ),
   )
 

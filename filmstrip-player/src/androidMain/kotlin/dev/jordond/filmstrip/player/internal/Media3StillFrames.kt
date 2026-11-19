@@ -6,6 +6,8 @@ import android.graphics.BitmapFactory
 import android.graphics.ColorSpace
 import android.net.Uri
 import android.opengl.GLES20
+import android.os.Build
+import androidx.annotation.RequiresApi
 import androidx.media3.common.ColorInfo
 import androidx.media3.common.DebugViewProvider
 import androidx.media3.common.Effect
@@ -20,6 +22,9 @@ import androidx.media3.common.util.GlUtil
 import androidx.media3.datasource.DataSourceBitmapLoader
 import androidx.media3.effect.DefaultVideoFrameProcessor
 import com.google.common.util.concurrent.ListenableFuture
+import dev.jordond.filmstrip.media.HdrTransfer
+import dev.jordond.filmstrip.media3.internal.bounds.PictureGrade
+import dev.jordond.filmstrip.media3.internal.bounds.withNeutralGainmap
 import dev.jordond.filmstrip.media3.internal.preview.Media3Readback
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
@@ -91,6 +96,31 @@ internal class Media3StillFrames(
   ): Bitmap = held.withLock { drawAt(pictureFor(readback), readback, at) }
 
   /**
+   * The frame [readback]'s photo draws at [at] on a kept grade in [transfer], read through [tap].
+   *
+   * The chain runs on an HDR output in the grade's colour, the way an export lays a picture on one, so the picture
+   * carries a neutral gainmap and enters as the sRGB it holds. Needs API 34, where gainmaps start.
+   *
+   * @throws IllegalStateException when the item names no picture to read, or no frame reached [tap].
+   * @throws VideoFrameProcessingException when the chain could not be run.
+   */
+  @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
+  suspend fun renderHdr(
+    readback: Media3Readback,
+    at: Duration,
+    transfer: HdrTransfer,
+    tap: HdrTap,
+  ): HdrPreviewFrame =
+    held.withLock {
+      val picture = pictureFor(readback)
+      withContext(Dispatchers.Default) {
+        val copy = picture.copyOrThrow().withNeutralGainmap()
+        draw(copy, readback.effects + tap, at, PictureGrade(transfer).colorInfo) { }
+        tap.frameAt(at, transfer)
+      }
+    }
+
+  /**
    * Drops the picture kept for the last photo rendered.
    *
    * The pixels are left to the collector rather than recycled, because a render that has already
@@ -140,11 +170,11 @@ internal class Media3StillFrames(
     at: Duration,
   ): Bitmap =
     withContext(Dispatchers.Default) {
-      val copy =
-        picture.copy(picture.config ?: Bitmap.Config.ARGB_8888, false)
-          ?: throw VideoFrameProcessingException(NO_COPY)
-      draw(copy, readback.effects, at)
+      draw(picture.copyOrThrow(), readback.effects, at)
     }
+
+  private fun Bitmap.copyOrThrow(): Bitmap =
+    copy(config ?: Bitmap.Config.ARGB_8888, false) ?: throw VideoFrameProcessingException(NO_COPY)
 
   /**
    * Runs [effects] over [source] and reads the result back.
@@ -157,8 +187,23 @@ internal class Media3StillFrames(
     source: Bitmap,
     effects: List<Effect>,
     at: Duration,
-  ): Bitmap {
-    val drawn = CompletableDeferred<Bitmap>()
+  ): Bitmap =
+    // What the frame extractor renders an SDR frame into, so a photo and a video frame of one composition come back in
+    // the same space.
+    draw(source, effects, at, ColorInfo.SDR_BT709_LIMITED) { readPixels() }
+
+  /**
+   * Runs [effects] over [source] onto an output in [output] and hands the drawn texture to [read], on the thread that
+   * drew it.
+   */
+  private suspend fun <T> draw(
+    source: Bitmap,
+    effects: List<Effect>,
+    at: Duration,
+    output: ColorInfo,
+    read: GlTextureInfo.() -> T,
+  ): T {
+    val drawn = CompletableDeferred<T>()
     val registered = CompletableDeferred<Unit>()
 
     val processor =
@@ -167,7 +212,7 @@ internal class Media3StillFrames(
         .setTextureOutput(
           { producer, texture, presentationTimeUs, _ ->
             try {
-              drawn.complete(texture.readPixels())
+              drawn.complete(texture.read())
             } finally {
               producer.releaseOutputTexture(presentationTimeUs)
             }
@@ -177,9 +222,7 @@ internal class Media3StillFrames(
         .create(
           context,
           DebugViewProvider.NONE,
-          // What the frame extractor renders an SDR frame into, so a photo and a video frame of
-          // one composition come back in the same space.
-          ColorInfo.SDR_BT709_LIMITED,
+          output,
           RENDER_AUTOMATICALLY,
           DIRECT,
           object : VideoFrameProcessor.Listener {

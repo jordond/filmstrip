@@ -2,12 +2,16 @@ package dev.jordond.filmstrip.player.internal
 
 import android.content.Context
 import android.graphics.Bitmap
+import android.os.Build
 import android.os.Handler
 import android.os.HandlerThread
+import androidx.annotation.RequiresApi
+import androidx.media3.common.Effect
 import androidx.media3.inspector.frame.FrameExtractor
 import dev.jordond.filmstrip.Cancellable
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ColorSpace
+import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media3.internal.preview.Media3Preview
 import dev.jordond.filmstrip.media3.internal.preview.Media3Readback
 import dev.jordond.filmstrip.media3.internal.preview.readbackSourceFactory
@@ -17,7 +21,10 @@ import dev.jordond.filmstrip.player.ReadbackCallback
 import dev.jordond.filmstrip.player.ReadbackFrame
 import dev.jordond.filmstrip.player.ReadbackResult
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withContext
 import java.util.concurrent.Executor
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.time.Duration
@@ -51,6 +58,7 @@ import kotlin.time.Duration
  * @param renderScale The preview-only downscale in force.
  * @param revision What the loaded edit's frames are decided by, which tells one request's chain
  *   from the last one's.
+ * @param transfer The transfer of the grade the loaded edit keeps, or null when it is SDR.
  */
 internal class Media3FrameReadback(
   private val scope: CoroutineScope,
@@ -58,7 +66,9 @@ internal class Media3FrameReadback(
   private val preview: () -> Media3Preview?,
   private val renderScale: () -> Float,
   private val revision: () -> Long,
-) : PreviewFrameReadback {
+  private val transfer: () -> HdrTransfer?,
+) : PreviewFrameReadback,
+  HdrPreviewReadback {
   private val stills = Media3StillFrames(context)
 
   private val thread = HandlerThread(THREAD_NAME).apply { start() }
@@ -80,15 +90,10 @@ internal class Media3FrameReadback(
     // so it is built on one of this class's own rather than on the player's.
     handler.post {
       if (request.cancelled) return@post
-      val extractor =
-        FrameExtractor
-          .Builder(context, span.item)
-          .setMediaSourceFactory(readbackSourceFactory(context))
-          .setEffects(lowered.effects)
-          .build()
+      val extractor = extractorOf(lowered, lowered.effects, extractsHdr = false)
       request.extractor = extractor
 
-      val future = extractor.getFrame(span.positionIn(position).inWholeMilliseconds)
+      val future = extractor.getFrame(lowered.extractorPosition(position))
       future.addListener(
         {
           val outcome =
@@ -123,6 +128,85 @@ internal class Media3FrameReadback(
       handler.post { request.closeExtractor() }
     }
   }
+
+  /**
+   * Renders the frame at [position] on the loaded edit's kept grade and reads it out of media3's working space.
+   *
+   * A clip goes through a `FrameExtractor` asked for HDR frames and a photo through [Media3StillFrames.renderHdr], each
+   * with an [HdrTap] at the end of the chain. Refused on an SDR grade, and below API 34, where media3 hands back no HDR
+   * frame and lays no picture on an HDR output.
+   */
+  override suspend fun hdrFrameAt(position: Duration): HdrPreviewResult {
+    val grade = transfer() ?: return hdrRefusal(NO_HDR_GRADE)
+    hdrReadbackLimit(Build.VERSION.SDK_INT)?.let { return hdrRefusal(it) }
+    val graph = preview() ?: return hdrRefusal(NO_COMPOSITION)
+    val lowered = graph.readbackAt(position, revision()) ?: return hdrRefusal(NO_CLIP)
+    val tap = HdrTap()
+    return try {
+      val frame =
+        if (lowered.span.still) {
+          stills.renderHdr(lowered, position, grade, tap)
+        } else {
+          val shownMs = extractHdr(lowered, position, tap)
+          withContext(Dispatchers.Default) { tap.frameAt(lowered.compositionTimeOf(shownMs), grade) }
+        }
+      HdrPreviewResult.Success(frame)
+    } catch (cancelled: CancellationException) {
+      throw cancelled
+    } catch (
+      @Suppress("TooGenericExceptionCaught") broken: Exception,
+    ) {
+      HdrPreviewResult.Failure(
+        PlaybackError.Underlying(PlaybackError.Underlying.NO_PLATFORM_CODE, broken.message ?: broken.toString()),
+      )
+    }
+  }
+
+  /**
+   * Extracts the frame of [lowered]'s clip at [position] as HDR through [tap], returning the time media3 reports it at.
+   *
+   * The extractor is closed before this resumes, for the reason [requestFrame] gives.
+   */
+  @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
+  private suspend fun extractHdr(
+    lowered: Media3Readback,
+    position: Duration,
+    tap: HdrTap,
+  ): Long =
+    suspendCancellableCoroutine { continuation ->
+      handler.post {
+        if (!continuation.isActive) return@post
+        val extractor = extractorOf(lowered, lowered.effects + tap, extractsHdr = true)
+        val future = extractor.getFrame(lowered.extractorPosition(position))
+        future.addListener(
+          {
+            val outcome = runCatching { future.get().presentationTimeMs }
+            handler.post {
+              extractor.close()
+              continuation.resumeWith(outcome)
+            }
+          },
+          DIRECT,
+        )
+      }
+    }
+
+  private fun extractorOf(
+    lowered: Media3Readback,
+    effects: List<Effect>,
+    extractsHdr: Boolean,
+  ): FrameExtractor =
+    FrameExtractor
+      .Builder(context, lowered.span.item)
+      .setMediaSourceFactory(readbackSourceFactory(context))
+      .setEffects(effects)
+      .setExtractHdrFrames(extractsHdr)
+      .build()
+
+  private fun Media3Readback.extractorPosition(position: Duration): Long = span.positionIn(position).inWholeMilliseconds
+
+  private fun hdrRefusal(message: String): HdrPreviewResult =
+    HdrPreviewResult.Failure(PlaybackError.SourceUnreadable(message))
 
   /**
    * Reads the frame [lowered]'s photo draws at [position].
@@ -228,6 +312,7 @@ internal class Media3FrameReadback(
     const val THREAD_NAME = "filmstrip-readback"
     const val NO_COMPOSITION = "No composition is loaded, so there is no frame to read back."
     const val NO_CLIP = "The composition draws nothing at that time, so there is no frame to read back."
+    const val NO_HDR_GRADE = "The composition is on an SDR grade, so there are no HDR codes to read."
 
     // The future has already finished by the time this runs, so the callback costs the thread that
     // completed it one lambda and nothing else.
@@ -292,3 +377,16 @@ private const val CHANNELS = 4
 private const val RED_SHIFT = 16
 private const val GREEN_SHIFT = 8
 private const val OPAQUE = 0xFF.toByte()
+
+/**
+ * Why media3 cannot read a preview frame back as HDR on [sdkInt], or null when it can.
+ *
+ * `FrameExtractor` hands back HDR frames from API 34, and a picture reaches an HDR output only with a gainmap, which
+ * starts there too.
+ */
+internal fun hdrReadbackLimit(sdkInt: Int): String? =
+  if (sdkInt < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+    "media3 reads a preview frame back as HDR from API 34, and this device runs API $sdkInt."
+  } else {
+    null
+  }

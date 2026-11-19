@@ -2,6 +2,7 @@ package dev.jordond.filmstrip.avfoundation.internal.writer
 
 import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.avfoundation.internal.composition.AvComposition
+import dev.jordond.filmstrip.avfoundation.internal.composition.videoCompositionOutput
 import dev.jordond.filmstrip.avfoundation.internal.interop.copyFormatHint
 import dev.jordond.filmstrip.avfoundation.internal.time.MEDIA_TIMESCALE
 import dev.jordond.filmstrip.avfoundation.internal.time.toCMTime
@@ -34,7 +35,6 @@ import platform.AVFoundation.AVAssetReader
 import platform.AVFoundation.AVAssetReaderAudioMixOutput
 import platform.AVFoundation.AVAssetReaderOutput
 import platform.AVFoundation.AVAssetReaderTrackOutput
-import platform.AVFoundation.AVAssetReaderVideoCompositionOutput
 import platform.AVFoundation.AVAssetTrack
 import platform.AVFoundation.AVAssetWriter
 import platform.AVFoundation.AVAssetWriterInput
@@ -381,10 +381,7 @@ internal class WriterRun(
     if (copies) {
       AVAssetReaderTrackOutput(track = tracks.first() as AVAssetTrack, outputSettings = null)
     } else {
-      AVAssetReaderVideoCompositionOutput(
-        videoTracks = tracks,
-        videoSettings = videoReaderSettings(composition.encodesHdr),
-      ).apply { videoComposition = composition.videoComposition }
+      composition.videoCompositionOutput(tracks)
     }
 
   private fun audioOutput(

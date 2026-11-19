@@ -235,6 +235,11 @@ internal class AvPlayerEngine(
       renderScale = { plan?.info?.renderScale ?: 1f },
     )
 
+  /**
+   * Reads a kept HDR grade's frame as the codes the export encodes, rendered by the export's own reader output.
+   */
+  val hdrReadback: HdrPreviewReadback = AvHdrReadback(composition = { lowered })
+
   override val nativePlayer: Any get() = player
 
   init {

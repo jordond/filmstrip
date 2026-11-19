@@ -83,7 +83,7 @@ class Media3FrameReadbackMediaTest {
   private fun readback(
     scope: CoroutineScope,
     preview: Media3Preview?,
-  ): Media3FrameReadback = Media3FrameReadback(scope, contractContext(), { preview }, { SCALE }, { REVISION })
+  ): Media3FrameReadback = Media3FrameReadback(scope, contractContext(), { preview }, { SCALE }, { REVISION }, { null })
 
   private suspend fun fixturePreview(): Media3Preview {
     val planner = Media3PreviewPlanner(CONTRACT_COMPONENTS)

@@ -9,6 +9,7 @@ import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.ffmpeg.internal.FfmpegExportEngine
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.PREVIEW_SINK
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.PreviewFrames
+import dev.jordond.filmstrip.ffmpeg.internal.lowering.PreviewPixels
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.previewArguments
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.previewFrameBytes
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.previewFrames
@@ -45,7 +46,7 @@ import kotlin.time.Duration
  * [PreviewStream.startPosition] reports where it opened.
  * @param grade The grade to lower at, for a preview rendering the grade of an export it is not lowering. Null settles
  * it from [spec].
- * @return The running stream, or why the edit cannot be previewed here.
+ * @return The running stream of packed RGBA frames, or why the edit cannot be previewed here.
  */
 @InternalFilmstripApi
 public suspend fun FfmpegExportEngine.openPreview(
@@ -54,6 +55,33 @@ public suspend fun FfmpegExportEngine.openPreview(
   layoutSize: Size? = null,
   at: Duration = Duration.ZERO,
   grade: ResolvedHdr? = null,
+): PreviewStreamResult = spawnPreview(composition, spec, layoutSize, at, grade, PreviewPixels.Rgba)
+
+/**
+ * Spawns the preview pump the way [openPreview] does, with frames that come off the pipe as the ten-bit codes the
+ * export encodes.
+ *
+ * Each frame is planar luma, Cb and Cr at full chroma resolution, two little endian bytes a sample, for a read of a
+ * kept HDR grade.
+ *
+ * @return The running stream, or why the edit cannot be previewed here.
+ */
+@InternalFilmstripApi
+public suspend fun FfmpegExportEngine.openPreviewCodes(
+  composition: Composition,
+  spec: ExportSpec,
+  layoutSize: Size?,
+  at: Duration,
+  grade: ResolvedHdr?,
+): PreviewStreamResult = spawnPreview(composition, spec, layoutSize, at, grade, PreviewPixels.TenBitCodes)
+
+private suspend fun FfmpegExportEngine.spawnPreview(
+  composition: Composition,
+  spec: ExportSpec,
+  layoutSize: Size?,
+  at: Duration,
+  grade: ResolvedHdr?,
+  pixels: PreviewPixels,
 ): PreviewStreamResult {
   val lowered = runs.lowered(composition, spec, layoutSize, grade)
   val (toolchain, planned) = lowered.graph ?: return PreviewStreamResult.Refused(lowered.export.refusal())
@@ -84,6 +112,7 @@ public suspend fun FfmpegExportEngine.openPreview(
           resolvedSidecars,
           at,
           split,
+          pixels,
         )
       PreviewCommand(split, resolvedInputs, command, command.readingGraphFrom(scratch))
     } catch (failure: IOException) {
@@ -123,7 +152,7 @@ public suspend fun FfmpegExportEngine.openPreview(
       startPosition = invocation.previewLanding(at),
       inputs = inputs,
       sink = PREVIEW_SINK,
-      frameBytes = invocation.previewFrameBytes,
+      frameBytes = invocation.previewFrameBytes(pixels),
       split = split,
       feeds = chosen.feeds,
     ),

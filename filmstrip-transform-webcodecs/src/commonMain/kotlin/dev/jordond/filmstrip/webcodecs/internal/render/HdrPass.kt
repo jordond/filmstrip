@@ -9,6 +9,7 @@ import dev.jordond.filmstrip.webcodecs.internal.interop.Uint8Array
 import dev.jordond.filmstrip.webcodecs.internal.interop.VideoSample
 import dev.jordond.filmstrip.webcodecs.internal.interop.WebGl2
 import dev.jordond.filmstrip.webcodecs.internal.interop.jsArrayOf
+import dev.jordond.filmstrip.webcodecs.internal.interop.toByteArray
 import dev.jordond.filmstrip.webcodecs.internal.opacity
 import kotlin.js.ExperimentalWasmJsInterop
 import kotlin.js.JsAny
@@ -145,6 +146,14 @@ internal class HdrPass(
   }
 
   /**
+   * Runs the pack pass and spreads its planes out through [interleavedTenBitCodes], three codes a pixel.
+   */
+  fun codes(
+    gl: WebGl2,
+    composite: JsAny,
+  ): ShortArray = interleavedTenBitCodes(pack(gl, composite).toByteArray(), outputWidth, outputHeight)
+
+  /**
    * Draws the composited light onto the canvas through the present pass.
    */
   fun present(
@@ -219,12 +228,7 @@ internal fun buildHdrPass(
 
   gl.bindFramebuffer(GL_FRAMEBUFFER, null)
 
-  // Each row of the packed framebuffer is one row of one plane, so the stride is the same on
-  // all three. A chroma row fills half of its stride, which the layout says outright rather
-  // than the planes being interleaved: a frame's plane ranges may not overlap.
-  val stride = width * SAMPLE_BYTES
-  val lumaBytes = stride * height
-  val chromaBytes = stride * (height / 2)
+  val planes = PackPlanes(width, height)
   return HdrPass(
     outputWidth = width,
     outputHeight = height,
@@ -239,14 +243,14 @@ internal fun buildHdrPass(
     packProgram = packProgram,
     packTexture = packTexture,
     packFbo = packFbo,
-    packed = Uint8Array(stride * 2 * height),
+    packed = Uint8Array(planes.stride * 2 * height),
     presentProgram = presentProgram,
     layout =
       jsArrayOf(
         listOf(
-          planeLayout(0, stride),
-          planeLayout(lumaBytes, stride),
-          planeLayout(lumaBytes + chromaBytes, stride),
+          planeLayout(0, planes.stride),
+          planeLayout(planes.cb, planes.stride),
+          planeLayout(planes.cr, planes.stride),
         ),
       ),
     colorSpace =
@@ -259,6 +263,18 @@ internal fun buildHdrPass(
   )
 }
 
+// Each row of the packed framebuffer is one row of one plane, so the stride is the same on all three. A chroma row
+// fills half of its stride, which the layout says outright rather than the planes being interleaved, since a frame's
+// plane ranges may not overlap.
+private class PackPlanes(
+  width: Int,
+  height: Int,
+) {
+  val stride = width * SAMPLE_BYTES
+  val cb = stride * height
+  val cr = cb + stride * (height / 2)
+}
+
 private fun planeLayout(
   offset: Int,
   stride: Int,
@@ -267,3 +283,35 @@ private fun planeLayout(
     .put("offset", offset)
     .put("stride", stride)
     .build()
+
+/**
+ * Spreads the pack pass's [packed] bytes out to luma, Cb and Cr codes for every pixel of a [width] by [height] frame,
+ * row major, three codes a pixel.
+ *
+ * The pack holds chroma at half resolution in both directions, so each pixel takes the Cb and Cr of the block it sits
+ * in. Where neighbouring blocks differ, a pixel on the edge between them reads only its own block.
+ */
+internal fun interleavedTenBitCodes(
+  packed: ByteArray,
+  width: Int,
+  height: Int,
+): ShortArray {
+  val planes = PackPlanes(width, height)
+  val codes = ShortArray(width * height * CODES_PER_PIXEL)
+  for (y in 0 until height) {
+    for (x in 0 until width) {
+      val at = (y * width + x) * CODES_PER_PIXEL
+      val chroma = (y / 2) * planes.stride + (x / 2) * SAMPLE_BYTES
+      codes[at] = packed.codeAt(y * planes.stride + x * SAMPLE_BYTES)
+      codes[at + 1] = packed.codeAt(planes.cb + chroma)
+      codes[at + 2] = packed.codeAt(planes.cr + chroma)
+    }
+  }
+  return codes
+}
+
+private fun ByteArray.codeAt(offset: Int): Short =
+  ((this[offset].toInt() and BYTE_MASK) or ((this[offset + 1].toInt() and BYTE_MASK) shl Byte.SIZE_BITS)).toShort()
+
+private const val CODES_PER_PIXEL = 3
+private const val BYTE_MASK = 0xFF

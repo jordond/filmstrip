@@ -116,7 +116,7 @@ internal class FfmpegPlayerEngine(
    */
   override val nativePlayer: Any? = null
 
-  override val readback: PreviewFrameReadback =
+  private val frames: FfmpegFrameReadback =
     FfmpegFrameReadback(
       scope = scope,
       planner = planner,
@@ -125,6 +125,13 @@ internal class FfmpegPlayerEngine(
       presented = { presented },
       snap = ::snap,
     )
+
+  override val readback: PreviewFrameReadback get() = frames
+
+  /**
+   * Reads a kept HDR grade's frame as the codes the export encodes, out of a pump of its own.
+   */
+  val hdrReadback: HdrPreviewReadback get() = frames
 
   override val isGraphStanding: Boolean get() = plan != null
 

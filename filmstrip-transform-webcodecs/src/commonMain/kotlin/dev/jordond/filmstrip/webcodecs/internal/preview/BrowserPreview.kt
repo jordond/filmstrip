@@ -6,6 +6,7 @@ import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.outputSlotOf
 import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.transform.internal.heldTail
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
@@ -17,33 +18,14 @@ import dev.jordond.filmstrip.webcodecs.internal.NO_CLIP
 import dev.jordond.filmstrip.webcodecs.internal.RenderedClip
 import dev.jordond.filmstrip.webcodecs.internal.SourceCache
 import dev.jordond.filmstrip.webcodecs.internal.browserRenderOf
-import dev.jordond.filmstrip.webcodecs.internal.interop.JsOptions
-import dev.jordond.filmstrip.webcodecs.internal.interop.Uint8Array
 import dev.jordond.filmstrip.webcodecs.internal.interop.VideoSample
-import dev.jordond.filmstrip.webcodecs.internal.interop.toByteArray
 import dev.jordond.filmstrip.webcodecs.internal.render.BrowserCompositor
 import dev.jordond.filmstrip.webcodecs.internal.solidSample
-import kotlinx.coroutines.await
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlin.js.ExperimentalWasmJsInterop
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.microseconds
-
-/**
- * One composited preview frame, in the packed form a surface draws and a comparison reads.
- *
- * @property pixels Tightly packed RGBA_8888, row major, `width * height * 4` bytes.
- * @property size The frame's dimensions.
- * @property presentationTime The composition time this frame sits at on the output frame grid,
- *   which is the time an export writes it at rather than the time that was asked for.
- */
-@InternalFilmstripApi
-public class PreviewFrame internal constructor(
-  public val pixels: ByteArray,
-  public val size: Size,
-  public val presentationTime: Duration,
-)
 
 /**
  * A lowered composition a preview draws frames out of, one position at a time.
@@ -156,7 +138,20 @@ public class BrowserPreview internal constructor(
    * the export pipeline fills that same slot with. A slot in front of a primary track that starts
    * late draws the fill alone, as the export does.
    */
-  public suspend fun frameAt(position: Duration): PreviewFrame? = exclusively { draw(position) }
+  public suspend fun frameAt(position: Duration): PreviewFrame? =
+    exclusively { draw(position) { pass, us -> pass.readFrame(render, us) } }
+
+  /**
+   * The HDR grade this preview composites on, or null when it composites in SDR.
+   */
+  public val hdrTransfer: HdrTransfer? get() = render.hdrTransfer
+
+  /**
+   * Draws the frame at [position] the way [frameAt] does and reads it as the ten-bit codes an export encodes, or null
+   * when the composition has no frame there or composites in SDR.
+   */
+  public suspend fun codesAt(position: Duration): PreviewCodes? =
+    exclusively { draw(position) { pass, us -> pass.readCodes(render, us) } }
 
   /**
    * Decodes ahead of [from], up to the window's bound.
@@ -295,8 +290,11 @@ public class BrowserPreview internal constructor(
     return true
   }
 
-  private suspend fun draw(position: Duration): PreviewFrame? {
-    leadAt(position)?.let { return fillFrame(it) }
+  private suspend fun <T> draw(
+    position: Duration,
+    read: suspend (BrowserCompositor, Double) -> T?,
+  ): T? {
+    leadAt(position)?.let { return fillFrame(it, read) }
     val slot = slotAt(position) ?: return null
     val sourceUs = slot.sourceUs
     // A solid draws one pixel of its colour and decodes nothing.
@@ -313,7 +311,7 @@ public class BrowserPreview internal constructor(
       solid ?: if (ready == null) sampler(readbackSamplers, slot)?.nearestAt(sourceUs, slot.clip.trimEndUs) else null
     val sample = ready ?: own ?: return null
     return try {
-      composite(slot, sample)
+      composite(slot, sample, read)
     } finally {
       own?.close()
     }
@@ -373,44 +371,29 @@ public class BrowserPreview internal constructor(
   }
 
   /**
-   * Draws [sample] through the clip's pass and copies the canvas back out as packed RGBA.
+   * Draws [sample] through the clip's pass and reads the composite through [read].
    */
-  private suspend fun composite(
+  private suspend fun <T> composite(
     slot: Slot,
     sample: VideoSample,
-  ): PreviewFrame {
+    read: suspend (BrowserCompositor, Double) -> T?,
+  ): T? {
     val pass = compositor()
     pass.clip(slot.clip)
     pass.draw(sample, slot.outputUs, render.compositionOverlays, render.compositionPasses)
-    return readBack(pass, slot.writtenUs)
+    return read(pass, slot.writtenUs)
   }
 
   /**
    * Draws the fill with no clip over it, for a slot in the gap before the primary track starts.
    */
-  private suspend fun fillFrame(outputUs: Double): PreviewFrame {
+  private suspend fun <T> fillFrame(
+    outputUs: Double,
+    read: suspend (BrowserCompositor, Double) -> T?,
+  ): T? {
     val pass = compositor()
     pass.drawFill(outputUs, render.compositionOverlays, render.compositionPasses)
-    return readBack(pass, outputUs)
-  }
-
-  private suspend fun readBack(
-    pass: BrowserCompositor,
-    outputUs: Double,
-  ): PreviewFrame {
-    val shot = pass.present(outputUs, render.stepUs)
-    try {
-      val options = JsOptions().put("format", "RGBA").build()
-      val target = Uint8Array(shot.allocationSize(options))
-      shot.copyTo(target, options).await()
-      return PreviewFrame(
-        pixels = target.toByteArray(),
-        size = Size(render.width, render.height),
-        presentationTime = outputUs.microseconds,
-      )
-    } finally {
-      shot.close()
-    }
+    return read(pass, outputUs)
   }
 
   private fun compositor(): BrowserCompositor =

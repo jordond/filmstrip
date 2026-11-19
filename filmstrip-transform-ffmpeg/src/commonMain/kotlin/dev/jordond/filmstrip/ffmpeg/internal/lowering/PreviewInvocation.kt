@@ -16,6 +16,32 @@ internal const val PREVIEW_PIXEL_FORMAT: String = "rgba"
 internal const val PREVIEW_CHANNELS: Int = 4
 
 /**
+ * The layouts the pump can write its frames in.
+ *
+ * @property format The ffmpeg pixel format the sink is asked for.
+ * @property bytesPerPixel How many bytes one pixel occupies on the pipe.
+ */
+internal enum class PreviewPixels(
+  val format: String,
+  val bytesPerPixel: Int,
+) {
+  /**
+   * Tightly packed RGBA_8888, what a surface draws.
+   */
+  Rgba(PREVIEW_PIXEL_FORMAT, PREVIEW_CHANNELS),
+
+  /**
+   * Planar ten-bit luma, Cb and Cr at full chroma resolution, two little endian bytes a sample.
+   *
+   * The graph's last frame is already in the format the export's encoder takes, so these are the codes the export
+   * encodes with its chroma brought up to every pixel and no matrix run on the way.
+   */
+  TenBitCodes("yuv444p10le", TEN_BIT_CODE_BYTES),
+}
+
+private const val TEN_BIT_CODE_BYTES = 6
+
+/**
  * Where the pump's process writes its frames, which is the output its command line names.
  */
 internal const val PREVIEW_SINK: String = "pipe:1"
@@ -62,6 +88,7 @@ internal fun Invocation.previewArguments(
   resolvedSidecars: List<String>,
   at: Duration,
   frames: PreviewFrames = previewFrames(at),
+  pixels: PreviewPixels = PreviewPixels.Rgba,
 ): List<String> =
   buildList {
     add(toolchain.ffmpeg)
@@ -87,7 +114,7 @@ internal fun Invocation.previewArguments(
       add(rendered.toString())
     }
 
-    addAll(previewSinkArguments(config))
+    addAll(previewSinkArguments(config, pixels))
   }
 
 // Every input, the clip seeked to where the preview opens and each rebased branch moved there instead.
@@ -182,14 +209,17 @@ private fun Invocation.previewMapArguments(
     }
   }
 
-// Raw RGBA frames on stdout, handed over as the graph emitted them.
-private fun previewSinkArguments(config: FfmpegConfig): List<String> =
+// Raw frames in the asked for layout on stdout, handed over as the graph emitted them.
+private fun previewSinkArguments(
+  config: FfmpegConfig,
+  pixels: PreviewPixels,
+): List<String> =
   buildList {
     add("-an")
     add("-f")
     add("rawvideo")
     add("-pix_fmt")
-    add(PREVIEW_PIXEL_FORMAT)
+    add(pixels.format)
     // -vsync 0 under its old name, which ffmpeg 9 no longer takes. Frames reach the pipe as the
     // graph emitted them, neither duplicated up to a rate nor dropped down to one.
     add("-fps_mode")
@@ -204,10 +234,10 @@ private fun previewSinkArguments(config: FfmpegConfig): List<String> =
   }
 
 /**
- * How many bytes one frame of this invocation's output occupies on the pipe.
+ * How many bytes one frame of this invocation's output occupies on the pipe in the [pixels] layout.
  */
-internal val Invocation.previewFrameBytes: Int
-  get() = output.size.width * output.size.height * PREVIEW_CHANNELS
+internal fun Invocation.previewFrameBytes(pixels: PreviewPixels): Int =
+  output.size.width * output.size.height * pixels.bytesPerPixel
 
 // Seconds, or null where there is nothing to move. A seek to zero costs a seek that lands where the
 // demuxer already is, and an offset of zero moves no timestamp anywhere.

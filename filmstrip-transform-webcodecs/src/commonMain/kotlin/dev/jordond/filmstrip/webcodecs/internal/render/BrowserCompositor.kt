@@ -427,6 +427,11 @@ internal class BrowserCompositor(
   }
 
   /**
+   * The composited frame as the ten-bit codes [snapshot] hands the encoder, three a pixel, or null on SDR.
+   */
+  fun tenBitCodes(): ShortArray? = hdr?.codes(gl, program)
+
+  /**
    * The composited frame as the canvas holds it, for a preview that draws pixels rather than
    * encoding them.
    *

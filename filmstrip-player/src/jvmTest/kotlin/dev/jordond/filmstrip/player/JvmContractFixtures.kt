@@ -32,14 +32,19 @@ import kotlin.time.DurationUnit
  * Nothing here skips: a suite that returns early on a missing fixture reports green without having
  * asserted anything.
  */
-internal fun jvmFixtureClip(): String {
+internal fun jvmFixtureClip(): String = jvmFixture(CLIP_NAME)
+
+/**
+ * The downloaded fixture called [name], which fails the test rather than skipping it when the file is missing.
+ */
+internal fun jvmFixture(name: String): String {
   val directory =
     System
       .getProperty(
         FIXTURES,
       ).orEmpty()
       .ifBlank { fail("$FIXTURES was not set. The jvmTest task is what provides it.") }
-  val path = File(directory, CLIP_NAME)
+  val path = File(directory, name)
   if (!path.isFile) fail("The fixture $path was not downloaded.")
   return path.absolutePath
 }

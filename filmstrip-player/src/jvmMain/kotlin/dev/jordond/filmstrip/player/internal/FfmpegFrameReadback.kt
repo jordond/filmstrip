@@ -7,6 +7,7 @@ import dev.jordond.filmstrip.edit.outputSlotOf
 import dev.jordond.filmstrip.edit.outputSlotTime
 import dev.jordond.filmstrip.ffmpeg.internal.preview.PreviewStream
 import dev.jordond.filmstrip.ffmpeg.internal.preview.PreviewStreamResult
+import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.player.PlaybackError
 import dev.jordond.filmstrip.player.PreviewFrameReadback
@@ -14,6 +15,7 @@ import dev.jordond.filmstrip.player.ReadbackCallback
 import dev.jordond.filmstrip.player.ReadbackFrame
 import dev.jordond.filmstrip.player.ReadbackResult
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import kotlin.time.Duration
 
@@ -84,7 +86,8 @@ internal class FfmpegFrameReadback(
   private val composition: () -> Composition?,
   private val presented: () -> PreviewFrame?,
   private val snap: (Duration) -> Duration,
-) : PreviewFrameReadback {
+) : PreviewFrameReadback,
+  HdrPreviewReadback {
   override fun requestFrame(
     position: Duration,
     callback: ReadbackCallback,
@@ -120,6 +123,46 @@ internal class FfmpegFrameReadback(
     }
   }
 
+  override suspend fun hdrFrameAt(position: Duration): HdrPreviewResult = scope.async { renderCodes(position) }.await()
+
+  private suspend fun renderCodes(position: Duration): HdrPreviewResult {
+    val current = plan() ?: return HdrPreviewResult.Failure(PlaybackError.SourceUnreadable(NOTHING_LOADED))
+    val edit = composition() ?: return HdrPreviewResult.Failure(PlaybackError.SourceUnreadable(NOTHING_LOADED))
+    val transfer =
+      current.resolved.hdrTransfer ?: return HdrPreviewResult.Failure(PlaybackError.SourceUnreadable(NO_HDR_GRADE))
+    val at = snap(position)
+
+    val stream =
+      when (val opened = planner.openCodes(current, edit, at)) {
+        is PreviewStreamResult.Refused -> return HdrPreviewResult.Failure(opened.error.toPlaybackError())
+        is PreviewStreamResult.Opened -> opened.stream
+      }
+
+    try {
+      val frame =
+        stream.frameAt(at, current.frameRate)
+          ?: return HdrPreviewResult.Failure(
+            stream.failedExit()?.toPlaybackError() ?: PlaybackError.Underlying(NO_CODE, noFrame(at)),
+          )
+      val size = current.resolved.output.size
+      return HdrPreviewResult.Success(HdrPreviewFrame(interleaved(frame.pixels, size), size, frame.position, transfer))
+    } finally {
+      stream.close()
+    }
+  }
+
+  // The pump writes three planes of little endian samples, and a frame holds each pixel's three codes side by side.
+  private fun interleaved(
+    planes: ByteArray,
+    size: Size,
+  ): ShortArray {
+    val plane = size.width * size.height
+    return ShortArray(plane * CODES) { index ->
+      val at = ((index % CODES) * plane + index / CODES) * 2
+      ((planes[at].toInt() and BYTE) or ((planes[at + 1].toInt() and BYTE) shl Byte.SIZE_BITS)).toShort()
+    }
+  }
+
   // A host's tick grid floors the playhead, so a position short of this frame and past the slot before it is this frame
   // seen through that grid. A position on any other slot's own time asks for that slot.
   private fun PreviewFrame.answers(
@@ -143,6 +186,9 @@ internal class FfmpegFrameReadback(
 
   private companion object {
     const val NOTHING_LOADED = "No composition is loaded, so there is no frame to render."
+    const val NO_HDR_GRADE = "The composition is on an SDR grade, so there are no HDR codes to read."
+    const val CODES = 3
+    const val BYTE = 0xFF
     val NO_CODE = PlaybackError.Underlying.NO_PLATFORM_CODE
 
     fun noFrame(at: Duration): String = "The preview ran out of frames before $at."

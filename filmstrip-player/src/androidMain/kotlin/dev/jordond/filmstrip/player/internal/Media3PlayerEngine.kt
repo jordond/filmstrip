@@ -282,7 +282,13 @@ internal class Media3PlayerEngine(
       preview = { preview },
       renderScale = { plan?.info?.renderScale ?: 1f },
       revision = { loaded?.effectsRevision() ?: 0L },
+      transfer = { plan?.resolved?.hdrTransfer },
     )
+
+  /**
+   * Reads the preview on a kept HDR grade as the codes its export encodes.
+   */
+  val hdrReadback: HdrPreviewReadback get() = readback
 
   override val nativePlayer: Any? get() = player
 

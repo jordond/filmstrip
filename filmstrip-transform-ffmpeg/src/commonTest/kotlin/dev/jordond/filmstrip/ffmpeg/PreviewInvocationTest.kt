@@ -13,6 +13,7 @@ import dev.jordond.filmstrip.export.VideoQuality
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.InputSource
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.InputSpec
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.Invocation
+import dev.jordond.filmstrip.ffmpeg.internal.lowering.PreviewPixels
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.arguments
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.formatSeconds
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.hdrPixelFormatFor
@@ -329,7 +330,24 @@ class PreviewInvocationTest {
   // the pump asks ffmpeg for, so that one stays a literal.
   @Test
   fun `reads four bytes a pixel off the pipe`() {
-    graphed().previewFrameBytes shouldBe OUTPUT.size.width * OUTPUT.size.height * RGBA_BYTES_PER_PIXEL
+    graphed().previewFrameBytes(PreviewPixels.Rgba) shouldBe
+      OUTPUT.size.width * OUTPUT.size.height * RGBA_BYTES_PER_PIXEL
+  }
+
+  @Test
+  fun `ten-bit codes come off the pipe as three planes of two bytes a sample`() {
+    val previewed =
+      graphed().previewArguments(
+        TOOLCHAIN,
+        FfmpegConfig(),
+        INPUTS,
+        emptyList(),
+        Duration.ZERO,
+        pixels = PreviewPixels.TenBitCodes,
+      )
+
+    previewed[previewed.indexOf("-pix_fmt") + 1] shouldBe "yuv444p10le"
+    graphed().previewFrameBytes(PreviewPixels.TenBitCodes) shouldBe OUTPUT.size.width * OUTPUT.size.height * 3 * 2
   }
 
   private fun previewArgumentsFor(at: Duration): List<String> =

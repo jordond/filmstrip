@@ -5,6 +5,8 @@ import dev.jordond.filmstrip.color.HDR_REFERENCE_WHITE_NITS
 import dev.jordond.filmstrip.color.HLG_NOMINAL_PEAK_NITS
 import dev.jordond.filmstrip.color.authoredHdrNits
 import dev.jordond.filmstrip.color.hlgSceneFromNits
+import dev.jordond.filmstrip.color.hlgSignalFromScene
+import dev.jordond.filmstrip.color.pqSignalFromNits
 import dev.jordond.filmstrip.effects.color.HLG_OOTF_GLSL
 import dev.jordond.filmstrip.effects.color.HdrColorMatrixUniforms
 import dev.jordond.filmstrip.effects.color.glsl
@@ -40,6 +42,26 @@ public fun media3WorkingLight(
   when (transfer) {
     HdrTransfer.Pq -> FloatArray(3) { rgbNits[it] / MEDIA3_HDR_PEAK_NITS }
     HdrTransfer.Hlg -> hlgSceneFromNits(rgbNits)
+  }
+
+/**
+ * Converts figures media3 holds an HDR frame in to the signal the grade's transfer encodes them as, the inverse of
+ * [media3WorkingLight].
+ *
+ * A PQ frame is scaled back up by [MEDIA3_HDR_PEAK_NITS] and run through PQ's curve. An HLG frame is scene light, so
+ * it only needs HLG's transfer function.
+ *
+ * @param working Red, green and blue in media3's working space.
+ * @return Red, green and blue signal in [transfer], each from zero to one.
+ */
+@InternalFilmstripApi
+public fun media3Signal(
+  working: FloatArray,
+  transfer: HdrTransfer,
+): FloatArray =
+  when (transfer) {
+    HdrTransfer.Pq -> FloatArray(3) { pqSignalFromNits(working[it] * MEDIA3_HDR_PEAK_NITS) }
+    HdrTransfer.Hlg -> FloatArray(3) { hlgSignalFromScene(working[it]) }
   }
 
 /**
