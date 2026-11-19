@@ -43,6 +43,7 @@ import platform.AVFoundation.seekToTime
 import platform.AVFoundation.setForwardPlaybackEndTime
 import platform.AVFoundation.setMuted
 import platform.AVFoundation.setVolume
+import platform.AVFoundation.timebase
 import platform.AVFoundation.videoComposition
 import platform.darwin.dispatch_queue_create
 import platform.darwin.dispatch_queue_t
@@ -152,7 +153,8 @@ internal class AvPlayerEngine(
   /**
    * Waits out the seeks handed to the item and the callbacks AVFoundation has posted to the engine.
    */
-  val fence: AvCallbackFence = AvCallbackFence(scope, callbackQueue, seeks)
+  val fence: AvCallbackFence =
+    AvCallbackFence(scope, callbackQueue, seeks, awaitStopReported = { transport.awaitStopReported() })
 
   private val loop: AvLoopRangeController =
     AvLoopRangeController(
@@ -168,7 +170,6 @@ internal class AvPlayerEngine(
     AvTransport(
       scope = scope,
       player = player,
-      callbackQueue = callbackQueue,
       interval = POSITION_INTERVAL,
       resolved = { plan?.resolved },
       seeks = seeks,
@@ -183,6 +184,7 @@ internal class AvPlayerEngine(
       emitPosition = { emitPosition(it) },
       reportedPlayhead = { reportedPosition },
       settle = ::settlePause,
+      rest = AvTimebaseRest(scope, timebase = { item?.timebase }, itemTime = ::itemTime),
     )
 
   /**
@@ -245,7 +247,6 @@ internal class AvPlayerEngine(
   init {
     registerEngine(player, this)
     observers.observePlayer()
-    transport.observeStops()
   }
 
   override val isGraphStanding: Boolean get() = lowered != null

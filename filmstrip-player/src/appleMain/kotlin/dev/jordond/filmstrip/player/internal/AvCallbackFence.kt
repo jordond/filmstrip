@@ -16,25 +16,28 @@ import kotlin.coroutines.resume
  * seek a newer one replaced on the thread issuing the newer one, inside that call. The item's time jump notification
  * and a change AVFoundation makes to the player by itself, like playback stopping at the item's end, arrive on the main
  * queue. A play or pause the engine or the host calls posts its rate change and key-value change on the calling thread
- * before the call returns. The engine's time observers run on [callbackQueue], and in all seven seeks measured on each
- * the periodic one ran for the seek's jump before the seek was answered. Every one of those hops onto [scope] before it
- * touches the engine.
+ * before the call returns. The engine's time observers run on [callbackQueue]. Every one of those hops onto [scope]
+ * before it touches the engine.
  *
  * The item's end, stall and failure notifications were not measured, and the audio session posts its interruptions
  * and route changes on a thread of its own on iOS. One already posted has hopped onto [scope] and is covered. One
- * still being delivered on another thread is not, and nothing here can wait for it.
+ * still being delivered on another thread is not, and nothing here can wait for it. The item's timebase posts the
+ * change that brings its clock to rest on a thread of its own too, but the engine counts that stop until it lands, so
+ * it is waited for.
  *
  * Engine's dispatcher only.
  *
  * @param scope The engine's scope, on the dispatcher everything is confined to.
  * @param callbackQueue The queue AVFoundation calls the engine's time observers on.
  * @param seeks The engine's seeks, which count every seek handed to the item until it is answered.
+ * @param awaitStopReported Suspends until a stop waiting for the item's clock to rest has reported where it stopped.
  */
 @OptIn(ExperimentalForeignApi::class)
 internal class AvCallbackFence(
   private val scope: CoroutineScope,
   private val callbackQueue: dispatch_queue_t,
   private val seeks: AvSeekCoordinator,
+  private val awaitStopReported: suspend () -> Unit,
 ) {
   /**
    * How many seeks handed to the item have not been answered yet.
@@ -42,13 +45,14 @@ internal class AvCallbackFence(
   val unansweredSeeks: Int get() = seeks.unansweredSeeks
 
   /**
-   * Suspends until every seek counted has been answered and every callback already posted has run on [scope].
+   * Suspends until every seek counted has been answered, every callback already posted has run on [scope] and a stop
+   * has reported where the item's clock came to rest.
    *
-   * Waits for the seeks still on their way, echoes through [callbackQueue] and the main queue, then hops onto [scope]
-   * behind whatever those queued. A callback that issues another seek while this runs is caught by going round again,
-   * until a pass hands no seek over. A seek the chase is holding until the item can seek has not been handed over and
-   * is not waited for. Never returns while a seek goes unanswered or the main queue is not served, which includes
-   * calling this on the main thread, so a caller bounds the wait.
+   * Waits for the seeks still on their way, echoes through [callbackQueue] and the main queue, hops onto [scope] behind
+   * whatever those queued, then waits for a stop still waiting on the clock. A callback or a stop that issues another
+   * seek while this runs is caught by going round again, until a pass hands no seek over. A seek the chase is holding
+   * until the item can seek has not been handed over and is not waited for. Never returns while a seek goes unanswered
+   * or the main queue is not served, which includes calling this on the main thread, so a caller bounds the wait.
    */
   suspend fun awaitDrained() {
     do {
@@ -57,6 +61,7 @@ internal class AvCallbackFence(
       echoThrough(callbackQueue)
       echoThrough(dispatch_get_main_queue())
       scope.launch { }.join()
+      awaitStopReported()
     } while (seeks.countedSeeks != counted)
   }
 

@@ -1,23 +1,19 @@
 package dev.jordond.filmstrip.player.internal
 
-import dev.jordond.filmstrip.avfoundation.internal.time.toCMTime
-import dev.jordond.filmstrip.avfoundation.internal.time.toDuration
 import dev.jordond.filmstrip.edit.outputSlotTime
 import dev.jordond.filmstrip.player.PlaybackEvent
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
 import platform.AVFoundation.AVPlayer
 import platform.AVFoundation.AVPlayerItem
 import platform.AVFoundation.AVPlayerItemStatusFailed
 import platform.AVFoundation.AVPlayerTimeControlStatusPaused
-import platform.AVFoundation.addPeriodicTimeObserverForInterval
 import platform.AVFoundation.pause
 import platform.AVFoundation.play
-import platform.AVFoundation.removeTimeObserver
 import platform.AVFoundation.timeControlStatus
-import platform.darwin.dispatch_queue_t
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.microseconds
 
@@ -25,15 +21,14 @@ import kotlin.time.Duration.Companion.microseconds
  * Tracks whether the player is playing, whoever started it, and moves the playhead with it.
  *
  * A wrap tick reads the item's clock while playback runs. Each reading becomes the playhead, or takes the loop range's
- * wrap once playback reaches it. Where playback stops is reported once the item has come to rest, read off a periodic
- * observer AVFoundation calls on the callback queue, which hops back onto the scope before it touches anything.
+ * wrap once playback reaches it. Where playback stops is reported once the item's clock has come to rest, which [rest]
+ * answers.
  *
- * Engine's dispatcher only, apart from that observer.
+ * Engine's dispatcher only.
  *
  * @param scope The engine's scope, on the dispatcher everything is confined to.
  * @param player The player driven and followed.
- * @param callbackQueue The queue AVFoundation calls the periodic observer on.
- * @param interval How long the wrap tick and the periodic observer wait between readings.
+ * @param interval How long the wrap tick waits between readings.
  * @param resolved The composition loaded now, or null before one is.
  * @param seeks The seeks in flight, which hold the playhead until they land.
  * @param loop The loop range standing now.
@@ -48,12 +43,12 @@ import kotlin.time.Duration.Companion.microseconds
  * @param reportedPlayhead The playhead the engine reports, which holds a seek's target until the seek lands.
  * @param settle Moves the picture of a pause on to the slot given, landing there exactly, or answers false where that
  * slot is not one the pause may move to.
+ * @param rest Answers where the item's clock rests once playback stops.
  */
 @OptIn(ExperimentalForeignApi::class)
 internal class AvTransport(
   private val scope: CoroutineScope,
   private val player: AVPlayer,
-  private val callbackQueue: dispatch_queue_t,
   private val interval: Duration,
   private val resolved: () -> ResolvedComposition?,
   private val seeks: AvSeekCoordinator,
@@ -68,6 +63,7 @@ internal class AvTransport(
   private val emitPosition: (Duration) -> Unit,
   private val reportedPlayhead: () -> Duration,
   private val settle: (Duration) -> Boolean,
+  private val rest: ClockRest,
 ) {
   private var playing = false
   private var outsidePlayback = false
@@ -75,12 +71,13 @@ internal class AvTransport(
   // Whether the player's latest stop was AVFoundation's own. Its stop at the item's end posts a rate change with no
   // reason, and a pause anyone asked for posts one saying setRate was called.
   private var platformStopped = false
-  private var stopReadingDue = false
 
-  // Whether the stop reading still due may move the picture on to the slot it rounds to. See [stop].
+  // Whether a stop is waiting for the clock to rest before it reports where playback stopped.
+  private val stopDue = MutableStateFlow(false)
+
+  // Whether the stop due may move the picture on to the slot its resting clock rounds to. See [stop].
   private var settleDue = false
   private val wrapTick = PositionTicker(scope, interval, read = itemTime, emit = ::onTick)
-  private var stopToken: Any? = null
 
   /**
    * Whether playback the engine started is running, which [stop] and [halt] both end.
@@ -97,20 +94,10 @@ internal class AvTransport(
     private set
 
   /**
-   * Starts the periodic observer that reads where the item came to rest once playback stops.
-   *
-   * The item can run on for a moment after a pause, past the reading [stop] took. The observer also fires once it has
-   * settled, and that reading moves the playhead onto where playback really stopped.
+   * Suspends until no stop is waiting for the item's clock to rest, so where playback stopped has been reported.
    */
-  fun observeStops() {
-    stopToken =
-      player.addPeriodicTimeObserverForInterval(interval.toCMTime(), callbackQueue) { time ->
-        // Also fires when playback stops, with where the item came to rest. That is the only reading kept from here.
-        insideObjcFrame {
-          val position = time.toDuration()
-          scope.launch { onStopReading(position) }
-        }
-      }
+  suspend fun awaitStopReported() {
+    stopDue.first { !it }
   }
 
   /**
@@ -119,8 +106,7 @@ internal class AvTransport(
   fun play() {
     playing = true
     outsidePlayback = false
-    stopReadingDue = false
-    settleDue = false
+    dropStop()
     player.play()
     wrapTick.start()
   }
@@ -136,8 +122,7 @@ internal class AvTransport(
    * Moves the playhead to [position], dropping any stop reading still due. The engine reports the jump.
    */
   fun jumpTo(position: Duration) {
-    stopReadingDue = false
-    settleDue = false
+    dropStop()
     playhead = position
   }
 
@@ -149,11 +134,10 @@ internal class AvTransport(
   }
 
   /**
-   * Drops the stop reading still due, for a seek or a detached item that makes it stale.
+   * Drops the stop still waiting for the clock to rest, for a seek or a detached item that makes it stale.
    */
   fun cancelStopReading() {
-    stopReadingDue = false
-    settleDue = false
+    dropStop()
   }
 
   /**
@@ -175,7 +159,7 @@ internal class AvTransport(
       return
     }
     outsidePlayback = true
-    stopReadingDue = false
+    dropStop()
     wrapTick.start()
   }
 
@@ -183,9 +167,9 @@ internal class AvTransport(
    * Stops the wrap tick and reports where playback stopped, when it was playing, whoever started it.
    *
    * A wrap already due is taken first, so playback never stops past the loop range without having wrapped. The item
-   * can run on for a moment after it is paused, so the reading taken here is followed by the one the periodic observer
-   * makes once it has stopped. A seek on its way reports where it lands once it completes, so nothing is reported here
-   * while one is in flight.
+   * can run on for a moment after it is paused, so where it stopped is reported once [rest] answers that its clock is
+   * at rest, and [awaitStopReported] waits for that. A seek on its way reports where it lands once it completes, so
+   * nothing is reported here while one is in flight.
    *
    * The item's clock stops between two frames as often as on one, and the picture it rests on is the frame of the slot
    * it last reached. Where the clock stopped past the middle of that slot, the position it reads rounds to the next
@@ -203,9 +187,9 @@ internal class AvTransport(
     outsidePlayback = false
     wrapTick.stop()
     if (seeks.inFlight) return
-    stopReadingDue = true
     settleDue = settle
-    onStopReading(itemTime())
+    stopDue.value = true
+    rest.await(::onRest)
   }
 
   /**
@@ -217,33 +201,33 @@ internal class AvTransport(
     player.pause()
     playing = false
     outsidePlayback = false
-    stopReadingDue = false
+    dropStop()
     wrapTick.stop()
   }
 
   /**
-   * Stops the wrap tick and the periodic observer for good, leaving the player to the engine.
+   * Stops the wrap tick and any wait for the clock to rest for good, leaving the player to the engine.
    */
   fun release() {
     playing = false
     outsidePlayback = false
     wrapTick.stop()
-    stopToken?.let { player.removeTimeObserver(it) }
-    stopToken = null
+    dropStop()
   }
 
-  /**
-   * Reports where the item stopped, until the next seek or play.
-   *
-   * A seek's completion reports where it landed, so a reading the observer made on the way to a seek never follows it.
-   * Neither does one it made before the item stopped, which is behind the playhead already reported.
-   */
-  fun onStopReading(position: Duration) {
-    if (!stopReadingDue || position < playhead) return
+  // Reports where the item's clock came to rest, which is where playback stopped.
+  private fun onRest(position: Duration) {
     val next = if (settleDue) slotAhead(position) else null
-    // The settle's seek drops the stop reading, so a later reading of the clock it moves never follows the slot.
+    settleDue = false
     playhead = if (next != null && settle(next)) next else position
+    stopDue.value = false
     emitPosition(playhead)
+  }
+
+  private fun dropStop() {
+    rest.cancel()
+    settleDue = false
+    stopDue.value = false
   }
 
   /**

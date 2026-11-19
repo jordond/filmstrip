@@ -12,6 +12,7 @@ import dev.jordond.filmstrip.player.contract.withEngine
 import dev.jordond.filmstrip.player.internal.AvPlayerEngine
 import dev.jordond.filmstrip.player.internal.frameStepLanding
 import io.kotest.assertions.withClue
+import io.kotest.matchers.collections.shouldBeIn
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.cinterop.ExperimentalForeignApi
@@ -135,6 +136,26 @@ class AppleSeekLandingMediaTest {
       }
     }
 
+  // At full rate the clock runs on furthest after pause() returns, and stops anywhere in a slot. A pause past the middle
+  // settles the item onto the next slot, and its clock then reads that slot's time to the item's own timescale.
+  @Test
+  fun `a pause at full rate reports where the clock came to rest`() =
+    withLoadedEngine { engine, recorder ->
+      repeat(FULL_RATE_PAUSES) {
+        engine.play()
+        val from = engine.itemTime()
+        awaitContract("the clock to run on from $from") { engine.itemTime() >= from + FIXTURE_FRAME_STEP * 3 }
+        engine.pause()
+        engine.drainCallbacks()
+
+        val rested = engine.itemTime()
+        val settled = slotTime(outputSlotOf(rested, FIXTURE_FRAME_RATE))
+        withClue("The clock came to rest at $rested.") {
+          recorder.playhead shouldBeIn listOf(rested, settled)
+        }
+      }
+    }
+
   private fun withLoadedEngine(body: suspend (AvPlayerEngine, ContractRecorder) -> Unit) =
     contractTest { scope ->
       val engine = AppleEngineUnderTest(scope) { _, _ -> }.engine
@@ -166,5 +187,7 @@ class AppleSeekLandingMediaTest {
     const val SLOW_RATE = 0.05f
     val PAST_MIDDLE: Duration = FIXTURE_FRAME_STEP * 6 / 10
     val BEFORE_MIDDLE: Duration = FIXTURE_FRAME_STEP / 10
+
+    const val FULL_RATE_PAUSES = 5
   }
 }

@@ -14,6 +14,8 @@ import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.async
 import platform.AVFoundation.AVMutableComposition
 import platform.AVFoundation.AVPlayer
 import platform.AVFoundation.AVPlayerItem
@@ -49,19 +51,57 @@ class AvTransportMediaTest {
       rig.transport.release()
     }
 
+  // The clock runs on for a moment after a pause, so the reading taken at the stop is not where playback stopped.
   @Test
-  fun `a stop reports where the item stopped and later readings only move it forward`() =
+  fun `a stop reports nothing until the clock rests and then where it rests`() =
     contractTest { scope ->
       val rig = Rig(scope, appleExportLowering(appleFixtureComposition()))
       rig.transport.play()
       rig.clock = 400.milliseconds
 
       rig.transport.stop()
-      rig.transport.onStopReading(420.milliseconds)
-      rig.transport.onStopReading(410.milliseconds)
+      rig.positions.shouldBeEmpty()
+      rig.rest.waiting shouldBe true
 
-      rig.positions shouldBe listOf(400.milliseconds, 420.milliseconds)
-      rig.transport.playhead shouldBe 420.milliseconds
+      rig.rest.come(400.milliseconds + 190.microseconds)
+      rig.positions shouldBe listOf(400.milliseconds + 190.microseconds)
+      rig.transport.playhead shouldBe 400.milliseconds + 190.microseconds
+      rig.transport.release()
+    }
+
+  @Test
+  fun `waiting for the stop to report returns once the clock rests`() =
+    contractTest { scope ->
+      val rig = Rig(scope, appleExportLowering(appleFixtureComposition()))
+      rig.transport.awaitStopReported()
+      rig.transport.play()
+      rig.clock = 400.milliseconds
+      rig.transport.stop()
+
+      val reported = scope.async(start = CoroutineStart.UNDISPATCHED) { rig.transport.awaitStopReported() }
+      reported.isActive shouldBe true
+
+      rig.rest.come(400.milliseconds)
+      reported.await()
+      rig.positions shouldBe listOf(400.milliseconds)
+      rig.transport.release()
+    }
+
+  // The clock reads before the middle of slot 12 when the stop is asked for and rests past it, so the rest decides.
+  @Test
+  fun `a pause the clock carries past the middle of a slot moves the picture on to the next slot`() =
+    contractTest { scope ->
+      val resolved = appleExportLowering(appleFixtureComposition())
+      val rate = resolved.frameRate
+      val rig = Rig(scope, resolved)
+      rig.transport.play()
+      rig.clock = outputSlotTime(12, rate) + outputSlotTime(1, rate) * 2 / 5
+
+      rig.transport.stop(settle = true)
+      rig.rest.come(outputSlotTime(12, rate) + outputSlotTime(1, rate) * 3 / 5)
+
+      rig.settles shouldBe listOf(outputSlotTime(13, rate))
+      rig.positions shouldBe listOf(outputSlotTime(13, rate))
       rig.transport.release()
     }
 
@@ -76,6 +116,7 @@ class AvTransportMediaTest {
       rig.clock = outputSlotTime(12, rate) + outputSlotTime(1, rate) * 3 / 4
 
       rig.transport.stop(settle = true)
+      rig.rest.come(rig.clock)
 
       rig.settles shouldBe listOf(outputSlotTime(13, rate))
       rig.positions shouldBe listOf(outputSlotTime(13, rate))
@@ -94,6 +135,7 @@ class AvTransportMediaTest {
       rig.clock = clock
 
       rig.transport.stop(settle = true)
+      rig.rest.come(clock)
 
       rig.settles.shouldBeEmpty()
       rig.positions shouldBe listOf(clock)
@@ -111,10 +153,12 @@ class AvTransportMediaTest {
       rig.clock = clock
       rig.transport.play()
       rig.transport.stop()
+      rig.rest.come(clock)
 
       rig.settleAllowed = false
       rig.transport.play()
       rig.transport.stop(settle = true)
+      rig.rest.come(clock)
 
       rig.settles shouldBe listOf(outputSlotTime(13, rate))
       rig.positions shouldBe listOf(clock, clock)
@@ -122,7 +166,7 @@ class AvTransportMediaTest {
     }
 
   @Test
-  fun `a stop reading is dropped once a jump or a play makes it stale`() =
+  fun `a stop still waiting on the clock is dropped once a jump or a play makes it stale`() =
     contractTest { scope ->
       val rig = Rig(scope, appleExportLowering(appleFixtureComposition()))
       rig.transport.play()
@@ -130,11 +174,15 @@ class AvTransportMediaTest {
       rig.transport.stop()
 
       rig.transport.jumpTo(100.milliseconds)
-      rig.transport.onStopReading(450.milliseconds)
+      rig.rest.waiting shouldBe false
       rig.transport.play()
-      rig.transport.onStopReading(500.milliseconds)
+      rig.transport.stop()
+      rig.rest.waiting shouldBe true
+      rig.transport.play()
+      rig.rest.waiting shouldBe false
+      rig.transport.awaitStopReported()
 
-      rig.positions shouldBe listOf(400.milliseconds)
+      rig.positions.shouldBeEmpty()
       rig.transport.release()
     }
 
@@ -146,8 +194,8 @@ class AvTransportMediaTest {
       rig.transport.halt()
 
       rig.transport.stop()
-      rig.transport.onStopReading(500.milliseconds)
 
+      rig.rest.waiting shouldBe false
       rig.positions.shouldBeEmpty()
       rig.transport.release()
     }
@@ -281,6 +329,7 @@ class AvTransportMediaTest {
     var reported: Duration = Duration.ZERO
     val settles = mutableListOf<Duration>()
     var settleAllowed = true
+    val rest = HeldRest()
     val player = AVPlayer()
     private val guard = WrapGuard()
 
@@ -310,7 +359,6 @@ class AvTransportMediaTest {
       AvTransport(
         scope = scope,
         player = player,
-        callbackQueue = dispatch_get_main_queue(),
         interval = TICK,
         resolved = { resolved },
         seeks = seeks,
@@ -328,7 +376,31 @@ class AvTransportMediaTest {
           settles += slot
           settleAllowed
         },
+        rest = rest,
       )
+  }
+
+  /**
+   * A clock that comes to rest when the test says so.
+   */
+  private class HeldRest : ClockRest {
+    private var onRest: ((Duration) -> Unit)? = null
+
+    val waiting: Boolean get() = onRest != null
+
+    override fun await(onRest: (Duration) -> Unit) {
+      this.onRest = onRest
+    }
+
+    override fun cancel() {
+      onRest = null
+    }
+
+    fun come(at: Duration) {
+      val rest = onRest ?: return
+      onRest = null
+      rest(at)
+    }
   }
 
   private companion object {
