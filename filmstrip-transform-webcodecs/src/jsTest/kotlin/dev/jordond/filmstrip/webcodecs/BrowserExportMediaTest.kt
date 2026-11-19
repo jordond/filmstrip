@@ -735,6 +735,7 @@ class BrowserExportMediaTest {
 
       val output = success.output.shouldBeInstanceOf<MediaSink.Path>()
       withClue("a Temporary sink resolved to ${output.path}") { output.path.endsWith(".mp4") shouldBe true }
+      recordedDownloads().last() shouldBe output.path
     }
 
   @Test
@@ -745,6 +746,7 @@ class BrowserExportMediaTest {
       val success = exportOf(compositionOf(MediaSource.Bytes(makeClip())), sink)
 
       success.output shouldBe sink
+      recordedDownloads().last() shouldBe "out.mp4"
     }
 
   @Test

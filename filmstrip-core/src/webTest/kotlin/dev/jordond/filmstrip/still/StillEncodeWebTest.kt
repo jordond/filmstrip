@@ -4,6 +4,7 @@ package dev.jordond.filmstrip.still
 
 import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.internal.recordedDownloads
 import dev.jordond.filmstrip.media.Blob
 import dev.jordond.filmstrip.media.ImageBitmap
 import dev.jordond.filmstrip.media.ImageData
@@ -156,6 +157,7 @@ class StillEncodeWebTest {
 
       val output = written.shouldBeInstanceOf<StillWrite.Success>().output.shouldBeInstanceOf<MediaSink.Path>()
       withClue(output.path) { output.path.endsWith(".${StillFormat.Png.fileExtension}").shouldBeTrue() }
+      recordedDownloads().last() shouldBe output.path
     }
 
   private suspend fun ByteArray.firstPixel(format: StillFormat): List<Int> {

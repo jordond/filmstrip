@@ -23,9 +23,10 @@ import org.jetbrains.kotlin.gradle.targets.js.testing.karma.KotlinKarma
 /**
  * Writes the Karma config directory a browser test task reads.
  *
- * The directory holds [script], which every web module shares, and [timesScript], which writes the module's class
- * times, beside a copy of the module's own `karma.config.d` files. The Kotlin plugin appends every file there to the
- * Karma config in name order.
+ * The directory holds [script], which every web module shares, [timesScript], which writes the module's class times,
+ * and [guardConfig], which loads [guardScript] into the page, beside a copy of the module's own `karma.config.d` files.
+ * The Kotlin plugin appends every file there to the Karma config in name order. [guardScript] goes into
+ * [guardDirectory], since anything in the config directory is read as config.
  */
 abstract class KarmaConfigTask : DefaultTask() {
   /**
@@ -39,6 +40,18 @@ abstract class KarmaConfigTask : DefaultTask() {
    */
   @get:Input
   abstract val timesScript: Property<String>
+
+  /**
+   * The page script that cancels and records every anchor download a test starts.
+   */
+  @get:Input
+  abstract val guardScript: Property<String>
+
+  /**
+   * The config that loads [guardScript] into the page before the tests.
+   */
+  @get:Input
+  abstract val guardConfig: Property<String>
 
   /**
    * The module's own `karma.config.d` files.
@@ -55,9 +68,16 @@ abstract class KarmaConfigTask : DefaultTask() {
   abstract val outputDirectory: DirectoryProperty
 
   /**
-   * Clears [outputDirectory] and writes [script] and [timesScript] into it beside a copy of each of [moduleConfigs].
+   * The directory [guardScript] is written into, outside [outputDirectory].
+   */
+  @get:OutputDirectory
+  abstract val guardDirectory: DirectoryProperty
+
+  /**
+   * Clears [outputDirectory] and writes [script], [timesScript] and [guardConfig] into it beside a copy of each of
+   * [moduleConfigs], then writes [guardScript] into [guardDirectory].
    *
-   * It fails when a module's own file has the name of either generated config.
+   * It fails when a module's own file has the name of a generated config.
    */
   @TaskAction
   fun write() {
@@ -66,8 +86,14 @@ abstract class KarmaConfigTask : DefaultTask() {
 
     output.resolve(SHARED_CONFIG).writeText(script.get())
     output.resolve(TIMES_CONFIG).writeText(timesScript.get())
+    output.resolve(GUARD_CONFIG).writeText(guardConfig.get())
+    guardDirectory
+      .get()
+      .asFile
+      .resolve(GUARD_SCRIPT)
+      .writeText(guardScript.get())
     moduleConfigs.files.sortedBy { it.name }.forEach { file ->
-      if (file.name == SHARED_CONFIG || file.name == TIMES_CONFIG) {
+      if (file.name in GENERATED_CONFIGS) {
         throw GradleException("${file.path} has the name of a generated Karma config, rename it")
       }
       file.copyTo(output.resolve(file.name))
@@ -77,12 +103,15 @@ abstract class KarmaConfigTask : DefaultTask() {
   internal companion object {
     const val SHARED_CONFIG = "filmstrip-shared.js"
     const val TIMES_CONFIG = "filmstrip-times.js"
+    const val GUARD_CONFIG = "filmstrip-downloads.js"
+    const val GUARD_SCRIPT = "filmstrip-download-guard.js"
+    val GENERATED_CONFIGS = setOf(SHARED_CONFIG, TIMES_CONFIG, GUARD_CONFIG)
   }
 }
 
 /**
  * Points every browser test task at a Karma config directory holding [BROWSER_TEST_CONFIG], this module's
- * [browserTimesConfig] and the module's own `karma.config.d` files.
+ * [browserTimesConfig], its [downloadGuardConfig] and the module's own `karma.config.d` files.
  *
  * It registers `writeKarmaConfig`, which every Kotlin JS and wasm test task depends on, and hands that directory to
  * each task that runs on Karma.
@@ -91,11 +120,17 @@ internal fun Project.configureBrowserTests() {
   val moduleConfigDirectory = layout.projectDirectory.dir("karma.config.d")
   val configDirectory = layout.buildDirectory.dir("karma.config.d")
   val timesDirectory = layout.buildDirectory.dir(KARMA_TIMES_DIRECTORY)
+  val guardDirectory = layout.buildDirectory.dir(KARMA_GUARD_DIRECTORY)
   val writeKarmaConfig =
     tasks.register<KarmaConfigTask>("writeKarmaConfig") {
       description = "Writes the Karma config the browser tests read."
       script.set(BROWSER_TEST_CONFIG)
       timesScript.set(timesDirectory.map { browserTimesConfig(it.asFile.path) })
+      guardScript.set(DOWNLOAD_GUARD_SCRIPT)
+      guardConfig.set(
+        guardDirectory.map { downloadGuardConfig(it.file(KarmaConfigTask.GUARD_SCRIPT).asFile.path) },
+      )
+      this.guardDirectory.set(guardDirectory)
       moduleConfigs.from(fileTree(moduleConfigDirectory) { include("*.js") })
       outputDirectory.set(configDirectory)
     }
@@ -229,6 +264,40 @@ internal fun browserTimesConfig(directory: String): String =
     config.plugins.push({ 'reporter:filmstrip-times': ['type', FilmstripTimes] });
     config.reporters = (config.reporters || []).concat(['filmstrip-times']);
   })(config);
+  """.trimIndent() + "\n"
+
+/**
+ * Where a module's download guard script goes, relative to its build directory.
+ */
+internal const val KARMA_GUARD_DIRECTORY = "karma-guard"
+
+/**
+ * The page script that keeps a browser test's downloads off the host.
+ *
+ * It listens for clicks on the window in the capture phase. A click on an anchor carrying a `download` attribute is
+ * cancelled, so the browser saves nothing, and the anchor's name and URL are pushed onto
+ * `globalThis.filmstripDownloads` for a test to read. Every other click goes through untouched.
+ */
+internal val DOWNLOAD_GUARD_SCRIPT: String =
+  """
+  ;(function() {
+    const downloads = globalThis.filmstripDownloads = [];
+    window.addEventListener('click', (event) => {
+      const anchor = event.target;
+      if (!(anchor instanceof HTMLAnchorElement) || !anchor.hasAttribute('download')) return;
+      event.preventDefault();
+      downloads.push({ name: anchor.download, href: anchor.href });
+    }, true);
+  })();
+  """.trimIndent() + "\n"
+
+/**
+ * The Karma config that loads the download guard at [path] into the page ahead of every other file.
+ */
+internal fun downloadGuardConfig(path: String): String =
+  """
+  // Loads the download guard first, so no test can save a file into the host's downloads.
+  config.files.unshift({ pattern: ${jsString(path)}, included: true, served: true, watched: false });
   """.trimIndent() + "\n"
 
 private fun jsString(text: String): String = "'" + text.replace("\\", "\\\\").replace("'", "\\'") + "'"

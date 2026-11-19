@@ -48,7 +48,7 @@ class KarmaConfigTest {
     run("writeKarmaConfig")
 
     configDirectory.list()!!.sorted() shouldContainExactly
-      listOf(KarmaConfigTask.SHARED_CONFIG, KarmaConfigTask.TIMES_CONFIG, "fonts.js")
+      listOf(KarmaConfigTask.GUARD_CONFIG, KarmaConfigTask.SHARED_CONFIG, KarmaConfigTask.TIMES_CONFIG, "fonts.js")
     configDirectory.resolve(KarmaConfigTask.SHARED_CONFIG).readText() shouldBe BROWSER_TEST_CONFIG
     BROWSER_TEST_CONFIG shouldContain "timeout: 300000"
   }
@@ -62,6 +62,27 @@ class KarmaConfigTest {
     browserTimesConfig(times) shouldContain "const directory = '$times';"
     browserTimesConfig("C:\\it's") shouldContain "const directory = 'C:\\\\it\\'s';"
     browserTimesConfig(times) shouldContain "concat(['filmstrip-times'])"
+  }
+
+  @Test
+  fun `the download guard loads ahead of every other file from outside the config directory`() {
+    run("writeKarmaConfig")
+
+    val guard = project.canonicalFile.resolve("build/$KARMA_GUARD_DIRECTORY/${KarmaConfigTask.GUARD_SCRIPT}")
+    guard.readText() shouldBe DOWNLOAD_GUARD_SCRIPT
+    configDirectory.resolve(KarmaConfigTask.GUARD_CONFIG).readText() shouldBe downloadGuardConfig(guard.path)
+    downloadGuardConfig(guard.path) shouldContain
+      "config.files.unshift({ pattern: '${guard.path}', included: true, served: true, watched: false });"
+  }
+
+  @Test
+  fun `the download guard cancels and records only anchors that download`() {
+    DOWNLOAD_GUARD_SCRIPT shouldContain "window.addEventListener('click', (event) => {"
+    DOWNLOAD_GUARD_SCRIPT shouldContain
+      "anchor instanceof HTMLAnchorElement) || !anchor.hasAttribute('download')) return;"
+    DOWNLOAD_GUARD_SCRIPT shouldContain "event.preventDefault();"
+    DOWNLOAD_GUARD_SCRIPT shouldContain "downloads.push({ name: anchor.download, href: anchor.href });"
+    DOWNLOAD_GUARD_SCRIPT shouldContain "}, true);"
   }
 
   @Test
