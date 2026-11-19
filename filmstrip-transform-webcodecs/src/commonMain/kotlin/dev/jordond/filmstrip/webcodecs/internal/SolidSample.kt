@@ -34,6 +34,15 @@ internal fun solidSample(solid: MediaSource.Solid): VideoSample {
   )
 }
 
+/**
+ * How opaque this solid is, from its packed alpha, as a fraction from 0 to 1.
+ *
+ * A kept grade draws a solid from its color and this rather than from [solidSample].
+ */
+internal val MediaSource.Solid.opacity: Float
+  get() = (color ushr ALPHA_SHIFT) / OPAQUE_ALPHA
+
+private const val OPAQUE_ALPHA = 255f
 private const val RED_SHIFT = 16
 private const val GREEN_SHIFT = 8
 private const val ALPHA_SHIFT = 24

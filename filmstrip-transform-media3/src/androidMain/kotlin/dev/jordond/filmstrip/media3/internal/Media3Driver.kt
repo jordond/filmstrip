@@ -16,6 +16,7 @@ import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.heldFor
 import dev.jordond.filmstrip.media3.internal.bounds.Media3ClipReads
+import dev.jordond.filmstrip.media3.internal.bounds.gainmapLimit
 import dev.jordond.filmstrip.media3.internal.bounds.open
 import dev.jordond.filmstrip.media3.internal.bounds.readClips
 import dev.jordond.filmstrip.media3.internal.bounds.videoTrackIndex
@@ -57,6 +58,8 @@ internal class Media3Driver(
   ): RenderCapabilities = media3RenderCapabilities(hdr)
 
   override fun toneMapLimit(sdrSources: List<MediaSource>): String? = hdrDrawLimit(Build.VERSION.SDK_INT) { yuvTarget }
+
+  override fun solidGradeLimit(): String? = gainmapLimit(Build.VERSION.SDK_INT)
 
   override fun unclaimed(specId: EffectId): String =
     "No resolver claimed $specId on the Android backend. Add the artifact that defines it, or a " +

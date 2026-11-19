@@ -3,11 +3,13 @@
 package dev.jordond.filmstrip.webcodecs.internal.render
 
 import dev.jordond.filmstrip.media.HdrTransfer
+import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.webcodecs.internal.interop.JsOptions
 import dev.jordond.filmstrip.webcodecs.internal.interop.Uint8Array
 import dev.jordond.filmstrip.webcodecs.internal.interop.VideoSample
 import dev.jordond.filmstrip.webcodecs.internal.interop.WebGl2
 import dev.jordond.filmstrip.webcodecs.internal.interop.jsArrayOf
+import dev.jordond.filmstrip.webcodecs.internal.opacity
 import kotlin.js.ExperimentalWasmJsInterop
 import kotlin.js.JsAny
 import kotlin.js.JsArray
@@ -85,6 +87,33 @@ internal class HdrPass(
     gl.disable(GL_BLEND)
     gl.drawArrays(GL_TRIANGLE_STRIP, 0, QUAD_VERTICES)
     gl.enable(GL_BLEND)
+    gl.viewport(0, 0, outputWidth, outputHeight)
+    gl.activeTexture(GL_TEXTURE0)
+    gl.useProgram(composite)
+    return linearTexture
+  }
+
+  /**
+   * Fills [linearTexture] with one texel of [solid], at the light a fill of its color lands on and its own opacity, in
+   * place of a decoded frame.
+   *
+   * The texel is written by a clear, so [clearColor], the fill the compositor clears to, is put back afterwards.
+   *
+   * @return The linear texture holding the texel.
+   */
+  fun solid(
+    gl: WebGl2,
+    solid: MediaSource.Solid,
+    composite: JsAny,
+    clearColor: FloatArray,
+  ): JsAny {
+    val light = authoredCompositorLightOf(solid.color)
+    resize(gl, 1, 1)
+    gl.bindFramebuffer(GL_FRAMEBUFFER, linearFbo)
+    gl.viewport(0, 0, 1, 1)
+    gl.clearColor(light[0], light[1], light[2], solid.opacity)
+    gl.clear(GL_COLOR_BUFFER_BIT)
+    gl.clearColor(clearColor[0], clearColor[1], clearColor[2], 1f)
     gl.viewport(0, 0, outputWidth, outputHeight)
     gl.activeTexture(GL_TEXTURE0)
     gl.useProgram(composite)

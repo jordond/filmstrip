@@ -81,6 +81,15 @@ public interface ExportDriver {
   public fun toneMapLimit(sdrSources: List<MediaSource>): String? = null
 
   /**
+   * Why this device cannot lay a solid on a kept HDR grade, or null when it can.
+   *
+   * Read once per plan that carries a solid on an HDR grade it could keep. A limit tone maps the grade to SDR under
+   * [dev.jordond.filmstrip.export.HdrMode.Auto] and refuses the plan under
+   * [dev.jordond.filmstrip.export.HdrMode.KeepHdr], with this as the start of either message.
+   */
+  public fun solidGradeLimit(): String? = null
+
+  /**
    * Why this device cannot draw [fill], or null when it can.
    *
    * Read once per plan that carries a [Fill.Blurred], so an answer that costs something to work out is only paid for

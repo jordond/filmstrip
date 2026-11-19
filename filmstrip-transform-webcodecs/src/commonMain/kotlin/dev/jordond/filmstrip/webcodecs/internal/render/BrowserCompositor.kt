@@ -6,6 +6,7 @@ import dev.jordond.filmstrip.effect.WebGlOverlay
 import dev.jordond.filmstrip.effect.WebGlPass
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.media.HdrTransfer
+import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.webcodecs.internal.BrowserRender
 import dev.jordond.filmstrip.webcodecs.internal.ClipPassStage
 import dev.jordond.filmstrip.webcodecs.internal.MICROS_PER_SECOND
@@ -138,8 +139,10 @@ internal class BrowserCompositor(
     this.compositionUs = compositionUs
     val clip = checkNotNull(current) { "clip() must run before draw()" }
     val toneMapFrom = clip.toneMapFrom
+    val solid = clip.source as? MediaSource.Solid
     val decoded =
       when {
+        hdr != null && solid != null -> hdr.solid(gl, solid, program, clearColor)
         hdr != null -> hdr.unpack(gl, frame, program)
         toneMapFrom != null -> toneMap().toneMap(gl, frame, toneMapFrom, program)
         else -> uploadImage(frame)

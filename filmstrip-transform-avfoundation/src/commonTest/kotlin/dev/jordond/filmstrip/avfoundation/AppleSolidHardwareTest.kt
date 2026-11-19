@@ -1,13 +1,18 @@
 package dev.jordond.filmstrip.avfoundation
 
 import dev.jordond.filmstrip.Filmstrip
+import dev.jordond.filmstrip.color.authoredHdrNits
+import dev.jordond.filmstrip.color.signalFromNits
+import dev.jordond.filmstrip.color.tenBitCodesFromSignal
 import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.OutputFrame
 import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.ExportStatus
+import dev.jordond.filmstrip.export.HdrMode
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.test.AuthoredColors
@@ -24,6 +29,8 @@ import platform.Foundation.NSFileManager
 import platform.Foundation.NSTemporaryDirectory
 import kotlin.math.abs
 import kotlin.test.Test
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 
@@ -85,6 +92,40 @@ class AppleSolidHardwareTest {
       remove(output)
     }
 
+  @Test
+  fun `solids ahead of an HDR clip land where the shared light puts them on both transfers`() =
+    runTest(timeout = TIMEOUT) {
+      HdrTransfer.entries.forEach { transfer ->
+        val output = temporaryPath("solid-hdr-$transfer")
+        val edit =
+          compositionOf {
+            solid(AuthoredColors.MID_GREY, 1.seconds)
+            solid(AuthoredColors.MID_GREEN, 1.seconds)
+            clip(MediaSource.of(hdrFixture(transfer)))
+          }
+
+        exported(edit, output, HDR_SPEC)
+
+        listOf(AuthoredColors.MID_GREY to FIRST_AT, AuthoredColors.MID_GREEN to SECOND_AT).forEach { (color, at) ->
+          val expected = tenBitCodesFromSignal(transfer.signalFromNits(authoredHdrNits(color))).toList()
+          assertCodes(output, at, expected, "$transfer solid ${color.toUInt().toString(16)}")
+        }
+        remove(output)
+      }
+    }
+
+  private fun assertCodes(
+    path: String,
+    at: Duration,
+    expected: List<Int>,
+    what: String,
+  ) {
+    val read = (hdrFrameOf(path, at) ?: error("could not decode $path at $at")).codesAt(0.5f, 0.5f)
+    withClue("$what read $read, expected $expected") {
+      read.zip(expected).all { (got, want) -> abs(got - want) <= FILL_CODE_TOLERANCE }.shouldBeTrue()
+    }
+  }
+
   private fun assertSolid(
     frame: FrameProbe,
     expected: List<Int>,
@@ -101,9 +142,10 @@ class AppleSolidHardwareTest {
   private suspend fun exported(
     composition: Composition,
     output: String,
+    spec: ExportSpec = ExportSpec(),
   ): ExportStatus.Success =
     withContext(Dispatchers.Default) {
-      val statuses = filmstrip.export(composition, ExportSpec(), MediaSink.of(output)).toList()
+      val statuses = filmstrip.export(composition, spec, MediaSink.of(output)).toList()
       when (val finished = statuses.last()) {
         is ExportStatus.Failure -> error(finished.error.message)
         else -> finished.shouldBeInstanceOf<ExportStatus.Success>()
@@ -122,5 +164,8 @@ class AppleSolidHardwareTest {
     const val CORNER = 0.05f
     const val HALF_WHITE = 0x80FFFFFF.toInt()
     const val BLACK = 0xFF000000.toInt()
+    val HDR_SPEC = ExportSpec(heightPx = 720, hdr = HdrMode.KeepHdr, bitrate = COLOR_READ_BITRATE)
+    val FIRST_AT = 500.milliseconds
+    val SECOND_AT = 1500.milliseconds
   }
 }

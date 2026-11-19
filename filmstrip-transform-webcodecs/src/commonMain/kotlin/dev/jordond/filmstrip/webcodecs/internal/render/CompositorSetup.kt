@@ -2,7 +2,6 @@
 
 package dev.jordond.filmstrip.webcodecs.internal.render
 
-import dev.jordond.filmstrip.color.authoredHdrNits
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.webcodecs.internal.BrowserExportFailure
@@ -104,7 +103,7 @@ private fun Fill.clearColor(transfer: HdrTransfer?): FloatArray =
           (color and BYTE_MASK) / MAX_CHANNEL,
         )
       } else {
-        compositorLightOf(authoredHdrNits(color))
+        authoredCompositorLightOf(color)
       }
     }
     is Fill.Blurred -> {

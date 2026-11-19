@@ -26,10 +26,13 @@ internal fun gradeOf(
   copySupport: CopySupport,
   canToneMap: Boolean,
   toneMapLimit: (List<MediaSource>) -> String?,
+  solidGradeLimit: () -> String? = { null },
 ): Phase<Grade> {
   val sourceTransfers =
     edit.tracks
       .flatMap { it.clips }
+      // A solid is painted on whatever grade the output takes, so it has no transfer to agree on.
+      .filterNot { it.source is MediaSource.Solid }
       .mapNotNull { ask.infos[it.source]?.video }
       .mapTo(mutableSetOf()) { it.hdrTransfer }
   val sourceIsHdr = sourceTransfers.any { it != null }
@@ -61,6 +64,14 @@ internal fun gradeOf(
     )
   val copyKeepsHdr = blockers.isEmpty()
   val sdrForcedBy = if (sourceIsHdr) edit.effectsThatRequireSdr() else emptyList()
+  // A solid on a grade the backend cannot lay it on takes the grade down to SDR, the way an effect that needs SDR
+  // does. Only asked where a grade could still be kept.
+  val solidLimit =
+    if (sourceIsHdr && ask.grade == null && ask.spec.hdr != HdrMode.ToneMapToSdr && edit.laysSolid()) {
+      solidGradeLimit()
+    } else {
+      null
+    }
   val hdr =
     ask.grade
       ?: resolveHdr(
@@ -70,12 +81,13 @@ internal fun gradeOf(
         ask.device.supportsHdrEncoding,
         canToneMap,
         copyKeepsHdr,
-        needsSdr = sdrForcedBy.isNotEmpty(),
+        needsSdr = sdrForcedBy.isNotEmpty() || solidLimit != null,
       )
       ?: return Phase.Refused(
         invalid(
           when {
             ask.spec.hdr == HdrMode.KeepHdr && sdrForcedBy.isNotEmpty() -> keepRefusedBy(sdrForcedBy)
+            ask.spec.hdr == HdrMode.KeepHdr && solidLimit != null -> "$solidLimit $KEEP_REFUSED_BY_SOLID"
             !canToneMap -> NO_HDR_PATH
             !gradesAgree -> MIXED_GRADES
             else -> NO_HDR_ENCODER
@@ -106,9 +118,15 @@ internal fun gradeOf(
       // Non-null only on a copy, and then it is the window every backend lays.
       copyOpensAt = copyOpening.takeIf { path == ExportPath.Copy },
       sdrForcedBy = sdrForcedBy,
+      solidLimit = solidLimit,
     ),
   )
 }
+
+private fun Composition.laysSolid(): Boolean =
+  tracks
+    .filter { it.content != TrackContent.Audio }
+    .any { track -> track.clips.any { it.source is MediaSource.Solid } }
 
 private fun drawnSdrSources(
   edit: Composition,
@@ -138,6 +156,9 @@ public fun Composition.effectsThatRequireSdr(): List<EffectId> =
 private fun keepRefusedBy(ids: List<EffectId>): String =
   "HdrMode.KeepHdr cannot keep this grade, since ${ids.joinToString()} needs SDR frames. Use HdrMode.Auto or " +
     "HdrMode.ToneMapToSdr to bring it down to SDR, or take the effect out."
+
+private const val KEEP_REFUSED_BY_SOLID =
+  "Use HdrMode.Auto or HdrMode.ToneMapToSdr to bring it down to SDR, or take the solid out."
 
 private const val NO_HDR_ENCODER =
   "HDR was required and this device cannot encode it. Use HdrMode.Auto to tone-map instead."

@@ -4,6 +4,7 @@ import dev.jordond.filmstrip.avfoundation.internal.failure.AvLoweringFailure
 import dev.jordond.filmstrip.avfoundation.photoFixture
 import dev.jordond.filmstrip.avfoundation.readBytes
 import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaSource
 import io.kotest.matchers.nulls.shouldNotBeNull
@@ -24,9 +25,9 @@ class CoreImageStillsTest {
     val stills = CoreImageStills()
     val path = photo()
 
-    val first = stills.of(held(ImageSource.of(path)), PHOTO)
+    val first = stills.of(held(ImageSource.of(path)), PHOTO, null)
 
-    stills.of(held(ImageSource.of(path)), PHOTO) shouldBeSameInstanceAs first
+    stills.of(held(ImageSource.of(path)), PHOTO, null) shouldBeSameInstanceAs first
     assertNear(first.rect(), listOf(0.0, 0.0, PHOTO.width.toDouble(), PHOTO.height.toDouble()))
   }
 
@@ -35,10 +36,23 @@ class CoreImageStillsTest {
     val stills = CoreImageStills()
     val uri = NSURL.fileURLWithPath(photo()).absoluteString.shouldNotBeNull()
 
-    val image = stills.of(held(ImageSource.ofUri(uri)), PHOTO)
+    val image = stills.of(held(ImageSource.ofUri(uri)), PHOTO, null)
 
-    stills.of(held(ImageSource.ofUri(uri)), PHOTO) shouldBeSameInstanceAs image
+    stills.of(held(ImageSource.ofUri(uri)), PHOTO, null) shouldBeSameInstanceAs image
     assertNear(image.rect(), listOf(0.0, 0.0, PHOTO.width.toDouble(), PHOTO.height.toDouble()))
+  }
+
+  @Test
+  fun `a solid opens once per grade it is drawn on`() {
+    val stills = CoreImageStills()
+    val solid = MediaSource.Solid(0xFF336699.toInt(), 1.seconds)
+
+    val sdr = stills.of(solid, PHOTO, null)
+    val pq = stills.of(solid, PHOTO, HdrTransfer.Pq)
+
+    pq shouldNotBeSameInstanceAs sdr
+    stills.of(solid, PHOTO, HdrTransfer.Hlg) shouldNotBeSameInstanceAs pq
+    stills.of(solid, PHOTO, HdrTransfer.Pq) shouldBeSameInstanceAs pq
   }
 
   @Test
@@ -46,10 +60,10 @@ class CoreImageStillsTest {
     val stills = CoreImageStills()
     val bytes = readBytes(photo())
 
-    val first = stills.of(held(ImageSource.ofBytes(bytes)), PHOTO)
+    val first = stills.of(held(ImageSource.ofBytes(bytes)), PHOTO, null)
 
-    stills.of(held(ImageSource.ofBytes(bytes)), PHOTO) shouldBeSameInstanceAs first
-    stills.of(held(ImageSource.ofBytes(bytes.copyOf())), PHOTO) shouldNotBeSameInstanceAs first
+    stills.of(held(ImageSource.ofBytes(bytes)), PHOTO, null) shouldBeSameInstanceAs first
+    stills.of(held(ImageSource.ofBytes(bytes.copyOf())), PHOTO, null) shouldNotBeSameInstanceAs first
     assertNear(first.rect(), listOf(0.0, 0.0, PHOTO.width.toDouble(), PHOTO.height.toDouble()))
   }
 
@@ -58,16 +72,17 @@ class CoreImageStillsTest {
     val stills = CoreImageStills()
     val solid = MediaSource.Solid(0xFF336699.toInt(), 1.seconds)
 
-    val image = stills.of(solid, PHOTO)
+    val image = stills.of(solid, PHOTO, null)
 
-    stills.of(solid, PHOTO) shouldBeSameInstanceAs image
-    stills.of(solid, Size(8, 8)) shouldNotBeSameInstanceAs image
+    stills.of(solid, PHOTO, null) shouldBeSameInstanceAs image
+    stills.of(solid, Size(8, 8), null) shouldNotBeSameInstanceAs image
     assertNear(image.rect(), listOf(0.0, 0.0, PHOTO.width.toDouble(), PHOTO.height.toDouble()))
   }
 
   @Test
   fun `a missing file fails the lowering and names the path`() {
-    val failure = assertFailsWith<AvLoweringFailure> { CoreImageStills().of(held(ImageSource.of(MISSING)), PHOTO) }
+    val failure =
+      assertFailsWith<AvLoweringFailure> { CoreImageStills().of(held(ImageSource.of(MISSING)), PHOTO, null) }
 
     failure.reason shouldContain MISSING
   }
@@ -75,7 +90,7 @@ class CoreImageStillsTest {
   @Test
   fun `empty bytes fail the lowering rather than drawing nothing`() {
     val empty = held(ImageSource.ofBytes(ByteArray(0)))
-    val failure = assertFailsWith<AvLoweringFailure> { CoreImageStills().of(empty, PHOTO) }
+    val failure = assertFailsWith<AvLoweringFailure> { CoreImageStills().of(empty, PHOTO, null) }
 
     failure.reason shouldContain "bytes[0]"
   }
@@ -83,7 +98,7 @@ class CoreImageStillsTest {
   @Test
   fun `bytes no decoder reads fail the lowering`() {
     val noise = held(ImageSource.ofBytes(ByteArray(64) { it.toByte() }))
-    assertFailsWith<AvLoweringFailure> { CoreImageStills().of(noise, PHOTO) }
+    assertFailsWith<AvLoweringFailure> { CoreImageStills().of(noise, PHOTO, null) }
   }
 
   private fun photo(): String = photoFixture("core-image-stills", PHOTO, Triple(200, 120, 40))

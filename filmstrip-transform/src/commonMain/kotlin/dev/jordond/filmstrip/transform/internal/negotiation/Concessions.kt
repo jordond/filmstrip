@@ -51,11 +51,12 @@ internal fun concessionsOf(
           kind = AdjustmentKind.HdrToneMapped,
           requested = spec.hdr.name,
           resolved = HdrMode.ToneMapToSdr.name,
-          // Auto reaches a tone map three ways, and a device that encodes HDR fine still gets here on
-          // a mix or under an effect that needs SDR, so the message follows which it was.
+          // Auto reaches a tone map four ways, and a device that encodes HDR fine still gets here on a mix, under an
+          // effect that needs SDR or beside a solid it cannot lay on the grade, so the message follows which it was.
           message =
             when {
               grade.sdrForcedBy.isNotEmpty() -> toneMappedFor(grade.sdrForcedBy)
+              grade.solidLimit != null -> "${grade.solidLimit} The grade is tone-mapped to SDR."
               grade.gradesAgree -> TONE_MAPPED
               else -> TONE_MAPPED_MIXED
             },

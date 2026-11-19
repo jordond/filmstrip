@@ -22,18 +22,22 @@ import platform.CoreImage.CIColor
  * space it is going to instead, so the components carry a brightness rather than a bare fraction
  * and Core Image converts from something it knows.
  *
+ * A solid draws through this too, with its own [alpha].
+ *
  * @param transfer The transfer function reaching the encoder, or null when the export writes SDR.
+ * @param alpha The color's opacity, from 0 to 1.
  */
 @OptIn(ExperimentalForeignApi::class)
 internal fun fillCIColor(
   color: Int,
   transfer: HdrTransfer?,
+  alpha: Double = 1.0,
 ): CIColor {
   val red = ((color shr 16) and 0xFF) / 255.0
   val green = ((color shr 8) and 0xFF) / 255.0
   val blue = (color and 0xFF) / 255.0
-  val sdr = CIColor.colorWithRed(red, green = green, blue = blue, alpha = 1.0)
-  if (transfer == null) return inCodes(red, green, blue) ?: sdr
+  val sdr = CIColor.colorWithRed(red, green = green, blue = blue, alpha = alpha)
+  if (transfer == null) return inCodes(red, green, blue, alpha) ?: sdr
 
   val space = CGColorSpaceCreateWithName(transfer.colorSpaceName()) ?: return sdr
   val signal = transfer.signalFromNits(authoredHdrNits(color))
@@ -42,22 +46,9 @@ internal fun fillCIColor(
     signal[0].toDouble(),
     green = signal[1].toDouble(),
     blue = signal[2].toDouble(),
-    alpha = 1.0,
+    alpha = alpha,
     colorSpace = space,
   ) ?: sdr
-}
-
-/**
- * A solid's packed ARGB [color] as a Core Image color, landing as its own BT.709 codes the way an SDR [fillCIColor]
- * does, with its alpha kept.
- */
-@OptIn(ExperimentalForeignApi::class)
-internal fun solidCIColor(color: Int): CIColor {
-  val red = ((color shr 16) and 0xFF) / 255.0
-  val green = ((color shr 8) and 0xFF) / 255.0
-  val blue = (color and 0xFF) / 255.0
-  val alpha = (color ushr 24) / 255.0
-  return inCodes(red, green, blue, alpha) ?: CIColor.colorWithRed(red, green = green, blue = blue, alpha = alpha)
 }
 
 @OptIn(ExperimentalForeignApi::class)
@@ -65,7 +56,7 @@ private fun inCodes(
   red: Double,
   green: Double,
   blue: Double,
-  alpha: Double = 1.0,
+  alpha: Double,
 ): CIColor? {
   val space = ColorSpace.Bt709.createCodeSpace() ?: return null
 

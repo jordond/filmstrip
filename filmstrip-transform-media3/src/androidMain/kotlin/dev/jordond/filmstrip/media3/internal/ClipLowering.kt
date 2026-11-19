@@ -35,7 +35,8 @@ import kotlin.time.Duration
  * over a blurred cover of itself when [showsBlurredFill] says the cover can be seen. An SD clip on [sdPrimaries] opens
  * on [SdPrimariesHead], ahead of everything [wrapper] sees, so its effects read the clip's colour as BT.709. A blurred
  * cover on a kept [transfer] grade is blurred on its SDR signal. A clip whose pictures can be transparent opens on
- * [StraightAlphaHead], so everything after it reads straight color.
+ * [StraightAlphaHead], so everything after it reads straight color. A [paint] that writes the clip's pixels itself
+ * runs after those heads, so neither changes what it wrote.
  */
 internal fun ResolvedClip.clipVideoEffects(
   fill: Fill,
@@ -43,6 +44,7 @@ internal fun ResolvedClip.clipVideoEffects(
   wrapper: EffectWrapper = UnwrappedEffects,
   sdPrimaries: Int? = null,
   transfer: HdrTransfer? = null,
+  paint: Effect? = null,
 ): List<Effect> {
   // Cut at each canvas, so a run of overlays on one side of it still blends in one pass.
   val cuts = listOf(-1) + canvasEffectIndices
@@ -61,7 +63,8 @@ internal fun ResolvedClip.clipVideoEffects(
       PlacedFrame(drawnRect, outputSize)
     }
   val straight = StraightAlphaHead.takeIf { info.video?.hasAlpha == true }
-  return listOfNotNull(straight, sdPrimaries?.let(::SdPrimariesHead)) + (chain + blackBars + placed).map(wrapper::wrap)
+  return listOfNotNull(straight, sdPrimaries?.let(::SdPrimariesHead), paint) +
+    (chain + blackBars + placed).map(wrapper::wrap)
 }
 
 /**

@@ -5,7 +5,6 @@ import dev.jordond.filmstrip.color.signalFromNits
 import dev.jordond.filmstrip.color.tenBitCodesFromSignal
 import dev.jordond.filmstrip.effect.FilterNode
 import dev.jordond.filmstrip.effect.fullChromaFormat
-import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
 
@@ -103,23 +102,56 @@ internal fun gradeNodes(transfer: HdrTransfer?): List<FilterNode> {
 }
 
 /**
- * Where the fill's color lands on a kept HDR grade on [transfer], as the ten-bit video range luma, Cb and Cr a
+ * Where the packed sRGB [argb] lands on a kept HDR grade on [transfer], as the ten-bit video range luma, Cb and Cr a
  * BT.2020 frame stores.
  *
  * The color is taken to the shared HDR light, then carried onto the grade's signal. A color option is eight-bit
  * sRGB and the filter drawing it runs its own matrix, so these codes are written into the frame directly instead.
  */
-internal fun hdrFillCodes(
-  fill: Fill,
+internal fun hdrPaintCodes(
+  argb: Int,
   transfer: HdrTransfer,
-): IntArray = tenBitCodesFromSignal(transfer.signalFromNits(authoredHdrNits(fillArgb(fill))))
+): IntArray = tenBitCodesFromSignal(transfer.signalFromNits(authoredHdrNits(argb)))
+
+/**
+ * The nodes that repaint every pixel of a frame in [argb] on a kept HDR grade on [transfer], ending on the grade.
+ *
+ * The frame goes to ten-bit planar and a table maps every input code to the ones [hdrPaintCodes] gives. `lutyuv` has
+ * no ten-bit format with alpha, so a translucent [argb] is painted at sixteen bits instead, the ten-bit codes moved up
+ * by six bits and the alpha scaled onto sixteen. Taking that frame back to ten bits drops the six bits again.
+ */
+internal fun hdrPaintNodes(
+  argb: Int,
+  transfer: HdrTransfer,
+): List<FilterNode> {
+  val (luma, cb, cr) = hdrPaintCodes(argb, transfer)
+  val alpha = argb ushr ALPHA_SHIFT
+  val paint =
+    if (alpha == OPAQUE_ALPHA) {
+      listOf(
+        FilterNode("format", "pix_fmts" to HDR_PAINT_FORMAT),
+        FilterNode("lutyuv", "y" to "$luma", "u" to "$cb", "v" to "$cr"),
+      )
+    } else {
+      listOf(
+        FilterNode("format", "pix_fmts" to HDR_PAINT_ALPHA_FORMAT),
+        FilterNode(
+          "lutyuv",
+          "y" to "${luma shl SIXTEEN_BIT_SHIFT}",
+          "u" to "${cb shl SIXTEEN_BIT_SHIFT}",
+          "v" to "${cr shl SIXTEEN_BIT_SHIFT}",
+          "a" to "${alpha * EIGHT_TO_SIXTEEN_BIT}",
+        ),
+      )
+    }
+  return paint + gradeNodes(transfer)
+}
 
 /**
  * A source of frames painted flat in the fill, carrying the grade.
  *
- * On a kept grade one frame is written as the ten-bit codes [hdrFillCodes] puts the fill at, through a table that
- * maps every input code to that one, and `loop` then repeats that frame for as long as the flatten reads it.
- * Otherwise `color` paints the fill's own color.
+ * On a kept grade one frame is repainted by [hdrPaintNodes] and `loop` then repeats that frame for as long as the
+ * flatten reads it. Otherwise `color` paints the fill's own color.
  */
 private fun fillSourceNodes(
   negotiated: ResolvedComposition,
@@ -132,15 +164,16 @@ private fun fillSourceNodes(
       FilterNode("color", "c" to fillColor(negotiated.fill), "s" to size, "r" to rate),
     )
 
-  val (luma, cb, cr) = hdrFillCodes(negotiated.fill, transfer)
-  return listOf(
-    FilterNode("color", "s" to size, "r" to rate),
-    FilterNode("trim", "end_frame" to "1"),
-    FilterNode("format", "pix_fmts" to HDR_FILL_FORMAT),
-    FilterNode("lutyuv", "y" to luma.toString(), "u" to cb.toString(), "v" to cr.toString()),
-  ) + gradeNodes(transfer) + FilterNode("loop", "loop" to "-1", "size" to "1")
+  return listOf(FilterNode("color", "s" to size, "r" to rate), FilterNode("trim", "end_frame" to "1")) +
+    hdrPaintNodes(fillArgb(negotiated.fill), transfer) +
+    FilterNode("loop", "loop" to "-1", "size" to "1")
 }
 
-// The planar ten-bit format a kept grade's fill is written in, the layout the codes [hdrFillCodes] returns are laid
-// out for. The flatten converts it to whatever the encoder takes, which only repacks the same codes.
-private const val HDR_FILL_FORMAT = "yuv420p10le"
+// The planar formats a kept grade's paint is written in, the layouts the codes [hdrPaintCodes] returns are laid out
+// for. Whatever reads the frame next converts it to its own format, which only repacks the same codes.
+private const val HDR_PAINT_FORMAT = "yuv420p10le"
+private const val HDR_PAINT_ALPHA_FORMAT = "yuva420p16le"
+private const val SIXTEEN_BIT_SHIFT = 6
+private const val EIGHT_TO_SIXTEEN_BIT = 257
+private const val ALPHA_SHIFT = 24
+private const val OPAQUE_ALPHA = 0xFF

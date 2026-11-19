@@ -2,6 +2,7 @@ package dev.jordond.filmstrip.avfoundation.internal.chain
 
 import dev.jordond.filmstrip.avfoundation.internal.failure.AvLoweringFailure
 import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.describe
@@ -32,7 +33,7 @@ internal class CoreImageStills {
   private val opened = mutableMapOf<Any, CIImage>()
 
   /**
-   * [source] as a Core Image image, a solid as its colour over [size].
+   * [source] as a Core Image image, a solid as its colour over [size] drawn the way a fill is on [transfer].
    *
    * @throws AvLoweringFailure when a still cannot be opened, since a span with nothing to draw
    *   would otherwise pass the seed's own frame off as the photo.
@@ -40,12 +41,13 @@ internal class CoreImageStills {
   fun of(
     source: MediaSource,
     size: Size,
+    transfer: HdrTransfer?,
   ): CIImage {
-    val key = source.key(size)
+    val key = source.key(size, transfer)
     lock.lock()
     try {
       opened[key]?.let { return it }
-      val image = source.open(size)
+      val image = source.open(size, transfer)
       opened[key] = image
       return image
     } finally {
@@ -54,10 +56,13 @@ internal class CoreImageStills {
   }
 }
 
-private fun MediaSource.key(size: Size): Any =
+private fun MediaSource.key(
+  size: Size,
+  transfer: HdrTransfer?,
+): Any =
   when (this) {
     is MediaSource.Image -> image.key()
-    is MediaSource.Solid -> "solid:$color:$size"
+    is MediaSource.Solid -> "solid:$color:$size:$transfer"
     is MediaSource.Path, is MediaSource.Uri, is MediaSource.Bytes -> error(NOT_HELD)
   }
 
@@ -76,13 +81,16 @@ private fun ImageSource.key(): Any =
   }
 
 @OptIn(ExperimentalForeignApi::class)
-private fun MediaSource.open(size: Size): CIImage =
+private fun MediaSource.open(
+  size: Size,
+  transfer: HdrTransfer?,
+): CIImage =
   when (this) {
     is MediaSource.Image -> {
       image.open() ?: throw AvLoweringFailure(unreadable(image))
     }
     is MediaSource.Solid -> {
-      CIImage(color = solidCIColor(color)).imageByCroppingToRect(
+      CIImage(color = fillCIColor(color, transfer, alpha = (color ushr ALPHA_SHIFT) / OPAQUE)).imageByCroppingToRect(
         CGRectMake(0.0, 0.0, size.width.toDouble(), size.height.toDouble()),
       )
     }
@@ -122,4 +130,6 @@ private fun unreadable(source: ImageSource): String =
   "${source.describe()} is held on the timeline as a still, and Core Image could not open it. It " +
     "is either missing or in a format this platform does not decode."
 
+private const val ALPHA_SHIFT = 24
+private const val OPAQUE = 255.0
 private const val NOT_HELD = "Only a still or a solid is held for a span."

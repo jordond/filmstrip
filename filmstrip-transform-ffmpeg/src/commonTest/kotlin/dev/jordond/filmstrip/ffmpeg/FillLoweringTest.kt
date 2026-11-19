@@ -11,9 +11,11 @@ import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.export.OutputFormat
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.FilterGraphBuilder
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.ffmpegTag
+import dev.jordond.filmstrip.ffmpeg.internal.lowering.fillArgb
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.flattenOntoFill
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.gradeNodes
-import dev.jordond.filmstrip.ffmpeg.internal.lowering.hdrFillCodes
+import dev.jordond.filmstrip.ffmpeg.internal.lowering.hdrPaintCodes
+import dev.jordond.filmstrip.ffmpeg.internal.lowering.hdrPaintNodes
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.render
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.restateGrade
 import dev.jordond.filmstrip.geometry.Fill
@@ -67,17 +69,35 @@ class FillLoweringTest {
   @Test
   fun `the fill's hdr codes are the shared light's codes for its color`() {
     for (transfer in HdrTransfer.entries) {
-      hdrFillCodes(Fill.Solid(MID_GREEN), transfer).toList() shouldBe
+      hdrPaintCodes(fillArgb(Fill.Solid(MID_GREEN)), transfer).toList() shouldBe
         tenBitCodesFromSignal(transfer.signalFromNits(authoredHdrNits(MID_GREEN))).toList()
-      hdrFillCodes(Fill.Blurred(), transfer).toList() shouldBe
+      hdrPaintCodes(fillArgb(Fill.Blurred()), transfer).toList() shouldBe
         tenBitCodesFromSignal(transfer.signalFromNits(authoredHdrNits(BLACK))).toList()
     }
   }
 
   @Test
   fun `the two grades put the same color at different codes`() {
-    hdrFillCodes(Fill.Solid(MID_GREEN), HdrTransfer.Pq).toList() shouldNotBe
-      hdrFillCodes(Fill.Solid(MID_GREEN), HdrTransfer.Hlg).toList()
+    hdrPaintCodes(MID_GREEN, HdrTransfer.Pq).toList() shouldNotBe
+      hdrPaintCodes(MID_GREEN, HdrTransfer.Hlg).toList()
+  }
+
+  @Test
+  fun `a fill on a kept grade is painted by the shared hdr paint`() {
+    for (transfer in HdrTransfer.entries) {
+      val graph = flattened(Fill.Solid(MID_GREEN), hdrTransfer = transfer, pixelFormat = "yuv420p10le")
+
+      graph shouldContain "trim=end_frame=1," + hdrPaintNodes(MID_GREEN, transfer).render() + ",loop="
+    }
+  }
+
+  @Test
+  fun `a translucent paint is written at sixteen bits with its alpha`() {
+    val (luma, cb, cr) = hdrPaintCodes(HALF_GREEN, HdrTransfer.Pq)
+
+    hdrPaintNodes(HALF_GREEN, HdrTransfer.Pq).render() shouldBe
+      "format=pix_fmts=yuva420p16le,lutyuv=y=${luma * 64}:u=${cb * 64}:v=${cr * 64}:a=32896," +
+      "setparams=color_primaries=bt2020:color_trc=smpte2084:colorspace=bt2020nc"
   }
 
   @Test
@@ -179,5 +199,8 @@ class FillLoweringTest {
     // wrong channel or clamped to a range end would not land on the same answer.
     val MID_GREEN = 0xFF308020.toInt()
     val BLACK = 0xFF000000.toInt()
+
+    // MID_GREEN at alpha 0x80, which lands on 32896 of 65535.
+    val HALF_GREEN = 0x80308020.toInt()
   }
 }

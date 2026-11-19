@@ -98,6 +98,7 @@ public class ExportPlanner(
   private val noteOf: (EffectId) -> String? = { null },
   private val canToneMap: Boolean = true,
   private val toneMapLimit: (List<MediaSource>) -> String? = { null },
+  private val solidGradeLimit: () -> String? = { null },
   private val fillLimit: (Fill) -> String? = { null },
   private val hdrLadder: List<VideoCodec> = DEFAULT_HDR_LADDER,
   copyLimit: (MediaInfo) -> CopyBlocker? = { null },
@@ -220,7 +221,8 @@ public class ExportPlanner(
     val inert = withoutInert(authored, ask, framingOf(authored, ask).orElse { return Phase.Refused(it) }, streams)
     val framing = framingOf(inert.edit, ask).orElse { return Phase.Refused(it) }
     val grade =
-      gradeOf(inert.edit, ask, framing, copySupport, canToneMap, toneMapLimit).orElse { return Phase.Refused(it) }
+      gradeOf(inert.edit, ask, framing, copySupport, canToneMap, toneMapLimit, solidGradeLimit)
+        .orElse { return Phase.Refused(it) }
     (inert.edit.fill as? Fill.Blurred)
       ?.let {
         fillLimit(

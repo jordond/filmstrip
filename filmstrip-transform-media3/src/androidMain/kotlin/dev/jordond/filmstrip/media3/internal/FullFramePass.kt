@@ -11,11 +11,13 @@ import androidx.media3.effect.BaseGlShaderProgram
  * One draw of [fragmentShader] over the whole input texture, into an output the same size as the input.
  *
  * The vertex stage covers the frame and hands the fragment stage `vTexSamplingCoord`, and the input is bound to
- * `uTexSampler`. [uniforms] sets anything else the fragment stage reads, once, as the program is built.
+ * `uTexSampler` when [samplesInput] is set. A shader that never reads the input has that uniform compiled away, and
+ * binding it then fails. [uniforms] sets anything else the fragment stage reads, once, as the program is built.
  */
 internal class FullFramePass(
   useHdr: Boolean,
   fragmentShader: String,
+  private val samplesInput: Boolean = true,
   uniforms: GlProgram.() -> Unit = {},
 ) : BaseGlShaderProgram(useHdr, 1) {
   private val glProgram =
@@ -45,7 +47,7 @@ internal class FullFramePass(
   ) {
     try {
       glProgram.use()
-      glProgram.setSamplerTexIdUniform("uTexSampler", inputTexId, 0)
+      if (samplesInput) glProgram.setSamplerTexIdUniform("uTexSampler", inputTexId, 0)
       glProgram.bindAttributesAndUniforms()
       GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4)
     } catch (e: GlUtil.GlException) {

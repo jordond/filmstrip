@@ -57,6 +57,7 @@ public class PlannedExportEngine(
       muxerAccepts = muxerAccepts,
       copyLimit = copyLimit,
       toneMapLimit = backend::toneMapLimit,
+      solidGradeLimit = backend::solidGradeLimit,
       fillLimit = backend::fillLimit,
     )
 

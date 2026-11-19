@@ -122,6 +122,7 @@ internal class Framing(
  * @property encodesHdr Whether the grade reaches an encoder, which is never true on a copy.
  * @property copyOpensAt Where the copy opens, or null when the export transcodes.
  * @property sdrForcedBy The ids of the effects that need SDR frames on an HDR source, empty when none do.
+ * @property solidLimit Why the backend cannot lay a solid on this HDR grade, or null when nothing stops it.
  */
 internal class Grade(
   val sourceIsHdr: Boolean,
@@ -133,6 +134,7 @@ internal class Grade(
   val copyBlockedBy: List<CopyBlocker>,
   val copyOpensAt: Duration?,
   val sdrForcedBy: List<EffectId> = emptyList(),
+  val solidLimit: String? = null,
 )
 
 /**

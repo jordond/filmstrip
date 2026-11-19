@@ -17,6 +17,7 @@ import androidx.media3.transformer.DefaultAssetLoaderFactory
 import androidx.media3.transformer.DefaultDecoderFactory
 import androidx.media3.transformer.EditedMediaItem
 import androidx.media3.transformer.ExoPlayerAssetLoader
+import androidx.media3.transformer.ImageAssetLoader
 
 /**
  * The tracks of its source a media3 item plays, carried as the item's tag so every media3 component that builds the
@@ -41,7 +42,8 @@ internal val MediaItem.chosenTracks: ChosenTracks? get() = localConfiguration?.t
 /**
  * The asset loaders an export runs, each one decoding only the tracks its item's [ChosenTracks] name.
  *
- * An item carrying none is loaded the way media3 loads it by default.
+ * A picture carrying a [PictureGrade] reports its formats in that grade's colour. An item carrying neither is loaded
+ * the way media3 loads it by default.
  */
 internal class ChosenTrackAssetLoaderFactory(
   context: Context,
@@ -49,6 +51,7 @@ internal class ChosenTrackAssetLoaderFactory(
   private val context = context.applicationContext
   private val decoders = DefaultDecoderFactory.Builder(this.context).build()
   private val fallback = DefaultAssetLoaderFactory(this.context, decoders, Clock.DEFAULT, null)
+  private val graded by lazy { ImageAssetLoader.Factory(this.context, gainmappedPictures(this.context)) }
 
   override fun createAssetLoader(
     editedMediaItem: EditedMediaItem,
@@ -56,6 +59,14 @@ internal class ChosenTrackAssetLoaderFactory(
     listener: AssetLoader.Listener,
     compositionSettings: AssetLoader.CompositionSettings,
   ): AssetLoader {
+    editedMediaItem.mediaItem.pictureGrade?.let {
+      return graded.createAssetLoader(
+        editedMediaItem,
+        looper,
+        RecoloredListener(listener, it.colorInfo),
+        compositionSettings,
+      )
+    }
     val chosen =
       editedMediaItem.mediaItem.chosenTracks
         ?: return fallback.createAssetLoader(editedMediaItem, looper, listener, compositionSettings)

@@ -19,6 +19,8 @@ import dev.jordond.filmstrip.media.describe
 import dev.jordond.filmstrip.media3.internal.bounds.AudioPreroll
 import dev.jordond.filmstrip.media3.internal.bounds.ChosenTracks
 import dev.jordond.filmstrip.media3.internal.bounds.Media3ClipReads
+import dev.jordond.filmstrip.media3.internal.bounds.PictureGrade
+import dev.jordond.filmstrip.media3.internal.fill.SolidPaint
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedClip
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedTrack
@@ -361,6 +363,8 @@ internal class Lowering(
    *
    * The length comes from the resolved clip, whose trim the plan has already collapsed into its span. An image item has
    * no samples to clip, so there is no clipping configuration here for one to reach.
+   *
+   * A solid on an HDR grade carries that grade as a [PictureGrade], so it can open the export without turning it SDR.
    */
   private fun ResolvedClip.pictureItem(
     picture: HeldPicture,
@@ -376,6 +380,7 @@ internal class Lowering(
         .setUri(picture.uri)
         .apply { picture.mimeType?.let { setMimeType(it) } }
         .setImageDurationMs(length.heldMilliseconds())
+        .apply { plan.hdrTransfer?.takeIf { source is MediaSource.Solid }?.let { setTag(PictureGrade(it)) } }
         .build()
 
     // A still carries no audio of its own, so removing it takes nothing away, and media3 ignores both
@@ -398,6 +403,7 @@ internal class Lowering(
               plan.output.size,
               wrapper,
               transfer = plan.hdrTransfer,
+              paint = (source as? MediaSource.Solid)?.let { SolidPaint(it.color, plan.hdrTransfer) },
             )
           },
         ),

@@ -268,7 +268,7 @@ internal class CoreImageChain(
       // A still or a solid is what its whole span draws, so it stands in for the segment AVFoundation decoded
       // before anything measures or grades the frame. Everything after this is the chain a video
       // clip already runs.
-      span.still?.let { image = stills.of(it, span.attributes.inputSize) }
+      span.still?.let { image = stills.of(it, span.attributes.inputSize, state.encodedTransfer) }
       image = image.rotated(span.rotationDegrees)
       image = image.throughChain(span, FrameInfo(span.attributes, drawnAt), resolved.fill)
     } else {

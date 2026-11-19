@@ -4,16 +4,23 @@ import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.edit.OutputFrame
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.effects.geometry.Scale
+import dev.jordond.filmstrip.export.AdjustmentKind
 import dev.jordond.filmstrip.export.ExportPath
+import dev.jordond.filmstrip.export.ExportSpec
+import dev.jordond.filmstrip.export.HdrMode
 import dev.jordond.filmstrip.export.Verdict
 import dev.jordond.filmstrip.geometry.AspectRatio
 import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.MediaSource
+import dev.jordond.filmstrip.transform.internal.negotiation.Ask
 import dev.jordond.filmstrip.transform.internal.negotiation.SOLIDS_NEED_A_FRAME
 import dev.jordond.filmstrip.transform.internal.negotiation.solidDurationNotPositive
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedHdr
 import io.kotest.matchers.collections.shouldContainExactly
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlin.test.Test
@@ -137,6 +144,106 @@ class SolidPlanTest {
       .shouldBeInstanceOf<Verdict.Capable>()
       .plan.path shouldBe ExportPath.Transcode
   }
+
+  @Test
+  fun `a solid beside a PQ clip keeps the grade it is asked to keep`() {
+    val edit = composition(fixture.solidClip(), fixture.clip(hdr = HdrTransfer.Pq))
+
+    val plan = fixture.resolve(edit, ExportSpec(hdr = HdrMode.KeepHdr), fixture.device(hdr = true))
+
+    plan.hdr shouldBe ResolvedHdr.Keep
+    plan.hdrTransfer shouldBe HdrTransfer.Pq
+  }
+
+  @Test
+  fun `a solid between two HLG clips keeps their grade on its own`() {
+    val edit =
+      composition(fixture.clip(hdr = HdrTransfer.Hlg), fixture.solidClip(), fixture.clip(hdr = HdrTransfer.Hlg))
+
+    val plan = fixture.resolve(edit, ExportSpec(), fixture.device(hdr = true))
+
+    plan.hdr shouldBe ResolvedHdr.Keep
+    plan.hdrTransfer shouldBe HdrTransfer.Hlg
+  }
+
+  @Test
+  fun `a solid does not reconcile an HDR clip with an SDR one`() {
+    val edit = composition(fixture.clip(hdr = HdrTransfer.Pq), fixture.solidClip(), fixture.clip())
+
+    fixture
+      .plan(edit, ExportSpec(hdr = HdrMode.KeepHdr), fixture.device(hdr = true))
+      .shouldBeInstanceOf<Verdict.Incapable>()
+  }
+
+  @Test
+  fun `a solid the device cannot lay on the grade tone maps it under auto and says why`() {
+    val edit = composition(fixture.solidClip(), fixture.clip(hdr = HdrTransfer.Pq))
+    val planner = fixture.planner(solidGradeLimit = { SOLID_LIMIT })
+
+    val negotiated = planner.negotiate(edit, Ask(ExportSpec(), fixture.device(hdr = true), fixture.infos(edit)))
+
+    negotiated.composition.shouldNotBeNull().hdr shouldBe ResolvedHdr.ToneMap
+    val adjustment =
+      negotiated.verdict
+        .shouldBeInstanceOf<Verdict.Degraded>()
+        .adjustments
+        .single()
+    adjustment.kind shouldBe AdjustmentKind.HdrToneMapped
+    adjustment.message shouldBe "$SOLID_LIMIT The grade is tone-mapped to SDR."
+  }
+
+  @Test
+  fun `a solid the device cannot lay on the grade refuses a kept grade by the limit`() {
+    val edit = composition(fixture.solidClip(), fixture.clip(hdr = HdrTransfer.Hlg))
+    val planner = fixture.planner(solidGradeLimit = { SOLID_LIMIT })
+
+    val reason =
+      planner
+        .negotiate(edit, Ask(ExportSpec(hdr = HdrMode.KeepHdr), fixture.device(hdr = true), fixture.infos(edit)))
+        .verdict
+        .shouldBeInstanceOf<Verdict.Incapable>()
+        .reasons
+        .single()
+
+    reason.shouldBeInstanceOf<FilmstripError.InvalidComposition>().message shouldBe
+      "$SOLID_LIMIT Use HdrMode.Auto or HdrMode.ToneMapToSdr to bring it down to SDR, or take the solid out."
+  }
+
+  @Test
+  fun `the solid grade limit is only asked of a solid on an HDR grade that could be kept`() {
+    var asked = 0
+    val planner =
+      fixture.planner(
+        solidGradeLimit = {
+          asked++
+          null
+        },
+      )
+    val device = fixture.device(hdr = true)
+    val withoutSolid = composition(fixture.clip(hdr = HdrTransfer.Pq))
+    val onSdr = composition(fixture.solidClip(), fixture.clip())
+    val toneMapped = composition(fixture.solidClip(), fixture.clip(hdr = HdrTransfer.Pq))
+
+    planner.negotiate(withoutSolid, Ask(ExportSpec(), device, fixture.infos(withoutSolid)))
+    planner.negotiate(onSdr, Ask(ExportSpec(), device, fixture.infos(onSdr)))
+    planner.negotiate(toneMapped, Ask(ExportSpec(hdr = HdrMode.ToneMapToSdr), device, fixture.infos(toneMapped)))
+    asked shouldBe 0
+
+    planner
+      .negotiate(toneMapped, Ask(ExportSpec(), device, fixture.infos(toneMapped)))
+      .verdict
+      .shouldBeInstanceOf<Verdict.Capable>()
+    asked shouldBe 1
+  }
+
+  @Test
+  fun `solids alone write SDR`() {
+    val edit = composition(fixture.solidClip()).withFrame(OutputFrame.Fixed(Size(640, 360)))
+
+    fixture.resolve(edit, ExportSpec(), fixture.device(hdr = true)).hdrTransfer shouldBe null
+  }
 }
 
 private const val RED = 0xFFFF0000.toInt()
+
+private const val SOLID_LIMIT = "This device cannot lay a solid on an HDR grade."

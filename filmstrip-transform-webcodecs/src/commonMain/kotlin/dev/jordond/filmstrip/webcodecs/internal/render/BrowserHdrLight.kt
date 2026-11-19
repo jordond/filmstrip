@@ -13,6 +13,7 @@ import dev.jordond.filmstrip.color.PQ_C3
 import dev.jordond.filmstrip.color.PQ_M1
 import dev.jordond.filmstrip.color.PQ_M2
 import dev.jordond.filmstrip.color.PQ_PEAK_NITS
+import dev.jordond.filmstrip.color.authoredHdrNits
 import dev.jordond.filmstrip.effects.color.HLG_OOTF_GLSL
 import dev.jordond.filmstrip.effects.color.displayLightGradeUniforms
 import dev.jordond.filmstrip.effects.color.glsl
@@ -29,6 +30,12 @@ import kotlin.js.JsAny
  * blend in display light.
  */
 internal fun compositorLightOf(nits: FloatArray): FloatArray = FloatArray(3) { nits[it] / HDR_REFERENCE_WHITE_NITS }
+
+/**
+ * Where the packed sRGB [color] sits in the compositor's float buffer on a kept grade, the light a solid fill and a
+ * solid clip of that color are both drawn at.
+ */
+internal fun authoredCompositorLightOf(color: Int): FloatArray = compositorLightOf(authoredHdrNits(color))
 
 /**
  * Sets the grade uniforms of [program], which has to be the program in use, to the figures

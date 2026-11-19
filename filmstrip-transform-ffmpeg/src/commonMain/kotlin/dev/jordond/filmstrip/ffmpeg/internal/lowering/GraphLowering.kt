@@ -200,7 +200,7 @@ internal class GraphLowering(
 
   private fun inputOf(clip: ResolvedClip): InputSpec {
     val solid = clip.source as? MediaSource.Solid
-    if (solid != null) return InputSpec(source = solidInput(solid, clip, frameRate))
+    if (solid != null) return InputSpec(source = solidInput(solid, clip, frameRate, negotiated.hdrTransfer))
     val path = checkNotNull(readablePath(clip.source, bytesRoot)) { UNREADABLE_SOURCE }
     return InputSpec(
       source = InputSource.OfPath(path, clip.source.describe()),

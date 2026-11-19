@@ -30,6 +30,7 @@ import dev.jordond.filmstrip.media.VideoTrackInfo
 import dev.jordond.filmstrip.media.trackCodecOf
 import dev.jordond.filmstrip.media3.internal.fill.FillCoverBlur
 import dev.jordond.filmstrip.media3.internal.fill.FillFlatten
+import dev.jordond.filmstrip.media3.internal.fill.SolidPaint
 import dev.jordond.filmstrip.transform.internal.geometry.ClipPlacement
 import dev.jordond.filmstrip.transform.internal.geometry.placementOf
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedClip
@@ -73,6 +74,14 @@ class ClipPlacementLoweringTest {
 
     lowered shouldBe FillCoverBlur(Fill.Blurred(), OUTPUT, barred.drawnRect, HdrTransfer.Hlg)
     (lowered == FillCoverBlur(Fill.Blurred(), OUTPUT, barred.drawnRect)) shouldBe false
+  }
+
+  @Test
+  fun `a painted clip with alpha is painted after its straight alpha head`() {
+    val paint = SolidPaint(HALF_WHITE, HdrTransfer.Pq)
+    val lowered = clip(hasAlpha = true).clipVideoEffects(Fill.Black, OUTPUT, paint = paint)
+
+    lowered.take(2) shouldBe listOf(StraightAlphaHead, paint)
   }
 
   @Test
@@ -250,6 +259,7 @@ class ClipPlacementLoweringTest {
     val LANDSCAPE = Size(640, 360)
     const val QUARTER_TURN = 90
     const val BLACK = 0xFF000000.toInt()
+    const val HALF_WHITE = 0x80FFFFFF.toInt()
     const val BLURRED_CHAIN = 4
 
     // A placement read off a whole-pixel frame lands within this of the aspect it was asked for.
