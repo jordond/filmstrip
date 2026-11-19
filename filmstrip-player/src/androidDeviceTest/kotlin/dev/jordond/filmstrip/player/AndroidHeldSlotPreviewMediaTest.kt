@@ -37,6 +37,14 @@ class AndroidHeldSlotPreviewMediaTest {
   @Test
   fun aSeekIntoTheHoldAtTheStartOfTheClipDrawsThatSlot() = onHeldSurface(Case.Half) { rig -> rig.seekAndShow(1) }
 
+  // The opening sample of a quarter speed clip holds slots 0 to 3, the millisecond a fresh player rests on.
+  @Test
+  fun aSeekIntoEachOfTheOpeningHoldsAtAQuarterSpeedDrawsThatSlot() =
+    onHeldSurface(Case.Quarter) { rig ->
+      (1..8).forEach { rig.seekAndShow(it) }
+      rig.seekAndShow(0)
+    }
+
   @Test
   fun aSeekIntoTheHoldAtTheEndOfTheClipDrawsThatSlot() =
     onHeldSurface(Case.Half) { rig -> rig.seekAndShow(rig.lastSlot()) }

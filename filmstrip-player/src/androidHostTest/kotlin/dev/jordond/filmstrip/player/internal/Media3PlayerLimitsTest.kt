@@ -69,13 +69,33 @@ class Media3PlayerLimitsTest {
   }
 
   /**
-   * media3 skips a seek to the millisecond it rests on, so the way back goes through the one beside it.
+   * media3 skips a seek to the millisecond it rests on, so the way back goes through one two milliseconds off.
    */
   @Test
-  fun `the nudge is the millisecond before, or the one after at zero`() {
-    seekNudgeMs(0) shouldBe 1
-    seekNudgeMs(1) shouldBe 0
-    seekNudgeMs(4_171) shouldBe 4_170
+  fun `the nudge is two milliseconds before, or two after near zero`() {
+    seekNudgeMs(0) shouldBe 2
+    seekNudgeMs(1) shouldBe 3
+    seekNudgeMs(2) shouldBe 0
+    seekNudgeMs(4_171) shouldBe 4_169
+  }
+
+  /**
+   * media3 maps a seek into a slowed clip through its speed and back, which moved 1000 us to 999 us on a device.
+   */
+  @Test
+  fun `a nudge drifting under a millisecond never shares a millisecond with its target`() {
+    listOf(0L, 1L, 2L, 33L, 4_171L).forEach { targetMs ->
+      val nudgeUs = seekNudgeMs(targetMs) * 1_000
+      val targetUs = targetMs * 1_000
+      listOf(-999L, -1L, 0L, 1L, 999L).forEach { nudgeDrift ->
+        listOf(-999L, 0L, 999L).forEach { targetDrift ->
+          val nudged = (nudgeUs + nudgeDrift).coerceAtLeast(0) / 1_000
+          val landed = if (targetMs == 0L) 0 else (targetUs + targetDrift) / 1_000
+          nudged shouldNotBe landed
+          nudged shouldNotBe targetMs
+        }
+      }
+    }
   }
 
   /**

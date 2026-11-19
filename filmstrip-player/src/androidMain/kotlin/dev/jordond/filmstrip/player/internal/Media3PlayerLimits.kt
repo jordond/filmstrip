@@ -172,13 +172,23 @@ internal fun surfaceChangeAction(
   }
 
 /**
- * A millisecond next to [positionMs] to seek through on the way back to it.
+ * A millisecond near [positionMs] to seek through on the way back to it.
  *
  * media3 does nothing for a seek to the millisecond a prepared player rests on, which is its limit. A seek to this
  * one first moves the player off [positionMs], so the seek back is one media3 carries out. Both are handed over in
  * one turn of the player's thread, so the playback thread reads the second before it decodes anything for the first.
+ *
+ * media3 maps a seek into a clip with a speed to the source and back before it compares the millisecond, and that
+ * can move it a few microseconds either way, so 1000 us can come back as 999 us. The nudge sits [SEEK_NUDGE_MS] away
+ * so that drift never puts it in the millisecond of [positionMs] or the one the player rests on.
  */
-internal fun seekNudgeMs(positionMs: Long): Long = if (positionMs > 0) positionMs - 1 else positionMs + 1
+internal fun seekNudgeMs(positionMs: Long): Long =
+  if (positionMs >= SEEK_NUDGE_MS) positionMs - SEEK_NUDGE_MS else positionMs + SEEK_NUDGE_MS
+
+/**
+ * How far [seekNudgeMs] sits from the seek's target, in milliseconds.
+ */
+internal const val SEEK_NUDGE_MS = 2L
 
 /**
  * The millisecond the seek media3 was handed last went through on its way to its target, see [seekNudgeMs].
