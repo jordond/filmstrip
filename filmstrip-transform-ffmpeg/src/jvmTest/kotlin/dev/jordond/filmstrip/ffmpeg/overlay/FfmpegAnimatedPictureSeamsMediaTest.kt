@@ -134,7 +134,7 @@ class FfmpegAnimatedPictureSeamsMediaTest {
   // as it is.
   @Test
   fun `an eight bit palette picture resolves inside the heap its count names on both grades`() {
-    val gif = AnimatedGifs.noisy(AtlasMemoryProbe.SIZE, AtlasMemoryProbe.FRAMES).bytes
+    val gif = written("gif", AnimatedGifs.noisy(AtlasMemoryProbe.SIZE, AtlasMemoryProbe.FRAMES).bytes)
     assertResolvesWithinItsCount("sdr gif", gif, "sdr", AnimatedCopies.Ffmpeg)
     assertResolvesWithinItsCount("pq gif", gif, "pq", AnimatedCopies.FfmpegHdr)
   }
@@ -142,8 +142,8 @@ class FfmpegAnimatedPictureSeamsMediaTest {
   @Test
   fun `an eight bit picture that does not compress resolves inside the heap its count names on every route`() {
     val size = AtlasMemoryProbe.SIZE
-    val untagged = noisyApng(size, EIGHT_BIT_FRAMES, sixteenBit = false)
-    val tagged = AnimatedApngs.withCicp(untagged, byteArrayOf(12, 13, 0, 1))
+    val untagged = written("apng", noisyApng(size, EIGHT_BIT_FRAMES, sixteenBit = false))
+    val tagged = written("tagged apng", AnimatedApngs.withCicp(untagged.readBytes(), byteArrayOf(12, 13, 0, 1)))
     assertResolvesWithinItsCount("sdr apng", untagged, "sdr", AnimatedCopies.Ffmpeg)
     assertResolvesWithinItsCount("sdr tagged apng", tagged, "sdr", AnimatedCopies.FfmpegTagged)
     assertResolvesWithinItsCount("pq apng", untagged, "pq", AnimatedCopies.FfmpegHdr)
@@ -152,8 +152,8 @@ class FfmpegAnimatedPictureSeamsMediaTest {
 
   @Test
   fun `a sixteen bit picture resolves inside the heap its count names on every route`() {
-    val untagged = noisyApng(AtlasMemoryProbe.SIZE, DEEP_FRAMES, sixteenBit = true)
-    val tagged = AnimatedApngs.withCicp(untagged, byteArrayOf(1, 13, 0, 1))
+    val untagged = written("deep apng", noisyApng(AtlasMemoryProbe.SIZE, DEEP_FRAMES, sixteenBit = true))
+    val tagged = written("deep tagged apng", AnimatedApngs.withCicp(untagged.readBytes(), byteArrayOf(1, 13, 0, 1)))
     assertResolvesWithinItsCount("sdr deep apng", untagged, "sdr", AnimatedCopies.Ffmpeg)
     assertResolvesWithinItsCount("sdr deep tagged apng", tagged, "sdr", AnimatedCopies.FfmpegTagged)
     assertResolvesWithinItsCount("pq deep apng", untagged, "pq", AnimatedCopies.FfmpegHdr)
@@ -170,24 +170,36 @@ class FfmpegAnimatedPictureSeamsMediaTest {
     return AnimatedApngs.bytes(size, ops, sixteenBit = sixteenBit, defaultIsFrame = true)
   }
 
-  private fun assertResolvesWithinItsCount(
+  // A picture of a hundred deep frames is about 100 MB, so each is kept on disk and read back one at a time to leave
+  // the test's own heap room for the decode.
+  private fun written(
     name: String,
     bytes: ByteArray,
+  ): File = File(root, "$name.bin").apply { writeBytes(bytes) }
+
+  private fun countedPeak(
+    file: File,
+    held: AnimatedCopies,
+  ): Long {
+    val picture = animatedPictureOf(file.readBytes()).shouldBeInstanceOf<AnimatedRead.Animated>().picture
+    return checkNotNull(
+      animatedPeakBytes(
+        picture.shown,
+        picture.frames.size,
+        held,
+        sixteenBit = picture.frames.any { (it.pixels as? FramePixels.Samples)?.sixteenBit == true },
+        source = checkNotNull(animatedSourceBytes(picture, file.length())),
+      ),
+    )
+  }
+
+  private fun assertResolvesWithinItsCount(
+    name: String,
+    file: File,
     grade: String,
     held: AnimatedCopies,
   ) {
-    val picture = animatedPictureOf(bytes).shouldBeInstanceOf<AnimatedRead.Animated>().picture
-    val peak =
-      checkNotNull(
-        animatedPeakBytes(
-          picture.shown,
-          picture.frames.size,
-          held,
-          sixteenBit = picture.frames.any { (it.pixels as? FramePixels.Samples)?.sixteenBit == true },
-          source = checkNotNull(animatedSourceBytes(picture, bytes.size.toLong())),
-        ),
-      )
-    val file = File(root, "$name.bin").apply { writeBytes(bytes) }
+    val peak = countedPeak(file, held)
     val java = File(System.getProperty("java.home"), "bin/java").path
     val heapMegabytes = peak / MEGABYTE + HEAP_SLACK_MEGABYTES
     val child =

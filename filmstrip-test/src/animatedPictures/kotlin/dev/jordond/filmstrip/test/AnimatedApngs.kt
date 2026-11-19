@@ -82,7 +82,12 @@ public object AnimatedApngs {
     cicp: ByteArray,
   ): ByteArray {
     val header = PNG_SIGNATURE.size + HEADER_CHUNK
-    return file.copyOfRange(0, header) + pngChunk("cICP", cicp) + file.copyOfRange(header, file.size)
+    val chunk = pngChunk("cICP", cicp)
+    val out = ByteArray(file.size + chunk.size)
+    file.copyInto(out, endIndex = header)
+    chunk.copyInto(out, header)
+    file.copyInto(out, header + chunk.size, header)
+    return out
   }
 
   /**

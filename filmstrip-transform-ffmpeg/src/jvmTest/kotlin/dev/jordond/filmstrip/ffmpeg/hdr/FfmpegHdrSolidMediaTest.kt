@@ -4,6 +4,7 @@ import dev.jordond.filmstrip.color.authoredHdrNits
 import dev.jordond.filmstrip.color.signalFromNits
 import dev.jordond.filmstrip.color.tenBitCodesFromSignal
 import dev.jordond.filmstrip.edit.CompositionBuilder
+import dev.jordond.filmstrip.edit.OutputFrame
 import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.export.ExportStatus
 import dev.jordond.filmstrip.export.Verdict
@@ -15,6 +16,7 @@ import dev.jordond.filmstrip.ffmpeg.support.ExportedOverlay
 import dev.jordond.filmstrip.ffmpeg.support.FfmpegExportFixture
 import dev.jordond.filmstrip.ffmpeg.support.pointIn
 import dev.jordond.filmstrip.ffmpeg.support.tenBitCodesAt
+import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
@@ -28,8 +30,8 @@ import kotlinx.coroutines.test.runTest
 import java.io.File
 import kotlin.math.abs
 import kotlin.test.Test
+import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
-import kotlin.time.Duration.Companion.seconds
 
 /**
  * Solids ahead of an HDR clip on a kept grade, read back as ten-bit codes against where the shared HDR light puts
@@ -51,8 +53,8 @@ class FfmpegHdrSolidMediaTest {
   private suspend fun assertSolidLandings(transfer: HdrTransfer) {
     val exported =
       exported(transfer) {
-        solid(MID_GREY, 1.seconds)
-        solid(MID_GREEN, 1.seconds)
+        solid(MID_GREY, SLOT)
+        solid(MID_GREEN, SLOT)
       }
     val centre = pointIn(HALF, HALF, exported.plan.output.size)
     val misses =
@@ -73,7 +75,7 @@ class FfmpegHdrSolidMediaTest {
     "$what read ${read.toList()}, expected ${expected.toList()}"
       .takeUnless { read.indices.all { abs(read[it] - expected[it]) <= CODE_TOLERANCE } }
 
-  // The solids lead and the HDR fixture follows, so the kept grade comes from the clip alone.
+  // The solids lead and a slot of the HDR fixture follows, so the kept grade comes from the clip alone.
   private suspend fun exported(
     transfer: HdrTransfer,
     solids: CompositionBuilder.() -> Unit,
@@ -83,7 +85,8 @@ class FfmpegHdrSolidMediaTest {
     val composition =
       compositionOf {
         solids()
-        clip(MediaSource.of(source.absolutePath))
+        clip(MediaSource.of(source.absolutePath)) { trim(Duration.ZERO, SLOT) }
+        frame(OutputFrame.Fixed(FRAME))
       }
     val plan =
       when (val verdict = fixture.filmstrip.plan(composition, COLOR_READ_HDR_SPEC)) {
@@ -102,7 +105,9 @@ class FfmpegHdrSolidMediaTest {
   }
 
   private companion object {
-    val FIRST_AT = 500.milliseconds
-    val SECOND_AT = 1500.milliseconds
+    val SLOT = 200.milliseconds
+    val FIRST_AT = SLOT / 2
+    val SECOND_AT = SLOT + SLOT / 2
+    val FRAME = Size(320, 180)
   }
 }

@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip.ffmpeg.hdr
 
+import dev.jordond.filmstrip.edit.OutputFrame
 import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.export.ExportStatus
 import dev.jordond.filmstrip.export.Verdict
@@ -12,6 +13,7 @@ import dev.jordond.filmstrip.ffmpeg.support.FfmpegExportFixture
 import dev.jordond.filmstrip.ffmpeg.support.pointIn
 import dev.jordond.filmstrip.ffmpeg.support.tenBitCodesAt
 import dev.jordond.filmstrip.geometry.Fill
+import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
@@ -25,7 +27,8 @@ import java.io.File
 import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlin.test.Test
-import kotlin.time.Duration.Companion.seconds
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
 
 /**
  * Translucent solids ahead of an HDR clip on a kept grade, read back as ten-bit codes against where a blend in display
@@ -62,7 +65,7 @@ class FfmpegHdrSourceAlphaMediaTest {
     withClue(misses.joinToString("\n")) { misses.isEmpty().shouldBeTrue() }
   }
 
-  // The solids play one second each in the order given, ahead of the HDR fixture that keeps the grade.
+  // The solids play one slot each in the order given, ahead of a slot of the HDR fixture that keeps the grade.
   private suspend fun missesOf(
     transfer: HdrTransfer,
     cells: List<HdrOverlayCells.Cell>,
@@ -95,8 +98,9 @@ class FfmpegHdrSourceAlphaMediaTest {
     val composition =
       compositionOf {
         solids.forEach { solid(it, SLOT) }
-        clip(MediaSource.of(source.absolutePath))
+        clip(MediaSource.of(source.absolutePath)) { trim(Duration.ZERO, SLOT) }
         fill(fill)
+        frame(OutputFrame.Fixed(FRAME))
       }
     val plan =
       when (val verdict = fixture.filmstrip.plan(composition, COLOR_READ_HDR_SPEC)) {
@@ -118,7 +122,8 @@ class FfmpegHdrSourceAlphaMediaTest {
     get() = overlay and RGB
 
   private companion object {
-    val SLOT = 1.seconds
+    val SLOT = 200.milliseconds
+    val FRAME = Size(320, 180)
     const val OPAQUE_ALPHA = 255
     const val ALPHA_SHIFT = 24
     const val RGB = 0xFFFFFF

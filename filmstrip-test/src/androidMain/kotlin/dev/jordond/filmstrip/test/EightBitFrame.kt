@@ -26,6 +26,9 @@ import kotlin.time.Duration.Companion.microseconds
  * to 132, 130, 132. `MediaMetadataRetriever.BitmapParams` arrived in API 30, so an older device reads the sample
  * nearest [at] through [eightBitFrameThroughPlayerAt] instead, asked for at that sample's own time.
  *
+ * On a loaded API 30 emulator `MediaMetadataRetriever` can answer null for a frame it decoded moments before from the
+ * same file, so a null answer reads the nearest sample through [eightBitFrameThroughPlayerAt] as well.
+ *
  * @throws IllegalArgumentException When [video] holds no frame at [at].
  * @throws IllegalStateException When the frame comes back in any other config.
  */
@@ -35,24 +38,28 @@ public fun eightBitFrameAt(
   at: Duration,
 ): Bitmap {
   if (isHdr(video)) return hdrSignalFrameAt(video, at)
-  if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
-    val nearest =
-      requireNotNull(videoSampleTimesOf(video).minByOrNull { (it - at).absoluteValue }) { "no frame in $video" }
-    return eightBitFrameThroughPlayerAt(video, nearest)
-  }
+  val throughPlayer = { eightBitFrameThroughPlayerAt(video, nearestSample(video, at)) }
+  if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return throughPlayer()
   val params = MediaMetadataRetriever.BitmapParams().apply { preferredConfig = Bitmap.Config.ARGB_8888 }
   val retriever = MediaMetadataRetriever()
   return try {
     retriever.setDataSource(video.path)
     val frame =
-      requireNotNull(retriever.getFrameAtTime(at.inWholeMicroseconds, MediaMetadataRetriever.OPTION_CLOSEST, params)) {
-        "no frame at $at in $video"
-      }
+      retriever.getFrameAtTime(at.inWholeMicroseconds, MediaMetadataRetriever.OPTION_CLOSEST, params)
+        ?: return throughPlayer()
     check(frame.config == Bitmap.Config.ARGB_8888) { "the frame at $at came back as ${frame.config}, not ARGB_8888" }
     frame
   } finally {
     retriever.release()
   }
+}
+
+private fun nearestSample(
+  video: File,
+  at: Duration,
+): Duration {
+  val nearest = videoSampleTimesOf(video).minByOrNull { (it - at).absoluteValue }
+  return requireNotNull(nearest) { "no frame at $at in $video" }
 }
 
 /**

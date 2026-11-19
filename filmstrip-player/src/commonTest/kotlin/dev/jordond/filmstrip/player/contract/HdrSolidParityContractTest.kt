@@ -6,9 +6,11 @@ import dev.jordond.filmstrip.color.tenBitCodesFromSignal
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.Composition
+import dev.jordond.filmstrip.edit.OutputFrame
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.geometry.Fill
+import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.player.PreviewQualityPolicy
@@ -78,7 +80,8 @@ internal abstract class HdrSolidParityContractTest(
       withClue(misses.joinToString("\n")) { misses.shouldBeEmpty() }
     }
 
-  // Each cell is a solid of its colour with its opacity as the alpha, one span each ahead of the HDR clip.
+  // Each cell is a solid of its colour with its opacity as the alpha, one span each ahead of the HDR clip. Every read is
+  // the middle of a flat solid, so the edit is laid on a small frame.
   @Test
   fun aTranslucentSolidBlendsOverTheFillInLight() =
     contractTest(HDR_BODY_TIMEOUT) { scope ->
@@ -93,7 +96,7 @@ internal abstract class HdrSolidParityContractTest(
                 Clip(MediaSource.Solid((alpha shl ALPHA_SHIFT) or (cell.overlay and RGB), SPAN))
               }
             val clip = Clip(hdrFixture(transfer), TimeRange.of(Duration.ZERO, SPAN))
-            val edit = edit(solids + clip, Fill.Solid(background))
+            val edit = edit(solids + clip, Fill.Solid(background)).withFrame(OutputFrame.Fixed(BLEND_FRAME))
             val positions = cells.indices.map { SPAN * it + SPAN / 2 }
             readings(scope, edit, positions) { frames ->
               cells.zip(alphas).zip(frames).flatMapIndexed { index, (laid, shown) ->
@@ -159,6 +162,7 @@ internal abstract class HdrSolidParityContractTest(
 
   private companion object {
     val SPAN = 200.milliseconds
+    val BLEND_FRAME = Size(320, 180)
     const val SOLID = AuthoredColors.MID_GREEN
     const val CENTRE = 0.5
 
