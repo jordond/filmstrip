@@ -227,25 +227,22 @@ public class WebGlOverlay(
  * Samples are sixteen-bit RGBA, four a texel as [dev.jordond.filmstrip.picture.png.pngSamples] reads a PNG's. Codes are
  * the eight-bit form of the same, so a raster that stores eight bits is not held at twice its size. A PNG
  * carries its stored samples at their full depth, an AVIF the color core's YCbCr evaluator turns its samples into,
- * and text the straight color laid over its plate. The compositor converts samples wherever a raster carries them, in
- * place of an image's eight-bit codes.
+ * and text the straight color laid over its plate.
  */
 @InternalFilmstripApi
 public sealed interface OverlaySource {
   /**
-   * A decoded picture, uploaded from [samples] when it carries them and from [image] otherwise.
+   * A decoded picture, uploaded from the codes its [image] holds.
    *
    * @property image An `ImageBitmap` or an `OffscreenCanvas`, premultiplied on upload, which holds the picture's
    * stored codes unconverted.
-   * @property samples The picture's samples, or null when it has none deeper than [image]'s codes.
    */
   public class Image(
     public val image: JsAny,
-    public val samples: ShortArray? = null,
   ) : OverlaySource
 
   /**
-   * A raster drawn straight into [samples], with no image behind it.
+   * A raster held as sixteen-bit [samples], a picture's read at their full depth or a raster drawn straight into them.
    *
    * @property samples The raster's samples, which it is uploaded from whole.
    */
@@ -254,7 +251,8 @@ public sealed interface OverlaySource {
   ) : OverlaySource
 
   /**
-   * A raster drawn straight into eight-bit [codes], with no image behind it.
+   * A raster held as eight-bit [codes], a picture's read from the rectangle its `clap` keeps or a raster drawn straight
+   * into them.
    *
    * The codes are straight alpha RGBA, four a texel in rows, and the raster is uploaded from them whole.
    *

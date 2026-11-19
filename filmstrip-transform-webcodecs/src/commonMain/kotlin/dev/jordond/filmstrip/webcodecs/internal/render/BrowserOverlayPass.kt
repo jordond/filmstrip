@@ -156,13 +156,8 @@ internal class BrowserOverlayPass private constructor(
           }
         }
         is OverlaySource.Image -> {
-          val samples = source.samples
-          if (samples != null) {
-            uploadBytes(size, sdrOverlayCodes(samples, color))
-          } else {
-            val codes = straightCodesOf(source.image, size)
-            uploadBytes(size, if (color == null) codes else sdrOverlayCodes(codes, color))
-          }
+          val codes = straightCodesOf(source.image, size)
+          uploadBytes(size, if (color == null) codes else sdrOverlayCodes(codes, color))
         }
       }
     } finally {
@@ -194,10 +189,7 @@ internal class BrowserOverlayPass private constructor(
         }
       }
       is OverlaySource.Image -> {
-        val light =
-          source.samples?.let { hdrOverlayTexels(it, overlay.color) }
-            ?: hdrOverlayTexels(straightCodesOf(source.image, size), overlay.color)
-        uploadLight(size, light)
+        uploadLight(size, hdrOverlayTexels(straightCodesOf(source.image, size), overlay.color))
       }
     }
   }

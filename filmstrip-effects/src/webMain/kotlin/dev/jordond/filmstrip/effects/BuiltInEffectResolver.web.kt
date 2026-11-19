@@ -181,8 +181,7 @@ public actual class BuiltInEffectResolver internal constructor(
     }
 
     val drawAt = drawnBy(placedOn(attributes.inputSize, placed), attributes, cellAt)
-    val source = OverlaySource.Image(picture.bitmap, picture.samples)
-    val effect = PlatformEffect(WebGlOverlay(source, picture.size, drawAt, picture.color, picture.orientation))
+    val effect = PlatformEffect(WebGlOverlay(picture.source, picture.size, drawAt, picture.color, picture.orientation))
     return if (picture.limits.isEmpty()) {
       EffectResolution.Resolved(effect)
     } else {

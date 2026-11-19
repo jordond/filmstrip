@@ -63,7 +63,10 @@ class WebOverlayClapTest {
 
           val overlay = resolvedOverlay(clapped)
 
-          withClue("$name $clap route") { (sourceOf(overlay).samples != null) shouldBe (name == "evaluated") }
+          withClue("$name $clap route") {
+            overlay.source::class shouldBe
+              if (name == "evaluated") OverlaySource.Samples::class else OverlaySource.Codes::class
+          }
           withClue("$name $clap size") { overlay.size shouldBe expected.size }
           assertTexels(full.cropped(expected), drawnTexels(overlay), "$name $clap texels")
         }
@@ -121,16 +124,19 @@ class WebOverlayClapTest {
     }
 
   // The texels the overlay holds, its samples when it carries them and its bitmap's codes otherwise, with their size.
-  private fun drawnTexels(overlay: WebGlOverlay): Texels {
-    val source = sourceOf(overlay)
-    val samples = source.samples
-    if (samples != null) return Texels(overlay.size, IntArray(samples.size) { samples[it].toInt() })
-    val codes = codesOf(source.image.unsafeCast<ImageBitmap>()).shouldNotBeNull()
-    return Texels(overlay.size, IntArray(codes.size) { codes[it].toInt() and BYTE })
-  }
-
-  private fun sourceOf(overlay: WebGlOverlay): OverlaySource.Image =
-    overlay.source.shouldBeInstanceOf<OverlaySource.Image>()
+  private fun drawnTexels(overlay: WebGlOverlay): Texels =
+    when (val source = overlay.source) {
+      is OverlaySource.Samples -> {
+        Texels(overlay.size, IntArray(source.samples.size) { source.samples[it].toInt() })
+      }
+      is OverlaySource.Image -> {
+        val codes = codesOf(source.image.unsafeCast<ImageBitmap>()).shouldNotBeNull()
+        Texels(overlay.size, IntArray(codes.size) { codes[it].toInt() and BYTE })
+      }
+      is OverlaySource.Codes -> {
+        Texels(overlay.size, IntArray(source.codes.size) { source.codes[it].toInt() and BYTE })
+      }
+    }
 
   private suspend fun resolvedOverlay(bytes: ByteArray): WebGlOverlay {
     val image = ImageOverlay(ImageSource.ofBytes(bytes), Corner.TopEnd)

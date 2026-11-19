@@ -32,7 +32,6 @@ import dev.jordond.filmstrip.picture.pictureYcbcrCoding
 import dev.jordond.filmstrip.test.CicpTag
 import dev.jordond.filmstrip.test.ycbcrToRgb
 import io.kotest.assertions.withClue
-import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
@@ -101,7 +100,7 @@ class WebOverlayMatrixTest {
       val bytes = MatrixAvif.EIGHT_BIT_420.bytes(CicpTag(BT709, SRGB_TRANSFER, BT709, fullRange = false))
       val resolved = resolve(bytes).shouldBeInstanceOf<EffectResolution.Resolved>()
 
-      imageOf(overlayOf(resolved.effect.overlay)).samples.shouldBeNull()
+      overlayOf(resolved.effect.overlay).source.shouldBeInstanceOf<OverlaySource.Image>()
     }
 
   @Test
@@ -135,7 +134,7 @@ class WebOverlayMatrixTest {
       val degraded = resolve(bytes).shouldBeInstanceOf<EffectResolution.Degraded>()
 
       nearest.matrix shouldBe BT2020
-      imageOf(overlayOf(degraded.effect.overlay)).samples.shouldBeNull()
+      overlayOf(degraded.effect.overlay).source.shouldBeInstanceOf<OverlaySource.Image>()
       degraded.causes shouldBe listOf(unreadMatrix(nearest), eightBitDecode(10))
     }
 
@@ -248,7 +247,7 @@ class WebOverlayMatrixTest {
     case: Case,
     overlay: WebGlOverlay,
   ): Pair<String, String?> {
-    val route = if (imageOf(overlay).samples != null) EVALUATED else RESOLVED
+    val route = if (overlay.source is OverlaySource.Samples) EVALUATED else RESOLVED
     return route to landingMiss(case, overlay, case.nclx.matrix)
   }
 
@@ -283,7 +282,7 @@ class WebOverlayMatrixTest {
   ): String? {
     val picture = case.picture
     val nclx = case.nclx
-    val samples = imageOf(overlay).samples
+    val samples = (overlay.source as? OverlaySource.Samples)?.samples
     if (samples == null) {
       val miss = chromeMiss(case, overlay, matrix)
       val drifts = !nclx.fullRange && ycbcrReading(matrix, nclx.primaries, nclx.transfer).equivalentCode() in DRIFTING

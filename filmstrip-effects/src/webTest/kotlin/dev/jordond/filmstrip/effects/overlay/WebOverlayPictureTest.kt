@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip.effects.overlay
 
+import dev.jordond.filmstrip.effect.OverlaySource
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.picture.PictureCrop
 import dev.jordond.filmstrip.picture.PictureOrientation
@@ -34,35 +35,48 @@ class WebOverlayPictureTest {
     runTest {
       val bitmap = bitmapOf(pngOf(STORED))
 
-      OverlayPicture(bitmap, STORED, null, null).shownSize shouldBe STORED
+      OverlayPicture(OverlaySource.Image(bitmap), STORED, null).shownSize shouldBe STORED
       for (orientation in PictureOrientation.entries) {
-        val picture = OverlayPicture(bitmap, STORED, null, null, orientation = orientation)
+        val picture = OverlayPicture(OverlaySource.Image(bitmap), STORED, null, orientation = orientation)
         withClue("$orientation") { picture.shownSize shouldBe orientation.orientedSize(STORED) }
       }
     }
 
+  // Texels at every alpha, read from a rectangle in the middle and at both far corners as well as the whole, so a read
+  // that drops the offset or premultiplies shows.
   @Test
-  fun aClapCutsTheBitmapToTheTexelsItKeeps() =
+  fun theCodesOfARectangleAreTheTexelsStoredThere() =
     runTest {
-      val bitmap = bitmapOf(pngOf(STORED, texels = TEXELS))
-      val crop = PictureCrop(1, 1, Size(3, 2))
+      val bitmap = bitmapOf(pngOf(WIDE, texels = WIDE_TEXELS))
+      val rects =
+        listOf(
+          PictureCrop(5, 3, Size(41, 29)),
+          PictureCrop(0, 0, Size(7, 4)),
+          PictureCrop(WIDE.width - 9, WIDE.height - 6, Size(9, 6)),
+          PictureCrop(0, 0, WIDE),
+        )
 
-      val cut = bitmap.clapCropped(crop).shouldNotBeNull()
-      Size(cut.width, cut.height) shouldBe crop.size
-      val expected =
-        (0 until crop.size.height).flatMap { row ->
-          (0 until crop.size.width).map { column -> TEXELS[(crop.top + row) * STORED.width + crop.left + column] }
+      for (rect in rects) {
+        val expected =
+          (0 until rect.size.height).flatMap { row ->
+            (0 until rect.size.width).map { column -> WIDE_TEXELS[(rect.top + row) * WIDE.width + rect.left + column] }
+          }
+        withClue("${rect.left}, ${rect.top}, ${rect.size}") {
+          codesOf(bitmap, rect).shouldNotBeNull() shouldBe expected.reduce(ByteArray::plus)
         }
-      codesOf(cut).shouldNotBeNull() shouldBe expected.reduce(ByteArray::plus)
+      }
+      codesOf(bitmap).shouldNotBeNull() shouldBe WIDE_TEXELS.reduce(ByteArray::plus)
     }
 
   @Test
-  fun noClapOrOneKeepingTheWholePictureLeavesTheBitmapAsItIs() =
+  fun noClapOrOneKeepingTheWholePictureCutsNothing() =
     runTest {
       val bitmap = bitmapOf(pngOf(STORED))
+      val crop = PictureCrop(1, 1, Size(3, 2))
 
-      bitmap.clapCropped(null) shouldBeSameInstanceAs bitmap
-      bitmap.clapCropped(PictureCrop(0, 0, STORED)) shouldBeSameInstanceAs bitmap
+      bitmap.clapCut(null).shouldBeNull()
+      bitmap.clapCut(PictureCrop(0, 0, STORED)).shouldBeNull()
+      bitmap.clapCut(crop) shouldBe crop
     }
 
   @Test
@@ -71,7 +85,8 @@ class WebOverlayPictureTest {
       val bitmap = bitmapOf(pngOf(STORED))
       val crop = PictureCrop(4, 2, Size(3, 3))
 
-      bitmap.clapCropped(crop).shouldBeNull()
+      bitmap.clapCut(crop) shouldBe crop
+      crop.liesWithin(STORED) shouldBe false
       clapRefused(bitmap, crop).shouldBeInstanceOf<OverlayDecode.Refused>().message shouldBe crop.refusalFor(STORED)
     }
 
@@ -81,8 +96,13 @@ class WebOverlayPictureTest {
     // Four distinct sixteen-bit samples a texel, so a texel moved apart from its own samples shows.
     val SAMPLES = ShortArray(STORED.width * STORED.height * 4) { (it * 257 + 3).toShort() }
 
-    // Opaque texels, each with its own red and green, so a cut one texel off shows.
-    val TEXELS =
-      List(STORED.width * STORED.height) { byteArrayOf((it * 10).toByte(), (250 - it * 10).toByte(), 0x40, -1) }
+    val WIDE = Size(67, 45)
+
+    // Each texel with its own red, green and blue and alpha running through every code, so a texel read from the wrong
+    // place or premultiplied shows.
+    val WIDE_TEXELS =
+      List(WIDE.width * WIDE.height) {
+        byteArrayOf((it * 10).toByte(), (250 - it * 7).toByte(), (it * 3 + 64).toByte(), (it * 37 % 256).toByte())
+      }
   }
 }

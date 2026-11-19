@@ -238,7 +238,7 @@ class WebOverlayTest {
         val resolver = BuiltInEffectResolver()
         resolver.prepare(compositionOf(image))
 
-        val samples = samplesOf(overlayOf(resolver.resolve(image, CAPABILITIES, ATTRIBUTES))).shouldNotBeNull()
+        val samples = samplesOf(overlayOf(resolver.resolve(image, CAPABILITIES, ATTRIBUTES)))
         samples shouldBe pngSamples(bytes).shouldNotBeNull().rgba
       }
       val sixteenBit = pngSamples(pngOf(PNG, sixteenBitSample = SIXTEEN_BIT_SAMPLE)).shouldNotBeNull()
@@ -258,7 +258,7 @@ class WebOverlayTest {
 
         withClue("$orientation") { overlay.size shouldBe orientation.orientedSize(storedSize) }
         withClue("$orientation") { overlay.orientation shouldBe PictureOrientation.Normal }
-        val samples = withClue("$orientation") { samplesOf(overlay).shouldNotBeNull() }
+        val samples = withClue("$orientation") { samplesOf(overlay) }
         withClue("$orientation") { samples shouldBe orientedSamples(orientation, stored.rgba, storedSize) }
       }
     }
@@ -275,6 +275,7 @@ class WebOverlayTest {
 
         withClue("$orientation") { overlay.size shouldBe JPEG_SIZE }
         withClue("$orientation") { overlay.orientation shouldBe orientation }
+        withClue("$orientation") { overlay.source.shouldBeInstanceOf<OverlaySource.Image>() }
         val expected = image.placedOn(FRAME, orientation.orientedSize(JPEG_SIZE)).rectOn(FRAME)
         withClue("$orientation") { overlay.drawAt(Duration.ZERO).shouldNotBeNull().rect shouldBe expected }
       }
@@ -396,8 +397,8 @@ class WebOverlayTest {
     return resolved.effect.overlay.shouldNotBeNull()
   }
 
-  private fun samplesOf(overlay: WebGlOverlay): ShortArray? =
-    overlay.source.shouldBeInstanceOf<OverlaySource.Image>().samples
+  private fun samplesOf(overlay: WebGlOverlay): ShortArray =
+    overlay.source.shouldBeInstanceOf<OverlaySource.Samples>().samples
 
   private fun assertDrawsAcrossTheFade(
     spec: OverlayEffect,

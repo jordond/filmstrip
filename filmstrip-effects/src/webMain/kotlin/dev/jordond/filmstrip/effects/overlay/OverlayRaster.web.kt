@@ -3,6 +3,7 @@
 package dev.jordond.filmstrip.effects.overlay
 
 import dev.jordond.filmstrip.edit.Composition
+import dev.jordond.filmstrip.effect.OverlaySource
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.internal.awaitCatching
 import dev.jordond.filmstrip.media.FetchResponse
@@ -262,9 +263,8 @@ private suspend fun pictureOf(
     val peak = pngPeakBytes(extent)
     if (peak == null || peak > ceiling) return OverlayDecode.Refused(tooLargeToDecode(extent, peak, ceiling))
     val samples = pngSamples(bytes, ceiling) ?: return OverlayDecode.Undecodable
-    val bitmap = bitmapOf(bytes)
     val (size, rgba) = orientation.laidOut(Size(samples.width, samples.height), samples.rgba)
-    return OverlayDecode.Decoded(OverlayPicture(bitmap, size, pictureColor(bytes), rgba))
+    return OverlayDecode.Decoded(OverlayPicture(OverlaySource.Samples(rgba), size, pictureColor(bytes)))
   }
   val route =
     when (val route = avifRouteOf(bytes)) {
@@ -272,10 +272,17 @@ private suspend fun pictureOf(
       is PictureRoute.Decoded -> route
       is PictureRoute.Evaluated -> return evaluatedPicture(bytes, route, orientation)
     }
-  val crop = pictureCropOf(bytes)
-  val bitmap = bitmapOf(route.bytes).let { it.clapCropped(crop) ?: return clapRefused(it, checkNotNull(crop)) }
-  val size = Size(bitmap.width, bitmap.height)
-  val picture = OverlayPicture(bitmap, size, pictureColor(bytes), null, route.limits, orientation)
+  val bitmap = bitmapOf(route.bytes)
+  val cut = bitmap.clapCut(pictureCropOf(bytes))
+  if (cut != null && !cut.liesWithin(Size(bitmap.width, bitmap.height))) return clapRefused(bitmap, cut)
+  val size = cut?.size ?: Size(bitmap.width, bitmap.height)
+  val source =
+    if (cut == null) {
+      OverlaySource.Image(bitmap)
+    } else {
+      OverlaySource.Codes(codesOf(bitmap, cut).also { bitmap.close() } ?: return OverlayDecode.Undecodable)
+    }
+  val picture = OverlayPicture(source, size, pictureColor(bytes), route.limits, orientation)
   return OverlayDecode.Decoded(picture)
 }
 
@@ -286,9 +293,11 @@ private suspend fun evaluatedPicture(
   route: PictureRoute.Evaluated,
   orientation: PictureOrientation,
 ): OverlayDecode {
-  val crop = pictureCropOf(bytes)
-  val bitmap = bitmapOf(route.bytes).let { it.clapCropped(crop) ?: return clapRefused(it, checkNotNull(crop)) }
-  val codes = codesOf(bitmap) ?: return OverlayDecode.Undecodable
+  val bitmap = bitmapOf(route.bytes)
+  val cut = bitmap.clapCut(pictureCropOf(bytes))
+  if (cut != null && !cut.liesWithin(Size(bitmap.width, bitmap.height))) return clapRefused(bitmap, cut)
+  val stored = cut?.size ?: Size(bitmap.width, bitmap.height)
+  val codes = codesOf(bitmap, cut).also { bitmap.close() } ?: return OverlayDecode.Undecodable
   val samples = ShortArray(codes.size)
   val rgb = DoubleArray(RGB_CHANNELS)
   for (texel in codes.indices step RGBA_CHANNELS) {
@@ -299,8 +308,8 @@ private suspend fun evaluatedPicture(
     for (channel in 0 until RGB_CHANNELS) samples[texel + channel] = (rgb[channel] * TOP_SAMPLE).roundToInt().toShort()
     samples[texel + ALPHA] = ((codes[texel + ALPHA].toInt() and BYTE_MASK) * EIGHT_BIT_STEP).toShort()
   }
-  val (size, rgba) = orientation.laidOut(Size(bitmap.width, bitmap.height), samples)
-  return OverlayDecode.Decoded(OverlayPicture(bitmap, size, pictureColor(bytes), rgba))
+  val (size, rgba) = orientation.laidOut(stored, samples)
+  return OverlayDecode.Decoded(OverlayPicture(OverlaySource.Samples(rgba), size, pictureColor(bytes)))
 }
 
 /**
@@ -343,11 +352,14 @@ internal fun tooLargeToDecode(
 }
 
 /**
- * The straight codes of [bitmap], four bytes a texel, red, green, blue then alpha, row by row from the top left, or
- * null when no WebGL2 context is to be had. A bitmap decoded by [bitmapOf] keeps its codes unpremultiplied, so they are
- * the ones the picture stores at any alpha.
+ * The straight codes of [rect] in [bitmap], or of the whole bitmap when it is null, four bytes a texel, red, green,
+ * blue then alpha, row by row from the rectangle's top left, or null when no WebGL2 context is to be had. A bitmap
+ * decoded by [bitmapOf] keeps its codes unpremultiplied, so they are the ones the picture stores at any alpha.
  */
-internal fun codesOf(bitmap: ImageBitmap): ByteArray? = straightCodesOf(bitmap)
+internal fun codesOf(
+  bitmap: ImageBitmap,
+  rect: PictureCrop? = null,
+): ByteArray? = straightCodesOf(bitmap, rect)
 
 /**
  * The most time one fetch of an overlay picture may take, from the request to the last byte of its body.

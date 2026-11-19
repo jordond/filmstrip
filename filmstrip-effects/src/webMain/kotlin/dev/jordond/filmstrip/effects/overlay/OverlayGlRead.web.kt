@@ -5,22 +5,32 @@ package dev.jordond.filmstrip.effects.overlay
 import dev.jordond.filmstrip.media.ArrayBuffer
 import dev.jordond.filmstrip.media.ImageBitmap
 import dev.jordond.filmstrip.media.toByteArray
+import dev.jordond.filmstrip.picture.PictureCrop
 import kotlin.js.ExperimentalWasmJsInterop
 import kotlin.js.JsAny
 import kotlin.js.JsName
 
 /**
- * The straight codes of [bitmap], four bytes a texel, red, green, blue then alpha, row by row from the top left, or
- * null when no WebGL2 context is to be had or the bitmap is wider than a texture may be.
+ * The straight codes of [rect] in [bitmap], or of the whole bitmap when [rect] is null, four bytes a texel, red, green,
+ * blue then alpha, row by row from the rectangle's top left. Null when no WebGL2 context is to be had or the bitmap is
+ * wider than a texture may be.
  *
- * The bitmap is uploaded to a texture with no premultiplying and no color conversion and read back through a
- * framebuffer, so a bitmap decoded with `premultiplyAlpha` set to `none` gives back the codes it was stored with at any
- * alpha. A 2D canvas holds premultiplied texels, which loses color wherever alpha is below its top.
+ * The whole bitmap is uploaded to a texture with no premultiplying and no color conversion and the rectangle is read
+ * back through a framebuffer, so a bitmap decoded with `premultiplyAlpha` set to `none` gives back the codes it was
+ * stored with at any alpha. A 2D canvas holds premultiplied texels, which loses color wherever alpha is below its top.
+ *
+ * @param rect A rectangle that lies within the bitmap.
  */
-internal fun straightCodesOf(bitmap: ImageBitmap): ByteArray? {
-  val width = bitmap.width
-  val height = bitmap.height
-  if (width <= 0 || height <= 0 || width.toLong() * height * TEXEL_BYTES > Int.MAX_VALUE) return null
+internal fun straightCodesOf(
+  bitmap: ImageBitmap,
+  rect: PictureCrop? = null,
+): ByteArray? {
+  if (bitmap.width <= 0 || bitmap.height <= 0) return null
+  if (bitmap.width.toLong() * bitmap.height * TEXEL_BYTES > Int.MAX_VALUE) return null
+  val left = rect?.left ?: 0
+  val top = rect?.top ?: 0
+  val width = rect?.size?.width ?: bitmap.width
+  val height = rect?.size?.height ?: bitmap.height
   val gl = GlReadCanvas(1, 1).getContext(WEBGL2, JSON.parse(GL_OPTIONS)) ?: return null
   try {
     val texture = gl.createTexture() ?: return null
@@ -34,7 +44,9 @@ internal fun straightCodesOf(bitmap: ImageBitmap): ByteArray? {
     gl.framebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texture, 0)
     if (gl.checkFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) return null
     val read = ReadBytes(width * height * TEXEL_BYTES)
-    gl.readPixels(0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, read)
+    // Firefox uploads a bitmap cut from another bitmap from the source's top left texel, so the rectangle is read out
+    // of the whole upload here.
+    gl.readPixels(left, top, width, height, GL_RGBA, GL_UNSIGNED_BYTE, read)
     return read.buffer.toByteArray()
   } finally {
     gl.getExtension(LOSE_CONTEXT)?.loseContext()
