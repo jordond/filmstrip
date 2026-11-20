@@ -36,8 +36,13 @@ internal fun pngChunk(
   type: String,
   data: ByteArray,
 ): ByteArray {
-  val typed = ascii(type) + data
-  return be32(data.size) + typed + be32(crc32(typed))
+  val out = ByteArray(CHUNK_FRAMING + data.size)
+  be32(data.size).copyInto(out)
+  ascii(type).copyInto(out, CHUNK_LENGTH)
+  data.copyInto(out, CHUNK_LENGTH + CHUNK_TYPE)
+  val crc = crc32(out, from = CHUNK_LENGTH, to = CHUNK_LENGTH + CHUNK_TYPE + data.size)
+  be32(crc).copyInto(out, CHUNK_LENGTH + CHUNK_TYPE + data.size)
+  return out
 }
 
 /**
@@ -57,10 +62,14 @@ internal fun zlibStored(bytes: ByteArray): ByteArray {
   return concat(parts)
 }
 
-internal fun crc32(bytes: ByteArray): Int {
+internal fun crc32(
+  bytes: ByteArray,
+  from: Int = 0,
+  to: Int = bytes.size,
+): Int {
   var crc = -1
-  for (byte in bytes) {
-    crc = crc xor (byte.toInt() and BYTE_MASK)
+  for (index in from until to) {
+    crc = crc xor (bytes[index].toInt() and BYTE_MASK)
     repeat(8) { crc = if (crc and 1 != 0) (crc ushr 1) xor CRC_POLYNOMIAL else crc ushr 1 }
   }
   return crc.inv()
@@ -79,5 +88,8 @@ internal fun adler32(bytes: ByteArray): Int {
 internal const val BYTE_MASK: Int = 0xFF
 
 private const val MAX_STORED_BLOCK = 0xFFFF
+private const val CHUNK_LENGTH = 4
+private const val CHUNK_TYPE = 4
+private const val CHUNK_FRAMING = CHUNK_LENGTH + CHUNK_TYPE + 4
 private const val ADLER_MODULUS = 65521
 private const val CRC_POLYNOMIAL = 0xEDB88320.toInt()

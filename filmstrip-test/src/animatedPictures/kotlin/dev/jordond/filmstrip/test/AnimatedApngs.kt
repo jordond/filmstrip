@@ -34,28 +34,54 @@ public object AnimatedApngs {
     fractions: List<Fraction>? = null,
     indexed: Boolean = false,
   ): ByteArray {
+    val out = mutableListOf<ByteArray>()
+    write(canvas, ops, plays, sixteenBit, defaultIsFrame, fractions, indexed, sink = out::add)
+    return concat(out)
+  }
+
+  /**
+   * Writes the APNG [bytes] makes for the same arguments to [sink], the signature and then one chunk a call, so a
+   * caller that streams it never holds more than one frame of the file.
+   *
+   * @param cicp The four bytes of a `cICP` chunk written after the header, primaries, transfer, matrix and range, as
+   * [withCicp] adds it, or null for a file that carries no color description.
+   * @param sink Takes each part of the file in order.
+   * @throws IllegalArgumentException for the same arguments [bytes] refuses.
+   */
+  public fun write(
+    canvas: Size,
+    ops: List<Op>,
+    plays: Int = 0,
+    sixteenBit: Boolean = false,
+    defaultIsFrame: Boolean = false,
+    fractions: List<Fraction>? = null,
+    indexed: Boolean = false,
+    cicp: ByteArray? = null,
+    sink: (ByteArray) -> Unit,
+  ) {
     require(!indexed || !sixteenBit) { "A palette file stores 8-bit indices." }
     require(!defaultIsFrame || ops[0].covers(canvas)) { "A default image that is a frame is the whole canvas." }
     require(fractions == null || fractions.size == ops.size) { "Every frame needs its own fraction." }
     var sequence = 0
-    val out = mutableListOf<ByteArray>()
-    out += PNG_SIGNATURE
+    sink(PNG_SIGNATURE)
     val depth: Byte = if (sixteenBit) 16 else 8
     val palette = if (indexed) ops.flatMap { op -> texels(op) }.plus(MAGENTA).distinct() else emptyList()
     val colorType: Byte = if (indexed) 3 else 6
-    out += pngChunk("IHDR", be32(canvas.width) + be32(canvas.height) + byteArrayOf(depth, colorType, 0, 0, 0))
+    sink(pngChunk("IHDR", be32(canvas.width) + be32(canvas.height) + byteArrayOf(depth, colorType, 0, 0, 0)))
+    if (cicp != null) sink(pngChunk("cICP", cicp))
     if (indexed) {
-      out +=
+      sink(
         pngChunk(
           "PLTE",
           palette.flatMap { listOf((it ushr 16).toByte(), (it ushr 8).toByte(), it.toByte()) }.toByteArray(),
-        )
-      out += pngChunk("tRNS", palette.map { (it ushr 24).toByte() }.toByteArray())
+        ),
+      )
+      sink(pngChunk("tRNS", palette.map { (it ushr 24).toByte() }.toByteArray()))
     }
-    out += pngChunk("acTL", be32(ops.size) + be32(plays))
+    sink(pngChunk("acTL", be32(ops.size) + be32(plays)))
     if (!defaultIsFrame) {
       val magenta = rows(canvas.width, canvas.height, sixteenBit, palette) { _, _ -> MAGENTA }
-      out += pngChunk("IDAT", zlibStored(magenta))
+      sink(pngChunk("IDAT", zlibStored(magenta)))
     }
     for ((index, op) in ops.withIndex()) {
       val delay =
@@ -64,12 +90,11 @@ public object AnimatedApngs {
       val control =
         be32(sequence++) + be32(op.tile.width) + be32(op.tile.height) + be32(op.x) + be32(op.y) + delay +
           byteArrayOf(disposeCode(op.disposal), if (op.blend == Blend.Source) 0 else 1)
-      out += pngChunk("fcTL", control)
+      sink(pngChunk("fcTL", control))
       val data = zlibStored(rows(op.tile.width, op.tile.height, sixteenBit, palette) { x, y -> op.tile.texel(x, y) })
-      out += if (index == 0 && defaultIsFrame) pngChunk("IDAT", data) else pngChunk("fdAT", be32(sequence++) + data)
+      sink(if (index == 0 && defaultIsFrame) pngChunk("IDAT", data) else pngChunk("fdAT", be32(sequence++) + data))
     }
-    out += pngChunk("IEND", ByteArray(0))
-    return concat(out)
+    sink(pngChunk("IEND", ByteArray(0)))
   }
 
   /**
@@ -137,23 +162,32 @@ public object AnimatedApngs {
     palette: List<Int>,
     texel: (x: Int, y: Int) -> Int,
   ): ByteArray {
-    val out = mutableListOf<Byte>()
+    val texelBytes =
+      if (palette.isNotEmpty()) {
+        1
+      } else if (sixteenBit) {
+        2 * RGBA
+      } else {
+        RGBA
+      }
+    val out = ByteArray(height * (1 + width * texelBytes))
+    var at = 0
     for (y in 0 until height) {
-      out += 0
+      out[at++] = 0
       for (x in 0 until width) {
         val argb = texel(x, y)
         if (palette.isNotEmpty()) {
-          out += palette.indexOf(argb).toByte()
+          out[at++] = palette.indexOf(argb).toByte()
           continue
         }
-        for (shift in intArrayOf(16, 8, 0, 24)) {
+        for (shift in RGBA_SHIFTS) {
           val sample = ((argb ushr shift) and BYTE_MASK).toByte()
-          out += sample
-          if (sixteenBit) out += sample
+          out[at++] = sample
+          if (sixteenBit) out[at++] = sample
         }
       }
     }
-    return out.toByteArray()
+    return out
   }
 
   private fun be16(value: Int): ByteArray = byteArrayOf((value ushr 8).toByte(), value.toByte())
@@ -161,4 +195,6 @@ public object AnimatedApngs {
   private val PNG_SIGNATURE = byteArrayOf(0x89.toByte(), 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A)
   private const val HEADER_CHUNK = 25
   private const val MAGENTA = 0xFFFF00FF.toInt()
+  private const val RGBA = 4
+  private val RGBA_SHIFTS = intArrayOf(16, 8, 0, 24)
 }

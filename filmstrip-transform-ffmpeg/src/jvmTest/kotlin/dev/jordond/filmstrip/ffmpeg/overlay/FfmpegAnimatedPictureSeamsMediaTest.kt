@@ -19,11 +19,6 @@ import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.picture.PictureOrientation
 import dev.jordond.filmstrip.picture.animated.AnimatedCopies
-import dev.jordond.filmstrip.picture.animated.AnimatedRead
-import dev.jordond.filmstrip.picture.animated.FramePixels
-import dev.jordond.filmstrip.picture.animated.animatedPeakBytes
-import dev.jordond.filmstrip.picture.animated.animatedPictureOf
-import dev.jordond.filmstrip.picture.animated.animatedSourceBytes
 import dev.jordond.filmstrip.picture.animated.atlasGrid
 import dev.jordond.filmstrip.picture.orientedSamples
 import dev.jordond.filmstrip.test.AnimatedApngs
@@ -51,6 +46,7 @@ import kotlin.time.Duration.Companion.seconds
  */
 class FfmpegAnimatedPictureSeamsMediaTest {
   private val root: File = createTempDirectory("filmstrip-animated-seams").toFile()
+  private val counted = mutableMapOf<File, List<Long>>()
 
   @AfterTest
   fun cleanUp() {
@@ -141,9 +137,8 @@ class FfmpegAnimatedPictureSeamsMediaTest {
 
   @Test
   fun `an eight bit picture that does not compress resolves inside the heap its count names on every route`() {
-    val size = AtlasMemoryProbe.SIZE
-    val untagged = written("apng", noisyApng(size, EIGHT_BIT_FRAMES, sixteenBit = false))
-    val tagged = written("tagged apng", AnimatedApngs.withCicp(untagged.readBytes(), byteArrayOf(12, 13, 0, 1)))
+    val untagged = noisyApng("apng", EIGHT_BIT_FRAMES, sixteenBit = false)
+    val tagged = noisyApng("tagged apng", EIGHT_BIT_FRAMES, sixteenBit = false, cicp = byteArrayOf(12, 13, 0, 1))
     assertResolvesWithinItsCount("sdr apng", untagged, "sdr", AnimatedCopies.Ffmpeg)
     assertResolvesWithinItsCount("sdr tagged apng", tagged, "sdr", AnimatedCopies.FfmpegTagged)
     assertResolvesWithinItsCount("pq apng", untagged, "pq", AnimatedCopies.FfmpegHdr)
@@ -152,26 +147,32 @@ class FfmpegAnimatedPictureSeamsMediaTest {
 
   @Test
   fun `a sixteen bit picture resolves inside the heap its count names on every route`() {
-    val untagged = written("deep apng", noisyApng(AtlasMemoryProbe.SIZE, DEEP_FRAMES, sixteenBit = true))
-    val tagged = written("deep tagged apng", AnimatedApngs.withCicp(untagged.readBytes(), byteArrayOf(1, 13, 0, 1)))
+    val untagged = noisyApng("deep apng", DEEP_FRAMES, sixteenBit = true)
+    val tagged = noisyApng("deep tagged apng", DEEP_FRAMES, sixteenBit = true, cicp = byteArrayOf(1, 13, 0, 1))
     assertResolvesWithinItsCount("sdr deep apng", untagged, "sdr", AnimatedCopies.Ffmpeg)
     assertResolvesWithinItsCount("sdr deep tagged apng", tagged, "sdr", AnimatedCopies.FfmpegTagged)
     assertResolvesWithinItsCount("pq deep apng", untagged, "pq", AnimatedCopies.FfmpegHdr)
     assertResolvesWithinItsCount("pq deep tagged apng", tagged, "pq", AnimatedCopies.FfmpegHdr)
   }
 
+  // A picture of a hundred deep frames is about 100 MB, so it is written to disk a chunk at a time and counted in a JVM
+  // of its own, which leaves this one holding no more than a frame of it.
   private fun noisyApng(
-    size: Size,
+    name: String,
     frames: Int,
     sixteenBit: Boolean,
-  ): ByteArray {
+    cicp: ByteArray? = null,
+  ): File {
+    val size = AtlasMemoryProbe.SIZE
     val ops =
       List(frames) { Op(0, 0, AnimatedPictures.Tiles.noisy(size.width, size.height, it), blend = Blend.Source) }
-    return AnimatedApngs.bytes(size, ops, sixteenBit = sixteenBit, defaultIsFrame = true)
+    val file = File(root, "$name.bin")
+    file.outputStream().buffered().use { out ->
+      AnimatedApngs.write(size, ops, sixteenBit = sixteenBit, defaultIsFrame = true, cicp = cicp) { out.write(it) }
+    }
+    return file
   }
 
-  // A picture of a hundred deep frames is about 100 MB, so each is kept on disk and read back one at a time to leave
-  // the test's own heap room for the decode.
   private fun written(
     name: String,
     bytes: ByteArray,
@@ -181,16 +182,30 @@ class FfmpegAnimatedPictureSeamsMediaTest {
     file: File,
     held: AnimatedCopies,
   ): Long {
-    val picture = animatedPictureOf(file.readBytes()).shouldBeInstanceOf<AnimatedRead.Animated>().picture
-    return checkNotNull(
-      animatedPeakBytes(
-        picture.shown,
-        picture.frames.size,
-        held,
-        sixteenBit = picture.frames.any { (it.pixels as? FramePixels.Samples)?.sixteenBit == true },
-        source = checkNotNull(animatedSourceBytes(picture, file.length())),
-      ),
-    )
+    val counts =
+      counted.getOrPut(file) {
+        val (exit, said) = probe(listOf(AtlasMemoryProbe.COUNT, file.path))
+        val counts = said.lines().mapNotNull { it.trim().toLongOrNull() }
+        withClue("counting ${file.name}: $said") {
+          exit shouldBe 0
+          counts.size shouldBe AtlasMemoryProbe.COUNTED.size
+        }
+        counts
+      }
+    return counts[AtlasMemoryProbe.COUNTED.indexOf(held)]
+  }
+
+  private fun probe(
+    args: List<String>,
+    vararg options: String,
+  ): Pair<Int, String> {
+    val java = File(System.getProperty("java.home"), "bin/java").path
+    val command =
+      listOf(java) + options + listOf("-cp", System.getProperty("java.class.path"), AtlasMemoryProbe::class.java.name) +
+        args
+    val child = ProcessBuilder(command).redirectErrorStream(true).start()
+    val said = child.inputStream.readAllBytes().decodeToString()
+    return child.waitFor() to said
   }
 
   private fun assertResolvesWithinItsCount(
@@ -199,25 +214,11 @@ class FfmpegAnimatedPictureSeamsMediaTest {
     grade: String,
     held: AnimatedCopies,
   ) {
-    val peak = countedPeak(file, held)
-    val java = File(System.getProperty("java.home"), "bin/java").path
-    val heapMegabytes = peak / MEGABYTE + HEAP_SLACK_MEGABYTES
-    val child =
-      ProcessBuilder(
-        java,
-        "-Xmx${heapMegabytes}m",
-        "-XX:+UseSerialGC",
-        "-Xmn8m",
-        "-cp",
-        System.getProperty("java.class.path"),
-        AtlasMemoryProbe::class.java.name,
-        file.path,
-        grade,
-      ).redirectErrorStream(true).start()
-    val said = child.inputStream.readAllBytes().decodeToString()
+    val heapMegabytes = countedPeak(file, held) / MEGABYTE + HEAP_SLACK_MEGABYTES
+    val (exit, said) = probe(listOf(file.path, grade), "-Xmx${heapMegabytes}m", "-XX:+UseSerialGC", "-Xmn8m")
 
     withClue("$name in a heap of ${heapMegabytes}m, the counted peak and ${HEAP_SLACK_MEGABYTES}m: $said") {
-      child.waitFor() shouldBe 0
+      exit shouldBe 0
     }
   }
 
