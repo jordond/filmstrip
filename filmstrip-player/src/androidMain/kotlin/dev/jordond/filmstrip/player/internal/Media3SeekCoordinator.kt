@@ -162,6 +162,11 @@ internal class Media3SeekCoordinator(
   // A seek in flight reads where it is going, since a reading media3 reports before it lands is from before the seek.
   fun position(): Duration = target ?: positionAt(platformPositionMs())
 
+  /**
+   * The slot the last replay was for, or null where a seek or a new graph has moved the playhead since.
+   */
+  fun replayed(): Duration? = floor.replayed()
+
   private fun positionAt(clockMs: Long): Duration =
     floor.read(clockMs, restingAt(playheadOf(clockMs, landing, mediaLanding)))
 

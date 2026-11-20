@@ -21,6 +21,8 @@ import kotlin.time.Duration.Companion.microseconds
  * @param isEnded Whether the player has reached the end of the composition and nothing has moved it since.
  * @param isPlayWanted Whether playback is wanted, read on the engine's dispatcher.
  * @param landingOf The slot time a time on the timeline lands on.
+ * @param firstSlotOf The slot a sample shown on a slot is written on.
+ * @param replayed The slot the last replay was for, or null where a seek or a new graph has moved the playhead since.
  * @param duration How long the composition loaded now runs.
  * @param playhead What the playhead reads while the player has not ended.
  * @param emitPosition Pushes one playhead reading.
@@ -31,6 +33,8 @@ internal class Media3PausedFrame(
   private val isEnded: () -> Boolean,
   private val isPlayWanted: () -> Boolean,
   private val landingOf: (Duration) -> Duration,
+  private val firstSlotOf: (Duration) -> Duration,
+  private val replayed: () -> Duration?,
   private val duration: () -> Duration,
   private val playhead: () -> Duration,
   private val emitPosition: (Duration) -> Unit,
@@ -38,8 +42,15 @@ internal class Media3PausedFrame(
   /**
    * The slot time of the frame last handed to the surface, or null when none has been since a load, a seek or a
    * surface let go of.
+   *
+   * A held sample is stamped on its first slot. Where it is the sample a replay went back for, the frame stands for the
+   * slot the replay was for, which is the later slot of that sample the play started from.
    */
-  fun drawn(): Duration? = renderedUs().takeIf { it != NO_FRAME }?.let { landingOf(it.microseconds) }
+  fun drawn(): Duration? {
+    val landing = renderedUs().takeIf { it != NO_FRAME }?.let { landingOf(it.microseconds) } ?: return null
+    val replay = replayed() ?: return landing
+    return if (firstSlotOf(replay) == landing) replay else landing
+  }
 
   /**
    * The slot time of the frame on the surface while the player is paused, or null while it plays or has no frame.

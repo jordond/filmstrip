@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip.player.internal
 
+import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
 import kotlin.test.Test
 import kotlin.time.Duration
@@ -61,6 +62,30 @@ class Media3PlayheadFloorTest {
     rig.restOn(LATER)
 
     rig.read(PAST) shouldBe LATER
+  }
+
+  // The clock passing the slot lets go of the floor, and the frame on the surface can still be the sample the replay
+  // went back for.
+  @Test
+  fun `the slot a replay was for outlasts a play that took the clock past it`() {
+    val rig = Rig()
+    rig.floor.raiseTo(RESTED)
+
+    rig.play()
+    rig.read(PAST) shouldBe PAST.milliseconds
+    rig.pause()
+
+    rig.floor.replayed() shouldBe RESTED
+  }
+
+  @Test
+  fun `a seek lets go of the slot a replay was for`() {
+    val rig = Rig()
+    rig.floor.raiseTo(RESTED)
+
+    rig.floor.clear()
+
+    rig.floor.replayed().shouldBeNull()
   }
 
   private class Rig {

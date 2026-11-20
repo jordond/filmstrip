@@ -138,6 +138,39 @@ class Media3PausedFrameTest {
       rig.pushed shouldBe listOf(CLOCK_AT)
     }
 
+  // A sample a third-speed clip holds on three slots is stamped on the first of them. A play from the middle slot went
+  // back to that first slot, and with nothing later drawn the frame is still the one the play started from.
+  @Test
+  fun `the sample a replay went back for reads the slot the replay was for`() =
+    runTest {
+      val rig = Rig(this)
+      rig.replayed = slot(HELD_FIRST + 1)
+      rig.renderedUs = slot(HELD_FIRST).inWholeMicroseconds
+
+      rig.frame.resting() shouldBe slot(HELD_FIRST + 1)
+      rig.frame.drawn() shouldBe slot(HELD_FIRST + 1)
+    }
+
+  @Test
+  fun `a sample drawn past the one a replay went back for reads its own slot`() =
+    runTest {
+      val rig = Rig(this)
+      rig.replayed = slot(HELD_FIRST + 1)
+      rig.renderedUs = slot(HELD_FIRST + HOLD).inWholeMicroseconds
+
+      rig.frame.resting() shouldBe slot(HELD_FIRST + HOLD)
+    }
+
+  @Test
+  fun `a frame of another sample than the one replayed reads its own slot`() =
+    runTest {
+      val rig = Rig(this)
+      rig.replayed = slot(HELD_FIRST + HOLD + 1)
+      rig.renderedUs = slot(HELD_FIRST).inWholeMicroseconds
+
+      rig.frame.resting() shouldBe slot(HELD_FIRST)
+    }
+
   private class Rig(
     scope: TestScope,
   ) {
@@ -145,6 +178,7 @@ class Media3PausedFrameTest {
     var ended = false
     var playWanted = false
     var clock = CLOCK_AT
+    var replayed: Duration? = null
     val pushed = mutableListOf<Duration>()
 
     val frame =
@@ -154,6 +188,8 @@ class Media3PausedFrameTest {
         isEnded = { ended },
         isPlayWanted = { playWanted },
         landingOf = { outputSlotTime(outputSlotOf(it, RATE), RATE) },
+        firstSlotOf = { slot(outputSlotOf(it, RATE).toInt().let { index -> index - index % HOLD }) },
+        replayed = { replayed },
         duration = { LENGTH },
         playhead = { clock },
         emitPosition = { pushed += it },
@@ -166,5 +202,9 @@ class Media3PausedFrameTest {
     val DRAWN_AT = outputSlotTime(22, RATE)
     val CLOCK_AT = outputSlotTime(40, RATE)
     val OVERRUN = 9.milliseconds
+    const val HOLD = 3
+    const val HELD_FIRST = 21
+
+    fun slot(index: Int): Duration = outputSlotTime(index.toLong(), RATE)
   }
 }

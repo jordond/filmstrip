@@ -128,6 +128,8 @@ internal class Media3PlayerEngine(
       isEnded = { status.isEnded },
       isPlayWanted = { isPlayWanted },
       landingOf = ::landingOf,
+      firstSlotOf = { preview?.firstSlotOf(it) ?: it },
+      replayed = { seeks.replayed() },
       duration = { plan?.resolved?.duration ?: Duration.ZERO },
       playhead = { seeks.position() },
       emitPosition = ::emitPosition,

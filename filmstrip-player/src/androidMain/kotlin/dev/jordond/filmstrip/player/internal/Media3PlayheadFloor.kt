@@ -13,6 +13,9 @@ import kotlin.time.Duration.Companion.milliseconds
  * sample, where the clock starts again from the sample's first slot. A play lets go of it once the clock has reached
  * it, read while it plays or after it stopped, since a short play can stop before anything reads the playhead.
  *
+ * The slot a replay was for is kept apart from the floor until a seek or a new graph moves the playhead, whatever the
+ * clock reads, since a paused player can still show the sample the replay went back for. See [replayed].
+ *
  * Read and written by whichever thread reads the position.
  *
  * @param resting The slot time of the frame on screen while the player is paused and one has been drawn since the last
@@ -28,6 +31,9 @@ internal class Media3PlayheadFloor(
 
   @Volatile
   private var played = false
+
+  @Volatile
+  private var replay: Duration? = null
 
   /**
    * What the playhead reads where media3's clock reads [clockMs], which is [clock] on the timeline.
@@ -62,7 +68,16 @@ internal class Media3PlayheadFloor(
    */
   fun raiseTo(to: Duration) {
     slot = maxOf(slot ?: to, to)
+    replay = to
   }
+
+  /**
+   * The slot the last replay was for, or null where a seek or a new graph has moved the playhead since.
+   *
+   * A replay goes back to the first slot of the sample the pause rested a later slot of. Until a later sample is drawn,
+   * the frame on the surface is that sample, and it stands for this slot.
+   */
+  fun replayed(): Duration? = replay
 
   /**
    * Hears that the player was told to play, so a clock read past the floor from now on is one the play reached.
@@ -77,5 +92,6 @@ internal class Media3PlayheadFloor(
   fun clear() {
     slot = null
     played = false
+    replay = null
   }
 }
