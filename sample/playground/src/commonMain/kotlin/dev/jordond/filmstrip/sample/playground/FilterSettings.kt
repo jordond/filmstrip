@@ -52,13 +52,15 @@ internal enum class FilterLook(
 }
 
 /**
- * The film the film look runs, the default stock, the same with light leaks, or the Super 8 preset.
+ * The film the film look runs, the default stock, the same with light leaks, a faded and breathing print, or the
+ * Super 8 preset.
  */
 internal enum class FilmStock(
   val label: String,
 ) {
   Default("DEFAULT"),
   Leak("LEAK"),
+  Faded("FADED"),
   Super8("SUPER 8"),
 }
 
@@ -182,6 +184,7 @@ internal fun filtersEdit(
           when (settings.film) {
             FilmStock.Default -> film()
             FilmStock.Leak -> film(leak = SAMPLE_LEAK)
+            FilmStock.Faded -> film(breath = SAMPLE_BREATH, fade = SAMPLE_FADE)
             FilmStock.Super8 -> add(Film.Super8)
           }
         }
@@ -285,6 +288,10 @@ internal fun filtersCode(settings: FilterSettings): List<List<CodePart>> {
             }
             if (settings.look == FilterLook.Film && settings.film == FilmStock.Leak) {
               add("leak = ${floatLiteral(SAMPLE_LEAK)}")
+            }
+            if (settings.look == FilterLook.Film && settings.film == FilmStock.Faded) {
+              add("breath = ${floatLiteral(SAMPLE_BREATH)}")
+              add("fade = ${floatLiteral(SAMPLE_FADE)}")
             }
           }
         listOf(
@@ -426,3 +433,7 @@ private val SETTLE_OVER = 3.seconds
 
 // How bright the leaks are on the film look's leak stock.
 private const val SAMPLE_LEAK = 0.6f
+
+// How far the film look's faded stock breathes and how far its print has faded.
+private const val SAMPLE_BREATH = 0.5f
+private const val SAMPLE_FADE = 0.6f

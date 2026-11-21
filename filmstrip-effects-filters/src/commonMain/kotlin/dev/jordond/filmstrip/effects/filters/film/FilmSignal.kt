@@ -359,9 +359,9 @@ public object FilmSignal {
    * The R'G'B' a pixel of a frame ends on, a pure function a test holds a backend's pixels against.
    *
    * [red], [green], [blue] and [blurred] are read off the frame already moved by [weaveAt]. [halated] runs first, then
-   * [FilmLeak.leaked] lays the leak's light over it, then the frame takes [flickerAt]'s gain, then [grained], then
-   * [dustAt] and [scratchAt], and [gateMask] last. Every step past the halation leaves the pixel as it was with its
-   * control at 0.
+   * [FilmLeak.leaked] lays the leak's light over it, then [FilmTone.toned] fades the print and breathes, then the
+   * frame takes [flickerAt]'s gain and is clamped, then [grained], then [dustAt] and [scratchAt], and [gateMask] last.
+   * Every step past the halation leaves the pixel as it was with its control at 0.
    *
    * @param x Where the pixel sits across the frame, as a fraction of its width.
    * @param y Where the pixel sits down the frame, as a fraction of its height.
@@ -383,14 +383,15 @@ public object FilmSignal {
     val light = FilmLeak.leakAt(x, y, aspect, tick, params.seed, params.leak)
     val leaked = FilmLeak.leaked(glow[0], glow[1], glow[2], light)
     val gain = flickerAt(params.seed, tick, params.flicker)
-    val lit = DoubleArray(leaked.size) { min(1.0, leaked[it] * gain) }
+    val toned = FilmTone.toned(leaked[0], leaked[1], leaked[2], tick, params)
+    val lit = DoubleArray(toned.size) { (toned[it] * gain).coerceIn(0.0, 1.0) }
     val grain = grained(lit[0], lit[1], lit[2], cell, tick, params)
     val mark = dustAt(params.seed, tick, cell, params.dust) + scratchAt(params.seed, tick, x, params.dust)
     val gate = gateMask(x, y, aspect, params.gate)
     return DoubleArray(grain.size) { (grain[it] + mark).coerceIn(0.0, 1.0) * gate }
   }
 
-  private fun knotted(
+  internal fun knotted(
     seed: Int,
     pass: Int,
     knot: Int,
@@ -401,7 +402,7 @@ public object FilmSignal {
     return from + (to - from) * ease
   }
 
-  private fun floorDiv(
+  internal fun floorDiv(
     value: Int,
     by: Int,
   ): Int = floor(value.toDouble() / by).toInt()
@@ -423,6 +424,8 @@ private const val HALF = 0.5
  * [FilmSignal.scratchAt] read.
  * @property gate How far the gate's rounded edge closes in, from 0 to 1, which [FilmSignal.gateMask] reads.
  * @property leak How bright the light leaks are, from 0 to 1, which [FilmLeak.leakAt] reads.
+ * @property breath How far the contrast and colour drift, from 0 to 1, which [FilmTone.breathAt] reads.
+ * @property fade How far the print has faded, from 0 to 1, which [FilmTone.faded] reads.
  * @property seed The seed every random draw of the look takes, the grain's too.
  */
 @InternalFilmstripApi
@@ -434,6 +437,8 @@ public class FilmParams private constructor(
   public val dust: Double,
   public val gate: Double,
   public val leak: Double,
+  public val breath: Double,
+  public val fade: Double,
   public val seed: Int,
 ) {
   /**
@@ -452,8 +457,22 @@ public class FilmParams private constructor(
       dust: Double = 0.0,
       gate: Double = 0.0,
       leak: Double = 0.0,
+      breath: Double = 0.0,
+      fade: Double = 0.0,
       seed: Int = Film.DEFAULT_SEED,
-    ): FilmParams = FilmParams(GRAIN_STRENGTH * grain, HALATION_GAIN * halation, weave, flicker, dust, gate, leak, seed)
+    ): FilmParams =
+      FilmParams(
+        GRAIN_STRENGTH * grain,
+        HALATION_GAIN * halation,
+        weave,
+        flicker,
+        dust,
+        gate,
+        leak,
+        breath,
+        fade,
+        seed,
+      )
 
     /**
      * The values [film] draws with.
@@ -467,6 +486,8 @@ public class FilmParams private constructor(
         film.dust.toDouble(),
         film.gate.toDouble(),
         film.leak.toDouble(),
+        film.breath.toDouble(),
+        film.fade.toDouble(),
         film.seed,
       )
   }

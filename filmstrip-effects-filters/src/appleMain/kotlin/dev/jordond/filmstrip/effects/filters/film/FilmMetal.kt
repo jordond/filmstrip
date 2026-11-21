@@ -17,8 +17,8 @@ internal const val FILM_WEAVE_KERNEL: String = "filmstripFilmWeave"
 internal const val FILM_RESPONSE_KERNEL: String = "filmstripFilmResponse"
 
 /**
- * The name of the kernel in [filmMetal] that adds the glow, the leak, the flicker, the grain, the dust and scratches
- * and the gate to the frame.
+ * The name of the kernel in [filmMetal] that adds the glow, the leak, the fade and breath, the flicker, the grain, the
+ * dust and scratches and the gate to the frame.
  */
 internal const val FILM_GRADE_KERNEL: String = "filmstripFilmGrade"
 
@@ -44,6 +44,7 @@ internal fun filmMetal(): String =
 $HASH_MSL
 $FILM_GATE_MSL
 $FILM_LEAK_MSL
+$FILM_TONE_MSL
 
 ${BOX_DOWN_MSL.prependIndent("  ")}
 
@@ -86,6 +87,7 @@ ${BOX_DOWN_MSL.prependIndent("  ")}
       float4 blur,
       float4 grain,
       float4 look,
+      float2 tone,
       destination dest
     ) {
       float2 p = dest.coord();
@@ -104,7 +106,7 @@ ${BOX_DOWN_MSL.prependIndent("  ")}
       float across = (p.x - extent.x) / extent.z;
       float down = 1.0f - (p.y - extent.y) / extent.w;
       rgb = rgb + leakAt(seed, float2(across, down), extent.z / extent.w, tick, look.w) * (1.0f - rgb);
-      rgb = min(rgb * flickerAt(seed, tick, look.x), float3(1.0f));
+      rgb = clamp(filmToned(rgb, seed, tick, tone.x, tone.y) * flickerAt(seed, tick, look.x), 0.0f, 1.0f);
       if (blur.w > 0.0f) {
         float first = filterDraw(seed, ${PASS_GRAIN_FIRST}u, tick, cell);
         float value = first + filterDraw(seed, ${PASS_GRAIN_SECOND}u, tick, cell) - 1.0f;

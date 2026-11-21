@@ -233,6 +233,15 @@ class FilterSettingsTest {
   }
 
   @Test
+  fun `a faded film builds the look the code names`() {
+    val settings = FilterSettings(look = FilterLook.Film, film = FilmStock.Faded)
+
+    codeText(filtersCode(settings)) shouldContain "  film(breath = 0.5f, fade = 0.6f)"
+    filtersEffects(settings) shouldBe listOf(Film(breath = 0.5f, fade = 0.6f))
+    filterSummary(settings) shouldBe "FILM · FADED"
+  }
+
+  @Test
   fun `bloom takes its dreamy preset and no intensity`() {
     val plain = FilterSettings(look = FilterLook.Bloom).withIntensity(0.5f)
     val dreamy = plain.copy(dreamy = true)

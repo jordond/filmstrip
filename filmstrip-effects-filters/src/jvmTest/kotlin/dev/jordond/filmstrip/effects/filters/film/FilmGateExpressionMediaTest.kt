@@ -28,7 +28,7 @@ class FilmGateExpressionMediaTest {
       (abs(offset[0] * WIDTH) > 0.1 && abs(offset[1] * HEIGHT) >= 1.0) shouldBe true
     }
     val gain = FilmSignal.flickerAt(params.seed, WEAVE_TICK, params.flicker)
-    val read = rgba(FilmExpressions.light(params, weaves = true, flickers = true, tick = "$WEAVE_TICK"))
+    val read = rgba(FilmExpressions.light(params, weaves = true, tones = true, tick = "$WEAVE_TICK"))
 
     for (y in 0 until HEIGHT) {
       for (x in 0 until WIDTH) {
@@ -47,7 +47,7 @@ class FilmGateExpressionMediaTest {
   fun `the geq weave alone rounds every plane to the nearest code of weaveAt`() {
     val params = FilmParams.of(Film(weave = 1f))
     val offset = FilmSignal.weaveAt(params.seed, WEAVE_TICK, params.weave)
-    val read = rgba(FilmExpressions.light(params, weaves = true, flickers = false, tick = "$WEAVE_TICK"))
+    val read = rgba(FilmExpressions.light(params, weaves = true, tones = false, tick = "$WEAVE_TICK"))
 
     for (y in 0 until HEIGHT) {
       for (x in 0 until WIDTH) {
@@ -64,7 +64,7 @@ class FilmGateExpressionMediaTest {
   @Test
   fun `a clear pixel lends the weave no colour`() {
     val params = FilmParams.of(Film(weave = 1f))
-    val read = rgba(FilmExpressions.light(params, weaves = true, flickers = false, tick = "$WEAVE_TICK"))
+    val read = rgba(FilmExpressions.light(params, weaves = true, tones = false, tick = "$WEAVE_TICK"))
     val offset = FilmSignal.weaveAt(params.seed, WEAVE_TICK, params.weave)
 
     // Whichever column of the pair the weave reads across into the other mixes them, and shows the opaque one's blue.

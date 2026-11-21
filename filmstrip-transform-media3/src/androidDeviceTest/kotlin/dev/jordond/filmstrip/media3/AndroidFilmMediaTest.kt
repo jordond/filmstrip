@@ -12,6 +12,7 @@ import dev.jordond.filmstrip.effects.filters.film.Film
 import dev.jordond.filmstrip.effects.filters.film.FilmLeak
 import dev.jordond.filmstrip.effects.filters.film.FilmParams
 import dev.jordond.filmstrip.effects.filters.film.FilmSignal
+import dev.jordond.filmstrip.effects.filters.film.FilmTone
 import dev.jordond.filmstrip.effects.filters.filters
 import dev.jordond.filmstrip.effects.geometry.Crop
 import dev.jordond.filmstrip.effects.overlay.ImageOverlay
@@ -103,6 +104,37 @@ class AndroidFilmMediaTest {
       val edit = Composition(listOf(Track(listOf(Clip(source.asMedia(), effects = listOf(LEAK_ONLY))))))
 
       assertLeaksOnTheSignal(edit, source, ExportSpec(heightPx = SMALL_HEIGHT))
+    }
+
+  @Test
+  fun aCompositionFadeAndBreathToneThePictureOnTheSignal() =
+    runTest(timeout = TIMEOUT) {
+      val source = flatFile("film-dark.mp4", DARK)
+      val edit = Composition(listOf(Track(listOf(Clip(source.asMedia())))), listOf(TONE_ONLY))
+      val spec = ExportSpec()
+
+      val under =
+        probe
+          .frame(source, Duration.ZERO)
+          .rgbAt(TONE_READ, TONE_READ)
+          .toList()
+          .map { it / MAX_CODE }
+      val toned = FilmTone.toned(under[0], under[1], under[2], FilmSignal.grainTickAt(0.0), FilmParams.of(TONE_ONLY))
+      val wanted = toned.map { it.coerceIn(0.0, 1.0) * MAX_CODE }
+      val render = rendered.frameAt(edit, spec).rgbAt(TONE_READ, TONE_READ).toList()
+      val read = probe.written(edit, spec).rgbAt(TONE_READ, TONE_READ).toList()
+
+      withClue("the tone has to clear what an encoder moves for this to tell, $wanted over $under") {
+        (wanted[0] - under[0] * MAX_CODE) shouldBeGreaterThan WRITTEN_COLOUR_CODES * 2
+      }
+      wanted.forEachIndexed { channel, code ->
+        withClue("the chain drew $render against $wanted before the encoder") {
+          abs(render[channel] - code) shouldBeLessThan RENDER_CODES
+        }
+        withClue("the picture read $read against $wanted") {
+          abs(read[channel] - code) shouldBeLessThan WRITTEN_COLOUR_CODES
+        }
+      }
     }
 
   @Test
@@ -348,6 +380,8 @@ class AndroidFilmMediaTest {
   private companion object {
     val GLOW_ONLY = Film(grain = 0f, halation = 1f)
     val LEAK_ONLY = Film(grain = 0f, halation = 0f, leak = 0.5f)
+    val TONE_ONLY = Film(grain = 0f, halation = 0f, breath = 1f, fade = 1f)
+    const val TONE_READ = 0.5f
 
     // Where a leak is read, clear of the frame's edge and the blocks an encoder rings into there.
     val LEAK_READS = listOf(0.2f, 0.35f, 0.5f, 0.65f, 0.8f)

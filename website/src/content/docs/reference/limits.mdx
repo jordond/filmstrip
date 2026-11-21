@@ -335,8 +335,10 @@ Filters are heavy on ffmpeg. Measured on a 12 thread x86 server with x264:
 
 | Look                              | 1080p    | 4K       | Peak memory, 1080p and 4K |
 | --------------------------------- | -------- | -------- | ------------------------- |
-| `film`                            | 15.3 fps | 7.2 fps  | 1 GB and 3.4 GB           |
+| `film`                            | 15.8 fps | 7.4 fps  | 1 GB and 3.4 GB           |
 | `film` with a leak                | 13.5 fps | 5.7 fps  |                           |
+| `film` with a fade                | 15.8 fps | 7.1 fps  |                           |
+| `film` with a breath              | 6.8 fps  | 2.2 fps  |                           |
 | `vhs`                             | 5.2 fps  | 2.1 fps  | 1 GB and 3.3 GB           |
 | `crt`                             | 9.0 fps  | 2.4 fps  | 1.5 GB and 5.4 GB         |
 | `lut`                             | 70 fps   | 21 fps   |                           |
@@ -353,7 +355,9 @@ Filters are heavy on ffmpeg. Measured on a 12 thread x86 server with x264:
 | `gaussianBlur` at 0.02            | 40.3 fps | 9.5 fps  |                           |
 
 - `Film.Super8`'s weave is a per-pixel expression on ffmpeg, since no built-in filter reproduces its sub-pixel read
-  exactly. `glitch` is one too, for its per-row shift.
+  exactly. `glitch` is one too, for its per-row shift. `film`'s `breath` and `flicker` are one as well, since no
+  built-in filter takes a gain that changes with the frame's time. A `fade` on its own is a lookup table and costs
+  next to nothing.
 - `crt` on each clip adds about 550 MB per 1080p clip. When every clip has the same `crt` at the output size and
   they join with no gap, it runs once over the whole export instead.
 - `film` and `vhs` fall back to a slower path with the same result when the JVM can't open a local socket, the ffmpeg

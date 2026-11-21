@@ -58,6 +58,19 @@ internal fun filmLook(): Composition {
   return composition
 }
 
+internal fun fadedPrint(): Composition {
+  // region fadedPrint
+  val composition =
+    compositionOf {
+      clip(MediaSource.of("/path/to/holiday.mp4"))
+      effects {
+        film(breath = 0.5f, fade = 0.6f)
+      }
+    }
+  // endregion
+  return composition
+}
+
 internal fun super8Looks(): List<Composition> {
   // region super8
   val composition =

@@ -19,6 +19,7 @@ import dev.jordond.filmstrip.effects.filters.film.Film
 import dev.jordond.filmstrip.effects.filters.film.FilmLeak
 import dev.jordond.filmstrip.effects.filters.film.FilmParams
 import dev.jordond.filmstrip.effects.filters.film.FilmSignal
+import dev.jordond.filmstrip.effects.filters.film.FilmTone
 import dev.jordond.filmstrip.effects.filters.filters
 import dev.jordond.filmstrip.effects.geometry.Crop
 import dev.jordond.filmstrip.geometry.Fill
@@ -93,6 +94,34 @@ class AppleFilmHardwareTest {
       }
       exports.remove(plain)
       exports.remove(leaked)
+    }
+
+  @Test
+  fun `a composition film fades and breathes on the signal`() =
+    runTest(timeout = TIMEOUT) {
+      val source = exports.flatClip("dark", DARK)
+      val edit = { effects: List<EffectSpec> -> Composition(listOf(Track(listOf(Clip(source)))), effects) }
+
+      val plain = exports.export(edit(emptyList()), "tone-plain")
+      val toned = exports.export(edit(listOf(TONE_ONLY)), "tone-film")
+
+      val code = DARK / MAX_CODE
+      val signal = FilmTone.toned(code, code, code, FilmSignal.grainTickAt(0.0), FilmParams.of(TONE_ONLY))
+      val wanted = signal.map { (it.coerceIn(0.0, 1.0) - code) * MAX_CODE }
+      val read = codesOf(toned).average(TONE_PLACE, TONE_PLACE)
+      val base = codesOf(plain).average(TONE_PLACE, TONE_PLACE)
+      val lifts = listOf(read.first - base.first, read.second - base.second, read.third - base.third)
+
+      withClue("the tone has to clear what an encoder moves for this to tell, ${wanted[0]} codes") {
+        wanted[0] shouldBeGreaterThan WRITTEN_COLOUR_CODES * 2
+      }
+      lifts.forEachIndexed { channel, lift ->
+        withClue("channel $channel lifted $lift against ${wanted[channel]}") {
+          abs(lift - wanted[channel]) shouldBeLessThan WRITTEN_COLOUR_CODES
+        }
+      }
+      exports.remove(plain)
+      exports.remove(toned)
     }
 
   @Test
@@ -203,6 +232,8 @@ class AppleFilmHardwareTest {
   private companion object {
     val GLOW_ONLY = Film(grain = 0f, halation = 1f)
     val LEAK_ONLY = Film(grain = 0f, halation = 0f, leak = 1f)
+    val TONE_ONLY = Film(grain = 0f, halation = 0f, breath = 1f, fade = 1f)
+    const val TONE_PLACE = 0.5f
 
     // Every tenth of the frame each way, clear of its edge, where a read of the leak is looked for.
     val LEAK_PLACES = (1..9).flatMap { y -> (1..9).map { x -> x / 10f to y / 10f } }

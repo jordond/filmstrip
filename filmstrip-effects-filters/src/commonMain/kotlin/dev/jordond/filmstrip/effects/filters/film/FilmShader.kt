@@ -33,9 +33,9 @@ public object FilmShader {
   /**
    * The chain that draws [film] in [FilmSignal.pixelAt]'s order, leaving out every step its controls leave idle.
    *
-   * The weave moves the frame first, the halation glows on what it moved, and one step lays the leak, flicker, grain,
-   * dust, scratches and gate over the result. Every step before the last runs on a target of its own, and the last one
-   * writes the frame.
+   * The weave moves the frame first, the halation glows on what it moved, and one step lays the leak, fade, breath,
+   * flicker, grain, dust, scratches and gate over the result. Every step before the last runs on a target of its own,
+   * and the last one writes the frame.
    */
   public fun steps(film: Film): List<FilterStep> {
     val params = FilmParams.of(film)
@@ -47,7 +47,8 @@ public object FilmShader {
   }
 
   private val FilmParams.drawsOverGlow: Boolean
-    get() = grainStrength > 0.0 || flicker > 0.0 || dust > 0.0 || gate > 0.0 || leak > 0.0
+    get() =
+      grainStrength > 0.0 || flicker > 0.0 || dust > 0.0 || gate > 0.0 || leak > 0.0 || breath > 0.0 || fade > 0.0
 
   private fun List<FilterStep>.lastNameOrInput(): String = lastOrNull()?.name ?: FilterStep.INPUT
 
@@ -87,6 +88,8 @@ public object FilmShader {
         "uDust" to floatArrayOf(params.dust.toFloat()),
         "uGate" to floatArrayOf(params.gate.toFloat()),
         "uLeak" to floatArrayOf(params.leak.toFloat()),
+        "uBreath" to floatArrayOf(params.breath.toFloat()),
+        "uFade" to floatArrayOf(params.fade.toFloat()),
         "uResolution" to floatArrayOf(width.toFloat(), height.toFloat()),
         "uCellSpan" to floatArrayOf(FilmSignal.grainCellSpan(width, height).toFloat()),
       )
@@ -167,7 +170,8 @@ private val HALATION_FRAGMENT: String by lazy {
   """.trimIndent()
 }
 
-// The leak, the flicker's gain, the grain, the dust and scratches, and the gate, in FilmSignal.pixelAt's order.
+// The leak, the fade and breath, the flicker's gain, the grain, the dust and scratches, and the gate, in
+// FilmSignal.pixelAt's order.
 private val GRAIN_FRAGMENT: String by lazy {
   """
   #version 300 es
@@ -178,11 +182,12 @@ private val GRAIN_FRAGMENT: String by lazy {
   uniform sampler2D $FRAME;
   uniform vec2 uResolution;
   uniform float ${FilmShader.FLIP_V};
-  uniform float $SEED, $TICK, uStrength, uCellSpan, uFlicker, uDust, uGate, uLeak;
+  uniform float $SEED, $TICK, uStrength, uCellSpan, uFlicker, uDust, uGate, uLeak, uBreath, uFade;
 $LUMA_GLSL
 $HASH_GLSL
 $FILM_GATE_GLSL
 $FILM_LEAK_GLSL
+$FILM_TONE_GLSL
 
   void main() {
     vec4 texel = textureLod($FRAME, vUv, 0.0);
@@ -195,7 +200,7 @@ $FILM_LEAK_GLSL
     float aspect = uResolution.x / uResolution.y;
     vec3 light = leakAt(vec2(vUv.x, fromTop), aspect, tick, uLeak);
     vec3 leaked = texel.rgb + light * (1.0 - texel.rgb);
-    vec3 lit = min(leaked * flickerAt(tick, uFlicker), vec3(1.0));
+    vec3 lit = clamp(filmToned(leaked, tick, uBreath, uFade) * flickerAt(tick, uFlicker), 0.0, 1.0);
     float grain = draw(${PASS_GRAIN_FIRST}u, tick, cell) + draw(${PASS_GRAIN_SECOND}u, tick, cell) - 1.0;
     float luma = lumaOf(lit);
     float weight = max(${glslFloat(GRAIN_WEIGHT_FLOOR)}, ${glslFloat(GRAIN_WEIGHT_PEAK)} * luma * (1.0 - luma));

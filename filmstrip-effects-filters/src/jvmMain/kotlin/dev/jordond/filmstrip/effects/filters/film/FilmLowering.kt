@@ -30,6 +30,9 @@ import dev.jordond.filmstrip.geometry.Size
  * The leak is screened on after the glow and before the flicker by [FilmLeakGraph], from a map of [FilmLeak.leakAt]
  * drawn at [leakRaster]. A film with a leak runs those steps on sixteen bit planes whether or not it glows.
  *
+ * The fade and the breath of [FilmTone] follow the leak. A breath rides the flicker's `geq`, and takes the fade with
+ * it. A fade with neither is [FilmToneExpressions.fade], a `lutrgb` of the same terms, which reads no clock.
+ *
  * The grain's map comes two ways with the same samples: as [FilterFragment.branches] a `geq` draws it, and as
  * [FilterFragment.live] [GrainPlanes] does and hands it over as a live input.
  *
@@ -106,10 +109,10 @@ private fun liveLight(
   return LiveBranches(inputs, branches)
 }
 
-// The weave, the halation, the leak and the flicker in that order, all on gbrap, and the pad the frame's codes come
-// back on, with full chroma when the gate turns them back to RGB. The glow and the leak run on sixteen bit planes, and
-// the flicker follows them there. leakMap gives the branches that put the leak's map on FilmLeakGraph.MAP, timed by the
-// gbrap frame on the pad it is handed.
+// The weave, the halation, the leak, the tone and the flicker in that order, all on gbrap, and the pad the frame's
+// codes come back on, with full chroma when the gate turns them back to RGB. The glow and the leak run on sixteen bit
+// planes, and the tone and the flicker follow them there. leakMap gives the branches that put the leak's map on
+// FilmLeakGraph.MAP, timed by the gbrap frame on the pad it is handed.
 private fun MutableList<FilterBranch>.addLight(
   params: FilmParams,
   frame: Size,
@@ -120,18 +123,28 @@ private fun MutableList<FilterBranch>.addLight(
   val weaves = params.weave > 0.0
   val glows = params.halationGain > 0.0
   val leaks = params.leak > 0.0
-  val flickers = params.flicker > 0.0
-  if (!weaves && !glows && !leaks && !flickers) return reads
+  val clocked = params.flicker > 0.0 || params.breath > 0.0
+  val fades = params.fade > 0.0
+  if (!weaves && !glows && !leaks && !clocked && !fades) return reads
   val wide = glows || leaks
-  val woven = if (weaves || (flickers && !wide)) listOf(FilmExpressions.light(params, weaves, !wide)) else emptyList()
+  val woven =
+    when {
+      weaves || (clocked && !wide) -> listOf(FilmExpressions.light(params, weaves, !wide))
+      fades && !wide -> listOf(FilmToneExpressions.fade(params, wide = false))
+      else -> emptyList()
+    }
   if (!wide) {
     add(FilterBranch(listOf(reads), RgbRoundTrip.toRgb() + woven + RgbRoundTrip.toCodes(fullChroma), listOf(LIT)))
     return LIT
   }
-  val flicker =
-    if (flickers) listOf(FilmExpressions.light(params, weaves = false, flickers = true, wide = true)) else emptyList()
+  val toned =
+    when {
+      clocked -> listOf(FilmExpressions.light(params, weaves = false, tones = true, wide = true))
+      fades -> listOf(FilmToneExpressions.fade(params, wide = true))
+      else -> emptyList()
+    }
   val toCodes =
-    flicker +
+    toned +
       FilterNode("format", "pix_fmts" to WIDE_FORMAT) +
       RgbRoundTrip.toCodeStarts() +
       FilterNode("format", "pix_fmts" to RGB_FORMAT) +
@@ -271,18 +284,22 @@ internal object FilmExpressions {
       "$GRAIN_TICK_RATE+$GRAIN_TICK_MARGIN)"
 
   /**
-   * The `geq` on `gbrap` that reads each pixel at [FilmSignal.weaveAt]'s offset when [weaves], and multiplies it by
-   * [FilmSignal.flickerAt]'s gain, clamped to full scale, when [flickers], at the tick [tick] names.
+   * The `geq` on `gbrap` that reads each pixel at [FilmSignal.weaveAt]'s offset when [weaves], and when [tones] takes
+   * it through [FilmTone.toned] and [FilmSignal.flickerAt]'s gain, clamped to the code range, at the tick [tick] names.
    *
    * The offset and the gain are worked out on a row's first pixel into registers 3, 4 and 5, and the row's place down
-   * into 7 and 9. A woven read takes the four pixels around its place, each held at the frame's edge by the `geq`'s own
-   * read, and mixes their colour premultiplied by alpha, so a clear pixel lends its neighbour no colour. Its alpha is
-   * the mix of theirs. Every plane rounds to the nearest code.
+   * into 7 and 9. A breath then folds its contrast, the plane's own gain and the flicker into one scale in 5 and one
+   * offset in 4, which the row's place has no more use for. The hash works through 0 and 1, so nothing is held there.
+   * A control at 0 leaves its part out.
+   *
+   * A woven read takes the four pixels around its place, each held at the frame's edge by the `geq`'s own read, and
+   * mixes their colour premultiplied by alpha, so a clear pixel lends its neighbour no colour. Its alpha is the mix
+   * of theirs. Every plane rounds to the nearest code.
    */
   fun light(
     params: FilmParams,
     weaves: Boolean,
-    flickers: Boolean,
+    tones: Boolean,
     tick: String = clockTick,
     wide: Boolean = false,
   ): FilterNode {
@@ -298,13 +315,36 @@ internal object FilmExpressions {
       "st(9,floor(ld(2)/$WEAVE_KNOT_TICKS));st(8,(ld(2)-ld(9)*$WEAVE_KNOT_TICKS)/$WEAVE_KNOT_TICKS);" +
         "st(8,ld(8)*ld(8)*(3-2*ld(8)));${reach(PASS_WEAVE_X, WEAVE_REACH_X, "W", 3)};" +
         reach(PASS_WEAVE_Y, WEAVE_REACH_Y, "H", 4)
+    val flickers = tones && params.flicker > 0.0
+    val breathes = tones && params.breath > 0.0
+    val fades = tones && params.fade > 0.0
     val gain = "st(5,1+$FLICKER_DEPTH*${params.flicker}*(${unit(PASS_FLICKER, "ld(2)")}))"
+    val knot = "floor(ld(2)/$BREATH_KNOT_TICKS)"
+    val knotted = { pass: Int ->
+      "st(6,${unit(pass, knot)});ld(6)+((${unit(pass, "$knot+1")})-ld(6))*ld(8)"
+    }
+    val breath = { channel: Int ->
+      val (pass, depth) =
+        when (channel) {
+          GREEN -> PASS_BREATH_TINT to BREATH_TINT
+          BLUE -> PASS_BREATH_WARMTH to -BREATH_WARMTH
+          else -> PASS_BREATH_WARMTH to BREATH_WARMTH
+        }
+      val held = if (flickers) "ld(5)" else "1"
+      "st(8,(ld(2)-$knot*$BREATH_KNOT_TICKS)/$BREATH_KNOT_TICKS);st(8,ld(8)*ld(8)*(3-2*ld(8)));" +
+        "st(4,1+$BREATH_CONTRAST*${params.breath}*(${knotted(PASS_BREATH_CONTRAST)}));" +
+        "st(5,(1+$depth*${params.breath}*(${knotted(pass)}))*$held);" +
+        "st(8,ld(4));st(4,${full * BREATH_PIVOT}*(1-ld(8))*ld(5));st(5,ld(8)*ld(5))"
+    }
     val down = "st(7,Y+ld(4));st(9,floor(ld(7)));st(7,ld(7)-ld(9))"
-    val row = "if(X,0,st(2,$tick);${listOfNotNull(
-      weave.takeIf { weaves },
-      gain.takeIf { flickers },
-      down.takeIf { weaves },
-    ).joinToString(";")})"
+    val row = { channel: Int ->
+      "if(X,0,st(2,$tick);${listOfNotNull(
+        weave.takeIf { weaves },
+        gain.takeIf { flickers },
+        down.takeIf { weaves },
+        breath(channel).takeIf { breathes },
+      ).joinToString(";")})"
+    }
     val at = "st(6,X+ld(3));st(8,floor(ld(6)));st(6,ld(6)-ld(8))"
     val corners =
       listOf(Triple("(1-ld(6))*(1-ld(7))", 0, 0), Triple("ld(6)*(1-ld(7))", 1, 0))
@@ -322,12 +362,32 @@ internal object FilmExpressions {
         "$plane(X,Y)"
       }
     }
-    val lit = { plane: String ->
-      val value = if (flickers) "min($full,(${read(plane)})*ld(5))" else read(plane)
-      "$row;clip($rounding($value),0,$full)"
+    val lit = { plane: String, channel: Int ->
+      val faded =
+        if (fades) {
+          "((${read(
+            plane,
+          )})*${FilmToneExpressions.fadeScale(params, channel)}+${FilmToneExpressions.fadeLift(params, channel, full)})"
+        } else {
+          "(${read(plane)})"
+        }
+      val value =
+        when {
+          breathes -> "$faded*ld(5)+ld(4)"
+          flickers -> "min($full,$faded*ld(5))"
+          else -> faded
+        }
+      "${row(channel)};clip($rounding($value),0,$full)"
     }
-    val alpha = if (weaves) "$row;$at;clip(0.5+$coverage,0,$FULL_SCALE)" else "alpha(X,Y)"
-    return FilterNode("geq", "r" to lit("r"), "g" to lit("g"), "b" to lit("b"), "a" to alpha, "i" to "nearest")
+    val alpha = if (weaves) "${row(RED)};$at;clip(0.5+$coverage,0,$FULL_SCALE)" else "alpha(X,Y)"
+    return FilterNode(
+      "geq",
+      "r" to lit("r", RED),
+      "g" to lit("g", GREEN),
+      "b" to lit("b", BLUE),
+      "a" to alpha,
+      "i" to "nearest",
+    )
   }
 
   /**
@@ -402,7 +462,10 @@ internal object FilmExpressions {
   }
 }
 
-private const val FULL_SCALE = 255
+internal const val FULL_SCALE = 255
+internal const val RED = 0
+internal const val GREEN = 1
+internal const val BLUE = 2
 
 private const val CLIPPED_WIDE = "min(val,$WIDE_FULL_SCALE)"
 private const val LUMA_BLACK = 16
