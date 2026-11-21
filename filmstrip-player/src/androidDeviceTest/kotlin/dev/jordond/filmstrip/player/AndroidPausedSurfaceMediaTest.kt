@@ -271,9 +271,6 @@ class AndroidPausedSurfaceMediaTest {
     // Past the 250 ms an emulator takes to composite what the player drew.
     val SETTLE: Duration = 700.milliseconds
 
-    // How long a surface handed back is given to draw the slot it holds, on an emulator slowed by the runner.
-    val DRAW_BUDGET: Duration = 10.seconds
-
     // A slot inside the panned clip, where the frames either side are a different picture.
     val PANNED_SLOT: Duration =
       outputSlotTime(outputSlotOf(PANNED_CLIP_START + MID_GOP_POSITION, FIXTURE_FRAME_RATE) + 1, FIXTURE_FRAME_RATE)
@@ -296,6 +293,23 @@ class AndroidPausedSurfaceMediaTest {
     const val MIN_SSIM = 0.975
   }
 }
+
+// How long a surface handed back is given to draw the slot it holds, on an emulator slowed by the runner.
+internal val DRAW_BUDGET: Duration = 10.seconds
+
+// How often a surface with nothing drawn on it is read again.
+private val DRAW_POLL: Duration = 100.milliseconds
+
+/**
+ * Waits for the view's surface to hold a picture, for up to [DRAW_BUDGET].
+ *
+ * @return whether anything was drawn on it in that time.
+ */
+internal suspend fun SurfaceView.awaitDrawn(size: Size): Boolean =
+  withTimeoutOrNull(DRAW_BUDGET) {
+    while (copyPixelsIfDrawn(size) == null) delay(DRAW_POLL)
+    true
+  } ?: false
 
 /**
  * Copies what the view's surface shows, scaled to [size].

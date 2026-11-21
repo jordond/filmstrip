@@ -44,6 +44,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import java.util.concurrent.CopyOnWriteArrayList
 import kotlin.coroutines.resume
+import kotlin.test.fail
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.minutes
@@ -174,6 +175,9 @@ internal class HeldRig(
   /**
    * Lets go of the surface and hands the preview the same one again, as a view that is torn down and rebuilt does.
    *
+   * The surface handed back holds nothing until the player draws on it, so this waits for a picture to be there before
+   * it lets the surface settle. A surface the player never draws on fails here.
+   *
    * @param whileDetached Runs once the surface has gone and before it is handed back.
    */
   suspend fun reattach(whileDetached: () -> Unit = {}) {
@@ -181,6 +185,7 @@ internal class HeldRig(
     delay(SETTLE)
     whileDetached()
     attachment = player.attachPreviewSurface(view)
+    if (!view.awaitDrawn(FIXTURE_FRAME)) fail("the surface handed back drew nothing in $DRAW_BUDGET")
     delay(SETTLE)
   }
 
