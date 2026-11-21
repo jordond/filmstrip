@@ -107,6 +107,25 @@ class RgbRoundTripMediaTest {
     cr.zipWithNext().forEach { (left, right) -> abs(left - right) shouldBeGreaterThan STRIPE_CODES }
   }
 
+  // One lit pixel lifts the sample over it by a quarter of its chroma and no sample beside, above or under it.
+  @Test
+  fun `a chroma sample is the mean of the four pixels it covers`() {
+    val toCodes = filterOf(RgbRoundTrip.toCodes())
+    val lit = "if(eq(X,$LIT)*eq(Y,$LIT),255,0)"
+    val read =
+      run("color=c=black:s=${SMALL}x$SMALL:d=0.04,format=gbrap,geq=r='$lit':g=0:b=0:a=255,$toCodes", "yuva420p")
+
+    val across = SMALL / 2
+    val cr = read.copyOfRange(SMALL * SMALL + across * across, SMALL * SMALL + across * across * 2)
+    cr.size shouldBe across * across
+    cr.forEachIndexed { at, code ->
+      val wanted = if (at == LIT / 2 * across + LIT / 2) CHROMA_ZERO + RED_CR / 4 else CHROMA_ZERO
+      withClue("Cr sample ${at % across}, ${at / across}") {
+        abs((code.toInt() and 0xFF) - wanted) shouldBeLessThanOrEqual HALF_CODE
+      }
+    }
+  }
+
   private fun run(
     source: String,
     format: String,
@@ -146,5 +165,11 @@ class RgbRoundTripMediaTest {
     const val WIDE_PER_CODE = 257.0
     const val HALF_CODE = 0.5
     const val STRIPE_CODES = 100
+    const val SMALL = 16
+    const val LIT = 6
+    const val CHROMA_ZERO = 128.0
+
+    // How far full red sits from no colour in Cr, half the 224 codes chroma spans.
+    const val RED_CR = 112.0
   }
 }

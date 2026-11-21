@@ -9,6 +9,8 @@ import dev.jordond.filmstrip.effects.filters.bloom.Bloom
 import dev.jordond.filmstrip.effects.filters.bloom.bloom
 import dev.jordond.filmstrip.effects.filters.camcorder.camcorder
 import dev.jordond.filmstrip.effects.filters.crt.crt
+import dev.jordond.filmstrip.effects.filters.digicam.Digicam
+import dev.jordond.filmstrip.effects.filters.digicam.digicam
 import dev.jordond.filmstrip.effects.filters.film.Film
 import dev.jordond.filmstrip.effects.filters.film.film
 import dev.jordond.filmstrip.effects.filters.glitch.glitch
@@ -30,7 +32,8 @@ import kotlin.time.Duration.Companion.seconds
 /**
  * The look the filters sample puts on its clip, one at a time.
  *
- * @property hasIntensity Whether the look takes an intensity, which the pixel, film and bloom looks do not.
+ * @property hasIntensity Whether the look takes an intensity, which the pixel, film, bloom and digicam looks do
+ * not.
  */
 internal enum class FilterLook(
   val label: String,
@@ -45,6 +48,7 @@ internal enum class FilterLook(
   Pixel("PIXEL", hasIntensity = false),
   Film("FILM", hasIntensity = false),
   Bloom("BLOOM", hasIntensity = false),
+  Digicam("DIGICAM", hasIntensity = false),
 }
 
 /**
@@ -102,9 +106,9 @@ internal val tealAndOrange: CubeLut by lazy { CubeLut.parse(TEAL_AND_ORANGE_CUBE
 
 /**
  * The look the filters sample applies, how strong each look is, the format, speed, tracking band, snow, settle and
- * camcorder display the tape look plays with, the colours the pixel look snaps to, the stock Film runs and whether
- * Bloom takes its dreamy preset. Each look keeps its own intensity and each tape format its own speed, so switching
- * away and back finds it where it was.
+ * camcorder display the tape look plays with, the colours the pixel look snaps to, the stock Film runs, whether Bloom
+ * takes its dreamy preset, and whether Digicam takes its CCD preset and its date stamp. Each look keeps its own
+ * intensity and each tape format its own speed, so switching away and back finds it where it was.
  */
 internal data class FilterSettings(
   val look: FilterLook = FilterLook.Tape,
@@ -121,6 +125,8 @@ internal data class FilterSettings(
   val film: FilmStock = FilmStock.Default,
   val blocks: Boolean = false,
   val dreamy: Boolean = false,
+  val ccd: Boolean = false,
+  val stamp: Boolean = false,
 ) {
   /**
    * How strong [look] is, full strength until it is moved.
@@ -182,6 +188,20 @@ internal fun filtersEdit(
         FilterLook.Bloom -> {
           if (settings.dreamy) add(Bloom.Dreamy) else bloom()
         }
+        FilterLook.Digicam -> {
+          if (settings.ccd && !settings.stamp) {
+            add(Digicam.Ccd)
+          } else {
+            digicam {
+              if (settings.ccd) {
+                sharpness = Digicam.Ccd.sharpness
+                noise = Digicam.Ccd.noise
+                clip = Digicam.Ccd.clip
+              }
+              if (settings.stamp) stamp()
+            }
+          }
+        }
       }
     }
   }
@@ -241,6 +261,9 @@ internal fun filtersCode(settings: FilterSettings): List<List<CodePart>> {
       FilterLook.Bloom if settings.dreamy -> {
         presetCode("Bloom.Dreamy")
       }
+      FilterLook.Digicam -> {
+        digicamCode(settings)
+      }
       FilterLook.Crt,
       FilterLook.Glitch,
       FilterLook.Lut,
@@ -292,6 +315,25 @@ internal fun filtersCode(settings: FilterSettings): List<List<CodePart>> {
 
 private fun presetCode(preset: String): List<List<CodePart>> =
   listOf(listOf(CodePart("  add(", CodeKind.Call), CodePart(preset, CodeKind.Value), CodePart(")", CodeKind.Call)))
+
+// A digicam with a stamp is a block, and the CCD preset inside one names each of its values.
+private fun digicamCode(settings: FilterSettings): List<List<CodePart>> {
+  if (!settings.stamp) {
+    return if (settings.ccd) presetCode("Digicam.Ccd") else listOf(listOf(CodePart("  digicam()", CodeKind.Call)))
+  }
+  val preset =
+    if (settings.ccd) {
+      listOf(
+        settingCode("sharpness", floatLiteral(Digicam.Ccd.sharpness)),
+        settingCode("noise", floatLiteral(Digicam.Ccd.noise)),
+        settingCode("clip", floatLiteral(Digicam.Ccd.clip)),
+      )
+    } else {
+      emptyList()
+    }
+  return listOf(listOf(CodePart("  digicam {", CodeKind.Call))) + preset +
+    listOf(listOf(CodePart("    stamp()", CodeKind.Call)), listOf(CodePart("  }", CodeKind.Call)))
+}
 
 private fun tapeCode(settings: FilterSettings): List<List<CodePart>> {
   val display = settings.camcorder
@@ -358,7 +400,7 @@ private fun camcorderCode(
 
 /**
  * What the status line says about [settings], such as `VHS · LP`, `HI8 · SP · ROLLING · ON TAPE`, `CRT 0.5`,
- * `PIXEL · CGA`, `GLITCH · BLOCKS`, `FILM · SUPER 8` or `BLOOM · DREAMY`.
+ * `PIXEL · CGA`, `GLITCH · BLOCKS`, `FILM · SUPER 8`, `BLOOM · DREAMY` or `DIGICAM · CCD · STAMP`.
  */
 internal fun filterSummary(settings: FilterSettings): String {
   if (settings.look == FilterLook.None) return "NO LOOK"
@@ -366,6 +408,9 @@ internal fun filterSummary(settings: FilterSettings): String {
     return if (settings.film == FilmStock.Default) "FILM" else "FILM · ${settings.film.label}"
   }
   if (settings.look == FilterLook.Bloom) return if (settings.dreamy) "BLOOM · DREAMY" else "BLOOM"
+  if (settings.look == FilterLook.Digicam) {
+    return "DIGICAM" + (if (settings.ccd) " · CCD" else "") + (if (settings.stamp) " · STAMP" else "")
+  }
   val intensity = settings.intensity()
   val strength = if (intensity == FilterSettings.FULL) "" else " ${floatLiteral(intensity).removeSuffix("f")}"
   if (settings.look == FilterLook.Pixel) return "${settings.look.label}$strength · ${settings.colours.label}"

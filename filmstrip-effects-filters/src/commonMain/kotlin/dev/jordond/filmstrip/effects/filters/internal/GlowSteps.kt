@@ -23,7 +23,8 @@ internal val LUMA_GLSL =
 // size.
 internal object GlowSteps {
   // responseGlsl defines vec3 glowResponse(vec3 boxed) and any uniform it reads, which responseUniforms fills.
-  // combineFragment reads GLOW_FRAME and GLOW_BLURRED, and combineUniforms fills the rest of its uniforms.
+  // combineFragment reads GLOW_FRAME and GLOW_BLURRED, and combineUniforms fills the rest of its uniforms, with
+  // combineUniformsAt adding the ones a frame's time or size changes.
   fun of(
     sigmaFraction: Double,
     reads: String,
@@ -32,6 +33,9 @@ internal object GlowSteps {
     combineName: String,
     combineFragment: String,
     combineUniforms: Map<String, FloatArray>,
+    combineUniformsAt: (seconds: Double, width: Int, height: Int) -> Map<String, FloatArray> = { _, _, _ ->
+      emptyMap()
+    },
   ): List<FilterStep> {
     val blurredSize = { width: Int, height: Int -> SpatialBlur.blurredSize(sigmaFraction, width, height) }
     val response =
@@ -60,7 +64,7 @@ internal object GlowSteps {
         combineFragment,
         mapOf(GLOW_FRAME to reads, GLOW_BLURRED to SpatialBlur.BLURRED),
         { width, height -> Size(width, height) },
-      ) { _, _, _ -> combineUniforms }
+      ) { seconds, width, height -> combineUniforms + combineUniformsAt(seconds, width, height) }
     return listOf(response) + blur + combine
   }
 

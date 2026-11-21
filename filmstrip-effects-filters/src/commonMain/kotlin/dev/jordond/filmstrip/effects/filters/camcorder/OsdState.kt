@@ -17,10 +17,12 @@ internal data class OsdLine(
   val runs: List<OsdRun>,
 )
 
-// A stretch of text in one colour. A run with no colour keeps its space but draws nothing, which is how a blink hides.
+// A stretch of text in one colour, with a black edge around its dots when [edge] is set. A run with no colour keeps
+// its space but draws nothing, which is how a blink hides.
 internal data class OsdRun(
   val text: String,
   val colour: Int,
+  val edge: Boolean = true,
 )
 
 // The square wave a blink follows, on for the first half of each period.
@@ -49,6 +51,7 @@ internal fun osdStateAt(
           is OsdElement.Battery -> listOf(batteryRun(element, blink))
           is OsdElement.Tape -> listOf(text(element.speed.label))
           is OsdElement.Label -> listOf(text(element.text))
+          is OsdElement.Stamp -> listOf(stampRun(spec.recordedAt.plusSeconds(wholeSeconds)))
         }
       OsdLine(element.corner, runs)
     }
@@ -68,6 +71,9 @@ internal fun dateText(
     DateStyle.YearMonthDay -> "$year.${twoDigits(at.month)}.${twoDigits(at.day)}"
   }
 }
+
+// A date as a digital camera stamps it, the year's last two digits behind an apostrophe and nothing padded.
+internal fun stampText(at: RecordedAt): String = "'${twoDigits(at.year % CENTURY)} ${at.month} ${at.day}"
 
 internal fun clockText(
   at: RecordedAt,
@@ -203,6 +209,8 @@ private fun recordColour(blink: Boolean): Int = if (blink) OsdParams.RECORD_COLO
 
 private fun text(value: String): OsdRun = OsdRun(value, OsdParams.TEXT_COLOUR)
 
+private fun stampRun(at: RecordedAt): OsdRun = OsdRun(stampText(at), OsdParams.STAMP_COLOUR, edge = false)
+
 private fun twoDigits(value: Int): String = value.toString().padStart(2, '0')
 
 private fun twoDigits(value: Long): String = value.toString().padStart(2, '0')
@@ -211,6 +219,7 @@ internal const val HIDDEN = 0
 internal const val MICROS_PER_SECOND = 1_000_000L
 private const val SECONDS_PER_HOUR = 3_600L
 private const val NOON = 12
+private const val CENTURY = 100
 internal const val FRAME_MARGIN = 1e-3
 private const val LEVEL_MARGIN = 1e-6
 private const val MIN_FRAME_DIGITS = 2

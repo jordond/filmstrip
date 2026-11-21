@@ -211,6 +211,34 @@ A `bloom` on the composition covers the whole frame, bars included. One on a cli
 It runs under any overlay at its own scope, so a caption next to it stays clean. A clip overlay under a composition
 `bloom` is part of the clip's frame by then, and glows with it.
 
+## Digicam
+
+`digicam` makes a frame look like it came off an early digital camera with a small sensor. Edges get the bright and dark
+halo of a camera that sharpens too hard, highlights are pushed until they clip one channel at a time, and coloured noise
+crawls in the shadows. The halo's width and the noise's size are fractions of the frame, and the noise follows the
+frame's composition time, so a seek or a smaller preview shows the same picture.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Filters.kt" region="digicam" />
+
+| Setting     | What it does                                                                         |
+| ----------- | ------------------------------------------------------------------------------------ |
+| `sharpness` | How strong the halo around edges is, `0f` to `1f`. Defaults to `0.6f`                |
+| `noise`     | How strong the coloured noise in the shadows is, `0f` to `1f`. Defaults to `0.5f`    |
+| `clip`      | How far highlights are pushed into clipping, `0f` to `1f`. Defaults to `0.5f`        |
+| `seed`      | Picks the pattern of noise. Equal seeds draw the same noise                          |
+
+With all three at `0f` the frame is left alone, and the look is listed as an inert notice. `Digicam.Ccd` is a cheap
+compact camera pushed hard, with heavy halos, blown highlights and noisy shadows.
+
+`stamp(recordedAt, corner)` inside the block adds the camera's orange date stamp, like `'97 6 14`, in the bottom right
+unless you give it a corner. It is a [`camcorder`](#camcorder) holding one `stamp()` element, added after the `digicam`,
+so the date sits clean on top of the noise and counts forward with the composition time. A `camcorder` takes `stamp()`
+beside its other elements too.
+
+A `digicam` on the composition covers the whole frame, bars included. One on a clip or a track leaves a clear bar clear.
+It runs under any overlay at its own scope, so a caption next to it stays clean. A clip overlay under a composition
+`digicam` is part of the clip's frame by then, and is sharpened with it.
+
 ## CRT
 
 `crt` makes a frame look like it is showing on a curved tube. The picture bows out with black past its edge, scanlines and
@@ -313,6 +341,7 @@ Each element is one call, and each takes a `corner`. Elements in the same corner
 | `battery(level)`      | A battery with a bar for each third of `level`, blinking while low                   | `TopRight`    |
 | `tape(speed)`         | The tape speed's label, like `SP`, `EP` or `B2`                                      | `TopRight`    |
 | `label(text)`         | Fixed text from `A` to `Z`, `0` to `9`, space and `: . / - ' +`                      | `BottomRight` |
+| `stamp()`             | A digital camera's date stamp, `'97 6 14`, in orange with no edge                    | `BottomRight` |
 
 `recordedAt` is the date and time the date and clock show at the start of the composition, as a `RecordedAt` with no
 time zone. A reading that would run past the last second of 9999 holds at `9999-12-31 23:59:59`. `textSize` is the height of a line as a fraction of the frame height, from `0.01f` to `0.2f`, and the margins

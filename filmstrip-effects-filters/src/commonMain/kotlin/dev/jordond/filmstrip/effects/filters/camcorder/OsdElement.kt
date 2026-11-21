@@ -112,6 +112,17 @@ public sealed interface OsdElement {
       OsdFont.requireDrawable(text)
     }
   }
+
+  /**
+   * A digital camera's date stamp, like `'97 6 14`, reading [Camcorder.recordedAt] plus the composition time.
+   *
+   * It shows the last two digits of the year behind an apostrophe, then the month and the day with no padding. Unlike
+   * every other element it draws in orange and has no black edge.
+   */
+  @Poko
+  public class Stamp(
+    override val corner: OsdCorner = OsdCorner.BottomRight,
+  ) : OsdElement
 }
 
 /**

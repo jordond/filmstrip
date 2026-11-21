@@ -130,5 +130,12 @@ public class CamcorderBuilder internal constructor() {
     elements += OsdElement.Label(text, corner)
   }
 
+  /**
+   * Adds a digital camera's orange date stamp, like `'97 6 14`, read from [recordedAt].
+   */
+  public fun stamp(corner: OsdCorner = OsdCorner.BottomRight) {
+    elements += OsdElement.Stamp(corner)
+  }
+
   internal fun build(): Camcorder = Camcorder(elements.toList(), recordedAt, textSize)
 }

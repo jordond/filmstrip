@@ -373,10 +373,8 @@ class FfmpegNightVisionMediaTest {
     const val SLATE = 0xFF2F4F6F.toInt()
     val SLATE_CODES = listOf(0x2F.toDouble(), 0x4F.toDouble(), 0x6F.toDouble())
 
-    // swscale's step down to 4:2:0 weighs the two columns a chroma sample covers evenly, and four rows 1/8, 3/8,
-    // 3/8 and 1/8 from the row above its own two, measured on ffmpeg 9.0.2. Read against it and film's limits, the
-    // look lands within 1.34 codes in luma and 0.78 in chroma on ffmpeg 8.0.1 x86_64.
-    val CHROMA_ROWS = listOf(-1 to 0.125, 0 to 0.375, 1 to 0.375, 2 to 0.125)
+    // The step down to 4:2:0 weighs the two columns and the two rows a chroma sample covers evenly.
+    val CHROMA_ROWS = listOf(0 to 0.5, 1 to 0.5)
 
     // Well past the tolerances, so a read landing inside them says the look is there.
     const val EFFECT_CODES = 6.0

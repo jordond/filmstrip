@@ -30,4 +30,8 @@ internal object OsdParams {
   const val TEXT_COLOUR: Int = 0xFFF2F2F2.toInt()
   const val EDGE_COLOUR: Int = 0xFF000000.toInt()
   const val RECORD_COLOUR: Int = 0xFFE8231C.toInt()
+
+  // A digital camera's date stamp, and the height of its line as a fraction of the frame height.
+  const val STAMP_COLOUR: Int = 0xFFFF8A1E.toInt()
+  const val STAMP_TEXT_SIZE = 0.05f
 }

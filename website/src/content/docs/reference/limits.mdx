@@ -262,8 +262,8 @@ one, it's refused by name.
 
 `betamax` and `hi8` draw through the renderer `vhs` does, so every `vhs` limit and figure below holds for them too.
 
-- **Apple** runs `vhs`, `film`, `bloom`, `crt`, `glitch`, `lut`, `nightVision` and `pixel` on Core Image Metal kernels,
-  which need an Apple6 GPU on iOS, or macOS 12 on a Mac.
+- **Apple** runs `vhs`, `film`, `bloom`, `digicam`, `crt`, `glitch`, `lut`, `nightVision` and `pixel` on Core Image
+  Metal kernels, which need an Apple6 GPU on iOS, or macOS 12 on a Mac.
 - **Browser** refuses a clip larger on a side than the page's `MAX_TEXTURE_SIZE`. A fit that crops makes the clip's
   frame larger than the output.
 - **Android and browser** need OpenGL ES 3 for every filter, and a texture big enough for a `lut` table, 1170×520 for a
@@ -282,6 +282,9 @@ one, it's refused by name.
   backends.
 - **Apple** blurs `bloom`'s glow with Core Image's Gaussian, which lands within two code values of the kernel the other
   backends blur with.
+- **ffmpeg** holds `digicam`'s noise to one of 255 steps and weighs it by an 8-bit luma, which moves a pixel by under
+  2 code values at full noise. It writes 4:2:0, which averages each pixel's noise with its neighbours' on a frame
+  under 540 pixels high, where a cell of noise is one pixel.
 - **ffmpeg** refuses a look its build is missing a filter for.
 - **ffmpeg** draws `glitch` with one `geq` over each of red, green, blue and alpha, every pixel a bilinear read at its
   row's shift, and goes through RGB and back to do it. That round trip lands within 3 codes of the signal, and 4:2:0
@@ -339,6 +342,8 @@ Filters are heavy on ffmpeg. Measured on a 12 thread x86 server with x264:
 | `lut`                             | 70 fps   | 21 fps   |                           |
 | `Film.Super8`                     | 0.6 fps  | 0.2 fps  |                           |
 | `bloom`                           | 27.1 fps | 9.6 fps  |                           |
+| `digicam`                         | 18.8 fps | 4.6 fps  |                           |
+| `digicam` with no noise           | 26.6 fps | 6.0 fps  |                           |
 | `glitch`                          | 7.2 fps  | 1.8 fps  |                           |
 | `glitch` with `blocks`            | 4.5 fps  | 1.2 fps  |                           |
 | `nightVision`                     | 24.8 fps | 6.9 fps  |                           |

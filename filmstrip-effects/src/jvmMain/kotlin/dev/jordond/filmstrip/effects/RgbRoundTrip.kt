@@ -40,7 +40,8 @@ public object RgbRoundTrip {
 
   /**
    * Converts a [toRgb] frame back to limited range `yuva420p`, or `yuva444p` with [fullChroma] for a frame that goes
-   * back to RGB before its chroma is halved.
+   * back to RGB before its chroma is halved. A chroma sample of the 4:2:0 frame is the mean of the four pixels it
+   * covers.
    */
   public fun toCodes(fullChroma: Boolean = false): List<FilterNode> =
     listOf(
@@ -129,4 +130,7 @@ private const val OPENING_FLAGS = "accurate_rnd+full_chroma_int"
 
 // Widening chroma by neighbour holds each sample on the pixels it covers, so the way back lands on the codes it read.
 private const val TO_RGB_FLAGS = "neighbor+accurate_rnd+full_chroma_int"
-private const val TO_CODES_FLAGS = "bilinear+accurate_rnd+full_chroma_int"
+
+// Halving chroma by area takes the mean of the four pixels a sample covers. swscale's bilinear takes an eighth of
+// a sample from the row above them and an eighth from the row below.
+private const val TO_CODES_FLAGS = "area+accurate_rnd+full_chroma_int"

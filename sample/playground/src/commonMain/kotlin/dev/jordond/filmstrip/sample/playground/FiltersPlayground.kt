@@ -178,6 +178,20 @@ internal fun FiltersPlayground(
           }
         }
       }
+      FilterLook.Digicam -> {
+        Group("PRESET") {
+          ChipRow {
+            Chip("DEFAULT", !settings.ccd) { settings = settings.copy(ccd = false) }
+            Chip("CCD", settings.ccd) { settings = settings.copy(ccd = true) }
+          }
+        }
+        Group("DATE") {
+          ChipRow {
+            Chip("OFF", !settings.stamp) { settings = settings.copy(stamp = false) }
+            Chip("STAMP", settings.stamp) { settings = settings.copy(stamp = true) }
+          }
+        }
+      }
       FilterLook.Glitch -> {
         Group("BLOCKS") {
           ChipRow {

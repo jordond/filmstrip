@@ -137,6 +137,8 @@ public final class dev/jordond/filmstrip/effects/filters/camcorder/CamcorderBuil
 	public static synthetic fun rec$default (Ldev/jordond/filmstrip/effects/filters/camcorder/CamcorderBuilder;Ldev/jordond/filmstrip/effects/filters/camcorder/OsdCorner;ILjava/lang/Object;)V
 	public final fun setRecordedAt (Ldev/jordond/filmstrip/effects/filters/camcorder/RecordedAt;)V
 	public final fun setTextSize (F)V
+	public final fun stamp (Ldev/jordond/filmstrip/effects/filters/camcorder/OsdCorner;)V
+	public static synthetic fun stamp$default (Ldev/jordond/filmstrip/effects/filters/camcorder/CamcorderBuilder;Ldev/jordond/filmstrip/effects/filters/camcorder/OsdCorner;ILjava/lang/Object;)V
 	public final fun tape (Ldev/jordond/filmstrip/effects/filters/tape/TapeStock;Ldev/jordond/filmstrip/effects/filters/camcorder/OsdCorner;)V
 	public static synthetic fun tape$default (Ldev/jordond/filmstrip/effects/filters/camcorder/CamcorderBuilder;Ldev/jordond/filmstrip/effects/filters/tape/TapeStock;Ldev/jordond/filmstrip/effects/filters/camcorder/OsdCorner;ILjava/lang/Object;)V
 	public final fun transport (Ldev/jordond/filmstrip/effects/filters/camcorder/TransportMode;Ldev/jordond/filmstrip/effects/filters/camcorder/OsdCorner;)V
@@ -243,6 +245,16 @@ public final class dev/jordond/filmstrip/effects/filters/camcorder/OsdElement$Re
 	public fun toString ()Ljava/lang/String;
 }
 
+public final class dev/jordond/filmstrip/effects/filters/camcorder/OsdElement$Stamp : dev/jordond/filmstrip/effects/filters/camcorder/OsdElement {
+	public fun <init> ()V
+	public fun <init> (Ldev/jordond/filmstrip/effects/filters/camcorder/OsdCorner;)V
+	public synthetic fun <init> (Ldev/jordond/filmstrip/effects/filters/camcorder/OsdCorner;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getCorner ()Ldev/jordond/filmstrip/effects/filters/camcorder/OsdCorner;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
 public final class dev/jordond/filmstrip/effects/filters/camcorder/OsdElement$Tape : dev/jordond/filmstrip/effects/filters/camcorder/OsdElement {
 	public fun <init> (Ldev/jordond/filmstrip/effects/filters/tape/TapeStock;Ldev/jordond/filmstrip/effects/filters/camcorder/OsdCorner;)V
 	public synthetic fun <init> (Ldev/jordond/filmstrip/effects/filters/tape/TapeStock;Ldev/jordond/filmstrip/effects/filters/camcorder/OsdCorner;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
@@ -313,6 +325,51 @@ public final class dev/jordond/filmstrip/effects/filters/crt/Crt$Companion {
 public final class dev/jordond/filmstrip/effects/filters/crt/CrtKt {
 	public static final fun crt (Ldev/jordond/filmstrip/edit/EffectsBuilder;F)Ldev/jordond/filmstrip/edit/EffectsBuilder;
 	public static synthetic fun crt$default (Ldev/jordond/filmstrip/edit/EffectsBuilder;FILjava/lang/Object;)Ldev/jordond/filmstrip/edit/EffectsBuilder;
+}
+
+public final class dev/jordond/filmstrip/effects/filters/digicam/Digicam : dev/jordond/filmstrip/effect/EffectSpec {
+	public static final field Companion Ldev/jordond/filmstrip/effects/filters/digicam/Digicam$Companion;
+	public static final field DEFAULT_SEED I
+	public fun <init> ()V
+	public fun <init> (FFFI)V
+	public synthetic fun <init> (FFFIILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getBeneathOverlays ()Z
+	public final fun getClip ()F
+	public fun getId-M7MrD_4 ()Ljava/lang/String;
+	public final fun getNoise ()F
+	public fun getRedrawsWhileHeld ()Z
+	public fun getRequiresSdr ()Z
+	public fun getScope ()Ldev/jordond/filmstrip/effect/EffectScope;
+	public final fun getSeed ()I
+	public final fun getSharpness ()F
+	public fun getStage ()Ldev/jordond/filmstrip/effect/EffectStage;
+	public fun hashCode ()I
+	public fun isInert ()Z
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/jordond/filmstrip/effects/filters/digicam/Digicam$Companion {
+	public final fun getCcd ()Ldev/jordond/filmstrip/effects/filters/digicam/Digicam;
+	public final fun getID-M7MrD_4 ()Ljava/lang/String;
+}
+
+public final class dev/jordond/filmstrip/effects/filters/digicam/DigicamBuilder {
+	public final fun getClip ()F
+	public final fun getNoise ()F
+	public final fun getSeed ()I
+	public final fun getSharpness ()F
+	public final fun setClip (F)V
+	public final fun setNoise (F)V
+	public final fun setSeed (I)V
+	public final fun setSharpness (F)V
+	public final fun stamp (Ldev/jordond/filmstrip/effects/filters/camcorder/RecordedAt;Ldev/jordond/filmstrip/effects/filters/camcorder/OsdCorner;)V
+	public static synthetic fun stamp$default (Ldev/jordond/filmstrip/effects/filters/digicam/DigicamBuilder;Ldev/jordond/filmstrip/effects/filters/camcorder/RecordedAt;Ldev/jordond/filmstrip/effects/filters/camcorder/OsdCorner;ILjava/lang/Object;)V
+}
+
+public final class dev/jordond/filmstrip/effects/filters/digicam/DigicamBuilderKt {
+	public static final fun digicam (Ldev/jordond/filmstrip/edit/EffectsBuilder;Lkotlin/jvm/functions/Function1;)Ldev/jordond/filmstrip/edit/EffectsBuilder;
+	public static synthetic fun digicam$default (Ldev/jordond/filmstrip/edit/EffectsBuilder;Lkotlin/jvm/functions/Function1;ILjava/lang/Object;)Ldev/jordond/filmstrip/edit/EffectsBuilder;
 }
 
 public final class dev/jordond/filmstrip/effects/filters/film/Film : dev/jordond/filmstrip/effect/EffectSpec {

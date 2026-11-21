@@ -13,6 +13,8 @@ import dev.jordond.filmstrip.effects.filters.camcorder.Camcorder
 import dev.jordond.filmstrip.effects.filters.camcorder.camcorderResolution
 import dev.jordond.filmstrip.effects.filters.crt.Crt
 import dev.jordond.filmstrip.effects.filters.crt.crtFragment
+import dev.jordond.filmstrip.effects.filters.digicam.Digicam
+import dev.jordond.filmstrip.effects.filters.digicam.digicamFragment
 import dev.jordond.filmstrip.effects.filters.film.Film
 import dev.jordond.filmstrip.effects.filters.film.filmFragment
 import dev.jordond.filmstrip.effects.filters.glitch.Glitch
@@ -53,6 +55,9 @@ public actual class FilterEffectResolver actual constructor() : EffectResolver {
       }
       is Crt -> {
         EffectResolution.Resolved(PlatformEffect(crtFragment(spec, attributes.inputSize)))
+      }
+      is Digicam -> {
+        EffectResolution.Resolved(PlatformEffect(digicamFragment(spec, attributes.inputSize)))
       }
       is Lut -> {
         EffectResolution.Resolved(PlatformEffect(lutFragment(spec)))

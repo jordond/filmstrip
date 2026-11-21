@@ -191,7 +191,7 @@ public class OsdRaster internal constructor(
     val dots = LineDots(line)
     for (gy in -1..OsdFont.HEIGHT) {
       for (gx in -1..dots.width) {
-        if (dots.colourAt(gx, gy) == HIDDEN && dots.touchesLit(gx, gy)) fill(origin, gx, gy, OsdParams.EDGE_COLOUR)
+        if (dots.colourAt(gx, gy) == HIDDEN && dots.touchesEdged(gx, gy)) fill(origin, gx, gy, OsdParams.EDGE_COLOUR)
       }
     }
     for (gy in 0 until OsdFont.HEIGHT) {
@@ -276,12 +276,13 @@ internal fun lineDots(line: OsdLine): Int {
   return max(0, glyphs - OsdParams.GLYPH_GAP_DOTS)
 }
 
-// A line's dots as colours, with HIDDEN where nothing is lit.
+// A line's dots as colours, with HIDDEN where nothing is lit, and whether each lit dot takes an edge.
 private class LineDots(
   line: OsdLine,
 ) {
   val width: Int = lineDots(line)
   private val colours = IntArray(width * OsdFont.HEIGHT)
+  private val edged = BooleanArray(width * OsdFont.HEIGHT)
 
   init {
     var x = 0
@@ -290,7 +291,10 @@ private class LineDots(
         val glyph = OsdFont.glyph(char)
         for (gy in 0 until OsdFont.HEIGHT) {
           for (gx in 0 until glyph.width) {
-            if (glyph.isLit(gx, gy)) colours[gy * width + x + gx] = run.colour
+            if (glyph.isLit(gx, gy)) {
+              colours[gy * width + x + gx] = run.colour
+              edged[gy * width + x + gx] = run.edge && run.colour != HIDDEN
+            }
           }
         }
         x += glyph.width + OsdParams.GLYPH_GAP_DOTS
@@ -303,17 +307,22 @@ private class LineDots(
     gy: Int,
   ): Int = if (gx in 0 until width && gy in 0 until OsdFont.HEIGHT) colours[gy * width + gx] else HIDDEN
 
-  fun touchesLit(
+  fun touchesEdged(
     gx: Int,
     gy: Int,
   ): Boolean {
     for (dy in -1..1) {
       for (dx in -1..1) {
-        if (colourAt(gx + dx, gy + dy) != HIDDEN) return true
+        if (edgedAt(gx + dx, gy + dy)) return true
       }
     }
     return false
   }
+
+  private fun edgedAt(
+    gx: Int,
+    gy: Int,
+  ): Boolean = gx in 0 until width && gy in 0 until OsdFont.HEIGHT && edged[gy * width + gx]
 }
 
 private const val PIXEL_CENTRE = 0.5

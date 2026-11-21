@@ -8,9 +8,10 @@ import dev.jordond.filmstrip.effect.EffectStage
 /**
  * Draws a camcorder's on screen display over the frame, like a blinking `REC`, the date and a tape counter.
  *
- * The text comes from a pixel font filmstrip draws itself, white with a black edge and the record dot in red, so it
- * looks the same on every backend and needs no platform font. Each [OsdElement] sits in a corner inside the title safe
- * margin. The date, clock and counter read the frame's composition time, so a seek shows the reading that time had.
+ * The text comes from a pixel font filmstrip draws itself, white with a black edge, the record dot in red and a date
+ * stamp in orange, so it looks the same on every backend and needs no platform font. Each [OsdElement] sits in a
+ * corner inside the title safe margin. The date, clock and counter read the frame's composition time, so a seek shows
+ * the reading that time had.
  *
  * Sizes are fractions of the frame height, so a smaller preview shows the export scaled down.
  *

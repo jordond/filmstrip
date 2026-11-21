@@ -219,6 +219,17 @@ sealed interface dev.jordond.filmstrip.effects.filters.camcorder/OsdElement { //
         final fun toString(): kotlin/String // dev.jordond.filmstrip.effects.filters.camcorder/OsdElement.Rec.toString|toString(){}[0]
     }
 
+    final class Stamp : dev.jordond.filmstrip.effects.filters.camcorder/OsdElement { // dev.jordond.filmstrip.effects.filters.camcorder/OsdElement.Stamp|null[0]
+        constructor <init>(dev.jordond.filmstrip.effects.filters.camcorder/OsdCorner = ...) // dev.jordond.filmstrip.effects.filters.camcorder/OsdElement.Stamp.<init>|<init>(dev.jordond.filmstrip.effects.filters.camcorder.OsdCorner){}[0]
+
+        final val corner // dev.jordond.filmstrip.effects.filters.camcorder/OsdElement.Stamp.corner|{}corner[0]
+            final fun <get-corner>(): dev.jordond.filmstrip.effects.filters.camcorder/OsdCorner // dev.jordond.filmstrip.effects.filters.camcorder/OsdElement.Stamp.corner.<get-corner>|<get-corner>(){}[0]
+
+        final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.effects.filters.camcorder/OsdElement.Stamp.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.effects.filters.camcorder/OsdElement.Stamp.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // dev.jordond.filmstrip.effects.filters.camcorder/OsdElement.Stamp.toString|toString(){}[0]
+    }
+
     final class Tape : dev.jordond.filmstrip.effects.filters.camcorder/OsdElement { // dev.jordond.filmstrip.effects.filters.camcorder/OsdElement.Tape|null[0]
         constructor <init>(dev.jordond.filmstrip.effects.filters.tape/TapeStock, dev.jordond.filmstrip.effects.filters.camcorder/OsdCorner = ...) // dev.jordond.filmstrip.effects.filters.camcorder/OsdElement.Tape.<init>|<init>(dev.jordond.filmstrip.effects.filters.tape.TapeStock;dev.jordond.filmstrip.effects.filters.camcorder.OsdCorner){}[0]
 
@@ -456,6 +467,7 @@ final class dev.jordond.filmstrip.effects.filters.camcorder/CamcorderBuilder { /
     final fun pause(dev.jordond.filmstrip.effects.filters.camcorder/OsdCorner = ...) // dev.jordond.filmstrip.effects.filters.camcorder/CamcorderBuilder.pause|pause(dev.jordond.filmstrip.effects.filters.camcorder.OsdCorner){}[0]
     final fun play(dev.jordond.filmstrip.effects.filters.camcorder/OsdCorner = ...) // dev.jordond.filmstrip.effects.filters.camcorder/CamcorderBuilder.play|play(dev.jordond.filmstrip.effects.filters.camcorder.OsdCorner){}[0]
     final fun rec(dev.jordond.filmstrip.effects.filters.camcorder/OsdCorner = ...) // dev.jordond.filmstrip.effects.filters.camcorder/CamcorderBuilder.rec|rec(dev.jordond.filmstrip.effects.filters.camcorder.OsdCorner){}[0]
+    final fun stamp(dev.jordond.filmstrip.effects.filters.camcorder/OsdCorner = ...) // dev.jordond.filmstrip.effects.filters.camcorder/CamcorderBuilder.stamp|stamp(dev.jordond.filmstrip.effects.filters.camcorder.OsdCorner){}[0]
     final fun tape(dev.jordond.filmstrip.effects.filters.tape/TapeStock, dev.jordond.filmstrip.effects.filters.camcorder/OsdCorner = ...) // dev.jordond.filmstrip.effects.filters.camcorder/CamcorderBuilder.tape|tape(dev.jordond.filmstrip.effects.filters.tape.TapeStock;dev.jordond.filmstrip.effects.filters.camcorder.OsdCorner){}[0]
     final fun transport(dev.jordond.filmstrip.effects.filters.camcorder/TransportMode, dev.jordond.filmstrip.effects.filters.camcorder/OsdCorner = ...) // dev.jordond.filmstrip.effects.filters.camcorder/CamcorderBuilder.transport|transport(dev.jordond.filmstrip.effects.filters.camcorder.TransportMode;dev.jordond.filmstrip.effects.filters.camcorder.OsdCorner){}[0]
 }
@@ -505,6 +517,60 @@ final class dev.jordond.filmstrip.effects.filters.crt/Crt : dev.jordond.filmstri
         final val ID // dev.jordond.filmstrip.effects.filters.crt/Crt.Companion.ID|{}ID[0]
             final fun <get-ID>(): dev.jordond.filmstrip.effect/EffectId // dev.jordond.filmstrip.effects.filters.crt/Crt.Companion.ID.<get-ID>|<get-ID>(){}[0]
     }
+}
+
+final class dev.jordond.filmstrip.effects.filters.digicam/Digicam : dev.jordond.filmstrip.effect/EffectSpec { // dev.jordond.filmstrip.effects.filters.digicam/Digicam|null[0]
+    constructor <init>(kotlin/Float = ..., kotlin/Float = ..., kotlin/Float = ..., kotlin/Int = ...) // dev.jordond.filmstrip.effects.filters.digicam/Digicam.<init>|<init>(kotlin.Float;kotlin.Float;kotlin.Float;kotlin.Int){}[0]
+
+    final val beneathOverlays // dev.jordond.filmstrip.effects.filters.digicam/Digicam.beneathOverlays|{}beneathOverlays[0]
+        final fun <get-beneathOverlays>(): kotlin/Boolean // dev.jordond.filmstrip.effects.filters.digicam/Digicam.beneathOverlays.<get-beneathOverlays>|<get-beneathOverlays>(){}[0]
+    final val clip // dev.jordond.filmstrip.effects.filters.digicam/Digicam.clip|{}clip[0]
+        final fun <get-clip>(): kotlin/Float // dev.jordond.filmstrip.effects.filters.digicam/Digicam.clip.<get-clip>|<get-clip>(){}[0]
+    final val id // dev.jordond.filmstrip.effects.filters.digicam/Digicam.id|{}id[0]
+        final fun <get-id>(): dev.jordond.filmstrip.effect/EffectId // dev.jordond.filmstrip.effects.filters.digicam/Digicam.id.<get-id>|<get-id>(){}[0]
+    final val isInert // dev.jordond.filmstrip.effects.filters.digicam/Digicam.isInert|{}isInert[0]
+        final fun <get-isInert>(): kotlin/Boolean // dev.jordond.filmstrip.effects.filters.digicam/Digicam.isInert.<get-isInert>|<get-isInert>(){}[0]
+    final val noise // dev.jordond.filmstrip.effects.filters.digicam/Digicam.noise|{}noise[0]
+        final fun <get-noise>(): kotlin/Float // dev.jordond.filmstrip.effects.filters.digicam/Digicam.noise.<get-noise>|<get-noise>(){}[0]
+    final val requiresSdr // dev.jordond.filmstrip.effects.filters.digicam/Digicam.requiresSdr|{}requiresSdr[0]
+        final fun <get-requiresSdr>(): kotlin/Boolean // dev.jordond.filmstrip.effects.filters.digicam/Digicam.requiresSdr.<get-requiresSdr>|<get-requiresSdr>(){}[0]
+    final val seed // dev.jordond.filmstrip.effects.filters.digicam/Digicam.seed|{}seed[0]
+        final fun <get-seed>(): kotlin/Int // dev.jordond.filmstrip.effects.filters.digicam/Digicam.seed.<get-seed>|<get-seed>(){}[0]
+    final val sharpness // dev.jordond.filmstrip.effects.filters.digicam/Digicam.sharpness|{}sharpness[0]
+        final fun <get-sharpness>(): kotlin/Float // dev.jordond.filmstrip.effects.filters.digicam/Digicam.sharpness.<get-sharpness>|<get-sharpness>(){}[0]
+    final val stage // dev.jordond.filmstrip.effects.filters.digicam/Digicam.stage|{}stage[0]
+        final fun <get-stage>(): dev.jordond.filmstrip.effect/EffectStage // dev.jordond.filmstrip.effects.filters.digicam/Digicam.stage.<get-stage>|<get-stage>(){}[0]
+
+    final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.effects.filters.digicam/Digicam.equals|equals(kotlin.Any?){}[0]
+    final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.effects.filters.digicam/Digicam.hashCode|hashCode(){}[0]
+    final fun toString(): kotlin/String // dev.jordond.filmstrip.effects.filters.digicam/Digicam.toString|toString(){}[0]
+
+    final object Companion { // dev.jordond.filmstrip.effects.filters.digicam/Digicam.Companion|null[0]
+        final const val DEFAULT_SEED // dev.jordond.filmstrip.effects.filters.digicam/Digicam.Companion.DEFAULT_SEED|{}DEFAULT_SEED[0]
+            final fun <get-DEFAULT_SEED>(): kotlin/Int // dev.jordond.filmstrip.effects.filters.digicam/Digicam.Companion.DEFAULT_SEED.<get-DEFAULT_SEED>|<get-DEFAULT_SEED>(){}[0]
+
+        final val Ccd // dev.jordond.filmstrip.effects.filters.digicam/Digicam.Companion.Ccd|{}Ccd[0]
+            final fun <get-Ccd>(): dev.jordond.filmstrip.effects.filters.digicam/Digicam // dev.jordond.filmstrip.effects.filters.digicam/Digicam.Companion.Ccd.<get-Ccd>|<get-Ccd>(){}[0]
+        final val ID // dev.jordond.filmstrip.effects.filters.digicam/Digicam.Companion.ID|{}ID[0]
+            final fun <get-ID>(): dev.jordond.filmstrip.effect/EffectId // dev.jordond.filmstrip.effects.filters.digicam/Digicam.Companion.ID.<get-ID>|<get-ID>(){}[0]
+    }
+}
+
+final class dev.jordond.filmstrip.effects.filters.digicam/DigicamBuilder { // dev.jordond.filmstrip.effects.filters.digicam/DigicamBuilder|null[0]
+    final var clip // dev.jordond.filmstrip.effects.filters.digicam/DigicamBuilder.clip|{}clip[0]
+        final fun <get-clip>(): kotlin/Float // dev.jordond.filmstrip.effects.filters.digicam/DigicamBuilder.clip.<get-clip>|<get-clip>(){}[0]
+        final fun <set-clip>(kotlin/Float) // dev.jordond.filmstrip.effects.filters.digicam/DigicamBuilder.clip.<set-clip>|<set-clip>(kotlin.Float){}[0]
+    final var noise // dev.jordond.filmstrip.effects.filters.digicam/DigicamBuilder.noise|{}noise[0]
+        final fun <get-noise>(): kotlin/Float // dev.jordond.filmstrip.effects.filters.digicam/DigicamBuilder.noise.<get-noise>|<get-noise>(){}[0]
+        final fun <set-noise>(kotlin/Float) // dev.jordond.filmstrip.effects.filters.digicam/DigicamBuilder.noise.<set-noise>|<set-noise>(kotlin.Float){}[0]
+    final var seed // dev.jordond.filmstrip.effects.filters.digicam/DigicamBuilder.seed|{}seed[0]
+        final fun <get-seed>(): kotlin/Int // dev.jordond.filmstrip.effects.filters.digicam/DigicamBuilder.seed.<get-seed>|<get-seed>(){}[0]
+        final fun <set-seed>(kotlin/Int) // dev.jordond.filmstrip.effects.filters.digicam/DigicamBuilder.seed.<set-seed>|<set-seed>(kotlin.Int){}[0]
+    final var sharpness // dev.jordond.filmstrip.effects.filters.digicam/DigicamBuilder.sharpness|{}sharpness[0]
+        final fun <get-sharpness>(): kotlin/Float // dev.jordond.filmstrip.effects.filters.digicam/DigicamBuilder.sharpness.<get-sharpness>|<get-sharpness>(){}[0]
+        final fun <set-sharpness>(kotlin/Float) // dev.jordond.filmstrip.effects.filters.digicam/DigicamBuilder.sharpness.<set-sharpness>|<set-sharpness>(kotlin.Float){}[0]
+
+    final fun stamp(dev.jordond.filmstrip.effects.filters.camcorder/RecordedAt = ..., dev.jordond.filmstrip.effects.filters.camcorder/OsdCorner = ...) // dev.jordond.filmstrip.effects.filters.digicam/DigicamBuilder.stamp|stamp(dev.jordond.filmstrip.effects.filters.camcorder.RecordedAt;dev.jordond.filmstrip.effects.filters.camcorder.OsdCorner){}[0]
 }
 
 final class dev.jordond.filmstrip.effects.filters.film/Film : dev.jordond.filmstrip.effect/EffectSpec { // dev.jordond.filmstrip.effects.filters.film/Film|null[0]
@@ -966,6 +1032,7 @@ final fun (dev.jordond.filmstrip.edit/EffectsBuilder).dev.jordond.filmstrip.effe
 final fun (dev.jordond.filmstrip.edit/EffectsBuilder).dev.jordond.filmstrip.effects.filters.bloom/bloom(kotlin/Float = ..., kotlin/Float = ..., kotlin/Float = ...): dev.jordond.filmstrip.edit/EffectsBuilder // dev.jordond.filmstrip.effects.filters.bloom/bloom|bloom@dev.jordond.filmstrip.edit.EffectsBuilder(kotlin.Float;kotlin.Float;kotlin.Float){}[0]
 final fun (dev.jordond.filmstrip.edit/EffectsBuilder).dev.jordond.filmstrip.effects.filters.camcorder/camcorder(kotlin/Function1<dev.jordond.filmstrip.effects.filters.camcorder/CamcorderBuilder, kotlin/Unit>): dev.jordond.filmstrip.edit/EffectsBuilder // dev.jordond.filmstrip.effects.filters.camcorder/camcorder|camcorder@dev.jordond.filmstrip.edit.EffectsBuilder(kotlin.Function1<dev.jordond.filmstrip.effects.filters.camcorder.CamcorderBuilder,kotlin.Unit>){}[0]
 final fun (dev.jordond.filmstrip.edit/EffectsBuilder).dev.jordond.filmstrip.effects.filters.crt/crt(kotlin/Float = ...): dev.jordond.filmstrip.edit/EffectsBuilder // dev.jordond.filmstrip.effects.filters.crt/crt|crt@dev.jordond.filmstrip.edit.EffectsBuilder(kotlin.Float){}[0]
+final fun (dev.jordond.filmstrip.edit/EffectsBuilder).dev.jordond.filmstrip.effects.filters.digicam/digicam(kotlin/Function1<dev.jordond.filmstrip.effects.filters.digicam/DigicamBuilder, kotlin/Unit> = ...): dev.jordond.filmstrip.edit/EffectsBuilder // dev.jordond.filmstrip.effects.filters.digicam/digicam|digicam@dev.jordond.filmstrip.edit.EffectsBuilder(kotlin.Function1<dev.jordond.filmstrip.effects.filters.digicam.DigicamBuilder,kotlin.Unit>){}[0]
 final fun (dev.jordond.filmstrip.edit/EffectsBuilder).dev.jordond.filmstrip.effects.filters.film/film(kotlin/Float = ..., kotlin/Float = ..., kotlin/Float = ..., kotlin/Float = ..., kotlin/Float = ..., kotlin/Float = ..., kotlin/Float = ..., kotlin/Int = ...): dev.jordond.filmstrip.edit/EffectsBuilder // dev.jordond.filmstrip.effects.filters.film/film|film@dev.jordond.filmstrip.edit.EffectsBuilder(kotlin.Float;kotlin.Float;kotlin.Float;kotlin.Float;kotlin.Float;kotlin.Float;kotlin.Float;kotlin.Int){}[0]
 final fun (dev.jordond.filmstrip.edit/EffectsBuilder).dev.jordond.filmstrip.effects.filters.glitch/glitch(kotlin/Float = ..., kotlin/Float = ..., kotlin/Int = ...): dev.jordond.filmstrip.edit/EffectsBuilder // dev.jordond.filmstrip.effects.filters.glitch/glitch|glitch@dev.jordond.filmstrip.edit.EffectsBuilder(kotlin.Float;kotlin.Float;kotlin.Int){}[0]
 final fun (dev.jordond.filmstrip.edit/EffectsBuilder).dev.jordond.filmstrip.effects.filters.hi8/hi8(kotlin/Function1<dev.jordond.filmstrip.effects.filters.hi8/Hi8Builder, kotlin/Unit> = ...): dev.jordond.filmstrip.edit/EffectsBuilder // dev.jordond.filmstrip.effects.filters.hi8/hi8|hi8@dev.jordond.filmstrip.edit.EffectsBuilder(kotlin.Function1<dev.jordond.filmstrip.effects.filters.hi8.Hi8Builder,kotlin.Unit>){}[0]

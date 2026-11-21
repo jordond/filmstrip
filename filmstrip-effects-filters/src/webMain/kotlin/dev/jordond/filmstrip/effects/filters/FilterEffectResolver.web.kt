@@ -12,6 +12,8 @@ import dev.jordond.filmstrip.effects.filters.camcorder.Camcorder
 import dev.jordond.filmstrip.effects.filters.camcorder.camcorderPass
 import dev.jordond.filmstrip.effects.filters.crt.Crt
 import dev.jordond.filmstrip.effects.filters.crt.crtPass
+import dev.jordond.filmstrip.effects.filters.digicam.Digicam
+import dev.jordond.filmstrip.effects.filters.digicam.digicamPass
 import dev.jordond.filmstrip.effects.filters.film.Film
 import dev.jordond.filmstrip.effects.filters.film.filmPass
 import dev.jordond.filmstrip.effects.filters.glitch.Glitch
@@ -49,6 +51,9 @@ public actual class FilterEffectResolver actual constructor() : EffectResolver {
       }
       is Crt -> {
         EffectResolution.Resolved(PlatformEffect(crtPass(spec)))
+      }
+      is Digicam -> {
+        EffectResolution.Resolved(PlatformEffect(digicamPass(spec)))
       }
       is Lut -> {
         EffectResolution.Resolved(PlatformEffect(lutPass(spec)))

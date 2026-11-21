@@ -12,6 +12,8 @@ import dev.jordond.filmstrip.effects.filters.camcorder.DateStyle
 import dev.jordond.filmstrip.effects.filters.camcorder.RecordedAt
 import dev.jordond.filmstrip.effects.filters.camcorder.camcorder
 import dev.jordond.filmstrip.effects.filters.crt.crt
+import dev.jordond.filmstrip.effects.filters.digicam.Digicam
+import dev.jordond.filmstrip.effects.filters.digicam.digicam
 import dev.jordond.filmstrip.effects.filters.film.Film
 import dev.jordond.filmstrip.effects.filters.film.film
 import dev.jordond.filmstrip.effects.filters.glitch.glitch
@@ -116,6 +118,30 @@ internal fun bloomLook(): Composition {
       clip(MediaSource.of("/path/to/city-at-night.mp4"))
       effects {
         add(Bloom.Dreamy)
+      }
+    }
+  // endregion
+  return composition
+}
+
+internal fun digicamLook(): Composition {
+  // region digicam
+  val composition =
+    compositionOf {
+      clip(MediaSource.of("/path/to/birthday.mp4"))
+      effects {
+        digicam {
+          sharpness = 0.8f
+          noise = 0.4f
+          stamp(RecordedAt(2003, 8, 21))
+        }
+      }
+    }
+  val ccd =
+    compositionOf {
+      clip(MediaSource.of("/path/to/birthday.mp4"))
+      effects {
+        add(Digicam.Ccd)
       }
     }
   // endregion

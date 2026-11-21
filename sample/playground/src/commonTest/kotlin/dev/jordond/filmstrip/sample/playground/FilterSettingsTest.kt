@@ -4,6 +4,10 @@ import dev.jordond.filmstrip.effects.filters.betamax.BetaSpeed
 import dev.jordond.filmstrip.effects.filters.betamax.Betamax
 import dev.jordond.filmstrip.effects.filters.bloom.Bloom
 import dev.jordond.filmstrip.effects.filters.camcorder.Camcorder
+import dev.jordond.filmstrip.effects.filters.camcorder.OsdCorner
+import dev.jordond.filmstrip.effects.filters.camcorder.OsdElement
+import dev.jordond.filmstrip.effects.filters.digicam.Digicam
+import dev.jordond.filmstrip.effects.filters.digicam.digicam
 import dev.jordond.filmstrip.effects.filters.film.Film
 import dev.jordond.filmstrip.effects.filters.glitch.Glitch
 import dev.jordond.filmstrip.effects.filters.hi8.Hi8
@@ -239,6 +243,36 @@ class FilterSettingsTest {
     filtersEffects(dreamy) shouldBe listOf(Bloom.Dreamy)
     filterSummary(plain) shouldBe "BLOOM"
     filterSummary(dreamy) shouldBe "BLOOM · DREAMY"
+  }
+
+  @Test
+  fun `digicam takes its ccd preset and no intensity`() {
+    val plain = FilterSettings(look = FilterLook.Digicam).withIntensity(0.5f)
+    val ccd = plain.copy(ccd = true)
+
+    codeText(filtersCode(plain)) shouldContain "  digicam()"
+    codeText(filtersCode(ccd)) shouldContain "  add(Digicam.Ccd)"
+    filtersEffects(plain) shouldBe listOf(Digicam())
+    filtersEffects(ccd) shouldBe listOf(Digicam.Ccd)
+    filterSummary(plain) shouldBe "DIGICAM"
+    filterSummary(ccd) shouldBe "DIGICAM · CCD"
+  }
+
+  @Test
+  fun `a digicam with a stamp builds the block the code names`() {
+    val stamped = FilterSettings(look = FilterLook.Digicam, stamp = true)
+    val ccd = stamped.copy(ccd = true)
+    val stamp = filtersEffects(stamped).last()
+
+    stamp.shouldBeInstanceOf<Camcorder>().elements shouldBe listOf(OsdElement.Stamp(OsdCorner.BottomRight))
+
+    codeText(filtersCode(stamped)) shouldContain "  digicam {\n    stamp()\n  }"
+    codeText(filtersCode(ccd)) shouldContain
+      "  digicam {\n    sharpness = 0.8f\n    noise = 0.7f\n    clip = 0.7f\n    stamp()\n  }"
+    filtersEffects(stamped) shouldBe listOf(Digicam(), stamp)
+    filtersEffects(ccd) shouldBe listOf(Digicam.Ccd, stamp)
+    filterSummary(stamped) shouldBe "DIGICAM · STAMP"
+    filterSummary(ccd) shouldBe "DIGICAM · CCD · STAMP"
   }
 
   @Test
