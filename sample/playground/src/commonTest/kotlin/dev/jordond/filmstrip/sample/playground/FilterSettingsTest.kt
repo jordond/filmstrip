@@ -2,7 +2,9 @@ package dev.jordond.filmstrip.sample.playground
 
 import dev.jordond.filmstrip.effects.filters.betamax.BetaSpeed
 import dev.jordond.filmstrip.effects.filters.betamax.Betamax
+import dev.jordond.filmstrip.effects.filters.bloom.Bloom
 import dev.jordond.filmstrip.effects.filters.camcorder.Camcorder
+import dev.jordond.filmstrip.effects.filters.film.Film
 import dev.jordond.filmstrip.effects.filters.glitch.Glitch
 import dev.jordond.filmstrip.effects.filters.hi8.Hi8
 import dev.jordond.filmstrip.effects.filters.hi8.Hi8Speed
@@ -207,12 +209,36 @@ class FilterSettingsTest {
   @Test
   fun `film takes its super 8 preset and no intensity`() {
     val plain = FilterSettings(look = FilterLook.Film).withIntensity(0.5f)
-    val super8 = plain.copy(super8 = true)
+    val super8 = plain.copy(film = FilmStock.Super8)
 
     codeText(filtersCode(plain)) shouldContain "  film()"
     codeText(filtersCode(super8)) shouldContain "  add(Film.Super8)"
+    filtersEffects(plain) shouldBe listOf(Film())
+    filtersEffects(super8) shouldBe listOf(Film.Super8)
     filterSummary(plain) shouldBe "FILM"
     filterSummary(super8) shouldBe "FILM · SUPER 8"
+  }
+
+  @Test
+  fun `a film with leaks builds the look the code names`() {
+    val settings = FilterSettings(look = FilterLook.Film, film = FilmStock.Leak)
+
+    codeText(filtersCode(settings)) shouldContain "  film(leak = 0.6f)"
+    filtersEffects(settings) shouldBe listOf(Film(leak = 0.6f))
+    filterSummary(settings) shouldBe "FILM · LEAK"
+  }
+
+  @Test
+  fun `bloom takes its dreamy preset and no intensity`() {
+    val plain = FilterSettings(look = FilterLook.Bloom).withIntensity(0.5f)
+    val dreamy = plain.copy(dreamy = true)
+
+    codeText(filtersCode(plain)) shouldContain "  bloom()"
+    codeText(filtersCode(dreamy)) shouldContain "  add(Bloom.Dreamy)"
+    filtersEffects(plain) shouldBe listOf(Bloom())
+    filtersEffects(dreamy) shouldBe listOf(Bloom.Dreamy)
+    filterSummary(plain) shouldBe "BLOOM"
+    filterSummary(dreamy) shouldBe "BLOOM · DREAMY"
   }
 
   @Test

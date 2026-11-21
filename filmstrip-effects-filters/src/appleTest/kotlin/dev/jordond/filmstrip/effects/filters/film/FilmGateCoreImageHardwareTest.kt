@@ -190,7 +190,7 @@ class FilmGateCoreImageHardwareTest {
       Array(width * height) {
         between(width, height, it % width + offset[0] * width, it / width + offset[1] * height)
       }
-    val glow = HalationGlow.of(width, height) { x, y -> moved[y * width + x] }
+    val glow = FilmSignal.halationGlow(width, height) { x, y -> moved[y * width + x] }
     val frame = drawn(film, quartered(width, height), width, height)
     // The blur's limit reaches the frame through the gain, on top of the float reads' own rounding.
     val tolerance = BLUR_CODES * params.halationGain / FULL + TOLERANCE

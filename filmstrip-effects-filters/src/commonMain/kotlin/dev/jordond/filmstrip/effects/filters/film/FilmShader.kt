@@ -1,31 +1,28 @@
 package dev.jordond.filmstrip.effects.filters.film
 
 import dev.jordond.filmstrip.InternalFilmstripApi
+import dev.jordond.filmstrip.effects.filters.internal.FilterStep
+import dev.jordond.filmstrip.effects.filters.internal.GLOW_BLURRED
+import dev.jordond.filmstrip.effects.filters.internal.GLOW_FRAME
+import dev.jordond.filmstrip.effects.filters.internal.GlowSteps
 import dev.jordond.filmstrip.effects.filters.internal.HASH_GLSL
 import dev.jordond.filmstrip.effects.filters.internal.HASH_MASK
-import dev.jordond.filmstrip.effects.filters.internal.KB
-import dev.jordond.filmstrip.effects.filters.internal.KR
+import dev.jordond.filmstrip.effects.filters.internal.LUMA_GLSL
 import dev.jordond.filmstrip.effects.filters.internal.STRAIGHT_READ_GLSL
 import dev.jordond.filmstrip.effects.filters.internal.glslFloat
-import dev.jordond.filmstrip.effects.spatial.SpatialBlur
 import dev.jordond.filmstrip.geometry.Size
 
 /**
  * The GLSL ES 3.00 fragment sources that draw a [Film], read by media3 and the browser, and the order they run in.
  *
  * Every fixed number is written in from [FilmSignal]'s constants, and everything a control or a frame changes is a
- * uniform a [FilmStep] hands back, so the shaders hold no figure of their own. Each reads at the `vUv` varying.
+ * uniform a [FilterStep] hands back, so the shaders hold no figure of their own. Each reads at the `vUv` varying.
  *
  * A clip's frame holds clear bars. Their alpha comes through every step untouched and they give the blur no light, so
  * neither the glow nor the grain ever shows over the fill.
  */
 @InternalFilmstripApi
 public object FilmShader {
-  /**
-   * What a [FilmStep] names the frame the whole chain starts from in [FilmStep.reads].
-   */
-  public const val INPUT: String = "input"
-
   /**
    * The uniform that says `v` runs up the picture, 1 when it does and 0 when it runs down.
    *
@@ -36,25 +33,26 @@ public object FilmShader {
   /**
    * The chain that draws [film] in [FilmSignal.pixelAt]'s order, leaving out every step its controls leave idle.
    *
-   * The weave moves the frame first, the halation glows on what it moved, and one step lays the flicker, grain, dust,
-   * scratches and gate over the result. Every step before the last runs on a target of its own, and the last one
+   * The weave moves the frame first, the halation glows on what it moved, and one step lays the leak, flicker, grain,
+   * dust, scratches and gate over the result. Every step before the last runs on a target of its own, and the last one
    * writes the frame.
    */
-  public fun steps(film: Film): List<FilmStep> {
+  public fun steps(film: Film): List<FilterStep> {
     val params = FilmParams.of(film)
     return buildList {
       if (params.weave > 0.0) add(weaveStep(params))
       if (params.halationGain > 0.0) addAll(halationSteps(params, lastNameOrInput()))
-      if (params.grainStrength > 0.0 || params.flicker > 0.0 || params.dust > 0.0 || params.gate > 0.0) {
-        add(grainStep(params, lastNameOrInput()))
-      }
+      if (params.drawsOverGlow) add(grainStep(params, lastNameOrInput()))
     }
   }
 
-  private fun List<FilmStep>.lastNameOrInput(): String = lastOrNull()?.name ?: INPUT
+  private val FilmParams.drawsOverGlow: Boolean
+    get() = grainStrength > 0.0 || flicker > 0.0 || dust > 0.0 || gate > 0.0 || leak > 0.0
 
-  private fun weaveStep(params: FilmParams): FilmStep =
-    FilmStep(STEP_WEAVE, WEAVE_FRAGMENT, mapOf(FRAME to INPUT), ::frameSize) { seconds, _, _ ->
+  private fun List<FilterStep>.lastNameOrInput(): String = lastOrNull()?.name ?: FilterStep.INPUT
+
+  private fun weaveStep(params: FilmParams): FilterStep =
+    FilterStep(STEP_WEAVE, WEAVE_FRAGMENT, mapOf(FRAME to FilterStep.INPUT), ::frameSize) { seconds, _, _ ->
       mapOf(
         SEED to seedOf(params),
         TICK to tickAt(seconds),
@@ -65,36 +63,22 @@ public object FilmShader {
   private fun halationSteps(
     params: FilmParams,
     reads: String,
-  ): List<FilmStep> =
-    listOf(
-      FilmStep(STEP_RESPONSE, RESPONSE_FRAGMENT, mapOf(FRAME to reads), ::blurredSize) { _, width, height ->
-        val plan = FilmSignal.halationBlurPlan(width)
-        mapOf(
-          "uTargetSize" to floatArrayOf(plan.width.toFloat(), plan.heightOf(height).toFloat()),
-          "uBox" to floatArrayOf(plan.factor.toFloat()),
-        )
-      },
-    ) +
-      SpatialBlur.gaussianSteps(HALATION_SIGMA, STEP_RESPONSE).map { step ->
-        FilmStep(
-          step.name,
-          step.fragment,
-          step.reads,
-          step.targetAt,
-        ) { _, width, height -> step.uniformsAt(width, height) }
-      } +
-      FilmStep(
-        STEP_HALATION,
-        HALATION_FRAGMENT,
-        mapOf(FRAME to reads, GLOW to SpatialBlur.BLURRED),
-        ::frameSize,
-      ) { _, _, _ -> mapOf("uGain" to floatArrayOf(params.halationGain.toFloat())) }
+  ): List<FilterStep> =
+    GlowSteps.of(
+      sigmaFraction = HALATION_SIGMA,
+      reads = reads,
+      responseGlsl = HALATION_RESPONSE_GLSL,
+      responseUniforms = emptyMap(),
+      combineName = STEP_HALATION,
+      combineFragment = HALATION_FRAGMENT,
+      combineUniforms = mapOf("uGain" to floatArrayOf(params.halationGain.toFloat())),
+    )
 
   private fun grainStep(
     params: FilmParams,
     reads: String,
-  ): FilmStep =
-    FilmStep(STEP_GRAIN, GRAIN_FRAGMENT, mapOf(FRAME to reads), ::frameSize) { seconds, width, height ->
+  ): FilterStep =
+    FilterStep(STEP_GRAIN, GRAIN_FRAGMENT, mapOf(FRAME to reads), ::frameSize) { seconds, width, height ->
       mapOf(
         SEED to seedOf(params),
         TICK to tickAt(seconds),
@@ -102,6 +86,7 @@ public object FilmShader {
         "uFlicker" to floatArrayOf(params.flicker.toFloat()),
         "uDust" to floatArrayOf(params.dust.toFloat()),
         "uGate" to floatArrayOf(params.gate.toFloat()),
+        "uLeak" to floatArrayOf(params.leak.toFloat()),
         "uResolution" to floatArrayOf(width.toFloat(), height.toFloat()),
         "uCellSpan" to floatArrayOf(FilmSignal.grainCellSpan(width, height).toFloat()),
       )
@@ -112,52 +97,20 @@ public object FilmShader {
   private fun tickAt(seconds: Double): FloatArray =
     floatArrayOf((FilmSignal.grainTickAt(seconds) and HASH_MASK).toFloat())
 
-  private fun blurredSize(
-    width: Int,
-    height: Int,
-  ): Size = SpatialBlur.blurredSize(HALATION_SIGMA, width, height)
-
   private fun frameSize(
     width: Int,
     height: Int,
   ): Size = Size(width, height)
 }
 
-/**
- * One draw of a [Film]'s chain.
- *
- * @property name What a later step calls this step's output in its own [reads].
- * @property fragment The fragment shader source.
- * @property reads Each sampler this step reads, to the [name] of an earlier step or [FilmShader.INPUT].
- * @property targetAt The size this step draws at, for a frame of a width and height in pixels.
- * @property uniformsAt The uniforms for a frame at a composition time in seconds and a width and height in pixels, by
- * name. A name ending in `[0]` is a float array, and any other is a float or a vec by its length.
- */
-@InternalFilmstripApi
-public class FilmStep internal constructor(
-  public val name: String,
-  public val fragment: String,
-  public val reads: Map<String, String>,
-  public val targetAt: (width: Int, height: Int) -> Size,
-  public val uniformsAt: (seconds: Double, width: Int, height: Int) -> Map<String, FloatArray>,
-)
-
-private const val FRAME = "uFrame"
-private const val GLOW = "uGlow"
+private const val FRAME = GLOW_FRAME
+private const val GLOW = GLOW_BLURRED
 private const val SEED = "uSeed"
 private const val TICK = "uTick"
 
 private const val STEP_WEAVE = "weave"
-private const val STEP_RESPONSE = "response"
 private const val STEP_HALATION = "halation"
 private const val STEP_GRAIN = "grain"
-
-private val LUMA_GLSL =
-  """
-  const float KR = ${glslFloat(KR)};
-  const float KB = ${glslFloat(KB)};
-  float lumaOf(vec3 c) { return KR * c.r + (1.0 - KR - KB) * c.g + KB * c.b; }
-  """
 
 // Reads the frame at each pixel's place plus weaveAt's offset through straightRead, held at the frame's edge.
 private val WEAVE_FRAGMENT: String by lazy {
@@ -182,38 +135,19 @@ $STRAIGHT_READ_GLSL
   """.trimIndent()
 }
 
-// Boxes the frame's codes down to one blurred pixel with SpatialBlur's box, each texel premultiplied by its alpha so
-// a bar gives no light, and reads the response of the result.
-private val RESPONSE_FRAGMENT: String by lazy {
+// halationResponse in GLSL ES 3.00, for GlowSteps' response fragment. Each line carries the fragment sources' own two
+// spaces.
+private val HALATION_RESPONSE_GLSL =
   """
-  #version 300 es
-  precision highp float;
-  in vec2 vUv;
-  out vec4 fragColor;
-  uniform sampler2D $FRAME;
-  uniform vec2 uTargetSize;
-  uniform float uBox;
-$LUMA_GLSL
-
-  vec4 premultipliedAt(ivec2 texel, ivec2 size) {
-    vec4 read = texelFetch($FRAME, clamp(texel, ivec2(0), size - 1), 0);
-    return vec4(read.rgb * read.a, read.a);
-  }
-
-${SpatialBlur.BOX_DOWN_GLSL.prependIndent("  ")}
-
-  void main() {
-    vec3 boxed = boxedDown(textureSize($FRAME, 0), vUv, uTargetSize, uBox).rgb;
+  vec3 glowResponse(vec3 boxed) {
     float response = smoothstep(${glslFloat(HALATION_LOW)}, ${glslFloat(HALATION_HIGH)}, lumaOf(boxed));
-    fragColor = vec4(
-      response * vec3(${glslFloat(
-    HALATION_TINT_RED,
-  )}, ${glslFloat(HALATION_TINT_GREEN)}, ${glslFloat(HALATION_TINT_BLUE)}),
-      1.0
+    return response * vec3(
+      ${glslFloat(HALATION_TINT_RED)},
+      ${glslFloat(HALATION_TINT_GREEN)},
+      ${glslFloat(HALATION_TINT_BLUE)}
     );
   }
-  """.trimIndent()
-}
+  """
 
 private val HALATION_FRAGMENT: String by lazy {
   """
@@ -233,7 +167,7 @@ private val HALATION_FRAGMENT: String by lazy {
   """.trimIndent()
 }
 
-// The flicker's gain, the grain, the dust and scratches, and the gate, in FilmSignal.pixelAt's order.
+// The leak, the flicker's gain, the grain, the dust and scratches, and the gate, in FilmSignal.pixelAt's order.
 private val GRAIN_FRAGMENT: String by lazy {
   """
   #version 300 es
@@ -244,10 +178,11 @@ private val GRAIN_FRAGMENT: String by lazy {
   uniform sampler2D $FRAME;
   uniform vec2 uResolution;
   uniform float ${FilmShader.FLIP_V};
-  uniform float $SEED, $TICK, uStrength, uCellSpan, uFlicker, uDust, uGate;
+  uniform float $SEED, $TICK, uStrength, uCellSpan, uFlicker, uDust, uGate, uLeak;
 $LUMA_GLSL
 $HASH_GLSL
 $FILM_GATE_GLSL
+$FILM_LEAK_GLSL
 
   void main() {
     vec4 texel = textureLod($FRAME, vUv, 0.0);
@@ -257,13 +192,16 @@ $FILM_GATE_GLSL
     uint row = uint(clamp(floor(fromTop * uResolution.y), 0.0, uResolution.y - 1.0)) * ${GRAIN_CELL_SCALE}u / span;
     uint cell = row * ${GRAIN_CELLS_ACROSS}u + column;
     uint tick = uint($TICK + 0.5);
-    vec3 lit = min(texel.rgb * flickerAt(tick, uFlicker), vec3(1.0));
+    float aspect = uResolution.x / uResolution.y;
+    vec3 light = leakAt(vec2(vUv.x, fromTop), aspect, tick, uLeak);
+    vec3 leaked = texel.rgb + light * (1.0 - texel.rgb);
+    vec3 lit = min(leaked * flickerAt(tick, uFlicker), vec3(1.0));
     float grain = draw(${PASS_GRAIN_FIRST}u, tick, cell) + draw(${PASS_GRAIN_SECOND}u, tick, cell) - 1.0;
     float luma = lumaOf(lit);
     float weight = max(${glslFloat(GRAIN_WEIGHT_FLOOR)}, ${glslFloat(GRAIN_WEIGHT_PEAK)} * luma * (1.0 - luma));
     vec3 grained = clamp(lit + uStrength * weight * grain, 0.0, 1.0);
     float mark = dustAt(tick, cell, uDust) + scratchAt(tick, vUv.x, uDust);
-    float gate = gateMask(vec2(vUv.x, fromTop), uResolution.x / uResolution.y, uGate);
+    float gate = gateMask(vec2(vUv.x, fromTop), aspect, uGate);
     fragColor = vec4(clamp(grained + mark, 0.0, 1.0) * gate, texel.a);
   }
   """.trimIndent()
@@ -404,4 +342,4 @@ internal val FILM_GATE_MSL: String =
   }
   """
 
-private fun metalFloat(value: Double): String = "${glslFloat(value)}f"
+internal fun metalFloat(value: Double): String = "${glslFloat(value)}f"

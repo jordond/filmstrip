@@ -7,11 +7,14 @@ import dev.jordond.filmstrip.effect.LiveBranches
 import dev.jordond.filmstrip.effect.LiveInput
 import dev.jordond.filmstrip.effect.exactCrop
 import dev.jordond.filmstrip.effects.RgbRoundTrip
+import dev.jordond.filmstrip.effects.filters.internal.GlowGraph
 import dev.jordond.filmstrip.effects.filters.internal.HASH_RANGE
 import dev.jordond.filmstrip.effects.filters.internal.HashExpression
 import dev.jordond.filmstrip.effects.filters.internal.KB
 import dev.jordond.filmstrip.effects.filters.internal.KR
-import dev.jordond.filmstrip.effects.spatial.SpatialBlurGraph
+import dev.jordond.filmstrip.effects.filters.internal.RGB_FORMAT
+import dev.jordond.filmstrip.effects.filters.internal.WIDE_FORMAT
+import dev.jordond.filmstrip.effects.filters.internal.WIDE_FULL_SCALE
 import dev.jordond.filmstrip.geometry.Size
 
 /**
@@ -19,20 +22,22 @@ import dev.jordond.filmstrip.geometry.Size
  *
  * The fragment opens by converting whatever it is handed to 8 bit limited range BT.709 4:2:0, keeping any alpha,
  * because its expressions are written in those codes. Halation runs in `gbrap`, since it adds to red, green and blue,
- * with the matrix named both ways. A branch takes the frame's alpha into its light, boxes it to
- * [FilmSignal.halationBlurPlan]'s size, draws the response with `geq`, and blurs it and widens it back through
- * [SpatialBlurGraph] to be added through `mix`, which keeps 16 bit codes and the frame's alpha exactly where a `lut2`
- * would round them. Grain is a map of [FilmSignal.grainAt], weighted and added to luma alone by a `lut2`, which leaves
- * chroma and alpha as they came.
+ * with the matrix named both ways. [GlowGraph.light] takes the frame's alpha into its light, boxes it to
+ * [FilmSignal.halationBlurPlan]'s size, draws the response with `geq`, and blurs it and widens it back to be added
+ * through `mix`, which keeps 16 bit codes and the frame's alpha exactly where a `lut2` would round them. Grain is a map
+ * of [FilmSignal.grainAt], weighted and added to luma alone by a `lut2`, which leaves chroma and alpha as they came.
  *
- * The map comes two ways with the same samples: as [FilterFragment.branches] a `geq` draws it, and as
+ * The leak is screened on after the glow and before the flicker by [FilmLeakGraph], from a map of [FilmLeak.leakAt]
+ * drawn at [leakRaster]. A film with a leak runs those steps on sixteen bit planes whether or not it glows.
+ *
+ * The grain's map comes two ways with the same samples: as [FilterFragment.branches] a `geq` draws it, and as
  * [FilterFragment.live] [GrainPlanes] does and hands it over as a live input.
  *
  * The weave and the flicker are a `geq` on the same `gbrap` frame, the weave reading each pixel at
  * [FilmSignal.weaveAt]'s offset between its four nearest pixels with their colour premultiplied by alpha, ahead of the
  * halation, and the flicker after it. Dust and scratches, then the gate, run after the grain in [filmGate].
  *
- * The glow is blurred by [SpatialBlurGraph]'s exact kernel and added, and the flicker applied, on sixteen bit planes,
+ * The glow is blurred by the plan's exact kernel and added, and the flicker applied, on sixteen bit planes,
  * so it rounds once to a code before the frame goes back to `yuva420p`. Going through `gbrap` and back rounds twice,
  * which is ffmpeg's own limit, and a test pins how close it lands. A frame that went through `gbrap` comes out in
  * `yuva420p` with its alpha as it read, opaque if it had none.
@@ -42,24 +47,35 @@ internal fun filmFragment(
   frame: Size,
 ): FilterFragment {
   val params = FilmParams.of(film)
-  val graded = mutableListOf(FilterBranch(listOf(FilterBranch.INPUT), RgbRoundTrip.opening(), listOf("frame")))
+  val opening = FilterBranch(listOf(FilterBranch.INPUT), RgbRoundTrip.opening(), listOf("frame"))
   val gate = filmGate(params, frame)
-  val lit = graded.addLight(params, frame, "frame", fullChroma = gate != null)
+  val leaks = params.leak > 0.0
+  val graded = mutableListOf(opening)
+  val lit =
+    graded.addLight(params, frame, "frame", fullChroma = gate != null) {
+      FilmLeakGraph.drawnMap(params, frame, it)
+    }
+  val liveLeak = if (leaks) liveLight(params, frame, opening, fullChroma = gate != null) else null
+  val liveGraded = liveLeak?.branches ?: graded
+  val leakInputs = liveLeak?.inputs.orEmpty()
   val grains = params.grainStrength > 0.0
   check(graded.size > 1 || grains || gate != null) { "A film with every control at 0 is inert and never lowers." }
   val drawn = if (grains) graded + drawnGrain(params, frame, lit) else graded
   val grained = if (grains) GRAINED else lit
-  val liveGrain = if (grains) liveGrain(params, frame, graded, lit) else null
+  val liveGrain = if (grains) liveGrain(params, frame, liveGraded, lit) else null
   val live =
     when {
       gate?.live != null -> {
         LiveBranches(
-          inputs = liveGrain?.inputs.orEmpty() + gate.live.inputs,
-          branches = (liveGrain?.branches ?: graded) + gate.live.branches(grained),
+          inputs = leakInputs + liveGrain?.inputs.orEmpty() + gate.live.inputs,
+          branches = (liveGrain?.branches ?: liveGraded) + gate.live.branches(grained),
         )
       }
       liveGrain != null -> {
-        LiveBranches(liveGrain.inputs, liveGrain.branches + gate?.drawn(grained).orEmpty())
+        LiveBranches(leakInputs + liveGrain.inputs, liveGrain.branches + gate?.drawn(grained).orEmpty())
+      }
+      liveLeak != null -> {
+        LiveBranches(leakInputs, liveGraded + gate?.drawn(grained).orEmpty())
       }
       else -> {
         null
@@ -73,57 +89,81 @@ internal fun filmFragment(
   )
 }
 
-// The weave, the halation and the flicker in that order, all on gbrap, and the pad the frame's codes come back on,
-// with full chroma when the gate turns them back to RGB.
+// The light branches with the leak's map read off a live input, and that input.
+private fun liveLight(
+  params: FilmParams,
+  frame: Size,
+  opening: FilterBranch,
+  fullChroma: Boolean,
+): LiveBranches {
+  val inputs = mutableListOf<LiveInput>()
+  val branches = mutableListOf(opening)
+  branches.addLight(params, frame, "frame", fullChroma) { clock ->
+    val (input, map) = FilmLeakGraph.liveMap(params, frame, clock)
+    inputs += input
+    map
+  }
+  return LiveBranches(inputs, branches)
+}
+
+// The weave, the halation, the leak and the flicker in that order, all on gbrap, and the pad the frame's codes come
+// back on, with full chroma when the gate turns them back to RGB. The glow and the leak run on sixteen bit planes, and
+// the flicker follows them there. leakMap gives the branches that put the leak's map on FilmLeakGraph.MAP, timed by the
+// gbrap frame on the pad it is handed.
 private fun MutableList<FilterBranch>.addLight(
   params: FilmParams,
   frame: Size,
   reads: String,
   fullChroma: Boolean,
+  leakMap: (clock: String) -> List<FilterBranch>,
 ): String {
   val weaves = params.weave > 0.0
   val glows = params.halationGain > 0.0
+  val leaks = params.leak > 0.0
   val flickers = params.flicker > 0.0
-  if (!weaves && !glows && !flickers) return reads
-  val woven = if (weaves || (flickers && !glows)) listOf(FilmExpressions.light(params, weaves, !glows)) else emptyList()
-  if (!glows) {
+  if (!weaves && !glows && !leaks && !flickers) return reads
+  val wide = glows || leaks
+  val woven = if (weaves || (flickers && !wide)) listOf(FilmExpressions.light(params, weaves, !wide)) else emptyList()
+  if (!wide) {
     add(FilterBranch(listOf(reads), RgbRoundTrip.toRgb() + woven + RgbRoundTrip.toCodes(fullChroma), listOf(LIT)))
     return LIT
   }
-  val plan = FilmSignal.halationBlurPlan(frame.width)
-  // The frame reaching a Film has square pixels, so one plan blurs both ways.
-  val light =
-    SpatialBlurGraph.boxedDown(plan, plan, frame, RGB_FORMAT) +
-      FilmExpressions.response() +
-      SpatialBlurGraph.blurredUp(plan, plan, frame, WIDE_FORMAT, RGB_PLANES)
   val flicker =
     if (flickers) listOf(FilmExpressions.light(params, weaves = false, flickers = true, wide = true)) else emptyList()
   val toCodes =
-    listOf(
-      FilterNode(
-        "mix",
-        "weights" to "1 ${params.halationGain}",
-        "scale" to "1",
-        "planes" to "7",
-        "duration" to "first",
-      ),
-      FilterNode("lutrgb", "r" to CLIPPED_WIDE, "g" to CLIPPED_WIDE, "b" to CLIPPED_WIDE),
-      FilterNode("format", "pix_fmts" to WIDE_FORMAT),
-    ) +
-      flicker +
+    flicker +
       FilterNode("format", "pix_fmts" to WIDE_FORMAT) +
       RgbRoundTrip.toCodeStarts() +
       FilterNode("format", "pix_fmts" to RGB_FORMAT) +
       RgbRoundTrip.toCodes(fullChroma)
-  add(FilterBranch(listOf(reads), RgbRoundTrip.toRgb() + woven, listOf("rgb")))
-  add(FilterBranch(listOf("rgb"), emptyList(), listOf("narrow", "far")))
-  add(FilterBranch(listOf("narrow"), listOf(FilterNode("format", "pix_fmts" to WIDE_FORMAT)), listOf("near")))
-  // The glow is weighed by its alpha through a lut2 reading alpha on every plane.
-  add(FilterBranch(listOf("far"), emptyList(), listOf("weighedlight", "weighedcover")))
-  add(FilterBranch(listOf("weighedcover"), listOf(ALPHA_ON_EVERY_PLANE), listOf("weighedalpha")))
-  add(FilterBranch(listOf("weighedlight", "weighedalpha"), listOf(PREMULTIPLIED), listOf("weighed")))
-  add(FilterBranch(listOf("weighed"), light, listOf("glow")))
-  add(FilterBranch(listOf("near", "glow"), toCodes, listOf(GLOWED)))
+  val readers = listOfNotNull("narrow", "far".takeIf { glows }, "leakTimer".takeIf { leaks })
+  add(FilterBranch(listOf(reads), RgbRoundTrip.toRgb() + woven, listOf(if (readers.size > 1) "rgb" else "narrow")))
+  if (readers.size > 1) add(FilterBranch(listOf("rgb"), emptyList(), readers))
+  val widened = listOf(FilterNode("format", "pix_fmts" to WIDE_FORMAT))
+  val glowed = if (leaks) "glowedWide" else GLOWED
+  if (glows) {
+    val added =
+      listOf(
+        FilterNode(
+          "mix",
+          "weights" to "1 ${params.halationGain}",
+          "scale" to "1",
+          "planes" to "7",
+          "duration" to "first",
+        ),
+        FilterNode("lutrgb", "r" to CLIPPED_WIDE, "g" to CLIPPED_WIDE, "b" to CLIPPED_WIDE),
+        FilterNode("format", "pix_fmts" to WIDE_FORMAT),
+      )
+    add(FilterBranch(listOf("narrow"), widened, listOf("near")))
+    addAll(GlowGraph.light(FilmSignal.halationBlurPlan(frame.width), frame, FilmExpressions.response(), "far", "glow"))
+    add(FilterBranch(listOf("near", "glow"), if (leaks) added else added + toCodes, listOf(glowed)))
+  } else {
+    add(FilterBranch(listOf("narrow"), widened, listOf(glowed)))
+  }
+  if (leaks) {
+    addAll(leakMap("leakTimer"))
+    addAll(FilmLeakGraph.screened(frame, glowed, toCodes, GLOWED))
+  }
   return GLOWED
 }
 
@@ -362,31 +402,8 @@ internal object FilmExpressions {
   }
 }
 
-private const val RGB_FORMAT = "gbrap"
-
-// Each colour code weighed by its alpha code over 256 and rounded, where ffmpeg's premultiply lands on eight bits.
-private const val WEIGHED_CODE = "floor((x*y+128)/256)"
-private val PREMULTIPLIED =
-  FilterNode(
-    "lut2",
-    "c0" to WEIGHED_CODE,
-    "c1" to WEIGHED_CODE,
-    "c2" to WEIGHED_CODE,
-    "c3" to "x",
-  )
-private val ALPHA_ON_EVERY_PLANE =
-  FilterNode(
-    "mergeplanes",
-    *(0 until RGBA_PLANES).flatMap { listOf("map${it}s" to "0", "map${it}p" to "${RGBA_PLANES - 1}") }.toTypedArray(),
-    "format" to RGB_FORMAT,
-  )
-private const val RGBA_PLANES = 4
-private const val RGB_PLANES = 7
 private const val FULL_SCALE = 255
 
-// A sixteen bit frame widened from gbrap holds a code at 256 to the code, so full scale sits at 255 of them.
-private const val WIDE_FORMAT = "gbrap16le"
-private const val WIDE_FULL_SCALE = 65280
 private const val CLIPPED_WIDE = "min(val,$WIDE_FULL_SCALE)"
 private const val LUMA_BLACK = 16
 private const val LUMA_CODES = 219

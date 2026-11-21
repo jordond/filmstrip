@@ -164,21 +164,52 @@ and the glow's width is a fraction of the frame's, so a seek or a smaller previe
 | `flicker`  | How much the frame's brightness flickers, `0f` to `1f`. Defaults to `0f`                      |
 | `dust`     | How much dust and how many scratches land on the frame, `0f` to `1f`. Defaults to `0f`        |
 | `gate`     | How far the gate's rounded, dark edge closes in, `0f` to `1f`. Defaults to `0f`               |
-| `seed`     | Picks the pattern of grain, weave, flicker, dust and scratches. Equal seeds draw the same reel |
+| `leak`     | How bright the light leaks are, `0f` to `1f`. Defaults to `0f`                                |
+| `seed`     | Picks the pattern of grain, weave, flicker, dust, scratches and leaks. Equal seeds draw the same reel |
 
 With every argument at `0f` the look is listed as an inert notice.
 
 `Film.Super8` sets every one of them, for small gauge stock run through a worn projector. The frame drifts a little in the
 gate, its brightness flickers from frame to frame, specks of dust land for a single frame and a thin scratch runs down the
-picture for up to a second and a half, and a rounded gate darkens the corners. The gate holds still, and the rest
+picture for up to a second and a half, a faint leak washes in from the edges, and a rounded gate darkens the corners. The gate holds still, and the rest
 changes 24 times a second with the frame's composition time, so a seek or a smaller preview shows the same reel. Set the arguments yourself for a
 heavier or a lighter one.
 
 <Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Filters.kt" region="super8" />
 
+`leak` lets light in at the edges of the frame, the way a camera back that doesn't quite seal does. Two soft, warm
+spots sit on the edges at any time. Each one opens and closes over four seconds, then moves to a new edge with a new
+size and tint, and the second runs two seconds behind the first, so some light is always on the frame. The leaks sit
+under the grain and the gate, and they follow the frame's composition time, so a seek or a smaller preview shows the
+same leak. `seed` picks where they land.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Filters.kt" region="film-leak" />
+
 A `film` on the composition covers the whole frame, bars included. One on a clip or a track doesn't grade the bars, and a
 clear bar stays clear. It runs under any overlay at its own scope, so a caption next to it stays clean. A clip overlay
 under a composition `film` is part of the clip's frame by then, and is burned in with it.
+
+## Bloom
+
+`bloom` makes the bright parts of a frame glow. Everything brighter than `threshold` spills soft light around itself in
+its own colour, the way a lens with a mist filter on it does, so a neon sign glows its own colour and a window glows
+white. The glow's width is a fraction of the frame's and it reads no clock, so a seek or a smaller preview shows the
+same picture.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Filters.kt" region="bloom" />
+
+| Argument    | What it does                                                                                  |
+| ----------- | --------------------------------------------------------------------------------------------- |
+| `intensity` | How strong the glow is, `0f` to `1f`. Defaults to `0.5f`                                      |
+| `threshold` | How bright a part of the frame has to be to glow, `0f` to `1f`. Defaults to `0.7f`            |
+| `spread`    | How far the glow reaches, `0f` to `1f`. Defaults to `0.5f`                                    |
+
+With `intensity` at `0f` or `threshold` at `1f` nothing glows, and the look is listed as an inert notice. `Bloom.Dreamy`
+is a wide, heavy glow that starts in the midtones, for a soft and hazy picture.
+
+A `bloom` on the composition covers the whole frame, bars included. One on a clip or a track leaves a clear bar clear.
+It runs under any overlay at its own scope, so a caption next to it stays clean. A clip overlay under a composition
+`bloom` is part of the clip's frame by then, and glows with it.
 
 ## CRT
 

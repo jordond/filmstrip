@@ -698,6 +698,31 @@ private fun AdjustPanel(state: SampleAppState) {
       GradeSlider(state, "Halation", edit.filmHalation, formatPercent(edit.filmHalation), 0f..1f, 0.5f) {
         edit.filmHalation = it
       }
+      GradeSlider(state, "Leak", edit.filmLeak, formatPercent(edit.filmLeak), 0f..1f, 0f) {
+        edit.filmLeak = it
+      }
+    }
+  }
+
+  ToolSection("Bloom") {
+    SwitchRow(
+      label = "Bloom",
+      checked = edit.bloomEnabled,
+      onCheckedChange = {
+        edit.bloomEnabled = it
+        state.onEditChanged()
+      },
+    )
+    if (edit.bloomEnabled) {
+      GradeSlider(state, "Intensity", edit.bloomIntensity, formatPercent(edit.bloomIntensity), 0f..1f, 0.5f) {
+        edit.bloomIntensity = it
+      }
+      GradeSlider(state, "Threshold", edit.bloomThreshold, formatPercent(edit.bloomThreshold), 0f..1f, 0.7f) {
+        edit.bloomThreshold = it
+      }
+      GradeSlider(state, "Spread", edit.bloomSpread, formatPercent(edit.bloomSpread), 0f..1f, 0.5f) {
+        edit.bloomSpread = it
+      }
     }
   }
 

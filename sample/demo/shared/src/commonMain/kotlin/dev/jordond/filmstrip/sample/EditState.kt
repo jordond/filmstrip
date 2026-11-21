@@ -27,6 +27,7 @@ import dev.jordond.filmstrip.effects.color.saturation
 import dev.jordond.filmstrip.effects.color.sepia
 import dev.jordond.filmstrip.effects.filters.betamax.BetaSpeed
 import dev.jordond.filmstrip.effects.filters.betamax.betamax
+import dev.jordond.filmstrip.effects.filters.bloom.bloom
 import dev.jordond.filmstrip.effects.filters.camcorder.camcorder
 import dev.jordond.filmstrip.effects.filters.crt.crt
 import dev.jordond.filmstrip.effects.filters.film.film
@@ -195,6 +196,11 @@ public class EditState {
   var filmEnabled: Boolean by mutableStateOf(false)
   var filmGrain: Float by mutableStateOf(0.5f)
   var filmHalation: Float by mutableStateOf(0.5f)
+  var filmLeak: Float by mutableStateOf(0f)
+  var bloomEnabled: Boolean by mutableStateOf(false)
+  var bloomIntensity: Float by mutableStateOf(0.5f)
+  var bloomThreshold: Float by mutableStateOf(0.7f)
+  var bloomSpread: Float by mutableStateOf(0.5f)
   var crtEnabled: Boolean by mutableStateOf(false)
   var crtIntensity: Float by mutableStateOf(1f)
   val pixelLook: PixelState = PixelState()
@@ -472,7 +478,8 @@ public class EditState {
         } else if (burned) {
           camcorder(camcorderDisplay.elements)
         }
-        if (filmEnabled) film(filmGrain, filmHalation)
+        if (bloomEnabled) bloom(bloomIntensity, bloomThreshold, bloomSpread)
+        if (filmEnabled) film(filmGrain, filmHalation, leak = filmLeak)
         if (crtEnabled) crt(crtIntensity)
         if (pixelLook.enabled) pixel(pixelLook.cells.toInt(), pixelLook.levelCount, pixelLook.dither, pixelLook.palette)
         if (lutEnabled) lut(SAMPLE_LUT, lutIntensity)
@@ -570,6 +577,11 @@ public class EditState {
     filmEnabled = false
     filmGrain = 0.5f
     filmHalation = 0.5f
+    filmLeak = 0f
+    bloomEnabled = false
+    bloomIntensity = 0.5f
+    bloomThreshold = 0.7f
+    bloomSpread = 0.5f
     crtEnabled = false
     crtIntensity = 1f
     pixelLook.reset()

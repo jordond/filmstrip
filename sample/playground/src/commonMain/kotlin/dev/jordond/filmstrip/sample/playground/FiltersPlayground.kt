@@ -164,8 +164,17 @@ internal fun FiltersPlayground(
       FilterLook.Film -> {
         Group("PRESET") {
           ChipRow {
-            Chip("DEFAULT", !settings.super8) { settings = settings.copy(super8 = false) }
-            Chip("SUPER 8", settings.super8) { settings = settings.copy(super8 = true) }
+            FilmStock.entries.forEach { stock ->
+              Chip(stock.label, settings.film == stock) { settings = settings.copy(film = stock) }
+            }
+          }
+        }
+      }
+      FilterLook.Bloom -> {
+        Group("PRESET") {
+          ChipRow {
+            Chip("DEFAULT", !settings.dreamy) { settings = settings.copy(dreamy = false) }
+            Chip("DREAMY", settings.dreamy) { settings = settings.copy(dreamy = true) }
           }
         }
       }

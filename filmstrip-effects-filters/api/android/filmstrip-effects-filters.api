@@ -61,6 +61,36 @@ public final class dev/jordond/filmstrip/effects/filters/betamax/BetamaxBuilderK
 	public static synthetic fun betamax$default (Ldev/jordond/filmstrip/edit/EffectsBuilder;Lkotlin/jvm/functions/Function1;ILjava/lang/Object;)Ldev/jordond/filmstrip/edit/EffectsBuilder;
 }
 
+public final class dev/jordond/filmstrip/effects/filters/bloom/Bloom : dev/jordond/filmstrip/effect/EffectSpec {
+	public static final field Companion Ldev/jordond/filmstrip/effects/filters/bloom/Bloom$Companion;
+	public fun <init> ()V
+	public fun <init> (FFF)V
+	public synthetic fun <init> (FFFILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getBeneathOverlays ()Z
+	public fun getId-M7MrD_4 ()Ljava/lang/String;
+	public final fun getIntensity ()F
+	public fun getRedrawsWhileHeld ()Z
+	public fun getRequiresSdr ()Z
+	public fun getScope ()Ldev/jordond/filmstrip/effect/EffectScope;
+	public final fun getSpread ()F
+	public fun getStage ()Ldev/jordond/filmstrip/effect/EffectStage;
+	public final fun getThreshold ()F
+	public fun hashCode ()I
+	public fun isInert ()Z
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/jordond/filmstrip/effects/filters/bloom/Bloom$Companion {
+	public final fun getDreamy ()Ldev/jordond/filmstrip/effects/filters/bloom/Bloom;
+	public final fun getID-M7MrD_4 ()Ljava/lang/String;
+}
+
+public final class dev/jordond/filmstrip/effects/filters/bloom/BloomKt {
+	public static final fun bloom (Ldev/jordond/filmstrip/edit/EffectsBuilder;FFF)Ldev/jordond/filmstrip/edit/EffectsBuilder;
+	public static synthetic fun bloom$default (Ldev/jordond/filmstrip/edit/EffectsBuilder;FFFILjava/lang/Object;)Ldev/jordond/filmstrip/edit/EffectsBuilder;
+}
+
 public final class dev/jordond/filmstrip/effects/filters/camcorder/Camcorder : dev/jordond/filmstrip/effect/EffectSpec {
 	public static final field Companion Ldev/jordond/filmstrip/effects/filters/camcorder/Camcorder$Companion;
 	public static final field DEFAULT_TEXT_SIZE F
@@ -289,8 +319,8 @@ public final class dev/jordond/filmstrip/effects/filters/film/Film : dev/jordond
 	public static final field Companion Ldev/jordond/filmstrip/effects/filters/film/Film$Companion;
 	public static final field DEFAULT_SEED I
 	public fun <init> ()V
-	public fun <init> (FFFFFFI)V
-	public synthetic fun <init> (FFFFFFIILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (FFFFFFFI)V
+	public synthetic fun <init> (FFFFFFFIILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun equals (Ljava/lang/Object;)Z
 	public fun getBeneathOverlays ()Z
 	public final fun getDust ()F
@@ -299,6 +329,7 @@ public final class dev/jordond/filmstrip/effects/filters/film/Film : dev/jordond
 	public final fun getGrain ()F
 	public final fun getHalation ()F
 	public fun getId-M7MrD_4 ()Ljava/lang/String;
+	public final fun getLeak ()F
 	public fun getRedrawsWhileHeld ()Z
 	public fun getRequiresSdr ()Z
 	public fun getScope ()Ldev/jordond/filmstrip/effect/EffectScope;
@@ -316,8 +347,8 @@ public final class dev/jordond/filmstrip/effects/filters/film/Film$Companion {
 }
 
 public final class dev/jordond/filmstrip/effects/filters/film/FilmKt {
-	public static final fun film (Ldev/jordond/filmstrip/edit/EffectsBuilder;FFFFFFI)Ldev/jordond/filmstrip/edit/EffectsBuilder;
-	public static synthetic fun film$default (Ldev/jordond/filmstrip/edit/EffectsBuilder;FFFFFFIILjava/lang/Object;)Ldev/jordond/filmstrip/edit/EffectsBuilder;
+	public static final fun film (Ldev/jordond/filmstrip/edit/EffectsBuilder;FFFFFFFI)Ldev/jordond/filmstrip/edit/EffectsBuilder;
+	public static synthetic fun film$default (Ldev/jordond/filmstrip/edit/EffectsBuilder;FFFFFFFIILjava/lang/Object;)Ldev/jordond/filmstrip/edit/EffectsBuilder;
 }
 
 public final class dev/jordond/filmstrip/effects/filters/glitch/BlockDamage$Displace : dev/jordond/filmstrip/effects/filters/glitch/BlockDamage {

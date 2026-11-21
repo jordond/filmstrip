@@ -9,9 +9,9 @@ import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effects.filters.film.Film
+import dev.jordond.filmstrip.effects.filters.film.FilmLeak
 import dev.jordond.filmstrip.effects.filters.film.FilmParams
 import dev.jordond.filmstrip.effects.filters.film.FilmSignal
-import dev.jordond.filmstrip.effects.filters.film.HalationGlow
 import dev.jordond.filmstrip.effects.filters.filters
 import dev.jordond.filmstrip.effects.geometry.Crop
 import dev.jordond.filmstrip.effects.overlay.ImageOverlay
@@ -42,11 +42,11 @@ import kotlin.time.Duration
 /**
  * Where a [Film] lands in a real export: what it reaches at each scope, and what stays clean.
  *
- * Every read here is of the glow, whose figure is large enough to survive an encoder, and is held against the signal
- * worked over what the picture reads with no [Film]. A flat clip is read off its decoded source, so only the film's own
- * encode moves it. The glow on a flat clip is also read off the chain's own output through [RenderedFrames], which
- * holds it to [RENDER_CODES] before the encoder and to [WRITTEN_COLOUR_CODES] after. How close each pixel lands to
- * the signal, grain included, is read off the shader's own output in the filters module.
+ * Every read here is of the glow or the leak, whose figures are large enough to survive an encoder, and is held against
+ * the signal worked over what the picture reads with no [Film]. A flat clip is read off its decoded source, so only the
+ * film's own encode moves it. The glow on a flat clip is also read off the chain's own output through [RenderedFrames],
+ * which holds it to [RENDER_CODES] before the encoder and to [WRITTEN_COLOUR_CODES] after. How close each pixel lands
+ * to the signal, grain included, is read off the shader's own output in the filters module.
  *
  * A tone mapped HDR source cannot run on the emulator, which has no ten-bit HEVC decoder. That test says so and skips
  * there, and runs on a device that has one.
@@ -88,6 +88,24 @@ class AndroidFilmMediaTest {
     }
 
   @Test
+  fun aCompositionLeakLightsThePictureOnTheSignal() =
+    runTest(timeout = TIMEOUT) {
+      val source = flatFile("film-dark.mp4", DARK)
+      val edit = Composition(listOf(Track(listOf(Clip(source.asMedia())))), listOf(LEAK_ONLY))
+
+      assertLeaksOnTheSignal(edit, source, ExportSpec())
+    }
+
+  @Test
+  fun aClipLeakInASmallerExportLightsThePictureOnTheSignal() =
+    runTest(timeout = TIMEOUT) {
+      val source = flatFile("film-dark.mp4", DARK)
+      val edit = Composition(listOf(Track(listOf(Clip(source.asMedia(), effects = listOf(LEAK_ONLY))))))
+
+      assertLeaksOnTheSignal(edit, source, ExportSpec(heightPx = SMALL_HEIGHT))
+    }
+
+  @Test
   fun aCompositionFilmGlowsFromThePictureIntoABar() =
     runTest(timeout = TIMEOUT) {
       val crop = Crop(WIDE_CANVAS, fit = Fit.Contain)
@@ -104,7 +122,7 @@ class AndroidFilmMediaTest {
       val size = plan.output.size
       val rect = placementOf(SOURCE, listOf(listOf(crop)), size).drawnRect
       val glow =
-        HalationGlow.of(size.width, size.height) { x, y ->
+        FilmSignal.halationGlow(size.width, size.height) { x, y ->
           val inside = (x + 0.5) / size.width in rect.left..rect.right
           if (inside) doubleArrayOf(BRIGHT, BRIGHT, BRIGHT) else doubleArrayOf(0.0, 0.0, 0.0)
         }
@@ -205,6 +223,49 @@ class AndroidFilmMediaTest {
     return read
   }
 
+  // Reads the first frame where the leak is brightest clear of the frame's edge, against the signal over what the
+  // decoded source reads there.
+  private suspend fun assertLeaksOnTheSignal(
+    edit: Composition,
+    source: File,
+    spec: ExportSpec,
+  ) {
+    val drawn = rendered.frameAt(edit, spec)
+    val lightAt = { fx: Float, fy: Float ->
+      FilmLeak.leakAt(
+        ((fx * drawn.width).toInt() + 0.5) / drawn.width,
+        ((fy * drawn.height).toInt() + 0.5) / drawn.height,
+        drawn.width.toDouble() / drawn.height,
+        FilmSignal.grainTickAt(0.0),
+        LEAK_ONLY.seed,
+        LEAK_ONLY.leak.toDouble(),
+      )
+    }
+    val (fx, fy) = LEAK_READS.flatMap { y -> LEAK_READS.map { x -> x to y } }.maxBy { (x, y) -> lightAt(x, y).max() }
+    val light = lightAt(fx, fy)
+    val under =
+      probe
+        .frame(source, Duration.ZERO)
+        .rgbAt(fx, fy)
+        .toList()
+        .map { it / MAX_CODE }
+    val wanted = FilmLeak.leaked(under[0], under[1], under[2], light).map { it * MAX_CODE }
+    val render = drawn.rgbAt(fx, fy).toList()
+    val read = probe.written(edit, spec).rgbAt(fx, fy).toList()
+
+    withClue("the leak has to clear what an encoder moves for this to tell, $wanted over $under") {
+      (wanted[0] - under[0] * MAX_CODE) shouldBeGreaterThan WRITTEN_COLOUR_CODES * 2
+    }
+    wanted.forEachIndexed { channel, code ->
+      withClue("the chain drew $render against $wanted before the encoder") {
+        abs(render[channel] - code) shouldBeLessThan RENDER_CODES
+      }
+      withClue("the picture read $read against $wanted") {
+        abs(read[channel] - code) shouldBeLessThan WRITTEN_COLOUR_CODES
+      }
+    }
+  }
+
   // Reads a bar under a clip Film against the same crop over [plainFill] with no Film. A glow left in the bar is read
   // just off the bright picture and before the encoder, which rings into the blocks beside that edge. The file is
   // read at the bar's middle, clear of them.
@@ -286,6 +347,10 @@ class AndroidFilmMediaTest {
 
   private companion object {
     val GLOW_ONLY = Film(grain = 0f, halation = 1f)
+    val LEAK_ONLY = Film(grain = 0f, halation = 0f, leak = 0.5f)
+
+    // Where a leak is read, clear of the frame's edge and the blocks an encoder rings into there.
+    val LEAK_READS = listOf(0.2f, 0.35f, 0.5f, 0.65f, 0.8f)
     val SOURCE = Size(640, 360)
     val WIDE_CANVAS = AspectRatio(3, 1)
     const val MAX_CODE = 255.0

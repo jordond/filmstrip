@@ -5,6 +5,8 @@ import dev.jordond.filmstrip.edit.EffectsBuilder
 import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.effects.filters.betamax.BetaSpeed
 import dev.jordond.filmstrip.effects.filters.betamax.betamax
+import dev.jordond.filmstrip.effects.filters.bloom.Bloom
+import dev.jordond.filmstrip.effects.filters.bloom.bloom
 import dev.jordond.filmstrip.effects.filters.camcorder.camcorder
 import dev.jordond.filmstrip.effects.filters.crt.crt
 import dev.jordond.filmstrip.effects.filters.film.Film
@@ -28,7 +30,7 @@ import kotlin.time.Duration.Companion.seconds
 /**
  * The look the filters sample puts on its clip, one at a time.
  *
- * @property hasIntensity Whether the look takes an intensity, which the pixel look does not.
+ * @property hasIntensity Whether the look takes an intensity, which the pixel, film and bloom looks do not.
  */
 internal enum class FilterLook(
   val label: String,
@@ -42,6 +44,18 @@ internal enum class FilterLook(
   NightVision("NIGHT VISION"),
   Pixel("PIXEL", hasIntensity = false),
   Film("FILM", hasIntensity = false),
+  Bloom("BLOOM", hasIntensity = false),
+}
+
+/**
+ * The film the film look runs, the default stock, the same with light leaks, or the Super 8 preset.
+ */
+internal enum class FilmStock(
+  val label: String,
+) {
+  Default("DEFAULT"),
+  Leak("LEAK"),
+  Super8("SUPER 8"),
 }
 
 /**
@@ -88,9 +102,9 @@ internal val tealAndOrange: CubeLut by lazy { CubeLut.parse(TEAL_AND_ORANGE_CUBE
 
 /**
  * The look the filters sample applies, how strong each look is, the format, speed, tracking band, snow, settle and
- * camcorder display the tape look plays with, the colours the pixel look snaps to and whether Film takes its Super 8
- * preset. Each look keeps its own intensity and each tape format its own speed, so switching away and back finds it
- * where it was.
+ * camcorder display the tape look plays with, the colours the pixel look snaps to, the stock Film runs and whether
+ * Bloom takes its dreamy preset. Each look keeps its own intensity and each tape format its own speed, so switching
+ * away and back finds it where it was.
  */
 internal data class FilterSettings(
   val look: FilterLook = FilterLook.Tape,
@@ -104,8 +118,9 @@ internal data class FilterSettings(
   val settle: Boolean = false,
   val camcorder: CamcorderSettings = CamcorderSettings(),
   val colours: PixelColours = PixelColours.GameBoy,
-  val super8: Boolean = false,
+  val film: FilmStock = FilmStock.Default,
   val blocks: Boolean = false,
+  val dreamy: Boolean = false,
 ) {
   /**
    * How strong [look] is, full strength until it is moved.
@@ -136,14 +151,37 @@ internal fun filtersEdit(
     clip(source)
     effects {
       when (settings.look) {
-        FilterLook.None -> Unit
-        FilterLook.Tape -> tapeEffects(settings)
-        FilterLook.Crt -> crt(intensity = settings.intensity())
-        FilterLook.Glitch -> glitch(intensity = settings.intensity(), blocks = if (settings.blocks) 1f else 0f)
-        FilterLook.Lut -> lut(tealAndOrange, intensity = settings.intensity())
-        FilterLook.NightVision -> nightVision(intensity = settings.intensity())
-        FilterLook.Pixel -> pixel(palette = settings.colours.palette)
-        FilterLook.Film -> if (settings.super8) add(Film.Super8) else film()
+        FilterLook.None -> {
+          Unit
+        }
+        FilterLook.Tape -> {
+          tapeEffects(settings)
+        }
+        FilterLook.Crt -> {
+          crt(intensity = settings.intensity())
+        }
+        FilterLook.Glitch -> {
+          glitch(intensity = settings.intensity(), blocks = if (settings.blocks) 1f else 0f)
+        }
+        FilterLook.Lut -> {
+          lut(tealAndOrange, intensity = settings.intensity())
+        }
+        FilterLook.NightVision -> {
+          nightVision(intensity = settings.intensity())
+        }
+        FilterLook.Pixel -> {
+          pixel(palette = settings.colours.palette)
+        }
+        FilterLook.Film -> {
+          when (settings.film) {
+            FilmStock.Default -> film()
+            FilmStock.Leak -> film(leak = SAMPLE_LEAK)
+            FilmStock.Super8 -> add(Film.Super8)
+          }
+        }
+        FilterLook.Bloom -> {
+          if (settings.dreamy) add(Bloom.Dreamy) else bloom()
+        }
       }
     }
   }
@@ -197,16 +235,20 @@ internal fun filtersCode(settings: FilterSettings): List<List<CodePart>> {
       FilterLook.Tape -> {
         tapeCode(settings)
       }
-      FilterLook.Film if settings.super8 -> {
-        listOf(
-          listOf(
-            CodePart("  add(", CodeKind.Call),
-            CodePart("Film.Super8", CodeKind.Value),
-            CodePart(")", CodeKind.Call),
-          ),
-        )
+      FilterLook.Film if settings.film == FilmStock.Super8 -> {
+        presetCode("Film.Super8")
       }
-      FilterLook.Crt, FilterLook.Glitch, FilterLook.Lut, FilterLook.NightVision, FilterLook.Pixel, FilterLook.Film -> {
+      FilterLook.Bloom if settings.dreamy -> {
+        presetCode("Bloom.Dreamy")
+      }
+      FilterLook.Crt,
+      FilterLook.Glitch,
+      FilterLook.Lut,
+      FilterLook.NightVision,
+      FilterLook.Pixel,
+      FilterLook.Film,
+      FilterLook.Bloom,
+      -> {
         val intensity = settings.intensity()
         val arguments =
           buildList {
@@ -217,6 +259,9 @@ internal fun filtersCode(settings: FilterSettings): List<List<CodePart>> {
             if (settings.look == FilterLook.Glitch && settings.blocks) add("blocks = 1f")
             if (settings.look == FilterLook.Pixel && settings.colours.palette != null) {
               add("palette = PixelPalette.${settings.colours.name}")
+            }
+            if (settings.look == FilterLook.Film && settings.film == FilmStock.Leak) {
+              add("leak = ${floatLiteral(SAMPLE_LEAK)}")
             }
           }
         listOf(
@@ -244,6 +289,9 @@ internal fun filtersCode(settings: FilterSettings): List<List<CodePart>> {
     add(listOf(CodePart("}", CodeKind.Frame)))
   }
 }
+
+private fun presetCode(preset: String): List<List<CodePart>> =
+  listOf(listOf(CodePart("  add(", CodeKind.Call), CodePart(preset, CodeKind.Value), CodePart(")", CodeKind.Call)))
 
 private fun tapeCode(settings: FilterSettings): List<List<CodePart>> {
   val display = settings.camcorder
@@ -310,11 +358,14 @@ private fun camcorderCode(
 
 /**
  * What the status line says about [settings], such as `VHS · LP`, `HI8 · SP · ROLLING · ON TAPE`, `CRT 0.5`,
- * `PIXEL · CGA`, `GLITCH · BLOCKS` or `FILM · SUPER 8`.
+ * `PIXEL · CGA`, `GLITCH · BLOCKS`, `FILM · SUPER 8` or `BLOOM · DREAMY`.
  */
 internal fun filterSummary(settings: FilterSettings): String {
   if (settings.look == FilterLook.None) return "NO LOOK"
-  if (settings.look == FilterLook.Film) return if (settings.super8) "FILM · SUPER 8" else "FILM"
+  if (settings.look == FilterLook.Film) {
+    return if (settings.film == FilmStock.Default) "FILM" else "FILM · ${settings.film.label}"
+  }
+  if (settings.look == FilterLook.Bloom) return if (settings.dreamy) "BLOOM · DREAMY" else "BLOOM"
   val intensity = settings.intensity()
   val strength = if (intensity == FilterSettings.FULL) "" else " ${floatLiteral(intensity).removeSuffix("f")}"
   if (settings.look == FilterLook.Pixel) return "${settings.look.label}$strength · ${settings.colours.label}"
@@ -327,3 +378,6 @@ internal fun filterSummary(settings: FilterSettings): String {
 
 // How long the tape look takes to settle when the sample asks it to.
 private val SETTLE_OVER = 3.seconds
+
+// How bright the leaks are on the film look's leak stock.
+private const val SAMPLE_LEAK = 0.6f

@@ -373,6 +373,38 @@ final class dev.jordond.filmstrip.effects.filters.betamax/BetamaxBuilder : dev.j
         final fun <set-tape>(dev.jordond.filmstrip.effects.filters.betamax/BetaSpeed) // dev.jordond.filmstrip.effects.filters.betamax/BetamaxBuilder.tape.<set-tape>|<set-tape>(dev.jordond.filmstrip.effects.filters.betamax.BetaSpeed){}[0]
 }
 
+final class dev.jordond.filmstrip.effects.filters.bloom/Bloom : dev.jordond.filmstrip.effect/EffectSpec { // dev.jordond.filmstrip.effects.filters.bloom/Bloom|null[0]
+    constructor <init>(kotlin/Float = ..., kotlin/Float = ..., kotlin/Float = ...) // dev.jordond.filmstrip.effects.filters.bloom/Bloom.<init>|<init>(kotlin.Float;kotlin.Float;kotlin.Float){}[0]
+
+    final val beneathOverlays // dev.jordond.filmstrip.effects.filters.bloom/Bloom.beneathOverlays|{}beneathOverlays[0]
+        final fun <get-beneathOverlays>(): kotlin/Boolean // dev.jordond.filmstrip.effects.filters.bloom/Bloom.beneathOverlays.<get-beneathOverlays>|<get-beneathOverlays>(){}[0]
+    final val id // dev.jordond.filmstrip.effects.filters.bloom/Bloom.id|{}id[0]
+        final fun <get-id>(): dev.jordond.filmstrip.effect/EffectId // dev.jordond.filmstrip.effects.filters.bloom/Bloom.id.<get-id>|<get-id>(){}[0]
+    final val intensity // dev.jordond.filmstrip.effects.filters.bloom/Bloom.intensity|{}intensity[0]
+        final fun <get-intensity>(): kotlin/Float // dev.jordond.filmstrip.effects.filters.bloom/Bloom.intensity.<get-intensity>|<get-intensity>(){}[0]
+    final val isInert // dev.jordond.filmstrip.effects.filters.bloom/Bloom.isInert|{}isInert[0]
+        final fun <get-isInert>(): kotlin/Boolean // dev.jordond.filmstrip.effects.filters.bloom/Bloom.isInert.<get-isInert>|<get-isInert>(){}[0]
+    final val requiresSdr // dev.jordond.filmstrip.effects.filters.bloom/Bloom.requiresSdr|{}requiresSdr[0]
+        final fun <get-requiresSdr>(): kotlin/Boolean // dev.jordond.filmstrip.effects.filters.bloom/Bloom.requiresSdr.<get-requiresSdr>|<get-requiresSdr>(){}[0]
+    final val spread // dev.jordond.filmstrip.effects.filters.bloom/Bloom.spread|{}spread[0]
+        final fun <get-spread>(): kotlin/Float // dev.jordond.filmstrip.effects.filters.bloom/Bloom.spread.<get-spread>|<get-spread>(){}[0]
+    final val stage // dev.jordond.filmstrip.effects.filters.bloom/Bloom.stage|{}stage[0]
+        final fun <get-stage>(): dev.jordond.filmstrip.effect/EffectStage // dev.jordond.filmstrip.effects.filters.bloom/Bloom.stage.<get-stage>|<get-stage>(){}[0]
+    final val threshold // dev.jordond.filmstrip.effects.filters.bloom/Bloom.threshold|{}threshold[0]
+        final fun <get-threshold>(): kotlin/Float // dev.jordond.filmstrip.effects.filters.bloom/Bloom.threshold.<get-threshold>|<get-threshold>(){}[0]
+
+    final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.effects.filters.bloom/Bloom.equals|equals(kotlin.Any?){}[0]
+    final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.effects.filters.bloom/Bloom.hashCode|hashCode(){}[0]
+    final fun toString(): kotlin/String // dev.jordond.filmstrip.effects.filters.bloom/Bloom.toString|toString(){}[0]
+
+    final object Companion { // dev.jordond.filmstrip.effects.filters.bloom/Bloom.Companion|null[0]
+        final val Dreamy // dev.jordond.filmstrip.effects.filters.bloom/Bloom.Companion.Dreamy|{}Dreamy[0]
+            final fun <get-Dreamy>(): dev.jordond.filmstrip.effects.filters.bloom/Bloom // dev.jordond.filmstrip.effects.filters.bloom/Bloom.Companion.Dreamy.<get-Dreamy>|<get-Dreamy>(){}[0]
+        final val ID // dev.jordond.filmstrip.effects.filters.bloom/Bloom.Companion.ID|{}ID[0]
+            final fun <get-ID>(): dev.jordond.filmstrip.effect/EffectId // dev.jordond.filmstrip.effects.filters.bloom/Bloom.Companion.ID.<get-ID>|<get-ID>(){}[0]
+    }
+}
+
 final class dev.jordond.filmstrip.effects.filters.camcorder/Camcorder : dev.jordond.filmstrip.effect/EffectSpec { // dev.jordond.filmstrip.effects.filters.camcorder/Camcorder|null[0]
     constructor <init>(kotlin.collections/List<dev.jordond.filmstrip.effects.filters.camcorder/OsdElement>, dev.jordond.filmstrip.effects.filters.camcorder/RecordedAt = ..., kotlin/Float = ...) // dev.jordond.filmstrip.effects.filters.camcorder/Camcorder.<init>|<init>(kotlin.collections.List<dev.jordond.filmstrip.effects.filters.camcorder.OsdElement>;dev.jordond.filmstrip.effects.filters.camcorder.RecordedAt;kotlin.Float){}[0]
 
@@ -476,7 +508,7 @@ final class dev.jordond.filmstrip.effects.filters.crt/Crt : dev.jordond.filmstri
 }
 
 final class dev.jordond.filmstrip.effects.filters.film/Film : dev.jordond.filmstrip.effect/EffectSpec { // dev.jordond.filmstrip.effects.filters.film/Film|null[0]
-    constructor <init>(kotlin/Float = ..., kotlin/Float = ..., kotlin/Float = ..., kotlin/Float = ..., kotlin/Float = ..., kotlin/Float = ..., kotlin/Int = ...) // dev.jordond.filmstrip.effects.filters.film/Film.<init>|<init>(kotlin.Float;kotlin.Float;kotlin.Float;kotlin.Float;kotlin.Float;kotlin.Float;kotlin.Int){}[0]
+    constructor <init>(kotlin/Float = ..., kotlin/Float = ..., kotlin/Float = ..., kotlin/Float = ..., kotlin/Float = ..., kotlin/Float = ..., kotlin/Float = ..., kotlin/Int = ...) // dev.jordond.filmstrip.effects.filters.film/Film.<init>|<init>(kotlin.Float;kotlin.Float;kotlin.Float;kotlin.Float;kotlin.Float;kotlin.Float;kotlin.Float;kotlin.Int){}[0]
 
     final val beneathOverlays // dev.jordond.filmstrip.effects.filters.film/Film.beneathOverlays|{}beneathOverlays[0]
         final fun <get-beneathOverlays>(): kotlin/Boolean // dev.jordond.filmstrip.effects.filters.film/Film.beneathOverlays.<get-beneathOverlays>|<get-beneathOverlays>(){}[0]
@@ -494,6 +526,8 @@ final class dev.jordond.filmstrip.effects.filters.film/Film : dev.jordond.filmst
         final fun <get-id>(): dev.jordond.filmstrip.effect/EffectId // dev.jordond.filmstrip.effects.filters.film/Film.id.<get-id>|<get-id>(){}[0]
     final val isInert // dev.jordond.filmstrip.effects.filters.film/Film.isInert|{}isInert[0]
         final fun <get-isInert>(): kotlin/Boolean // dev.jordond.filmstrip.effects.filters.film/Film.isInert.<get-isInert>|<get-isInert>(){}[0]
+    final val leak // dev.jordond.filmstrip.effects.filters.film/Film.leak|{}leak[0]
+        final fun <get-leak>(): kotlin/Float // dev.jordond.filmstrip.effects.filters.film/Film.leak.<get-leak>|<get-leak>(){}[0]
     final val requiresSdr // dev.jordond.filmstrip.effects.filters.film/Film.requiresSdr|{}requiresSdr[0]
         final fun <get-requiresSdr>(): kotlin/Boolean // dev.jordond.filmstrip.effects.filters.film/Film.requiresSdr.<get-requiresSdr>|<get-requiresSdr>(){}[0]
     final val seed // dev.jordond.filmstrip.effects.filters.film/Film.seed|{}seed[0]
@@ -929,9 +963,10 @@ final const val dev.jordond.filmstrip.effects.filters.lut/MAX_CUBE_CHARS // dev.
 
 final fun (dev.jordond.filmstrip.edit/AudioEffectsBuilder).dev.jordond.filmstrip.effects.filters.tape/tapeAudio(kotlin/Function1<dev.jordond.filmstrip.effects.filters.tape/TapeAudioBuilder, kotlin/Unit> = ...): dev.jordond.filmstrip.edit/AudioEffectsBuilder // dev.jordond.filmstrip.effects.filters.tape/tapeAudio|tapeAudio@dev.jordond.filmstrip.edit.AudioEffectsBuilder(kotlin.Function1<dev.jordond.filmstrip.effects.filters.tape.TapeAudioBuilder,kotlin.Unit>){}[0]
 final fun (dev.jordond.filmstrip.edit/EffectsBuilder).dev.jordond.filmstrip.effects.filters.betamax/betamax(kotlin/Function1<dev.jordond.filmstrip.effects.filters.betamax/BetamaxBuilder, kotlin/Unit> = ...): dev.jordond.filmstrip.edit/EffectsBuilder // dev.jordond.filmstrip.effects.filters.betamax/betamax|betamax@dev.jordond.filmstrip.edit.EffectsBuilder(kotlin.Function1<dev.jordond.filmstrip.effects.filters.betamax.BetamaxBuilder,kotlin.Unit>){}[0]
+final fun (dev.jordond.filmstrip.edit/EffectsBuilder).dev.jordond.filmstrip.effects.filters.bloom/bloom(kotlin/Float = ..., kotlin/Float = ..., kotlin/Float = ...): dev.jordond.filmstrip.edit/EffectsBuilder // dev.jordond.filmstrip.effects.filters.bloom/bloom|bloom@dev.jordond.filmstrip.edit.EffectsBuilder(kotlin.Float;kotlin.Float;kotlin.Float){}[0]
 final fun (dev.jordond.filmstrip.edit/EffectsBuilder).dev.jordond.filmstrip.effects.filters.camcorder/camcorder(kotlin/Function1<dev.jordond.filmstrip.effects.filters.camcorder/CamcorderBuilder, kotlin/Unit>): dev.jordond.filmstrip.edit/EffectsBuilder // dev.jordond.filmstrip.effects.filters.camcorder/camcorder|camcorder@dev.jordond.filmstrip.edit.EffectsBuilder(kotlin.Function1<dev.jordond.filmstrip.effects.filters.camcorder.CamcorderBuilder,kotlin.Unit>){}[0]
 final fun (dev.jordond.filmstrip.edit/EffectsBuilder).dev.jordond.filmstrip.effects.filters.crt/crt(kotlin/Float = ...): dev.jordond.filmstrip.edit/EffectsBuilder // dev.jordond.filmstrip.effects.filters.crt/crt|crt@dev.jordond.filmstrip.edit.EffectsBuilder(kotlin.Float){}[0]
-final fun (dev.jordond.filmstrip.edit/EffectsBuilder).dev.jordond.filmstrip.effects.filters.film/film(kotlin/Float = ..., kotlin/Float = ..., kotlin/Float = ..., kotlin/Float = ..., kotlin/Float = ..., kotlin/Float = ..., kotlin/Int = ...): dev.jordond.filmstrip.edit/EffectsBuilder // dev.jordond.filmstrip.effects.filters.film/film|film@dev.jordond.filmstrip.edit.EffectsBuilder(kotlin.Float;kotlin.Float;kotlin.Float;kotlin.Float;kotlin.Float;kotlin.Float;kotlin.Int){}[0]
+final fun (dev.jordond.filmstrip.edit/EffectsBuilder).dev.jordond.filmstrip.effects.filters.film/film(kotlin/Float = ..., kotlin/Float = ..., kotlin/Float = ..., kotlin/Float = ..., kotlin/Float = ..., kotlin/Float = ..., kotlin/Float = ..., kotlin/Int = ...): dev.jordond.filmstrip.edit/EffectsBuilder // dev.jordond.filmstrip.effects.filters.film/film|film@dev.jordond.filmstrip.edit.EffectsBuilder(kotlin.Float;kotlin.Float;kotlin.Float;kotlin.Float;kotlin.Float;kotlin.Float;kotlin.Float;kotlin.Int){}[0]
 final fun (dev.jordond.filmstrip.edit/EffectsBuilder).dev.jordond.filmstrip.effects.filters.glitch/glitch(kotlin/Float = ..., kotlin/Float = ..., kotlin/Int = ...): dev.jordond.filmstrip.edit/EffectsBuilder // dev.jordond.filmstrip.effects.filters.glitch/glitch|glitch@dev.jordond.filmstrip.edit.EffectsBuilder(kotlin.Float;kotlin.Float;kotlin.Int){}[0]
 final fun (dev.jordond.filmstrip.edit/EffectsBuilder).dev.jordond.filmstrip.effects.filters.hi8/hi8(kotlin/Function1<dev.jordond.filmstrip.effects.filters.hi8/Hi8Builder, kotlin/Unit> = ...): dev.jordond.filmstrip.edit/EffectsBuilder // dev.jordond.filmstrip.effects.filters.hi8/hi8|hi8@dev.jordond.filmstrip.edit.EffectsBuilder(kotlin.Function1<dev.jordond.filmstrip.effects.filters.hi8.Hi8Builder,kotlin.Unit>){}[0]
 final fun (dev.jordond.filmstrip.edit/EffectsBuilder).dev.jordond.filmstrip.effects.filters.lut/lut(dev.jordond.filmstrip.effects.filters.lut/CubeLut, kotlin/Float = ...): dev.jordond.filmstrip.edit/EffectsBuilder // dev.jordond.filmstrip.effects.filters.lut/lut|lut@dev.jordond.filmstrip.edit.EffectsBuilder(dev.jordond.filmstrip.effects.filters.lut.CubeLut;kotlin.Float){}[0]

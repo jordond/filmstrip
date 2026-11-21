@@ -4,7 +4,6 @@ import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.effects.filters.film.Film
 import dev.jordond.filmstrip.effects.filters.film.FilmParams
 import dev.jordond.filmstrip.effects.filters.film.FilmSignal
-import dev.jordond.filmstrip.effects.filters.film.HalationGlow
 import dev.jordond.filmstrip.effects.geometry.Crop
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.ffmpeg.support.FILM_READ_SLOT
@@ -191,7 +190,7 @@ class FfmpegFilmMediaTest {
       val inBar = barTop - (plan.sigmaPx * plan.factor).toInt()
       val lift = frame.channelAt(HEIGHT, HEIGHT / 2, inBar, 0).toDouble()
       val glow =
-        HalationGlow.of(HEIGHT, HEIGHT) { _, y ->
+        FilmSignal.halationGlow(HEIGHT, HEIGHT) { _, y ->
           if (y in barTop until barTop + picture) BRIGHT else doubleArrayOf(0.0, 0.0, 0.0)
         }
       val wanted = FilmSignal.halated(0.0, 0.0, 0.0, glow.at(HEIGHT / 2, inBar), FilmParams.of(film))[0] * FULL
@@ -219,8 +218,12 @@ class FfmpegFilmMediaTest {
       val alphaAt = { x: Int, y: Int -> alphas[y * side + x] / FULL }
       val opaque = DoubleArray(3) { plain.channelAt(side, side - 1, side / 2, it) / FULL }
       val colourAt = { x: Int, y: Int -> if (alphas[y * side + x] > 0) opaque else DoubleArray(3) }
-      val weighed = HalationGlow.of(side, side) { x, y -> colourAt(x, y).map { it * alphaAt(x, y) }.toDoubleArray() }
-      val straight = HalationGlow.of(side, side, colourAt)
+      val weighed =
+        FilmSignal.halationGlow(
+          side,
+          side,
+        ) { x, y -> colourAt(x, y).map { it * alphaAt(x, y) }.toDoubleArray() }
+      val straight = FilmSignal.halationGlow(side, side, colourAt)
       val params = FilmParams.of(film)
       val row = side / 2
       val columns = (0 until side).filter { alphaAt(it, row) in RAMP_READS }

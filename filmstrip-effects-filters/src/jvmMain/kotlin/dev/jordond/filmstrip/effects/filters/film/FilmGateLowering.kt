@@ -8,6 +8,7 @@ import dev.jordond.filmstrip.effects.GainMaps
 import dev.jordond.filmstrip.effects.RgbRoundTrip
 import dev.jordond.filmstrip.effects.filters.internal.HASH_RANGE
 import dev.jordond.filmstrip.effects.filters.internal.HashExpression
+import dev.jordond.filmstrip.effects.filters.internal.RGB_FORMAT
 import dev.jordond.filmstrip.geometry.Size
 
 /**
@@ -272,7 +273,6 @@ private const val FULL_CODE = 255
 private const val RGBA_PLANES = 4
 private const val GRAY = "gray"
 private const val PLANE_FORMATS = "yuv420p|yuva420p"
-private const val RGB_FORMAT = "gbrap"
 private const val WIDE_RGBA = "gbrap16le"
 private const val WIDE_GRAY = "gray16le"
 private const val MARK_PLANE = "markPlane"

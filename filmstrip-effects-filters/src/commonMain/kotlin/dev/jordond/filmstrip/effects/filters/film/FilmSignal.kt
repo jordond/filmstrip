@@ -3,6 +3,7 @@ package dev.jordond.filmstrip.effects.filters.film
 import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.color.BlurPlan
 import dev.jordond.filmstrip.effects.filters.internal.FilterNoise
+import dev.jordond.filmstrip.effects.filters.internal.GlowField
 import dev.jordond.filmstrip.effects.filters.internal.lumaOf
 import dev.jordond.filmstrip.effects.filters.internal.smoothstep
 import kotlin.math.abs
@@ -185,17 +186,20 @@ public object FilmSignal {
   }
 
   /**
-   * How to run a blur of [sigmaFraction] of the frame width on a frame [widthPx] wide.
-   */
-  public fun wideBlurPlan(
-    sigmaFraction: Double,
-    widthPx: Int,
-  ): BlurPlan = BlurPlan.of(sigmaFraction, widthPx)
-
-  /**
    * The blur a frame [widthPx] wide runs for its halation.
    */
-  public fun halationBlurPlan(widthPx: Int): BlurPlan = wideBlurPlan(HALATION_SIGMA, widthPx)
+  public fun halationBlurPlan(widthPx: Int): BlurPlan = GlowField.blurPlan(HALATION_SIGMA, widthPx)
+
+  /**
+   * The halation's light across a frame [width] by [height], for [halated] to read at each pixel.
+   *
+   * @param pixel Reads the R'G'B' of a pixel counted from the top, already multiplied by its alpha.
+   */
+  public fun halationGlow(
+    width: Int,
+    height: Int,
+    pixel: (x: Int, y: Int) -> DoubleArray,
+  ): GlowField = GlowField.of(width, height, HALATION_SIGMA, ::halationResponse, pixel)
 
   /**
    * [red], [green] and [blue] with [blurred], the blur of [halationResponse] over this pixel, added at [params]'
@@ -355,8 +359,9 @@ public object FilmSignal {
    * The R'G'B' a pixel of a frame ends on, a pure function a test holds a backend's pixels against.
    *
    * [red], [green], [blue] and [blurred] are read off the frame already moved by [weaveAt]. [halated] runs first, then
-   * the frame takes [flickerAt]'s gain, then [grained], then [dustAt] and [scratchAt], and [gateMask] last. Every step
-   * past the halation leaves the pixel as it was with its control at 0.
+   * [FilmLeak.leaked] lays the leak's light over it, then the frame takes [flickerAt]'s gain, then [grained], then
+   * [dustAt] and [scratchAt], and [gateMask] last. Every step past the halation leaves the pixel as it was with its
+   * control at 0.
    *
    * @param x Where the pixel sits across the frame, as a fraction of its width.
    * @param y Where the pixel sits down the frame, as a fraction of its height.
@@ -375,8 +380,10 @@ public object FilmSignal {
     aspect: Double = 1.0,
   ): DoubleArray {
     val glow = halated(red, green, blue, blurred, params)
+    val light = FilmLeak.leakAt(x, y, aspect, tick, params.seed, params.leak)
+    val leaked = FilmLeak.leaked(glow[0], glow[1], glow[2], light)
     val gain = flickerAt(params.seed, tick, params.flicker)
-    val lit = DoubleArray(glow.size) { min(1.0, glow[it] * gain) }
+    val lit = DoubleArray(leaked.size) { min(1.0, leaked[it] * gain) }
     val grain = grained(lit[0], lit[1], lit[2], cell, tick, params)
     val mark = dustAt(params.seed, tick, cell, params.dust) + scratchAt(params.seed, tick, x, params.dust)
     val gate = gateMask(x, y, aspect, params.gate)
@@ -415,6 +422,7 @@ private const val HALF = 0.5
  * @property dust How much dust and how many scratches land, from 0 to 1, which [FilmSignal.dustAt] and
  * [FilmSignal.scratchAt] read.
  * @property gate How far the gate's rounded edge closes in, from 0 to 1, which [FilmSignal.gateMask] reads.
+ * @property leak How bright the light leaks are, from 0 to 1, which [FilmLeak.leakAt] reads.
  * @property seed The seed every random draw of the look takes, the grain's too.
  */
 @InternalFilmstripApi
@@ -425,6 +433,7 @@ public class FilmParams private constructor(
   public val flicker: Double,
   public val dust: Double,
   public val gate: Double,
+  public val leak: Double,
   public val seed: Int,
 ) {
   /**
@@ -442,8 +451,9 @@ public class FilmParams private constructor(
       flicker: Double = 0.0,
       dust: Double = 0.0,
       gate: Double = 0.0,
+      leak: Double = 0.0,
       seed: Int = Film.DEFAULT_SEED,
-    ): FilmParams = FilmParams(GRAIN_STRENGTH * grain, HALATION_GAIN * halation, weave, flicker, dust, gate, seed)
+    ): FilmParams = FilmParams(GRAIN_STRENGTH * grain, HALATION_GAIN * halation, weave, flicker, dust, gate, leak, seed)
 
     /**
      * The values [film] draws with.
@@ -456,6 +466,7 @@ public class FilmParams private constructor(
         film.flicker.toDouble(),
         film.dust.toDouble(),
         film.gate.toDouble(),
+        film.leak.toDouble(),
         film.seed,
       )
   }

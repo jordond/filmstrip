@@ -94,7 +94,7 @@ class FilmGateShaderProgramMediaTest {
     val offset = FilmSignal.weaveAt(params.seed, marked.tick, params.weave)
     val source = { x: Int, y: Int -> codesAt(x, y, width, height) }
     val moved = Array(height) { y -> Array(width) { x -> weaved(x, y, width, height, offset, source) } }
-    val glow = HalationGlow.of(width, height) { x, y -> moved[y][x].copyOf(3) }
+    val glow = FilmSignal.halationGlow(width, height) { x, y -> moved[y][x].copyOf(3) }
     val frame = draw(film, width, height, secondsOf(marked.tick))
 
     val columns = listOf(0, width / 8, width / 2 - 1, width / 2 + 1, width * 3 / 4, width - 1)

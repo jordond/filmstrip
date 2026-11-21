@@ -17,8 +17,8 @@ internal const val FILM_WEAVE_KERNEL: String = "filmstripFilmWeave"
 internal const val FILM_RESPONSE_KERNEL: String = "filmstripFilmResponse"
 
 /**
- * The name of the kernel in [filmMetal] that adds the glow, the flicker, the grain, the dust and scratches and the gate
- * to the frame.
+ * The name of the kernel in [filmMetal] that adds the glow, the leak, the flicker, the grain, the dust and scratches
+ * and the gate to the frame.
  */
 internal const val FILM_GRADE_KERNEL: String = "filmstripFilmGrade"
 
@@ -43,6 +43,7 @@ internal fun filmMetal(): String =
 
 $HASH_MSL
 $FILM_GATE_MSL
+$FILM_LEAK_MSL
 
 ${BOX_DOWN_MSL.prependIndent("  ")}
 
@@ -84,7 +85,7 @@ ${BOX_DOWN_MSL.prependIndent("  ")}
       float4 extent,
       float4 blur,
       float4 grain,
-      float3 look,
+      float4 look,
       destination dest
     ) {
       float2 p = dest.coord();
@@ -100,6 +101,9 @@ ${BOX_DOWN_MSL.prependIndent("  ")}
       uint x = uint(floor(p.x - extent.x));
       uint y = uint(extent.w - 1.0f - floor(p.y - extent.y));
       uint cell = (y * ${GRAIN_CELL_SCALE}u / span) * ${GRAIN_CELLS_ACROSS}u + x * ${GRAIN_CELL_SCALE}u / span;
+      float across = (p.x - extent.x) / extent.z;
+      float down = 1.0f - (p.y - extent.y) / extent.w;
+      rgb = rgb + leakAt(seed, float2(across, down), extent.z / extent.w, tick, look.w) * (1.0f - rgb);
       rgb = min(rgb * flickerAt(seed, tick, look.x), float3(1.0f));
       if (blur.w > 0.0f) {
         float first = filterDraw(seed, ${PASS_GRAIN_FIRST}u, tick, cell);
@@ -108,8 +112,6 @@ ${BOX_DOWN_MSL.prependIndent("  ")}
         float weight = max(${metal(GRAIN_WEIGHT_FLOOR)}, ${metal(GRAIN_WEIGHT_PEAK)} * luma * (1.0f - luma));
         rgb = clamp(rgb + blur.w * weight * value, 0.0f, 1.0f);
       }
-      float across = (p.x - extent.x) / extent.z;
-      float down = 1.0f - (p.y - extent.y) / extent.w;
       float mark = dustAt(seed, tick, cell, look.y) + scratchAt(seed, tick, across, look.y);
       float gate = gateMask(float2(across, down), extent.z / extent.w, look.z);
       rgb = clamp(rgb + mark, 0.0f, 1.0f) * gate;

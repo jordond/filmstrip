@@ -62,6 +62,55 @@ class FfmpegFilmPlanesMediaTest {
     }
 
   @Test
+  fun `a leak alone draws the same map live`() =
+    runBlocking<Unit> {
+      val plan = draw.composition(listOf(clip(640, 360, Film(grain = 0f, halation = 0f, leak = 0.5f))))
+      draw.assertFormsAgree(plan, frames = 30)
+    }
+
+  @Test
+  fun `super 8 at 720p draws the same leak live`() =
+    runBlocking<Unit> {
+      val plan = draw.composition(listOf(clip(1280, 720, Film.Super8)))
+      draw.assertFormsAgree(plan, frames = 12)
+    }
+
+  @Test
+  fun `a full leak under the glow on a frame its raster does not divide`() =
+    runBlocking<Unit> {
+      val plan = draw.composition(listOf(clip(1366, 768, Film(grain = 0f, halation = 0.5f, leak = 1f, seed = 7))))
+      draw.assertFormsAgree(plan, frames = 12)
+    }
+
+  @Test
+  fun `a leak on a 30 fps clip reads the tick its exact time gives`() =
+    runBlocking<Unit> {
+      val leak = Film(grain = 0f, halation = 0f, flicker = 0.5f, leak = 0.5f)
+      val clip = draw.clipOf(160, 90, ::ramp, listOf(leak), rate = "30", container = "mov")
+      draw.assertFormsAgree(draw.composition(listOf(clip)), frames = 60)
+    }
+
+  @Test
+  fun `a leak in a preview window reads the ticks it opened on`() =
+    runBlocking<Unit> {
+      val plan = draw.composition(listOf(clip(640, 360, Film(grain = 0f, halation = 0f, leak = 0.5f))))
+      draw.assertFormsAgree(plan, frames = 10, at = 1200.milliseconds)
+    }
+
+  @Test
+  fun `a leak keeps the alpha that marks an unpainted bar`() =
+    runBlocking<Unit> {
+      val film = Film(grain = 0f, halation = 0f, leak = 1f)
+      val contain = Crop(AspectRatio.Square, fit = Fit.Contain)
+      val plan =
+        draw.composition(
+          listOf(draw.clipOf(640, 360, ::ramp, listOf(contain, film))),
+          fill = Fill.Solid(0xFF2F4F6F.toInt()),
+        )
+      draw.assertFormsAgree(plan, frames = 8)
+    }
+
+  @Test
   fun `a composition film across two clips`() =
     runBlocking<Unit> {
       val plain = clip(640, 360)

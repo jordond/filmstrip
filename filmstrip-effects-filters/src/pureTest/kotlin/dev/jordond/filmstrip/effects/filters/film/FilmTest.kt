@@ -3,6 +3,7 @@ package dev.jordond.filmstrip.effects.filters.film
 import dev.jordond.filmstrip.color.BlurPlan
 import dev.jordond.filmstrip.color.blurPlane
 import dev.jordond.filmstrip.effect.EffectStage
+import dev.jordond.filmstrip.effects.filters.internal.FilterStep
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.doubles.plusOrMinus
 import io.kotest.matchers.shouldBe
@@ -30,6 +31,13 @@ class FilmTest {
   }
 
   @Test
+  fun `a leak alone is not inert and the small gauge preset carries one`() {
+    Film(0f, 0f, leak = 0.5f).isInert shouldBe false
+    (Film.Super8.leak > 0f) shouldBe true
+    FilmParams.of(Film(leak = 0.5f)).leak shouldBe 0.5
+  }
+
+  @Test
   fun `compares by value`() {
     Film(0.25f, 0.75f) shouldBe Film(0.25f, 0.75f)
   }
@@ -38,6 +46,7 @@ class FilmTest {
   fun `refuses a control out of range`() {
     shouldThrow<IllegalArgumentException> { Film(grain = 1.5f) }
     shouldThrow<IllegalArgumentException> { Film(halation = -0.5f) }
+    shouldThrow<IllegalArgumentException> { Film(leak = 1.5f) }
   }
 
   @Test
@@ -60,7 +69,7 @@ class FilmTest {
     grainOnly
       .single()
       .reads.values
-      .single() shouldBe FilmShader.INPUT
+      .single() shouldBe FilterStep.INPUT
     halationOnly.map { it.name } shouldBe listOf("response", "blurAcross", "blurUpward", "halation")
   }
 
@@ -73,7 +82,7 @@ class FilmTest {
     steps
       .first()
       .reads.values
-      .single() shouldBe FilmShader.INPUT
+      .single() shouldBe FilterStep.INPUT
     steps
       .single { it.name == "response" }
       .reads.values
@@ -86,15 +95,22 @@ class FilmTest {
   }
 
   @Test
-  fun `a flicker dust or gate alone runs the grain step on the input`() {
-    for (film in listOf(Film(0f, 0f, flicker = 0.5f), Film(0f, 0f, dust = 0.5f), Film(0f, 0f, gate = 0.5f))) {
+  fun `a flicker dust gate or leak alone runs the grain step on the input`() {
+    val alone =
+      listOf(
+        Film(0f, 0f, flicker = 0.5f),
+        Film(0f, 0f, dust = 0.5f),
+        Film(0f, 0f, gate = 0.5f),
+        Film(0f, 0f, leak = 0.5f),
+      )
+    for (film in alone) {
       val steps = FilmShader.steps(film)
 
       steps.map { it.name } shouldBe listOf("grain")
       steps
         .single()
         .reads.values
-        .single() shouldBe FilmShader.INPUT
+        .single() shouldBe FilterStep.INPUT
       val uniforms = steps.single().uniformsAt(1.3, 640, 360)
       uniforms.getValue("uFlicker").single() shouldBe film.flicker
       uniforms.getValue("uDust").single() shouldBe film.dust
@@ -118,8 +134,18 @@ class FilmTest {
   }
 
   @Test
+  fun `the grain step takes the leak and its fragment carries the leak's constants`() {
+    val step = FilmShader.steps(Film(0f, 0f, leak = 0.5f)).single()
+
+    step.uniformsAt(0.0, 1920, 1080).getValue("uLeak").single() shouldBe 0.5f
+    step.fragment.contains("draw(${PASS_LEAK_EDGE}u") shouldBe true
+    step.fragment.contains("LEAK_TINTS[${LEAK_TINTS.size}]") shouldBe true
+    step.fragment.contains("/ ${LEAK_RUN_TICKS}u") shouldBe true
+  }
+
+  @Test
   fun `every step reads only the input and earlier steps`() {
-    val seen = mutableSetOf(FilmShader.INPUT)
+    val seen = mutableSetOf(FilterStep.INPUT)
 
     FilmShader.steps(Film()).forEach { step ->
       seen.containsAll(step.reads.values) shouldBe true
@@ -173,7 +199,7 @@ class FilmTest {
     val plan = FilmSignal.halationBlurPlan(UNEVEN_WIDTH)
     val height = plan.heightOf(UNEVEN_HEIGHT)
     // One blurred pixel per frame pixel is a frame the plan never boxes, so the glow's field is the response itself.
-    val glow = HalationGlow.of(plan.width, height) { x, y -> codesAt(x, y, height) }
+    val glow = FilmSignal.halationGlow(plan.width, height) { x, y -> codesAt(x, y, height) }
     val response = List(3) { channel -> responsePlane(plan.width, height, channel) }
 
     val expected =

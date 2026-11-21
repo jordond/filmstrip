@@ -122,7 +122,7 @@ internal fun filmStep(film: Film): CoreImageEffect {
               Y = tick,
               Z = FilmSignal.grainCellSpan(pixelsWide, pixelsTall).toDouble(),
             ),
-            CIVector.vectorWithX(params.flicker, Y = params.dust, Z = params.gate),
+            CIVector.vectorWithX(params.flicker, Y = params.dust, Z = params.gate, W = params.leak),
           ),
       ) ?: error(FILM_KERNEL_LIMIT)
     }

@@ -140,7 +140,9 @@ class FilmGateExpressionMediaTest {
 
     fragment.branches.last().writes shouldBe listOf(GATED)
     live.branches.last().writes shouldBe listOf(GATED)
-    live.inputs.size shouldBe 2
+    live.inputs.size shouldBe 3
+    live.inputs.take(2).map { it.key.split(".").take(2) } shouldBe
+      listOf(listOf("film", "leak"), listOf("film", "grain"))
     fragment.sidecars.size shouldBe 1
     val woven =
       fragment.branches
@@ -148,12 +150,14 @@ class FilmGateExpressionMediaTest {
         .nodes
         .last()
     woven.name shouldBe "geq"
-    val lit =
+    val namesOn = { pad: String ->
       fragment.branches
-        .first { it.writes == listOf("glowed") }
+        .first { it.writes == listOf(pad) }
         .nodes
         .map { it.name }
-    lit.take(4) shouldBe listOf("mix", "lutrgb", "format", "geq")
+    }
+    namesOn("glowedWide") shouldBe listOf("mix", "lutrgb", "format")
+    namesOn("glowed").take(2) shouldBe listOf("maskedmerge", "geq")
   }
 
   @Test

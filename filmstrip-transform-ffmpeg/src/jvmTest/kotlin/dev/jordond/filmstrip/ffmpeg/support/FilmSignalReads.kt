@@ -3,7 +3,6 @@ package dev.jordond.filmstrip.ffmpeg.support
 import dev.jordond.filmstrip.effects.filters.film.Film
 import dev.jordond.filmstrip.effects.filters.film.FilmParams
 import dev.jordond.filmstrip.effects.filters.film.FilmSignal
-import dev.jordond.filmstrip.effects.filters.film.HalationGlow
 import io.kotest.assertions.withClue
 import io.kotest.matchers.doubles.shouldBeLessThan
 import kotlin.math.abs
@@ -47,9 +46,8 @@ internal fun filmReads(
   val params = FilmParams.of(film)
   val offset = FilmSignal.weaveAt(params.seed, tick, params.weave)
   val moved = { x: Int, y: Int -> plain.rgbBetween(x + offset[0] * width, y + offset[1] * height) }
-  val glow = if (params.halationGain > 0.0) HalationGlow.of(width, height, moved) else null
-  val columns = listOf(2, width / 4, width / 2 - EDGE_MARGIN, width / 2 + EDGE_MARGIN, 3 * width / 4, width - 3)
-  val points = listOf(2, height / 3, height / 2, height - 3).flatMap { y -> columns.map { x -> x to y } } + extra
+  val glow = if (params.halationGain > 0.0) FilmSignal.halationGlow(width, height, moved) else null
+  val points = readPointsOf(width, height) + extra
   val pixel = { x: Int, y: Int ->
     val codes = moved(x, y)
     planeCodesOf(
@@ -67,22 +65,47 @@ internal fun filmReads(
       ),
     )
   }
-  return points.flatMap { (x, y) ->
-    run {
-      // A chroma sample holds the mean of the two by two pixels it covers.
-      val block = listOf(0 to 0, 1 to 0, 0 to 1, 1 to 1).map { (dx, dy) -> pixel(x / 2 * 2 + dx, y / 2 * 2 + dy) }
-      val own = pixel(x, y)
-      val wanted = DoubleArray(PLANES.size) { plane -> if (plane == 0) own[0] else block.sumOf { it[plane] } / 4 }
-      val read = frame.planeCodesAt(x, y)
-      PLANES.indices.map { plane ->
-        FilmRead(
-          "row $y column $x ${PLANES[plane]} of ${width}x$height read ${read[plane]} against ${wanted[plane]}",
-          abs(read[plane] - wanted[plane]),
-          if (plane == 0) FILM_LUMA_CODES else FILM_CHROMA_CODES,
-        )
-      }
+  return planeReads(frame, points, FILM_LUMA_CODES, FILM_CHROMA_CODES, pixel)
+}
+
+/**
+ * Reads [frame]'s planes at each of [points] against [pixel], the luma, Cb and Cr codes a signal wants at a pixel.
+ *
+ * A chroma sample is held against the mean of the two by two pixels it covers.
+ */
+internal fun planeReads(
+  frame: Yuv420Frame,
+  points: List<Pair<Int, Int>>,
+  lumaLimit: Double,
+  chromaLimit: Double,
+  pixel: (x: Int, y: Int) -> DoubleArray,
+): List<FilmRead> =
+  points.flatMap { (x, y) ->
+    val block = listOf(0 to 0, 1 to 0, 0 to 1, 1 to 1).map { (dx, dy) -> pixel(x / 2 * 2 + dx, y / 2 * 2 + dy) }
+    val own = pixel(x, y)
+    val wanted = DoubleArray(PLANES.size) { plane -> if (plane == 0) own[0] else block.sumOf { it[plane] } / 4 }
+    val read = frame.planeCodesAt(x, y)
+    PLANES.indices.map { plane ->
+      FilmRead(
+        "row $y column $x ${PLANES[plane]} of ${frame.width}x${frame.height} read ${read[plane]} against " +
+          "${wanted[plane]}",
+        abs(read[plane] - wanted[plane]),
+        if (plane == 0) lumaLimit else chromaLimit,
+      )
     }
   }
+
+/**
+ * The places a look's frame is read at, [margin] off the picture's edge at the middle of the frame, since two pixels
+ * hold the same chroma on a 4:2:0 frame.
+ */
+internal fun readPointsOf(
+  width: Int,
+  height: Int,
+  margin: Int = EDGE_MARGIN,
+): List<Pair<Int, Int>> {
+  val columns = listOf(2, width / 4, width / 2 - margin, width / 2 + margin, 3 * width / 4, width - 3)
+  return listOf(2, height / 3, height / 2, height - 3).flatMap { y -> columns.map { x -> x to y } }
 }
 
 /**
@@ -140,8 +163,10 @@ internal fun Yuv420Frame.planeCodesAt(
   y: Int,
 ): DoubleArray = doubleArrayOf(luma(x, y).toDouble(), cb(x / 2, y / 2).toDouble(), cr(x / 2, y / 2).toDouble())
 
-// An exact BT.709 decode with no clip and no rounding.
-private fun Yuv420Frame.rgbAt(
+/**
+ * The exact BT.709 decode of a pixel, with no clip and no rounding.
+ */
+internal fun Yuv420Frame.rgbAt(
   x: Int,
   y: Int,
 ): DoubleArray {

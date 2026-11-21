@@ -20,7 +20,6 @@ import dev.jordond.filmstrip.effects.filters.FilterEffectResolver
 import dev.jordond.filmstrip.effects.filters.film.Film
 import dev.jordond.filmstrip.effects.filters.film.FilmParams
 import dev.jordond.filmstrip.effects.filters.film.FilmSignal
-import dev.jordond.filmstrip.effects.filters.film.HalationGlow
 import dev.jordond.filmstrip.effects.overlay.ImageOverlay
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.geometry.Corner
@@ -265,7 +264,7 @@ class BrowserFilmGateMediaTest {
       Array(width * height) {
         between(shown, width, height, it % width + offset[0] * width, it / width + offset[1] * height)
       }
-    val glow = HalationGlow.of(width, height) { x, y -> DoubleArray(RGB) { moved[y * width + x][it] * alpha } }
+    val glow = FilmSignal.halationGlow(width, height) { x, y -> DoubleArray(RGB) { moved[y * width + x][it] * alpha } }
     var worst = 0.0
     for (y in 0 until height) {
       for (x in 0 until width) {

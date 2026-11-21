@@ -17,6 +17,9 @@ import dev.jordond.filmstrip.effect.EffectStage
  * in the gate, its brightness flickers, dust and scratches land on it, and a rounded gate darkens its edges. The gate
  * holds still, the rest change with the frame's composition time at 24 a second, and every random draw takes [seed].
  *
+ * Light leaks wash in from the frame's edges, warm and soft, each opening and closing over a few seconds at a place
+ * [seed] picks. They sit under the grain and the gate, the way light that reached the stock would.
+ *
  * The effect runs over the fill and under any overlay at the same scope, so a caption added next to it stays clean. A
  * clip overlay under a composition [Film] is part of the clip's frame by then, and takes the look with it.
  *
@@ -31,7 +34,8 @@ import dev.jordond.filmstrip.effect.EffectStage
  * @property flicker How much the frame's brightness flickers, from `0f` which holds it steady to `1f`.
  * @property dust How much dust and how many scratches land on the frame, from `0f` which adds none to `1f`.
  * @property gate How far the gate's rounded, dark edge closes in, from `0f` which shows the whole frame to `1f`.
- * @property seed The seed every random draw takes, so two clips can grain and weave apart.
+ * @property leak How bright the light leaks are, from `0f` which adds none to `1f`.
+ * @property seed The seed every random draw takes, so two clips can grain, weave and leak apart.
  * @throws IllegalArgumentException when a control is outside `0f..1f`.
  */
 @Poko
@@ -42,6 +46,7 @@ public class Film(
   public val flicker: Float = 0f,
   public val dust: Float = 0f,
   public val gate: Float = 0f,
+  public val leak: Float = 0f,
   public val seed: Int = DEFAULT_SEED,
 ) : EffectSpec {
   init {
@@ -51,6 +56,7 @@ public class Film(
     require(flicker in 0f..1f) { "A film flicker has to be within 0 to 1, not $flicker." }
     require(dust in 0f..1f) { "A film dust has to be within 0 to 1, not $dust." }
     require(gate in 0f..1f) { "A film gate has to be within 0 to 1, not $gate." }
+    require(leak in 0f..1f) { "A film leak has to be within 0 to 1, not $leak." }
   }
 
   override val id: EffectId get() = ID
@@ -62,7 +68,7 @@ public class Film(
   override val requiresSdr: Boolean get() = true
 
   override val isInert: Boolean
-    get() = grain == 0f && halation == 0f && weave == 0f && flicker == 0f && dust == 0f && gate == 0f
+    get() = grain == 0f && halation == 0f && weave == 0f && flicker == 0f && dust == 0f && gate == 0f && leak == 0f
 
   public companion object {
     /**
@@ -79,7 +85,7 @@ public class Film(
      * Small gauge stock run through a worn projector, with every control set.
      */
     public val Super8: Film =
-      Film(grain = 0.8f, halation = 0.4f, weave = 0.5f, flicker = 0.4f, dust = 0.4f, gate = 0.6f)
+      Film(grain = 0.8f, halation = 0.4f, weave = 0.5f, flicker = 0.4f, dust = 0.4f, gate = 0.6f, leak = 0.3f)
   }
 }
 
@@ -93,5 +99,6 @@ public fun EffectsBuilder.film(
   flicker: Float = 0f,
   dust: Float = 0f,
   gate: Float = 0f,
+  leak: Float = 0f,
   seed: Int = Film.DEFAULT_SEED,
-): EffectsBuilder = add(Film(grain, halation, weave, flicker, dust, gate, seed))
+): EffectsBuilder = add(Film(grain, halation, weave, flicker, dust, gate, leak, seed))

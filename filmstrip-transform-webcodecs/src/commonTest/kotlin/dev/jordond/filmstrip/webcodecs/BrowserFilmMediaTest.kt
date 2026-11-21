@@ -14,7 +14,6 @@ import dev.jordond.filmstrip.effects.filters.FilterEffectResolver
 import dev.jordond.filmstrip.effects.filters.film.Film
 import dev.jordond.filmstrip.effects.filters.film.FilmParams
 import dev.jordond.filmstrip.effects.filters.film.FilmSignal
-import dev.jordond.filmstrip.effects.filters.film.HalationGlow
 import dev.jordond.filmstrip.effects.filters.filters
 import dev.jordond.filmstrip.effects.geometry.Crop
 import dev.jordond.filmstrip.effects.overlay.ImageOverlay
@@ -413,7 +412,7 @@ class BrowserFilmMediaTest {
     val width = frame.size.width
     val height = frame.size.height
     val params = FilmParams.of(film)
-    val glow = HalationGlow.of(width, height) { x, y -> picture.pixelAt(x, y).channels() }
+    val glow = FilmSignal.halationGlow(width, height) { x, y -> picture.pixelAt(x, y).channels() }
     var worst = 0.0
     (rows ?: listOf(height / 4, height / 2, height * 5 / 8, height - 1)).forEach { y ->
       val across = (0 until COLUMN_READS).map { it * (width - 1) / (COLUMN_READS - 1) }

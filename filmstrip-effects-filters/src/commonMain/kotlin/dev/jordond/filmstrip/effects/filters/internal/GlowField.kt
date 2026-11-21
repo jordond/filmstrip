@@ -1,4 +1,4 @@
-package dev.jordond.filmstrip.effects.filters.film
+package dev.jordond.filmstrip.effects.filters.internal
 
 import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.color.BlurPlan
@@ -8,21 +8,20 @@ import kotlin.math.floor
 private const val RGB = 3
 
 /**
- * The light halation adds across a frame, worked out the way the shader lowerings draw it, for a test to hold a
+ * The light a glow adds across a frame, worked out the way the shader lowerings draw it, for a test to hold a
  * backend's pixels against.
  *
- * The frame's codes box down to the blur's size, each blurred pixel takes [FilmSignal.halationResponse], [blurPlane]
- * blurs that by the plan's kernel one blurred pixel a tap on either axis, and a read filters between the blurred
- * pixels.
+ * The frame's codes box down to the blur's size, each blurred pixel takes the glow's response, [blurPlane] blurs that
+ * by the plan's kernel one blurred pixel a tap on either axis, and a read filters between the blurred pixels.
  */
 @InternalFilmstripApi
-public class HalationGlow private constructor(
+public class GlowField private constructor(
   private val frameWidth: Int,
   private val frameHeight: Int,
   private val blurred: Field,
 ) {
   /**
-   * The blur of the response over pixel [x], [y] of the frame, as red, green and blue, for [FilmSignal.halated].
+   * The blur of the response over pixel [x], [y] of the frame, as red, green and blue.
    */
   public fun at(
     x: Int,
@@ -86,22 +85,35 @@ public class HalationGlow private constructor(
   @InternalFilmstripApi
   public companion object {
     /**
-     * The glow of a frame [width] by [height], with [pixel] reading the R'G'B' of a pixel counted from the top, already
-     * multiplied by its alpha.
+     * How to run a blur of [sigmaFraction] of the frame width on a frame [widthPx] wide.
+     */
+    public fun blurPlan(
+      sigmaFraction: Double,
+      widthPx: Int,
+    ): BlurPlan = BlurPlan.of(sigmaFraction, widthPx)
+
+    /**
+     * The glow of a frame [width] by [height] under a blur of [sigmaFraction] of its width.
+     *
+     * @param response The light a boxed code triple gives the blur, as red, green and blue.
+     * @param pixel Reads the R'G'B' of a pixel counted from the top, already multiplied by its alpha.
      */
     public fun of(
       width: Int,
       height: Int,
+      sigmaFraction: Double,
+      response: (red: Double, green: Double, blue: Double) -> DoubleArray,
       pixel: (x: Int, y: Int) -> DoubleArray,
-    ): HalationGlow {
-      val plan = FilmSignal.halationBlurPlan(width)
-      return HalationGlow(width, height, blurred(responseField(plan, width, height, pixel)))
+    ): GlowField {
+      val plan = blurPlan(sigmaFraction, width)
+      return GlowField(width, height, blurred(responseField(plan, width, height, response, pixel), sigmaFraction))
     }
 
     private fun responseField(
       plan: BlurPlan,
       width: Int,
       height: Int,
+      response: (red: Double, green: Double, blue: Double) -> DoubleArray,
       pixel: (x: Int, y: Int) -> DoubleArray,
     ): Field {
       val field = Field(plan.width, plan.heightOf(height))
@@ -121,7 +133,7 @@ public class HalationGlow private constructor(
               for (channel in 0 until RGB) sum[channel] += tap[channel] / (box * box)
             }
           }
-          field.put(x, y, FilmSignal.halationResponse(sum[0], sum[1], sum[2]))
+          field.put(x, y, response(sum[0], sum[1], sum[2]))
         }
       }
       return field
@@ -129,12 +141,15 @@ public class HalationGlow private constructor(
 
     // The field is already at the plan's size, where the plan's sigma is at most BlurPlan.MAX_SIGMA_PX, so blurPlane
     // runs it at a factor of 1 with the plan's own weights.
-    private fun blurred(source: Field): Field {
+    private fun blurred(
+      source: Field,
+      sigmaFraction: Double,
+    ): Field {
       val opaque = DoubleArray(source.width * source.height) { 1.0 }
       val channels =
         List(RGB) { channel ->
           val plane = DoubleArray(source.width * source.height) { source.values[it * RGB + channel] }
-          blurPlane(plane, opaque, source.width, source.height, HALATION_SIGMA)
+          blurPlane(plane, opaque, source.width, source.height, sigmaFraction)
         }
       val field = Field(source.width, source.height)
       for (index in 0 until source.width * source.height) {

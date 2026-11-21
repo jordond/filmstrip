@@ -6,9 +6,9 @@ import androidx.media3.common.VideoFrameProcessingException
 import androidx.media3.common.util.GlUtil
 import androidx.media3.effect.GlEffect
 import androidx.media3.effect.GlShaderProgram
-import dev.jordond.filmstrip.effects.GlStep
 import dev.jordond.filmstrip.effects.StepShaderProgram
 import dev.jordond.filmstrip.effects.filters.internal.requireGles3
+import dev.jordond.filmstrip.effects.filters.internal.toGlSteps
 import dev.jordond.filmstrip.effects.stepTargetFormat
 
 /**
@@ -51,16 +51,7 @@ internal fun filmShaderProgram(
   targetFormat: Int,
 ): StepShaderProgram =
   StepShaderProgram(
-    FilmShader.steps(film).map { step ->
-      GlStep(
-        step.name,
-        step.fragment,
-        step.reads.mapValues { (_, source) -> if (source == FilmShader.INPUT) StepShaderProgram.INPUT else source },
-        step.targetAt,
-      ) { seconds, width, height -> step.uniformsAt(seconds, width, height) + (FilmShader.FLIP_V to FLIPPED) }
-    },
+    FilmShader.steps(film).toGlSteps(mapOf(FilmShader.FLIP_V to floatArrayOf(1f))),
     targetFormat,
     useHighPrecisionColorComponents = false,
   )
-
-private val FLIPPED = floatArrayOf(1f)

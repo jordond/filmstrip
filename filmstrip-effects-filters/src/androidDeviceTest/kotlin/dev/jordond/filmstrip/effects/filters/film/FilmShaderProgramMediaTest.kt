@@ -206,7 +206,7 @@ class FilmShaderProgramMediaTest {
   private fun glowOf(
     width: Int,
     height: Int,
-  ) = HalationGlow.of(width, height) { x, y -> codesAt(x, y, width, height) }
+  ) = FilmSignal.halationGlow(width, height) { x, y -> codesAt(x, y, width, height) }
 
   // A bright patch in the upper left, which sits on the middle of the response's ramp, over a midtone.
   private fun codesAt(

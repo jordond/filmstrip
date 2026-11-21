@@ -7,6 +7,8 @@ import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effect.PlatformEffect
 import dev.jordond.filmstrip.effect.RenderApi
 import dev.jordond.filmstrip.effect.RenderCapabilities
+import dev.jordond.filmstrip.effects.filters.bloom.Bloom
+import dev.jordond.filmstrip.effects.filters.bloom.bloomFragment
 import dev.jordond.filmstrip.effects.filters.camcorder.Camcorder
 import dev.jordond.filmstrip.effects.filters.camcorder.camcorderResolution
 import dev.jordond.filmstrip.effects.filters.crt.Crt
@@ -45,6 +47,9 @@ public actual class FilterEffectResolver actual constructor() : EffectResolver {
       }
       is Film -> {
         EffectResolution.Resolved(PlatformEffect(filmFragment(spec, attributes.inputSize)))
+      }
+      is Bloom -> {
+        EffectResolution.Resolved(PlatformEffect(bloomFragment(spec, attributes.inputSize)))
       }
       is Crt -> {
         EffectResolution.Resolved(PlatformEffect(crtFragment(spec, attributes.inputSize)))

@@ -262,8 +262,8 @@ one, it's refused by name.
 
 `betamax` and `hi8` draw through the renderer `vhs` does, so every `vhs` limit and figure below holds for them too.
 
-- **Apple** runs `vhs`, `film`, `crt`, `glitch`, `lut`, `nightVision` and `pixel` on Core Image Metal kernels, which
-  need an Apple6 GPU on iOS, or macOS 12 on a Mac.
+- **Apple** runs `vhs`, `film`, `bloom`, `crt`, `glitch`, `lut`, `nightVision` and `pixel` on Core Image Metal kernels,
+  which need an Apple6 GPU on iOS, or macOS 12 on a Mac.
 - **Browser** refuses a clip larger on a side than the page's `MAX_TEXTURE_SIZE`. A fit that crops makes the clip's
   frame larger than the output.
 - **Android and browser** need OpenGL ES 3 for every filter, and a texture big enough for a `lut` table, 1170×520 for a
@@ -276,6 +276,12 @@ one, it's refused by name.
   the export matches the other backends.
 - **ffmpeg** holds `nightVision`'s grain to one of 255 steps, and writes it in 4:2:0, which averages each pixel's grain
   colour with its neighbours'. Each plane lands within 1.5 code values of the other backends' signal.
+- **ffmpeg** draws `film`'s leak from a map smaller than the frame, an eighth of its size from 360 pixels high and up,
+  and stretches it over the frame. Luma lands within 1.5 code values of the other backends.
+- **ffmpeg** draws `bloom` on 16-bit planes and comes back to 8, so luma lands within 1.5 code values of the other
+  backends.
+- **Apple** blurs `bloom`'s glow with Core Image's Gaussian, which lands within two code values of the kernel the other
+  backends blur with.
 - **ffmpeg** refuses a look its build is missing a filter for.
 - **ffmpeg** draws `glitch` with one `geq` over each of red, green, blue and alpha, every pixel a bilinear read at its
   row's shift, and goes through RGB and back to do it. That round trip lands within 3 codes of the signal, and 4:2:0
@@ -326,11 +332,13 @@ Filters are heavy on ffmpeg. Measured on a 12 thread x86 server with x264:
 
 | Look                              | 1080p    | 4K       | Peak memory, 1080p and 4K |
 | --------------------------------- | -------- | -------- | ------------------------- |
-| `film`                            | 18.4 fps | 9.2 fps  | 1 GB and 3.4 GB           |
+| `film`                            | 15.3 fps | 7.2 fps  | 1 GB and 3.4 GB           |
+| `film` with a leak                | 13.5 fps | 5.7 fps  |                           |
 | `vhs`                             | 5.2 fps  | 2.1 fps  | 1 GB and 3.3 GB           |
 | `crt`                             | 9.0 fps  | 2.4 fps  | 1.5 GB and 5.4 GB         |
 | `lut`                             | 70 fps   | 21 fps   |                           |
-| `Film.Super8`                     | 0.3 fps  | 0.1 fps  |                           |
+| `Film.Super8`                     | 0.6 fps  | 0.2 fps  |                           |
+| `bloom`                           | 27.1 fps | 9.6 fps  |                           |
 | `glitch`                          | 7.2 fps  | 1.8 fps  |                           |
 | `glitch` with `blocks`            | 4.5 fps  | 1.2 fps  |                           |
 | `nightVision`                     | 24.8 fps | 6.9 fps  |                           |

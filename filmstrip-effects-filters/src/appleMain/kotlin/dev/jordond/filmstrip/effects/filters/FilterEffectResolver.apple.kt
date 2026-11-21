@@ -6,6 +6,9 @@ import dev.jordond.filmstrip.effect.EffectResolver
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effect.RenderApi
 import dev.jordond.filmstrip.effect.RenderCapabilities
+import dev.jordond.filmstrip.effects.filters.bloom.Bloom
+import dev.jordond.filmstrip.effects.filters.bloom.bloomKernelLimit
+import dev.jordond.filmstrip.effects.filters.bloom.bloomResolution
 import dev.jordond.filmstrip.effects.filters.camcorder.Camcorder
 import dev.jordond.filmstrip.effects.filters.camcorder.camcorderEffect
 import dev.jordond.filmstrip.effects.filters.crt.Crt
@@ -50,6 +53,9 @@ public actual class FilterEffectResolver actual constructor() : EffectResolver {
       }
       is Film -> {
         filmResolution(spec, filmKernelLimit())
+      }
+      is Bloom -> {
+        bloomResolution(spec, bloomKernelLimit())
       }
       is Crt -> {
         crtResolution(spec, crtKernelLimit())

@@ -5,6 +5,7 @@ import android.opengl.EGLConfig
 import android.opengl.GLES20
 import android.opengl.GLES30
 import androidx.media3.common.util.GlUtil
+import dev.jordond.filmstrip.effects.StepShaderProgram
 import org.junit.Assume.assumeTrue
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -70,6 +71,20 @@ internal fun drawFilm(
   seconds: Double,
   targetFormat: Int,
   source: (x: Int, y: Int) -> FloatArray,
+): FloatArray = drawSteps(filmShaderProgram(film, targetFormat), width, height, seconds, source)
+
+/**
+ * Runs [program] over a frame [width] by [height] whose straight RGBA [source] gives for each pixel counted from the
+ * top, at [seconds], and reads the result into a 32 bit float target. The program is released after the read.
+ *
+ * @return The frame's RGBA floats, bottom row first the way GL hands them back.
+ */
+internal fun drawSteps(
+  program: StepShaderProgram,
+  width: Int,
+  height: Int,
+  seconds: Double,
+  source: (x: Int, y: Int) -> FloatArray,
 ): FloatArray {
   val input = sourceTexture(width, height, source)
   val target = IntArray(1)
@@ -88,7 +103,6 @@ internal fun drawFilm(
   )
   GLES20.glViewport(0, 0, width, height)
 
-  val program = filmShaderProgram(film, targetFormat)
   program.configure(width, height)
   GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, framebuffer[0])
   program.drawFrame(input, (seconds * 1_000_000.0).toLong())

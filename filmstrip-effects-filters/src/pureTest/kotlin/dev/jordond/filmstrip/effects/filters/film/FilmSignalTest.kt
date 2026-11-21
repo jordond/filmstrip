@@ -1,6 +1,7 @@
 package dev.jordond.filmstrip.effects.filters.film
 
 import dev.jordond.filmstrip.color.BlurPlan
+import dev.jordond.filmstrip.effects.filters.internal.GlowField
 import dev.jordond.filmstrip.effects.filters.internal.lumaOf
 import io.kotest.assertions.withClue
 import io.kotest.matchers.comparables.shouldBeLessThanOrEqualTo
@@ -125,7 +126,7 @@ class FilmSignalTest {
   @Test
   fun `wideBlurPlan keeps its sigma at most 8 pixels at mid-range widths`() {
     for (width in listOf(640, 1280, 1920, 2560, 3840)) {
-      val plan = FilmSignal.wideBlurPlan(HALATION_SIGMA, width)
+      val plan = GlowField.blurPlan(HALATION_SIGMA, width)
 
       plan.sigmaPx shouldBeLessThanOrEqualTo BlurPlan.MAX_SIGMA_PX
       plan.taps shouldBeLessThanOrEqualTo BlurPlan.MAX_TAPS
@@ -137,7 +138,7 @@ class FilmSignalTest {
   @Test
   fun `wideBlurPlan lands on the requested sigma as a fraction of the frame`() {
     for (width in listOf(640, 1280, 1920, 2560, 3840)) {
-      val plan = FilmSignal.wideBlurPlan(HALATION_SIGMA, width)
+      val plan = GlowField.blurPlan(HALATION_SIGMA, width)
 
       val variance = 2.0 * plan.weights.indices.sumOf { it * it * plan.weights[it] }
       val effective = sqrt(variance) / plan.width
@@ -149,14 +150,14 @@ class FilmSignalTest {
 
   @Test
   fun `wideBlurPlan weights sum to one with each side counted`() {
-    val weights = FilmSignal.wideBlurPlan(HALATION_SIGMA, 1920).weights
+    val weights = GlowField.blurPlan(HALATION_SIGMA, 1920).weights
 
     (weights[0] + 2.0 * weights.drop(1).sum()) shouldBe (1.0 plusOrMinus 1e-12)
   }
 
   @Test
   fun `wideBlurPlan scales the blurred frame by its factor`() {
-    val plan = FilmSignal.wideBlurPlan(HALATION_SIGMA, 1920)
+    val plan = GlowField.blurPlan(HALATION_SIGMA, 1920)
 
     plan.factor shouldBe 3
     plan.width shouldBe 640

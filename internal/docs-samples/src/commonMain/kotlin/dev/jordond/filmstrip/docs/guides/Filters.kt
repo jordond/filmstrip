@@ -5,6 +5,8 @@ import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.effects.filters.betamax.BetaSpeed
 import dev.jordond.filmstrip.effects.filters.betamax.betamax
+import dev.jordond.filmstrip.effects.filters.bloom.Bloom
+import dev.jordond.filmstrip.effects.filters.bloom.bloom
 import dev.jordond.filmstrip.effects.filters.camcorder.ClockStyle
 import dev.jordond.filmstrip.effects.filters.camcorder.DateStyle
 import dev.jordond.filmstrip.effects.filters.camcorder.RecordedAt
@@ -67,7 +69,7 @@ internal fun super8Looks(): List<Composition> {
     compositionOf {
       clip(MediaSource.of("/path/to/holiday.mp4"))
       effects {
-        film(grain = 0.9f, weave = 0.8f, flicker = 0.6f, dust = 0.7f, gate = 0.5f, seed = 8)
+        film(grain = 0.9f, weave = 0.8f, flicker = 0.6f, dust = 0.7f, gate = 0.5f, leak = 0.6f, seed = 8)
       }
     }
   // endregion
@@ -81,6 +83,39 @@ internal fun crtLook(): Composition {
       clip(MediaSource.of("/path/to/arcade.mp4"))
       effects {
         crt(intensity = 0.75f)
+      }
+    }
+  // endregion
+  return composition
+}
+
+internal fun filmLeakLook(): Composition {
+  // region film-leak
+  val composition =
+    compositionOf {
+      clip(MediaSource.of("/path/to/holiday.mp4"))
+      effects {
+        film(leak = 0.5f, seed = 3)
+      }
+    }
+  // endregion
+  return composition
+}
+
+internal fun bloomLook(): Composition {
+  // region bloom
+  val composition =
+    compositionOf {
+      clip(MediaSource.of("/path/to/city-at-night.mp4"))
+      effects {
+        bloom(intensity = 0.6f, threshold = 0.6f, spread = 0.8f)
+      }
+    }
+  val dreamy =
+    compositionOf {
+      clip(MediaSource.of("/path/to/city-at-night.mp4"))
+      effects {
+        add(Bloom.Dreamy)
       }
     }
   // endregion
