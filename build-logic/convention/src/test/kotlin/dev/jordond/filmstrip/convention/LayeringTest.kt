@@ -4,8 +4,9 @@ import io.kotest.matchers.shouldBe
 import kotlin.test.Test
 
 /**
- * Pins how far the backend's exception to the `androidx.media3.exoplayer` ban reaches: the track selection and media
- * source factory types a track choice needs, and nothing that builds or drives a player.
+ * Pins how far each exception to a layer's import ban reaches. The backend may name the track selection and media
+ * source factory types a track choice needs, and nothing that builds or drives a player. Core may name the asset
+ * reader and its track output, and nothing that composes, writes, exports or plays.
  */
 class LayeringTest {
   @Test
@@ -48,6 +49,35 @@ class LayeringTest {
       }
   }
 
-  private fun backendRejects(fqn: String): Boolean =
-    isForbiddenImport(fqn, Layer.Backend.forbiddenImports.orEmpty(), Layer.Backend.allowedImports)
+  @Test
+  fun `core may name the asset reader and its track output`() {
+    listOf(
+      "platform.AVFoundation.AVAssetReader",
+      "platform.AVFoundation.AVAssetReaderTrackOutput",
+    ).forEach { fqn -> Layer.Core.rejects(fqn) shouldBe false }
+  }
+
+  @Test
+  fun `core still may not name another reader output or anything that writes or plays`() {
+    listOf(
+      "platform.AVFoundation.AVAssetReaderVideoCompositionOutput",
+      "platform.AVFoundation.AVAssetReaderAudioMixOutput",
+      "platform.AVFoundation.AVAssetWriter",
+      "platform.AVFoundation.AVAssetExportSession",
+      "platform.AVFoundation.AVPlayer",
+      "platform.VideoToolbox.VTDecompressionSessionCreate",
+    ).forEach { fqn -> Layer.Core.rejects(fqn) shouldBe true }
+  }
+
+  @Test
+  fun `the asset reader reaches no layer but core`() {
+    listOf(Layer.Transform, Layer.Io, Layer.IoCompose).forEach { layer ->
+      layer.rejects("platform.AVFoundation.AVAssetReader") shouldBe true
+      layer.rejects("platform.AVFoundation.AVAssetReaderTrackOutput") shouldBe true
+    }
+  }
+
+  private fun backendRejects(fqn: String): Boolean = Layer.Backend.rejects(fqn)
+
+  private fun Layer.rejects(fqn: String): Boolean = isForbiddenImport(fqn, forbiddenImports.orEmpty(), allowedImports)
 }

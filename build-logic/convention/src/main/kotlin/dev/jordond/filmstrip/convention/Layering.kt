@@ -126,8 +126,9 @@ private val FORBIDDEN_EXTERNALS: Map<Layer, Set<String>> =
  * Apple playback and export, banned by symbol rather than by package.
  *
  * `core` legitimately imports `platform.AVFoundation.AVURLAsset` and `AVAssetImageGenerator` for `probe()` and
- * `thumbnail()`, and both are read-only. Banning the whole package would break those, and banning none of it would
- * let a runtime in through the back door.
+ * `thumbnail()`, and both are read-only. Its probe also reads one sample through an asset reader, which
+ * [FIRST_FRAME_READ_IMPORTS] lets in. Banning the whole package would break those, and banning none of it would let a
+ * runtime in through the back door.
  */
 private val NATIVE_PLAYBACK_AND_EXPORT =
   setOf(
@@ -205,10 +206,23 @@ private val MEDIA3_TRACK_CHOICE_IMPORTS =
   )
 
 /**
+ * The one hole in core's ban on the asset reader family.
+ *
+ * Core's probe reads one sample off one video track to tell whether a source decodes, so it may name the reader and
+ * its track output. Nothing here composes, writes, exports or plays, and every other reader output stays banned.
+ */
+private val FIRST_FRAME_READ_IMPORTS =
+  setOf(
+    "platform.AVFoundation.AVAssetReader",
+    "platform.AVFoundation.AVAssetReaderTrackOutput",
+  )
+
+/**
  * Import prefixes a layer may name even though one of its [FORBIDDEN_IMPORTS] covers them.
  */
 private val ALLOWED_IMPORTS: Map<Layer, Set<String>> =
   mapOf(
+    Layer.Core to FIRST_FRAME_READ_IMPORTS,
     Layer.Backend to MEDIA3_TRACK_CHOICE_IMPORTS,
     Layer.Player to PLAYER_IMPORTS,
   )

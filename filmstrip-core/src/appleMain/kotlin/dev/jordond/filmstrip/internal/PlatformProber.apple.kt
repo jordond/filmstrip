@@ -151,7 +151,7 @@ internal actual class PlatformProber internal constructor(
       }
 
       // A track this system cannot play has no decoder here, which says nothing about its bytes.
-      if (videoTrack?.playable == true && !asset.decodesFirstFrame()) {
+      if (videoTrack?.playable == true && !withContext(Dispatchers.IO) { asset.decodesFirstFrame(videoTrack) }) {
         return@withContext ProbeResult.Failure(undecodableSource(source.describe()))
       }
 
