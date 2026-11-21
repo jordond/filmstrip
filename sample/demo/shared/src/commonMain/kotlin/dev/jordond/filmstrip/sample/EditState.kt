@@ -31,14 +31,18 @@ import dev.jordond.filmstrip.effects.filters.bloom.bloom
 import dev.jordond.filmstrip.effects.filters.camcorder.camcorder
 import dev.jordond.filmstrip.effects.filters.crt.crt
 import dev.jordond.filmstrip.effects.filters.film.film
+import dev.jordond.filmstrip.effects.filters.glitch.glitch
 import dev.jordond.filmstrip.effects.filters.hi8.Hi8Speed
 import dev.jordond.filmstrip.effects.filters.hi8.hi8
 import dev.jordond.filmstrip.effects.filters.lut.CubeLut
 import dev.jordond.filmstrip.effects.filters.lut.lut
+import dev.jordond.filmstrip.effects.filters.nightvision.nightVision
 import dev.jordond.filmstrip.effects.filters.pixel.pixel
 import dev.jordond.filmstrip.effects.filters.tape.TapeLookBuilder
 import dev.jordond.filmstrip.effects.filters.tape.TapeStock
+import dev.jordond.filmstrip.effects.filters.tape.Wobble
 import dev.jordond.filmstrip.effects.filters.tape.tapeAudio
+import dev.jordond.filmstrip.effects.filters.vhs.TapeClock
 import dev.jordond.filmstrip.effects.filters.vhs.TapeSpeed
 import dev.jordond.filmstrip.effects.filters.vhs.Tracking
 import dev.jordond.filmstrip.effects.filters.vhs.vhs
@@ -46,6 +50,7 @@ import dev.jordond.filmstrip.effects.geometry.crop
 import dev.jordond.filmstrip.effects.geometry.flip
 import dev.jordond.filmstrip.effects.geometry.rotate
 import dev.jordond.filmstrip.effects.geometry.scale
+import dev.jordond.filmstrip.effects.overlay.SpriteSheet
 import dev.jordond.filmstrip.effects.overlay.imageOverlay
 import dev.jordond.filmstrip.effects.overlay.nearestCornerInset
 import dev.jordond.filmstrip.effects.overlay.textOverlay
@@ -59,13 +64,15 @@ import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.geometry.FlipAxis
 import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.media.FramePlays
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.style.FontWeight
 import dev.jordond.filmstrip.style.TextAlignment
 import dev.jordond.filmstrip.style.TextStyle
+import kotlin.math.roundToInt
 import kotlin.time.Duration
-import kotlin.time.Duration.Companion.seconds
+import kotlin.time.Duration.Companion.milliseconds
 
 /**
  * How the frame is reframed, since [Crop] and [CropRect] are two different effects rather than two
@@ -184,6 +191,8 @@ public class EditState {
   var invert: Float by mutableStateOf(0f)
   var blur: Float by mutableStateOf(0f)
   var vignette: Float by mutableStateOf(0f)
+  var vignetteRadius: Float by mutableStateOf(VIGNETTE_RADIUS)
+  var vignetteSoftness: Float by mutableStateOf(VIGNETTE_SOFTNESS)
   var customMatrix: ColorMatrix by mutableStateOf(ColorMatrix.Identity)
 
   var tapeEnabled: Boolean by mutableStateOf(false)
@@ -191,12 +200,31 @@ public class EditState {
   var tapeStock: TapeStock by mutableStateOf(TapeFormat.Vhs.default)
   var tapeTracking: TapeTrackingMode by mutableStateOf(TapeTrackingMode.Events)
   var tapeSnow: Float by mutableStateOf(Tracking.DEFAULT_SNOW)
+  var tapeSettleEnabled: Boolean by mutableStateOf(false)
+  var tapeSettleFrom: Float by mutableStateOf(1f)
+  var tapeSettleSeconds: Float by mutableStateOf(2f)
+  var tapeClock: TapeClock by mutableStateOf(TapeClock.Composition)
   var tapeAudioEnabled: Boolean by mutableStateOf(false)
   var tapeAudioStock: TapeStock by mutableStateOf(TapeFormat.Vhs.default)
+  var tapeAudioIntensity: Float by mutableStateOf(1f)
+  var tapeAudioHiss: Float by mutableStateOf(1f)
+  var tapeAudioBandLimit: Float by mutableStateOf(1f)
+  var tapeAudioWow: Float by mutableStateOf(1f)
+  var tapeAudioFlutter: Float by mutableStateOf(1f)
+  var tapeAudioMono: Boolean by mutableStateOf(true)
   var filmEnabled: Boolean by mutableStateOf(false)
   var filmGrain: Float by mutableStateOf(0.5f)
   var filmHalation: Float by mutableStateOf(0.5f)
   var filmLeak: Float by mutableStateOf(0f)
+  var filmWeave: Float by mutableStateOf(0f)
+  var filmFlicker: Float by mutableStateOf(0f)
+  var filmDust: Float by mutableStateOf(0f)
+  var filmGate: Float by mutableStateOf(0f)
+  var nightVisionEnabled: Boolean by mutableStateOf(false)
+  var nightVisionIntensity: Float by mutableStateOf(1f)
+  var glitchEnabled: Boolean by mutableStateOf(false)
+  var glitchIntensity: Float by mutableStateOf(1f)
+  var glitchBlocks: Float by mutableStateOf(0f)
   var bloomEnabled: Boolean by mutableStateOf(false)
   var bloomIntensity: Float by mutableStateOf(0.5f)
   var bloomThreshold: Float by mutableStateOf(0.7f)
@@ -221,6 +249,7 @@ public class EditState {
   var textTimed: Boolean by mutableStateOf(false)
   var textStartSeconds: Float by mutableStateOf(0f)
   var textEndSeconds: Float by mutableStateOf(3f)
+  val textMotion: OverlayMotionState = OverlayMotionState()
 
   var watermarkImage: ImageSource? by mutableStateOf(null)
   var watermarkLabel: String by mutableStateOf("")
@@ -231,6 +260,12 @@ public class EditState {
   var watermarkTimed: Boolean by mutableStateOf(false)
   var watermarkStartSeconds: Float by mutableStateOf(0f)
   var watermarkEndSeconds: Float by mutableStateOf(3f)
+  val watermarkMotion: OverlayMotionState = OverlayMotionState()
+  var watermarkSheetEnabled: Boolean by mutableStateOf(false)
+  var watermarkSheetColumns: Int by mutableStateOf(4)
+  var watermarkSheetRows: Int by mutableStateOf(1)
+  var watermarkSheetFrameMillis: Float by mutableStateOf(80f)
+  var watermarkSheetOnce: Boolean by mutableStateOf(false)
 
   var audioMode: AudioMode by mutableStateOf(AudioMode.Keep)
   var audioGain: Float by mutableStateOf(1f)
@@ -316,7 +351,7 @@ public class EditState {
    * How long the end card holds after the clip, or zero while it's off.
    */
   val endCardDuration: Duration
-    get() = if (endCardEnabled) endCardSeconds.toDouble().seconds else Duration.ZERO
+    get() = if (endCardEnabled) endCardSeconds.asSeconds() else Duration.ZERO
 
   val audioSpec: AudioSpec
     get() =
@@ -363,8 +398,8 @@ public class EditState {
    */
   fun trimRange(sourceDuration: Duration?): TimeRange? {
     if (!trimEnabled || sourceDuration == null) return null
-    val start = trimStartSeconds.toDouble().seconds.coerceIn(Duration.ZERO, sourceDuration)
-    val end = trimEndSeconds.toDouble().seconds.coerceIn(start, sourceDuration)
+    val start = trimStartSeconds.asSeconds().coerceIn(Duration.ZERO, sourceDuration)
+    val end = trimEndSeconds.asSeconds().coerceIn(start, sourceDuration)
     return if (end > start) TimeRange(start, end) else null
   }
 
@@ -428,12 +463,24 @@ public class EditState {
       clip(source) {
         if (trimmed) trimRange(sourceDuration)?.let { trim(it) }
         if (clipMuted) audio(AudioLevel.Mute)
-        snapWithin(snapWithinSeconds.toDouble().seconds)
+        snapWithin(snapWithinSeconds.asSeconds())
       }
       if (trimmed && endCardEnabled) solid(endCardColor, endCardDuration)
       if (cropped) frame(outputFrame)
 
-      if (tapeAudioEnabled) audioEffects { tapeAudio { tape = tapeAudioStock } }
+      if (tapeAudioEnabled) {
+        audioEffects {
+          tapeAudio {
+            tape = tapeAudioStock
+            intensity = tapeAudioIntensity
+            hiss = tapeAudioHiss
+            bandLimit = tapeAudioBandLimit
+            wow = Wobble(tapeAudioWow)
+            flutter = Wobble(tapeAudioFlutter)
+            mono = tapeAudioMono
+          }
+        }
+      }
 
       effects {
         if (rotationDegrees != 0) rotate(rotationDegrees)
@@ -449,7 +496,7 @@ public class EditState {
         if (scaleEnabled) scale(scaleHeight, scaleFit)
         addAll(colorEffects)
         if (blur != 0f) blur(blur)
-        if (vignette != 0f) vignette(strength = vignette)
+        if (vignette != 0f) vignette(vignette, vignetteRadius, vignetteSoftness)
         val burned = camcorderDisplay.shown && camcorderDisplay.burned
         if (tapeEnabled) {
           when (val stock = tapeStock) {
@@ -476,14 +523,16 @@ public class EditState {
             }
           }
         } else if (burned) {
-          camcorder(camcorderDisplay.elements)
+          camcorder(camcorderDisplay.elements(tapeStock))
         }
         if (bloomEnabled) bloom(bloomIntensity, bloomThreshold, bloomSpread)
-        if (filmEnabled) film(filmGrain, filmHalation, leak = filmLeak)
+        if (filmEnabled) film(filmGrain, filmHalation, filmWeave, filmFlicker, filmDust, filmGate, filmLeak)
+        if (nightVisionEnabled) nightVision(nightVisionIntensity)
+        if (glitchEnabled) glitch(glitchIntensity, glitchBlocks)
         if (crtEnabled) crt(crtIntensity)
         if (pixelLook.enabled) pixel(pixelLook.cells.toInt(), pixelLook.levelCount, pixelLook.dither, pixelLook.palette)
         if (lutEnabled) lut(SAMPLE_LUT, lutIntensity)
-        if (camcorderDisplay.shown && !camcorderDisplay.burned) camcorder(camcorderDisplay.elements)
+        if (camcorderDisplay.shown && !camcorderDisplay.burned) camcorder(camcorderDisplay.elements(tapeStock))
 
         if (textEnabled && text.isNotBlank()) {
           textOverlay(
@@ -491,6 +540,7 @@ public class EditState {
             style = textStyle,
             anchor = textAnchor,
             visibleDuring = visibleWindow(textTimed, textStartSeconds, textEndSeconds),
+            animation = textMotion.animation,
           )
         }
 
@@ -502,6 +552,8 @@ public class EditState {
             scale = watermarkScale,
             opacity = watermarkOpacity,
             visibleDuring = visibleWindow(watermarkTimed, watermarkStartSeconds, watermarkEndSeconds),
+            animation = watermarkMotion.animation,
+            sheet = watermarkSheet,
           )
         }
       }
@@ -513,6 +565,19 @@ public class EditState {
   /**
    * The format the tape look plays, the one [tapeStock] is a speed of.
    */
+  val watermarkSheet: SpriteSheet?
+    get() =
+      if (watermarkSheetEnabled) {
+        SpriteSheet(
+          columns = watermarkSheetColumns,
+          rows = watermarkSheetRows,
+          frameDuration = watermarkSheetFrameMillis.roundToInt().milliseconds,
+          plays = if (watermarkSheetOnce) FramePlays.Once else FramePlays.Forever,
+        )
+      } else {
+        null
+      }
+
   val tapeFormat: TapeFormat
     get() = TapeFormat.of(tapeStock)
 
@@ -525,8 +590,10 @@ public class EditState {
   }
 
   private fun TapeLookBuilder.tapeLook(burned: Boolean) {
-    if (burned) camcorder(camcorderDisplay.elements)
+    if (burned) camcorder(camcorderDisplay.elements(tapeStock))
     intensity = tapeIntensity
+    clock = tapeClock
+    if (tapeSettleEnabled) settle(tapeSettleFrom, tapeSettleSeconds.asSeconds())
     tracking =
       when (tapeTracking) {
         TapeTrackingMode.Events -> events { snow = tapeSnow }
@@ -542,6 +609,7 @@ public class EditState {
     trimEnabled = false
     trimStartSeconds = 0f
     trimEndSeconds = sourceDuration?.let { it.inWholeMilliseconds / 1000f } ?: 0f
+    snapWithinSeconds = 0f
     clipMuted = false
     rotationDegrees = 0
     flipHorizontal = false
@@ -572,12 +640,31 @@ public class EditState {
     tapeStock = TapeFormat.Vhs.default
     tapeTracking = TapeTrackingMode.Events
     tapeSnow = Tracking.DEFAULT_SNOW
+    tapeSettleEnabled = false
+    tapeSettleFrom = 1f
+    tapeSettleSeconds = 2f
+    tapeClock = TapeClock.Composition
     tapeAudioEnabled = false
     tapeAudioStock = TapeFormat.Vhs.default
+    tapeAudioIntensity = 1f
+    tapeAudioHiss = 1f
+    tapeAudioBandLimit = 1f
+    tapeAudioWow = 1f
+    tapeAudioFlutter = 1f
+    tapeAudioMono = true
     filmEnabled = false
     filmGrain = 0.5f
     filmHalation = 0.5f
     filmLeak = 0f
+    filmWeave = 0f
+    filmFlicker = 0f
+    filmDust = 0f
+    filmGate = 0f
+    nightVisionEnabled = false
+    nightVisionIntensity = 1f
+    glitchEnabled = false
+    glitchIntensity = 1f
+    glitchBlocks = 0f
     bloomEnabled = false
     bloomIntensity = 0.5f
     bloomThreshold = 0.7f
@@ -591,6 +678,8 @@ public class EditState {
     invert = 0f
     blur = 0f
     vignette = 0f
+    vignetteRadius = VIGNETTE_RADIUS
+    vignetteSoftness = VIGNETTE_SOFTNESS
     customMatrix = ColorMatrix.Identity
     textEnabled = false
     text = ""
@@ -603,6 +692,9 @@ public class EditState {
     textAnchorX = 0.5f
     textAnchorY = 1f
     textTimed = false
+    textStartSeconds = 0f
+    textEndSeconds = 3f
+    textMotion.reset()
     watermarkImage = null
     watermarkLabel = ""
     watermarkCorner = Corner.BottomEnd
@@ -610,6 +702,14 @@ public class EditState {
     watermarkScale = 0.2f
     watermarkOpacity = 1f
     watermarkTimed = false
+    watermarkStartSeconds = 0f
+    watermarkEndSeconds = 3f
+    watermarkMotion.reset()
+    watermarkSheetEnabled = false
+    watermarkSheetColumns = 4
+    watermarkSheetRows = 1
+    watermarkSheetFrameMillis = 80f
+    watermarkSheetOnce = false
     audioMode = AudioMode.Keep
     audioGain = 1f
     fillMode = FillMode.Solid
@@ -627,6 +727,18 @@ public class EditState {
   public companion object {
     public const val WHITE: Int = 0xFFFFFFFF.toInt()
     public const val BLACK: Int = 0xFF000000.toInt()
+
+    /**
+     * The radius a vignette has until its slider moves. The library keeps its own default private, so this repeats
+     * it and a test holds the two together.
+     */
+    public const val VIGNETTE_RADIUS: Float = 0.75f
+
+    /**
+     * The softness a vignette has until its slider moves, repeated from the library the way [VIGNETTE_RADIUS] is.
+     * A test holds the two together.
+     */
+    public const val VIGNETTE_SOFTNESS: Float = 0.45f
   }
 }
 

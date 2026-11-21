@@ -22,10 +22,10 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import dev.jordond.filmstrip.compose.ui.geometry.TimelineScale
 import dev.jordond.filmstrip.sample.EditState
+import dev.jordond.filmstrip.sample.asSeconds
 import dev.jordond.filmstrip.sample.ui.Tokens
 import dev.jordond.filmstrip.sample.visibleWindow
 import kotlin.time.Duration
-import kotlin.time.Duration.Companion.seconds
 
 /**
  * A stretch of source time a lane fills, on the strip's clock.
@@ -49,13 +49,15 @@ internal data class LaneSpans(
  * The player runs over the trimmed edit and the strip spans the whole source, so this is what turns edited time into
  * source time for the playhead, the follow and the lanes.
  */
-internal fun EditState.trimOffset(): Duration = if (trimEnabled) trimStartSeconds.toDouble().seconds else Duration.ZERO
+internal fun EditState.trimOffset(): Duration = if (trimEnabled) trimStartSeconds.asSeconds() else Duration.ZERO
 
 /**
  * Whether the edit is changing the picture's colour, which is what the grade lane and the tool rail mark.
  */
 internal val EditState.gradeContributes: Boolean
-  get() = colorGraded || tapeEnabled
+  get() =
+    colorGraded || tapeEnabled || filmEnabled || bloomEnabled || crtEnabled || pixelLook.enabled || lutEnabled ||
+      nightVisionEnabled || glitchEnabled || blur != 0f || vignette != 0f
 
 /**
  * Works out where each lane sits on a strip of [duration].

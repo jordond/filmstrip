@@ -1,8 +1,9 @@
 # demo
 
 The demo app is the full filmstrip editor, written once in Compose Multiplatform and run on Android, desktop, iOS and
-the browser. Pick a sample clip or a file of your own, trim it, grade it, add text, check what each backend can do,
-then export the result.
+the browser. Pick a sample clip or a file of your own, trim it, grade it, put a look on it (tape, film, bloom, CRT,
+pixel, night vision, glitch), add text and a watermark that fade or slide in, check what each backend can do, then
+export the result or save the frame under the playhead as a picture.
 
 ## Modules
 

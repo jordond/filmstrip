@@ -43,6 +43,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.jordond.filmstrip.sample.SampleAppState
+import dev.jordond.filmstrip.sample.asSeconds
 import dev.jordond.filmstrip.sample.ui.EditorLayout
 import dev.jordond.filmstrip.sample.ui.HoldKey
 import dev.jordond.filmstrip.sample.ui.IconKey
@@ -59,7 +60,6 @@ import dev.jordond.filmstrip.sample.ui.isCompactWidth
 import dev.jordond.filmstrip.sample.ui.scanlinesFaint
 import kotlin.math.absoluteValue
 import kotlin.math.roundToInt
-import kotlin.time.Duration.Companion.seconds
 
 /**
  * The editor.
@@ -322,7 +322,7 @@ private fun Transport(
   state: SampleAppState,
   modifier: Modifier = Modifier,
 ) {
-  val position = state.positionSeconds.toDouble().seconds
+  val position = state.positionSeconds.asSeconds()
   val compact = isCompactWidth()
   val clock = MaterialTheme.typography.labelLarge.copy(fontSize = if (compact) 20.sp else 24.sp)
   val total = state.editedDuration.asClock().let { if (compact) it.substringBeforeLast('.') else it }

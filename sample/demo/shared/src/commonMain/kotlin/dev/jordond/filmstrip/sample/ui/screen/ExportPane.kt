@@ -37,6 +37,8 @@ import androidx.compose.ui.unit.sp
 import dev.jordond.filmstrip.codec.AudioCodec
 import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.export.HdrMode
+import dev.jordond.filmstrip.export.VideoQuality
+import dev.jordond.filmstrip.sample.ExportOptions
 import dev.jordond.filmstrip.sample.SampleAppState
 import dev.jordond.filmstrip.sample.ui.Chip
 import dev.jordond.filmstrip.sample.ui.ChipGroup
@@ -174,14 +176,26 @@ private fun SetupRows(
   labelWidth: Dp?,
 ) {
   val busy = state.exporting
+  val options = state.options
+  SetupRow("Preset", labelWidth) {
+    ChipGroup(
+      options = ExportOptions.Presets,
+      selected = ExportOptions.Presets.firstOrNull { it.second == options.spec() }?.second,
+      enabled = !busy,
+      onSelect = { preset ->
+        preset?.let(options::apply)
+        state.onEditChanged()
+      },
+    )
+  }
 
   SetupRow("Height", labelWidth) {
     ChipGroup(
       options = listOf("Source" to null, "480" to 480, "720" to 720, "1080" to 1080, "2160" to 2160),
-      selected = state.targetHeight,
+      selected = options.targetHeight,
       enabled = !busy,
       onSelect = {
-        state.targetHeight = it
+        options.targetHeight = it
         state.onEditChanged()
       },
     )
@@ -192,15 +206,17 @@ private fun SetupRows(
       options =
         listOf(
           "Auto" to VideoCodec.Auto,
+          "Match source" to VideoCodec.MatchSource,
           "H.264" to VideoCodec.H264,
           "HEVC" to VideoCodec.Hevc,
           "VP9" to VideoCodec.Vp9,
+          "VP8" to VideoCodec.Vp8,
           "AV1" to VideoCodec.Av1,
         ),
-      selected = state.videoCodec,
+      selected = options.videoCodec,
       enabled = !busy,
       onSelect = {
-        state.videoCodec = it
+        options.videoCodec = it
         state.onEditChanged()
       },
     )
@@ -213,12 +229,16 @@ private fun SetupRows(
           "Auto" to AudioCodec.Auto,
           "AAC" to AudioCodec.Aac,
           "Opus" to AudioCodec.Opus,
+          "ALAC" to AudioCodec.Alac,
+          "MP3" to AudioCodec.Mp3,
+          "FLAC" to AudioCodec.Flac,
+          "Vorbis" to AudioCodec.Vorbis,
           "None" to AudioCodec.None,
         ),
-      selected = state.audioCodec,
+      selected = options.audioCodec,
       enabled = !busy,
       onSelect = {
-        state.audioCodec = it
+        options.audioCodec = it
         state.onEditChanged()
       },
     )
@@ -227,22 +247,44 @@ private fun SetupRows(
   SetupRow("Bitrate", labelWidth) {
     ChipGroup(
       options = listOf("Auto" to null, "2 Mbps" to 2, "4 Mbps" to 4, "8 Mbps" to 8, "16 Mbps" to 16),
-      selected = state.bitrateMbps,
+      selected = options.bitrateMbps,
       enabled = !busy,
       onSelect = {
-        state.bitrateMbps = it
+        options.bitrateMbps = it
         state.onEditChanged()
       },
     )
   }
 
+  SetupRow("Quality", labelWidth) {
+    ChipGroup(
+      options = listOf("Auto" to null) + VideoQuality.entries.map { it.label() to it },
+      selected = options.quality,
+      enabled = !busy,
+      onSelect = {
+        options.quality = it
+        state.onEditChanged()
+      },
+    )
+  }
+  SetupRow("Key frame every", labelWidth) {
+    ChipGroup(
+      options = listOf("Auto" to null, "1s" to 1, "2s" to 2, "5s" to 5),
+      selected = options.keyFrameSeconds,
+      enabled = !busy,
+      onSelect = {
+        options.keyFrameSeconds = it
+        state.onEditChanged()
+      },
+    )
+  }
   SetupRow("Frame rate", labelWidth) {
     ChipGroup(
       options = listOf("Source" to null, "24" to 24, "30" to 30, "60" to 60),
-      selected = state.frameRate,
+      selected = options.frameRate,
       enabled = !busy,
       onSelect = {
-        state.frameRate = it
+        options.frameRate = it
         state.onEditChanged()
       },
     )
@@ -256,10 +298,10 @@ private fun SetupRows(
           "Keep HDR" to HdrMode.KeepHdr,
           "Tone map" to HdrMode.ToneMapToSdr,
         ),
-      selected = state.hdr,
+      selected = options.hdr,
       enabled = !busy,
       onSelect = {
-        state.hdr = it
+        options.hdr = it
         state.onEditChanged()
       },
     )
@@ -280,12 +322,12 @@ private fun SetupRows(
   SetupRow("Strict", labelWidth) {
     Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
       Chip(
-        label = if (state.strict) "On" else "Off",
-        selected = state.strict,
+        label = if (options.strict) "On" else "Off",
+        selected = options.strict,
         enabled = !busy,
         role = Role.Switch,
         onClick = {
-          state.strict = !state.strict
+          options.strict = !options.strict
           state.onEditChanged()
         },
         modifier = Modifier.semantics { contentDescription = "Strict" },
@@ -355,3 +397,12 @@ private val LABEL_WIDTH = 180.dp
 private val DEVICE_WIDTH = 360.dp
 private val RULE_HEIGHT = 2.dp
 private val CHEVRON = 18.dp
+
+private fun VideoQuality.label(): String =
+  when (this) {
+    VideoQuality.VeryLow -> "Very low"
+    VideoQuality.Low -> "Low"
+    VideoQuality.Medium -> "Medium"
+    VideoQuality.High -> "High"
+    VideoQuality.VeryHigh -> "Very high"
+  }

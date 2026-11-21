@@ -9,9 +9,6 @@ import androidx.navigation3.runtime.NavBackStack
 import dev.jordond.filmstrip.CapabilitiesResult
 import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.FilmstripError
-import dev.jordond.filmstrip.codec.AudioCodec
-import dev.jordond.filmstrip.codec.Bitrate
-import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.diagnostics.BackendInfo
 import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
@@ -20,7 +17,6 @@ import dev.jordond.filmstrip.export.Adjustment
 import dev.jordond.filmstrip.export.ExportPlan
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.ExportStatus
-import dev.jordond.filmstrip.export.HdrMode
 import dev.jordond.filmstrip.export.Verdict
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.MediaInfo
@@ -33,6 +29,7 @@ import dev.jordond.filmstrip.player.PlaybackStatus
 import dev.jordond.filmstrip.player.PlayerConfig
 import dev.jordond.filmstrip.player.PlayerFeature
 import dev.jordond.filmstrip.player.PlayerState
+import dev.jordond.filmstrip.player.PreviewQualityPolicy
 import dev.jordond.filmstrip.player.SetCompositionResult
 import dev.jordond.filmstrip.player.VideoPlayer
 import kotlinx.coroutines.CoroutineScope
@@ -46,7 +43,6 @@ import kotlinx.coroutines.launch
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
-import kotlin.time.Duration.Companion.seconds
 
 /**
  * What the editor is currently editing, which decides what the tool panel shows.
@@ -175,13 +171,26 @@ public class SampleAppState(
       applyLoopRange()
     }
 
-  var targetHeight: Int? by mutableStateOf(1080)
-  var videoCodec: VideoCodec by mutableStateOf(VideoCodec.Auto)
-  var audioCodec: AudioCodec by mutableStateOf(AudioCodec.Auto)
-  var bitrateMbps: Int? by mutableStateOf(4)
-  var frameRate: Int? by mutableStateOf(null)
-  var hdr: HdrMode by mutableStateOf(HdrMode.Auto)
-  var strict: Boolean by mutableStateOf(false)
+  public val options: ExportOptions = ExportOptions()
+
+  public val frames: FrameGrab = FrameGrab(filmstrip, scope, recorder)
+
+  private var previewCapState: Int? by mutableStateOf(null)
+
+  /**
+   * The most the preview renders tall, or null for the composition's own height. Changing it reopens the player,
+   * since a player keeps the policy it was opened with.
+   */
+  var previewCap: Int?
+    get() = previewCapState
+    set(value) {
+      if (value == previewCapState) return
+      previewCapState = value
+      if (player == null) return
+      val at = positionSeconds
+      startPreview()
+      seekTo(at)
+    }
 
   var planning: Boolean by mutableStateOf(false)
     private set
@@ -276,6 +285,7 @@ public class SampleAppState(
     sourcePreset = preset
     pickFailure = null
     resetRun()
+    frames.clear()
     stopPreview()
     positionSeconds = 0f
     // The label is the user's own file name, so the log gets the same redaction the report does.
@@ -391,6 +401,7 @@ public class SampleAppState(
    */
   fun closeProject() {
     stopPreview()
+    frames.clear()
     exportJob?.cancel()
     probeJob?.cancel()
     probing = false
@@ -433,16 +444,24 @@ public class SampleAppState(
     return edit.composition(source, sourceDuration, trimmed = false)
   }
 
-  fun spec(): ExportSpec =
-    ExportSpec(
-      heightPx = targetHeight,
-      bitrate = bitrateMbps?.let(Bitrate::mbps),
-      videoCodec = videoCodec,
-      audioCodec = audioCodec,
-      frameRate = frameRate,
-      hdr = hdr,
-      strict = strict,
+  fun spec(): ExportSpec = options.spec()
+
+  /**
+   * What a preview is opened with: the export's spec, and the height cap when one is set.
+   */
+  fun playerConfig(): PlayerConfig =
+    PlayerConfig(
+      qualityPolicy = previewCap?.let(PreviewQualityPolicy::CapHeight) ?: PreviewQualityPolicy.Full,
+      exportSpec = spec(),
     )
+
+  /**
+   * Saves the frame under the playhead, rendered from the edit the export runs.
+   */
+  fun saveFrame() {
+    val composition = composition() ?: return
+    frames.save(composition, positionSeconds.asSeconds())
+  }
 
   /**
    * Opens a player over the current edit, replacing whatever was open.
@@ -455,7 +474,7 @@ public class SampleAppState(
     val composition = previewComposition() ?: return
     stopPreview()
 
-    val opened = filmstrip.preview(composition, PlayerConfig(exportSpec = spec()))
+    val opened = filmstrip.preview(composition, playerConfig())
     player = opened
     recorder.record("player.opened", "duration" to editedDuration.toString())
     observe(opened)
@@ -512,7 +531,7 @@ public class SampleAppState(
   fun seekTo(seconds: Float) {
     val target = seconds.coerceIn(0f, editedDurationSeconds)
     positionSeconds = target
-    livePlayer()?.seekTo(target.toDouble().seconds)
+    livePlayer()?.seekTo(target.asSeconds())
   }
 
   fun beginScrub() {
@@ -548,7 +567,7 @@ public class SampleAppState(
       return
     }
 
-    val fps = frameRate ?: info?.video?.frameRate?.toInt() ?: DEFAULT_FRAME_RATE
+    val fps = options.frameRate ?: info?.video?.frameRate?.toInt() ?: DEFAULT_FRAME_RATE
     seekTo(positionSeconds + frames.toFloat() / fps)
   }
 

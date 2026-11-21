@@ -53,13 +53,13 @@ import dev.jordond.filmstrip.compose.ui.interaction.zoomTimeline
 import dev.jordond.filmstrip.compose.ui.rememberTimelineState
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.sample.SampleAppState
+import dev.jordond.filmstrip.sample.asSeconds
 import dev.jordond.filmstrip.sample.ui.SampleIcons
 import dev.jordond.filmstrip.sample.ui.Tokens
 import dev.jordond.filmstrip.sample.ui.isCompactWidth
 import kotlinx.coroutines.launch
 import kotlin.math.sqrt
 import kotlin.time.Duration
-import kotlin.time.Duration.Companion.seconds
 
 /**
  * The strip under the viewport: the whole source laid out end to end, the lanes under it, the trim
@@ -377,7 +377,7 @@ private fun Sprockets(
   }
 }
 
-private fun Float.toDuration(): Duration = toDouble().seconds
+private fun Float.toDuration(): Duration = asSeconds()
 
 private fun Duration.toSeconds(): Float = inWholeMilliseconds / 1000f
 

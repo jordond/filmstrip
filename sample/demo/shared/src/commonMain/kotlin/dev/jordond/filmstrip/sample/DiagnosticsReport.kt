@@ -237,6 +237,7 @@ private fun ExportSpec.summary(): String =
     "audio $audioCodec",
     frameRate?.let { "$it fps" },
     "hdr $hdr",
+    keyFrameInterval?.let { "key frame every $it" },
     if (strict) "strict" else null,
   ).joinToString(", ")
 
@@ -272,6 +273,7 @@ private fun ExportSpec.asJson(): JsonObject =
     put("frameRate", frameRate)
     put("hdr", hdr.name)
     put("strict", strict)
+    put("keyFrameIntervalMs", keyFrameInterval?.inWholeMilliseconds)
   }
 
 /**

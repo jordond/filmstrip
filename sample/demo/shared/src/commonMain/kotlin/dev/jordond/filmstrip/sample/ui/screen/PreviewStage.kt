@@ -65,6 +65,7 @@ import dev.jordond.filmstrip.sample.EditState
 import dev.jordond.filmstrip.sample.EditorTool
 import dev.jordond.filmstrip.sample.FillMode
 import dev.jordond.filmstrip.sample.SampleAppState
+import dev.jordond.filmstrip.sample.asSeconds
 import dev.jordond.filmstrip.sample.compositionFrameLabel
 import dev.jordond.filmstrip.sample.stageSentence
 import dev.jordond.filmstrip.sample.ui.FringeText
@@ -80,7 +81,6 @@ import dev.jordond.filmstrip.transform.internal.geometry.placeIn
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
-import kotlin.time.Duration.Companion.seconds
 import androidx.compose.ui.text.TextStyle as ComposeTextStyle
 import androidx.compose.ui.text.font.FontWeight as ComposeFontWeight
 import dev.jordond.filmstrip.geometry.Size as FrameSize
@@ -215,13 +215,11 @@ private fun SampleAppState.stepLabel(compact: Boolean): String {
       } else {
         val start =
           edit.trimStartSeconds
-            .toDouble()
-            .seconds
+            .asSeconds()
             .asClock()
         val end =
           edit.trimEndSeconds
-            .toDouble()
-            .seconds
+            .asSeconds()
             .asClock()
         "TRIM  $start TO $end"
       }

@@ -129,7 +129,7 @@ class SampleSessionTest {
     state.onPicked(MediaSource.of("/tmp/clip.mp4"), "clip.mp4")
 
     state.compositionFrameLabel() shouldBe "1280 x 720"
-    state.targetHeight shouldBe 1080
+    state.options.targetHeight shouldBe 1080
 
     state.startPreview()
 

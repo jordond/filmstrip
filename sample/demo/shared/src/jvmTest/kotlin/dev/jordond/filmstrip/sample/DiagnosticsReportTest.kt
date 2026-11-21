@@ -2,6 +2,7 @@ package dev.jordond.filmstrip.sample
 
 import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.FilmstripVersion
+import dev.jordond.filmstrip.export.VideoQuality
 import dev.jordond.filmstrip.media.MediaSource
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldHaveSize
@@ -33,6 +34,19 @@ class DiagnosticsReportTest {
     report.markdown shouldContain FilmstripVersion.name
     report.markdown shouldContain "export.failed"
     report.json shouldContain "export.failed"
+  }
+
+  @Test
+  fun `carries the quality tier and the key frame interval of the export asked for`() {
+    state.options.quality = VideoQuality.Medium
+    state.options.keyFrameSeconds = 2
+
+    val report = state.diagnosticsReport()
+
+    report.markdown shouldContain "quality Medium"
+    report.markdown shouldContain "key frame every 2s"
+    report.json shouldContain "keyFrameIntervalMs"
+    report.json shouldContain "2000"
   }
 
   @Test

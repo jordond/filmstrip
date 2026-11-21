@@ -1,7 +1,6 @@
 package dev.jordond.filmstrip.sample
 
 import dev.jordond.filmstrip.edit.TimeRange
-import kotlin.time.Duration.Companion.seconds
 
 internal fun visibleWindow(
   enabled: Boolean,
@@ -9,7 +8,7 @@ internal fun visibleWindow(
   endSeconds: Float,
 ): TimeRange? {
   if (!enabled) return null
-  val start = startSeconds.toDouble().seconds
-  val end = endSeconds.toDouble().seconds
+  val start = startSeconds.asSeconds()
+  val end = endSeconds.asSeconds()
   return if (end > start) TimeRange(start, end) else null
 }
