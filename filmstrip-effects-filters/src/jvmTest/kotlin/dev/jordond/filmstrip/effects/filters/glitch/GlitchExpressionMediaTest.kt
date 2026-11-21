@@ -66,13 +66,48 @@ class GlitchExpressionMediaTest {
     withClue("the grid holds a steady split and a wider one") { (splits.distinct().size > 1) shouldBe true }
   }
 
+  @Test
+  fun `the geq block source equals the signal's on every pixel of a burst`() {
+    val params = GlitchParams.at(HALF, 1.0)
+    val expressions = GlitchExpressions(SEED, params)
+    val side = GlitchBlocks.sidePx(BLOCK_HEIGHT)
+    val tick =
+      (0 until SEARCH).first { tick ->
+        val strength = GlitchSignal.burstAt(SEED, tick, params)?.strength ?: return@first false
+        val columns = GlitchBlocks.columnsOf(BLOCK_WIDTH, BLOCK_HEIGHT)
+        (0 until BLOCK_HEIGHT / side).count {
+          GlitchBlocks.runAt(SEED, tick, it, columns, strength, params)?.let { run -> run.start < columns } == true
+        } >= BROKEN_ROWS
+      }
+    val source = expressions.blockSource("$tick")
+    val column = plane("$source;clip(X+ld(8),0,W-1)", BLOCK_WIDTH, BLOCK_HEIGHT)
+    val row = plane("$source;clip(ld(9),0,H-1)", BLOCK_WIDTH, BLOCK_HEIGHT)
+    var moved = 0
+
+    for (y in 0 until BLOCK_HEIGHT) {
+      for (x in 0 until BLOCK_WIDTH) {
+        val expected = GlitchBlocks.sourceOf(x, y, BLOCK_WIDTH, BLOCK_HEIGHT, SEED, tick, params)
+        if (expected[0] != x || expected[1] != y) moved++
+        withClue("tick $tick pixel $x $y") {
+          listOf(column[y * BLOCK_WIDTH + x].toInt() and 0xFF, row[y * BLOCK_WIDTH + x].toInt() and 0xFF) shouldBe
+            expected.toList()
+        }
+      }
+    }
+    withClue("the frame holds broken blocks") { (moved > side * side) shouldBe true }
+  }
+
   private fun tornAt(
     params: GlitchParams,
     tick: Int,
     row: Int,
   ): Boolean = GlitchSignal.tearAt(SEED, tick, row, GlitchSignal.burstAt(SEED, tick, params), params) != 0.0
 
-  private fun plane(expression: String): ByteArray {
+  private fun plane(
+    expression: String,
+    width: Int = SIDE,
+    height: Int = SIDE,
+  ): ByteArray {
     val process =
       ProcessBuilder(
         hostFfmpeg,
@@ -82,7 +117,7 @@ class GlitchExpressionMediaTest {
         "-f",
         "lavfi",
         "-i",
-        "color=c=black:s=${SIDE}x$SIDE:d=0.04",
+        "color=c=black:s=${width}x$height:d=0.04",
         "-frames:v",
         "1",
         "-vf",
@@ -109,5 +144,10 @@ class GlitchExpressionMediaTest {
     const val ROW_BASE = 7
     const val SCALE = 1_048_576.0
     val BYTE_SHIFTS = listOf(1L, 256L, 65536L)
+
+    // Small enough that every column and row fits a byte, tall enough for blocks of 9 pixels.
+    const val BLOCK_WIDTH = 250
+    const val BLOCK_HEIGHT = 240
+    const val BROKEN_ROWS = 3
   }
 }

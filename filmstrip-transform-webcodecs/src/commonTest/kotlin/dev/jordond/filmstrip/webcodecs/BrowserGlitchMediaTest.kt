@@ -10,7 +10,9 @@ import dev.jordond.filmstrip.edit.outputSlotTime
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effects.BuiltInEffectResolver
 import dev.jordond.filmstrip.effects.filters.FilterEffectResolver
+import dev.jordond.filmstrip.effects.filters.glitch.BlockDamage
 import dev.jordond.filmstrip.effects.filters.glitch.Glitch
+import dev.jordond.filmstrip.effects.filters.glitch.GlitchBlocks
 import dev.jordond.filmstrip.effects.filters.glitch.GlitchParams
 import dev.jordond.filmstrip.effects.filters.glitch.GlitchSignal
 import dev.jordond.filmstrip.effects.geometry.Crop
@@ -88,6 +90,30 @@ class BrowserGlitchMediaTest {
       val picture = drawn(edit(Clip(clip)))
 
       assertLands(frame, picture, QUIET)
+    }
+
+  @Test
+  fun brokenBlocksLandOnTheSignal() =
+    runTest {
+      val clip = gridClip()
+
+      val frame = drawn(edit(Clip(clip), listOf(BLOCKED)))
+      val picture = drawn(edit(Clip(clip)))
+
+      assertLands(frame, picture, BLOCKED)
+    }
+
+  @Test
+  fun aSmallerRenderBreaksBlocksAtItsOwnSize() =
+    runTest {
+      val clip = gridClip()
+      val small = ExportSpec(heightPx = SMALL_HEIGHT, videoCodec = VideoCodec.H264)
+
+      val frame = drawn(edit(Clip(clip), listOf(BLOCKED)), small)
+      val picture = drawn(edit(Clip(clip)), small)
+
+      frame.size.height shouldBe SMALL_HEIGHT
+      assertLands(frame, picture, BLOCKED)
     }
 
   @Test
@@ -205,6 +231,19 @@ class BrowserGlitchMediaTest {
       },
     )
 
+  // Teeth across the width in red and down the height in green, so a block read from another row or column shows.
+  private suspend fun gridClip(): MediaSource.Bytes =
+    MediaSource.Bytes(
+      makePixelClip(WIDTH, HEIGHT, FRAMES, FRAME_RATE) { _, x, y ->
+        Rgb(tooth(x), tooth(y), tooth(x + y))
+      },
+    )
+
+  private fun tooth(at: Int): Int {
+    val phase = at % TOOTH_PX
+    return TOOTH_LOW + minOf(phase, TOOTH_PX - phase) * TOOTH_SLOPE
+  }
+
   private suspend fun greyClip(): MediaSource.Bytes =
     MediaSource.Bytes(makeClip(WIDTH, HEIGHT, FRAMES, FRAME_RATE) { _, _ -> GREY })
 
@@ -216,8 +255,9 @@ class BrowserGlitchMediaTest {
     )
 
   // Holds the frame to the signal across rows top to bottom and columns edge to edge, in eight bit codes, with the
-  // picture bilinear over its columns and held at its edges the way the sampler reads it. Red and blue swapped, or a
-  // burst's rows left still, would have to read well past the tolerance somewhere, so the reads can tell.
+  // picture bilinear over its columns and held at its edges the way the sampler reads it, each column read where
+  // GlitchBlocks sends it. Red and blue swapped, a burst's rows left still or its blocks left whole would have to read
+  // well past the tolerance somewhere, so the reads can tell.
   private fun assertLands(
     frame: PreviewFrame,
     picture: PreviewFrame,
@@ -230,10 +270,15 @@ class BrowserGlitchMediaTest {
     var worst = 0.0
     var swapGap = 0.0
     var stillGap = 0.0
+    var wholeGap = 0.0
     (0 until height step ROW_STEP).forEach { y ->
       val row = GlitchSignal.virtualRow(y, height)
       val shift = GlitchSignal.rowShift(glitch.seed, TICK, row, params)
-      val texel = { column: Int -> picture.at((column + 0.5) / width, (y + 0.5) / height).channels() }
+      val whole = { column: Int -> picture.at((column + 0.5) / width, (y + 0.5) / height).channels() }
+      val texel = { column: Int ->
+        val (sourceX, sourceY) = GlitchBlocks.sourceOf(column, y, width, height, glitch.seed, TICK, params)
+        picture.at((sourceX + 0.5) / width, (sourceY + 0.5) / height).channels()
+      }
       val nearest = { at: Double -> texel((at.coerceIn(0.0, 1.0) * width).toInt().coerceAtMost(width - 1)) }
       ((0 until width step COLUMN_STEP) + (width - 1)).forEach { column ->
         val x = (column + 0.5) / width
@@ -242,11 +287,16 @@ class BrowserGlitchMediaTest {
         for (channel in 0 until RGB) worst = max(worst, abs(read[channel] - expected[channel]) * FULL)
         swapGap = max(swapGap, abs(nearest(x - shift + split)[0] - expected[0]) * FULL)
         stillGap = max(stillGap, abs(nearest(x)[1] - expected[1]) * FULL)
+        val unbroken = GlitchSignal.pixelAt(x, row, TICK, glitch.seed, width, params, whole)
+        wholeGap = max(wholeGap, (0 until RGB).maxOf { abs(unbroken[it] - expected[it]) } * FULL)
       }
     }
     withClue("red and blue swapped would read $swapGap codes off") { swapGap shouldBeGreaterThan 2 * SIGNAL_CODES }
     if (glitch == BURSTING) {
       withClue("a row left still would read $stillGap codes off") { stillGap shouldBeGreaterThan 2 * SIGNAL_CODES }
+    }
+    if (glitch == BLOCKED) {
+      withClue("blocks left whole would read $wholeGap codes off") { wholeGap shouldBeGreaterThan 2 * SIGNAL_CODES }
     }
     withClue("worst $worst") { worst shouldBeLessThan SIGNAL_CODES }
   }
@@ -299,6 +349,36 @@ private val QUIET: Glitch =
       },
   )
 private const val SEED_SEARCH = 100_000
+
+// The first seed whose burst at the read is rising and breaks both a smeared and a displaced block on the frame.
+private val BLOCKED: Glitch =
+  (1..SEED_SEARCH).asSequence().map { Glitch(MID, blocks = 1f, seed = it) }.first { glitch ->
+    val params = GlitchParams.of(glitch)
+    val now = GlitchSignal.burstAt(glitch.seed, TICK, params)?.strength ?: 0.0
+    val next = GlitchSignal.burstAt(glitch.seed, TICK + 1, params)?.strength ?: 0.0
+    now > 0.0 && next > now && damageOnFrame(glitch, params, now).containsAll(listOf(true, false))
+  }
+
+// Whether each broken block inside the frame smears, true, or moves, false.
+private fun damageOnFrame(
+  glitch: Glitch,
+  params: GlitchParams,
+  strength: Double,
+): Set<Boolean> {
+  val side = GlitchBlocks.sidePx(HEIGHT)
+  val columns = GlitchBlocks.columnsOf(WIDTH, HEIGHT)
+  return (0 until HEIGHT / side)
+    .flatMap { blockRow ->
+      val run = GlitchBlocks.runAt(glitch.seed, TICK, blockRow, columns, strength, params)
+      if (run == null) {
+        emptyList()
+      } else {
+        (0 until run.length).filter { run.start + it < columns }.map {
+          GlitchBlocks.damageAt(glitch.seed, TICK, blockRow, it) == BlockDamage.Smear
+        }
+      }
+    }.toSet()
+}
 
 private const val TOOTH_PX = 32
 private const val TOOTH_LOW = 32

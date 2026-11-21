@@ -10,9 +10,10 @@ internal const val GLITCH_KERNEL: String = "filmstripGlitch"
 /**
  * Metal source for the Core Image kernel [GLITCH_KERNEL], the same steps [GlitchShader] takes.
  *
- * The row shift is [GLITCH_ROW_SHIFT], the text the GLSL fragment compiles too. Everything an intensity or a frame
- * changes is a kernel argument. The kernel reads the frame's own codes, premultiplied the way Core Image holds them,
- * and returns them that way. Alpha is read where green is, so it moves with the row, and no colour rises above it.
+ * The row shift is [GLITCH_ROW_SHIFT] and the broken blocks [GLITCH_BLOCK_SOURCE], the text the GLSL fragment compiles
+ * too. Everything an intensity or a frame changes is a kernel argument. The kernel reads the frame's own codes,
+ * premultiplied the way Core Image holds them, and returns them that way. Alpha is read where green is, so it moves
+ * with the row, and no colour rises above it.
  */
 internal fun glitchMetal(): String =
   """
@@ -26,15 +27,42 @@ $HASH_MSL
 
 $GLITCH_ROW_SHIFT
 
+  #define GLITCH_INT2 int2
+$GLITCH_BLOCK_SOURCE
+
   float4 glitchRead(coreimage::sampler frame, float4 rect, float x, float y) {
     return frame.sample(frame.transform(float2(rect.x + clamp(x, 0.0f, 1.0f) * rect.z, y)));
+  }
+
+  // A pixel of the broken frame at a column and a row counted from the top, premultiplied as Core Image holds it.
+  float4 glitchBlockedTexel(coreimage::sampler frame, float4 rect, int column, int fromTop, uint seed, uint tick,
+      float below) {
+    int width = int(rect.z);
+    int height = int(rect.w);
+    int2 source = glitchSource(seed, tick, clamp(column, 0, width - 1), fromTop, width, height, below);
+    float2 at = float2(rect.x + float(source.x) + 0.5f, rect.y + rect.w - float(source.y) - 0.5f);
+    return frame.sample(frame.transform(at));
+  }
+
+  // Reads the broken frame between the two columns either side of x on its own row, as glitchRead does.
+  float4 glitchBlockedRead(coreimage::sampler frame, float4 rect, float x, float y, int fromTop, uint seed, uint tick,
+      float below) {
+    if (below <= 0.0f) return glitchRead(frame, rect, x, y);
+    float at = clamp(x, 0.0f, 1.0f) * rect.z - 0.5f;
+    float corner = floor(at);
+    int low = int(corner);
+    return mix(
+      glitchBlockedTexel(frame, rect, low, fromTop, seed, tick, below),
+      glitchBlockedTexel(frame, rect, low + 1, fromTop, seed, tick, below),
+      at - corner
+    );
   }
 
   extern "C" { namespace coreimage {
     [[stitchable]] float4 $GLITCH_KERNEL(
       sampler frame,
       float4 rect,
-      float2 clock,
+      float3 clock,
       float4 shifts,
       destination dest
     ) {
@@ -48,10 +76,11 @@ $GLITCH_ROW_SHIFT
       uint row = uint(floor((pixelRow * ${GLITCH_ROWS}.0f + 0.5f) / rect.w));
       uint seed = uint(clock.x + 0.5f);
       uint tick = uint(clock.y + 0.5f);
+      int fromTopRow = int(pixelRow);
       float shifted = u - glitchRowShift(seed, tick, row, shifts.x, shifts.z, shifts.w);
-      float4 green = glitchRead(frame, rect, shifted, at.y);
-      float red = glitchRead(frame, rect, shifted - shifts.y, at.y).r;
-      float blue = glitchRead(frame, rect, shifted + shifts.y, at.y).b;
+      float4 green = glitchBlockedRead(frame, rect, shifted, at.y, fromTopRow, seed, tick, clock.z);
+      float red = glitchBlockedRead(frame, rect, shifted - shifts.y, at.y, fromTopRow, seed, tick, clock.z).r;
+      float blue = glitchBlockedRead(frame, rect, shifted + shifts.y, at.y, fromTopRow, seed, tick, clock.z).b;
       // Red and blue come from beside the alpha, so they are held under it to stay premultiplied beside a clear bar.
       return float4(min(float3(red, green.g, blue), green.a), green.a);
     }

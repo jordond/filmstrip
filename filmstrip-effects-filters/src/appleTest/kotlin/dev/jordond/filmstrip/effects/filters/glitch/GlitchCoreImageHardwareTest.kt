@@ -86,7 +86,7 @@ class GlitchCoreImageHardwareTest {
       CGRectMake(1880.0, 1040.0, 40.0, 40.0),
     ).forEach { tile ->
       val (x, w) = tile.useContents { listOf(origin.x, size.width) }
-      glitchSourceRegion(tile, 1920.0, params).useContents {
+      glitchSourceRegion(tile, 1920.0, 1080.0, params).useContents {
         for (tick in 0 until TICKS) {
           val split = GlitchSignal.channelSplit(BURSTING.seed, tick, params)
           for (row in 0 until GlitchSignal.ROWS) {
@@ -104,6 +104,50 @@ class GlitchCoreImageHardwareTest {
       }
     }
   }
+
+  @Test
+  fun `the source region of a tile holds every broken block read under it`() {
+    val params = GlitchParams.at(1.0, 1.0)
+    val width = 1920
+    val height = 1080
+    listOf(
+      CGRectMake(8.0, 8.0, 24.0, 24.0),
+      CGRectMake(900.0, 500.0, 40.0, 40.0),
+      CGRectMake(1880.0, 1040.0, 40.0, 40.0),
+    ).forEach { tile ->
+      val (x, y, w, h) = tile.useContents { listOf(origin.x, origin.y, size.width, size.height) }
+      glitchSourceRegion(tile, width.toDouble(), height.toDouble(), params).useContents {
+        for (tick in 0 until TICKS) {
+          if (GlitchSignal.burstAt(BURSTING.seed, tick, params) == null) continue
+          val split = GlitchSignal.channelSplit(BURSTING.seed, tick, params)
+          // Core Image counts rows from the bottom and the signal from the top.
+          for (fromTop in (height - (y + h).toInt()) until (height - y.toInt())) {
+            val shift = GlitchSignal.rowShift(BURSTING.seed, tick, GlitchSignal.virtualRow(fromTop, height), params)
+            listOf(x, x + w - 1).forEach { column ->
+              listOf(-split, 0.0, split).forEach { apart ->
+                val read = (column + 0.5 - (shift + apart) * width).toInt().coerceIn(0, width - 1)
+                listOf(read, (read + 1).coerceAtMost(width - 1)).forEach { texel ->
+                  val (sourceX, sourceY) =
+                    GlitchBlocks.sourceOf(texel, fromTop, width, height, BURSTING.seed, tick, params)
+                  val up = height - sourceY - 0.5
+                  withClue("tick $tick row $fromTop column $column") {
+                    (sourceX + 0.5 >= origin.x && sourceX + 0.5 <= origin.x + size.width) shouldBe true
+                    (up >= origin.y && up <= origin.y + size.height) shouldBe true
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  @Test
+  fun `broken blocks land on the signal`() = assertBlocksLand(WIDTH, HEIGHT)
+
+  @Test
+  fun `a mid height breaks blocks at its own size`() = assertBlocksLand(WIDTH * 3 / 4, HEIGHT * 3 / 4)
 
   @Test
   fun `a corner tile reads the same as the whole frame`() {
@@ -214,6 +258,46 @@ class GlitchCoreImageHardwareTest {
       }
     }
   }
+
+  // Every fourth column of every read row against the signal over the grid read where GlitchBlocks sends it, and the
+  // same reads with the blocks left whole landing well off somewhere.
+  private fun assertBlocksLand(
+    width: Int,
+    height: Int,
+  ) {
+    val params = GlitchParams.of(BLOCKED)
+    val frame = drawn(BLOCKED, imageOf(width, height) { x, y -> gridPixel(x, y, width, height) }, width, height)
+    var wholeGap = 0.0
+    (0 until height step ROW_STEP).forEach { y ->
+      val row = GlitchSignal.virtualRow(y, height)
+      val broken = { column: Int ->
+        val (x, from) = GlitchBlocks.sourceOf(column, y, width, height, BLOCKED.seed, TICK, params)
+        gridPixel(x, from, width, height).take(3).map { it.toDouble() }.toDoubleArray()
+      }
+      val whole = { column: Int -> gridPixel(column, y, width, height).take(3).map { it.toDouble() }.toDoubleArray() }
+      for (x in 0 until width step BLOCK_COLUMN_STEP) {
+        val u = (x + 0.5) / width
+        val expected = GlitchSignal.pixelAt(u, row, TICK, BLOCKED.seed, width, params, broken)
+        val unbroken = GlitchSignal.pixelAt(u, row, TICK, BLOCKED.seed, width, params, whole)
+        val at = (y * width + x) * CHANNELS
+        expected.forEachIndexed { channel, value ->
+          wholeGap = maxOf(wholeGap, kotlin.math.abs(unbroken[channel] - value))
+          withClue("row $y column $x channel $channel of $width by $height") {
+            frame[at + channel].toDouble() shouldBe (value plusOrMinus TOLERANCE)
+          }
+        }
+      }
+    }
+    withClue("blocks left whole would read $wholeGap off") { (wholeGap > WHOLE_GAP) shouldBe true }
+  }
+
+  // The ramp with green rising down the picture, so a block read from another row shows.
+  private fun gridPixel(
+    x: Int,
+    y: Int,
+    width: Int,
+    height: Int,
+  ): FloatArray = rampPixel(x, width).also { it[1] = RAMP_GREEN - RAMP_SPAN * y.toFloat() / (height - 1) }
 
   private fun drawn(
     glitch: Glitch,
@@ -374,5 +458,21 @@ class GlitchCoreImageHardwareTest {
           },
       )
     val QUIET = Glitch(0.5f, seed = (1..SEED_SEARCH).first { GlitchSignal.burstAt(it, TICK, MID) == null })
+    const val BLOCK_COLUMN_STEP = 4
+    const val WHOLE_GAP = 0.01
+
+    // The first seed whose burst at the read is rising and breaks at least two rows of blocks on the frame.
+    val BLOCKED =
+      (1..SEED_SEARCH).asSequence().map { Glitch(0.5f, blocks = 1f, seed = it) }.first { glitch ->
+        val params = GlitchParams.of(glitch)
+        val now = GlitchSignal.burstAt(glitch.seed, TICK, params)?.strength ?: 0.0
+        val next = GlitchSignal.burstAt(glitch.seed, TICK + 1, params)?.strength ?: 0.0
+        val side = GlitchBlocks.sidePx(HEIGHT)
+        val columns = GlitchBlocks.columnsOf(WIDTH, HEIGHT)
+        now > 0.0 && next > now &&
+          (0 until HEIGHT / side).count { blockRow ->
+            GlitchBlocks.runAt(glitch.seed, TICK, blockRow, columns, now, params)?.let { it.start < columns } == true
+          } >= 2
+      }
   }
 }

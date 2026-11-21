@@ -279,7 +279,9 @@ one, it's refused by name.
 - **ffmpeg** refuses a look its build is missing a filter for.
 - **ffmpeg** draws `glitch` with one `geq` over each of red, green, blue and alpha, every pixel a bilinear read at its
   row's shift, and goes through RGB and back to do it. That round trip lands within 3 codes of the signal, and 4:2:0
-  averages the colour fringe across two rows where a slice ends.
+  averages the colour fringe across two rows where a slice ends. A glitch with `blocks` runs a second `geq` ahead of
+  it that copies each broken pixel whole, so luma lands within the same 3 codes and the colour blends across a block's
+  edge where 4:2:0 shares it.
 - **ffmpeg** reads a `vhs` beside a clear canvas bar tap by tap where its blur lands across the bar's edge, which runs
   about 0.9 fps at 1080p on the same server where a frame with no bar runs 5.2 fps. A source with its own alpha can be
   clear anywhere, so it is read tap by tap over the whole frame, which is slower still.
@@ -329,7 +331,8 @@ Filters are heavy on ffmpeg. Measured on a 12 thread x86 server with x264:
 | `crt`                             | 9.0 fps  | 2.4 fps  | 1.5 GB and 5.4 GB         |
 | `lut`                             | 70 fps   | 21 fps   |                           |
 | `Film.Super8`                     | 0.3 fps  | 0.1 fps  |                           |
-| `glitch`                          | 4 fps    | 1 fps    |                           |
+| `glitch`                          | 7.2 fps  | 1.8 fps  |                           |
+| `glitch` with `blocks`            | 4.5 fps  | 1.2 fps  |                           |
 | `nightVision`                     | 24.8 fps | 6.9 fps  |                           |
 | `pixel`                           | 54 fps   | 23.1 fps |                           |
 | `pixel` with a palette and dither | 31.6 fps | 19.1 fps |                           |

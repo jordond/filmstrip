@@ -223,11 +223,17 @@ and then a burst tears through the picture, cutting it into horizontal slices th
 further and the colours pulled wider apart. The bursts follow composition time and the frame's height as a fraction, so
 a seek or a smaller preview shows the same glitch.
 
+With `blocks` above `0f`, a burst also breaks runs of square blocks along some rows, the way a damaged digital file
+does. A broken block shows a block from a few blocks away, or smears the row above it down through itself. Blocks are
+sized from the frame's height, so a smaller preview breaks the same blocks at its own size. They are cut before the
+slices slide, so they ride with their slice. `Glitch.Corrupt` is a strong glitch with every block setting turned up.
+
 <Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Filters.kt" region="glitch" />
 
 | Argument    | What it does                                                                         |
 | ----------- | ------------------------------------------------------------------------------------ |
 | `intensity` | How strong the look is. `0f` leaves the frame alone and is listed as an inert notice |
+| `blocks`    | How many blocks a burst breaks, from `0f` for none to `1f`                           |
 | `seed`      | Picks the pattern of bursts. Equal seeds draw the same glitches                      |
 
 A `glitch` on the composition covers the whole frame, bars included. One on a clip or a track slides a clear bar with the
@@ -333,7 +339,8 @@ overlay under a composition `nightVision` is part of the clip's frame by then, a
 - On ffmpeg, `pixel` writes `yuva420p`, whose chroma is shared by 2 by 2 pixels, so a cell edge that falls inside a
   chroma sample blends the colours either side of it.
 - On ffmpeg, `glitch` reads red, green and blue from their own places, so it runs in RGB and back, which rounds and
-  softens the colour fringe.
+  softens the colour fringe. Broken blocks keep their luma exactly, and 4:2:0 shares one colour sample across a block's
+  edge, so the colour there blends with its neighbour.
 - ffmpeg lays `camcorder` from an animated PNG it writes ahead of the export, so it refuses one whose frames have no
   known end by name. It carries the display in 4:2:0, so luma lands within a code of the other backends and the record
   dot blends a little with the pixels next to it.

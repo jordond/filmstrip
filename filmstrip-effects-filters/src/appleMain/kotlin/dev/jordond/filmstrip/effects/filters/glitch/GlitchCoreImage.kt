@@ -60,16 +60,17 @@ internal fun glitchStep(glitch: Glitch): CoreImageEffect {
     val exactTick = GlitchSignal.tickAt(frame.compositionTime.toDouble(DurationUnit.SECONDS))
     val strength = GlitchSignal.burstAt(glitch.seed, exactTick, params)?.strength ?: 0.0
     val split = GlitchSignal.channelSplit(glitch.seed, exactTick, params)
+    val below = GlitchBlocks.breakBelow(strength, params).toDouble()
 
     inCodesOf(frame.attributes.colorSpace) { toCodes ->
       kernel.applyWithExtent(
         extent,
-        roiCallback = { _, rect -> glitchSourceRegion(rect, width, params) },
+        roiCallback = { _, rect -> glitchSourceRegion(rect, width, height, params) },
         arguments =
           listOf(
             toCodes(image).imageByClampingToExtent(),
             CIVector.vectorWithX(x, Y = y, Z = width, W = height),
-            CIVector.vectorWithX(seed, Y = (exactTick and HASH_MASK).toDouble()),
+            CIVector.vectorWithX(seed, Y = (exactTick and HASH_MASK).toDouble(), Z = below),
             CIVector.vectorWithX(strength, Y = split, Z = params.bandShift, W = params.tearShift),
           ),
       ) ?: error(GLITCH_KERNEL_LIMIT)
@@ -78,15 +79,24 @@ internal fun glitchStep(glitch: Glitch): CoreImageEffect {
 }
 
 /**
- * The region of the source a tile [rect] of a frame [width] pixels wide reads, the tile widened along its rows by
- * [GlitchSignal.widestReach] and a pixel either side for a read that lands between two.
+ * The region of the source a tile [rect] of a frame [width] by [height] pixels reads, the tile widened along its rows
+ * by [GlitchSignal.widestReach] and a pixel either side for a read that lands between two. A glitch that breaks blocks
+ * also reads up to [GlitchBlocks.reachPx] away in both directions.
  */
 @OptIn(ExperimentalForeignApi::class)
 internal fun glitchSourceRegion(
   rect: CValue<CGRect>,
   width: Double,
+  height: Double,
   params: GlitchParams,
-): CValue<CGRect> = CGRectInset(rect, -(GlitchSignal.widestReach(params) * width + SAMPLE_MARGIN), 0.0)
+): CValue<CGRect> {
+  val blocks = if (params.blockChance > 0.0) GlitchBlocks.reachPx(height.toInt()).toDouble() else 0.0
+  return CGRectInset(
+    rect,
+    -(GlitchSignal.widestReach(params) * width + blocks + SAMPLE_MARGIN),
+    -(blocks + if (blocks > 0.0) SAMPLE_MARGIN else 0.0),
+  )
+}
 
 /**
  * Why this device cannot draw a [Glitch], or null when it can.

@@ -15,15 +15,18 @@ import dev.jordond.filmstrip.effects.filters.internal.HashExpression
  * straight, so each read weighs its two columns by their alpha, and a clear column lends its neighbour no colour. Alpha
  * reads where green does. Going through `gbrap` and back rounds twice, and 4:2:0 cannot hold the split's colour fringe
  * narrower than its chroma samples. Both are ffmpeg's own limits, and a test pins how close they land.
+ *
+ * A glitch with [Glitch.blocks] runs a second `geq` ahead of the tear that reads each pixel from where
+ * [GlitchBlocks.sourceOf] sends it, whole pixels on every plane, so the tear slides the broken frame.
  */
-internal fun glitchFragment(glitch: Glitch): FilterFragment =
-  FilterFragment(
-    chain =
-      RgbRoundTrip.opening() + RgbRoundTrip.toRgb() +
-        GlitchExpressions(glitch.seed, GlitchParams.of(glitch)).tear() +
-        RgbRoundTrip.toCodes(),
+internal fun glitchFragment(glitch: Glitch): FilterFragment {
+  val expressions = GlitchExpressions(glitch.seed, GlitchParams.of(glitch))
+  val broken = if (glitch.blocks > 0f) listOf(expressions.blocks()) else emptyList()
+  return FilterFragment(
+    chain = RgbRoundTrip.opening() + RgbRoundTrip.toRgb() + broken + expressions.tear() + RgbRoundTrip.toCodes(),
     readsCompositionClock = true,
   )
+}
 
 /**
  * Writes [GlitchSignal]'s functions as ffmpeg expressions.
@@ -51,6 +54,60 @@ internal class GlitchExpressions(
       "a" to plane(ALPHA_PLANE, null),
       "interpolation" to "nearest",
     )
+
+  /**
+   * The `geq` that reads every plane of each pixel from [GlitchBlocks.sourceOf]'s pixel.
+   */
+  fun blocks(): FilterNode {
+    val read = { plane: String -> "${blockSource()};$plane(clip(X+ld(8),0,W-1),clip(ld(9),0,H-1))" }
+    return FilterNode(
+      "geq",
+      "r" to read("r"),
+      "g" to read("g"),
+      "b" to read("b"),
+      "a" to read(ALPHA_PLANE),
+      "interpolation" to "nearest",
+    )
+  }
+
+  /**
+   * [GlitchBlocks.sourceOf] at the frame's own tick, leaving the column's offset in register 8 and the row it reads in
+   * register 9, held inside the frame by whoever reads them.
+   *
+   * The row's first pixel works out the tick into 2, the block's side into 3, [GlitchBlocks.breakBelow] into 4, the
+   * row of blocks into 5 and its run's first block and length into 6 and 7, with 7 at 0 when the row is whole. Each
+   * block's first pixel works out where its pixels read.
+   */
+  fun blockSource(tick: String = "floor(T*$GLITCH_TICK_RATE+$GLITCH_TICK_MARGIN)"): String {
+    val steps = { hash: String, count: String -> "floor(floor(($hash)/256)*$count/65536)" }
+    val row =
+      listOf(
+        "st(2,$tick)",
+        "st(4,${strength()})",
+        "st(4,if(gt(ld(4),0),ceil(${params.blockChance}*ld(4)*$HASH_RANGE),0))",
+        "st(3,max(1,floor((H*${2 * BLOCK_ROWS}+$GLITCH_ROWS)/${2 * GLITCH_ROWS})))",
+        "st(5,floor(Y/ld(3)))",
+        "st(7,0)",
+        "if(lt(${hash(PASS_BLOCK_ROW, "ld(5)")},ld(4))," +
+          "st(6,${steps(hash(PASS_BLOCK_RUN, "2*ld(5)"), "floor((W+ld(3)-1)/ld(3))")});" +
+          "st(7,1+${steps(hash(PASS_BLOCK_RUN, "2*ld(5)+1"), "$RUN_MAX_BLOCKS")}),0)",
+      ).joinToString(";")
+    val smear = "st(8,0);st(9,max(0,ld(5)*ld(3)-1))"
+    val displace =
+      listOf(
+        "st(9,${steps(hash(PASS_BLOCK_MOVE, "ld(9)"), "$BLOCK_MOVES")})",
+        "st(9,ld(9)+gte(ld(9),${BLOCK_MOVES / 2}))",
+        "st(8,(mod(ld(9),$BLOCK_SPAN)-$BLOCK_REACH)*ld(3))",
+        "st(9,Y+(floor(ld(9)/$BLOCK_SPAN)-$BLOCK_REACH)*ld(3))",
+      ).joinToString(";")
+    val damaged =
+      "st(9,ld(5)*$RUN_MAX_BLOCKS+ld(9));" +
+        "if(lt(${hash(PASS_BLOCK_KIND, "ld(9)")},$SMEAR_BELOW),$smear,$displace)"
+    val block =
+      "st(8,0);st(9,floor(X/ld(3))-ld(6));" +
+        "if(gt(ld(7),0)*gte(ld(9),0)*lt(ld(9),ld(7)),$damaged,st(9,Y))"
+    return "if(X,0,$row);if(eq(mod(X,ld(3)),0),$block,0)"
+  }
 
   /**
    * [GlitchSignal.rowShift] of the tick in register 2 and the row in register 3, with the burst's strength in

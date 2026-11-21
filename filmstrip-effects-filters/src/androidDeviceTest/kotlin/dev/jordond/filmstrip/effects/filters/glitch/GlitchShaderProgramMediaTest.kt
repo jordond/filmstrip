@@ -65,6 +65,21 @@ class GlitchShaderProgramMediaTest {
   }
 
   @Test
+  fun brokenBlocksLandOnTheSignal() {
+    val frame = draw(BLOCKED, width = WIDTH, height = HEIGHT, source = ::grid)
+
+    assertBlocksLand(frame, HEIGHT)
+  }
+
+  @Test
+  fun aMidHeightBreaksBlocksAtItsOwnSize() {
+    val height = HEIGHT * 3 / 4
+    val frame = draw(BLOCKED, width = WIDTH, height = height, source = ::grid)
+
+    assertBlocksLand(frame, height)
+  }
+
+  @Test
   fun aQuietTickSplitsTheColoursAndMovesNoRow() {
     val frame = draw(QUIET, width = WIDTH, height = HEIGHT)
 
@@ -98,7 +113,7 @@ class GlitchShaderProgramMediaTest {
 
   @Test
   fun alphaMovesWithGreen() {
-    val frame = draw(BURSTING, width = WIDTH, height = HEIGHT, source = ::canvas)
+    val frame = draw(BURSTING, width = WIDTH, height = HEIGHT, source = { x, _ -> canvas(x) })
     val y = (0 until HEIGHT).maxBy { abs(shiftOf(it, HEIGHT)) }
     val shift = shiftOf(y, HEIGHT) * WIDTH
     val leading = if (shift > 0) CANVAS_RIGHT else CANVAS_LEFT
@@ -117,7 +132,7 @@ class GlitchShaderProgramMediaTest {
   // Straight colour at half alpha left of the middle, so a split or a slide reading across the middle mixes the two.
   @Test
   fun aHalfAlphaPictureLandsOnTheSignalInStraightColour() {
-    val frame = draw(BURSTING, width = WIDTH, height = HEIGHT, source = ::halfAlpha)
+    val frame = draw(BURSTING, width = WIDTH, height = HEIGHT, source = { x, _ -> halfAlpha(x) })
     val params = GlitchParams.of(BURSTING)
 
     (0 until HEIGHT step ROW_STEP).forEach { y ->
@@ -177,12 +192,42 @@ class GlitchShaderProgramMediaTest {
     }
   }
 
+  // Holds every fourth column of every read row to the signal over the grid read where GlitchBlocks sends it, and
+  // checks the same reads with the blocks left whole would land somewhere well off.
+  private fun assertBlocksLand(
+    frame: FloatArray,
+    height: Int,
+  ) {
+    val params = GlitchParams.of(BLOCKED)
+    var wholeGap = 0.0
+    (0 until height step ROW_STEP).forEach { y ->
+      val row = GlitchSignal.virtualRow(y, height)
+      val broken = { column: Int ->
+        val (x, from) = GlitchBlocks.sourceOf(column, y, WIDTH, height, BLOCKED.seed, TICK, params)
+        grid(x, from).toDoubles()
+      }
+      for (column in 0 until WIDTH step BLOCK_COLUMN_STEP) {
+        val x = (column + 0.5) / WIDTH
+        val expected = GlitchSignal.pixelAt(x, row, TICK, BLOCKED.seed, WIDTH, params, broken)
+        val whole = GlitchSignal.pixelAt(x, row, TICK, BLOCKED.seed, WIDTH, params) { grid(it, y).toDoubles() }
+        val at = ((height - 1 - y) * WIDTH + column) * CHANNELS
+        expected.forEachIndexed { channel, value ->
+          wholeGap = maxOf(wholeGap, abs(whole[channel] - value))
+          withClue("row $y column $column channel $channel") {
+            frame[at + channel].toDouble() shouldBe (value plusOrMinus TOLERANCE)
+          }
+        }
+      }
+    }
+    withClue("blocks left whole would read $wholeGap off") { wholeGap shouldBeGreaterThan WHOLE_GAP }
+  }
+
   private fun draw(
     glitch: Glitch,
     width: Int,
     height: Int,
     seconds: Double = SECONDS,
-    source: (Int) -> FloatArray = ::ramp,
+    source: (x: Int, y: Int) -> FloatArray = { x, _ -> ramp(x) },
   ): FloatArray {
     val input = sourceTexture(width, height, source)
     val target = IntArray(1)
@@ -221,12 +266,13 @@ class GlitchShaderProgramMediaTest {
   private fun sourceTexture(
     width: Int,
     height: Int,
-    source: (Int) -> FloatArray,
+    source: (x: Int, y: Int) -> FloatArray,
   ): Int {
     val texels = ByteBuffer.allocateDirect(width * height * CHANNELS * Float.SIZE_BYTES).order(ByteOrder.nativeOrder())
-    for (y in 0 until height) {
+    // A GL texture's first row is the bottom of the picture, and source counts rows from the top.
+    for (row in 0 until height) {
       for (x in 0 until width) {
-        val rgb = source(x)
+        val rgb = source(x, height - 1 - row)
         rgb.forEach(texels::putFloat)
         if (rgb.size == RGB) texels.putFloat(1f)
       }
@@ -259,6 +305,12 @@ class GlitchShaderProgramMediaTest {
     return floatArrayOf(code, 0.5f, 1f - code)
   }
 
+  // The ramp with green rising down the picture, so a block read from another row shows.
+  private fun grid(
+    column: Int,
+    y: Int,
+  ): FloatArray = ramp(column).also { it[1] = 0.25f + y / RAMP_STEPS }
+
   // A canvas: clear bars either side of a mid grey picture, with the alpha to tell them apart.
   private fun canvas(column: Int): FloatArray =
     if (column in CANVAS_LEFT until CANVAS_RIGHT) floatArrayOf(0.5f, 0.5f, 0.5f, 1f) else floatArrayOf(0f, 0f, 0f, 0f)
@@ -276,6 +328,8 @@ class GlitchShaderProgramMediaTest {
     const val SECONDS = 25.0
     const val TOLERANCE = 1e-4
     const val SEED_SEARCH = 100_000
+    const val BLOCK_COLUMN_STEP = 4
+    const val WHOLE_GAP = 0.01
     val READ_COLUMNS = listOf(0, 128, 256, 384, WIDTH - 1)
     val MID = GlitchParams.at(0.5)
     val TICK = GlitchSignal.tickAt(SECONDS)
@@ -292,6 +346,20 @@ class GlitchShaderProgramMediaTest {
           },
       )
     val QUIET = Glitch(0.5f, seed = (1..SEED_SEARCH).first { GlitchSignal.burstAt(it, TICK, MID) == null })
+
+    // The first seed whose burst at the read is rising and breaks a block on the frame.
+    val BLOCKED =
+      (1..SEED_SEARCH).asSequence().map { Glitch(0.5f, blocks = 1f, seed = it) }.first { glitch ->
+        val params = GlitchParams.of(glitch)
+        val now = GlitchSignal.burstAt(glitch.seed, TICK, params)?.strength ?: 0.0
+        val next = GlitchSignal.burstAt(glitch.seed, TICK + 1, params)?.strength ?: 0.0
+        val side = GlitchBlocks.sidePx(HEIGHT)
+        val columns = GlitchBlocks.columnsOf(WIDTH, HEIGHT)
+        now > 0.0 && next > now &&
+          (0 until HEIGHT / side).count { blockRow ->
+            GlitchBlocks.runAt(glitch.seed, TICK, blockRow, columns, now, params)?.let { it.start < columns } == true
+          } >= 2
+      }
 
     // A time the bursting seed draws something else at.
     val QUIET_SECONDS = SECONDS / 2

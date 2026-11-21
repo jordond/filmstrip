@@ -320,14 +320,35 @@ public final class dev/jordond/filmstrip/effects/filters/film/FilmKt {
 	public static synthetic fun film$default (Ldev/jordond/filmstrip/edit/EffectsBuilder;FFFFFFIILjava/lang/Object;)Ldev/jordond/filmstrip/edit/EffectsBuilder;
 }
 
+public final class dev/jordond/filmstrip/effects/filters/glitch/BlockDamage$Displace : dev/jordond/filmstrip/effects/filters/glitch/BlockDamage {
+	public fun <init> (II)V
+	public final fun component1 ()I
+	public final fun component2 ()I
+	public final fun copy (II)Ldev/jordond/filmstrip/effects/filters/glitch/BlockDamage$Displace;
+	public static synthetic fun copy$default (Ldev/jordond/filmstrip/effects/filters/glitch/BlockDamage$Displace;IIILjava/lang/Object;)Ldev/jordond/filmstrip/effects/filters/glitch/BlockDamage$Displace;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getDx ()I
+	public final fun getDy ()I
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/jordond/filmstrip/effects/filters/glitch/BlockDamage$Smear : dev/jordond/filmstrip/effects/filters/glitch/BlockDamage {
+	public static final field INSTANCE Ldev/jordond/filmstrip/effects/filters/glitch/BlockDamage$Smear;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
 public final class dev/jordond/filmstrip/effects/filters/glitch/Glitch : dev/jordond/filmstrip/effect/EffectSpec {
 	public static final field Companion Ldev/jordond/filmstrip/effects/filters/glitch/Glitch$Companion;
 	public static final field DEFAULT_SEED I
 	public fun <init> ()V
-	public fun <init> (FI)V
-	public synthetic fun <init> (FIILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (FFI)V
+	public synthetic fun <init> (FFIILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun equals (Ljava/lang/Object;)Z
 	public fun getBeneathOverlays ()Z
+	public final fun getBlocks ()F
 	public fun getId-M7MrD_4 ()Ljava/lang/String;
 	public final fun getIntensity ()F
 	public fun getRedrawsWhileHeld ()Z
@@ -341,12 +362,13 @@ public final class dev/jordond/filmstrip/effects/filters/glitch/Glitch : dev/jor
 }
 
 public final class dev/jordond/filmstrip/effects/filters/glitch/Glitch$Companion {
+	public final fun getCorrupt ()Ldev/jordond/filmstrip/effects/filters/glitch/Glitch;
 	public final fun getID-M7MrD_4 ()Ljava/lang/String;
 }
 
 public final class dev/jordond/filmstrip/effects/filters/glitch/GlitchKt {
-	public static final fun glitch (Ldev/jordond/filmstrip/edit/EffectsBuilder;FI)Ldev/jordond/filmstrip/edit/EffectsBuilder;
-	public static synthetic fun glitch$default (Ldev/jordond/filmstrip/edit/EffectsBuilder;FIILjava/lang/Object;)Ldev/jordond/filmstrip/edit/EffectsBuilder;
+	public static final fun glitch (Ldev/jordond/filmstrip/edit/EffectsBuilder;FFI)Ldev/jordond/filmstrip/edit/EffectsBuilder;
+	public static synthetic fun glitch$default (Ldev/jordond/filmstrip/edit/EffectsBuilder;FFIILjava/lang/Object;)Ldev/jordond/filmstrip/edit/EffectsBuilder;
 }
 
 public final class dev/jordond/filmstrip/effects/filters/hi8/Hi8 : dev/jordond/filmstrip/effects/filters/tape/TapeLook {

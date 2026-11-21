@@ -12,6 +12,7 @@ import dev.jordond.filmstrip.InternalFilmstripApi
  * @property bandShift The largest slide of a slice at the height of a burst, a fraction of the width.
  * @property tearShift The largest slide of a torn row at the height of a burst, a fraction of the width.
  * @property burstChance The chance a burst window holds a burst.
+ * @property blockChance The chance a row of blocks breaks at the height of a burst.
  */
 @InternalFilmstripApi
 public class GlitchParams private constructor(
@@ -20,6 +21,7 @@ public class GlitchParams private constructor(
   public val bandShift: Double,
   public val tearShift: Double,
   public val burstChance: Double,
+  public val blockChance: Double,
 ) {
   /**
    * How far any read can move from its own column, a fraction of the width. A row takes its slice's slide and a
@@ -37,21 +39,26 @@ public class GlitchParams private constructor(
      * The values a [Glitch] at [intensity] draws with.
      *
      * Every slide and split scales linearly, so intensity 0 is the source. The burst chance scales by intensity
-     * squared. The window, the burst lengths and the slice heights stay fixed.
+     * squared, and the block chance linearly with [blocks]. The window, the burst lengths, the slice heights and the
+     * block size stay fixed.
      */
-    public fun at(intensity: Double): GlitchParams =
+    public fun at(
+      intensity: Double,
+      blocks: Double = 0.0,
+    ): GlitchParams =
       GlitchParams(
         split = SPLIT * intensity,
         burstSplit = BURST_SPLIT * intensity,
         bandShift = BAND_SHIFT * intensity,
         tearShift = TEAR_SHIFT * intensity,
         burstChance = BURST_CHANCE * intensity * intensity,
+        blockChance = BLOCK_ROW_CHANCE * blocks,
       )
 
     /**
      * The values [glitch] draws with.
      */
-    public fun of(glitch: Glitch): GlitchParams = at(glitch.intensity.toDouble())
+    public fun of(glitch: Glitch): GlitchParams = at(glitch.intensity.toDouble(), glitch.blocks.toDouble())
   }
 }
 
@@ -61,3 +68,4 @@ private const val BURST_SPLIT = 0.012
 private const val BAND_SHIFT = 0.06
 private const val TEAR_SHIFT = 0.1
 private const val BURST_CHANCE = 0.35
+private const val BLOCK_ROW_CHANCE = 0.6

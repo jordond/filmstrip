@@ -169,6 +169,14 @@ internal fun FiltersPlayground(
           }
         }
       }
+      FilterLook.Glitch -> {
+        Group("BLOCKS") {
+          ChipRow {
+            Chip("OFF", !settings.blocks) { settings = settings.copy(blocks = false) }
+            Chip("BROKEN", settings.blocks) { settings = settings.copy(blocks = true) }
+          }
+        }
+      }
       FilterLook.Lut -> {
         Text(
           "The table is a teal and orange grade, read from a .cube file.",

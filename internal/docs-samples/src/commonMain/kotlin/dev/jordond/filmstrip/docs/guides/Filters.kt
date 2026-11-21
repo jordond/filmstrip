@@ -93,7 +93,7 @@ internal fun glitchLook(): Composition {
     compositionOf {
       clip(MediaSource.of("/path/to/teaser.mp4"))
       effects {
-        glitch(intensity = 0.6f, seed = 7)
+        glitch(intensity = 0.6f, blocks = 0.5f, seed = 7)
       }
     }
   // endregion

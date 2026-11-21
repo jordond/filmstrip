@@ -43,7 +43,8 @@ public object GlitchShader {
    *
    * [RESOLUTION], [FLIP_V] and [TEXTURE] belong to whoever runs the pass. Seed and tick travel as floats, since each
    * fits the 24 bits a float holds exactly once masked. The burst and the split are read off [GlitchSignal] here, once
-   * per frame.
+   * per frame, and the hash a row of blocks breaks under off [GlitchBlocks.breakBelow], a whole number a float holds
+   * exactly.
    */
   public fun uniforms(
     glitch: Glitch,
@@ -51,13 +52,15 @@ public object GlitchShader {
   ): Map<String, Float> {
     val params = GlitchParams.of(glitch)
     val tick = GlitchSignal.tickAt(seconds)
+    val strength = GlitchSignal.burstAt(glitch.seed, tick, params)?.strength ?: 0.0
     return mapOf(
       "uSeed" to (glitch.seed and HASH_MASK).toFloat(),
       "uTick" to (tick and HASH_MASK).toFloat(),
-      "uStrength" to uniformFloat(GlitchSignal.burstAt(glitch.seed, tick, params)?.strength ?: 0.0),
+      "uStrength" to uniformFloat(strength),
       "uSplit" to uniformFloat(GlitchSignal.channelSplit(glitch.seed, tick, params)),
       "uBandShift" to uniformFloat(params.bandShift),
       "uTearShift" to uniformFloat(params.tearShift),
+      "uBlockBelow" to GlitchBlocks.breakBelow(strength, params).toFloat(),
     )
   }
 }
@@ -100,6 +103,46 @@ internal val GLITCH_ROW_SHIFT: String =
   }
   """
 
+/**
+ * [GlitchBlocks.sourceOf] as one source GLSL ES 3.00 and Metal both compile, over [GLITCH_ROW_SHIFT]'s `glitchHash`.
+ * Each language defines `GLITCH_INT2` as its own two int vector first. The row breaks under `below`, which is
+ * [GlitchBlocks.breakBelow] of the frame's burst.
+ */
+internal val GLITCH_BLOCK_SOURCE: String =
+  """
+  int glitchBlockSide(int height) {
+    return max(1, (height * ${2 * BLOCK_ROWS} + $GLITCH_ROWS) / ${2 * GLITCH_ROWS});
+  }
+
+  uint glitchSteps(uint hash, uint count) {
+    return ((hash >> ${STEP_DROP_BITS}u) * count) >> ${STEP_KEEP_BITS}u;
+  }
+
+  GLITCH_INT2 glitchSource(uint seed, uint tick, int x, int y, int width, int height, float below) {
+    GLITCH_INT2 own = GLITCH_INT2(x, y);
+    if (below <= 0.0) return own;
+    int side = glitchBlockSide(height);
+    int blockRow = y / side;
+    uint row = uint(blockRow);
+    if (glitchHash(seed, ${PASS_BLOCK_ROW}u, tick, row) >= uint(below + 0.5)) return own;
+    uint columns = uint((width + side - 1) / side);
+    int start = int(glitchSteps(glitchHash(seed, ${PASS_BLOCK_RUN}u, tick, 2u * row), columns));
+    int length = 1 + int(glitchSteps(glitchHash(seed, ${PASS_BLOCK_RUN}u, tick, 2u * row + 1u), ${RUN_MAX_BLOCKS}u));
+    int index = x / side - start;
+    if (index < 0 || index >= length) return own;
+    uint cell = row * ${RUN_MAX_BLOCKS}u + uint(index);
+    if (glitchHash(seed, ${PASS_BLOCK_KIND}u, tick, cell) < ${SMEAR_BELOW}u) {
+      return GLITCH_INT2(x, max(0, blockRow * side - 1));
+    }
+    int draw = int(glitchSteps(glitchHash(seed, ${PASS_BLOCK_MOVE}u, tick, cell), ${BLOCK_MOVES}u));
+    int move = draw >= ${BLOCK_MOVES / 2} ? draw + 1 : draw;
+    return GLITCH_INT2(
+      clamp(x + (move % $BLOCK_SPAN - $BLOCK_REACH) * side, 0, width - 1),
+      clamp(y + (move / $BLOCK_SPAN - $BLOCK_REACH) * side, 0, height - 1)
+    );
+  }
+  """
+
 private fun fragmentSource(): String =
   """
   #version 300 es
@@ -113,7 +156,7 @@ private fun fragmentSource(): String =
   uniform vec2 ${GlitchShader.RESOLUTION};
   uniform float ${GlitchShader.FLIP_V};
   uniform float uSeed, uTick;
-  uniform float uStrength, uSplit, uBandShift, uTearShift;
+  uniform float uStrength, uSplit, uBandShift, uTearShift, uBlockBelow;
 
   const float ROWS = ${glslFloat(GLITCH_ROWS.toDouble())};
 
@@ -125,8 +168,26 @@ $STRAIGHT_READ_GLSL
 
 $GLITCH_ROW_SHIFT
 
-  vec4 readAt(float x) {
-    return straightRead(${GlitchShader.TEXTURE}, vec2(clamp(x, 0.0, 1.0), vUv.y));
+  #define GLITCH_INT2 ivec2
+$GLITCH_BLOCK_SOURCE
+
+  // A texel of the broken frame, premultiplied, at a column and a row counted from the top.
+  vec4 blockedTexel(int column, int fromTop, uint seed, uint tick) {
+    ivec2 size = textureSize(${GlitchShader.TEXTURE}, 0);
+    ivec2 source = glitchSource(seed, tick, clamp(column, 0, size.x - 1), fromTop, size.x, size.y, uBlockBelow);
+    int row = ${GlitchShader.FLIP_V} > 0.5 ? size.y - 1 - source.y : source.y;
+    vec4 read = texelFetch(${GlitchShader.TEXTURE}, ivec2(source.x, row), 0);
+    return vec4(read.rgb * read.a, read.a);
+  }
+
+  // Reads the broken frame between the two columns either side of x on its own row, the way straightRead does.
+  vec4 readAt(float x, int fromTop, uint seed, uint tick) {
+    if (uBlockBelow <= 0.0) return straightRead(${GlitchShader.TEXTURE}, vec2(clamp(x, 0.0, 1.0), vUv.y));
+    float at = clamp(x, 0.0, 1.0) * ${GlitchShader.RESOLUTION}.x - 0.5;
+    float corner = floor(at);
+    int low = int(corner);
+    vec4 mixed = mix(blockedTexel(low, fromTop, seed, tick), blockedTexel(low + 1, fromTop, seed, tick), at - corner);
+    return vec4(mixed.a > 0.0 ? mixed.rgb / mixed.a : vec3(0.0), mixed.a);
   }
 
   void main() {
@@ -136,10 +197,17 @@ $GLITCH_ROW_SHIFT
     // The half holds a row on an exact multiple above a float's rounding, as virtualRow's integer divide reads it.
     uint row = uint(floor((pixelRow * ROWS + 0.5) / height));
     uint tick = uint(uTick + 0.5);
-    float shifted = vUv.x - glitchRowShift(uint(uSeed + 0.5), tick, row, uStrength, uBandShift, uTearShift);
+    uint seed = uint(uSeed + 0.5);
+    int fromTopRow = int(pixelRow);
+    float shifted = vUv.x - glitchRowShift(seed, tick, row, uStrength, uBandShift, uTearShift);
 
     // Alpha moves with green, so a clear bar slides with the picture and lets the fill through.
-    vec4 green = readAt(shifted);
-    fragColor = vec4(readAt(shifted - uSplit).r, green.g, readAt(shifted + uSplit).b, green.a);
+    vec4 green = readAt(shifted, fromTopRow, seed, tick);
+    fragColor = vec4(
+      readAt(shifted - uSplit, fromTopRow, seed, tick).r,
+      green.g,
+      readAt(shifted + uSplit, fromTopRow, seed, tick).b,
+      green.a
+    );
   }
   """.trimIndent()

@@ -162,6 +162,11 @@ class FilterSettingsTest {
     codeText(filtersCode(settings)) shouldContain "glitch(intensity = 0.4f)"
     filtersEffects(settings) shouldBe listOf(Glitch(0.4f))
     filterSummary(settings) shouldBe "GLITCH 0.4"
+
+    val broken = settings.copy(blocks = true)
+    codeText(filtersCode(broken)) shouldContain "glitch(intensity = 0.4f, blocks = 1f)"
+    filtersEffects(broken) shouldBe listOf(Glitch(0.4f, blocks = 1f))
+    filterSummary(broken) shouldBe "GLITCH 0.4 · BLOCKS"
   }
 
   @Test

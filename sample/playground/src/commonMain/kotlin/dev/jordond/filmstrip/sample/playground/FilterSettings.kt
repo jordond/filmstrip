@@ -105,6 +105,7 @@ internal data class FilterSettings(
   val camcorder: CamcorderSettings = CamcorderSettings(),
   val colours: PixelColours = PixelColours.GameBoy,
   val super8: Boolean = false,
+  val blocks: Boolean = false,
 ) {
   /**
    * How strong [look] is, full strength until it is moved.
@@ -138,7 +139,7 @@ internal fun filtersEdit(
         FilterLook.None -> Unit
         FilterLook.Tape -> tapeEffects(settings)
         FilterLook.Crt -> crt(intensity = settings.intensity())
-        FilterLook.Glitch -> glitch(intensity = settings.intensity())
+        FilterLook.Glitch -> glitch(intensity = settings.intensity(), blocks = if (settings.blocks) 1f else 0f)
         FilterLook.Lut -> lut(tealAndOrange, intensity = settings.intensity())
         FilterLook.NightVision -> nightVision(intensity = settings.intensity())
         FilterLook.Pixel -> pixel(palette = settings.colours.palette)
@@ -213,6 +214,7 @@ internal fun filtersCode(settings: FilterSettings): List<List<CodePart>> {
             if (settings.look.hasIntensity && intensity != FilterSettings.FULL) {
               add("intensity = ${floatLiteral(intensity)}")
             }
+            if (settings.look == FilterLook.Glitch && settings.blocks) add("blocks = 1f")
             if (settings.look == FilterLook.Pixel && settings.colours.palette != null) {
               add("palette = PixelPalette.${settings.colours.name}")
             }
@@ -308,7 +310,7 @@ private fun camcorderCode(
 
 /**
  * What the status line says about [settings], such as `VHS · LP`, `HI8 · SP · ROLLING · ON TAPE`, `CRT 0.5`,
- * `PIXEL · CGA` or `FILM · SUPER 8`.
+ * `PIXEL · CGA`, `GLITCH · BLOCKS` or `FILM · SUPER 8`.
  */
 internal fun filterSummary(settings: FilterSettings): String {
   if (settings.look == FilterLook.None) return "NO LOOK"
@@ -316,6 +318,7 @@ internal fun filterSummary(settings: FilterSettings): String {
   val intensity = settings.intensity()
   val strength = if (intensity == FilterSettings.FULL) "" else " ${floatLiteral(intensity).removeSuffix("f")}"
   if (settings.look == FilterLook.Pixel) return "${settings.look.label}$strength · ${settings.colours.label}"
+  if (settings.look == FilterLook.Glitch && settings.blocks) return "${settings.look.label}$strength · BLOCKS"
   if (settings.look != FilterLook.Tape) return "${settings.look.label}$strength"
   val tracking = if (settings.tracking == TrackingMode.Events) "" else " · ${settings.tracking.label}"
   val camcorder = if (settings.camcorder.shown) " · ${settings.camcorder.mode.label}" else ""

@@ -29,6 +29,8 @@ class GlitchTest {
     Glitch(0f).isInert shouldBe true
     Glitch(0.01f).isInert shouldBe false
     Glitch().isInert shouldBe false
+    Glitch(0f, blocks = 1f).isInert shouldBe true
+    Glitch(0.5f, blocks = 0.4f).isInert shouldBe false
   }
 
   @Test
@@ -40,11 +42,13 @@ class GlitchTest {
   fun refusesAnIntensityOutOfRange() {
     shouldThrow<IllegalArgumentException> { Glitch(1.5f) }
     shouldThrow<IllegalArgumentException> { Glitch(-0.5f) }
+    shouldThrow<IllegalArgumentException> { Glitch(0.5f, blocks = 1.5f) }
   }
 
   @Test
   fun theBuilderAddsAGlitch() {
     EffectsBuilder().glitch(0.5f, seed = 9).build() shouldContainExactly listOf(Glitch(0.5f, seed = 9))
+    EffectsBuilder().glitch(0.5f, blocks = 0.3f).build() shouldContainExactly listOf(Glitch(0.5f, blocks = 0.3f))
   }
 
   @Test
