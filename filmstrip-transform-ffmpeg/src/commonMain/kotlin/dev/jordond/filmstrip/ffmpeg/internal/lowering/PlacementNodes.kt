@@ -29,16 +29,15 @@ internal fun scaledInto(
 ): List<FilterNode> =
   buildList {
     add(FilterNode("scale", "w" to rect.width.toString(), "h" to rect.height.toString()))
-    val cropX = (-rect.left).coerceAtLeast(0)
-    val cropY = (-rect.top).coerceAtLeast(0)
-    val keptWidth = minOf(rect.right, frame.width) - maxOf(rect.left, 0)
-    val keptHeight = minOf(rect.bottom, frame.height) - maxOf(rect.top, 0)
-    if (keptWidth != rect.width || keptHeight != rect.height) {
-      add(
-        exactCrop(keptWidth, keptHeight, cropX, cropY),
-      )
+    val kept = rect.keptIn(frame)
+    if (kept.width != rect.width || kept.height != rect.height) {
+      add(exactCrop(kept.width, kept.height, (-rect.left).coerceAtLeast(0), (-rect.top).coerceAtLeast(0)))
     }
   }
+
+// The part of this rect that lands inside [frame], which is what [scaledInto] keeps.
+private fun PixelRect.keptIn(frame: Size): Size =
+  Size(minOf(right, frame.width) - maxOf(left, 0), minOf(bottom, frame.height) - maxOf(top, 0))
 
 /**
  * Where the part [scaledInto] keeps sits in the frame, on the chroma [grid] of the chain it is placed on.
@@ -111,8 +110,8 @@ internal fun placedNodes(
   buildList {
     addAll(scaledInto(rect, frame))
     val (x, y) = rect.drawnAt(grid)
-    val reachesEveryEdge =
-      x == 0 && y == 0 && rect.right >= frame.width && rect.bottom >= frame.height
+    // Read where the kept part lands once its offset is on the grid, since a snap can lift it off the far edge.
+    val reachesEveryEdge = x == 0 && y == 0 && rect.keptIn(frame) == frame
     if (!reachesEveryEdge) {
       add(
         FilterNode(

@@ -140,6 +140,21 @@ class PlacementNodesTest {
       "pad=w=1920:h=1080:x=284:y=0:color=black"
   }
 
+  // A 90x160 clip cut to 4:3 is 90x67, a hair wider than 4:3, so it lands a pixel down from the top of a 120x90 frame
+  // and reaches its foot. The 4:2:0 grid lifts it back to the top, which leaves the foot open, so the frame is padded
+  // to its full size rather than left a row short.
+  @Test
+  fun `a frame the chroma grid lifts off the far edge is still padded to the whole frame`() {
+    val frame = Size(120, 90)
+    val stages = listOf(listOf(Crop(AspectRatio(4, 3))), listOf(Crop(AspectRatio(4, 3), Fit.Contain)))
+    val rect = placementOf(Size(90, 160), stages, frame).drawnRect.inWholePixelsOf(frame)
+
+    rect.top shouldBe 1
+    rect.bottom shouldBe frame.height
+    placedNodes(rect, frame, "black", ChromaGrid.Subsampled).last().render() shouldBe
+      "pad=w=120:h=90:x=0:y=0:color=black"
+  }
+
   @Test
   fun `a chain with no canvas builds none`() {
     placementOf(PORTRAIT, listOf(listOf(Scale(768))), ODD_FRAME).canvases.shouldBeEmpty()

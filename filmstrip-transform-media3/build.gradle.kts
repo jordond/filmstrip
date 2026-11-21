@@ -61,6 +61,9 @@ val exportFixtures =
         SharedFixtures.ThreeAudioGapped,
         SharedFixtures.ThreeAudioMatroska,
         SharedFixtures.ThreeAudioTs,
+        SharedFixtures.JoinWide,
+        SharedFixtures.JoinTall,
+        SharedFixtures.JoinSquare,
         FixtureSpec("android_export_b", 480, 270, 30, 2.0, 48000, 2, bitrateKbps = 1_000, hue = 120),
         // Silence with one click partway into an AAC access unit, so a test can find where a source frame landed.
         FixtureSpec("android_click", 320, 240, 30, 1.0, 48000, 2, bitrateKbps = 500, clickSeconds = 0.31),

@@ -54,4 +54,20 @@ object SharedFixtures {
       container = FixtureContainer.MpegTs,
       audioTracks = ThreeAudio.audioTracks.map { it.copy(isDefault = false) },
     )
+
+  /**
+   * A wide clip, 160x90 at hue 0. With [JoinTall] and [JoinSquare] it gives a join test three sizes whose cut to one
+   * aspect lands at different offsets in the output frame.
+   */
+  val JoinWide: FixtureSpec = FixtureSpec("join_wide", 160, 90, 30, 1.0, 48000, 2, bitrateKbps = 300)
+
+  /**
+   * A tall clip, 90x160 at hue 120, for the same join tests as [JoinWide].
+   */
+  val JoinTall: FixtureSpec = FixtureSpec("join_tall", 90, 160, 30, 1.0, 48000, 2, bitrateKbps = 300, hue = 120)
+
+  /**
+   * A square clip, 120x120 at hue 240, for the same join tests as [JoinWide].
+   */
+  val JoinSquare: FixtureSpec = FixtureSpec("join_square", 120, 120, 30, 1.0, 48000, 2, bitrateKbps = 300, hue = 240)
 }

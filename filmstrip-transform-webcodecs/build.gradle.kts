@@ -15,6 +15,9 @@ val browserFixtures =
         SharedFixtures.ThreeAudioGapped,
         SharedFixtures.ThreeAudioMatroska,
         SharedFixtures.ThreeAudioTs,
+        SharedFixtures.JoinWide,
+        SharedFixtures.JoinTall,
+        SharedFixtures.JoinSquare,
       ),
   )
 
