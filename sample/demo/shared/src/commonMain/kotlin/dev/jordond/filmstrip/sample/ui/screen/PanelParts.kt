@@ -8,6 +8,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import dev.jordond.filmstrip.sample.EditScope
 import dev.jordond.filmstrip.sample.OverlayMotionState
 import dev.jordond.filmstrip.sample.SampleAppState
 import dev.jordond.filmstrip.sample.SlideEdge
@@ -142,3 +143,27 @@ internal fun MotionSection(
 }
 
 private fun Float.secondsLabel(): String = "${(this * 10).roundToInt() / 10f}s"
+
+/**
+ * The switch at the top of a panel whose knobs exist on a clip and on the edit, which says which of the two the
+ * panel is editing. It is left out until a clip is selected.
+ */
+@Composable
+internal fun ScopeSwitch(state: SampleAppState) {
+  val clip = state.sequence.selectedClip ?: return
+
+  ToolSection("Applies to") {
+    ChipGroup(
+      options = listOf("Whole edit" to EditScope.Edit, "This clip" to EditScope.Clip),
+      selected = state.edit.scope,
+      onSelect = { state.edit.scope = it },
+    )
+    if (state.edit.scope == EditScope.Clip) {
+      Text(
+        "${clip.label}. A clip's own effects run before the edit's",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+      )
+    }
+  }
+}

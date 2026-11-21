@@ -157,9 +157,9 @@ class TapeEditTest {
       }
   }
 
-  private fun effectsOf(edit: EditState): List<EffectSpec> = edit.composition(SOURCE, sourceDuration = null).effects
+  private fun effectsOf(edit: EditState): List<EffectSpec> = edit.composition(clipsOf(SOURCE)).effects
 
-  private fun audioEffectsOf(edit: EditState) = edit.composition(SOURCE, sourceDuration = null).audioEffects
+  private fun audioEffectsOf(edit: EditState) = edit.composition(clipsOf(SOURCE)).audioEffects
 
   private fun built(block: EffectsBuilder.() -> Unit): List<EffectSpec> = EffectsBuilder().apply(block).build()
 

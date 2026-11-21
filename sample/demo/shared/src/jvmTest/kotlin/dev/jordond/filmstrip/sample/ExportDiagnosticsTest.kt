@@ -43,7 +43,7 @@ class ExportDiagnosticsTest {
         scope = CoroutineScope(Dispatchers.Unconfined),
       )
 
-    state.export(plan())
+    state.exports.export(plan())
 
     state.recorder.events
       .single { it.label == "export.adjusted" }
@@ -64,7 +64,7 @@ class ExportDiagnosticsTest {
         scope = CoroutineScope(Dispatchers.Unconfined),
       )
 
-    state.export(plan())
+    state.exports.export(plan())
 
     state.recorder.events
       .single { it.label == "export.adjusted" }

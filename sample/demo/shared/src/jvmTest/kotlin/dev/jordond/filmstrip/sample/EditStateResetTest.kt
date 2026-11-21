@@ -31,7 +31,7 @@ class EditStateResetTest {
     val moved = parts(edit).flatMap(::move)
     moved.shouldNotBeEmpty()
 
-    edit.reset(sourceDuration = null)
+    edit.reset()
 
     val fresh = EditState()
     parts(edit).zip(parts(fresh)).forEach { (actual, expected) -> compare(actual, expected) }

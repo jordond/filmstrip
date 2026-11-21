@@ -71,6 +71,8 @@ import kotlin.math.roundToInt
 @Composable
 public fun EditorScreen(
   state: SampleAppState,
+  onAddClip: () -> Unit,
+  onAddImage: () -> Unit,
   modifier: Modifier = Modifier,
 ) {
   val layout = currentEditorLayout()
@@ -79,17 +81,17 @@ public fun EditorScreen(
   // window resize) only moves the viewport rather than tearing its player down and losing the
   // playhead. Restarts once a pick's probe has settled rather than on every step of it, so a probe
   // still in flight never opens a player the next step immediately replaces.
-  LaunchedEffect(state.source, state.probing) {
-    if (!state.probing) state.startPreview()
+  LaunchedEffect(state.probing) {
+    if (!state.probing && state.preview.player == null) state.preview.start()
   }
-  DisposableEffect(Unit) { onDispose { state.stopPreview() } }
+  DisposableEffect(Unit) { onDispose { state.preview.stop() } }
 
   Scaffold(
     modifier = modifier,
     topBar = {
       Column {
         EditorTopBar(state, wide = layout == EditorLayout.TwoPane)
-        state.exportRefusal?.let { ExportRefusalLine(it) }
+        state.device.exportRefusal?.let { ExportRefusalLine(it) }
       }
     },
     containerColor = MaterialTheme.colorScheme.background,
@@ -97,9 +99,9 @@ public fun EditorScreen(
   ) { insets ->
     Box(Modifier.fillMaxSize().padding(insets)) {
       when (layout) {
-        EditorLayout.TwoPane -> TwoPaneEditor(state)
-        EditorLayout.Tabletop -> StackedEditor(state, splitEvenly = true)
-        EditorLayout.Stacked -> StackedEditor(state, splitEvenly = false)
+        EditorLayout.TwoPane -> TwoPaneEditor(state, onAddClip, onAddImage)
+        EditorLayout.Tabletop -> StackedEditor(state, onAddClip, onAddImage, splitEvenly = true)
+        EditorLayout.Stacked -> StackedEditor(state, onAddClip, onAddImage, splitEvenly = false)
       }
     }
   }
@@ -115,6 +117,8 @@ public fun EditorScreen(
 @Composable
 private fun StackedEditor(
   state: SampleAppState,
+  onAddClip: () -> Unit,
+  onAddImage: () -> Unit,
   splitEvenly: Boolean,
 ) {
   // The keyboard leaves nothing like enough room for a viewport and a timeline, so the editor drops
@@ -128,7 +132,7 @@ private fun StackedEditor(
     Column(Modifier.fillMaxSize()) {
       if (!typing) {
         PreviewStage(state, Modifier.fillMaxWidth().weight(1f))
-        PlaybackControls(state)
+        PlaybackControls(state, onAddClip, onAddImage)
       }
 
       HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
@@ -159,7 +163,11 @@ private fun StackedEditor(
  * own. Nothing has to be dismissed to see the frame it is changing.
  */
 @Composable
-private fun TwoPaneEditor(state: SampleAppState) {
+private fun TwoPaneEditor(
+  state: SampleAppState,
+  onAddClip: () -> Unit,
+  onAddImage: () -> Unit,
+) {
   val cornerRoom = LocalScreenInsets.current.bottom
 
   Row(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface)) {
@@ -168,7 +176,7 @@ private fun TwoPaneEditor(state: SampleAppState) {
 
     Column(Modifier.weight(1f).fillMaxHeight()) {
       PreviewStage(state, Modifier.fillMaxWidth().weight(1f))
-      PlaybackControls(state)
+      PlaybackControls(state, onAddClip, onAddImage)
     }
 
     VerticalDivider(color = MaterialTheme.colorScheme.outlineVariant)
@@ -209,7 +217,7 @@ private fun EditorTopBar(
     if (wide) DeckStatus(state)
     Column(Modifier.weight(1f)) {
       Text(
-        text = state.sourceLabel.ifBlank { "Untitled" },
+        text = state.title.ifBlank { "Untitled" },
         style = MaterialTheme.typography.titleSmall,
         color = colors.onSurface,
         maxLines = 1,
@@ -228,7 +236,7 @@ private fun EditorTopBar(
     Key(
       label = "EXPORT",
       onClick = state::openExport,
-      enabled = !state.exporting && state.exportRefusal == null,
+      enabled = !state.exports.exporting && state.device.exportRefusal == null,
       icon = SampleIcons.Record,
       minHeight = Tokens.sizeTouch,
       horizontalPadding = if (wide) 20.dp else 12.dp,
@@ -267,7 +275,7 @@ private fun DeckStatus(state: SampleAppState) {
     verticalAlignment = Alignment.CenterVertically,
   ) {
     Icon(SampleIcons.Play, contentDescription = null, tint = colors.primary, modifier = Modifier.size(16.dp))
-    Text(if (state.playing && state.canPlay) "PLAY" else "EDIT", style = style, color = colors.primary)
+    Text(if (state.preview.playing && state.canPlay) "PLAY" else "EDIT", style = style, color = colors.primary)
     Text("SP", style = style, color = colors.onSurfaceVariant)
   }
 }
@@ -278,12 +286,15 @@ private fun DeckStatus(state: SampleAppState) {
 @Composable
 private fun PlaybackControls(
   state: SampleAppState,
+  onAddClip: () -> Unit,
+  onAddImage: () -> Unit,
   modifier: Modifier = Modifier,
 ) {
   Surface(color = MaterialTheme.colorScheme.surface, modifier = modifier.fillMaxWidth()) {
     Column {
       Transport(state)
-      if (state.canShuttle) ShuttleKeys(state)
+      if (state.preview.canShuttle) ShuttleKeys(state)
+      SequenceBar(state, onAddClip, onAddImage, Modifier.padding(horizontal = 12.dp))
       Timeline(state, Modifier.excludeBackGesture().padding(horizontal = 12.dp))
       Spacer(Modifier.height(10.dp))
     }
@@ -307,8 +318,8 @@ private fun ShuttleKeys(
       val speed = rate.absoluteValue.roundToInt()
       HoldKey(
         label = if (rate < 0f) "◀◀ ${speed}x" else "${speed}x ▶▶",
-        onHold = { state.beginShuttle(rate) },
-        onRelease = state::endShuttle,
+        onHold = { state.preview.beginShuttle(rate) },
+        onRelease = state.preview::endShuttle,
         enabled = state.canPlay,
       )
     }
@@ -322,7 +333,7 @@ private fun Transport(
   state: SampleAppState,
   modifier: Modifier = Modifier,
 ) {
-  val position = state.positionSeconds.asSeconds()
+  val position = state.preview.positionSeconds.asSeconds()
   val compact = isCompactWidth()
   val clock = MaterialTheme.typography.labelLarge.copy(fontSize = if (compact) 20.sp else 24.sp)
   val total = state.editedDuration.asClock().let { if (compact) it.substringBeforeLast('.') else it }
@@ -335,7 +346,7 @@ private fun Transport(
     IconKey(
       icon = SampleIcons.StepBack,
       contentDescription = "Previous frame",
-      onClick = { state.stepFrames(-1) },
+      onClick = { state.preview.stepFrames(-1) },
       enabled = state.canPlay,
       tint = Tokens.mutedStrong,
     )
@@ -343,7 +354,7 @@ private fun Transport(
     IconKey(
       icon = SampleIcons.StepForward,
       contentDescription = "Next frame",
-      onClick = { state.stepFrames(1) },
+      onClick = { state.preview.stepFrames(1) },
       enabled = state.canPlay,
       tint = Tokens.mutedStrong,
     )
@@ -363,8 +374,9 @@ private fun Transport(
     IconKey(
       icon = SampleIcons.Loop,
       contentDescription = "Loop",
-      onClick = { state.looping = !state.looping },
-      tint = if (state.looping) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+      onClick = { state.preview.looping = !state.preview.looping },
+      tint =
+        if (state.preview.looping) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
       iconSize = 22.dp,
     )
   }
@@ -374,7 +386,7 @@ private fun Transport(
 private fun PlayKey(state: SampleAppState) {
   val interaction = remember { MutableInteractionSource() }
   val colors = MaterialTheme.colorScheme
-  val running = state.playing && state.canPlay
+  val running = state.preview.playing && state.canPlay
   val enabled = state.canPlay
   Box(
     modifier =
@@ -387,7 +399,7 @@ private fun PlayKey(state: SampleAppState) {
           role = Role.Button,
           interactionSource = interaction,
           indication = null,
-          onClick = state::togglePlay,
+          onClick = state.preview::togglePlay,
         ),
     contentAlignment = Alignment.Center,
   ) {
@@ -400,7 +412,7 @@ private fun PlayKey(state: SampleAppState) {
 }
 
 private fun SampleAppState.sourceSummary(): String {
-  if (source == null) return ""
+  if (sequence.clips.isEmpty()) return ""
   if (sourceFailure != null) return "Can't read this file"
   val video = info?.video ?: return if (probing) "Reading the file" else "No video track"
   val size = "${video.displaySize.width} x ${video.displaySize.height}"

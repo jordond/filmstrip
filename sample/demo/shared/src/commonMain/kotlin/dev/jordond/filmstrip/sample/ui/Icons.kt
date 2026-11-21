@@ -333,6 +333,16 @@ public object SampleIcons {
       lineTo(21f, 13f)
     }
 
+  public val Tracks: ImageVector =
+    stroke("tracks") {
+      moveTo(3f, 7f)
+      lineTo(21f, 7f)
+      moveTo(7f, 12f)
+      lineTo(21f, 12f)
+      moveTo(3f, 17f)
+      lineTo(15f, 17f)
+    }
+
   public val Trim: ImageVector =
     stroke("trim") {
       moveTo(9f, 4f)

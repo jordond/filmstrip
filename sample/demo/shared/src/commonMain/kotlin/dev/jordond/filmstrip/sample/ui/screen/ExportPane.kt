@@ -144,7 +144,7 @@ private fun MenuHeader(
       Modifier
         .defaultMinSize(minHeight = Tokens.sizeTouch)
         .semantics { contentDescription = "Close Export" }
-        .clickable(enabled = !state.exporting, role = Role.Button, onClick = state::navigateBack),
+        .clickable(enabled = !state.exports.exporting, role = Role.Button, onClick = state::navigateBack),
     )
   }
 }
@@ -175,7 +175,7 @@ private fun SetupRows(
   state: SampleAppState,
   labelWidth: Dp?,
 ) {
-  val busy = state.exporting
+  val busy = state.exports.exporting
   val options = state.options
   SetupRow("Preset", labelWidth) {
     ChipGroup(
@@ -302,18 +302,6 @@ private fun SetupRows(
       enabled = !busy,
       onSelect = {
         options.hdr = it
-        state.onEditChanged()
-      },
-    )
-  }
-
-  SetupRow("Snap the cut back to a key frame", labelWidth) {
-    ChipGroup(
-      options = listOf("Never" to 0f, "0.5s" to 0.5f, "2s" to 2f, "5s" to 5f),
-      selected = state.edit.snapWithinSeconds,
-      enabled = !busy,
-      onSelect = {
-        state.edit.snapWithinSeconds = it
         state.onEditChanged()
       },
     )

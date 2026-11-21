@@ -6,12 +6,15 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.sample.SampleAppState
+import dev.jordond.filmstrip.sample.transformInScope
 import dev.jordond.filmstrip.sample.ui.ChipGroup
 import dev.jordond.filmstrip.sample.ui.SwitchRow
 
 @Composable
 internal fun TransformPanel(state: SampleAppState) {
-  val edit = state.edit
+  val transform = state.transformInScope
+
+  ScopeSwitch(state)
 
   ToolSection("Rotate") {
     Text(
@@ -21,9 +24,9 @@ internal fun TransformPanel(state: SampleAppState) {
     )
     ChipGroup(
       options = listOf("0" to 0, "90" to 90, "180" to 180, "270" to 270),
-      selected = edit.rotationDegrees,
+      selected = transform.rotationDegrees,
       onSelect = {
-        edit.rotationDegrees = it
+        transform.rotationDegrees = it
         state.onEditChanged()
       },
     )
@@ -32,17 +35,17 @@ internal fun TransformPanel(state: SampleAppState) {
   ToolSection("Mirror") {
     SwitchRow(
       label = "Flip horizontally",
-      checked = edit.flipHorizontal,
+      checked = transform.flipHorizontal,
       onCheckedChange = {
-        edit.flipHorizontal = it
+        transform.flipHorizontal = it
         state.onEditChanged()
       },
     )
     SwitchRow(
       label = "Flip vertically",
-      checked = edit.flipVertical,
+      checked = transform.flipVertical,
       onCheckedChange = {
-        edit.flipVertical = it
+        transform.flipVertical = it
         state.onEditChanged()
       },
     )

@@ -53,16 +53,4 @@ internal fun AudioPanel(state: SampleAppState) {
       )
     }
   }
-
-  ToolSection("Clip") {
-    SwitchRow(
-      label = "Mute this clip",
-      supporting = "Levels multiply down the scopes, so a mute here silences the clip alone",
-      checked = edit.clipMuted,
-      onCheckedChange = {
-        edit.clipMuted = it
-        state.onEditChanged()
-      },
-    )
-  }
 }

@@ -62,7 +62,7 @@ public fun ResultScreen(
   state: SampleAppState,
   modifier: Modifier = Modifier,
 ) {
-  val result = state.exported ?: return
+  val result = state.exports.exported ?: return
   val compact = isCompactWidth()
 
   Scaffold(
@@ -202,7 +202,7 @@ private fun ResultFacts(
         StatRow("Audio", "${audio.codec.name} · ${audio.sampleRate} Hz · ${audio.channelCount} ch")
       }
     }
-    when (val probe = state.exportedInfo) {
+    when (val probe = state.exports.exportedInfo) {
       is ProbeResult.Success -> {
         Pill("RE-PROBED · ${probe.info.duration.asClock()}", MaterialTheme.colorScheme.secondary)
       }

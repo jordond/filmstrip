@@ -5,13 +5,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import dev.jordond.filmstrip.geometry.AspectRatio
 import dev.jordond.filmstrip.geometry.Size
-import dev.jordond.filmstrip.sample.EditState
 import dev.jordond.filmstrip.sample.FrameMode
 import dev.jordond.filmstrip.sample.SampleAppState
 import dev.jordond.filmstrip.sample.ui.ChipGroup
-import dev.jordond.filmstrip.sample.ui.SliderRow
-import dev.jordond.filmstrip.sample.ui.SwatchRow
-import dev.jordond.filmstrip.sample.ui.SwitchRow
 
 /**
  * The output frame and end card controls, under the fill in the frame tool.
@@ -69,42 +65,6 @@ internal fun FrameSections(state: SampleAppState) {
           },
         )
       }
-    }
-  }
-
-  ToolSection("End card") {
-    SwitchRow(
-      label = "Hold a color after the clip",
-      checked = edit.endCardEnabled,
-      onCheckedChange = {
-        edit.endCardEnabled = it
-        state.onEditChanged()
-      },
-    )
-    if (edit.endCardEnabled) {
-      SwatchRow(
-        colors = Plates,
-        selected = edit.endCardColor,
-        onSelect = {
-          edit.endCardColor = it ?: EditState.BLACK
-          state.onEditChanged()
-        },
-      )
-      SliderRow(
-        label = "Length",
-        value = edit.endCardSeconds,
-        valueLabel = "${(edit.endCardSeconds * 10).toInt() / 10f} s",
-        range = 0.5f..5f,
-        steps = 8,
-        onValueChange = {
-          edit.endCardSeconds = it
-          state.onEditChanged()
-        },
-        onReset = {
-          edit.endCardSeconds = 2f
-          state.onEditChanged()
-        },
-      )
     }
   }
 }

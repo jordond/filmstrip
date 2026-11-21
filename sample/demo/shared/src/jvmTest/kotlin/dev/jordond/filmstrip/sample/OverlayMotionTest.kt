@@ -102,14 +102,14 @@ class OverlayMotionTest {
 
   private fun textOf(edit: EditState): TextOverlay =
     edit
-      .composition(SOURCE, sourceDuration = null)
+      .composition(clipsOf(SOURCE))
       .effects
       .filterIsInstance<TextOverlay>()
       .single()
 
   private fun imageOf(edit: EditState): ImageOverlay =
     edit
-      .composition(SOURCE, sourceDuration = null)
+      .composition(clipsOf(SOURCE))
       .effects
       .filterIsInstance<ImageOverlay>()
       .single()

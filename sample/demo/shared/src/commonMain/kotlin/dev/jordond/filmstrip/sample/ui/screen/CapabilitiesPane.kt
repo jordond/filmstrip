@@ -51,7 +51,7 @@ public fun CapabilitiesPane(
       title = "Device capabilities",
       onClose = state::navigateBack,
     ) {
-      IconButton(onClick = state::refreshCapabilities) {
+      IconButton(onClick = state.device::refresh) {
         Icon(SampleIcons.Refresh, contentDescription = "Refresh")
       }
     }
@@ -72,9 +72,9 @@ internal fun CapabilitiesContent(
     modifier = modifier.fillMaxWidth(),
     verticalArrangement = Arrangement.spacedBy(12.dp),
   ) {
-    when (val result = state.capabilities) {
+    when (val result = state.device.result) {
       null -> {
-        if (state.loadingCapabilities) {
+        if (state.device.loading) {
           Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Led(LedState.Busy, blinking = true)
             Text(

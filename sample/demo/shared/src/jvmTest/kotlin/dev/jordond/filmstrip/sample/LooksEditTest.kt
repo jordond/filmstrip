@@ -117,7 +117,7 @@ class LooksEditTest {
     looks.forEach { look -> EditState().apply(look).gradeContributes shouldBe true }
   }
 
-  private fun effectsOf(edit: EditState): List<EffectSpec> = edit.composition(SOURCE, sourceDuration = null).effects
+  private fun effectsOf(edit: EditState): List<EffectSpec> = edit.composition(clipsOf(SOURCE)).effects
 
   private fun built(block: EffectsBuilder.() -> Unit): List<EffectSpec> = EffectsBuilder().apply(block).build()
 

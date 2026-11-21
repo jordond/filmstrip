@@ -34,7 +34,7 @@ class PreviewStartTest {
 
   // What the effect's body does on every restart.
   private fun onRestart() {
-    if (!state.probing) state.startPreview()
+    if (!state.probing) state.preview.start()
   }
 
   private val playersOpened: Int get() = recorder.events.count { it.label == "player.opened" }

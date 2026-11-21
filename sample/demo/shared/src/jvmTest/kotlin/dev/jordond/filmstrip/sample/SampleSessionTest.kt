@@ -30,6 +30,7 @@ import dev.jordond.filmstrip.player.SeekAccuracy
 import dev.jordond.filmstrip.player.SetCompositionCallback
 import dev.jordond.filmstrip.player.SetCompositionRequest
 import dev.jordond.filmstrip.player.SetCompositionResult
+import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldNotContain
@@ -131,11 +132,11 @@ class SampleSessionTest {
     state.compositionFrameLabel() shouldBe "1280 x 720"
     state.options.targetHeight shouldBe 1080
 
-    state.startPreview()
+    state.preview.start()
 
-    state.previewOutput shouldBe Size(640, 360)
+    state.preview.previewOutput shouldBe Size(640, 360)
     state.compositionFrameLabel() shouldBe "640 x 360"
-    state.stopPreview()
+    state.preview.stop()
   }
 
   @Test
@@ -196,19 +197,19 @@ class SampleSessionTest {
     fun finished() = ExportStatus.Success(output, MediaInfo(5.seconds, null, emptyList(), true), emptyList())
     state.onPicked(FIRST, "first.mp4")
 
-    state.exported = finished()
+    state.exports.exported = finished()
     state.onEditChanged()
     released shouldBe listOf<MediaSink>(output)
-    state.exported.shouldBeNull()
+    state.exports.exported.shouldBeNull()
 
     state.onEditChanged()
     released shouldBe listOf<MediaSink>(output)
 
-    state.exported = finished()
+    state.exports.exported = finished()
     state.onPicked(SECOND, "second.mp4")
     released shouldBe listOf<MediaSink>(output, output)
 
-    state.exported = finished()
+    state.exports.exported = finished()
     state.closeProject()
     released shouldBe listOf<MediaSink>(output, output, output)
   }
@@ -241,7 +242,7 @@ class SampleSessionTest {
     gate.complete(FIRST)
 
     state.source shouldBe SECOND
-    state.sourceLabel shouldBe "second.mp4"
+    state.title shouldBe "second.mp4"
     state.sourcePreset.shouldBeNull()
   }
 
@@ -295,6 +296,107 @@ class SampleSessionTest {
       // Ignores its own cancellation the way a platform read past the point of no return does.
       download = { preset -> withContext(NonCancellable) { gates.getValue(preset).await() } },
     )
+
+  @Test
+  fun `a second clip is probed and the edit runs as long as both`() {
+    state.onPicked(FIRST, "first.mp4")
+    state.addClip(SECOND, "second.mp4")
+
+    val (first, second) = state.sequence.clips
+    second.info?.duration shouldBe 5.seconds
+    state.editedDuration shouldBe first.duration!! + second.duration!!
+    state.composition()?.clips?.map { it.source } shouldBe listOf(FIRST, SECOND)
+    state.title shouldBe "2 clips"
+    state.sequence.selected shouldBe second.id
+  }
+
+  @Test
+  fun `a preset added to the edit lands after the clip already there`() {
+    val gates = mapOf(PRESET to CompletableDeferred<MediaSource>())
+    val state = heldDownloads(gates)
+
+    state.onPicked(FIRST, "first.mp4")
+    state.addPreset(PRESET)
+    state.loadingPreset shouldBe PRESET
+    gates.getValue(PRESET).complete(SECOND)
+
+    state.loadingPreset.shouldBeNull()
+    state.sequence.clips.map { it.preset } shouldContainExactly listOf(null, PRESET)
+    state.composition()?.clips?.map { it.source } shouldBe listOf(FIRST, SECOND)
+    state.backStack.last() shouldBe SampleRoute.Editor
+  }
+
+  @Test
+  fun `removing the selected clip selects its neighbour and shortens the edit`() {
+    state.onPicked(FIRST, "first.mp4")
+    state.addClip(SECOND, "second.mp4")
+    val (first, second) = state.sequence.clips
+
+    state.removeClip(second.id)
+
+    state.sequence.selected shouldBe first.id
+    state.editedDuration shouldBe first.duration
+    state.title shouldBe "first.mp4"
+  }
+
+  @Test
+  fun `moving a clip changes the order the edit plays`() {
+    state.onPicked(FIRST, "first.mp4")
+    state.addClip(SECOND, "second.mp4")
+
+    state.moveClip(
+      state.sequence.clips
+        .last()
+        .id,
+      0,
+    )
+
+    state.composition()?.clips?.map { it.source } shouldBe listOf(SECOND, FIRST)
+  }
+
+  @Test
+  fun `a clip the device cannot read is marked and the rest still export`() {
+    val gates = mapOf(FIRST to CompletableDeferred<ProbeResult>(), SECOND to CompletableDeferred())
+    val state = heldProbes(gates)
+
+    state.onPicked(FIRST, "first.mp4")
+    state.addClip(SECOND, "second.mp4")
+    gates.getValue(FIRST).complete(ProbeResult.Success(MediaInfo(7.seconds, SOURCE_TRACK, emptyList(), true)))
+    state.probing shouldBe true
+    gates.getValue(SECOND).complete(ProbeResult.Failure(FilmstripError.SourceUnreadable("second.mp4", "torn")))
+
+    state.probing shouldBe false
+    state.sequence.clips.map { it.failure == null } shouldContainExactly listOf(true, false)
+    state.sourceFailure.shouldBeNull()
+    state.canPlay shouldBe true
+    state.composition()?.clips?.map { it.source } shouldBe listOf(FIRST)
+    state.editedDuration shouldBe 7.seconds
+  }
+
+  @Test
+  fun `an edit whose only clip cannot be read has nothing to play`() {
+    val gates = mapOf(FIRST to CompletableDeferred<ProbeResult>())
+    val state = heldProbes(gates)
+
+    state.onPicked(FIRST, "first.mp4")
+    gates.getValue(FIRST).complete(ProbeResult.Failure(FilmstripError.SourceUnreadable("first.mp4", "torn")))
+
+    state.sourceFailure shouldBe
+      state.sequence.clips
+        .single()
+        .failure
+    state.canPlay shouldBe false
+    state.composition().shouldBeNull()
+  }
+
+  private val SampleAppState.source: MediaSource?
+    get() = (sequence.clips.singleOrNull()?.content as? ClipContent.Video)?.source
+
+  private val SampleAppState.probe: ProbeResult?
+    get() = sequence.clips.singleOrNull()?.probe
+
+  private val SampleAppState.sourcePreset: SamplePreset?
+    get() = sequence.clips.singleOrNull()?.preset
 
   private fun heldProbes(gates: Map<MediaSource, CompletableDeferred<ProbeResult>>): SampleAppState =
     SampleAppState(

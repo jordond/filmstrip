@@ -1,8 +1,12 @@
 package dev.jordond.filmstrip.sample
 
 import dev.jordond.filmstrip.Filmstrip
+import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.export.VideoQuality
+import dev.jordond.filmstrip.media.MediaInfo
+import dev.jordond.filmstrip.media.MediaProber
 import dev.jordond.filmstrip.media.MediaSource
+import dev.jordond.filmstrip.media.ProbeResult
 import dev.jordond.filmstrip.player.PreviewQualityPolicy
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
@@ -11,15 +15,23 @@ import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlin.test.Test
+import kotlin.time.Duration.Companion.seconds
 
 /**
  * The preview cap and the frame save, on a session with no backend behind it.
  */
+@OptIn(InternalFilmstripApi::class)
 class PreviewOptionsTest {
   private val recorder = DiagnosticsRecorder()
   private val state =
     SampleAppState(
-      filmstrip = Filmstrip { autoRegister(false) },
+      filmstrip =
+        Filmstrip {
+          autoRegister(false)
+          addMediaProberFactory {
+            MediaProber { ProbeResult.Success(MediaInfo(5.seconds, SampleSessionTest.SOURCE_TRACK, emptyList(), true)) }
+          }
+        },
       recorder = recorder,
       scope = CoroutineScope(Dispatchers.Unconfined),
     )
@@ -28,7 +40,7 @@ class PreviewOptionsTest {
   fun `a preview nobody capped renders in full and carries the export's spec`() {
     state.options.quality = VideoQuality.Medium
 
-    val config = state.playerConfig()
+    val config = state.preview.playerConfig()
 
     config.qualityPolicy shouldBe PreviewQualityPolicy.Full
     config.exportSpec shouldBe state.spec()
@@ -36,9 +48,9 @@ class PreviewOptionsTest {
 
   @Test
   fun `a cap reaches the player as a height cap`() {
-    state.previewCap = 540
+    state.preview.previewCap = 540
 
-    state
+    state.preview
       .playerConfig()
       .qualityPolicy
       .shouldBeInstanceOf<PreviewQualityPolicy.CapHeight>()

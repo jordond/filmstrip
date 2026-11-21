@@ -2,6 +2,7 @@ package dev.jordond.filmstrip.sample.ui.screen
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -18,8 +19,12 @@ import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -30,6 +35,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import dev.jordond.filmstrip.compose.ScrubState
@@ -53,7 +59,9 @@ import dev.jordond.filmstrip.compose.ui.interaction.zoomTimeline
 import dev.jordond.filmstrip.compose.ui.rememberTimelineState
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.sample.SampleAppState
+import dev.jordond.filmstrip.sample.TimelineView
 import dev.jordond.filmstrip.sample.asSeconds
+import dev.jordond.filmstrip.sample.clipComposition
 import dev.jordond.filmstrip.sample.ui.SampleIcons
 import dev.jordond.filmstrip.sample.ui.Tokens
 import dev.jordond.filmstrip.sample.ui.isCompactWidth
@@ -62,21 +70,23 @@ import kotlin.math.sqrt
 import kotlin.time.Duration
 
 /**
- * The strip under the viewport: the whole source laid out end to end, the lanes under it, the trim
- * window over it and the playhead across all of them.
+ * The strip under the viewport, the lanes under it and the playhead across all of them.
  *
- * Tiles are addressed in source time rather than trimmed time, so the strip covers the same ground
- * no matter where the trim handles sit. The ruler, strip and lanes share one [TimelineState], which
- * is what keeps them on one scroll and one scale.
+ * The sequence view lays the whole edit out end to end, marks where each clip starts and selects the clip under
+ * a tap. The clip view lays out the selected clip's source alone, at the pace it was shot and whatever its trim
+ * keeps, and carries the trim handles. The player plays the whole edit in both, so the clip view moves every
+ * time between the two clocks through [stripTimeOf] and [editTimeOf]. The ruler, strip and lanes share one
+ * [TimelineState], which is what keeps them on one scroll and one scale.
  */
 @Composable
 public fun Timeline(
   state: SampleAppState,
   modifier: Modifier = Modifier,
 ) {
-  val duration = state.sourceDuration ?: Duration.ZERO
-  val edit = state.edit
-  val composition = state.filmstripComposition()?.takeIf { duration > Duration.ZERO }
+  val sequence = state.sequence
+  val clip = sequence.selectedClip.takeIf { state.timelineView == TimelineView.Clip }
+  val duration = (if (clip != null) clip.sourceDuration ?: clip.duration else sequence.duration) ?: Duration.ZERO
+  val composition = (if (clip != null) state.edit.clipComposition(clip) else state.composition())
   val compact = isCompactWidth()
   val stripHeight = if (compact) STRIP_HEIGHT_COMPACT else STRIP_HEIGHT
 
@@ -86,13 +96,13 @@ public fun Timeline(
   // where an open player relaxes its seek accuracy.
   val scrub =
     rememberScrubState(
-      onSeek = { position -> state.seekTo(position.toSeconds()) },
-      onBegin = state::beginScrub,
-      onEnd = state::endScrub,
+      onSeek = { position -> state.preview.seekTo(state.editTimeOf(position).toSeconds()) },
+      onBegin = state.preview::beginScrub,
+      onEnd = state.preview::endScrub,
     )
-  val position = remember(state) { { state.positionSeconds.toDuration() } }
+  val position = remember(state) { { state.stripTimeOf(state.preview.positionSeconds.toDuration()) } }
 
-  if (composition == null) {
+  if (composition == null || duration <= Duration.ZERO) {
     Box(
       modifier
         .fillMaxWidth()
@@ -103,113 +113,185 @@ public fun Timeline(
   }
 
   val colors = sampleColors()
-  // The player runs over the trimmed composition while the strip spans the whole source, so the
-  // ruler, the playhead and the follow all carry the trim start as their sourceOffset.
-  val sourceOffset = { edit.trimOffset() }
 
-  BoxWithConstraints(modifier.fillMaxWidth()) {
-    val density = LocalDensity.current
-    val timeline =
-      rememberTimelineState(
-        duration = duration,
-        viewportWidthPx = with(density) { maxWidth.toPx() },
-        tileWidthPx = with(density) { FilmstripTimelineDefaults.TileWidth.roundToPx() },
-      )
-    val scale = timeline.scale
-    val frames =
-      rememberFilmstripFrames(
-        renderer = state.filmstrip,
-        composition = composition,
-        positions = timeline.grid.positions,
-        heightPx = with(density) { stripHeight.roundToPx() },
-        exportSpec = state.spec(),
-      )
-    val follow =
-      rememberPlayheadFollow(
-        position = position,
-        grid = timeline.grid,
-        state = timeline.listState,
-        isPlaying = state.playing,
-        sourceOffset = sourceOffset,
-      )
-    val lanes = laneSpans(edit, duration)
-    val laneHeight = if (compact) LANE_HEIGHT_COMPACT else LANE_HEIGHT
-
-    Box(Modifier.fillMaxWidth()) {
-      Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(LANE_GAP)) {
-        TimelineRuler(
-          scale = scale,
-          modifier = Modifier.scrubTimeline(scrub, scale, timeline::scrollPx, sourceOffset),
-          scrollPx = timeline::scrollPx,
-          colors = colors,
+  // A strip over another clip, or over the whole edit, is a different length on a different clock, so its
+  // scroll and zoom start over.
+  key(clip?.id) {
+    BoxWithConstraints(modifier.fillMaxWidth()) {
+      val density = LocalDensity.current
+      val timeline =
+        rememberTimelineState(
+          duration = duration,
+          viewportWidthPx = with(density) { maxWidth.toPx() },
+          tileWidthPx = with(density) { FilmstripTimelineDefaults.TileWidth.roundToPx() },
         )
+      val scale = timeline.scale
+      val frames =
+        rememberFilmstripFrames(
+          renderer = state.filmstrip,
+          composition = composition,
+          positions = timeline.grid.positions,
+          heightPx = with(density) { stripHeight.roundToPx() },
+          exportSpec = state.spec(),
+        )
+      val follow =
+        rememberPlayheadFollow(
+          position = position,
+          grid = timeline.grid,
+          state = timeline.listState,
+          isPlaying = state.preview.playing,
+        )
+      val edited = laneSpans(state.edit, state.editedDuration)
+      val lanes = if (clip != null) edited.onClip(sequence, clip) else edited
+      val clipGrades =
+        clipGradeSpans(sequence).let { spans ->
+          if (clip != null) spans.mapNotNull { it.onClip(sequence, clip) } else spans
+        }
+      val laneHeight = if (compact) LANE_HEIGHT_COMPACT else LANE_HEIGHT
+      val currentScale by rememberUpdatedState(scale)
 
-        Column(
-          Modifier
-            .fillMaxWidth()
-            .zoomTimeline(timeline)
-            .wheelZoomTimeline(timeline),
-          verticalArrangement = Arrangement.spacedBy(LANE_GAP),
-        ) {
-          Box(
+      Box(Modifier.fillMaxWidth()) {
+        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(LANE_GAP)) {
+          TimelineRuler(
+            scale = scale,
+            modifier = Modifier.scrubTimeline(scrub, scale, timeline::scrollPx),
+            scrollPx = timeline::scrollPx,
+            colors = colors,
+          )
+
+          Column(
             Modifier
               .fillMaxWidth()
-              .height(stripHeight)
-              .background(Tokens.trackGround),
+              .zoomTimeline(timeline)
+              .wheelZoomTimeline(timeline),
+            verticalArrangement = Arrangement.spacedBy(LANE_GAP),
           ) {
-            FilmstripStrip(
-              frames = frames,
-              grid = timeline.grid,
-              state = timeline.listState,
-              tileHeight = stripHeight,
-              colors = colors,
-            )
-            if (!compact) Sprockets(scale, timeline::scrollPx)
-            KeyboardControl(timeline, scrub, position)
-
-            val trim =
-              if (edit.trimEnabled) {
-                TimeRange(edit.trimStartSeconds.toDuration(), edit.trimEndSeconds.toDuration())
-              } else {
-                null
-              }
-            trim?.let { TrimWindow(it, scale, timeline::scrollPx) }
-            TimelineChrome(timeline, follow, Modifier.align(Alignment.TopEnd))
-            trim?.let {
-              TrimOverlay(
-                range = it,
-                scale = scale,
-                onRangeChange = { next ->
-                  edit.trimStartSeconds = next.start.toSeconds()
-                  edit.trimEndSeconds = (next.endExclusive ?: duration).toSeconds()
-                  state.onEditChanged()
-                },
-                scrollPx = timeline::scrollPx,
+            Box(
+              Modifier
+                .fillMaxWidth()
+                .height(stripHeight)
+                .background(Tokens.trackGround)
+                .then(
+                  if (clip != null) {
+                    Modifier
+                  } else {
+                    Modifier.pointerInput(sequence) {
+                      detectTapGestures { tap ->
+                        val time = currentScale.timeAt(timeline.scrollPx() + tap.x)
+                        sequence.clipAt(time)?.let { state.select(it.id) }
+                      }
+                    }
+                  },
+                ),
+            ) {
+              FilmstripStrip(
+                frames = frames,
+                grid = timeline.grid,
+                state = timeline.listState,
+                tileHeight = stripHeight,
                 colors = colors,
-                handleWidth = if (compact) TRIM_HANDLE_COMPACT else TRIM_HANDLE,
+              )
+              if (!compact) Sprockets(scale, timeline::scrollPx)
+              KeyboardControl(timeline, scrub, position)
+
+              val trim = clip?.takeIf { it.trimEnabled }?.trimRange()
+              if (clip == null) ClipMarks(clipSpans(sequence), sequence.selected, scale, timeline::scrollPx)
+              trim?.let { TrimWindow(it, scale, timeline::scrollPx) }
+              TimelineChrome(timeline, follow, Modifier.align(Alignment.TopEnd))
+              if (clip != null && trim != null) {
+                TrimOverlay(
+                  range = trim,
+                  scale = scale,
+                  onRangeChange = { next ->
+                    clip.trimStartSeconds = next.start.toSeconds()
+                    clip.trimEndSeconds = (next.endExclusive ?: duration).toSeconds()
+                    state.onEditChanged()
+                  },
+                  scrollPx = timeline::scrollPx,
+                  colors = colors,
+                  handleWidth = if (compact) TRIM_HANDLE_COMPACT else TRIM_HANDLE,
+                )
+              }
+            }
+
+            lanes.grade?.let { span ->
+              TimelineLane(
+                "GRADE",
+                listOf(span),
+                Tokens.cyan,
+                scale,
+                timeline::scrollPx,
+                timeline.listState,
+                laneHeight,
               )
             }
-          }
-
-          lanes.grade?.let { span ->
-            TimelineLane("GRADE", span, Tokens.cyan, scale, timeline::scrollPx, timeline.listState, laneHeight)
-          }
-          lanes.text?.let { span ->
-            TimelineLane("TEXT", span, Tokens.pink, scale, timeline::scrollPx, timeline.listState, laneHeight)
+            if (clipGrades.isNotEmpty()) {
+              TimelineLane(
+                "CLIP GRADE",
+                clipGrades,
+                Tokens.cyan,
+                scale,
+                timeline::scrollPx,
+                timeline.listState,
+                laneHeight,
+              )
+            }
+            lanes.text?.let { span ->
+              TimelineLane("TEXT", listOf(span), Tokens.pink, scale, timeline::scrollPx, timeline.listState, laneHeight)
+            }
+            trackSpans(sequence, state.editedDuration).forEach { track ->
+              val span = if (clip != null) track.span.onClip(sequence, clip) else track.span
+              if (span != null) {
+                TimelineLane(
+                  label = track.label.uppercase(),
+                  spans = listOf(span),
+                  color = MaterialTheme.colorScheme.primary,
+                  scale = scale,
+                  scrollPx = timeline::scrollPx,
+                  scrollState = timeline.listState,
+                  height = laneHeight,
+                )
+              }
+            }
           }
         }
-      }
 
-      Playhead(
-        position = position,
-        scale = scale,
-        modifier = Modifier.matchParentSize(),
-        scrollPx = timeline::scrollPx,
-        sourceOffset = sourceOffset,
-        colors = colors,
-      )
+        // In the clip view the strip only covers one clip, so the playhead is drawn while it is on that clip
+        // and left off while another one is playing.
+        val onStrip by remember(state, clip) {
+          derivedStateOf {
+            clip == null || sequence.clipAt(state.preview.positionSeconds.toDuration())?.id == clip.id
+          }
+        }
+        if (onStrip) {
+          Playhead(
+            position = position,
+            scale = scale,
+            modifier = Modifier.matchParentSize(),
+            scrollPx = timeline::scrollPx,
+            colors = colors,
+          )
+        }
+      }
     }
   }
+}
+
+/**
+ * Where a time on the edit's clock sits on the strip, which in the clip view is a time in the selected clip's
+ * source.
+ */
+private fun SampleAppState.stripTimeOf(editTime: Duration): Duration {
+  val clip = sequence.selectedClip.takeIf { timelineView == TimelineView.Clip } ?: return editTime
+  return sequence.sourceTimeOf(clip.id, editTime) ?: editTime
+}
+
+/**
+ * Where a time on the strip plays in the edit, the reverse of [stripTimeOf].
+ */
+private fun SampleAppState.editTimeOf(stripTime: Duration): Duration {
+  val clip = sequence.selectedClip.takeIf { timelineView == TimelineView.Clip } ?: return stripTime
+  return sequence.timeOf(clip.id, stripTime) ?: stripTime
 }
 
 /**

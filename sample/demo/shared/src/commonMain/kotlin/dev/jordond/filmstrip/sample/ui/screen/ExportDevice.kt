@@ -59,7 +59,12 @@ internal fun WideDeviceColumn(
       verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
       Text("THIS DEVICE", style = MaterialTheme.typography.titleMedium, color = Tokens.vcrHeader)
-      if (state.exporting) RunProgress(state) else state.verdict?.let { VerdictWordFor(it) } ?: IdleNote()
+      if (state.exports.exporting) {
+        RunProgress(state)
+      } else {
+        state.exports.verdict?.let { VerdictWordFor(it) }
+          ?: IdleNote()
+      }
       DeviceDetails(state)
     }
     RunKey(state)
@@ -78,9 +83,9 @@ internal fun PhoneDeviceStrip(state: SampleAppState) {
       .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 16.dp),
     verticalArrangement = Arrangement.spacedBy(10.dp),
   ) {
-    val verdict = state.verdict
+    val verdict = state.exports.verdict
     when {
-      state.exporting -> {
+      state.exports.exporting -> {
         RunProgress(state)
       }
       verdict == null -> {
@@ -116,7 +121,11 @@ internal fun DeviceDetailsBlock(
   state: SampleAppState,
   modifier: Modifier = Modifier,
 ) {
-  if (state.verdict == null && state.exportFailure == null && state.exportAdjustments.isEmpty()) return
+  if (state.exports.verdict == null && state.exports.exportFailure == null &&
+    state.exports.exportAdjustments.isEmpty()
+  ) {
+    return
+  }
 
   Column(
     modifier
@@ -151,7 +160,7 @@ private fun VerdictWordFor(verdict: Verdict) {
 
 @Composable
 private fun DeviceDetails(state: SampleAppState) {
-  when (val verdict = state.verdict) {
+  when (val verdict = state.exports.verdict) {
     null -> {}
     is Verdict.Capable -> {
       PlanSummary(verdict.plan, state)
@@ -166,8 +175,8 @@ private fun DeviceDetails(state: SampleAppState) {
     }
   }
 
-  if (state.exportAdjustments.isNotEmpty()) Adjustments(state.exportAdjustments)
-  state.exportFailure?.let { ErrorLine(it) }
+  if (state.exports.exportAdjustments.isNotEmpty()) Adjustments(state.exports.exportAdjustments)
+  state.exports.exportFailure?.let { ErrorLine(it) }
 }
 
 @Composable
@@ -220,7 +229,7 @@ private fun MenuStat(
  */
 @Composable
 private fun RunProgress(state: SampleAppState) {
-  val progress = state.exportProgress
+  val progress = state.exports.exportProgress
   val fps = state.info?.video?.frameRate
   val large = MaterialTheme.typography.labelLarge.copy(fontSize = RUN_TEXT_SIZE.sp)
   val fraction = progress?.fraction ?: 0f
@@ -282,17 +291,17 @@ private fun ProgressCells(fraction: Float) {
  */
 @Composable
 private fun RunKey(state: SampleAppState) {
-  val verdict = state.verdict
+  val verdict = state.exports.verdict
   val plan = verdict?.planOrNull()
   val modifier = Modifier.fillMaxWidth()
 
   when {
-    state.exporting -> {
-      Key("CANCEL", state::cancelExport, modifier, style = KeyStyle.Secondary, minHeight = RUN_KEY)
+    state.exports.exporting -> {
+      Key("CANCEL", state.exports::cancelExport, modifier, style = KeyStyle.Secondary, minHeight = RUN_KEY)
     }
     verdict == null -> {
       CheckKey(
-        label = if (state.planning) "PLANNING" else "CHECK WHAT THIS DEVICE WILL DO",
+        label = if (state.exports.planning) "PLANNING" else "CHECK WHAT THIS DEVICE WILL DO",
         state = state,
         modifier = modifier,
       )
@@ -301,7 +310,7 @@ private fun RunKey(state: SampleAppState) {
       if (plan != null) {
         Key(
           label = "EXPORT",
-          onClick = { state.export(plan) },
+          onClick = { state.exports.export(plan) },
           modifier = modifier,
           icon = SampleIcons.Record,
           minHeight = RUN_KEY,
@@ -310,7 +319,7 @@ private fun RunKey(state: SampleAppState) {
         verdict.withoutUnsupported?.let { fallback ->
           Key(
             label = "EXPORT WITHOUT THE UNSUPPORTED EFFECTS",
-            onClick = { state.export(fallback.plan) },
+            onClick = { state.exports.export(fallback.plan) },
             modifier = modifier,
             style = KeyStyle.Secondary,
             minHeight = RUN_KEY,
@@ -331,10 +340,10 @@ private fun CheckKey(
 ) {
   Key(
     label = label,
-    onClick = state::plan,
+    onClick = state.exports::plan,
     modifier = modifier,
     style = KeyStyle.Secondary,
-    enabled = !state.planning,
+    enabled = !state.exports.planning,
     minHeight = RUN_KEY,
     horizontalPadding = 12.dp,
   )

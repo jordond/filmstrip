@@ -9,7 +9,7 @@ import dev.jordond.filmstrip.player.PlaybackError
  * from the source, or null with no source to work from.
  */
 internal fun SampleAppState.compositionFrameLabel(): String? {
-  previewOutput?.let { return "${it.width} x ${it.height}" }
+  preview.previewOutput?.let { return "${it.width} x ${it.height}" }
   if (edit.frameMode == FrameMode.Fixed) return "${edit.frameSize.width} x ${edit.frameSize.height}"
   val height = edit.scaleHeight.takeIf { edit.scaleEnabled } ?: info?.video?.displaySize?.height ?: return null
   return "${(height * edit.outputAspect(sourceAspect)).toInt()} x $height"

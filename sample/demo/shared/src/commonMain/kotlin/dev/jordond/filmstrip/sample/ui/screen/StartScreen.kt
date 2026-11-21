@@ -77,7 +77,7 @@ public fun StartScreen(
   val scroll = rememberScrollState()
 
   LaunchedEffect(Unit) {
-    if (state.capabilities == null) state.refreshCapabilities()
+    if (state.device.result == null) state.device.refresh()
   }
 
   BoxWithConstraints(
@@ -316,8 +316,8 @@ private fun CapabilitiesSection(
       IconKey(
         icon = SampleIcons.Refresh,
         contentDescription = "Refresh capabilities",
-        onClick = state::refreshCapabilities,
-        enabled = !state.loadingCapabilities,
+        onClick = state.device::refresh,
+        enabled = !state.device.loading,
       )
     },
     headerVerticalPadding = 0.dp,

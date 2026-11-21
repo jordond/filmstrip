@@ -4,8 +4,6 @@ import dev.jordond.filmstrip.CapabilitiesResult
 import dev.jordond.filmstrip.ExperimentalFilmstripApi
 import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.FilmstripVersion
-import dev.jordond.filmstrip.edit.Composition
-import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.export.Adjustment
 import dev.jordond.filmstrip.export.ExportPlan
 import dev.jordond.filmstrip.export.ExportSpec
@@ -68,20 +66,24 @@ private fun SampleAppState.diagnosticsMarkdown(): String =
     device.details.forEach { (key, value) -> line("* $key: $value") }
 
     section("Media")
-    line(sourceSummary())
-    probeSummary()?.let { line(it) }
+    if (sequence.clips.isEmpty()) line("Nothing loaded.")
+    sequence.everyClip().forEach { clip ->
+      line(clip.sourceSummary())
+      clip.probeSummary()?.let { line(it) }
+    }
 
     section("Steps to reproduce")
     line("Spec: ${spec().summary()}")
     composition()?.let { composition ->
       val effects = composition.effectIds()
       line("Effects: ${if (effects.isEmpty()) "none" else effects.joinToString(", ")}")
-      line("Trim: ${edit.trimRange(sourceDuration).summary()}")
+      composition.trackLines().forEach { line(it) }
     }
 
     section("What happened")
     line(outcomeSummary())
-    val adjustments = exportAdjustments.ifEmpty { (verdict as? Verdict.Degraded)?.adjustments.orEmpty() }
+    val verdict = exports.verdict
+    val adjustments = exports.exportAdjustments.ifEmpty { (verdict as? Verdict.Degraded)?.adjustments.orEmpty() }
     if (adjustments.isNotEmpty()) {
       line("")
       line("Adjustments:")
@@ -136,9 +138,9 @@ private fun SampleAppState.diagnosticsJson(): String {
         put("operatingSystem", device.operatingSystem)
         device.details.forEach { (key, value) -> put(key, value) }
       }
-      put("source", sourceSummary())
+      putJsonArray("sources") { sequence.everyClip().forEach { add(it.sourceSummary()) } }
       put("spec", spec().asJson())
-      put("composition", composition?.asJson(edit.trimRange(sourceDuration)) ?: JsonNull)
+      put("composition", composition?.asJson() ?: JsonNull)
       put("outcome", outcomeSummary())
       putJsonArray("log") {
         recorder.events.forEach { event ->
@@ -158,15 +160,17 @@ private fun SampleAppState.diagnosticsJson(): String {
   return json.encodeToString(JsonElement.serializer(), document)
 }
 
-private fun SampleAppState.sourceSummary(): String {
-  val preset = sourcePreset
-  if (preset != null) return "Sample clip \"${preset.name}\" (`${preset.fileName}`)"
+private fun ClipEdit.sourceSummary(): String {
+  preset?.let { return "Sample clip \"${it.name}\" (`${it.fileName}`)" }
 
-  val source = source ?: return "Nothing loaded."
-  return "A picked file, ${source.redactedName()}"
+  return when (val content = content) {
+    is ClipContent.Video -> "A picked file, ${content.source.redactedName()}"
+    is ClipContent.Image -> "A picked picture, ${content.image.redactedName()}"
+    ClipContent.Solid -> "A colour held for ${holdSeconds.asSeconds()}"
+  }
 }
 
-private fun SampleAppState.probeSummary(): String? =
+private fun ClipEdit.probeSummary(): String? =
   when (val result = probe) {
     null -> null
     is ProbeResult.Failure -> "The probe failed: ${result.error.line()}"
@@ -174,11 +178,11 @@ private fun SampleAppState.probeSummary(): String? =
   }
 
 private fun SampleAppState.outcomeSummary(): String {
-  exportFailure?.let { return "The export failed: ${it.line()}" }
-  exported?.let { return "The export succeeded. Output: ${exportedInfo.outputSummary()}" }
+  exports.exportFailure?.let { return "The export failed: ${it.line()}" }
+  exports.exported?.let { return "The export succeeded. Output: ${exports.exportedInfo.outputSummary()}" }
 
-  return when (val current = verdict) {
-    null -> if (exporting) "An export is still running." else "Nothing has been planned yet."
+  return when (val current = exports.verdict) {
+    null -> if (exports.exporting) "An export is still running." else "Nothing has been planned yet."
     is Verdict.Incapable -> "The device refused the plan: ${current.reasons.joinToString("; ") { it.line() }}"
     is Verdict.Degraded -> "The device will run it with changes."
     is Verdict.Capable -> "The device will run it as asked."
@@ -186,7 +190,7 @@ private fun SampleAppState.outcomeSummary(): String {
 }
 
 private fun SampleAppState.capabilitiesSummary(): String =
-  when (val result = capabilities) {
+  when (val result = device.result) {
     null -> {
       "Not asked."
     }
@@ -249,16 +253,7 @@ private fun ExportPlan.summary(): String {
 
 private fun Adjustment.summary(): String = "$kind: $requested became $resolved. $message"
 
-private fun TimeRange?.summary(): String {
-  val range = this ?: return "none"
-  val end = range.endExclusive?.asClock() ?: "the end"
-  return "${range.start.asClock()} to $end"
-}
-
 private fun FilmstripError.line(): String = "${this::class.simpleName ?: "Error"}: $message"
-
-private fun Composition.effectIds(): List<String> =
-  (effects + tracks.flatMap { track -> track.effects + track.clips.flatMap { it.effects } }).map { it.id.value }
 
 /**
  * The fields of the spec a bug report needs, which is every field a caller can set.
@@ -277,28 +272,6 @@ private fun ExportSpec.asJson(): JsonObject =
   }
 
 /**
- * The shape of the composition rather than the composition itself: how many clips sit on each
- * track, what is applied to them and where the cut is. Sources are named by [redactedName], so no
- * path reaches the report.
- */
-private fun Composition.asJson(trim: TimeRange?): JsonObject =
-  buildJsonObject {
-    putJsonArray("tracks") {
-      tracks.forEach { track ->
-        add(
-          buildJsonObject {
-            put("content", track.content.name)
-            put("clips", track.clips.size)
-            putJsonArray("sources") { track.clips.forEach { clip -> add(clip.source.redactedName()) } }
-          },
-        )
-      }
-    }
-    putJsonArray("effects") { effectIds().forEach { id -> add(id) } }
-    put("trim", trim.summary())
-  }
-
-/**
  * The source reduced to something that names no file.
  */
 @OptIn(ExperimentalFilmstripApi::class)
@@ -311,7 +284,7 @@ internal fun MediaSource.redactedName(): String =
     is MediaSource.Solid -> "solid"
   }
 
-private fun ImageSource.redactedName(): String =
+internal fun ImageSource.redactedName(): String =
   when (this) {
     is ImageSource.Path -> path.redactLocation()
     is ImageSource.Uri -> uri.redactLocation()

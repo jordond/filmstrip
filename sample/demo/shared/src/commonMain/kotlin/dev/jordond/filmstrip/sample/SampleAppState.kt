@@ -4,60 +4,20 @@ import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
 import androidx.navigation3.runtime.NavBackStack
-import dev.jordond.filmstrip.CapabilitiesResult
 import dev.jordond.filmstrip.Filmstrip
-import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.diagnostics.BackendInfo
 import dev.jordond.filmstrip.edit.Composition
-import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.effect.EffectId
-import dev.jordond.filmstrip.export.Adjustment
-import dev.jordond.filmstrip.export.ExportPlan
 import dev.jordond.filmstrip.export.ExportSpec
-import dev.jordond.filmstrip.export.ExportStatus
-import dev.jordond.filmstrip.export.Verdict
-import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
-import dev.jordond.filmstrip.media.ProbeResult
-import dev.jordond.filmstrip.player.PlaybackError
-import dev.jordond.filmstrip.player.PlaybackEvent
-import dev.jordond.filmstrip.player.PlaybackStatus
-import dev.jordond.filmstrip.player.PlayerConfig
-import dev.jordond.filmstrip.player.PlayerFeature
-import dev.jordond.filmstrip.player.PlayerState
-import dev.jordond.filmstrip.player.PreviewQualityPolicy
-import dev.jordond.filmstrip.player.SetCompositionResult
-import dev.jordond.filmstrip.player.VideoPlayer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.ensureActive
-import kotlinx.coroutines.isActive
-import kotlinx.coroutines.launch
-import kotlin.coroutines.cancellation.CancellationException
 import kotlin.time.Duration
-import kotlin.time.Duration.Companion.milliseconds
-
-/**
- * What the editor is currently editing, which decides what the tool panel shows.
- */
-public enum class EditorTool {
-  Trim,
-  Crop,
-  Transform,
-  Scale,
-  Adjust,
-  Text,
-  Watermark,
-  Audio,
-  Background,
-}
 
 /**
  * Drives one pick-to-export session against a [Filmstrip], exposing each step as compose state.
@@ -88,22 +48,56 @@ public class SampleAppState(
    */
   public val backStack: NavBackStack<SampleRoute> = NavBackStack(SampleRoute.Start)
 
-  var source: MediaSource? by mutableStateOf(null)
-    private set
-  var sourceLabel: String by mutableStateOf("")
-    private set
-  var probing: Boolean by mutableStateOf(false)
-    private set
-  var probe: ProbeResult? by mutableStateOf(null)
-    private set
+  /**
+   * The clips of the edit, in the order they play.
+   */
+  public val sequence: Sequence = Sequence()
+
   var pickFailure: String? by mutableStateOf(null)
     private set
-  var loadingPreset: SamplePreset? by mutableStateOf(null)
-    private set
-  var sourcePreset: SamplePreset? by mutableStateOf(null)
-    private set
+  private val presets = PresetLoader(scope, recorder, download)
+  val loadingPreset: SamplePreset? get() = presets.loading
 
-  private var activeToolState: EditorTool by mutableStateOf(EditorTool.Trim)
+  /**
+   * The live preview of the edit and its transport.
+   */
+  public val preview: PreviewSession =
+    PreviewSession(
+      filmstrip = filmstrip,
+      scope = scope,
+      recorder = recorder,
+      composition = ::previewComposition,
+      spec = ::spec,
+      duration = { editedDuration },
+      frameRate = { options.frameRate ?: info?.video?.frameRate?.toInt() },
+    )
+
+  /**
+   * The plan and the export of the edit.
+   */
+  public val exports: ExportSession =
+    ExportSession(
+      filmstrip = filmstrip,
+      scope = scope,
+      recorder = recorder,
+      release = release,
+      composition = ::composition,
+      spec = ::spec,
+      onStart = preview::pause,
+      onSucceeded = {
+        backStack.remove(SampleRoute.Export)
+        navigateTo(SampleRoute.Result)
+      },
+    )
+
+  private val prober = ClipProber(filmstrip, scope, recorder, ::onEditChanged)
+
+  private var activeToolState: EditorTool by mutableStateOf(EditorTool.Clip)
+
+  /**
+   * What the timeline strip lays out. The trim handles are on the clip view only.
+   */
+  var timelineView: TimelineView by mutableStateOf(TimelineView.Clip)
 
   /**
    * Which tool panel is open, which decides what the tool panel shows.
@@ -115,45 +109,25 @@ public class SampleAppState(
     get() = activeToolState
     set(value) {
       val wasCroppingRect = croppingRect
+      val wasPanning = panEnd != null
       activeToolState = value
-      if (croppingRect != wasCroppingRect) reloadPreview()
+      panEndState = null
+      if (croppingRect != wasCroppingRect || wasPanning) preview.reload()
     }
 
-  var positionSeconds: Float by mutableStateOf(0f)
-    private set
-  var playing: Boolean by mutableStateOf(false)
-    private set
+  private var panEndState: PanEnd? by mutableStateOf(null)
 
   /**
-   * The preview player over the current edit, or null while no preview screen is showing.
+   * Which rectangle of the selected clip's pan is dragged on the stage, or null while the pan plays. The live
+   * preview holds that clip's frame still under the rectangle, and leaving the clip or its tool puts the pan back.
    */
-  var player: VideoPlayer? by mutableStateOf(null)
-    private set
-
-  /**
-   * Where the preview player is in its lifecycle.
-   */
-  var playerStatus: PlaybackStatus by mutableStateOf(PlaybackStatus.Idle)
-    private set
-
-  /**
-   * Why the preview cannot play, or null while it can.
-   */
-  var previewError: PlaybackError? by mutableStateOf(null)
-    private set
-
-  /**
-   * The frame the composition outputs, as the preview reports it, or null until it has.
-   */
-  var previewOutput: Size? by mutableStateOf(null)
-    private set
-
-  /**
-   * True where the player reported no preview backend rather than a failure while playing. Every
-   * platform ships one, so a build reaching this is one that never registered it.
-   */
-  val previewUnavailable: Boolean
-    get() = previewError is PlaybackError.BackendMissing
+  var panEnd: PanEnd?
+    get() = panEndState
+    set(value) {
+      val changed = (value == null) != (panEndState == null)
+      panEndState = value
+      if (changed) preview.reload()
+    }
 
   /**
    * True while the crop tool is open on a rectangle crop, which is when the crop overlay is drawn
@@ -162,107 +136,69 @@ public class SampleAppState(
   val croppingRect: Boolean
     get() = activeTool == EditorTool.Crop && edit.cropMode == CropMode.Rect
 
-  private var loopingState: Boolean by mutableStateOf(true)
-
-  var looping: Boolean
-    get() = loopingState
-    set(value) {
-      loopingState = value
-      applyLoopRange()
-    }
-
   public val options: ExportOptions = ExportOptions()
 
   public val frames: FrameGrab = FrameGrab(filmstrip, scope, recorder)
 
-  private var previewCapState: Int? by mutableStateOf(null)
+  /**
+   * What the device's encoders can do.
+   */
+  public val device: DeviceCapabilities = DeviceCapabilities(filmstrip, scope, recorder)
 
   /**
-   * The most the preview renders tall, or null for the composition's own height. Changing it reopens the player,
-   * since a player keeps the policy it was opened with.
+   * True while the device is still reading a clip.
    */
-  var previewCap: Int?
-    get() = previewCapState
-    set(value) {
-      if (value == previewCapState) return
-      previewCapState = value
-      if (player == null) return
-      val at = positionSeconds
-      startPreview()
-      seekTo(at)
-    }
-
-  var planning: Boolean by mutableStateOf(false)
-    private set
-  var verdict: Verdict? by mutableStateOf(null)
-    private set
-
-  var exporting: Boolean by mutableStateOf(false)
-    private set
-  var exportProgress: ExportStatus.Progress? by mutableStateOf(null)
-    private set
-  var exportAdjustments: List<Adjustment> by mutableStateOf(emptyList())
-    private set
-  var exported: ExportStatus.Success? by mutableStateOf(null)
-    internal set
-  var exportedInfo: ProbeResult? by mutableStateOf(null)
-    private set
-  var exportFailure: FilmstripError? by mutableStateOf(null)
-    private set
-
-  var capabilities: CapabilitiesResult? by mutableStateOf(null)
-    private set
-  var loadingCapabilities: Boolean by mutableStateOf(false)
-    private set
+  val probing: Boolean
+    get() = sequence.clips.any { it.probing }
 
   /**
-   * Why this device can't export at all, or null when it can or hasn't answered yet.
+   * What the device said about the clip the output frame follows, or null until it has.
    */
-  val exportRefusal: String? get() = exportRefusalOf(capabilities)
-
-  private var exportJob: Job? = null
-  private var exportGeneration = 0
-  private var clockJob: Job? = null
-  private var previewJobs: List<Job> = emptyList()
-  private var reloadJob: Job? = null
-  private var probeJob: Job? = null
-  private var presetJob: Job? = null
-
   val info: MediaInfo?
-    get() = (probe as? ProbeResult.Success)?.info
-
-  val sourceDuration: Duration?
-    get() = info?.duration
+    get() = sequence.lead?.info
 
   /**
-   * Why the picked clip cannot load, or null while it can or while nothing is picked.
+   * Why the edit cannot load, which is why its first clip could not while no clip can. Null while a clip can
+   * or while nothing is picked.
    */
   val sourceFailure: String?
-    get() = (probe as? ProbeResult.Failure)?.error?.message
+    get() = if (sequence.playable.isEmpty()) sequence.clips.firstNotNullOfOrNull { it.failure } else null
 
   /**
-   * True while the transport has something to run, which a clip that cannot load or a stopped preview does not.
+   * The name the editor shows for the edit, its clip's while there is one and a count past that.
+   */
+  val title: String
+    get() = sequence.clips.singleOrNull()?.label ?: "${sequence.clips.size} clips"
+
+  /**
+   * True while the transport has something to run, which an edit that cannot load or a stopped preview does not.
    */
   val canPlay: Boolean
-    get() = source != null && !probing && sourceFailure == null && (previewError == null || previewUnavailable)
+    get() = sequence.playable.isNotEmpty() && !probing && (preview.previewError == null || preview.previewUnavailable)
 
   val sourceAspect: Float
-    get() =
-      info
-        ?.video
-        ?.displaySize
-        ?.aspect
-        ?.takeIf { it > 0f } ?: DEFAULT_ASPECT
+    get() {
+      val shot =
+        info
+          ?.video
+          ?.displaySize
+          ?.aspect
+          ?.takeIf { it > 0f } ?: DEFAULT_ASPECT
+      return if (sequence.lead?.transform?.sideways == true) 1f / shot else shot
+    }
 
   val editedDuration: Duration
-    get() = edit.editedDuration(sourceDuration) ?: Duration.ZERO
+    get() = sequence.duration ?: Duration.ZERO
 
   /**
-   * Where the playhead sits inside the trimmed edit, in seconds.
+   * How long the edit runs, in seconds.
    */
   val editedDurationSeconds: Float
     get() = editedDuration.inWholeMilliseconds / 1000f
 
+  /**
+   * Opens the editor on [source] alone, dropping whatever was being edited.
+   */
   fun onPicked(
     source: MediaSource?,
     label: String,
@@ -270,8 +206,7 @@ public class SampleAppState(
   ) {
     if (source == null) return
 
-    presetJob?.cancel()
-    loadingPreset = null
+    presets.cancel()
     openSource(source, label, preset)
   }
 
@@ -280,38 +215,63 @@ public class SampleAppState(
     label: String,
     preset: SamplePreset?,
   ) {
-    this.source = source
-    sourceLabel = label
-    sourcePreset = preset
+    dropClips()
     pickFailure = null
-    resetRun()
+    exports.reset()
     frames.clear()
-    stopPreview()
-    positionSeconds = 0f
+    preview.stop()
+    preview.positionSeconds = 0f
+    edit.reset()
+    activeTool = EditorTool.Clip
+    timelineView = TimelineView.Clip
+    addClip(source, label, preset)
+    navigateTo(SampleRoute.Editor)
+  }
+
+  /**
+   * Appends a clip over [source] to the edit and asks the device about it. A clip the device cannot read is
+   * marked and left out of the edit, and the rest play on.
+   */
+  fun addClip(
+    source: MediaSource,
+    label: String,
+    preset: SamplePreset? = null,
+  ) {
+    val clip = sequence.add(ClipContent.Video(source), label, preset)
+    if (sequence.clips.size > 1) timelineView = TimelineView.Sequence
+    pickFailure = null
     // The label is the user's own file name, so the log gets the same redaction the report does.
     recorder.record("source.picked", "source" to (preset?.fileName ?: source.redactedName()))
 
-    probeJob?.cancel()
-    probing = true
-    probe = null
-    navigateTo(SampleRoute.Editor)
-    probeJob =
-      scope.launch {
-        try {
-          val result = filmstrip.probe(source)
-          ensureActive()
-          probe = result
-          when (result) {
-            is ProbeResult.Success -> recorder.record("source.probed", "info" to result.info.toString())
-            is ProbeResult.Failure -> recorder.record("source.unreadable", "error" to result.error.message)
-          }
-          edit.reset((result as? ProbeResult.Success)?.info?.duration)
-          activeTool = EditorTool.Trim
-        } finally {
-          // A cancelled probe has already handed probing over to whoever cancelled it.
-          if (isActive) probing = false
-        }
-      }
+    prober.probe(clip, source)
+  }
+
+  /**
+   * Appends [image] to the edit as a picture held on screen.
+   */
+  fun addImage(
+    image: ImageSource,
+    label: String,
+  ) {
+    added(sequence.add(ClipContent.Image(image), label), image.redactedName())
+  }
+
+  /**
+   * Appends a flat colour held on screen to the edit.
+   */
+  fun addSolid() {
+    added(sequence.add(ClipContent.Solid, "Colour"), "a colour")
+  }
+
+  private fun added(
+    clip: ClipEdit,
+    name: String,
+  ) {
+    if (sequence.clips.size > 1) timelineView = TimelineView.Sequence
+    pickFailure = null
+    panEndState = null
+    recorder.record("clip.added", "clip" to "${clip.id.value}", "source" to name)
+    onEditChanged()
   }
 
   /**
@@ -319,28 +279,114 @@ public class SampleAppState(
    * fails. Closing the project or picking another clip drops the download.
    */
   fun pickPreset(preset: SamplePreset) {
-    if (loadingPreset != null) return
+    loadPreset(preset) { source -> openSource(source, preset.name, preset) }
+  }
 
-    loadingPreset = preset
+  /**
+   * Downloads [preset] and appends it to the edit, reporting through [pickFailure] if the download fails.
+   */
+  fun addPreset(preset: SamplePreset) {
+    loadPreset(preset) { source -> addClip(source, preset.name, preset) }
+  }
+
+  private fun loadPreset(
+    preset: SamplePreset,
+    onLoaded: (MediaSource) -> Unit,
+  ) {
+    if (presets.loading == null) pickFailure = null
+    presets.load(preset, onFailed = { pickFailure = it }, onLoaded = onLoaded)
+  }
+
+  /**
+   * Lays [source] under the edit as a new audio track and asks the device about it.
+   */
+  fun addTrack(
+    source: MediaSource,
+    label: String,
+    looping: Boolean = false,
+    preset: SamplePreset? = null,
+  ) {
+    val track = sequence.addTrack(label)
+    track.looping = looping
+    addToTrack(track, source, label, preset)
+  }
+
+  /**
+   * Appends [source] to [track] and asks the device about it.
+   */
+  fun addToTrack(
+    track: TrackEdit,
+    source: MediaSource,
+    label: String,
+    preset: SamplePreset? = null,
+  ) {
     pickFailure = null
-    presetJob =
-      scope.launch {
-        try {
-          recorder.record("preset.download", "clip" to preset.fileName)
-          val source = download(preset)
-          ensureActive()
-          openSource(source, preset.name, preset)
-        } catch (cancellation: CancellationException) {
-          throw cancellation
-        } catch (failure: Throwable) {
-          ensureActive()
-          pickFailure = failure.message ?: "The download gave no reason."
-          recorder.record("preset.failed", "clip" to preset.fileName, "reason" to pickFailure.orEmpty())
-        } finally {
-          // A cancelled download has already handed loadingPreset over to whoever cancelled it.
-          if (isActive) loadingPreset = null
-        }
-      }
+    recorder.record("track.picked", "source" to (preset?.fileName ?: source.redactedName()))
+    prober.probe(sequence.addTo(track, ClipContent.Video(source), label, preset), source)
+  }
+
+  /**
+   * Downloads [preset] and loops its audio under the edit, reporting through [pickFailure] if the download fails.
+   */
+  fun addMusic(preset: SamplePreset) {
+    loadPreset(preset) { source -> addTrack(source, preset.name, looping = true, preset = preset) }
+  }
+
+  /**
+   * Drops the track named [id] from the edit.
+   */
+  fun removeTrack(id: TrackId) {
+    sequence.tracks
+      .firstOrNull { it.id == id }
+      ?.clips
+      ?.forEach { prober.cancel(it.id) }
+    sequence.removeTrack(id)
+    onEditChanged()
+  }
+
+  /**
+   * Drops the clip named [id] from the edit.
+   */
+  fun removeClip(id: ClipId) {
+    prober.cancel(id)
+    sequence.remove(id)
+    panEndState = null
+    onEditChanged()
+  }
+
+  /**
+   * Moves the clip named [id] so it plays at [to] in the order.
+   */
+  fun moveClip(
+    id: ClipId,
+    to: Int,
+  ) {
+    sequence.move(id, to)
+    onEditChanged()
+  }
+
+  /**
+   * Selects the clip named [id], which is the one the clip tools then edit.
+   */
+  fun select(id: ClipId) {
+    if (id != sequence.selected) panEnd = null
+    sequence.select(id)
+  }
+
+  /**
+   * Selects the clip named [id] and brings the playhead to its start, unless the playhead is already on it.
+   */
+  fun focusClip(id: ClipId) {
+    select(id)
+    val start = sequence.startOf(id) ?: return
+    if (sequence.clipAt(preview.positionSeconds.asSeconds())?.id != id) {
+      preview.seekTo(start.inWholeMilliseconds / 1000f)
+    }
+  }
+
+  private fun dropClips() {
+    prober.cancelAll()
+    sequence.clear()
   }
 
   /**
@@ -355,13 +401,9 @@ public class SampleAppState(
    * Drops the plan and the export an edit just invalidated.
    */
   fun onEditChanged() {
-    verdict = null
-    clearExported()
-    exportFailure = null
-    exportProgress = null
-    exportAdjustments = emptyList()
-    positionSeconds = positionSeconds.coerceIn(0f, editedDurationSeconds)
-    reloadPreview()
+    exports.reset()
+    preview.positionSeconds = preview.positionSeconds.coerceIn(0f, editedDurationSeconds)
+    preview.reload()
   }
 
   /**
@@ -389,7 +431,7 @@ public class SampleAppState(
 
   fun openCapabilities() {
     navigateTo(SampleRoute.Capabilities)
-    refreshCapabilities()
+    device.refresh()
   }
 
   fun openDiagnostics() {
@@ -400,479 +442,56 @@ public class SampleAppState(
    * Drops the clip and everything derived from it, landing back on the picker.
    */
   fun closeProject() {
-    stopPreview()
+    preview.stop()
     frames.clear()
-    exportJob?.cancel()
-    probeJob?.cancel()
-    probing = false
-    presetJob?.cancel()
-    loadingPreset = null
-    source = null
-    sourceLabel = ""
-    sourcePreset = null
-    probe = null
+    exports.cancelExport()
+    presets.cancel()
+    dropClips()
     pickFailure = null
-    resetRun()
+    exports.reset()
     backStack.clear()
     backStack.add(SampleRoute.Start)
   }
 
-  fun composition(): Composition? {
-    val source = source ?: return null
-    return edit.composition(source, sourceDuration)
-  }
+  fun composition(): Composition? = if (sequence.playable.isEmpty()) null else edit.composition(sequence)
 
   /**
    * The composition the live player renders.
    *
    * Omits the rectangle crop while [croppingRect] is true, since the overlay drawn over the player
-   * authors that rectangle against the frame before the crop rather than after it.
+   * authors that rectangle against the frame before the crop rather than after it. Holds the selected clip
+   * still while [panEnd] is set, for the same reason.
    */
-  private fun previewComposition(): Composition? {
-    val source = source ?: return null
-    return edit.composition(source, sourceDuration, cropped = !croppingRect)
-  }
-
-  /**
-   * The current edit over the whole source, with no trim applied.
-   *
-   * Built for the timeline strip, which lays the source out end to end and draws the trim window
-   * over it rather than following it.
-   */
-  fun filmstripComposition(): Composition? {
-    val source = source ?: return null
-    return edit.composition(source, sourceDuration, trimmed = false)
-  }
+  private fun previewComposition(): Composition? =
+    if (sequence.playable.isEmpty()) {
+      null
+    } else {
+      edit.composition(sequence, cropped = !croppingRect, unpanned = sequence.selected.takeIf { panEnd != null })
+    }
 
   fun spec(): ExportSpec = options.spec()
-
-  /**
-   * What a preview is opened with: the export's spec, and the height cap when one is set.
-   */
-  fun playerConfig(): PlayerConfig =
-    PlayerConfig(
-      qualityPolicy = previewCap?.let(PreviewQualityPolicy::CapHeight) ?: PreviewQualityPolicy.Full,
-      exportSpec = spec(),
-    )
 
   /**
    * Saves the frame under the playhead, rendered from the edit the export runs.
    */
   fun saveFrame() {
     val composition = composition() ?: return
-    frames.save(composition, positionSeconds.asSeconds())
+    frames.save(composition, preview.positionSeconds.asSeconds())
   }
 
   /**
-   * Opens a player over the current edit, replacing whatever was open.
-   *
-   * The preview screen calls this on the way in and [stopPreview] on the way out, so the player
-   * lives exactly as long as the surface it draws into.
-   */
-  fun startPreview() {
-    if (sourceFailure != null) return
-    val composition = previewComposition() ?: return
-    stopPreview()
-
-    val opened = filmstrip.preview(composition, playerConfig())
-    player = opened
-    recorder.record("player.opened", "duration" to editedDuration.toString())
-    observe(opened)
-    applyLoopRange()
-  }
-
-  /**
-   * Closes the player and drops everything derived from it.
-   */
-  fun stopPreview() {
-    reloadJob?.cancel()
-    reloadJob = null
-    previewJobs.forEach { it.cancel() }
-    previewJobs = emptyList()
-
-    player?.let { open ->
-      open.close()
-      recorder.record("player.closed")
-    }
-    player = null
-    playerStatus = PlaybackStatus.Idle
-    previewError = null
-    previewOutput = null
-    playing = false
-    stopClock()
-  }
-
-  fun togglePlay() {
-    if (playing) pause() else play()
-  }
-
-  fun play() {
-    val open = livePlayer()
-    if (open == null) {
-      startLocalClock()
-      return
-    }
-
-    recorder.record("player.play", "playWhenReady" to "true")
-    open.play()
-  }
-
-  fun pause() {
-    val open = livePlayer()
-    if (open == null) {
-      stopClock()
-      return
-    }
-
-    recorder.record("player.pause", "playWhenReady" to "false")
-    open.pause()
-  }
-
-  fun seekTo(seconds: Float) {
-    val target = seconds.coerceIn(0f, editedDurationSeconds)
-    positionSeconds = target
-    livePlayer()?.seekTo(target.asSeconds())
-  }
-
-  fun beginScrub() {
-    livePlayer()?.beginScrub()
-  }
-
-  fun endScrub() {
-    livePlayer()?.endScrub()
-  }
-
-  /**
-   * Whether the player open now can shuttle, which is what the shuttle keys are shown for.
-   */
-  val canShuttle: Boolean
-    get() = livePlayer()?.features?.supports(PlayerFeature.Shuttle) == true
-
-  fun beginShuttle(rate: Float) {
-    val open = livePlayer() ?: return
-    recorder.record("player.beginShuttle", "rate" to rate.toString())
-    open.beginShuttle(rate)
-  }
-
-  fun endShuttle() {
-    val open = livePlayer() ?: return
-    recorder.record("player.endShuttle")
-    open.endShuttle()
-  }
-
-  fun stepFrames(frames: Int) {
-    val open = livePlayer()
-    if (open != null && open.features.supports(PlayerFeature.FrameStepping)) {
-      open.stepFrames(frames)
-      return
-    }
-
-    val fps = options.frameRate ?: info?.video?.frameRate?.toInt() ?: DEFAULT_FRAME_RATE
-    seekTo(positionSeconds + frames.toFloat() / fps)
-  }
-
-  fun plan() {
-    if (planning) return
-    val composition = composition() ?: return
-    verdict = null
-    planning = true
-    scope.launch {
-      try {
-        val result = filmstrip.plan(composition, spec())
-        verdict = result
-        recorder.record("plan.done", "verdict" to (result::class.simpleName ?: "unknown"))
-      } finally {
-        planning = false
-      }
-    }
-  }
-
-  fun export(plan: ExportPlan) {
-    exportJob?.cancel()
-    clearExported()
-    exportFailure = null
-    exportProgress = null
-    // Running a plan emits no ExportStatus.Adjusted, since the verdict this plan came from already
-    // carried the list. Reading it off the verdict is what puts the tone map in front of whoever
-    // pressed export rather than only in the diagnostics report.
-    exportAdjustments = (verdict as? Verdict.Degraded)?.adjustments.orEmpty()
-    pause()
-
-    // The flag is flipped here rather than inside the coroutine, and cleared only by the run that
-    // still owns it. cancel() above does not wait, so a superseded run's finally lands after the
-    // replacement has started and would otherwise report the new export as finished.
-    val generation = ++exportGeneration
-    exporting = true
-    exportJob =
-      scope.launch {
-        try {
-          filmstrip.export(plan, exportSink()).collect { status ->
-            when (status) {
-              is ExportStatus.Started -> {
-                recorder.record("export.started", "path" to plan.path.name)
-              }
-              is ExportStatus.Adjusted -> {
-                exportAdjustments = status.adjustments
-                recorder.record(
-                  label = "export.adjusted",
-                  detail =
-                    status.adjustments
-                      .groupBy({ it.kind.name }, { "${it.requested} -> ${it.resolved}" })
-                      .mapValues { (_, values) -> values.joinToString(" | ") },
-                )
-              }
-              is ExportStatus.Progress -> {
-                exportProgress = status
-              }
-              is ExportStatus.Success -> {
-                exported = status
-                // What the backend gave up on once it had the real encoders is only on Success, so
-                // this is the list rather than an addition to it.
-                exportAdjustments = status.adjustments
-                saveExport(status.output)
-                exportedInfo = filmstrip.probe(status.output.asSource())
-                recorder.record("export.succeeded", "output" to status.info.toString())
-                backStack.remove(SampleRoute.Export)
-                navigateTo(SampleRoute.Result)
-              }
-              is ExportStatus.Failure -> {
-                exportFailure = status.error
-                recorder.record(
-                  label = "export.failed",
-                  detail =
-                    mapOf(
-                      "error" to (status.error::class.simpleName ?: "unknown"),
-                      "message" to status.error.message,
-                    ),
-                )
-              }
-            }
-          }
-        } finally {
-          if (generation == exportGeneration) exporting = false
-        }
-      }
-  }
-
-  fun cancelExport() {
-    exportJob?.cancel()
-  }
-
-  fun refreshCapabilities() {
-    if (loadingCapabilities) return
-    loadingCapabilities = true
-    scope.launch {
-      try {
-        val result = filmstrip.capabilities()
-        capabilities = result
-        recorder.record("capabilities.read", "result" to (result::class.simpleName ?: "unknown"))
-      } finally {
-        loadingCapabilities = false
-      }
-    }
-  }
-
-  /**
-   * How faithfully each effect in the current edit will preview, straight from the engine.
+   * How faithfully each effect in the current edit will preview, straight from the engine. An effect on a clip
+   * counts as much as one on the whole edit, and one used twice is listed once.
    */
   fun parity(): List<Pair<EffectId, String>> =
-    composition()?.effects.orEmpty().map { spec ->
-      spec.id to (filmstrip.parityOf(spec.id)?.name ?: "unknown")
-    }
-
-  private fun livePlayer(): VideoPlayer? = player?.takeIf { !previewUnavailable }
-
-  private fun observe(open: VideoPlayer) {
-    // Events first, because they are edge-triggered with no replay and the player starts loading
-    // the composition it was built with the moment it exists.
-    previewJobs =
-      listOf(
-        scope.launch { open.events.collect(::onPlaybackEvent) },
-        scope.launch { open.state.collect(::onPlayerState) },
-        scope.launch { snapshotFlow { spec() }.collect(open::setExportSpec) },
-        scope.launch {
-          open.previewInfo.collect { info ->
-            previewOutput = info.outputSize.takeIf { it.width > 0 && it.height > 0 }
-          }
-        },
-        scope.launch {
-          open.positionFlow(POSITION_TICK).collect { position ->
-            // The player's own duration once it has loaded, so the clamp agrees with what it is
-            // actually playing rather than with a bound this recomputes from the edit on its own.
-            val bound = (open.state.value.duration ?: editedDuration).inWholeMilliseconds / 1000f
-            positionSeconds = (position.inWholeMilliseconds / 1000f).coerceIn(0f, bound)
-          }
-        },
-      )
-  }
-
-  private fun onPlayerState(snapshot: PlayerState) {
-    playing = snapshot.playWhenReady
-    previewError = (snapshot.status as? PlaybackStatus.Error)?.error
-
-    if (snapshot.status == playerStatus) return
-    playerStatus = snapshot.status
-    recorder.record(
-      label = "player.status",
-      "status" to snapshot.status.label(),
-      "playWhenReady" to snapshot.playWhenReady.toString(),
-    )
-  }
-
-  private fun onPlaybackEvent(event: PlaybackEvent) {
-    val wanted = player?.state?.value?.playWhenReady
-    recorder.record(event.label(), event.detail() + ("playWhenReady" to wanted.toString()))
-  }
-
-  /**
-   * Hands the edit to the open player, debounced so one drag issues one rebuild.
-   */
-  private fun reloadPreview() {
-    val open = player ?: return
-    reloadJob?.cancel()
-    reloadJob =
-      scope.launch {
-        delay(RELOAD_DEBOUNCE_MILLIS)
-        val composition = previewComposition() ?: return@launch
-        val result = open.setComposition(composition)
-        if (result is SetCompositionResult.Failure) {
-          recorder.record("player.loadFailed", "error" to result.error.message)
-        }
-        applyLoopRange()
-      }
-  }
-
-  private fun applyLoopRange() {
-    val open = livePlayer() ?: return
-    val duration = editedDuration
-    open.setLoopRange(if (loopingState && duration > Duration.ZERO) TimeRange(Duration.ZERO, duration) else null)
-  }
-
-  /**
-   * Advances a local playhead while no player is open, so the timeline still moves.
-   */
-  private fun startLocalClock() {
-    if (playing || editedDurationSeconds <= 0f) return
-    playing = true
-    clockJob =
-      scope.launch {
-        while (isActive) {
-          delay(TICK_MILLIS)
-          val next = positionSeconds + TICK_SECONDS
-          val end = editedDurationSeconds
-          positionSeconds =
-            when {
-              next < end -> {
-                next
-              }
-              loopingState -> {
-                0f
-              }
-              else -> {
-                playing = false
-                end
-              }
-            }
-          if (!playing) break
-        }
-      }
-  }
-
-  private fun stopClock() {
-    clockJob?.cancel()
-    clockJob = null
-    playing = false
-  }
-
-  private fun clearExported() {
-    exported?.let { release(it.output) }
-    exported = null
-    exportedInfo = null
-  }
-
-  private fun resetRun() {
-    verdict = null
-    clearExported()
-    exportFailure = null
-    exportProgress = null
-    exportAdjustments = emptyList()
-  }
-
-  private fun MediaSink.asSource(): MediaSource =
-    when (this) {
-      is MediaSink.Path -> MediaSource.of(path)
-      is MediaSink.Uri -> MediaSource.ofUri(uri)
-      MediaSink.Temporary -> error("A resolved temporary sink reports a path or uri.")
-    }
+    composition()
+      ?.allEffects()
+      .orEmpty()
+      .map { it.id }
+      .distinct()
+      .map { id -> id to (filmstrip.parityOf(id)?.name ?: "unknown") }
 
   private companion object {
-    const val TICK_MILLIS = 33L
-    const val TICK_SECONDS = 0.033f
-    const val RELOAD_DEBOUNCE_MILLIS = 150L
     const val DEFAULT_ASPECT = 16f / 9f
-    const val DEFAULT_FRAME_RATE = 30
-
-    val POSITION_TICK = 33.milliseconds
   }
 }
-
-/**
- * How a status reads in the session log.
- */
-private fun PlaybackStatus.label(): String =
-  when (this) {
-    is PlaybackStatus.Error -> "Error(${error::class.simpleName ?: "unknown"})"
-    else -> this::class.simpleName ?: "unknown"
-  }
-
-/**
- * The log label for an event, namespaced the way the rest of the session log is.
- */
-private fun PlaybackEvent.label(): String =
-  when (this) {
-    is PlaybackEvent.Ended -> "player.ended"
-    is PlaybackEvent.SeekCompleted -> "player.seeked"
-    PlaybackEvent.FirstFrameRendered -> "player.firstFrame"
-    is PlaybackEvent.RangeLooped -> "player.looped"
-    is PlaybackEvent.ShuttleReachedEdge -> "player.shuttleEdge"
-    is PlaybackEvent.Failed -> "player.failed"
-    is PlaybackEvent.ExternalPlayWhenReadyChanged -> "player.external"
-    is PlaybackEvent.EffectsDegraded -> "player.effectsDegraded"
-    is PlaybackEvent.QualityDegraded -> "player.qualityDegraded"
-  }
-
-/**
- * The fields of an event worth carrying into a bug report.
- */
-private fun PlaybackEvent.detail(): Map<String, String> =
-  when (this) {
-    is PlaybackEvent.Ended -> {
-      mapOf("at" to finalPosition.toString(), "duration" to duration.toString())
-    }
-    is PlaybackEvent.SeekCompleted -> {
-      mapOf("at" to position.toString())
-    }
-    PlaybackEvent.FirstFrameRendered -> {
-      emptyMap()
-    }
-    is PlaybackEvent.RangeLooped -> {
-      mapOf("range" to range.toString())
-    }
-    is PlaybackEvent.ShuttleReachedEdge -> {
-      mapOf("edge" to edge.name, "at" to position.toString())
-    }
-    is PlaybackEvent.Failed -> {
-      mapOf("error" to (error::class.simpleName ?: "unknown"), "message" to error.message)
-    }
-    is PlaybackEvent.ExternalPlayWhenReadyChanged -> {
-      mapOf("wanted" to playWhenReady.toString())
-    }
-    is PlaybackEvent.EffectsDegraded -> {
-      adjustments
-        .groupBy({ it.kind.name }, { it.message })
-        .mapValues { (_, messages) -> messages.joinToString(" | ") }
-    }
-    is PlaybackEvent.QualityDegraded -> {
-      mapOf("message" to message)
-    }
-  }

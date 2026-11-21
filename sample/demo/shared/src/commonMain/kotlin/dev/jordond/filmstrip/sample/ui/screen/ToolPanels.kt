@@ -34,6 +34,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import dev.jordond.filmstrip.edit.AudioLevel
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.sample.CropMode
 import dev.jordond.filmstrip.sample.EditState
@@ -41,6 +42,7 @@ import dev.jordond.filmstrip.sample.EditorTool
 import dev.jordond.filmstrip.sample.FillMode
 import dev.jordond.filmstrip.sample.FrameMode
 import dev.jordond.filmstrip.sample.SampleAppState
+import dev.jordond.filmstrip.sample.Sequence
 import dev.jordond.filmstrip.sample.ui.ControlGroup
 import dev.jordond.filmstrip.sample.ui.Led
 import dev.jordond.filmstrip.sample.ui.LedState
@@ -59,7 +61,7 @@ private class ToolSpec(
 
 private val Tools =
   listOf(
-    ToolSpec(EditorTool.Trim, "Trim", SampleIcons.Trim),
+    ToolSpec(EditorTool.Clip, "Clip", SampleIcons.Trim),
     ToolSpec(EditorTool.Crop, "Crop", SampleIcons.Crop),
     ToolSpec(EditorTool.Transform, "Transform", SampleIcons.Rotate),
     ToolSpec(EditorTool.Scale, "Scale", SampleIcons.Scale),
@@ -67,6 +69,7 @@ private val Tools =
     ToolSpec(EditorTool.Text, "Text", SampleIcons.TextGlyph),
     ToolSpec(EditorTool.Watermark, "Overlay", SampleIcons.Watermark),
     ToolSpec(EditorTool.Audio, "Audio", SampleIcons.Volume),
+    ToolSpec(EditorTool.Tracks, "Tracks", SampleIcons.Tracks),
     ToolSpec(EditorTool.Background, "Frame", SampleIcons.Layers),
   )
 
@@ -95,7 +98,7 @@ public fun ToolRail(
         ToolButton(
           spec = spec,
           selected = state.activeTool == spec.tool,
-          marked = state.edit.contributes(spec.tool),
+          marked = state.edit.contributes(spec.tool, state.sequence),
           modifier = Modifier.fillMaxWidth().bottomLine(MaterialTheme.colorScheme.outlineVariant),
           onClick = { state.activeTool = spec.tool },
         )
@@ -107,7 +110,7 @@ public fun ToolRail(
         ToolButton(
           spec = spec,
           selected = state.activeTool == spec.tool,
-          marked = state.edit.contributes(spec.tool),
+          marked = state.edit.contributes(spec.tool, state.sequence),
           modifier = Modifier.widthIn(min = ROW_TOOL_WIDTH.dp),
           onClick = { state.activeTool = spec.tool },
         )
@@ -190,7 +193,7 @@ public fun ToolPanel(
       )
     }
     when (state.activeTool) {
-      EditorTool.Trim -> TrimPanel(state)
+      EditorTool.Clip -> ClipPanel(state)
       EditorTool.Crop -> CropPanel(state)
       EditorTool.Transform -> TransformPanel(state)
       EditorTool.Scale -> ScalePanel(state)
@@ -198,6 +201,7 @@ public fun ToolPanel(
       EditorTool.Text -> TextPanel(state)
       EditorTool.Watermark -> WatermarkPanel(state)
       EditorTool.Audio -> AudioPanel(state)
+      EditorTool.Tracks -> TracksPanel(state)
       EditorTool.Background -> BackgroundPanel(state)
     }
   }
@@ -224,22 +228,25 @@ internal fun ToolSection(
 /**
  * Whether a tool is putting anything into the composition, which is what marks it on the rail.
  */
-private fun EditState.contributes(tool: EditorTool): Boolean =
+private fun EditState.contributes(
+  tool: EditorTool,
+  sequence: Sequence,
+): Boolean =
   when (tool) {
-    EditorTool.Trim -> {
-      trimEnabled
+    EditorTool.Clip -> {
+      sequence.clips.any { it.touched }
     }
     EditorTool.Crop -> {
       cropMode != CropMode.Off
     }
     EditorTool.Transform -> {
-      rotationDegrees != 0 || flipHorizontal || flipVertical
+      transform.touched || sequence.clips.any { it.transform.touched }
     }
     EditorTool.Scale -> {
       scaleEnabled
     }
     EditorTool.Adjust -> {
-      gradeContributes
+      gradeContributes || sequence.clips.any { it.grade.graded }
     }
     EditorTool.Text -> {
       textEnabled && text.isNotBlank()
@@ -248,10 +255,13 @@ private fun EditState.contributes(tool: EditorTool): Boolean =
       watermarkImage != null
     }
     EditorTool.Audio -> {
-      audioSpec != AudioSpec.Keep || clipMuted
+      audioSpec != AudioSpec.Keep || sequence.clips.any { it.audio != AudioLevel.Inherit }
+    }
+    EditorTool.Tracks -> {
+      sequence.tracks.isNotEmpty()
     }
     EditorTool.Background -> {
-      fillMode != FillMode.Solid || fillColor != EditState.BLACK || frameMode != FrameMode.Auto || endCardEnabled
+      fillMode != FillMode.Solid || fillColor != EditState.BLACK || frameMode != FrameMode.Auto
     }
   }
 

@@ -24,7 +24,6 @@ import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlin.test.Test
-import kotlin.time.Duration.Companion.seconds
 
 /**
  * What the editor's knobs author, checked without a composition on screen.
@@ -34,17 +33,17 @@ class EditStateTest {
   fun `every color knob reaches the composition in the order the pipeline runs them`() {
     val edit =
       EditState().apply {
-        brightness = 1.2f
-        channelRed = 0.9f
-        contrast = 1.1f
-        saturation = 0.5f
-        hueDegrees = 30f
-        sepia = 0.4f
-        invert = 0.1f
-        customMatrix = ColorMatrix(rb = 0.5f)
+        grade.brightness = 1.2f
+        grade.channelRed = 0.9f
+        grade.contrast = 1.1f
+        grade.saturation = 0.5f
+        grade.hueDegrees = 30f
+        grade.sepia = 0.4f
+        grade.invert = 0.1f
+        grade.customMatrix = ColorMatrix(rb = 0.5f)
       }
 
-    val effects = edit.composition(SOURCE, sourceDuration = null).effects
+    val effects = edit.composition(clipsOf(SOURCE)).effects
 
     effects.map { it.id } shouldContainExactly
       listOf(
@@ -58,21 +57,21 @@ class EditStateTest {
         EffectIds.COLOR_MATRIX,
       )
     canonicalOrder(effects) shouldBe effects
-    edit.colorGraded shouldBe true
+    edit.grade.graded shouldBe true
   }
 
   @Test
   fun `a knob at its default authors nothing`() {
     val edit = EditState()
 
-    edit.colorGraded shouldBe false
-    edit.composition(SOURCE, sourceDuration = null).effects.shouldBeEmpty()
+    edit.grade.graded shouldBe false
+    edit.composition(clipsOf(SOURCE)).effects.shouldBeEmpty()
 
-    edit.saturation = 0f
-    edit.colorEffects shouldBe listOf(Saturation(0f))
+    edit.grade.saturation = 0f
+    edit.grade.effects shouldBe listOf(Saturation(0f))
 
-    edit.reset(sourceDuration = null)
-    edit.colorGraded shouldBe false
+    edit.reset()
+    edit.grade.graded shouldBe false
   }
 
   @Test
@@ -85,7 +84,7 @@ class EditStateTest {
       }
     val vhs =
       edit
-        .composition(SOURCE, sourceDuration = null)
+        .composition(clipsOf(SOURCE))
         .effects
         .single()
         .shouldBeInstanceOf<Vhs>()
@@ -95,7 +94,7 @@ class EditStateTest {
     edit.tapeStock = Hi8Speed.LP
     val hi8 =
       edit
-        .composition(SOURCE, sourceDuration = null)
+        .composition(clipsOf(SOURCE))
         .effects
         .single()
         .shouldBeInstanceOf<Hi8>()
@@ -107,7 +106,7 @@ class EditStateTest {
     edit.tapeFormat shouldBe TapeFormat.Betamax
     val betamax =
       edit
-        .composition(SOURCE, sourceDuration = null)
+        .composition(clipsOf(SOURCE))
         .effects
         .single()
         .shouldBeInstanceOf<Betamax>()
@@ -121,45 +120,26 @@ class EditStateTest {
     edit.selectTapeFormat(TapeFormat.Hi8)
     val audio =
       edit
-        .composition(SOURCE, sourceDuration = null)
+        .composition(clipsOf(SOURCE))
         .audioEffects
         .single()
         .shouldBeInstanceOf<TapeAudio>()
     audio.tape shouldBe Hi8Speed.SP
 
-    edit.reset(sourceDuration = null)
+    edit.reset()
     edit.tapeFormat shouldBe TapeFormat.Vhs
     edit.tapeAudioStock shouldBe TapeSpeed.EP
   }
 
   @Test
-  fun `the end card holds its color after the clip and adds its length`() {
-    val edit =
-      EditState().apply {
-        endCardEnabled = true
-        endCardColor = 0xFF1A1A21.toInt()
-        endCardSeconds = 1.5f
-      }
-
-    val clips = edit.composition(SOURCE, sourceDuration = 10.seconds).clips
-    clips.map { it.source } shouldContainExactly listOf(SOURCE, clips.last().source)
-    val card = clips.last().source.shouldBeInstanceOf<MediaSource.Solid>()
-    card.color shouldBe 0xFF1A1A21.toInt()
-    card.duration shouldBe 1.5.seconds
-    edit.editedDuration(10.seconds) shouldBe 11.5.seconds
-    edit.composition(SOURCE, sourceDuration = 10.seconds, trimmed = false).clips.map { it.source } shouldContainExactly
-      listOf(SOURCE)
-  }
-
-  @Test
   fun `the output frame reaches the composition and the stage's aspect`() {
     val edit = EditState()
-    edit.composition(SOURCE, sourceDuration = null).frame shouldBe OutputFrame.Auto
+    edit.composition(clipsOf(SOURCE)).frame shouldBe OutputFrame.Auto
 
     edit.frameMode = FrameMode.Aspect
     edit.frameAspect = AspectRatio.Square
     edit
-      .composition(SOURCE, sourceDuration = null)
+      .composition(clipsOf(SOURCE))
       .frame
       .shouldBeInstanceOf<OutputFrame.Aspect>()
       .aspect shouldBe
@@ -169,14 +149,14 @@ class EditStateTest {
     edit.frameMode = FrameMode.Fixed
     edit.frameSize = Size(1080, 1920)
     edit
-      .composition(SOURCE, sourceDuration = null)
+      .composition(clipsOf(SOURCE))
       .frame
       .shouldBeInstanceOf<OutputFrame.Fixed>()
       .size shouldBe
       Size(1080, 1920)
     edit.outputAspect(sourceAspect = 16f / 9f) shouldBe 1080f / 1920f
     edit.outputAspect(sourceAspect = 16f / 9f, cropped = false) shouldBe 16f / 9f
-    edit.composition(SOURCE, sourceDuration = null, cropped = false).frame shouldBe OutputFrame.Auto
+    edit.composition(clipsOf(SOURCE), cropped = false).frame shouldBe OutputFrame.Auto
   }
 
   private companion object {

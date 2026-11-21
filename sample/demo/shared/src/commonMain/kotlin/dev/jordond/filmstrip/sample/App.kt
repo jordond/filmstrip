@@ -13,6 +13,7 @@ import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.scene.DialogSceneStrategy
 import androidx.navigation3.scene.SinglePaneSceneStrategy
 import androidx.navigation3.ui.NavDisplay
+import dev.jordond.filmstrip.filekit.compose.rememberImagePickerLauncher
 import dev.jordond.filmstrip.filekit.compose.rememberMediaPickerLauncher
 import dev.jordond.filmstrip.sample.ui.SampleTheme
 import dev.jordond.filmstrip.sample.ui.Tokens
@@ -39,6 +40,17 @@ fun App(state: SampleAppState) {
           onResult = { picked -> state.onPicked(picked?.source, picked?.file?.name.orEmpty()) },
         )
 
+      val clipPicker =
+        rememberMediaPickerLauncher(
+          onError = { state.onPickFailed(it.message) },
+          onResult = { picked -> picked?.source?.let { state.addClip(it, picked.file?.name.orEmpty()) } },
+        )
+
+      val imagePicker =
+        rememberImagePickerLauncher { picked ->
+          if (picked != null) state.addImage(picked.source, picked.file.name)
+        }
+
       val compact = isCompactWidth()
       val sheetStrategy = remember { BottomSheetSceneStrategy<SampleRoute>() }
       val dialogStrategy = remember { DialogSceneStrategy<SampleRoute>() }
@@ -54,11 +66,16 @@ fun App(state: SampleAppState) {
             }
 
             entry<SampleRoute.Editor> {
-              EditorScreen(state)
+              EditorScreen(state, onAddClip = clipPicker::launch, onAddImage = imagePicker::launch)
             }
 
             entry<SampleRoute.Export>(
-              metadata = overlayMetadata(compact, dismissible = !state.exporting, sheetColor = Tokens.vcrBorder),
+              metadata =
+                overlayMetadata(
+                  compact,
+                  dismissible = !state.exports.exporting,
+                  sheetColor = Tokens.vcrBorder,
+                ),
             ) {
               OverlayContainer(
                 compact = compact,

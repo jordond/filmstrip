@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.dp
 import dev.jordond.filmstrip.effects.color.ColorMatrix
 import dev.jordond.filmstrip.sample.EditState
 import dev.jordond.filmstrip.sample.SampleAppState
+import dev.jordond.filmstrip.sample.gradeInScope
 import dev.jordond.filmstrip.sample.ui.ChipGroup
 import dev.jordond.filmstrip.sample.ui.formatDegrees
 import dev.jordond.filmstrip.sample.ui.formatPercent
@@ -31,6 +32,9 @@ import dev.jordond.filmstrip.sample.ui.formatPercent
 @Composable
 internal fun AdjustPanel(state: SampleAppState) {
   val edit = state.edit
+  val grade = state.gradeInScope
+
+  ScopeSwitch(state)
 
   ToolSection("Tone") {
     Text(
@@ -39,28 +43,84 @@ internal fun AdjustPanel(state: SampleAppState) {
       style = MaterialTheme.typography.bodySmall,
       color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
-    GradeSlider(state, "Brightness", edit.brightness, formatPercent(edit.brightness), 0f..2f, 1f) {
-      edit.brightness = it
+    GradeSlider(state, "Brightness", grade.brightness, formatPercent(grade.brightness), 0f..2f, 1f) {
+      grade.brightness = it
     }
-    GradeSlider(state, "Contrast", edit.contrast, formatPercent(edit.contrast), 0f..2f, 1f) {
-      edit.contrast = it
+    GradeSlider(state, "Contrast", grade.contrast, formatPercent(grade.contrast), 0f..2f, 1f) {
+      grade.contrast = it
     }
-    GradeSlider(state, "Saturation", edit.saturation, formatPercent(edit.saturation), 0f..2f, 1f) {
-      edit.saturation = it
+    GradeSlider(state, "Saturation", grade.saturation, formatPercent(grade.saturation), 0f..2f, 1f) {
+      grade.saturation = it
     }
   }
 
   ToolSection("Tint") {
-    GradeSlider(state, "Hue", edit.hueDegrees, formatDegrees(edit.hueDegrees), -180f..180f, 0f) {
-      edit.hueDegrees = it
+    GradeSlider(state, "Hue", grade.hueDegrees, formatDegrees(grade.hueDegrees), -180f..180f, 0f) {
+      grade.hueDegrees = it
     }
-    GradeSlider(state, "Sepia", edit.sepia, formatPercent(edit.sepia), 0f..1f, 0f) {
-      edit.sepia = it
+    GradeSlider(state, "Sepia", grade.sepia, formatPercent(grade.sepia), 0f..1f, 0f) {
+      grade.sepia = it
     }
-    GradeSlider(state, "Invert", edit.invert, formatPercent(edit.invert), 0f..1f, 0f) {
-      edit.invert = it
+    GradeSlider(state, "Invert", grade.invert, formatPercent(grade.invert), 0f..1f, 0f) {
+      grade.invert = it
     }
   }
+
+  // Blur, the vignette and the looks belong to the whole edit, so they step aside while a clip is being graded.
+  if (grade === edit.grade) {
+    LensSection(state)
+    LooksSections(state)
+  }
+
+  ToolSection("Channels") {
+    GradeSlider(state, "Red", grade.channelRed, formatPercent(grade.channelRed), 0f..2f, 1f) {
+      grade.channelRed = it
+    }
+    GradeSlider(state, "Green", grade.channelGreen, formatPercent(grade.channelGreen), 0f..2f, 1f) {
+      grade.channelGreen = it
+    }
+    GradeSlider(state, "Blue", grade.channelBlue, formatPercent(grade.channelBlue), 0f..2f, 1f) {
+      grade.channelBlue = it
+    }
+  }
+
+  ToolSection("Matrix") {
+    Text(
+      "Each output channel is a weighted sum of the three inputs plus a bias. It runs last, after " +
+        "everything above.",
+      style = MaterialTheme.typography.bodySmall,
+      color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    ChipGroup(
+      options = matrixLooks,
+      selected = grade.customMatrix,
+      onSelect = {
+        grade.customMatrix = it
+        state.onEditChanged()
+      },
+    )
+    MatrixGrid(
+      matrix = grade.customMatrix,
+      onMatrixChange = {
+        grade.customMatrix = it
+        state.onEditChanged()
+      },
+    )
+  }
+}
+
+private val matrixLooks: List<Pair<String, ColorMatrix>> =
+  listOf(
+    "Identity" to ColorMatrix.Identity,
+    "Swap R/B" to ColorMatrix(rr = 0f, rb = 1f, br = 1f, bb = 0f),
+    "Warm" to ColorMatrix(rr = 1.1f, rBias = 0.03f, bb = 0.9f),
+    "Cool" to ColorMatrix(rr = 0.9f, bb = 1.1f, bBias = 0.03f),
+    "Lift" to ColorMatrix(rr = 0.8f, rBias = 0.1f, gg = 0.8f, gBias = 0.1f, bb = 0.8f, bBias = 0.1f),
+  )
+
+@Composable
+private fun LensSection(state: SampleAppState) {
+  val edit = state.edit
 
   ToolSection("Lens") {
     GradeSlider(state, "Blur", edit.blur, formatPercent(edit.blur), 0f..0.1f, 0f) {
@@ -92,54 +152,7 @@ internal fun AdjustPanel(state: SampleAppState) {
       }
     }
   }
-
-  LooksSections(state)
-
-  ToolSection("Channels") {
-    GradeSlider(state, "Red", edit.channelRed, formatPercent(edit.channelRed), 0f..2f, 1f) {
-      edit.channelRed = it
-    }
-    GradeSlider(state, "Green", edit.channelGreen, formatPercent(edit.channelGreen), 0f..2f, 1f) {
-      edit.channelGreen = it
-    }
-    GradeSlider(state, "Blue", edit.channelBlue, formatPercent(edit.channelBlue), 0f..2f, 1f) {
-      edit.channelBlue = it
-    }
-  }
-
-  ToolSection("Matrix") {
-    Text(
-      "Each output channel is a weighted sum of the three inputs plus a bias. It runs last, after " +
-        "everything above.",
-      style = MaterialTheme.typography.bodySmall,
-      color = MaterialTheme.colorScheme.onSurfaceVariant,
-    )
-    ChipGroup(
-      options = matrixLooks,
-      selected = edit.customMatrix,
-      onSelect = {
-        edit.customMatrix = it
-        state.onEditChanged()
-      },
-    )
-    MatrixGrid(
-      matrix = edit.customMatrix,
-      onMatrixChange = {
-        edit.customMatrix = it
-        state.onEditChanged()
-      },
-    )
-  }
 }
-
-private val matrixLooks: List<Pair<String, ColorMatrix>> =
-  listOf(
-    "Identity" to ColorMatrix.Identity,
-    "Swap R/B" to ColorMatrix(rr = 0f, rb = 1f, br = 1f, bb = 0f),
-    "Warm" to ColorMatrix(rr = 1.1f, rBias = 0.03f, bb = 0.9f),
-    "Cool" to ColorMatrix(rr = 0.9f, bb = 1.1f, bBias = 0.03f),
-    "Lift" to ColorMatrix(rr = 0.8f, rBias = 0.1f, gg = 0.8f, gBias = 0.1f, bb = 0.8f, bBias = 0.1f),
-  )
 
 /**
  * The matrix as three rows of four cells, one output channel per row with its bias last.

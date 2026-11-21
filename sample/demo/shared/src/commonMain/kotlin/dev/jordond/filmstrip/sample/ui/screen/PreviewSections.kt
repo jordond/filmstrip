@@ -28,8 +28,8 @@ internal fun PreviewSections(state: SampleAppState) {
     )
     ChipGroup(
       options = listOf("Full" to null) + PREVIEW_CAPS.map { "$it" to it },
-      selected = state.previewCap,
-      onSelect = { state.previewCap = it },
+      selected = state.preview.previewCap,
+      onSelect = { state.preview.previewCap = it },
     )
   }
 
