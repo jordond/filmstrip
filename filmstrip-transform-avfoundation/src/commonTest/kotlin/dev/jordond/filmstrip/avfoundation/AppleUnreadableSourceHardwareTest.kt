@@ -51,6 +51,9 @@ class AppleUnreadableSourceHardwareTest {
   fun `a truncated mdat never exports`() = runTest(timeout = TIMEOUT) { measure(UnreadableCase.TruncatedMdat) }
 
   @Test
+  fun `a garbled mdat never exports`() = runTest(timeout = TIMEOUT) { measure(UnreadableCase.GarbledMdat) }
+
+  @Test
   fun `a file with no moov never exports`() = runTest(timeout = TIMEOUT) { measure(UnreadableCase.NoMoov) }
 
   @Test

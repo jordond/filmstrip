@@ -3,8 +3,10 @@ package dev.jordond.filmstrip.test
 import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.internal.sampleTableOverrunOf
 import dev.jordond.filmstrip.internal.truncatedSource
+import dev.jordond.filmstrip.internal.undecodableSource
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.describe
+import kotlin.random.Random
 
 /**
  * The ways a source can be unreadable, each built from the bytes of a whole MP4 written with its `moov` before its
@@ -18,6 +20,12 @@ public enum class UnreadableCase {
    * The `moov` is whole and the `mdat` stops halfway, the shape of a recording cut off after its header was written.
    */
   TruncatedMdat,
+
+  /**
+   * The `moov` is whole and the `mdat` keeps its length, but every byte of its payload is noise. Its sample table opens
+   * and points at nothing that decodes.
+   */
+  GarbledMdat,
 
   /**
    * Every box but the `moov`, the shape of a recording cut off before its header was written.
@@ -51,6 +59,16 @@ public enum class UnreadableCase {
         val mdat = topLevelBoxes(mp4).single { it.type == "mdat" }
         mp4.copyOfRange(0, mdat.payloadStart + (mdat.end - mdat.payloadStart) / 2)
       }
+      GarbledMdat -> {
+        val mdat = topLevelBoxes(mp4).single { it.type == "mdat" }
+        val noise = Random(NOISE_SEED)
+        mp4.copyOf().also { garbled ->
+          (mdat.payloadStart until mdat.end).forEach {
+            garbled[it] =
+              noise.nextBits(8).toByte()
+          }
+        }
+      }
       NoMoov -> {
         val moov = topLevelBoxes(mp4).single { it.type == "moov" }
         mp4.copyOfRange(0, moov.start) + mp4.copyOfRange(moov.end, mp4.size)
@@ -70,13 +88,14 @@ public enum class UnreadableCase {
    * The message a prober refuses this case at [source] with, given the [bytes] [bytesFrom] built, or null for a case a
    * prober turns away for its own reasons.
    *
-   * Only [TruncatedMdat] meets the shared check, since its `moov` still opens and lists every sample. Fails when the
-   * check finds nothing missing from it.
+   * [TruncatedMdat] meets the sample table check, since its `moov` still opens and lists every sample, and fails when
+   * the check finds nothing missing from it. [GarbledMdat] meets the first frame decode every prober runs.
    */
   public suspend fun refusalAt(
     source: MediaSource,
     bytes: ByteArray?,
   ): String? {
+    if (this == GarbledMdat) return undecodableSource(source.describe()).message
     if (this != TruncatedMdat || bytes == null) return null
     val missing =
       checkNotNull(sampleTableOverrunOf(bytes.size.toLong()) { start, count -> bytes.rangeOf(start, count) }) {
@@ -126,5 +145,6 @@ private fun ByteArray.uint32At(at: Int): Long =
   }
 
 private const val HEADER = 8
+private const val NOISE_SEED = 7
 private const val TEXT_BYTES = 1024
 private const val TEXT = "not a video, just some text. "

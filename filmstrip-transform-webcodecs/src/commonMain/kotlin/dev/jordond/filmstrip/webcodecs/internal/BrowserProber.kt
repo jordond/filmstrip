@@ -6,6 +6,7 @@ import dev.jordond.filmstrip.codec.Bitrate
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.internal.awaitCatching
 import dev.jordond.filmstrip.internal.truncatedSource
+import dev.jordond.filmstrip.internal.undecodableSource
 import dev.jordond.filmstrip.media.AudioTrackId
 import dev.jordond.filmstrip.media.AudioTrackInfo
 import dev.jordond.filmstrip.media.CodecKind
@@ -20,11 +21,15 @@ import dev.jordond.filmstrip.media.audioLanguageOf
 import dev.jordond.filmstrip.media.describe
 import dev.jordond.filmstrip.media.displaySizeOf
 import dev.jordond.filmstrip.media.trackCodecOf
+import dev.jordond.filmstrip.webcodecs.internal.interop.EncodedPacketSink
 import dev.jordond.filmstrip.webcodecs.internal.interop.InputAudioTrack
 import dev.jordond.filmstrip.webcodecs.internal.interop.InputVideoTrack
 import dev.jordond.filmstrip.webcodecs.internal.interop.Rational
+import dev.jordond.filmstrip.webcodecs.internal.interop.VideoDecoder
+import dev.jordond.filmstrip.webcodecs.internal.interop.VideoSampleSink
 import dev.jordond.filmstrip.webcodecs.internal.interop.asDouble
 import dev.jordond.filmstrip.webcodecs.internal.interop.asString
+import dev.jordond.filmstrip.webcodecs.internal.interop.awaitOwned
 import kotlinx.coroutines.await
 import kotlin.js.ExperimentalWasmJsInterop
 import kotlin.time.Duration.Companion.microseconds
@@ -44,11 +49,32 @@ internal class BrowserProber : MediaProber {
       awaitCatching { reader.sampleTableOverrun() }.getOrNull()?.let { missing ->
         return ProbeResult.Failure(truncatedSource(source.describe(), missing))
       }
-      val info = awaitCatching { readInfo(reader, fileBytes = null) }.getOrNull()
-      if (info == null) ProbeResult.Failure(unreadableSource(source)) else ProbeResult.Success(info)
+      val info =
+        awaitCatching { readInfo(reader, fileBytes = null) }.getOrNull()
+          ?: return ProbeResult.Failure(unreadableSource(source))
+      if (info.video != null && !firstFrameDecodes(reader)) {
+        return ProbeResult.Failure(undecodableSource(source.describe()))
+      }
+      ProbeResult.Success(info)
     } finally {
       reader.close()
     }
+  }
+
+  // A decoder error or no frame at all both mean the first sync sample is damaged. A codec this browser has no decoder
+  // for says nothing about the bytes, so it is not decoded.
+  private suspend fun firstFrameDecodes(reader: SourceReader): Boolean {
+    val track = reader.videoTrack() ?: return true
+    val config = awaitCatching { track.getDecoderConfig().await() }.getOrNull() ?: return true
+    val supported = awaitCatching { VideoDecoder.isConfigSupported(config).await().supported }.getOrDefault(false)
+    if (!supported) return true
+    val sample =
+      awaitCatching {
+        val key = EncodedPacketSink(track).getFirstKeyPacket().await() ?: return@awaitCatching null
+        VideoSampleSink(track).getSample(key.timestamp).awaitOwned { it?.close() }
+      }.getOrNull() ?: return false
+    sample.close()
+    return true
   }
 
   /**

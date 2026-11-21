@@ -50,6 +50,7 @@ internal object ProbeOperation {
   const val OUTPUT_PROBE: String = "output probe"
   const val COLOR_READ: String = "color read"
   const val SYNC_SAMPLE_READ: String = "sync sample read"
+  const val FIRST_FRAME_DECODE: String = "first frame decode"
   const val COPY_PACKET_READ: String = "copy packet read"
   const val ENCODER_TEST: String = "encoder test encode"
   const val PICTURE_DECODE: String = "overlay picture decode"

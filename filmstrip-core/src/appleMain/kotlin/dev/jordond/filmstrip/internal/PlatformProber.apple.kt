@@ -43,6 +43,7 @@ import platform.AVFoundation.languageCode
 import platform.AVFoundation.minFrameDuration
 import platform.AVFoundation.naturalSize
 import platform.AVFoundation.nominalFrameRate
+import platform.AVFoundation.playable
 import platform.AVFoundation.preferredTransform
 import platform.AVFoundation.tracksWithMediaType
 import platform.CoreAudioTypes.AudioStreamBasicDescription
@@ -147,6 +148,11 @@ internal actual class PlatformProber internal constructor(
             },
           ),
         )
+      }
+
+      // A track this system cannot play has no decoder here, which says nothing about its bytes.
+      if (videoTrack?.playable == true && !withContext(Dispatchers.IO) { asset.decodesFirstFrame(videoTrack) }) {
+        return@withContext ProbeResult.Failure(undecodableSource(source.describe()))
       }
 
       ProbeResult.Success(

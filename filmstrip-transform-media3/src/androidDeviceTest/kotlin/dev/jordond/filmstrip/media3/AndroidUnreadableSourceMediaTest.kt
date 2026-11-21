@@ -40,6 +40,9 @@ class AndroidUnreadableSourceMediaTest {
   fun aTruncatedMdatNeverExports() = runTest(timeout = TIMEOUT) { measure(UnreadableCase.TruncatedMdat) }
 
   @Test
+  fun aGarbledMdatNeverExports() = runTest(timeout = TIMEOUT) { measure(UnreadableCase.GarbledMdat) }
+
+  @Test
   fun aFileWithNoMoovNeverExports() = runTest(timeout = TIMEOUT) { measure(UnreadableCase.NoMoov) }
 
   @Test
@@ -63,8 +66,24 @@ class AndroidUnreadableSourceMediaTest {
   fun aTruncatedMdatThroughAPipeNeverExports() =
     runTest(timeout = TIMEOUT) { measureUnsized(UnsizedSourceProvider.PIPE) }
 
-  private suspend fun measureUnsized(kind: String) {
-    val case = UnreadableCase.TruncatedMdat
+  @Test
+  fun aGarbledMdatBehindAContentUriIsRefusedAtPlan() =
+    runTest(timeout = TIMEOUT) { measureUnsized(UnsizedSourceProvider.UNSIZED, UnreadableCase.GarbledMdat) }
+
+  @Test
+  fun aWholeFileStillPlans() =
+    runTest(timeout = TIMEOUT) {
+      val source = MediaSource.of(probe.fixtureFile().path)
+      val started = SystemClock.elapsedRealtime()
+      val verdict = probe.filmstrip.plan(Composition(listOf(Track(listOf(Clip(source))))), ExportSpec())
+      Log.i(TAG, "Whole planned in ${SystemClock.elapsedRealtime() - started} ms")
+      verdict.shouldNotBeInstanceOf<Verdict.Incapable>()
+    }
+
+  private suspend fun measureUnsized(
+    kind: String,
+    case: UnreadableCase = UnreadableCase.TruncatedMdat,
+  ) {
     val file = File(probe.context.cacheDir, "unsized-${case.name}.mp4")
     val bytes = checkNotNull(case.bytesFrom(probe.fixtureFile().readBytes())).also(file::writeBytes)
     val source = MediaSource.Uri(UnsizedSourceProvider.uriOf(kind, file.name))

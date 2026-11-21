@@ -14,7 +14,6 @@ import dev.jordond.filmstrip.color.CodestreamSignal
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.HdrTransfer
-import dev.jordond.filmstrip.media.MediaBytesFileFailure
 import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.ProbeResult
@@ -71,37 +70,6 @@ internal actual class PlatformProber actual constructor() {
     }
 
   /**
-   * Writes this source's bytes to the cache, or says why they could not be written.
-   */
-  private suspend fun MediaSource.Bytes.cached(): Cached =
-    withContext(Dispatchers.IO) {
-      val context =
-        FilmstripContext.get()
-          ?: return@withContext Cached.Failed(
-            FilmstripError.SourceUnreadable(source = describe(), message = FilmstripContext.MISSING_CONTEXT),
-          )
-
-      try {
-        Cached.Written(AndroidScratch.fileFor(context, this@cached))
-      } catch (failure: MediaBytesFileFailure) {
-        Cached.Failed(FilmstripError.SourceUnreadable(source = describe(), message = failure.message))
-      }
-    }
-
-  /**
-   * Where an in-memory source landed, or why it did not land anywhere.
-   */
-  private sealed interface Cached {
-    class Written(
-      val file: File,
-    ) : Cached
-
-    class Failed(
-      val error: FilmstripError.SourceUnreadable,
-    ) : Cached
-  }
-
-  /**
    * Reads this source once [open] has pointed a retriever at it.
    *
    * The retriever is built before [open] runs, so a source that fails to open is still released. A retriever whose
@@ -117,11 +85,17 @@ internal actual class PlatformProber actual constructor() {
         retriever.open()
         val tracks = tracks()
         val info = retriever.readInfo((tracks as? TrackRead.Read)?.tracks, headers)
-        if (info.video == null && info.audioTracks.isEmpty()) {
-          val reason = (tracks as? TrackRead.Failed)?.reason
-          ProbeResult.Failure(unreadable(reason?.let { "$NO_READABLE_TRACK $it" } ?: NO_READABLE_TRACK))
-        } else {
-          ProbeResult.Success(info)
+        when {
+          info.video == null && info.audioTracks.isEmpty() -> {
+            val reason = (tracks as? TrackRead.Failed)?.reason
+            ProbeResult.Failure(unreadable(reason?.let { "$NO_READABLE_TRACK $it" } ?: NO_READABLE_TRACK))
+          }
+          info.video != null && retriever.firstFrameDamaged((tracks as? TrackRead.Read)?.tracks?.video) -> {
+            ProbeResult.Failure(undecodableSource(describe()))
+          }
+          else -> {
+            ProbeResult.Success(info)
+          }
         }
       } catch (error: IllegalArgumentException) {
         ProbeResult.Failure(unreadable(error.message))

@@ -5,6 +5,7 @@ import dev.jordond.filmstrip.ffmpeg.internal.process.READS_FILES
 import dev.jordond.filmstrip.ffmpeg.internal.process.readablePath
 import dev.jordond.filmstrip.ffmpeg.internal.process.sampleTableOverrunAt
 import dev.jordond.filmstrip.internal.truncatedSource
+import dev.jordond.filmstrip.internal.undecodableSource
 import dev.jordond.filmstrip.media.MediaBytesFileFailure
 import dev.jordond.filmstrip.media.MediaProber
 import dev.jordond.filmstrip.media.MediaSource
@@ -41,6 +42,9 @@ internal data class FfmpegProber(
       }
       is ProbeOutcome.NoToolchain -> {
         ProbeResult.Failure(outcome.error)
+      }
+      ProbeOutcome.Undecodable -> {
+        ProbeResult.Failure(undecodableSource(source.describe()))
       }
       ProbeOutcome.Unreadable -> {
         ProbeResult.Failure(FilmstripError.SourceUnreadable(source.describe(), UNREADABLE))
