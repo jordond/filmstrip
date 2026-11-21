@@ -111,7 +111,7 @@ internal const val MAX_TRACK_HEADERS: Int = 1024
 private suspend fun PictureWalk.movieDuration(): Duration? = inMovie { start, end -> movieHeaderDuration(start, end) }
 
 // Runs read over the children of the top level `moov` box, or gives null when the file has none.
-private suspend inline fun <T> PictureWalk.inMovie(read: (start: Long, end: Long) -> T?): T? {
+internal suspend inline fun <T> PictureWalk.inMovie(read: (start: Long, end: Long) -> T?): T? {
   var pos = 0L
   while (pos < size) {
     val (end, header) = topLevelBox(pos)
@@ -265,7 +265,8 @@ private suspend fun PictureWalk.trackTicks(
   return ticks?.takeIf { it > 0 }
 }
 
-private suspend inline fun PictureWalk.forEachChild(
+// Runs visit over each child box between start and end, failing the walk on a size that does not fit.
+internal suspend inline fun PictureWalk.forEachChild(
   start: Long,
   end: Long,
   visit: (type: Int, start: Long, end: Long) -> Unit,
@@ -310,17 +311,17 @@ private fun lengthOf(
   return (ticks / timescale).seconds + fraction.nanoseconds
 }
 
-private val MOOV = fourcc("moov")
+internal val MOOV = fourcc("moov")
 private val MVHD = fourcc("mvhd")
 private val MVEX = fourcc("mvex")
-private val TRAK = fourcc("trak")
+internal val TRAK = fourcc("trak")
 private val TKHD = fourcc("tkhd")
-private val MDIA = fourcc("mdia")
+internal val MDIA = fourcc("mdia")
 private val HDLR = fourcc("hdlr")
 private val MDHD = fourcc("mdhd")
 private val SOUN = fourcc("soun")
-private val MINF = fourcc("minf")
-private val STBL = fourcc("stbl")
+internal val MINF = fourcc("minf")
+internal val STBL = fourcc("stbl")
 private val STSD = fourcc("stsd")
 private val COLR = fourcc("colr")
 private val HVCC = fourcc("hvcC")
@@ -329,7 +330,7 @@ private val NCLC = fourcc("nclc")
 private val VISUAL_ENTRIES =
   setOf(fourcc("avc1"), fourcc("avc3"), fourcc("hvc1"), fourcc("hev1"), fourcc("vp09"), fourcc("av01"))
 
-private const val BOX_HEADER = 8L
+internal const val BOX_HEADER = 8L
 private const val TRACK_ENABLED = 1L
 
 // An `stsd` opens on its version, flags and entry count, and a visual sample entry on 78 bytes of fields before its

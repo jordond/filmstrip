@@ -112,9 +112,11 @@ internal actual class PlatformProber actual constructor() {
     withContext(Dispatchers.IO) {
       val retriever = MediaMetadataRetriever()
       try {
+        val headers = movieHeaders()
+        headers.overrun?.let { missing -> return@withContext ProbeResult.Failure(truncatedSource(describe(), missing)) }
         retriever.open()
         val tracks = tracks()
-        val info = retriever.readInfo((tracks as? TrackRead.Read)?.tracks, movieHeaders())
+        val info = retriever.readInfo((tracks as? TrackRead.Read)?.tracks, headers)
         if (info.video == null && info.audioTracks.isEmpty()) {
           val reason = (tracks as? TrackRead.Failed)?.reason
           ProbeResult.Failure(unreadable(reason?.let { "$NO_READABLE_TRACK $it" } ?: NO_READABLE_TRACK))
@@ -171,8 +173,9 @@ internal actual class PlatformProber actual constructor() {
   }
 
   /**
-   * How long the source plays for by its MP4 or QuickTime movie header and what its track headers say, each null when
-   * the file has none [movieDurationOf] and [trackHeadersOf] can read or it cannot be opened for random access.
+   * How long the source plays for by its MP4 or QuickTime movie header, what its track headers say and how many bytes
+   * [sampleTableOverrunOf] finds missing, each null when the file has none [movieDurationOf] and [trackHeadersOf] can
+   * read or it cannot be opened for random access.
    *
    * A URI is opened the way the retriever and the extractor open it, as an asset file descriptor, which can name a
    * range of a larger file such as a resource packed into an APK. The walk reads that range alone.
@@ -211,6 +214,7 @@ internal actual class PlatformProber actual constructor() {
     MovieHeaders(
       duration = movieDurationOf(length) { at, count -> readAt(start + at, count) },
       tracks = trackHeadersOf(length) { at, count -> readAt(start + at, count) },
+      overrun = sampleTableOverrunOf(length) { at, count -> readAt(start + at, count) },
     )
 
   private fun FileChannel.readAt(

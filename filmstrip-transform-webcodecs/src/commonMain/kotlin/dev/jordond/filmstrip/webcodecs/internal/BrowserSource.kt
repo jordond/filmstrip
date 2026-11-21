@@ -4,6 +4,7 @@ package dev.jordond.filmstrip.webcodecs.internal
 
 import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.internal.awaitCatching
+import dev.jordond.filmstrip.internal.sampleTableOverrunOf
 import dev.jordond.filmstrip.media.AudioTrackId
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.audioTrackIdOf
@@ -101,17 +102,27 @@ internal class SourceReader(
     audioTrackIds ?: run {
       val count = audioTracks().size
       if (input.getFormat().await().mimeType in MOVIE_FORMATS) {
-        val size =
-          input.source
-            .getSize()
-            .await()
-            .asDouble()
-            .toLong()
-        movieAudioTrackIdsOf(size, headers()::read, count)
+        movieAudioTrackIdsOf(size(), headers()::read, count)
       } else {
         List(count) { ordinal -> audioTrackIdOf(isMovie = false, trackId = null, ordinal = ordinal) }
       }
     }.also { audioTrackIds = it }
+
+  /**
+   * How many bytes a file mediabunny read as MP4 or QuickTime is missing for its last sample to fit, as
+   * [sampleTableOverrunOf] counts them. Null when nothing is missing and for any other file.
+   */
+  suspend fun sampleTableOverrun(): Long? {
+    if (input.getFormat().await().mimeType !in MOVIE_FORMATS) return null
+    return sampleTableOverrunOf(size(), headers()::read)
+  }
+
+  private suspend fun size(): Long =
+    input.source
+      .getSize()
+      .await()
+      .asDouble()
+      .toLong()
 
   /**
    * Whether the file's container can flag a track as the default, which only an MP4, QuickTime, Matroska or WebM file

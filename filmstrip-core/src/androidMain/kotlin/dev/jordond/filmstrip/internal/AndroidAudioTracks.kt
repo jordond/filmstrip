@@ -50,10 +50,14 @@ internal fun audioTracksOf(
 /**
  * What an MP4 or QuickTime movie header and its track headers say, each null when the file gave none or could not be
  * opened to look.
+ *
+ * @property overrun How many bytes the file is missing for its last sample to fit, as [sampleTableOverrunOf] counts
+ * them, or null when nothing is missing or the file has no length to check against.
  */
 internal class MovieHeaders(
   val duration: Duration?,
   val tracks: List<TrackHeader>?,
+  val overrun: Long? = null,
 ) {
   companion object {
     val None = MovieHeaders(null, null)

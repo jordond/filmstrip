@@ -19,6 +19,11 @@ to catch.
 A source with neither a video nor an audio track fails as `SourceUnreadable`. That includes a file the app can open but
 the platform's media service isn't allowed to read, such as one under `/data/local/tmp` on some Android devices.
 
+An MP4 or QuickTime file cut short after its header was written, such as a recording stopped part way, also fails as
+`SourceUnreadable`, on every platform, and its message says how many bytes are missing. Its header still lists every
+sample, so the probe checks where the last one ends against the file's length. A plan of a clip from such a file is
+refused before any export starts.
+
 For an MP4 or QuickTime file, `duration` is the length its movie header gives, which counts only what each track's
 edit list presents. An AAC track that opens on an encoder delay doesn't run long by that delay, and every platform
 reports the same length for the same file. Any other container gets the length the platform reads.

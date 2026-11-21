@@ -36,6 +36,14 @@ internal suspend fun movieDurationAt(url: NSURL): Duration? =
 internal suspend fun trackHeadersAt(url: NSURL): List<TrackHeader>? =
   readMovieAt(url) { size, read -> trackHeadersOf(size, read) }
 
+/**
+ * How many bytes the file at [url] is missing for its last sample to fit, read through [sampleTableOverrunOf].
+ *
+ * Null when [url] is not a file URL, the file cannot be opened, or nothing is missing.
+ */
+internal suspend fun sampleTableOverrunAt(url: NSURL): Long? =
+  readMovieAt(url) { size, read -> sampleTableOverrunOf(size, read) }
+
 @OptIn(ExperimentalForeignApi::class)
 private suspend inline fun <T> readMovieAt(
   url: NSURL,

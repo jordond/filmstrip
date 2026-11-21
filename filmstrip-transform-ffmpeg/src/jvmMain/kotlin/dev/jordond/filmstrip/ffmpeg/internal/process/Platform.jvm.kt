@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip.ffmpeg.internal.process
 
+import dev.jordond.filmstrip.internal.sampleTableOverrunOf
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
@@ -8,6 +9,7 @@ import kotlinx.coroutines.withContext
 import java.io.BufferedReader
 import java.io.File
 import java.io.IOException
+import java.io.RandomAccessFile
 import java.nio.file.Files
 import java.nio.file.InvalidPathException
 import java.nio.file.Paths
@@ -294,3 +296,24 @@ private fun awaitExit(
   process: Process,
   millis: Long,
 ): Boolean = runCatching { process.waitFor(millis, TimeUnit.MILLISECONDS) }.getOrDefault(false)
+
+internal actual suspend fun sampleTableOverrunAt(path: String): Long? =
+  withContext(Dispatchers.IO) {
+    try {
+      RandomAccessFile(path, "r").use { file ->
+        sampleTableOverrunOf(file.length()) { start, count ->
+          val bytes = ByteArray(count)
+          file.seek(start)
+          var filled = 0
+          while (filled < count) {
+            val read = file.read(bytes, filled, count - filled)
+            if (read < 0) break
+            filled += read
+          }
+          bytes.copyOf(filled)
+        }
+      }
+    } catch (unopened: IOException) {
+      null
+    }
+  }

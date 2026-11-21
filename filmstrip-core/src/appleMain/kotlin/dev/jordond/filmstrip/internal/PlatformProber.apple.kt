@@ -128,6 +128,10 @@ internal actual class PlatformProber internal constructor(
           FilmstripError.SourceUnreadable(source.describe(), "The source is not a valid URL."),
         )
 
+      withContext(Dispatchers.IO) { sampleTableOverrunAt(url) }?.let { missing ->
+        return@withContext ProbeResult.Failure(truncatedSource(source.describe(), missing))
+      }
+
       val asset = AVURLAsset(uRL = url, options = null)
       val videoTrack = asset.tracksWithMediaType(AVMediaTypeVideo).firstOrNull() as? AVAssetTrack
       val audioTracks = asset.tracksWithMediaType(AVMediaTypeAudio).filterIsInstance<AVAssetTrack>()

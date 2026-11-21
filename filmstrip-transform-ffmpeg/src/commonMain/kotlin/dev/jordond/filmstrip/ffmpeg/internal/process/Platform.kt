@@ -166,3 +166,11 @@ internal expect fun fileStampOf(path: String): FileStamp?
 // overlay pictures through child processes from inside a blocking resolve, and the interrupt is what
 // stops them.
 internal expect suspend fun <T> interruptibly(block: () -> T): T
+
+/**
+ * How many bytes the file at [path] is missing for its last sample to fit, read through
+ * [dev.jordond.filmstrip.internal.sampleTableOverrunOf].
+ *
+ * Null when the file cannot be opened or nothing is missing.
+ */
+internal expect suspend fun sampleTableOverrunAt(path: String): Long?

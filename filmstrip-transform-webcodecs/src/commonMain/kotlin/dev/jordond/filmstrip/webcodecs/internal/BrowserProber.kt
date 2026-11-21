@@ -5,6 +5,7 @@ package dev.jordond.filmstrip.webcodecs.internal
 import dev.jordond.filmstrip.codec.Bitrate
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.internal.awaitCatching
+import dev.jordond.filmstrip.internal.truncatedSource
 import dev.jordond.filmstrip.media.AudioTrackId
 import dev.jordond.filmstrip.media.AudioTrackInfo
 import dev.jordond.filmstrip.media.CodecKind
@@ -16,6 +17,7 @@ import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.ProbeResult
 import dev.jordond.filmstrip.media.VideoTrackInfo
 import dev.jordond.filmstrip.media.audioLanguageOf
+import dev.jordond.filmstrip.media.describe
 import dev.jordond.filmstrip.media.displaySizeOf
 import dev.jordond.filmstrip.media.trackCodecOf
 import dev.jordond.filmstrip.webcodecs.internal.interop.InputAudioTrack
@@ -39,6 +41,9 @@ internal class BrowserProber : MediaProber {
   override suspend fun probe(source: MediaSource): ProbeResult {
     val reader = SourceReader.of(source) ?: return ProbeResult.Failure(unreadableSource(source))
     return try {
+      awaitCatching { reader.sampleTableOverrun() }.getOrNull()?.let { missing ->
+        return ProbeResult.Failure(truncatedSource(source.describe(), missing))
+      }
       val info = awaitCatching { readInfo(reader, fileBytes = null) }.getOrNull()
       if (info == null) ProbeResult.Failure(unreadableSource(source)) else ProbeResult.Success(info)
     } finally {
