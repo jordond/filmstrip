@@ -118,7 +118,7 @@ class SpatialShaderProgramMediaTest {
     val framebuffer = IntArray(1)
     GLES20.glGenTextures(1, target, 0)
     GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, target[0])
-    GLES30.glTexStorage2D(GLES20.GL_TEXTURE_2D, 1, GLES30.GL_RGBA16F, 1, 1)
+    allocateFloatTarget(GLES30.GL_RGBA16F, 1, 1)
     GLES20.glGenFramebuffers(1, framebuffer, 0)
     GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, framebuffer[0])
     GLES20.glFramebufferTexture2D(
@@ -325,7 +325,7 @@ class SpatialShaderProgramMediaTest {
     val framebuffer = IntArray(1)
     GLES20.glGenTextures(1, target, 0)
     GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, target[0])
-    GLES30.glTexStorage2D(GLES20.GL_TEXTURE_2D, 1, GLES30.GL_RGBA32F, width, height)
+    allocateFloatTarget(GLES30.GL_RGBA32F, width, height)
     GLES20.glGenFramebuffers(1, framebuffer, 0)
     GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, framebuffer[0])
     GLES20.glFramebufferTexture2D(
@@ -456,4 +456,26 @@ class SpatialShaderProgramMediaTest {
     val CONTEXT = intArrayOf(EGL14.EGL_CONTEXT_CLIENT_VERSION, 3, EGL14.EGL_NONE)
     val PBUFFER = intArrayOf(EGL14.EGL_WIDTH, 1, EGL14.EGL_HEIGHT, 1, EGL14.EGL_NONE)
   }
+}
+
+// Gives the 2D texture bound now one level of float storage. The level comes from glTexImage2D, which tells the
+// emulator's GL encoder the texture holds floats. The encoder never sets the type it keeps for a glTexStorage2D
+// texture, and it refuses a float read with an invalid operation whenever that unset memory holds an integer type.
+private fun allocateFloatTarget(
+  internalFormat: Int,
+  width: Int,
+  height: Int,
+) {
+  GLES20.glTexImage2D(
+    GLES20.GL_TEXTURE_2D,
+    0,
+    internalFormat,
+    width,
+    height,
+    0,
+    GLES20.GL_RGBA,
+    GLES20.GL_FLOAT,
+    null,
+  )
+  GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES30.GL_TEXTURE_MAX_LEVEL, 0)
 }

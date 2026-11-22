@@ -1,10 +1,10 @@
 package dev.jordond.filmstrip.effects.filters.tape
 
 import android.opengl.GLES20
-import android.opengl.GLES30
 import androidx.media3.common.util.GlUtil
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.effects.filters.WHOLE_SPAN
+import dev.jordond.filmstrip.effects.filters.allocateFloatTarget
 import dev.jordond.filmstrip.effects.filters.betamax.Betamax
 import dev.jordond.filmstrip.effects.filters.hi8.Hi8
 import dev.jordond.filmstrip.effects.filters.toDoubles
@@ -337,7 +337,7 @@ class TapePictureShaderProgramMediaTest {
     val framebuffer = IntArray(1)
     GLES20.glGenTextures(1, target, 0)
     GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, target[0])
-    GLES30.glTexStorage2D(GLES20.GL_TEXTURE_2D, 1, GLES30.GL_RGBA32F, width, height)
+    allocateFloatTarget(width, height)
     GLES20.glGenFramebuffers(1, framebuffer, 0)
     GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, framebuffer[0])
     GLES20.glFramebufferTexture2D(

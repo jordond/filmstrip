@@ -7,6 +7,7 @@ import android.opengl.GLES30
 import androidx.media3.common.util.GlUtil
 import androidx.media3.effect.BaseGlShaderProgram
 import dev.jordond.filmstrip.effects.filters.WHOLE_SPAN
+import dev.jordond.filmstrip.effects.filters.allocateFloatTarget
 import dev.jordond.filmstrip.effects.filters.tape.TapePictureParams
 import dev.jordond.filmstrip.effects.filters.tape.TapePictureShaderProgram
 import dev.jordond.filmstrip.effects.filters.tape.TapePictureSignal
@@ -229,7 +230,7 @@ class CamcorderEffectMediaTest {
     val framebuffer = IntArray(1)
     GLES20.glGenTextures(1, texture, 0)
     GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, texture[0])
-    GLES30.glTexStorage2D(GLES20.GL_TEXTURE_2D, 1, GLES30.GL_RGBA32F, width, height)
+    allocateFloatTarget(width, height)
     linear()
     GLES20.glGenFramebuffers(1, framebuffer, 0)
     GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, framebuffer[0])
