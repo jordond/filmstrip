@@ -62,8 +62,8 @@ public class Media3ClipReads internal constructor(
  *
  * A clip is read once per window, however many passes of a looping track cut the same one, from the earliest any of
  * them reads. A clip whose container cannot be read is left out, and the lowering lays it from its own start. A copy
- * writes the source's own samples, so nothing is read for one. No audio unit is read, since only a lowering that runs
- * each clip's audio speed itself opens on one.
+ * writes the source's own samples, so only the SD color primaries are read for one, which a preview of it draws by. No
+ * audio unit is read, since only a lowering that runs each clip's audio speed itself opens on one.
  *
  * @return what every lowering of this plan lays its items by.
  */
@@ -78,9 +78,17 @@ public suspend fun ResolvedComposition.readClips(): Media3ClipReads = readClips(
  * speed itself, as an export does.
  */
 internal suspend fun ResolvedComposition.readClips(ownsAudioSpeed: Boolean): Media3ClipReads {
-  if (path == ExportPath.Copy) return Media3ClipReads.None
   val rate = output.frameRate
   val clips = tracks.flatMap { track -> track.clips.map { track.content to it } }
+  if (path == ExportPath.Copy) {
+    if (audio == AudioSpec.AudioOnly) return Media3ClipReads.None
+    val primaries =
+      clips
+        .filter { (content, clip) -> content != TrackContent.Audio && clip.info.video != null }
+        .map { (_, clip) -> clip.source }
+        .sdPrimaries()
+    return if (primaries.isEmpty()) Media3ClipReads.None else Media3ClipReads(emptyMap(), primaries)
+  }
 
   val windows =
     if (audio == AudioSpec.AudioOnly) {
@@ -110,17 +118,16 @@ internal suspend fun ResolvedComposition.readClips(ownsAudioSpeed: Boolean): Med
     windows
       .mapNotNull { (window, readFrom) -> frameBoundsOf(window.source, readFrom, window.end)?.let { window to it } }
       .toMap(),
-    windows.keys
-      .map { it.source }
-      .distinct()
-      .mapNotNull { source -> sdPrimariesNamedBy(source)?.let { source to it } }
-      .toMap(),
+    windows.keys.map { it.source }.sdPrimaries(),
     audioWindows
       .mapNotNull { window ->
         audioPrerollStartOf(window.source, window.start, window.audioOrdinal)?.let { window to it }
       }.toMap(),
   )
 }
+
+private suspend fun List<MediaSource>.sdPrimaries(): Map<MediaSource, Int> =
+  distinct().mapNotNull { source -> sdPrimariesNamedBy(source)?.let { source to it } }.toMap()
 
 /**
  * Where each window of [this] is read from on a grid of [frameRate], the earliest any clip over it reads.

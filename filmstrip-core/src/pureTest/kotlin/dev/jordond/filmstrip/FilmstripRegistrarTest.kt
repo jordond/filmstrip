@@ -150,6 +150,47 @@ class FilmstripRegistrarTest {
   }
 
   @Test
+  fun `an installed registrar reads the options as they stood at each build`() {
+    val key = OptionKey<String>("label")
+    val reader = EveryBuild(key)
+    val builder = FilmstripBuilder().install(reader).option(key, "first")
+    builder.components()
+    builder.option(key, "second")
+
+    builder.components()
+    builder.option(key, "third")
+
+    reader.read() shouldBe listOf("first", "second")
+  }
+
+  @Test
+  fun `a discovered registrar reads the options as they stood at each build`() {
+    val key = OptionKey<String>("label")
+    val reader = EveryBuild(key)
+    discover(reader)
+    val builder = FilmstripBuilder().option(key, "first")
+    builder.components()
+
+    builder.option(key, "second").components()
+
+    reader.read() shouldBe listOf("first", "second")
+  }
+
+  @Test
+  fun `the block's registrations go ahead of discovered ones at every build`() {
+    val installed = EffectResolver { _, _, _ -> null }
+    val own = EffectResolver { _, _, _ -> null }
+    val discovered = EffectResolver { _, _, _ -> null }
+    discover(Recording("test-discovered", resolver = discovered))
+    val builder = FilmstripBuilder().install(Recording("test-installed", resolver = installed)).addEffectResolver(own)
+
+    // A later registration goes in front, and everything discovered sits behind the block's.
+    repeat(2) {
+      builder.components().effectResolvers shouldContainExactly listOf(own, installed, discovered)
+    }
+  }
+
+  @Test
   fun `a registrar id prints as its value`() {
     RegistrarId("filmstrip-test").toString() shouldBe "filmstrip-test"
   }
@@ -208,6 +249,19 @@ class FilmstripRegistrarTest {
     }
 
     fun read(): String? = builder?.optionOrNull(key)
+  }
+
+  private class EveryBuild(
+    private val key: OptionKey<String>,
+  ) : FilmstripRegistrar {
+    override val id: RegistrarId = RegistrarId("test-every-build")
+    private val builders = mutableListOf<FilmstripBuilder>()
+
+    override fun register(builder: FilmstripBuilder) {
+      builders += builder
+    }
+
+    fun read(): List<String?> = builders.map { it.optionOrNull(key) }
   }
 
   private class Dependent(

@@ -212,7 +212,7 @@ public class Media3Preview internal constructor(
   ): List<Media3Readback>? {
     val fresh =
       try {
-        resolved.toMedia3(UnwrappedEffects, bounds, ownsAudioSpeed = false, exactLengths = false)
+        resolved.toMedia3(UnwrappedEffects, bounds, ownsAudioSpeed = false, exactLengths = false, drawsFrames = true)
       } catch (refused: Media3LoweringFailure) {
         // A plan this lowering refuses has no frame to read either.
         return null
@@ -280,6 +280,7 @@ public class Media3Preview internal constructor(
           liveGain = true,
           writesEverySlot = true,
           slotPin = slotPin,
+          drawsFrames = true,
         )
       } catch (refused: Media3LoweringFailure) {
         // A plan this lowering refuses is not one the standing graph can take either. The caller
@@ -391,6 +392,7 @@ public fun ResolvedComposition.toMedia3Preview(bounds: Media3ClipReads): Media3P
       liveGain = true,
       writesEverySlot = true,
       slotPin = slotPin,
+      drawsFrames = true,
     )
   return Media3Preview(composition, composition.videoSpans(), slots, this, bounds, slotPin)
 }

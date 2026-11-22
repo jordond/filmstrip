@@ -6,11 +6,13 @@ import dev.jordond.filmstrip.edit.outputSlotsOf
 import dev.jordond.filmstrip.effect.FilterFragment
 import dev.jordond.filmstrip.effect.FilterNode
 import dev.jordond.filmstrip.effect.exactCrop
+import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedClip
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedHdr
+import dev.jordond.filmstrip.transform.internal.resolve.showsFill
 
 /**
  * The filter that moves an SD clip onto BT.709's primaries, which [SdColor.toBt709Nodes] lowers to.
@@ -68,11 +70,11 @@ internal data class SdColor(
  * What a plan's laid clips decode with and the colour its frames end up on.
  *
  * A plan of one SD colour keeps it, codes and tags, unless an effect left in it draws on the frame's colour, which it
- * reads as BT.709 on every backend. Anything else ends up on one tag for every clip, and BT.709 is the one both a tone
- * map and a clip on no SD colour already read as.
+ * reads as BT.709 on every backend, or the plan [drawsAuthoredFill]. Anything else ends up on one tag for every clip,
+ * and BT.709 is the one both a tone map and a clip on no SD colour already read as.
  *
  * @param sdColors The sources on SD primaries, and the colour each decodes with.
- * @param keepsSdColor Whether no effect in the plan reads the frame's colour.
+ * @param keepsSdColor Whether nothing the plan draws reads or names a colour of its own.
  */
 internal class LaidColor(
   private val negotiated: ResolvedComposition,
@@ -103,6 +105,21 @@ internal class LaidColor(
     negotiated.hdr == ResolvedHdr.ToneMap || (kept == null && laid.any { it != null })
   }
 }
+
+/**
+ * Whether a viewer can see a fill this plan draws in a colour it was given.
+ *
+ * A solid fill is written as BT.709 codes, so a frame kept on an SD colour would display another colour for it. A grey
+ * displays the same on every SD colour, since they share BT.709's white, and a blurred fill is the clip's own picture.
+ */
+internal val ResolvedComposition.drawsAuthoredFill: Boolean
+  get() = showsFill && (fill as? Fill.Solid)?.color?.isChromatic == true
+
+private val Int.isChromatic: Boolean
+  get() {
+    val red = this shr RED_SHIFT and CHANNEL_MASK
+    return red != (this shr GREEN_SHIFT and CHANNEL_MASK) || red != (this and CHANNEL_MASK)
+  }
 
 /**
  * Every filter an SD clip can put in a graph by name, an odd picture's padding and the tags a plan written BT.709 ends
@@ -146,6 +163,9 @@ internal fun sdColorOf(
 }
 
 private const val QUARTER_TURNS_HALF = 180
+private const val RED_SHIFT = 16
+private const val GREEN_SHIFT = 8
+private const val CHANNEL_MASK = 0xFF
 private const val BT709_TAG = "bt709"
 private const val SMPTE_C_TAG = "smpte170m"
 private const val EBU_TAG = "bt470bg"

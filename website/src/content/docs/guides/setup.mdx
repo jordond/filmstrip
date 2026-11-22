@@ -39,6 +39,10 @@ filters.
 
 Anything you register in the block sits in front of those, so your own resolvers and factories are asked first.
 
+A `FilmstripBuilder` can build more than once. Each `build()` runs the builder's registrations again, so every instance
+holds components of its own and the options as they stood when it was built. An option set afterwards reaches only the
+instances built after it.
+
 ## Configure ffmpeg
 
 On the JVM, `ffmpeg { }` sets where the ffmpeg backend finds its programs. It can go anywhere in the block.
@@ -46,6 +50,11 @@ On the JVM, `ffmpeg { }` sets where the ffmpeg backend finds its programs. It ca
 <Snippet file="jvmMain/kotlin/dev/jordond/filmstrip/docs/guides/Setup.jvm.kt" region="setup-ffmpeg" />
 
 Without it filmstrip reads `FILMSTRIP_FFMPEG` and `FILMSTRIP_FFPROBE`, then searches `PATH`.
+
+`extraArgs` adds arguments to every encode, right before the output file. No other backend reads them, so an edit that
+depends on them renders differently everywhere else. When libx265 encodes and filmstrip writes `-x265-params` of its
+own, for HDR10 signalling or a key frame spacing, a `-x265-params` value in `extraArgs` joins that one option ahead of
+filmstrip's keys. A key filmstrip sets as well keeps filmstrip's value.
 
 ## Bundle ffmpeg
 

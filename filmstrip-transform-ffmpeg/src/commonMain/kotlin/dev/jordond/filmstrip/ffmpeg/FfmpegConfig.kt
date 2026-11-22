@@ -12,6 +12,8 @@ import dev.drewhamilton.poko.Poko
  * @property extraArgs Arguments appended to every encode, immediately before the output file.
  *   An escape hatch, and the thing that makes an edit non-portable: nothing here is understood by
  *   any other backend, so an edit that needs it renders differently everywhere else.
+ *   A `-x265-params` value joins the one filmstrip writes for libx265, ahead of filmstrip's own keys, so a key
+ *   filmstrip sets as well keeps filmstrip's value.
  * @property threads How many threads to allow, or null to let ffmpeg decide.
  */
 @Poko

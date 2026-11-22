@@ -14,6 +14,7 @@ import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.effects.BuiltInEffectResolver
 import dev.jordond.filmstrip.export.AdjustmentKind
+import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.TIMEOUT
@@ -75,29 +76,44 @@ class AndroidSdColorMediaTest {
   @Test
   fun aPreviewOfATaggedClipDrawsTheSameColour() =
     runTest(timeout = TIMEOUT) {
-      val source = clip("sd-preview.mp4", MediaFormat.COLOR_STANDARD_BT601_NTSC)
-      val plays = sampledFirstFrame(source)
-      val edit = Composition(listOf(Track(listOf(Clip(MediaSource.of(source.path))))))
-      val engine =
-        media3ExportEngine(ComponentRegistry.Builder().addEffectResolver(BuiltInEffectResolver()).build())
-      val resolved =
-        engine
-          .resolve(edit, ExportSpec(heightPx = SMALLER_HEIGHT))
-          .shouldBeInstanceOf<ResolveResult.Resolved>()
-          .composition
-      val output = File(probe.context.cacheDir, "sd-preview-out.mp4")
-      drawn(resolved.toMedia3Preview(resolved.readClips()).composition, output)
-      val (matrix, fullRange) = colorTagOf(output)
-      val written = Written(firstEightBitFrame(output), matrix, fullRange)
+      assertPreviewDisplays("sd-preview", ExportSpec(heightPx = SMALLER_HEIGHT), ExportPath.Transcode)
+    }
 
-      BAR_CENTRES.forEach { fx ->
-        val expected = sdSourceDisplayed(plays.rgbAt(fx, MIDDLE).signal(), SMPTE_C_PRIMARIES)
-        val actual = written.rgbAt(fx, MIDDLE).signal()
-        withClue("the preview at bar $fx read ${actual.inCodes()} against ${expected.inCodes()}, matrix $matrix") {
-          expected.indices.all { abs(expected[it] - actual[it]) * MAX_CODE <= SD_CODES } shouldBe true
-        }
+  @Test
+  fun aPreviewOfACopiedTaggedClipDrawsTheSameColour() =
+    runTest(timeout = TIMEOUT) {
+      assertPreviewDisplays("sd-preview-copy", ExportSpec(), ExportPath.Copy)
+    }
+
+  private suspend fun assertPreviewDisplays(
+    name: String,
+    spec: ExportSpec,
+    path: ExportPath,
+  ) {
+    val source = clip("$name.mp4", MediaFormat.COLOR_STANDARD_BT601_NTSC)
+    val plays = sampledFirstFrame(source)
+    val edit = Composition(listOf(Track(listOf(Clip(MediaSource.of(source.path))))))
+    val engine =
+      media3ExportEngine(ComponentRegistry.Builder().addEffectResolver(BuiltInEffectResolver()).build())
+    val resolved =
+      engine
+        .resolve(edit, spec)
+        .shouldBeInstanceOf<ResolveResult.Resolved>()
+        .composition
+    resolved.path shouldBe path
+    val output = File(probe.context.cacheDir, "$name-out.mp4")
+    drawn(resolved.toMedia3Preview(resolved.readClips()).composition, output)
+    val (matrix, fullRange) = colorTagOf(output)
+    val written = Written(firstEightBitFrame(output), matrix, fullRange)
+
+    BAR_CENTRES.forEach { fx ->
+      val expected = sdSourceDisplayed(plays.rgbAt(fx, MIDDLE).signal(), SMPTE_C_PRIMARIES)
+      val actual = written.rgbAt(fx, MIDDLE).signal()
+      withClue("the preview at bar $fx read ${actual.inCodes()} against ${expected.inCodes()}, matrix $matrix") {
+        expected.indices.all { abs(expected[it] - actual[it]) * MAX_CODE <= SD_CODES } shouldBe true
       }
     }
+  }
 
   // The preview's own composition run to a file, which is where its effects can be read back on any device.
   private suspend fun drawn(

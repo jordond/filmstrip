@@ -6,7 +6,11 @@ import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.color.EBU_PRIMARIES
 import dev.jordond.filmstrip.color.SMPTE_C_PRIMARIES
 import dev.jordond.filmstrip.color.sdSourceDisplayed
+import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.Composition
+import dev.jordond.filmstrip.edit.OutputFrame
+import dev.jordond.filmstrip.edit.TimeRange
+import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.effects.BuiltInEffectResolver
 import dev.jordond.filmstrip.effects.color.Invert
@@ -19,6 +23,7 @@ import dev.jordond.filmstrip.ffmpeg.internal.FfmpegProber
 import dev.jordond.filmstrip.ffmpeg.internal.FfmpegRuntime
 import dev.jordond.filmstrip.ffmpeg.internal.process.BytesRoot
 import dev.jordond.filmstrip.ffmpeg.support.regionAverage
+import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.transform.internal.ResolveResult
 import io.kotest.assertions.withClue

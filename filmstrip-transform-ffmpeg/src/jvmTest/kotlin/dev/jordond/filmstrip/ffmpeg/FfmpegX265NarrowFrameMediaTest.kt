@@ -24,6 +24,7 @@ import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.MediaSource
 import io.kotest.assertions.withClue
 import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
@@ -60,6 +61,44 @@ class FfmpegX265NarrowFrameMediaTest {
       )
     }
 
+  // libx265 records the options it ran with in the stream, which is where a dropped key shows. ffmpeg tags the stream's
+  // colour from its own flags either way, so the colour tags cannot tell the two apart.
+  @Test
+  fun `a caller's x265-params leave the HDR10 keys on the stream libx265 writes`() =
+    runTest(timeout = TIMEOUT) {
+      val toolchain = runtime.toolchain().shouldBeInstanceOf<ToolchainResult.Available>().toolchain
+      if (!toolchain.hasEncoder("libx265")) return@runTest assertPlannedWithoutLibx265()
+
+      val source =
+        "color=c=0x$FLAT:s=${WIDE.width}x${WIDE.height}:r=30:d=1,format=yuv420p10le," +
+          "setparams=color_primaries=bt2020:color_trc=smpte2084:colorspace=bt2020nc:range=tv"
+      val encoded = File.createTempFile("filmstrip-x265-extra", ".mp4")
+      try {
+        val config = FfmpegConfig(extraArgs = listOf("-x265-params", "crf=$CALLER_CRF"))
+        run(
+          encodeOf(
+            source,
+            WIDE,
+            HdrTransfer.Pq,
+          ).arguments(toolchain, config, listOf(source), emptyList(), encoded.absolutePath),
+        )
+
+        val options =
+          encoded
+            .readBytes()
+            .toString(Charsets.ISO_8859_1)
+            .substringAfter("options:")
+            .split(" ")
+        withClue("libx265 ran with $options") {
+          options shouldContain "crf=$CALLER_CRF.0"
+          options shouldContain "hdr10"
+          options shouldContain "repeat-headers"
+        }
+      } finally {
+        encoded.delete()
+      }
+    }
+
   private suspend fun assertWritten(
     source: String,
     hdrTransfer: HdrTransfer?,
@@ -71,24 +110,8 @@ class FfmpegX265NarrowFrameMediaTest {
     val lossless = File.createTempFile("filmstrip-x265-narrow", ".mkv")
     try {
       val encode =
-        Invocation(
-          inputs = listOf(InputSpec(InputSource.Generated(source))),
-          filterGraph = "[0:v]null[v]",
-          videoLabel = "v",
-          audioLabel = null,
-          output =
-            OutputFormat(
-              size = NARROW,
-              videoCodec = VideoCodec.Hevc,
-              audioCodec = AudioCodec.None,
-              bitrate = COLOR_READ_BITRATE,
-              frameRate = 30,
-              audioFormat = null,
-            ),
-          videoEncoder = "libx265",
-          duration = 1.seconds,
-          hdrTransfer = hdrTransfer,
-        ).arguments(toolchain, FfmpegConfig(), listOf(source), emptyList(), encoded.absolutePath)
+        encodeOf(source, NARROW, hdrTransfer)
+          .arguments(toolchain, FfmpegConfig(), listOf(source), emptyList(), encoded.absolutePath)
       run(encode)
       val copy = listOf(toolchain.ffmpeg, "-y", "-loglevel", "error", "-f", "lavfi", "-i", source, "-c:v", "ffv1")
       run(copy + lossless.absolutePath)
@@ -104,6 +127,30 @@ class FfmpegX265NarrowFrameMediaTest {
       lossless.delete()
     }
   }
+
+  private fun encodeOf(
+    source: String,
+    size: Size,
+    hdrTransfer: HdrTransfer?,
+  ): Invocation =
+    Invocation(
+      inputs = listOf(InputSpec(InputSource.Generated(source))),
+      filterGraph = "[0:v]null[v]",
+      videoLabel = "v",
+      audioLabel = null,
+      output =
+        OutputFormat(
+          size = size,
+          videoCodec = VideoCodec.Hevc,
+          audioCodec = AudioCodec.None,
+          bitrate = COLOR_READ_BITRATE,
+          frameRate = 30,
+          audioFormat = null,
+        ),
+      videoEncoder = "libx265",
+      duration = 1.seconds,
+      hdrTransfer = hdrTransfer,
+    )
 
   private suspend fun assertPlannedWithoutLibx265() {
     withClue("the fixtures are absent") { fixture.available().shouldBeTrue() }
@@ -143,5 +190,9 @@ class FfmpegX265NarrowFrameMediaTest {
     // The middle of the widths libx265 4.1 crashes on, tall enough for it to open at all.
     val NARROW = Size(42, 42)
     const val FLAT = "30C030"
+
+    // Clear of the widths libx265 crashes on, so only the caller's key is on trial.
+    val WIDE = Size(128, 72)
+    const val CALLER_CRF = 30
   }
 }

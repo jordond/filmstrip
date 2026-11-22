@@ -33,6 +33,7 @@ import platform.CoreVideo.CVPixelBufferRelease
 import platform.CoreVideo.CVPixelBufferUnlockBaseAddress
 import platform.CoreVideo.kCVPixelFormatType_32BGRA
 import platform.CoreVideo.kCVReturnSuccess
+import platform.Foundation.NSFileManager
 import platform.Foundation.NSURL
 import platform.darwin.DISPATCH_TIME_NOW
 import platform.darwin.dispatch_semaphore_create
@@ -41,6 +42,8 @@ import platform.darwin.dispatch_semaphore_wait
 import platform.darwin.dispatch_time
 import platform.posix.memset
 import platform.posix.usleep
+import kotlin.concurrent.atomics.AtomicBoolean
+import kotlin.concurrent.atomics.ExperimentalAtomicApi
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.TimeMark
@@ -55,10 +58,20 @@ internal enum class SeedWrite {
   Failed,
 }
 
+/**
+ * Writes the seed movie for [frameRate] onto [path] and says how far the write got.
+ *
+ * A write that answers [SeedWrite.Slow] at the finish leaves its writer closing the file, and that
+ * writer removes whatever it left at [path] once it is done.
+ *
+ * @param finishBudget How long closing the file may take, or null for what is left of
+ * [STILL_SEED_WRITE_BUDGET] once the frames are in.
+ */
 @OptIn(ExperimentalForeignApi::class)
 internal fun writeSeedMovie(
   path: String,
   frameRate: Int,
+  finishBudget: Duration? = null,
 ): SeedWrite {
   val url = NSURL.fileURLWithPath(path)
   val writer =
@@ -102,7 +115,7 @@ internal fun writeSeedMovie(
   input.markAsFinished()
   // The last frame runs until here, which is what makes the track exactly as long as it claims.
   writer.endSessionAtSourceTime(STILL_SEED_LENGTH.toCMTime())
-  return writer.finishAndWait(deadline)
+  return writer.finishAndWait(path, finishBudget?.let { TimeSource.Monotonic.markNow() + it } ?: deadline)
 }
 
 /**
@@ -226,37 +239,46 @@ private fun CVPixelBufferRef.blacken() {
  * AVFoundation only reports a finished write through a completion handler on a queue of its own,
  * and a lowering is not suspending, so the calling thread waits. It is never the queue that
  * answers, so nothing here can be waiting on itself. That wait is the only part [deadline] covers.
- * A wait that ran out cancels the writer still holding the file, and the cancel takes as long as
- * the encoder behind it takes to stop.
  *
- * The writer is read before it is cancelled, so a handler that fired as the budget ran out keeps
- * the movie it closed.
+ * A finish is never cancelled. A wait that ran out leaves the writer to close the file by itself,
+ * and the handler removes what it left at [path] when it lands. Whichever of the wait and the
+ * handler settles first decides which of them owns the file, so a handler that fired as the budget
+ * ran out keeps the movie it closed.
  */
-private fun AVAssetWriter.finishAndWait(deadline: TimeMark): SeedWrite {
+@OptIn(ExperimentalAtomicApi::class, ExperimentalForeignApi::class)
+private fun AVAssetWriter.finishAndWait(
+  path: String,
+  deadline: TimeMark,
+): SeedWrite {
   val finished = dispatch_semaphore_create(0)
-  finishWritingWithCompletionHandler { dispatch_semaphore_signal(finished) }
+  val settled = AtomicBoolean(false)
+  finishWritingWithCompletionHandler {
+    if (!settled.compareAndSet(expectedValue = false, newValue = true)) {
+      NSFileManager.defaultManager.removeItemAtPath(path, error = null)
+    }
+    dispatch_semaphore_signal(finished)
+  }
   val left = (-deadline.elapsedNow()).coerceAtLeast(Duration.ZERO)
   val timedOut = dispatch_semaphore_wait(finished, dispatch_time(DISPATCH_TIME_NOW, left.inWholeNanoseconds)) != 0L
-  val write = seedFinishFor(timedOut, status)
-  if (write == SeedWrite.Slow) cancelWriting()
-  return write
+  val abandoned = timedOut && settled.compareAndSet(expectedValue = false, newValue = true)
+  return seedFinishFor(abandoned, status)
 }
 
 /**
- * How a seed write ends when its finish [timedOut] or left the writer at [status].
+ * How a seed write ends when its finish was [abandoned] to the writer or left the writer at [status].
  *
- * A writer that closed the file wrote a seed whatever the wait made of it, since a handler firing
- * as the budget runs out still leaves a movie there to cut from. A finish that ran out with nothing
- * closed is the same kind of slow as a frame that did, since the encoder it waited on is usually
- * warm by the next lowering. Every other end the writer answered for itself.
+ * A finish abandoned to its writer is the same kind of slow as a frame that ran the wait out, since
+ * the encoder it waited on is usually warm by the next lowering. Its file is the writer's to remove,
+ * so even one read as closed is not a seed. A finish the wait saw land wrote a seed when the writer
+ * closed the file, and every other end the writer answered for itself.
  */
 internal fun seedFinishFor(
-  timedOut: Boolean,
+  abandoned: Boolean,
   status: AVAssetWriterStatus,
 ): SeedWrite =
   when {
+    abandoned -> SeedWrite.Slow
     status == AVAssetWriterStatusCompleted -> SeedWrite.Written
-    timedOut -> SeedWrite.Slow
     else -> SeedWrite.Failed
   }
 

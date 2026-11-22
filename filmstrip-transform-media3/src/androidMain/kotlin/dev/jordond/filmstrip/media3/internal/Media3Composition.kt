@@ -63,6 +63,9 @@ public fun ResolvedComposition.toMedia3(bounds: Media3ClipReads): Composition =
  * A player gives [slotPin] to the repeats it draws, so a paused one can hold a slot.
  *
  * A player sets [liveGain] so the level of a clip it is already playing can be changed in place.
+ *
+ * A player and a frame reader set [drawsFrames], since they draw a copy's frames themselves where an export writes the
+ * source's samples. A copied SD clip then opens on [SdPrimariesHead].
  */
 internal fun ResolvedComposition.toMedia3(
   wrapper: EffectWrapper,
@@ -72,10 +75,12 @@ internal fun ResolvedComposition.toMedia3(
   liveGain: Boolean = false,
   writesEverySlot: Boolean = false,
   slotPin: SlotPin? = null,
+  drawsFrames: Boolean = false,
 ): Composition {
   val keepAudio = output.audioCodec != AudioCodec.None
   val keepVideo = audio != AudioSpec.AudioOnly
-  val lowering = Lowering(this, wrapper, bounds, ownsAudioSpeed, exactLengths, liveGain, writesEverySlot, slotPin)
+  val lowering =
+    Lowering(this, wrapper, bounds, ownsAudioSpeed, exactLengths, liveGain, writesEverySlot, slotPin, drawsFrames)
   val sequences =
     tracks
       .filter { it.clips.isNotEmpty() }

@@ -135,7 +135,9 @@ The FFmpeg backend keeps an SD source's codes and tags when every clip shares on
 colour, and its preview and thumbnails draw that colour too. Beside anything else, a BT.709 clip or a tone mapped HDR
 clip or another SD colour, it writes the file as true BT.709, moving each SD clip's primaries. An effect that draws on
 the picture, a grade or an overlay or `Vhs`, does the same on its own, so it reads the clip's colour as BT.709 on every
-backend. A trim, a rotate, a crop or a scale keeps the codes and tags, and so does an effect that renders nothing. A
+backend. A `Fill.Solid` in a colour that shows beside the clip does too, so the fill displays the colour it was given.
+A grey fill or a blurred one keeps the codes and tags. A trim, a rotate, a crop or a scale keeps them as well, and so
+does an effect that renders nothing. A
 build with no `colorspace` filter refuses a clip on SD primaries. A source with no tags stays that way with its codes
 unmoved, so a player that guesses its colour by frame size, the way VideoToolbox does, can guess differently once it is
 scaled up.

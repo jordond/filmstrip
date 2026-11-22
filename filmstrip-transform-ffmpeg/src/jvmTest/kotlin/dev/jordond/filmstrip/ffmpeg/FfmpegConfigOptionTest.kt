@@ -1,6 +1,7 @@
 package dev.jordond.filmstrip.ffmpeg
 
 import dev.jordond.filmstrip.Filmstrip
+import dev.jordond.filmstrip.FilmstripBuilder
 import dev.jordond.filmstrip.FilmstripComponents
 import dev.jordond.filmstrip.ffmpeg.internal.FfmpegExportEngine
 import io.kotest.matchers.collections.shouldHaveSize
@@ -49,6 +50,18 @@ class FfmpegConfigOptionTest {
     components.configs() shouldBe listOf(other)
   }
 
+  @Test
+  fun `an instance keeps the config it was built with when the builder sets another`() {
+    val builder = FilmstripBuilder().ffmpegBackend().ffmpeg { executablePath = PATH }
+    val first = builder.build().components
+    builder.ffmpeg { executablePath = OTHER_PATH }
+
+    val second = builder.build().components
+
+    first.configs() shouldBe listOf(FfmpegConfig(executablePath = PATH))
+    second.configs() shouldBe listOf(FfmpegConfig(executablePath = OTHER_PATH))
+  }
+
   private fun FilmstripComponents.configs(): List<FfmpegConfig> =
     exportEngineFactories.map {
       it
@@ -59,5 +72,6 @@ class FfmpegConfigOptionTest {
 
   private companion object {
     const val PATH = "/opt/ffmpeg/bin/ffmpeg"
+    const val OTHER_PATH = "/elsewhere/ffmpeg"
   }
 }

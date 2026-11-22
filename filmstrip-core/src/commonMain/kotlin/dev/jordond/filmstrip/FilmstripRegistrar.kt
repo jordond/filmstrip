@@ -44,6 +44,9 @@ public interface FilmstripRegistrar {
   /**
    * Adds this artifact's components to [builder].
    *
+   * Called once for every instance built, with a builder that instance alone reads. An option read off [builder]
+   * later is the one that instance was built with.
+   *
    * @param builder The builder the components go on.
    */
   public fun register(builder: FilmstripBuilder)

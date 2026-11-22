@@ -14,6 +14,7 @@ import dev.jordond.filmstrip.ffmpeg.support.FfmpegExportFixture
 import dev.jordond.filmstrip.ffmpeg.support.hostFfmpeg
 import dev.jordond.filmstrip.ffmpeg.support.hostFfprobe
 import dev.jordond.filmstrip.ffmpeg.support.regionAverage
+import dev.jordond.filmstrip.geometry.Size
 import io.kotest.assertions.withClue
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.nulls.shouldNotBeNull
@@ -60,10 +61,13 @@ internal abstract class SdColorTestCase {
     }
   }
 
-  protected fun ByteArray.readAt(xFraction: Double): DoubleArray {
+  protected fun ByteArray.readAt(
+    xFraction: Double,
+    top: Int = CLIP_HEIGHT / 2 - READ_SIDE / 2,
+  ): DoubleArray {
     val sums = DoubleArray(RGB)
     val left = (CLIP_WIDTH * xFraction).toInt() - READ_SIDE / 2
-    for (row in CLIP_HEIGHT / 2 - READ_SIDE / 2 until CLIP_HEIGHT / 2 + READ_SIDE / 2) {
+    for (row in top until top + READ_SIDE) {
       for (column in left until left + READ_SIDE) {
         val at = (row * CLIP_WIDTH + column) * RGBA
         repeat(RGB) { sums[it] += (this[at + it].toInt() and BYTE_MASK).toDouble() }
@@ -77,13 +81,14 @@ internal abstract class SdColorTestCase {
     xFraction: Double,
     height: Int = CLIP_HEIGHT,
     at: Duration = Duration.ZERO,
+    top: Int = height / 2 - READ_SIDE / 2,
   ): DoubleArray {
     val width = height * CLIP_WIDTH / CLIP_HEIGHT
     val read =
       regionAverage(
         file.absolutePath,
         (width * xFraction).toInt() - READ_SIDE / 2,
-        height / 2 - READ_SIDE / 2,
+        top,
         READ_SIDE,
         at,
       )
@@ -178,6 +183,9 @@ internal abstract class SdColorTestCase {
     const val BYTE_MASK = 0xFF
     const val UPSCALED_HEIGHT = 720
     const val ODD_READ = 100
+    const val BARRED_HEIGHT = 480
+    const val BAR_TOP = 20
+    const val PICTURE_TOP = BARRED_HEIGHT / 2 - READ_SIDE / 2
 
     // Two H.264 encodes of one frame move a colour by a few codes on their own.
     const val SD_CODES = 4.0
@@ -192,6 +200,9 @@ internal abstract class SdColorTestCase {
     const val TAGS_PQ = "colorspace=bt2020nc:color_primaries=bt2020:color_trc=smpte2084"
 
     val BT709_TAGS = listOf("bt709", "bt709", "bt709")
+
+    // A frame taller than the clip, which leaves a fill bar above and below it.
+    val BARRED_FRAME = Size(CLIP_WIDTH, BARRED_HEIGHT)
     val UNKNOWN_TAGS = listOf("unknown", "unknown", "unknown")
     val KEPT_CLIPS =
       listOf(

@@ -42,6 +42,9 @@ import kotlin.time.Duration.Companion.milliseconds
  *
  * With [writesEverySlot] set, a clip's video opens on a [SlotRepeat] so every slot it covers is drawn. Without it a
  * sample is drawn once, on the first slot that shows it. Each of them reads [slotPin].
+ *
+ * With [drawsFrames] set, the lowering is one that draws a copy's frames itself, as a preview does, so a copied SD clip
+ * opens on [SdPrimariesHead]. Without it a copy's video item carries no effect and its samples are written as they are.
  */
 internal class Lowering(
   private val plan: ResolvedComposition,
@@ -52,6 +55,7 @@ internal class Lowering(
   private val liveGain: Boolean,
   private val writesEverySlot: Boolean = false,
   private val slotPin: SlotPin? = null,
+  private val drawsFrames: Boolean = false,
 ) {
   /**
    * The video of [track] on the output frame grid, or null when none of its clips covers a slot.
@@ -251,10 +255,14 @@ internal class Lowering(
               clipAudioProcessors(mixesAudio, liveGain)
           },
           // A copy writes the source's own samples, so a clip carrying video here has no frame to place.
-          if (removeVideo) emptyList() else effects.toMedia3Effects().map(wrapper::wrap),
+          if (removeVideo) emptyList() else listOfNotNull(drawnSdHead()) + effects.toMedia3Effects().map(wrapper::wrap),
         ),
       ).build()
   }
+
+  // Ahead of everything the wrapper sees, as on the grid.
+  private fun ResolvedClip.drawnSdHead(): SdPrimariesHead? =
+    if (drawsFrames) bounds.sdPrimariesOf(this)?.let(::SdPrimariesHead) else null
 
   /**
    * A clip's audio clipped from the access unit before the one holding its trim start, which media3 then decodes whole,

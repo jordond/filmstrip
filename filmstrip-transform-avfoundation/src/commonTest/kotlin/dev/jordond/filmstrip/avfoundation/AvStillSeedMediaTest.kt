@@ -13,6 +13,7 @@ import dev.jordond.filmstrip.avfoundation.internal.still.stillSeed
 import dev.jordond.filmstrip.avfoundation.internal.still.stillSeedAsset
 import dev.jordond.filmstrip.avfoundation.internal.still.stillSeedPath
 import dev.jordond.filmstrip.avfoundation.internal.still.waitsForSeedInput
+import dev.jordond.filmstrip.avfoundation.internal.still.writeSeedMovie
 import dev.jordond.filmstrip.avfoundation.internal.time.MEDIA_TIMESCALE
 import dev.jordond.filmstrip.avfoundation.internal.time.toDuration
 import io.kotest.assertions.withClue
@@ -46,9 +47,12 @@ import platform.darwin.dispatch_semaphore_create
 import platform.darwin.dispatch_semaphore_signal
 import platform.darwin.dispatch_semaphore_wait
 import platform.darwin.dispatch_time
+import platform.posix.usleep
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
+import kotlin.test.fail
+import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
 /**
@@ -190,25 +194,58 @@ class AvStillSeedMediaTest {
   // asking for again rather than remembered as refused.
   @Test
   fun `counts a finish that ran the budget out as worth asking again`() {
-    seedFinishFor(timedOut = true, status = AVAssetWriterStatusCancelled) shouldBe SeedWrite.Slow
-    seedFinishFor(timedOut = true, status = AVAssetWriterStatusWriting) shouldBe SeedWrite.Slow
+    seedFinishFor(abandoned = true, status = AVAssetWriterStatusCancelled) shouldBe SeedWrite.Slow
+    seedFinishFor(abandoned = true, status = AVAssetWriterStatusWriting) shouldBe SeedWrite.Slow
   }
 
-  // The boundary the cancel would otherwise land on. A handler that fired as the budget ran out
-  // closed a movie there is nothing wrong with, and rewriting it costs a cold encoder again.
+  // A finish given up on belongs to its writer, which removes the file whenever it closes. A status
+  // read as closed in between is a movie about to go.
   @Test
-  fun `keeps a movie the writer closed as the budget ran out`() {
-    seedFinishFor(timedOut = true, status = AVAssetWriterStatusCompleted) shouldBe SeedWrite.Written
+  fun `leaves a movie closed after the wait gave it up to its writer`() {
+    seedFinishFor(abandoned = true, status = AVAssetWriterStatusCompleted) shouldBe SeedWrite.Slow
   }
 
   // Nothing can be cut from the file until the writer closes it, so a finish that ended anywhere
   // else wrote no seed.
   @Test
   fun `counts a finish by the state the writer closed in`() {
-    seedFinishFor(timedOut = false, status = AVAssetWriterStatusCompleted) shouldBe SeedWrite.Written
+    seedFinishFor(abandoned = false, status = AVAssetWriterStatusCompleted) shouldBe SeedWrite.Written
     UNFINISHED.forEach { status ->
-      seedFinishFor(timedOut = false, status = status) shouldBe SeedWrite.Failed
+      seedFinishFor(abandoned = false, status = status) shouldBe SeedWrite.Failed
     }
+  }
+
+  // A finish that ran out is left to close the file, and the writer clears the file away once it has.
+  @Test
+  fun `leaves nothing behind a finish that ran out`() {
+    val paths = List(FINISHES) { NSTemporaryDirectory() + PREFIX + "finish-" + it + ".mov" }
+    val writes = paths.associateWith { writeSeedMovie(it, RATE, finishBudget = Duration.ZERO) }
+
+    withClue("no finish ran out, so none was left to the writer") {
+      writes.values.count { it == SeedWrite.Slow } shouldNotBe 0
+    }
+    writes.forEach { (path, write) ->
+      when (write) {
+        SeedWrite.Slow -> withClue("the writer left $path behind") { goneWithin(path).shouldBeTrue() }
+        SeedWrite.Written -> withClue("no movie at $path") { exists(path).shouldBeTrue() }
+        SeedWrite.Failed -> fail("the writer at $path stopped instead of finishing")
+      }
+      remove(path)
+    }
+  }
+
+  // The lowering removes the staging file as soon as the write answers slow, which is before the
+  // writer is done with it.
+  @Test
+  fun `leaves nothing behind a finish whose file was already removed`() {
+    val path = NSTemporaryDirectory() + PREFIX + "finish-removed.mov"
+
+    val write = writeSeedMovie(path, RATE, finishBudget = Duration.ZERO)
+    remove(path)
+
+    write shouldNotBe SeedWrite.Failed
+    usleep(SETTLE_MICROS)
+    withClue("the writer put $path back") { exists(path).shouldBeFalse() }
   }
 
   @Test
@@ -286,6 +323,19 @@ class AvStillSeedMediaTest {
     return withClue("nothing at $path to read a date from") { date.shouldNotBeNull() }.timeIntervalSinceReferenceDate
   }
 
+  private fun exists(path: String): Boolean = NSFileManager.defaultManager.fileExistsAtPath(path)
+
+  /**
+   * Whether [path] is gone before [GONE_POLLS] looks have passed.
+   */
+  private fun goneWithin(path: String): Boolean {
+    repeat(GONE_POLLS) {
+      if (!exists(path)) return true
+      usleep(POLL_MICROS)
+    }
+    return !exists(path)
+  }
+
   private fun remove(path: String) {
     NSFileManager.defaultManager.removeItemAtPath(path, error = null)
   }
@@ -294,6 +344,11 @@ class AvStillSeedMediaTest {
 
   private companion object {
     const val PREFIX = "filmstrip-still-seed-"
+
+    const val FINISHES = 20
+    const val POLL_MICROS = 10_000u
+    const val GONE_POLLS = 500
+    const val SETTLE_MICROS = 500_000u
 
     // Rates no export encodes at, so no case here shares a seed with one that exports for real.
     const val RATE = 7

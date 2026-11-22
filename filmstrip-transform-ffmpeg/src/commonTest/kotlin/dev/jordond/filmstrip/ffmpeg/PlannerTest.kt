@@ -12,6 +12,7 @@ import dev.jordond.filmstrip.edit.AudioLevel
 import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.EnvelopePoint
+import dev.jordond.filmstrip.edit.OutputFrame
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.TrackContent
@@ -786,6 +787,39 @@ class PlannerTest {
       moved.filterGraph shouldContain bt709Tags().render()
       moved.previewColor shouldBe emptyList()
       moved.filterGraph shouldContain "colorspace=ispace=smpte170m:iprimaries=smpte170m"
+    }
+  }
+
+  @Test
+  fun `one SD colour writes BT709 under a coloured fill a viewer can see`() {
+    val sd = mapOf<MediaSource, SdColor>(landscape to SdColor(SMPTE_C_PRIMARIES, "smpte170m"))
+
+    fun lowered(
+      fill: Fill,
+      frame: OutputFrame = OutputFrame.Fixed(Size(640, 640)),
+    ): Invocation =
+      checkNotNull(
+        planner(toolchain(CATALOGUE_FILTERS + SD_FILTERS))
+          .lower(
+            Composition(listOf(Track(listOf(Clip(landscape)))), fill = fill, frame = frame),
+            Ask(ExportSpec(), device(), infos),
+            sdColors = sd,
+          ).graph,
+      )
+
+    val moved = lowered(Fill.Solid(0xFFC84632.toInt()))
+    moved.filterGraph shouldContain bt709Tags().render()
+    moved.previewColor shouldBe emptyList()
+    moved.filterGraph shouldContain "colorspace=ispace=smpte170m:iprimaries=smpte170m"
+
+    listOf(
+      lowered(Fill.Solid(0xFF808080.toInt())),
+      lowered(Fill.Black),
+      lowered(Fill.Solid(0xFFC84632.toInt()), OutputFrame.Auto),
+    ).forEach { kept ->
+      kept.filterGraph shouldNotContain bt709Tags().render()
+      kept.filterGraph shouldNotContain SD_COLOR_FILTER
+      kept.previewColor.single().name shouldBe SD_COLOR_FILTER
     }
   }
 

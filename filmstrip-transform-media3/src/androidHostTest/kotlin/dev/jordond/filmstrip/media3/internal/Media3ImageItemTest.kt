@@ -157,6 +157,49 @@ class Media3ImageItemTest {
       .first() shouldBe SdPrimariesHead(SMPTE_C_PRIMARIES)
   }
 
+  @Test
+  fun `a copy plan lowered for a preview opens its video item on the sd head`() {
+    val video = videoClip()
+    val composition = composition(video, content = TrackContent.Video, path = ExportPath.Copy)
+    val bounds = Media3ClipReads(emptyMap(), mapOf(video.source to SMPTE_C_PRIMARIES))
+    val preview = composition.toMedia3Preview(bounds)
+
+    preview.spans.single().effects shouldBe listOf(SdPrimariesHead(SMPTE_C_PRIMARIES))
+    preview
+      .readbacksAt(listOf(IN_GAP), revision = 1)
+      .shouldNotBeNull()
+      .single()
+      .span.effects shouldBe listOf(SdPrimariesHead(SMPTE_C_PRIMARIES))
+  }
+
+  @Test
+  fun `a copy plan lowered for an export has no video effect`() {
+    val video = videoClip()
+    val composition = composition(video, content = TrackContent.Video, path = ExportPath.Copy)
+    val bounds = Media3ClipReads(emptyMap(), mapOf(video.source to SMPTE_C_PRIMARIES))
+
+    composition
+      .toMedia3(bounds)
+      .sequences
+      .single()
+      .editedMediaItems
+      .single()
+      .effects.videoEffects shouldBe emptyList()
+  }
+
+  @Test
+  fun `a copied hdr clip lowered for a preview gets no sd head`() {
+    val video = videoClip(hdrTransfer = HdrTransfer.Pq)
+    val composition = composition(video, content = TrackContent.Video, path = ExportPath.Copy)
+    val bounds = Media3ClipReads(emptyMap(), mapOf(video.source to SMPTE_C_PRIMARIES))
+
+    composition
+      .toMedia3Preview(bounds)
+      .spans
+      .single()
+      .effects shouldBe emptyList()
+  }
+
   // The rounded field never moves what comes after the still. A clip after one opens on its own
   // first slot, read in the middle of the timeline where the error would have piled up.
   @Test
@@ -246,6 +289,7 @@ class Media3ImageItemTest {
     frameRate: Int = 30,
     content: TrackContent = TrackContent.AudioAndVideo,
     trackStart: Duration = Duration.ZERO,
+    path: ExportPath = ExportPath.Transcode,
   ): ResolvedComposition =
     ResolvedComposition(
       tracks =
@@ -274,7 +318,7 @@ class Media3ImageItemTest {
       hdrTransfer = null,
       audio = AudioSpec.Keep,
       adjustments = emptyList(),
-      path = ExportPath.Transcode,
+      path = path,
     )
 
   /**

@@ -18,6 +18,7 @@ import dev.jordond.filmstrip.effects.filters.FilterEffectResolver
 import dev.jordond.filmstrip.effects.filters.tape.TapePictureParams
 import dev.jordond.filmstrip.effects.filters.tape.TapePictureSignal
 import dev.jordond.filmstrip.effects.filters.vhs.Vhs
+import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
@@ -66,6 +67,10 @@ class BrowserSdColorMediaTest {
   @Test
   fun aClipTaggedEbuDisplaysTheSameColourInAPreview() =
     runTest { assertPreviewDisplayed(SdClips.ebu, "bt470bg", EBU_PRIMARIES) }
+
+  @Test
+  fun aCopiedClipTaggedSmpte170mDisplaysTheSameColourInAPreview() =
+    runTest { assertPreviewDisplayed(SdClips.smpte170m, "smpte170m", SMPTE_C_PRIMARIES, ExportPath.Copy) }
 
   @Test
   fun aVhsOnATaggedClipReadsTheSignalOverTheClipsCorrectedColourAtBothScopes() =
@@ -156,11 +161,12 @@ class BrowserSdColorMediaTest {
     clip: ByteArray,
     named: String,
     primaries: Int,
+    path: ExportPath = ExportPath.Transcode,
   ) {
     val source = MediaSource.Bytes(clip)
     val frame = firstCodes(source)
     frame.primaries shouldBe named
-    val drawn = previewFrameOf(source)
+    val drawn = previewFrameOf(source, path = path)
     BAR_CENTRES.forEach { x ->
       assertCodes(drawn.rgbAt(x, MIDDLE), frame.displayedAt(x, primaries), x, PREVIEW_CODES)
     }
@@ -189,8 +195,9 @@ class BrowserSdColorMediaTest {
   private suspend fun previewFrameOf(
     source: MediaSource,
     edit: Composition = single(source),
+    path: ExportPath? = null,
   ): PreviewFrame {
-    val preview =
+    val resolved =
       webCodecsExportEngine(
         components =
           ComponentRegistry
@@ -199,10 +206,11 @@ class BrowserSdColorMediaTest {
             .addEffectResolver(FilterEffectResolver())
             .build(),
         prober = BrowserProber(),
-      ).resolve(edit, ExportSpec(videoCodec = VideoCodec.H264, audioCodec = AudioCodec.None))
+      ).resolve(edit, if (path == ExportPath.Copy) ExportSpec() else TRANSCODED)
         .shouldBeInstanceOf<ResolveResult.Resolved>()
         .composition
-        .toBrowserPreview(edit)
+    path?.let { resolved.path shouldBe it }
+    val preview = resolved.toBrowserPreview(edit)
     try {
       return preview.frameAt(Duration.ZERO).shouldNotBeNull()
     } finally {
@@ -291,6 +299,7 @@ class BrowserSdColorMediaTest {
   }
 
   private companion object {
+    val TRANSCODED = ExportSpec(videoCodec = VideoCodec.H264, audioCodec = AudioCodec.None)
     const val BT709 = 1
     const val BIT_DEPTH = 8
     const val RGB_CHANNELS = 3

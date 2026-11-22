@@ -8,6 +8,7 @@ import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
+import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.MediaSource
@@ -28,6 +29,7 @@ import dev.jordond.filmstrip.thumbnail.ThumbnailResult
 import dev.jordond.filmstrip.thumbnail.ThumbnailSource
 import io.kotest.assertions.withClue
 import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.cinterop.BetaInteropApi
 import kotlinx.cinterop.ExperimentalForeignApi
@@ -158,6 +160,7 @@ class AppleSdColorPreviewHardwareTest {
             .plan(editOf(path), PreviewQualityPolicy.Full, ExportSpec())
             .shouldBeInstanceOf<PlanResult.Ready<PreviewPlan>>()
             .plan
+        plan.resolved.path shouldBe ExportPath.Copy
         val laid = plan.resolved.toAvComposition()
         val output =
           AVPlayerItemVideoOutput(

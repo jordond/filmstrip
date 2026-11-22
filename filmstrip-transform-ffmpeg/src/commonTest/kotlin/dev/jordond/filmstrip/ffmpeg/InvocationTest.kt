@@ -111,49 +111,6 @@ class InvocationTest {
     arguments.shouldNotContain("smpte2084")
   }
 
-  // x265 does not read the container-level color tags back out of its own bitstream, so HDR10 has
-  // to be spelled again in its own params. hevc_videotoolbox has no such gap, so it stays untouched.
-  @Test
-  fun `repeats HDR10 signalling in x265-params only for libx265`() {
-    argumentsFor(VideoCodec.Hevc, "libx265", HdrTransfer.Pq).after("-x265-params") shouldBe
-      "colorprim=bt2020:transfer=smpte2084:colormatrix=bt2020nc:hdr10=1:repeat-headers=1"
-    argumentsFor(VideoCodec.Hevc, "hevc_videotoolbox", HdrTransfer.Pq).shouldNotContain("-x265-params")
-  }
-
-  // libx265 4.1 aborts on these widths with cutree on, so the literals pin that encoder's own limit.
-  @Test
-  fun `turns cutree off for libx265 across the widths it crashes on`() {
-    listOf(34, 42, 48).forEach { width ->
-      withClue("$width wide") {
-        argumentsFor(VideoCodec.Hevc, "libx265", size = Size(width, 720)).after("-x265-params") shouldBe "cutree=0"
-      }
-    }
-  }
-
-  @Test
-  fun `leaves cutree on for libx265 either side of the widths it crashes on`() {
-    listOf(32, 50).forEach { width ->
-      withClue("$width wide") {
-        argumentsFor(VideoCodec.Hevc, "libx265", size = Size(width, 720)).shouldNotContain("-x265-params")
-      }
-    }
-  }
-
-  @Test
-  fun `merges cutree into the one x265-params an HDR encode writes`() {
-    val arguments = argumentsFor(VideoCodec.Hevc, "libx265", HdrTransfer.Pq, size = Size(42, 42))
-
-    arguments.count { it == "-x265-params" } shouldBe 1
-    arguments.after("-x265-params") shouldBe
-      "colorprim=bt2020:transfer=smpte2084:colormatrix=bt2020nc:hdr10=1:repeat-headers=1:cutree=0"
-  }
-
-  @Test
-  fun `gives other encoders no x265 params at a width libx265 crashes on`() {
-    argumentsFor(VideoCodec.Hevc, "hevc_videotoolbox", size = Size(42, 42)).shouldNotContain("-x265-params")
-    argumentsFor(VideoCodec.H264, "libx264", size = Size(42, 42)).shouldNotContain("-x265-params")
-  }
-
   // An SDR export's tags come from its frames, which the graph's own last node sets, so only a kept
   // grade names its colour on the command line.
   @Test

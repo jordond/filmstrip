@@ -43,7 +43,7 @@ import kotlin.time.Duration
  * @param hdrPixelFormat The format a kept grade is written in, from [hdrPixelFormatFor], or null
  *   for an output that carries none.
  * @param sdColors The sources on SD primaries, and the colour each decodes with.
- * @param keepsSdColor Whether a plan of one SD colour can keep it, so no effect in it reads the frame's colour.
+ * @param keepsSdColor Whether a plan of one SD colour can keep it, so nothing it draws reads or names a colour.
  * @param tailFormatSources The sources that already decode to the format a clip's tail ends on.
  * @param readsLivePlanes Whether a fragment carrying [dev.jordond.filmstrip.effect.FilterFragment.live] runs that form.
  * @param liveForm This plan's form that reads live planes, handed through on the invocation.

@@ -187,6 +187,7 @@ internal fun Invocation.arguments(
   outputPath: String,
 ): List<String> =
   buildList {
+    val extra = extraArguments(config)
     add(toolchain.ffmpeg)
     add("-hide_banner")
     add("-loglevel")
@@ -255,7 +256,7 @@ internal fun Invocation.arguments(
         add("[$it]")
       } ?: add("-an")
 
-      if (videoLabel != null) addAll(videoArguments())
+      if (videoLabel != null) addAll(videoArguments(extra.x265Params))
       if (audioLabel != null) addAll(audioArguments())
     }
 
@@ -267,7 +268,7 @@ internal fun Invocation.arguments(
     add("-movflags")
     add("+faststart")
 
-    addAll(config.extraArgs)
+    addAll(extra.tail)
     add(outputPath)
   }
 
@@ -319,7 +320,7 @@ internal fun InputSpec.orientationArguments(): List<String> =
 internal fun InputSpec.decoderArguments(): List<String> =
   decoderThreads?.let { listOf("-threads", it.toString()) }.orEmpty()
 
-private fun Invocation.videoArguments(): List<String> =
+private fun Invocation.videoArguments(callerX265Params: List<String>): List<String> =
   buildList {
     // The capability probe named this encoder and the planner chose it, so an unnamed one means a
     // device was built by hand. This errors, so an export never encodes H264 into a file the
@@ -363,8 +364,8 @@ private fun Invocation.videoArguments(): List<String> =
     }
     if (name == "libx265") {
       x265Params().takeIf { it.isNotEmpty() }?.let {
-        add("-x265-params")
-        add(it.joinToString(":"))
+        add(X265_PARAMS_FLAG)
+        add((callerX265Params + it).joinToString(":"))
       }
     }
     val bitrate = checkNotNull(output.bitrate) { "The planner settles a bitrate on every transcode." }.bitsPerSecond
@@ -403,21 +404,6 @@ internal fun keyFrameArguments(
     }
   }
 
-private fun Invocation.x265Params(): List<String> =
-  buildList {
-    // The -color_* flags tag the container. libx265 does not pick them up on its own, so HDR10 signalling has to be
-    // repeated in its own params or a player reading the elementary stream sees SDR.
-    hdrTransfer?.let {
-      add("colorprim=$HDR_PRIMARIES")
-      add("transfer=${it.ffmpegTag}")
-      add("colormatrix=$HDR_MATRIX")
-      add("hdr10=1")
-      add("repeat-headers=1")
-    }
-    if (output.size.width in X265_CUTREE_CRASH_WIDTHS) add("cutree=0")
-    if (output.keyFrameSpacing != null) add("scenecut=0")
-  }
-
 private fun Invocation.audioArguments(): List<String> =
   buildList {
     val format = output.audioFormat ?: return@buildList
@@ -445,10 +431,6 @@ internal fun formatSeconds(value: Double): String {
   val fraction = micros % MICROS_PER_SECOND.toLong()
   return "$whole." + fraction.toString().padStart(MICRO_DIGITS, '0')
 }
-
-// A limit of libx265 itself. Version 4.1 corrupts its heap and aborts on a frame this wide, at any height, rate or bit
-// depth, unless cutree is off. 4.3 encodes these widths either way.
-private val X265_CUTREE_CRASH_WIDTHS = 34..48
 
 internal const val GRAPH_FLAG = "-filter_complex"
 private const val GRAPH_FILE_FLAG = "-/filter_complex"

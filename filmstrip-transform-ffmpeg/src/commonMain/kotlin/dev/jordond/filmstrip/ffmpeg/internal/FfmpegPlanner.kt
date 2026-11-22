@@ -17,6 +17,7 @@ import dev.jordond.filmstrip.ffmpeg.internal.lowering.Invocation
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.LIVE_PROTOCOL
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.SdColor
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.canToneMap
+import dev.jordond.filmstrip.ffmpeg.internal.lowering.drawsAuthoredFill
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.filterNames
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.hdrPixelFormatFor
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.liveFilterNames
@@ -200,7 +201,8 @@ internal class FfmpegPlanner(
         hdrPixelFormat = hdrPixelFormatFor(negotiated.encoderName, negotiated.hdrTransfer),
         bytesRoot = bytesRoot,
         sdColors = sdColors,
-        keepsSdColor = !drawsOnColor && composition.effectsThatRequireSdr().isEmpty(),
+        keepsSdColor =
+          !drawsOnColor && !negotiated.drawsAuthoredFill && composition.effectsThatRequireSdr().isEmpty(),
         tailFormatSources = tailFormatSources,
         readsLivePlanes = readsLivePlanes,
         liveForm = liveForm,
