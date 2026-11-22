@@ -90,7 +90,7 @@ internal actual class PlatformProber actual constructor() {
             val reason = (tracks as? TrackRead.Failed)?.reason
             ProbeResult.Failure(unreadable(reason?.let { "$NO_READABLE_TRACK $it" } ?: NO_READABLE_TRACK))
           }
-          info.video != null && retriever.firstFrameDamaged((tracks as? TrackRead.Read)?.tracks?.video) -> {
+          info.video != null && (tracks as? TrackRead.Read)?.firstSampleDamaged == true -> {
             ProbeResult.Failure(undecodableSource(describe()))
           }
           else -> {
@@ -110,7 +110,8 @@ internal actual class PlatformProber actual constructor() {
     }
 
   /**
-   * Opens the source a second time and pulls out the first video and audio track formats.
+   * Opens the source a second time and pulls out the first video and audio track formats, then decodes the video
+   * track's first sample while the extractor is open.
    *
    * The retriever answers at the file level, so anything track-level has to come from here. These
    * fields refine what the retriever already read, so a source the retriever could open stays a
@@ -134,7 +135,11 @@ internal actual class PlatformProber actual constructor() {
           return TrackRead.Skipped
         }
       }
-      TrackRead.Read(extractor.readTracks())
+      val tracks = extractor.readTracks()
+      val damaged =
+        tracks.video != null && tracks.videoIndex != null &&
+          extractor.firstSampleDamaged(tracks.videoIndex, tracks.video)
+      TrackRead.Read(tracks, firstSampleDamaged = damaged)
     } catch (unreadable: IOException) {
       TrackRead.Failed(unreadable.message)
     } catch (unopened: RuntimeException) {
@@ -204,17 +209,25 @@ internal actual class PlatformProber actual constructor() {
 
   private fun MediaExtractor.readTracks(): SourceTracks {
     var video: MediaFormat? = null
+    var videoIndex: Int? = null
     val audio = mutableListOf<MediaFormat>()
 
     for (index in 0 until trackCount) {
       val format = getTrackFormat(index)
       when (format.string(MediaFormat.KEY_MIME)?.substringBefore('/')) {
-        "video" -> if (video == null) video = format
-        "audio" -> audio += format
+        "video" -> {
+          if (video == null) {
+            video = format
+            videoIndex = index
+          }
+        }
+        "audio" -> {
+          audio += format
+        }
       }
     }
 
-    return SourceTracks(video = video, audio = audio)
+    return SourceTracks(video = video, videoIndex = videoIndex, audio = audio)
   }
 
   private fun MediaMetadataRetriever.readInfo(
@@ -300,12 +313,13 @@ internal actual class PlatformProber actual constructor() {
     }
 
   /**
-   * What the extractor made of a source: its tracks, the reason it could not open it, or nothing
-   * when it was never asked.
+   * What the extractor made of a source: its tracks and whether the first video sample failed to decode, the reason
+   * it could not open it, or nothing when it was never asked.
    */
   private sealed interface TrackRead {
     class Read(
       val tracks: SourceTracks,
+      val firstSampleDamaged: Boolean,
     ) : TrackRead
 
     class Failed(
@@ -320,10 +334,12 @@ internal actual class PlatformProber actual constructor() {
    *
    * @property video The first video track, or null when the source has none the extractor could
    *   read.
+   * @property videoIndex Where [video] sits among the extractor's tracks.
    * @property audio Every audio track, in the container's order.
    */
   private class SourceTracks(
     val video: MediaFormat?,
+    val videoIndex: Int?,
     val audio: List<MediaFormat>,
   )
 
