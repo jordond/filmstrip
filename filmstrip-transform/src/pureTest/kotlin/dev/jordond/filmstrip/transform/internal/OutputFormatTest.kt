@@ -9,6 +9,9 @@ import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.Verdict
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.geometry.outputHeightRefusal
+import dev.jordond.filmstrip.transform.internal.negotiation.fittedBetween
+import dev.jordond.filmstrip.transform.internal.negotiation.fittedTo
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedHdr
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlin.test.Test
@@ -81,6 +84,87 @@ class OutputFormatTest {
     val plan = verdict.shouldBeInstanceOf<Verdict.Capable>().plan
     plan.path shouldBe ExportPath.Copy
     plan.output.size shouldBe Size(3840, 2160)
+  }
+
+  @Test
+  fun `a frame smaller than the encoder accepts is lifted to its floor and reported`() {
+    val floored = fixture.encoder(VideoCodec.H264, minSize = Size(16, 16))
+    val verdict =
+      fixture.plan(
+        composition(fixture.clip(size = Size(40, 10))),
+        device = fixture.device(video = listOf(floored)),
+        muxerAccepts = { false },
+      )
+
+    val degraded = verdict.shouldBeInstanceOf<Verdict.Degraded>()
+    degraded.plan.output.size shouldBe Size(40, 10).fittedBetween(floored.minSize, floored.maxSize, 2)
+    degraded.plan.output.size shouldBe Size(64, 16)
+    degraded.adjustments.single().kind shouldBe AdjustmentKind.ResolutionClamped
+  }
+
+  @Test
+  fun `a frame between the floor and the ceiling is left alone`() {
+    val floored = fixture.encoder(VideoCodec.H264, minSize = Size(16, 16))
+    val verdict =
+      fixture.plan(
+        composition(fixture.clip(size = Size(640, 360))),
+        device = fixture.device(video = listOf(floored)),
+        muxerAccepts = { false },
+      )
+
+    verdict
+      .shouldBeInstanceOf<Verdict.Capable>()
+      .plan.output.size shouldBe Size(640, 360)
+  }
+
+  @Test
+  fun `a frame no size between the floor and the ceiling holds is refused`() {
+    val floored = fixture.encoder(VideoCodec.H264, maxSize = Size(1920, 1080), minSize = Size(16, 16))
+    val verdict =
+      fixture.plan(
+        composition(fixture.clip(size = Size(2, 4000))),
+        device = fixture.device(video = listOf(floored)),
+        muxerAccepts = { false },
+      )
+
+    val refusal = verdict.shouldBeInstanceOf<Verdict.Incapable>().reasons.single()
+    refusal.shouldBeInstanceOf<FilmstripError.UnsupportedResolution>().requested shouldBe Size(2, 4000)
+  }
+
+  @Test
+  fun `a preview of a frame under the floor is planned at the size its export writes`() {
+    val floored = fixture.encoder(VideoCodec.H264, minSize = Size(16, 16))
+    val edit = composition(fixture.clip(size = Size(40, 10)))
+    val device = fixture.device(video = listOf(floored))
+
+    val export = fixture.plan(edit, device = device, muxerAccepts = { false })
+    val preview = fixture.plan(edit, device = device, muxerAccepts = { false }, grade = ResolvedHdr.Keep)
+
+    val written =
+      export
+        .shouldBeInstanceOf<Verdict.Degraded>()
+        .plan.output.size
+    preview
+      .shouldBeInstanceOf<Verdict.Degraded>()
+      .plan.output.size shouldBe written
+  }
+
+  @Test
+  fun `a preview of a frame no encoder size holds is still planned at the size the ceiling leaves it`() {
+    val floored = fixture.encoder(VideoCodec.H264, maxSize = Size(1920, 1080), minSize = Size(16, 16))
+    val verdict =
+      fixture.plan(
+        composition(fixture.clip(size = Size(2, 4000))),
+        device = fixture.device(video = listOf(floored)),
+        muxerAccepts = { false },
+        grade = ResolvedHdr.Keep,
+      )
+
+    val planned =
+      verdict
+        .shouldBeInstanceOf<Verdict.Degraded>()
+        .plan.output.size
+    planned shouldBe Size(2, 4000).fittedTo(floored.maxSize, floored.sizeAlignment)
   }
 
   @Test

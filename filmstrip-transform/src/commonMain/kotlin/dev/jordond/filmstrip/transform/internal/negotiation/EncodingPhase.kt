@@ -25,6 +25,10 @@ import dev.jordond.filmstrip.transform.internal.encode.resolveVideoBitrate
  * clamp into a refusal. A copy runs no encoder, so there is no ceiling for the frame or the rate to
  * clamp to and the frame goes across whole.
  *
+ * A frame under the encoder's floor is lifted to it by [fittedBetween] and reported the same way. A frame whose lift
+ * runs past the ceiling is refused, since no frame of its shape fits the encoder. A negotiation that writes no file
+ * keeps that frame at the size the ceiling leaves it, so a preview still draws it.
+ *
  * A transcode that writes video always settles on a bitrate, the one the spec names or else the one its quality tier
  * resolves to through [resolveVideoBitrate], with [DEFAULT_QUALITY] standing in for no tier. One above the encoder's
  * own ceiling is held to it and reported the same way the frame is. A copy and an audio-only export settle none.
@@ -55,10 +59,20 @@ internal fun encodingOf(
 
   val ceiling =
     tightest(encoder?.maxSize, MAX_STILL_FRAME.takeIf { framing.framedByStill && spec.heightPx == null })
+  val alignment = encoder?.sizeAlignment ?: SIZE_ALIGNMENT
+  val floor = encoder?.minSize.takeIf { !copies }
+  val between = requestedSize.fittedBetween(floor, ceiling, alignment)
   val outputSize =
-    if (copies) requestedSize else requestedSize.fittedTo(ceiling, encoder?.sizeAlignment ?: SIZE_ALIGNMENT)
+    when {
+      copies -> requestedSize
+      between != null -> between
+      // Nothing is encoded, so a shape no encoder frame holds is still drawn, at the size the ceiling leaves it.
+      ask.writesNoFile -> requestedSize.fittedTo(ceiling, alignment)
+      else -> return Phase.Refused(noFrameFits(requestedSize, checkNotNull(floor), checkNotNull(ceiling)))
+    }
   val overCeiling =
     !copies && ceiling != null && (requestedSize.width > ceiling.width || requestedSize.height > ceiling.height)
+  val underFloor = floor != null && between != null && requestedSize.sitsUnder(floor, ceiling)
   val frameRate = resolveFrameRate(spec, framing.firstVideo.frameRate, encoder?.maxFrameRate.takeIf { !copies })
   val asked =
     if (copies || !streams.keepVideo) {
@@ -78,6 +92,8 @@ internal fun encodingOf(
       bitrate = maxBitrate ?: asked,
       bitrateClamp = asked?.let { requested -> maxBitrate?.let { bitrateClamp(requested, it) } },
       keyFrameSpacing = if (copies || !streams.keepVideo) null else keyFrameIntervalOf(spec, frameRate),
+      floor = floor,
+      underFloor = underFloor,
       layoutFrame = ask.layoutSize ?: outputSize,
       // A copy runs no effect chain and a tone-mapped export is SDR by the time one
       // runs, so the transfer an effect is lowered against is the one the encoder is handed.
@@ -92,6 +108,18 @@ internal fun encodingOf(
     ),
   )
 }
+
+private fun noFrameFits(
+  requested: Size,
+  floor: Size,
+  ceiling: Size,
+): FilmstripError.UnsupportedResolution =
+  FilmstripError.UnsupportedResolution(
+    requested,
+    ceiling,
+    "The encoder takes no frame under ${floor.width}x${floor.height} or over ${ceiling.width}x${ceiling.height}, " +
+      "and no frame shaped like ${requested.width}x${requested.height} sits between them.",
+  )
 
 private fun bitrateClamp(
   asked: Bitrate,

@@ -91,6 +91,22 @@ class ConcessionsTest {
   }
 
   @Test
+  fun `a frame under the floor is scaled up and refused strictly in the same words`() {
+    val floor = Size(16, 16)
+    val lifted = Size(40, 10).fittedBetween(floor, null, 2).shouldNotBeNull()
+    val encoding = encodingOf(lifted, floor = floor, underFloor = true)
+
+    val clamp = concessions(framing = framingOf(clip, info, Size(40, 10)), encoding = encoding).single()
+
+    val message =
+      "This export encodes into 16x16 at least, so the frame is scaled up to reach it and keeps its shape."
+    clamp.adjustment shouldBe Adjustment(AdjustmentKind.ResolutionClamped, "40x10", "64x16", message)
+    val refusal = clamp.strictRefusal.shouldBeInstanceOf<FilmstripError.UnsupportedResolution>()
+    refusal.requested shouldBe Size(40, 10)
+    refusal.message shouldBe message
+  }
+
+  @Test
   fun `a frame only off the encoder's alignment rounds each side and names the frame it got`() {
     val clamp =
       concessions(framing = framingOf(clip, info, Size(1921, 1081)), encoding = encodingOf(Size(1920, 1080)))

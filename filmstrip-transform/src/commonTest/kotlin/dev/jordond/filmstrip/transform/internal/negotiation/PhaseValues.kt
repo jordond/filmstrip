@@ -74,7 +74,11 @@ internal fun encodingOf(
   ceiling: Size? = null,
   overCeiling: Boolean = false,
   frameRate: Int = 30,
+  floor: Size? = null,
+  underFloor: Boolean = false,
 ) = Encoding(
+  floor = floor,
+  underFloor = underFloor,
   video = video,
   encoder = null,
   ceiling = ceiling,

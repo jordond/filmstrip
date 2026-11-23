@@ -1,6 +1,7 @@
 package dev.jordond.filmstrip.transform.internal.negotiation
 
 import dev.jordond.filmstrip.FilmstripError
+import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.capability.AudioEncoderCapability
 import dev.jordond.filmstrip.capability.DeviceCapabilities
 import dev.jordond.filmstrip.codec.AudioCodec
@@ -20,6 +21,7 @@ import dev.jordond.filmstrip.media.videoCodecOf
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedHdr
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedTrack
 import kotlin.math.abs
+import kotlin.math.ceil
 import kotlin.math.roundToInt
 
 /**
@@ -329,6 +331,47 @@ internal fun Size.fittedTo(
 }
 
 /**
+ * The frame an encoder is handed for this one: inside [ceiling], at or above [floor], and on the alignment.
+ *
+ * A frame over the ceiling is scaled down the way [fittedTo] does it. A frame with a side under the floor is scaled
+ * up by the smallest factor that brings both sides to the floor, so it keeps its shape, and each side then rounds up
+ * to the alignment. It returns null when the lifted frame runs past the ceiling, which is a shape no frame of this
+ * encoder holds. A null [floor] lifts nothing.
+ */
+@InternalFilmstripApi
+public fun Size.fittedBetween(
+  floor: Size?,
+  ceiling: Size?,
+  alignment: Int,
+): Size? {
+  if (floor == null || !sitsUnder(floor, ceiling)) return fittedTo(ceiling, alignment)
+
+  val within = if (ceiling == null) this else frameWithin(this, ceiling)
+  val step = alignment.coerceAtLeast(1)
+  val scale = maxOf(floor.width.toDouble() / within.width, floor.height.toDouble() / within.height)
+  val lifted =
+    Size(
+      maxOf(floor.width, ceil(within.width * scale - LIFT_SLACK).toInt()).alignedUp(step),
+      maxOf(floor.height, ceil(within.height * scale - LIFT_SLACK).toInt()).alignedUp(step),
+    )
+  return lifted.takeUnless { ceiling != null && (it.width > ceiling.width || it.height > ceiling.height) }
+}
+
+/**
+ * Whether either side of this frame, once it is inside [ceiling], sits under the same side of [floor].
+ */
+internal fun Size.sitsUnder(
+  floor: Size,
+  ceiling: Size?,
+): Boolean {
+  if (width <= 0 || height <= 0) return false
+  val within = if (ceiling == null) this else frameWithin(this, ceiling)
+  return within.width < floor.width || within.height < floor.height
+}
+
+private fun Int.alignedUp(step: Int): Int = (this + step - 1) / step * step
+
+/**
  * The box both [first] and [second] fit inside, or whichever of them is the only one given.
  */
 internal fun tightest(
@@ -340,6 +383,9 @@ internal fun tightest(
     second == null -> first
     else -> Size(minOf(first.width, second.width), minOf(first.height, second.height))
   }
+
+// Keeps a side that lands on a whole pixel from rounding up to the next one on floating point error.
+private const val LIFT_SLACK = 1e-6
 
 private const val DEFAULT_RATE = 30
 private const val DEFAULT_SAMPLE_RATE = 44_100

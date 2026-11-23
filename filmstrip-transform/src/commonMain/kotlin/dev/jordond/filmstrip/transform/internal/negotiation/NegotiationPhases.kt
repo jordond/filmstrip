@@ -143,6 +143,8 @@ internal class Grade(
  * @property ceiling The largest frame the encoder takes, with a still's bound folded in.
  * @property overCeiling Whether the requested frame sat above [ceiling] rather than only off the
  *   encoder's alignment.
+ * @property floor The smallest frame the encoder takes, or null when nothing was asked of one.
+ * @property underFloor Whether the frame was scaled up to reach [floor].
  * @property bitrate The video bitrate the encoder is handed, or null on a copy.
  * @property bitrateClamp The concession made when the bitrate sat above the encoder's ceiling.
  * @property keyFrameSpacing How many frames apart the encoder places key frames, or null on a copy.
@@ -158,6 +160,8 @@ internal class Encoding(
   val bitrate: Bitrate?,
   val bitrateClamp: Concession?,
   val keyFrameSpacing: Int? = null,
+  val floor: Size? = null,
+  val underFloor: Boolean = false,
 )
 
 /**

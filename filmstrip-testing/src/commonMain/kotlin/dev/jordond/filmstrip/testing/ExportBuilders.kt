@@ -173,6 +173,7 @@ public fun testDeviceCapabilities(
  * @param maxBitrate The highest bitrate the encoder accepts, or null when it does not say.
  * @param isHardwareAccelerated Whether the encoder runs on hardware, or null when the platform does not say.
  * @param sizeAlignment What a frame's width and height must be a multiple of.
+ * @param minSize The smallest frame the encoder accepts.
  * @return The encoder.
  */
 public fun testVideoEncoder(
@@ -183,5 +184,15 @@ public fun testVideoEncoder(
   maxBitrate: Bitrate? = null,
   isHardwareAccelerated: Boolean? = true,
   sizeAlignment: Int = 2,
+  minSize: Size = Size(sizeAlignment, sizeAlignment),
 ): VideoEncoderCapability =
-  VideoEncoderCapability(codec, encoderName, maxSize, maxFrameRate, maxBitrate, isHardwareAccelerated, sizeAlignment)
+  VideoEncoderCapability(
+    codec = codec,
+    encoderName = encoderName,
+    maxSize = maxSize,
+    minSize = minSize,
+    maxFrameRate = maxFrameRate,
+    maxBitrate = maxBitrate,
+    isHardwareAccelerated = isHardwareAccelerated,
+    sizeAlignment = sizeAlignment,
+  )

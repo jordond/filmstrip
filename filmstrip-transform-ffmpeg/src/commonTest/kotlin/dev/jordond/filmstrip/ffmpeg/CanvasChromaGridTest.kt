@@ -178,6 +178,7 @@ class CanvasChromaGridTest {
               codec = VideoCodec.H264,
               encoderName = "libx264",
               maxSize = Size(7680, 4320),
+              minSize = Size(2, 2),
               maxFrameRate = null,
               maxBitrate = null,
               isHardwareAccelerated = false,

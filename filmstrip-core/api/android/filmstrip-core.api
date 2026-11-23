@@ -401,7 +401,7 @@ public final class dev/jordond/filmstrip/capability/PreviewFidelity : java/lang/
 }
 
 public final class dev/jordond/filmstrip/capability/VideoEncoderCapability {
-	public synthetic fun <init> (Ldev/jordond/filmstrip/codec/VideoCodec;Ljava/lang/String;Ldev/jordond/filmstrip/geometry/Size;Ljava/lang/Integer;Ldev/jordond/filmstrip/codec/Bitrate;Ljava/lang/Boolean;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (Ldev/jordond/filmstrip/codec/VideoCodec;Ljava/lang/String;Ldev/jordond/filmstrip/geometry/Size;Ldev/jordond/filmstrip/geometry/Size;Ljava/lang/Integer;Ldev/jordond/filmstrip/codec/Bitrate;Ljava/lang/Boolean;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun accepts (Ldev/jordond/filmstrip/geometry/Size;)Z
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getCodec ()Ldev/jordond/filmstrip/codec/VideoCodec;
@@ -409,6 +409,7 @@ public final class dev/jordond/filmstrip/capability/VideoEncoderCapability {
 	public final fun getMaxBitrate-Lb8eIko ()Ldev/jordond/filmstrip/codec/Bitrate;
 	public final fun getMaxFrameRate ()Ljava/lang/Integer;
 	public final fun getMaxSize ()Ldev/jordond/filmstrip/geometry/Size;
+	public final fun getMinSize ()Ldev/jordond/filmstrip/geometry/Size;
 	public final fun getSizeAlignment ()I
 	public fun hashCode ()I
 	public final fun isHardwareAccelerated ()Ljava/lang/Boolean;

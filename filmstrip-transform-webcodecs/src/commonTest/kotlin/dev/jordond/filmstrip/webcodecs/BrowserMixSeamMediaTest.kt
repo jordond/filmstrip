@@ -697,7 +697,10 @@ class BrowserMixSeamMediaTest {
     // carrying a bed takes. Nothing here is measured, so the ladder's own picks never show.
     val MIX_DEVICE =
       DeviceCapabilities(
-        video = listOf(VideoEncoderCapability(VideoCodec.H264, null, Size(3840, 2160), null, null, false, 2)),
+        video =
+          listOf(
+            VideoEncoderCapability(VideoCodec.H264, null, Size(3840, 2160), Size(2, 2), null, null, false, 2),
+          ),
         audio = listOf(AudioEncoderCapability(AudioCodec.Aac, listOf(OUTPUT_RATE), 2)),
         supportsHdrEncoding = false,
         concurrentSessionBudget = null,

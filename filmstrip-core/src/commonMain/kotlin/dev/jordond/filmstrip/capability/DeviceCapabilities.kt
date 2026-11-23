@@ -52,6 +52,8 @@ public class DeviceCapabilities
  *   one: media3, AVFoundation and the browser hand a codec to the platform and let it choose, so there is
  *   no name filmstrip could report that it also invokes.
  * @property maxSize The largest frame it accepts.
+ * @property minSize The smallest frame it accepts, each side a multiple of [sizeAlignment]. Filmstrip scales a
+ * smaller frame up to it and reports the change among the export's adjustments.
  * @property maxFrameRate The highest frame rate it accepts, or null when it does not say.
  * @property maxBitrate The highest bitrate it accepts, or null when it does not say.
  * @property isHardwareAccelerated False for a software encoder, true for a hardware one, or null
@@ -64,6 +66,7 @@ public class VideoEncoderCapability(
   public val codec: VideoCodec,
   public val encoderName: String?,
   public val maxSize: Size,
+  public val minSize: Size,
   public val maxFrameRate: Int?,
   public val maxBitrate: Bitrate?,
   public val isHardwareAccelerated: Boolean?,
@@ -78,6 +81,8 @@ public class VideoEncoderCapability(
   public fun accepts(size: Size): Boolean =
     size.width <= maxSize.width &&
       size.height <= maxSize.height &&
+      size.width >= minSize.width &&
+      size.height >= minSize.height &&
       size.width % sizeAlignment == 0 &&
       size.height % sizeAlignment == 0
 }

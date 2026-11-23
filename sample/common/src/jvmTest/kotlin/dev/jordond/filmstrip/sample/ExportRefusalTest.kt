@@ -35,6 +35,7 @@ class ExportRefusalTest {
         codec = VideoCodec.H264,
         encoderName = null,
         maxSize = Size(1920, 1080),
+        minSize = Size(2, 2),
         maxFrameRate = null,
         maxBitrate = null,
         isHardwareAccelerated = null,

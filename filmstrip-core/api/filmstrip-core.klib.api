@@ -1948,7 +1948,7 @@ final class dev.jordond.filmstrip.capability/ParityNote { // dev.jordond.filmstr
 }
 
 final class dev.jordond.filmstrip.capability/VideoEncoderCapability { // dev.jordond.filmstrip.capability/VideoEncoderCapability|null[0]
-    constructor <init>(dev.jordond.filmstrip.codec/VideoCodec, kotlin/String?, dev.jordond.filmstrip.geometry/Size, kotlin/Int?, dev.jordond.filmstrip.codec/Bitrate?, kotlin/Boolean?, kotlin/Int) // dev.jordond.filmstrip.capability/VideoEncoderCapability.<init>|<init>(dev.jordond.filmstrip.codec.VideoCodec;kotlin.String?;dev.jordond.filmstrip.geometry.Size;kotlin.Int?;dev.jordond.filmstrip.codec.Bitrate?;kotlin.Boolean?;kotlin.Int){}[0]
+    constructor <init>(dev.jordond.filmstrip.codec/VideoCodec, kotlin/String?, dev.jordond.filmstrip.geometry/Size, dev.jordond.filmstrip.geometry/Size, kotlin/Int?, dev.jordond.filmstrip.codec/Bitrate?, kotlin/Boolean?, kotlin/Int) // dev.jordond.filmstrip.capability/VideoEncoderCapability.<init>|<init>(dev.jordond.filmstrip.codec.VideoCodec;kotlin.String?;dev.jordond.filmstrip.geometry.Size;dev.jordond.filmstrip.geometry.Size;kotlin.Int?;dev.jordond.filmstrip.codec.Bitrate?;kotlin.Boolean?;kotlin.Int){}[0]
 
     final val codec // dev.jordond.filmstrip.capability/VideoEncoderCapability.codec|{}codec[0]
         final fun <get-codec>(): dev.jordond.filmstrip.codec/VideoCodec // dev.jordond.filmstrip.capability/VideoEncoderCapability.codec.<get-codec>|<get-codec>(){}[0]
@@ -1962,6 +1962,8 @@ final class dev.jordond.filmstrip.capability/VideoEncoderCapability { // dev.jor
         final fun <get-maxFrameRate>(): kotlin/Int? // dev.jordond.filmstrip.capability/VideoEncoderCapability.maxFrameRate.<get-maxFrameRate>|<get-maxFrameRate>(){}[0]
     final val maxSize // dev.jordond.filmstrip.capability/VideoEncoderCapability.maxSize|{}maxSize[0]
         final fun <get-maxSize>(): dev.jordond.filmstrip.geometry/Size // dev.jordond.filmstrip.capability/VideoEncoderCapability.maxSize.<get-maxSize>|<get-maxSize>(){}[0]
+    final val minSize // dev.jordond.filmstrip.capability/VideoEncoderCapability.minSize|{}minSize[0]
+        final fun <get-minSize>(): dev.jordond.filmstrip.geometry/Size // dev.jordond.filmstrip.capability/VideoEncoderCapability.minSize.<get-minSize>|<get-minSize>(){}[0]
     final val sizeAlignment // dev.jordond.filmstrip.capability/VideoEncoderCapability.sizeAlignment|{}sizeAlignment[0]
         final fun <get-sizeAlignment>(): kotlin/Int // dev.jordond.filmstrip.capability/VideoEncoderCapability.sizeAlignment.<get-sizeAlignment>|<get-sizeAlignment>(){}[0]
 

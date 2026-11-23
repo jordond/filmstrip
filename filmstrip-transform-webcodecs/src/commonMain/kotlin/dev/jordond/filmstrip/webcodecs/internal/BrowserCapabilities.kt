@@ -11,6 +11,7 @@ import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.internal.awaitCatching
 import dev.jordond.filmstrip.transform.internal.HDR_PROBE_SIZE
 import dev.jordond.filmstrip.transform.internal.RESOLUTION_LADDER
+import dev.jordond.filmstrip.transform.internal.smallestAccepted
 import dev.jordond.filmstrip.webcodecs.BROWSER_AAC_ENCODER
 import dev.jordond.filmstrip.webcodecs.internal.interop.AudioEncoder
 import dev.jordond.filmstrip.webcodecs.internal.interop.HDR_VP9_CODEC
@@ -69,25 +70,24 @@ internal class BrowserCapabilities {
 
   private suspend fun probeVideo(codec: VideoCodec): VideoEncoderCapability? {
     val largest =
-      RESOLUTION_LADDER.firstOrNull { size ->
-        encoderSupports(webCodecString(codec, size), size)
-      }
-    return largest?.let {
-      VideoEncoderCapability(
-        codec = codec,
-        // A browser takes a codec string and picks the encoder behind it without saying which.
-        encoderName = null,
-        maxSize = it,
-        // A browser publishes neither a rate ceiling nor a bitrate ceiling, exactly as Apple does.
-        maxFrameRate = null,
-        maxBitrate = null,
-        // The config isConfigSupported resolves only ever echoes the hardwareAcceleration that
-        // was requested, or the "no-preference" default when none was, never what the browser
-        // actually granted. There is no config that reads this back, so it is left unknown.
-        isHardwareAccelerated = null,
-        sizeAlignment = SIZE_ALIGNMENT,
-      )
-    }
+      RESOLUTION_LADDER.firstOrNull { size -> encoderSupports(webCodecString(codec, size), size) } ?: return null
+    // A browser publishes no floor either, so the smallest frame is the first rung it says it supports.
+    val smallest = smallestAccepted { size -> encoderSupports(webCodecString(codec, size), size) } ?: return null
+    return VideoEncoderCapability(
+      codec = codec,
+      // A browser takes a codec string and picks the encoder behind it without saying which.
+      encoderName = null,
+      maxSize = largest,
+      minSize = smallest,
+      // A browser publishes neither a rate ceiling nor a bitrate ceiling, exactly as Apple does.
+      maxFrameRate = null,
+      maxBitrate = null,
+      // The config isConfigSupported resolves only ever echoes the hardwareAcceleration that
+      // was requested, or the "no-preference" default when none was, never what the browser
+      // actually granted. There is no config that reads this back, so it is left unknown.
+      isHardwareAccelerated = null,
+      sizeAlignment = SIZE_ALIGNMENT,
+    )
   }
 
   private companion object {

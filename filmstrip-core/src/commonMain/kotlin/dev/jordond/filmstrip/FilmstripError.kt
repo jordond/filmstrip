@@ -41,7 +41,7 @@ public sealed interface FilmstripError {
   ) : FilmstripError
 
   /**
-   * The requested resolution exceeds what the encoder publishes.
+   * The requested resolution is outside what the encoder publishes.
    *
    * @property requested The size that was asked for.
    * @property max The largest size this encoder accepts.

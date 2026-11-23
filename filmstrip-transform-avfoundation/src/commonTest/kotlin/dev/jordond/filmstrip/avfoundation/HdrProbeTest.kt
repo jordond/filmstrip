@@ -32,6 +32,7 @@ class HdrProbeTest {
       codec = codec,
       encoderName = null,
       maxSize = Size(3840, 2160),
+      minSize = Size(2, 2),
       maxFrameRate = null,
       maxBitrate = null,
       isHardwareAccelerated = true,

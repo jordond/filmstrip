@@ -15,6 +15,7 @@ import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.transform.internal.DEFAULT_HDR_LADDER
 import dev.jordond.filmstrip.transform.internal.HDR_PROBE_SIZE
 import dev.jordond.filmstrip.transform.internal.RESOLUTION_LADDER
+import dev.jordond.filmstrip.transform.internal.smallestAccepted
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -101,11 +102,20 @@ private suspend fun FfmpegRuntime.videoCapability(
         is ProbeAnswer.Answered -> rung.value
       }
     if (encodes) {
+      // ffmpeg publishes no floor either, so the smallest frame is the first rung the encoder opens at.
+      val floor =
+        smallestAccepted { rung ->
+          when (val answer = canEncode(toolchain, encoder, rung)) {
+            is ProbeAnswer.Expired -> return answer
+            is ProbeAnswer.Answered -> answer.value
+          }
+        } ?: return ProbeAnswer.Answered(null)
       return ProbeAnswer.Answered(
         VideoEncoderCapability(
           codec = codec,
           encoderName = encoder.name,
           maxSize = size,
+          minSize = floor,
           // ffmpeg publishes neither a rate ceiling nor a bitrate ceiling, and inventing one would make
           // plan() refuse things that work.
           maxFrameRate = null,

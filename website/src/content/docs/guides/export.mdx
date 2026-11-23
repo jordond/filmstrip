@@ -53,6 +53,11 @@ photo, takes the height as asked. To scale a video up to an exact size, use the 
 
 <Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Export.kt" region="exact-height" />
 
+Every encoder has a largest and a smallest frame, and they differ by codec and device. A frame outside them is scaled
+to fit, keeps its shape, and is reported as a `ResolutionClamped` adjustment. libx265 takes nothing under 16 pixels a
+side, for example, so a 14 by 8 export in HEVC is written at 28 by 16. A frame so long and thin that no size between
+the two limits holds its shape is refused with `UnsupportedResolution`.
+
 ### Quality
 
 Leave `bitrate` unset and filmstrip picks one from a quality tier, the same number on every platform. The tiers are

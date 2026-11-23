@@ -1195,6 +1195,7 @@ class PlannerTest {
           codec = codec,
           encoderName = codec.ffmpegEncoders().first().name,
           maxSize = Size(7680, 4320),
+          minSize = Size(2, 2),
           maxFrameRate = null,
           maxBitrate = null,
           isHardwareAccelerated = false,

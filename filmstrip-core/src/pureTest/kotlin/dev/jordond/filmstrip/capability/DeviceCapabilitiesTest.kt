@@ -39,6 +39,7 @@ class DeviceCapabilitiesTest {
         codec = VideoCodec.Hevc,
         encoderName = "hevc_videotoolbox",
         maxSize = Size(3_840, 2_160),
+        minSize = Size(2, 2),
         maxFrameRate = null,
         maxBitrate = null,
         isHardwareAccelerated = true,
@@ -57,6 +58,17 @@ class DeviceCapabilitiesTest {
     device.encoderFor(VideoCodec.Hevc).shouldBeNull()
   }
 
+  @Test
+  fun `accepts a frame from its floor to its ceiling and nothing under either side of the floor`() {
+    val encoder = h264(hardware = true, maxHeight = 1_080, minSize = Size(16, 16))
+
+    encoder.accepts(Size(16, 16)) shouldBe true
+    encoder.accepts(Size(960, 540)) shouldBe true
+    encoder.accepts(Size(1_920, 1_080)) shouldBe true
+    encoder.accepts(Size(14, 540)) shouldBe false
+    encoder.accepts(Size(960, 14)) shouldBe false
+  }
+
   private fun deviceWith(video: List<VideoEncoderCapability>): DeviceCapabilities =
     DeviceCapabilities(
       video = video,
@@ -68,11 +80,13 @@ class DeviceCapabilitiesTest {
   private fun h264(
     hardware: Boolean?,
     maxHeight: Int,
+    minSize: Size = Size(2, 2),
   ): VideoEncoderCapability =
     VideoEncoderCapability(
       codec = VideoCodec.H264,
       encoderName = null,
       maxSize = Size(maxHeight * ASPECT_NUMERATOR / ASPECT_DENOMINATOR, maxHeight),
+      minSize = minSize,
       maxFrameRate = null,
       maxBitrate = null,
       isHardwareAccelerated = hardware,

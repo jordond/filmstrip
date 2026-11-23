@@ -43,6 +43,7 @@ import dev.jordond.filmstrip.media.solidMediaInfoOf
 import dev.jordond.filmstrip.media.trackCodecOf
 import dev.jordond.filmstrip.transform.internal.negotiation.Ask
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedHdr
 import io.kotest.matchers.nulls.shouldNotBeNull
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
@@ -115,13 +116,14 @@ internal class PlannerFixture {
     layoutSize: Size? = null,
     copyLimit: (MediaInfo) -> CopyBlocker? = { null },
     audioResolvers: List<AudioEffectResolver> = listOf(FakeAudioResolver()),
+    grade: ResolvedHdr? = null,
   ) = planner(
     resolvers,
     canToneMap = canToneMap,
     muxerAccepts = muxerAccepts,
     copyLimit = copyLimit,
     audioResolvers = audioResolvers,
-  ).negotiate(composition, Ask(spec, device, infos(composition), openings, layoutSize))
+  ).negotiate(composition, Ask(spec, device, infos(composition), openings, layoutSize, grade))
     .verdict
 
   /**
@@ -291,14 +293,17 @@ internal class PlannerFixture {
     maxSize: Size = Size(3840, 2160),
     maxFrameRate: Int? = null,
     maxBitrate: Bitrate? = null,
+    minSize: Size = Size(2, 2),
+    sizeAlignment: Int = 2,
   ) = VideoEncoderCapability(
     codec = codec,
     encoderName = null,
     maxSize = maxSize,
+    minSize = minSize,
     maxFrameRate = maxFrameRate,
     maxBitrate = maxBitrate,
     isHardwareAccelerated = true,
-    sizeAlignment = 2,
+    sizeAlignment = sizeAlignment,
   )
 
   private val registry = mutableMapOf<MediaSource, MediaInfo>()

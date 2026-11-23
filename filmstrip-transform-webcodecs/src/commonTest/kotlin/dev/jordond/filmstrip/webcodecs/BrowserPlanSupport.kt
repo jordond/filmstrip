@@ -170,7 +170,7 @@ internal object BrowserPlanSupport {
   val SPEC = ExportSpec(videoCodec = VideoCodec.H264, audioCodec = AudioCodec.None)
   val DEVICE =
     DeviceCapabilities(
-      video = listOf(VideoEncoderCapability(VideoCodec.H264, null, Size(3840, 2160), null, null, false, 2)),
+      video = listOf(VideoEncoderCapability(VideoCodec.H264, null, Size(3840, 2160), Size(2, 2), null, null, false, 2)),
       audio = emptyList(),
       supportsHdrEncoding = false,
       concurrentSessionBudget = null,
@@ -181,7 +181,7 @@ internal object BrowserPlanSupport {
     DeviceCapabilities(
       video =
         listOf(VideoCodec.H264, VideoCodec.Vp9).map {
-          VideoEncoderCapability(it, null, Size(3840, 2160), null, null, false, 2)
+          VideoEncoderCapability(it, null, Size(3840, 2160), Size(2, 2), null, null, false, 2)
         },
       audio = emptyList(),
       supportsHdrEncoding = true,

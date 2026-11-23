@@ -83,11 +83,18 @@ private fun resolutionClamp(
   if (requestedSize == outputSize) return null
 
   val message =
-    if (encoding.overCeiling) {
-      "This export encodes into ${checkNotNull(encoding.ceiling).describe()} at most, so the frame is scaled " +
-        "down to fit inside it and keeps its shape."
-    } else {
-      "The encoder wants aligned dimensions, so each side rounds to what it accepts."
+    when {
+      encoding.underFloor -> {
+        "This export encodes into ${checkNotNull(encoding.floor).describe()} at least, so the frame is scaled " +
+          "up to reach it and keeps its shape."
+      }
+      encoding.overCeiling -> {
+        "This export encodes into ${checkNotNull(encoding.ceiling).describe()} at most, so the frame is scaled " +
+          "down to fit inside it and keeps its shape."
+      }
+      else -> {
+        "The encoder wants aligned dimensions, so each side rounds to what it accepts."
+      }
     }
   return Concession(
     Adjustment(AdjustmentKind.ResolutionClamped, requestedSize.describe(), outputSize.describe(), message),

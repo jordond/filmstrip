@@ -9,6 +9,7 @@ import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.transform.internal.DEFAULT_HDR_LADDER
 import dev.jordond.filmstrip.transform.internal.HDR_PROBE_SIZE
 import dev.jordond.filmstrip.transform.internal.RESOLUTION_LADDER
+import dev.jordond.filmstrip.transform.internal.smallestAccepted
 import kotlinx.cinterop.COpaquePointer
 import kotlinx.cinterop.COpaquePointerVar
 import kotlinx.cinterop.CPointed
@@ -96,6 +97,8 @@ private fun probeVideo(
   val (largest, probe) =
     RESOLUTION_LADDER.firstNotNullOfOrNull { size -> canEncode(codecType, size)?.let { size to it } }
       ?: return null
+  // Apple publishes no floor either, so the smallest frame is the first rung a session opens at.
+  val smallest = smallestAccepted { size -> canEncode(codecType, size) != null } ?: return null
 
   return VideoEncoderCapability(
     codec = codec,
@@ -103,6 +106,7 @@ private fun probeVideo(
     // never names one.
     encoderName = null,
     maxSize = largest,
+    minSize = smallest,
     // Apple publishes neither a rate ceiling nor a bitrate ceiling.
     maxFrameRate = null,
     maxBitrate = null,

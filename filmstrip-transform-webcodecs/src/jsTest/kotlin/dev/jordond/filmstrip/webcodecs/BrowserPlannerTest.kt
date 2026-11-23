@@ -1374,7 +1374,7 @@ class BrowserPlannerTest {
     supportsHdrEncoding: Boolean = false,
   ): DeviceCapabilities =
     DeviceCapabilities(
-      video = codecs.map { VideoEncoderCapability(it, null, Size(3840, 2160), null, null, false, 2) },
+      video = codecs.map { VideoEncoderCapability(it, null, Size(3840, 2160), Size(2, 2), null, null, false, 2) },
       audio = audio,
       supportsHdrEncoding = supportsHdrEncoding,
       concurrentSessionBudget = null,

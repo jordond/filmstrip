@@ -30,3 +30,26 @@ public val RESOLUTION_LADDER: List<Size> =
  */
 @InternalFilmstripApi
 public val HDR_PROBE_SIZE: Size = RESOLUTION_LADDER.last()
+
+/**
+ * The square sizes an encoder's smallest frame is probed at, smallest first.
+ *
+ * A backend whose platform publishes no floor asks for each rung in turn through [smallestAccepted]. A square reads
+ * a floor that holds per side. An encoder whose floor is an area reports the next square up, which is stricter than
+ * it needs and never a size it refuses.
+ */
+@InternalFilmstripApi
+public val FLOOR_LADDER: List<Size> = listOf(2, 4, 8, 16, 32, 64, 96, 128, 144, 176, 256).map { Size(it, it) }
+
+/**
+ * The first rung of [ladder] that [opens] answers true for, or null when none does.
+ *
+ * @param ladder The sizes to try, smallest first.
+ * @param opens Whether the encoder takes a frame of this size.
+ * @return The smallest size the encoder takes.
+ */
+@InternalFilmstripApi
+public inline fun smallestAccepted(
+  ladder: List<Size> = FLOOR_LADDER,
+  opens: (Size) -> Boolean,
+): Size? = ladder.firstOrNull { opens(it) }

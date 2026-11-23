@@ -193,6 +193,8 @@ private fun Array<MediaCodecInfo>.videoCapabilities(
   // a desktop ffmpeg build, so it leads.
   encodersFor(mime).sortedByDescending { it.isHardwareFor(mime) }.mapNotNull { info ->
     val video = info.getCapabilitiesForType(mime).videoCapabilities ?: return@mapNotNull null
+    // Encoders require aligned dimensions. Odd ones fail or produce garbage.
+    val alignment = maxOf(video.widthAlignment, video.heightAlignment)
 
     VideoEncoderCapability(
       codec = codec,
@@ -200,13 +202,30 @@ private fun Array<MediaCodecInfo>.videoCapabilities(
       // being handed one, so naming it here would name an encoder the export may not run.
       encoderName = null,
       maxSize = Size(video.supportedWidths.upper, video.supportedHeights.upper),
+      minSize = encoderFloor(video.supportedWidths.lower, video.supportedHeights.lower, alignment),
       maxFrameRate = video.supportedFrameRates.upper,
       maxBitrate = Bitrate(video.bitrateRange.upper.toLong()),
       isHardwareAccelerated = info.isHardwareFor(mime),
-      // Encoders require aligned dimensions. Odd ones fail or produce garbage.
-      sizeAlignment = maxOf(video.widthAlignment, video.heightAlignment),
+      sizeAlignment = alignment,
     )
   }
+
+/**
+ * The smallest frame an encoder takes, from the lower bounds it publishes for each side.
+ *
+ * A bound off the encoder's [alignment] rounds up to it, since the next aligned size down is under the bound.
+ */
+internal fun encoderFloor(
+  lowerWidth: Int,
+  lowerHeight: Int,
+  alignment: Int,
+): Size {
+  val step = alignment.coerceAtLeast(1)
+  return Size(
+    ((lowerWidth + step - 1) / step * step).coerceAtLeast(step),
+    ((lowerHeight + step - 1) / step * step).coerceAtLeast(step),
+  )
+}
 
 // MediaCodecInfo.isHardwareAccelerated is API 29. media3 reads it there and judges older devices by the codec name.
 private fun MediaCodecInfo.isHardwareFor(mime: String): Boolean = EncoderUtil.isHardwareAccelerated(this, mime)
