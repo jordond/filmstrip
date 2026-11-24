@@ -86,12 +86,10 @@ internal class Media3StatusTracker(
 
   fun onPlatformState(
     state: Int,
-    positionMs: Long,
     durationMs: Long,
     running: Boolean,
   ) {
     platformState = state
-    platformPositionMs = positionMs
     platformDurationMs = durationMs
 
     if (state == Player.STATE_ENDED && wrapsAtEnd(running)) return

@@ -26,7 +26,7 @@ class Media3ReplayStartTest {
     runTest {
       val rig = HeldPinRig(this, playing = false, deferred = true)
 
-      rig.seeks.resume(at = HELD_AT)
+      rig.seeks.resume(at = HELD_AT, asked = rig.seeks.seeksAsked)
 
       rig.playing shouldBe false
       runCurrent()
@@ -43,7 +43,7 @@ class Media3ReplayStartTest {
     runTest {
       val rig = HeldPinRig(this, playing = false, deferred = true)
 
-      rig.seeks.resume(at = HELD_AT)
+      rig.seeks.resume(at = HELD_AT, asked = rig.seeks.seeksAsked)
       rig.seeks.pause(HELD_AT)
       runCurrent()
       rig.runQueued()
@@ -57,8 +57,8 @@ class Media3ReplayStartTest {
     runTest {
       val rig = HeldPinRig(this, playing = false, deferred = true)
 
-      rig.seeks.resume(at = HELD_AT)
-      rig.seeks.resume(at = HELD_AT)
+      rig.seeks.resume(at = HELD_AT, asked = rig.seeks.seeksAsked)
+      rig.seeks.resume(at = HELD_AT, asked = rig.seeks.seeksAsked)
       runCurrent()
       rig.runQueued()
 
@@ -73,10 +73,10 @@ class Media3ReplayStartTest {
       var playingAtSeekBack: Boolean? = null
       every { rig.player.seekTo(FIRST_AT.inWholeMilliseconds) } answers { playingAtSeekBack = rig.playing }
 
-      rig.seeks.resume(at = HELD_AT)
+      rig.seeks.resume(at = HELD_AT, asked = rig.seeks.seeksAsked)
       runCurrent()
       rig.seeks.pause(HELD_AT)
-      rig.seeks.resume(at = HELD_AT)
+      rig.seeks.resume(at = HELD_AT, asked = rig.seeks.seeksAsked)
       runCurrent()
       rig.runQueued()
 
@@ -92,7 +92,7 @@ class Media3ReplayStartTest {
       rig.runQueued()
       runCurrent()
 
-      rig.seeks.resume(at = HELD_AT)
+      rig.seeks.resume(at = HELD_AT, asked = rig.seeks.seeksAsked)
       runCurrent()
       rig.runQueued()
 
@@ -110,7 +110,7 @@ class Media3ReplayStartTest {
       rig.runPlayback()
 
       // The scrub seek is handed over between the play and the start it posted.
-      rig.seeks.resume(at = HELD_AT)
+      rig.seeks.resume(at = HELD_AT, asked = rig.seeks.seeksAsked)
       runCurrent()
       rig.runQueued()
       rig.runPlayback()
@@ -126,7 +126,7 @@ class Media3ReplayStartTest {
       val rig = HeldPinRig(this, playing = false, deferred = true)
 
       rig.seeks.seek(AFTER_AT, SeekAccuracy.Exact, wrap = false) { }
-      rig.seeks.resume(at = HELD_AT)
+      rig.seeks.resume(at = HELD_AT, asked = rig.seeks.seeksAsked)
       runCurrent()
       rig.runQueued()
 
@@ -139,7 +139,7 @@ class Media3ReplayStartTest {
     runTest {
       val rig = HeldPinRig(this, playing = false, deferred = true)
 
-      rig.seeks.resume(at = HELD_AT)
+      rig.seeks.resume(at = HELD_AT, asked = rig.seeks.seeksAsked)
       rig.seeks.takePendingPlay() shouldBe true
       runCurrent()
       rig.runQueued()

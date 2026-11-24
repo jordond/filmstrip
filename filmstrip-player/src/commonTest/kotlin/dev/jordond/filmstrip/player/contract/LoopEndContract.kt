@@ -62,7 +62,9 @@ internal class LoopEndContract(
         awaitContract("the seek to $approach to complete") { recorder.seekCompletions.size > seeks }
 
         val eventsMark = recorder.events.size
-        val positionsMark = recorder.playheads.size
+        // From the reading the seek landed on, since a lap can wrap before the playhead publishes another reading,
+        // and its drop is then the landing reading to the first slot.
+        val positionsMark = (recorder.playheads.size - 1).coerceAtLeast(0)
         subject.engine.play()
         awaitLoopWraps(recorder, eventsMark, positionsMark, count = 2)
 

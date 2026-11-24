@@ -69,7 +69,7 @@ class Media3ScrubHoldOffTest {
     runTest {
       val rig = Rig(this, playing = false)
       rig.seeks.seek(START, SeekAccuracy.Exact, wrap = false) { }
-      rig.seeks.resume(at = START)
+      rig.seeks.resume(at = START, asked = rig.seeks.seeksAsked)
       rig.seeks.pause(START)
       runCurrent()
       rig.calls.clear()
@@ -90,7 +90,7 @@ class Media3ScrubHoldOffTest {
       val rig = Rig(this, playing = false)
       rig.mode.scrubbingChanged(true)
 
-      rig.seeks.resume(at = START)
+      rig.seeks.resume(at = START, asked = rig.seeks.seeksAsked)
       runCurrent()
 
       rig.calls.shouldBeEmpty()

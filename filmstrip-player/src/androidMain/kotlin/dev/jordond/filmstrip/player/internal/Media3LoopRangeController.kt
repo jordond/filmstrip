@@ -10,7 +10,7 @@ import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 
 /**
- * Mirrors media3's playhead while pixels move and keeps playback inside the loop and playback ranges.
+ * Mirrors media3's playhead while the transport runs and keeps playback inside the loop and playback ranges.
  *
  * Nothing on `Player` pushes a position, so this reads one on a timer from the player's thread and hops each reading
  * onto the engine's dispatcher. A reading past where the loop range wraps takes playback back to its start, and one
@@ -100,14 +100,28 @@ internal class Media3LoopRangeController(
     val standing = player() ?: return
     val reading = standing.currentPosition
     val running = standing.playWhenReady
-    // Recorded beside the loop check rather than here, so the playhead never reads a position past the wrap before the
-    // wrap has been issued.
     loads.report {
-      recordPosition(reading)
-      onPlayhead(reading.milliseconds, running)
+      read(reading, running)
       onRead()
     }
     if (mirroring) handler.postDelayed(mirrorTick, MIRROR_INTERVAL_MS)
+  }
+
+  /**
+   * Records a position media3 reported and keeps the loop and playback ranges honest against it.
+   *
+   * Every position media3 reports comes through here, so the playhead never reads one past the wrap before the wrap
+   * has been issued.
+   *
+   * @param positionMs The position media3 reported, in its own milliseconds.
+   * @param running Whether media3 was asked to play when it reported the position.
+   */
+  fun read(
+    positionMs: Long,
+    running: Boolean,
+  ) {
+    recordPosition(positionMs)
+    onPlayhead(positionMs.milliseconds, running)
   }
 
   private fun onPlayhead(

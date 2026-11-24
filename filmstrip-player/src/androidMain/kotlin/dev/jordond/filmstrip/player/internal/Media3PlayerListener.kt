@@ -27,7 +27,7 @@ import kotlinx.coroutines.launch
  * @param loads Drops what a graph reports once a rebuild has replaced it.
  * @param status Hears the player's state, first frames and failures.
  * @param seeks Hears each seek media3 accepted.
- * @param loops Mirrors the playhead while the player moves pixels.
+ * @param loops Mirrors the playhead while the transport is asked to run.
  */
 @ExperimentalApi
 internal class Media3PlayerListener(
@@ -46,7 +46,11 @@ internal class Media3PlayerListener(
     val position = standing?.currentPosition ?: 0
     val duration = standing?.duration ?: C.TIME_UNSET
     val running = standing?.playWhenReady == true
-    report { status.onPlatformState(playbackState, position, duration, running) }
+    followTransport(running, playbackState)
+    report {
+      loops.read(position, running)
+      status.onPlatformState(playbackState, duration, running)
+    }
   }
 
   override fun onPlayWhenReadyChanged(
@@ -59,12 +63,23 @@ internal class Media3PlayerListener(
     if (generation == standingGeneration()) {
       if (playWhenReady) seeks.started() else seeks.stopped()
     }
+    followTransport(playWhenReady, player()?.playbackState ?: Player.STATE_IDLE)
     dispatch { status.onPlayWhenReadyChanged(playWhenReady, reason) }
   }
 
-  override fun onIsPlayingChanged(isPlaying: Boolean) {
+  /**
+   * Mirrors the playhead for as long as the transport is asked to run on a loaded player, buffering or not.
+   *
+   * A composition's clock can run while media3 still reports buffering, as the audio sequence plays ahead of a video
+   * sequence that is not ready yet, so waiting for `isPlaying` would let it run past a loop range unread.
+   */
+  private fun followTransport(
+    playWhenReady: Boolean,
+    playbackState: Int,
+  ) {
     if (generation != standingGeneration()) return
-    if (isPlaying) loops.startMirror() else loops.stopMirror()
+    val loaded = playbackState == Player.STATE_READY || playbackState == Player.STATE_BUFFERING
+    if (playWhenReady && loaded) loops.startMirror() else loops.stopMirror()
   }
 
   override fun onPositionDiscontinuity(

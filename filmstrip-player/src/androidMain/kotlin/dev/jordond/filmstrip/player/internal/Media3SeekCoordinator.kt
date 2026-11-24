@@ -171,6 +171,14 @@ internal class Media3SeekCoordinator(
     floor.read(clockMs, restingAt(playheadOf(clockMs, landing, mediaLanding)))
 
   /**
+   * How many seeks were asked for, counted on the engine's dispatcher.
+   *
+   * A play reads it as it is asked for, so a replay can tell a seek asked after the play from one asked before it.
+   */
+  var seeksAsked: Long = 0
+    private set
+
+  /**
    * Seeks to the slot [position] lands on and calls [onComplete] once media3 has landed there.
    *
    * @param wrap Whether the chase marked this seek as a loop wrap.
@@ -187,6 +195,7 @@ internal class Media3SeekCoordinator(
       return
     }
 
+    seeksAsked++
     lastAccuracy = clampedAccuracy(accuracy)
     guard.seekIssued(wrap = wrap)
     representing = false
@@ -244,8 +253,12 @@ internal class Media3SeekCoordinator(
    * @param at Where the playhead read as the play was asked for. A player that played its way there reads a time inside
    * a slot, so it is the slot [at] lands on that is looked up. At or past the end there is nothing left to play, so
    * nothing is replayed, though the last slot is the nearest one to land on.
+   * @param asked [seeksAsked] as the play was asked for, so a seek asked after it takes over from the replay.
    */
-  fun resume(at: Duration) {
+  fun resume(
+    at: Duration,
+    asked: Long,
+  ) {
     floor.played()
     val standing = player()
     val wasPlaying = standing?.playWhenReady == true || playPending
@@ -258,7 +271,7 @@ internal class Media3SeekCoordinator(
       return
     }
     playPending = true
-    scope.launch { replay(slot) }
+    scope.launch { replay(slot, asked) }
   }
 
   /**
@@ -315,9 +328,19 @@ internal class Media3SeekCoordinator(
    * it, and starts the player behind that seek. Nothing but the playhead hears it land. A seek in flight is left to
    * carry on, since it is handed over after the pin was let go of, and the player is started at once. A seek back to a
    * held slot in flight, a replay among them, is one the player has to draw before it plays, so there the play waits
-   * until that seek was handed over, and a replay takes it on itself.
+   * until that seek was handed over, and a replay takes it on itself. A seek asked after the play takes the player
+   * somewhere else, so there is nothing to replay and the player is started behind that seek.
+   *
+   * @param asked [seeksAsked] as the play was asked for.
    */
-  fun replay(slot: Duration) {
+  fun replay(
+    slot: Duration,
+    asked: Long,
+  ) {
+    if (asked != seeksAsked) {
+      handler.post(::startPendingPlay)
+      return
+    }
     if (representing) {
       roundTrip { startPendingPlay() }
       return

@@ -216,7 +216,7 @@ class Media3HeldPinTest {
     runTest {
       val rig = HeldPinRig(this, playing = true)
 
-      rig.seeks.replay(HELD_AT)
+      rig.seeks.replay(HELD_AT, rig.seeks.seeksAsked)
       runCurrent()
 
       rig.pins.last() shouldBe null
@@ -230,7 +230,7 @@ class Media3HeldPinTest {
     runTest {
       val rig = HeldPinRig(this, playing = false)
 
-      rig.seeks.resume(at = FIRST_AT)
+      rig.seeks.resume(at = FIRST_AT, asked = rig.seeks.seeksAsked)
       rig.seeks.pause(HELD_AT)
       runCurrent()
 
@@ -271,7 +271,7 @@ class Media3HeldPinTest {
 
       rig.seeks.seek(FIRST_AT, SeekAccuracy.Exact, wrap = false) { }
       runCurrent()
-      rig.seeks.resume(at = FIRST_AT)
+      rig.seeks.resume(at = FIRST_AT, asked = rig.seeks.seeksAsked)
       rig.seeks.pause(FIRST_AT)
       rig.seeks.seek(FIRST_AT, SeekAccuracy.Exact, wrap = false) { }
       runCurrent()
@@ -298,12 +298,32 @@ class Media3HeldPinTest {
       val rig = HeldPinRig(this, playing = false)
 
       rig.seeks.pause(HELD_AT)
-      rig.seeks.resume(at = HELD_AT)
+      rig.seeks.resume(at = HELD_AT, asked = rig.seeks.seeksAsked)
       runCurrent()
 
       rig.pins.last() shouldBe null
       rig.playing shouldBe true
       verify(exactly = 1) { rig.player.seekTo(FIRST_AT.inWholeMilliseconds) }
+    }
+
+  @Test
+  fun `a seek asked after a play takes over from the replay of the held sample`() =
+    runTest {
+      val rig = HeldPinRig(this, playing = false)
+
+      rig.seeks.pause(HELD_AT)
+      val asked = rig.seeks.seeksAsked
+      val landed = mutableListOf<Duration>()
+      rig.seeks.seek(AFTER_AT, SeekAccuracy.Exact, wrap = false) { landed += it }
+      runCurrent()
+      rig.seeks.frameDrawn()
+      runCurrent()
+      rig.seeks.resume(at = HELD_AT, asked = asked)
+      runCurrent()
+
+      landed.size shouldBe 1
+      rig.playing shouldBe true
+      verify(exactly = 0) { rig.player.seekTo(FIRST_AT.inWholeMilliseconds) }
     }
 
   // A player that played its way to a pause reads a time inside the slot, which is no slot's own time.
@@ -313,7 +333,7 @@ class Media3HeldPinTest {
       val rig = HeldPinRig(this, playing = true)
 
       rig.seeks.pause(FIRST_AT + INTO_SLOT)
-      rig.seeks.resume(at = FIRST_AT + INTO_SLOT)
+      rig.seeks.resume(at = FIRST_AT + INTO_SLOT, asked = rig.seeks.seeksAsked)
       runCurrent()
 
       rig.playing shouldBe true
@@ -326,7 +346,7 @@ class Media3HeldPinTest {
       val rig = HeldPinRig(this, playing = true)
 
       rig.seeks.pause(HELD_AT + INTO_SLOT)
-      rig.seeks.resume(at = HELD_AT + INTO_SLOT)
+      rig.seeks.resume(at = HELD_AT + INTO_SLOT, asked = rig.seeks.seeksAsked)
       runCurrent()
 
       verify(exactly = 1) { rig.player.seekTo(FIRST_AT.inWholeMilliseconds) }
@@ -340,7 +360,7 @@ class Media3HeldPinTest {
       val rig = HeldPinRig(this, playing = false)
       rig.length = AFTER_AT
 
-      rig.seeks.resume(at = AFTER_AT)
+      rig.seeks.resume(at = AFTER_AT, asked = rig.seeks.seeksAsked)
       runCurrent()
 
       rig.playing shouldBe true
@@ -353,7 +373,7 @@ class Media3HeldPinTest {
       val rig = HeldPinRig(this, playing = false)
       rig.length = AFTER_AT
 
-      rig.seeks.resume(at = LATER_AT)
+      rig.seeks.resume(at = LATER_AT, asked = rig.seeks.seeksAsked)
       runCurrent()
 
       verify(exactly = 1) { rig.player.seekTo(FIRST_AT.inWholeMilliseconds) }
@@ -364,7 +384,7 @@ class Media3HeldPinTest {
     runTest {
       val rig = HeldPinRig(this, playing = true)
 
-      rig.seeks.resume(at = HELD_AT)
+      rig.seeks.resume(at = HELD_AT, asked = rig.seeks.seeksAsked)
       runCurrent()
 
       verify(exactly = 0) { rig.player.seekTo(any<Long>()) }

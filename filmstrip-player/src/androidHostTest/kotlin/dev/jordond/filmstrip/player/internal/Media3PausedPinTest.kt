@@ -30,7 +30,7 @@ class Media3PausedPinTest {
       // until the replay has drawn the sample again.
       rig.resting = null
       rig.platformMs = FIRST_AT.inWholeMilliseconds - CLOCK_BEHIND_MS
-      rig.seeks.replay(HELD_AT)
+      rig.seeks.replay(HELD_AT, rig.seeks.seeksAsked)
       runCurrent()
       rig.seeks.frameDrawn()
       runCurrent()
@@ -44,7 +44,7 @@ class Media3PausedPinTest {
       val rig = HeldPinRig(this, playing = false)
       rig.platformMs = FIRST_AT.inWholeMilliseconds - CLOCK_BEHIND_MS
 
-      rig.seeks.replay(HELD_AT)
+      rig.seeks.replay(HELD_AT, rig.seeks.seeksAsked)
       runCurrent()
       rig.seeks.frameDrawn()
       runCurrent()
@@ -58,7 +58,7 @@ class Media3PausedPinTest {
       val rig = HeldPinRig(this, playing = false)
       // The play that asks for the replay.
       rig.playing = true
-      rig.seeks.replay(HELD_AT)
+      rig.seeks.replay(HELD_AT, rig.seeks.seeksAsked)
       runCurrent()
       rig.seeks.frameDrawn()
       runCurrent()
@@ -166,7 +166,7 @@ class Media3PausedPinTest {
       rig.drawn = LATER_AT
 
       rig.seeks.pause(HELD_AT)
-      rig.seeks.resume(at = FIRST_AT)
+      rig.seeks.resume(at = FIRST_AT, asked = rig.seeks.seeksAsked)
       rig.runQueued()
 
       rig.pins.last() shouldBe null
@@ -217,7 +217,7 @@ class Media3PausedPinTest {
     runTest {
       val rig = HeldPinRig(this, playing = false, scrubbing = true)
       rig.seeks.pause(HELD_AT)
-      rig.seeks.resume(at = HELD_AT)
+      rig.seeks.resume(at = HELD_AT, asked = rig.seeks.seeksAsked)
       runCurrent()
       rig.pins.last() shouldBe HELD_AT
 

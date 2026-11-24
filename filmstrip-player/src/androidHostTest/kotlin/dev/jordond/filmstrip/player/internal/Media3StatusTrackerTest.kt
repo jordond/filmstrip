@@ -54,14 +54,13 @@ class Media3StatusTrackerTest {
     }
 
   @Test
-  fun `the platform's own state position and duration are kept as reported`() =
+  fun `the platform's own state and duration are kept as reported`() =
     runTest {
       val rig = Rig(this)
 
-      rig.tracker.onPlatformState(Player.STATE_BUFFERING, positionMs = 640, durationMs = 1_500, running = true)
+      rig.tracker.onPlatformState(Player.STATE_BUFFERING, durationMs = 1_500, running = true)
 
       rig.tracker.platformState shouldBe Player.STATE_BUFFERING
-      rig.tracker.platformPositionMs shouldBe 640
       rig.tracker.platformDurationMs shouldBe 1_500
     }
 
@@ -145,7 +144,7 @@ class Media3StatusTrackerTest {
       val published = rig.statuses.size
       rig.wraps = true
 
-      rig.tracker.onPlatformState(Player.STATE_ENDED, positionMs = 0, durationMs = 1_500, running = true)
+      rig.tracker.onPlatformState(Player.STATE_ENDED, durationMs = 1_500, running = true)
 
       rig.wrapAsks shouldBe listOf(true)
       rig.statuses.size shouldBe published
@@ -405,7 +404,7 @@ class Media3StatusTrackerTest {
       )
 
     fun state(state: Int) {
-      tracker.onPlatformState(state, positionMs = 0, durationMs = 1_500, running = false)
+      tracker.onPlatformState(state, durationMs = 1_500, running = false)
     }
   }
 

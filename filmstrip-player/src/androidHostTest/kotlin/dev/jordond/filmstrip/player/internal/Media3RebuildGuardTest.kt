@@ -6,6 +6,8 @@ import androidx.media3.common.C
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import dev.jordond.filmstrip.ComponentRegistry
+import dev.jordond.filmstrip.edit.TimeRange
+import dev.jordond.filmstrip.edit.outputSlotTime
 import dev.jordond.filmstrip.player.PlaybackEvent
 import dev.jordond.filmstrip.player.PlaybackStatus
 import dev.jordond.filmstrip.player.SeekAccuracy
@@ -263,6 +265,84 @@ class Media3RebuildGuardTest {
       rig.recorded shouldBe listOf(READING_MS)
     }
 
+  // media3 can report ready with its clock already past the wrap, after running it while it reported buffering.
+  @Test
+  fun `a state reported past where the loop range wraps wraps before it is published`() =
+    runTest {
+      val rig = Rig(this)
+      val range = TimeRange.of(outputSlotTime(LOOP_FIRST_SLOT, RATE), outputSlotTime(LOOP_END_SLOT, RATE))
+      rig.loops.setLoopRange(range)
+      rig.reading = outputSlotTime(LOOP_END_SLOT, RATE).inWholeMilliseconds + 7
+
+      rig.loads.handOver(rig.loads.issue())
+      rig.listener.onPlaybackStateChanged(Player.STATE_READY)
+      runCurrent()
+
+      rig.wraps shouldBe listOf(outputSlotTime(LOOP_FIRST_SLOT, RATE))
+    }
+
+  // An end inside the loop range is read as a position past the wrap and then heard as an end, and laps once.
+  @Test
+  fun `an end inside the loop range wraps once and is not reported as an ending`() =
+    runTest {
+      val rig = Rig(this)
+      rig.loops.setLoopRange(TimeRange.of(outputSlotTime(LOOP_FIRST_SLOT, RATE), LENGTH))
+      rig.reading = LENGTH.inWholeMilliseconds
+
+      rig.loads.handOver(rig.loads.issue())
+      rig.playbackState = Player.STATE_ENDED
+      rig.listener.onPlaybackStateChanged(Player.STATE_ENDED)
+      runCurrent()
+
+      rig.wraps shouldBe listOf(outputSlotTime(LOOP_FIRST_SLOT, RATE))
+      rig.events.filterIsInstance<PlaybackEvent.Ended>().shouldBeEmpty()
+    }
+
+  // The audio sequence can run the clock while the video sequence still buffers, so the mirror reads from the moment
+  // the transport is asked to run.
+  @Test
+  fun `a player asked to play while it buffers mirrors the playhead`() =
+    runTest {
+      val rig = Rig(this)
+      rig.playbackState = Player.STATE_BUFFERING
+
+      rig.listener.onPlayWhenReadyChanged(true, Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST)
+      rig.loads.handOver(rig.loads.issue())
+      rig.runPosted()
+      runCurrent()
+
+      rig.recorded shouldBe listOf(READING_MS)
+    }
+
+  @Test
+  fun `a player that buffers with the transport stopped reads nothing`() =
+    runTest {
+      val rig = Rig(this)
+      rig.playWhenReady = false
+
+      rig.listener.onPlaybackStateChanged(Player.STATE_BUFFERING)
+      rig.loads.handOver(rig.loads.issue())
+      rig.runPosted()
+      runCurrent()
+
+      rig.recorded.shouldBeEmpty()
+    }
+
+  @Test
+  fun `a player that ends while asked to play stops the mirror`() =
+    runTest {
+      val rig = Rig(this)
+      rig.listener.onPlaybackStateChanged(Player.STATE_READY)
+      rig.runPosted()
+      rig.delayed.size shouldBe 1
+
+      rig.playbackState = Player.STATE_ENDED
+      rig.listener.onPlaybackStateChanged(Player.STATE_ENDED)
+      rig.runDelayed()
+
+      rig.delayed.shouldBeEmpty()
+    }
+
   private fun position(positionMs: Long): Player.PositionInfo =
     Player.PositionInfo(null, 0, null, null, 0, positionMs, positionMs, C.INDEX_UNSET, C.INDEX_UNSET)
 
@@ -276,25 +356,33 @@ class Media3RebuildGuardTest {
     val events = mutableListOf<PlaybackEvent>()
     val external = mutableListOf<Boolean>()
     val recorded = mutableListOf<Long>()
+    val wraps = mutableListOf<Duration>()
+    var reading = READING_MS
     val pins = mutableListOf<Duration?>()
     var playWhenReady = true
+    var playbackState = Player.STATE_READY
     var drawn: Duration? = null
     val loads = Media3GraphLoads(scope)
 
     private val posted = ArrayDeque<Runnable>()
+    val delayed = mutableListOf<Runnable>()
     private val handler =
       mockk<Handler>().also {
         every { it.post(any()) } answers {
           posted += firstArg<Runnable>()
           true
         }
+        every { it.postDelayed(any(), any()) } answers {
+          delayed += firstArg<Runnable>()
+          true
+        }
       }
     private val player =
       mockk<Player>().also {
-        every { it.currentPosition } returns READING_MS
+        every { it.currentPosition } answers { reading }
         every { it.duration } returns C.TIME_UNSET
         every { it.playWhenReady } answers { playWhenReady }
-        every { it.playbackState } returns Player.STATE_READY
+        every { it.playbackState } answers { playbackState }
         every { it.isPlaying } returns true
         every { it.seekTo(any<Long>()) } returns Unit
       }
@@ -305,11 +393,11 @@ class Media3RebuildGuardTest {
       }
     private val guard = WrapGuard()
 
-    val status =
+    val status: Media3StatusTracker =
       Media3StatusTracker(
         shutter = PreviewShutter(scope, capture = { _, _ -> }),
         hasPreview = { true },
-        wrapsAtEnd = { false },
+        wrapsAtEnd = { running -> loops.wrapsAtEnd(running) },
         position = { Duration.ZERO },
         duration = { Duration.ZERO },
         stopPlayer = { },
@@ -340,17 +428,23 @@ class Media3RebuildGuardTest {
         onRepresented = { },
       )
 
-    val loops =
+    val loops: Media3LoopRangeController =
       Media3LoopRangeController(
         loads = loads,
         handler = handler,
         player = { player },
-        resolved = { null },
+        resolved = { loaded },
         guard = guard,
         playhead = { Duration.ZERO },
-        recordPosition = { recorded += it },
+        recordPosition = {
+          recorded += it
+          status.platformPositionMs = it
+        },
         seekTo = { },
-        seekToWrap = { },
+        seekToWrap = {
+          wraps += it
+          guard.seekIssued(wrap = true)
+        },
         pause = { },
         onLooped = { },
       )
@@ -373,10 +467,18 @@ class Media3RebuildGuardTest {
     fun runPosted() {
       while (posted.isNotEmpty()) posted.removeFirst().run()
     }
+
+    fun runDelayed() {
+      val due = delayed.toList()
+      delayed.clear()
+      due.forEach { it.run() }
+    }
   }
 
   private companion object {
     const val READING_MS = 640L
+    const val LOOP_FIRST_SLOT = 10L
+    const val LOOP_END_SLOT = 20L
     const val HELD_MS = 800L
     const val RATE = 30
     const val STANDING = 1

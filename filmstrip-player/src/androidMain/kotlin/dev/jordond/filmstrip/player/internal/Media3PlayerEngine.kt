@@ -320,7 +320,8 @@ internal class Media3PlayerEngine(
     // sample left only that slot drawn, so playing from it draws the sample again. Only a player that was paused has
     // drawn nothing but the slot it rests on, so a play asked for while one is already under way draws the sample as it
     // goes and is not sent back to its first slot.
-    handler.post { seeks.resume(at) }
+    val asked = seeks.seeksAsked
+    handler.post { seeks.resume(at, asked) }
   }
 
   override fun onPause() {
