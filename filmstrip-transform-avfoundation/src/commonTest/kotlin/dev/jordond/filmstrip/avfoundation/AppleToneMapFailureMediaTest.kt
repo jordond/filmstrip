@@ -66,7 +66,7 @@ class AppleToneMapFailureMediaTest {
       val components = ComponentRegistry.Builder().build()
       val real = chainedProber(components)
       val prober = misreading(real, planned)
-      val driver = AvDriver(prober)
+      val driver = AvDriver(prober, ComponentRegistry.Builder().build())
       val resolved =
         avFoundationExportEngine(components, prober, driver)
           .resolve(composition, SPEC)

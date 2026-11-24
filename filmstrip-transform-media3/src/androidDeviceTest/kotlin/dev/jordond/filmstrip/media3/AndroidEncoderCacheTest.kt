@@ -1,6 +1,7 @@
 package dev.jordond.filmstrip.media3
 
 import android.os.Build
+import dev.jordond.filmstrip.ComponentRegistry
 import dev.jordond.filmstrip.media.MediaProber
 import dev.jordond.filmstrip.media3.internal.Media3Driver
 import io.kotest.assertions.withClue
@@ -21,8 +22,8 @@ class AndroidEncoderCacheTest {
   @Test
   fun twoDriversShareOneCapabilityRead() =
     runTest {
-      val first = Media3Driver(prober = UNUSED_PROBER).capabilities()
-      val second = Media3Driver(prober = UNUSED_PROBER).capabilities()
+      val first = Media3Driver(prober = UNUSED_PROBER, components = ComponentRegistry.Builder().build()).capabilities()
+      val second = Media3Driver(prober = UNUSED_PROBER, components = ComponentRegistry.Builder().build()).capabilities()
 
       withClue("each driver probed the video encoders for itself") { second.video shouldBeSameInstanceAs first.video }
       withClue("each driver probed the audio encoders for itself") { second.audio shouldBeSameInstanceAs first.audio }
@@ -33,7 +34,11 @@ class AndroidEncoderCacheTest {
     runTest {
       var asked = 0
       val driver =
-        Media3Driver(prober = UNUSED_PROBER, drawsYuvTarget = { true.also { asked++ } })
+        Media3Driver(
+          prober = UNUSED_PROBER,
+          components = ComponentRegistry.Builder().build(),
+          drawsYuvTarget = { true.also { asked++ } },
+        )
 
       driver.capabilities()
       val first = driver.toneMapLimit(emptyList())

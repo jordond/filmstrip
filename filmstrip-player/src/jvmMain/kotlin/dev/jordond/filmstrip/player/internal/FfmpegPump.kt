@@ -1,8 +1,10 @@
 package dev.jordond.filmstrip.player.internal
 
+import dev.jordond.filmstrip.diagnostics.attachFailure
 import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.outputSlotOf
 import dev.jordond.filmstrip.edit.outputSlotTime
+import dev.jordond.filmstrip.ffmpeg.internal.failure.ffmpegExitFailure
 import dev.jordond.filmstrip.ffmpeg.internal.preview.PreviewStream
 import dev.jordond.filmstrip.ffmpeg.internal.preview.PreviewStreamResult
 import dev.jordond.filmstrip.player.PlaybackError
@@ -299,7 +301,9 @@ internal class FfmpegPump(
     val status = exit.await()
     if (token != generation) return
     if (status != null && status != 0) {
-      failProcess(stream.exitError(status).toPlaybackError())
+      val error = stream.exitError(status).toPlaybackError()
+      planner.components.attachFailure(error, ffmpegExitFailure(status))
+      failProcess(error)
       return
     }
     // A graph can exit cleanly having written nothing, and the plan says a covered slot holds a frame, so it failed.

@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip.avfoundation
 
+import dev.jordond.filmstrip.ComponentRegistry
 import dev.jordond.filmstrip.avfoundation.internal.export.AvDriver
 import dev.jordond.filmstrip.media.MediaProber
 import io.kotest.assertions.withClue
@@ -18,8 +19,8 @@ class AvEncoderCacheTest {
   @Test
   fun `two drivers share one capability read`() =
     runTest(timeout = TIMEOUT) {
-      val first = AvDriver(UNUSED_PROBER).capabilities()
-      val second = AvDriver(UNUSED_PROBER).capabilities()
+      val first = AvDriver(UNUSED_PROBER, ComponentRegistry.Builder().build()).capabilities()
+      val second = AvDriver(UNUSED_PROBER, ComponentRegistry.Builder().build()).capabilities()
 
       withClue("each driver probed the encoders for itself") { second shouldBeSameInstanceAs first }
     }

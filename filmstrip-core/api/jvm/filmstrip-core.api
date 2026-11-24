@@ -464,6 +464,7 @@ public final class dev/jordond/filmstrip/diagnostics/BackendInfo {
 
 public final class dev/jordond/filmstrip/diagnostics/DiagnosticEvent {
 	public static final field Companion Ldev/jordond/filmstrip/diagnostics/DiagnosticEvent$Companion;
+	public static final field FAILURE Ljava/lang/String;
 	public static final field INVOCATION Ljava/lang/String;
 	public static final field PREVIEW Ljava/lang/String;
 	public static final field TOOLCHAIN Ljava/lang/String;
@@ -481,12 +482,27 @@ public final class dev/jordond/filmstrip/diagnostics/DiagnosticEvent$Companion {
 
 public final class dev/jordond/filmstrip/diagnostics/DiagnosticEvent$Detail {
 	public static final field BANNER Ljava/lang/String;
+	public static final field CAUSES Ljava/lang/String;
+	public static final field CODEC_FORMAT Ljava/lang/String;
+	public static final field CODEC_NAME Ljava/lang/String;
+	public static final field CODEC_ROLE Ljava/lang/String;
 	public static final field COMMAND Ljava/lang/String;
+	public static final field ERROR Ljava/lang/String;
+	public static final field ERROR_CODE Ljava/lang/String;
+	public static final field ERROR_DOMAIN Ljava/lang/String;
+	public static final field ERROR_NAME Ljava/lang/String;
 	public static final field FFMPEG Ljava/lang/String;
 	public static final field FFPROBE Ljava/lang/String;
 	public static final field FOUND Ljava/lang/String;
+	public static final field INPUT_CODECS Ljava/lang/String;
+	public static final field INPUT_FRAME_RATE Ljava/lang/String;
+	public static final field INPUT_MIME Ljava/lang/String;
+	public static final field INPUT_SIZE Ljava/lang/String;
 	public static final field INSTANCE Ldev/jordond/filmstrip/diagnostics/DiagnosticEvent$Detail;
+	public static final field MESSAGE Ljava/lang/String;
 	public static final field REASON Ljava/lang/String;
+	public static final field SOURCES Ljava/lang/String;
+	public static final field STAGE Ljava/lang/String;
 	public static final field VERSION Ljava/lang/String;
 }
 

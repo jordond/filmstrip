@@ -2,7 +2,7 @@
 
 package dev.jordond.filmstrip.webcodecs.internal.interop
 
-import kotlinx.coroutines.await
+import dev.jordond.filmstrip.webcodecs.internal.interop.await
 import kotlin.js.ExperimentalWasmJsInterop
 import kotlin.js.JsAny
 import kotlin.js.JsNumber
@@ -25,6 +25,11 @@ internal external interface InputAudioTrack : JsAny {
   fun getNumberOfChannels(): Promise<JsNumber>
 
   fun getCodec(): Promise<JsString?>
+
+  /**
+   * The full `codecs` parameter string, such as `mp4a.40.2`, which a decoder that fails names its codec with.
+   */
+  fun getCodecParameterString(): Promise<JsString?>
 
   /**
    * The config an `AudioDecoder` needs to decode this track's packets, or null when the codec is

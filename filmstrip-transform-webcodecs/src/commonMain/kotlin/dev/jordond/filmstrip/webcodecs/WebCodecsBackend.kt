@@ -12,6 +12,7 @@ import dev.jordond.filmstrip.internal.chainedProber
 import dev.jordond.filmstrip.media.MediaProber
 import dev.jordond.filmstrip.webcodecs.internal.BrowserExportEngine
 import dev.jordond.filmstrip.webcodecs.internal.BrowserProber
+import dev.jordond.filmstrip.webcodecs.internal.failure.WEBCODECS_BACKEND
 
 /**
  * Registers the WebCodecs export backend, so `probe`, `plan`, `export` and `capabilities` work in
@@ -33,7 +34,7 @@ internal class WebCodecsRegistrar : FilmstripRegistrar {
       .addExportEngineFactory { components -> webCodecsExportEngine(components) }
       .addMediaProberFactory { BrowserProber() }
       .addBackendInfo(
-        BackendInfo(name = "webcodecs", artifact = "dev.jordond.filmstrip:filmstrip-transform-webcodecs"),
+        BackendInfo(name = WEBCODECS_BACKEND, artifact = "dev.jordond.filmstrip:filmstrip-transform-webcodecs"),
       )
   }
 }

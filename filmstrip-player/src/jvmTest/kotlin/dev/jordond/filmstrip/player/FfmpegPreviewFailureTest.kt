@@ -1,9 +1,13 @@
 package dev.jordond.filmstrip.player
 
+import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.FilmstripError
+import dev.jordond.filmstrip.diagnostics.DiagnosticEvent
 import dev.jordond.filmstrip.edit.outputSlotOf
 import dev.jordond.filmstrip.edit.outputSlotTime
 import dev.jordond.filmstrip.effects.color.Brightness
+import dev.jordond.filmstrip.ffmpeg.ffmpegBackend
+import dev.jordond.filmstrip.ffmpeg.internal.failure.FFMPEG_BACKEND
 import dev.jordond.filmstrip.player.contract.ContractRecorder
 import dev.jordond.filmstrip.player.contract.awaitComposition
 import dev.jordond.filmstrip.player.contract.awaitContract
@@ -12,12 +16,18 @@ import dev.jordond.filmstrip.player.contract.contractTest
 import dev.jordond.filmstrip.player.contract.withEngine
 import dev.jordond.filmstrip.player.internal.FfmpegPlayerEngine
 import dev.jordond.filmstrip.player.internal.toPlaybackError
+import io.kotest.assertions.withClue
 import io.kotest.matchers.collections.shouldBeEmpty
+import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withTimeoutOrNull
+import java.util.concurrent.CopyOnWriteArrayList
 import kotlin.test.Test
+import kotlin.test.fail
 import kotlin.time.Duration.Companion.seconds
 
 /**
@@ -228,6 +238,38 @@ class FfmpegPreviewFailureTest {
       }
     }
   }
+
+  // The failure event is raised where Filmstrip's player reads the error, so the pump's exit code is checked there.
+  @Test
+  fun `a non-zero exit reaches a diagnostic listener with its exit code`() =
+    contractTest { scope ->
+      val events = CopyOnWriteArrayList<DiagnosticEvent>()
+      val filmstrip =
+        Filmstrip {
+          ffmpegBackend()
+          addDiagnosticListener { events += it }
+          addPlayerEngineFactory { config, components ->
+            val planner =
+              ScriptedPlanner(components) { ScriptedStream(it, frames = FRAMES, status = FAILED, stderr = STDERR) }
+            FfmpegPlayerEngine(parent = scope, planner = planner, config = config)
+          }
+        }
+      val player = filmstrip.preview(jvmFixtureComposition())
+      try {
+        player.play()
+        withTimeoutOrNull(PLAY_BUDGET) { player.state.first { it.status is PlaybackStatus.Error } }
+          ?: fail("playback never failed on a stream that exits with $FAILED")
+      } finally {
+        player.close()
+      }
+
+      val failure = events.filter { it.name == DiagnosticEvent.FAILURE }.shouldHaveSize(1).single()
+      withClue(failure.detail) {
+        failure.source shouldBe FFMPEG_BACKEND
+        failure.detail[DiagnosticEvent.Detail.STAGE] shouldBe "playback"
+        failure.detail[DiagnosticEvent.Detail.ERROR_CODE] shouldBe FAILED.toString()
+      }
+    }
 
   private suspend fun withPlaying(
     scope: CoroutineScope,

@@ -46,7 +46,7 @@ internal class Media3PreviewPlan(
  * of the device unless given.
  */
 internal open class Media3PreviewPlanner(
-  components: FilmstripComponents,
+  val components: FilmstripComponents,
   private val previewClock: PreviewClock? = null,
   drawsYuvTarget: (() -> Boolean?)? = null,
 ) : PreviewPlanner<Media3PreviewPlan> {

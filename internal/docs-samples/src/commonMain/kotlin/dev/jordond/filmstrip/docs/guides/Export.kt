@@ -4,6 +4,7 @@ import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.codec.Bitrate
 import dev.jordond.filmstrip.codec.VideoCodec
+import dev.jordond.filmstrip.diagnostics.DiagnosticEvent
 import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.effects.geometry.scale
@@ -116,4 +117,20 @@ internal fun describeFailure(failure: ExportStatus.Failure): String {
     }
   // endregion
   return reason
+}
+
+internal fun reportFailures(): Filmstrip {
+  // region failure-report
+  val filmstrip =
+    Filmstrip {
+      addDiagnosticListener { event ->
+        if (event.name == DiagnosticEvent.FAILURE) {
+          val report =
+            event.detail.entries.joinToString("\n") { (key, value) -> "$key: $value" }
+          println("${event.source} failed\n$report")
+        }
+      }
+    }
+  // endregion
+  return filmstrip
 }

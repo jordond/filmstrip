@@ -3,6 +3,8 @@
 package dev.jordond.filmstrip.webcodecs.internal
 
 import dev.jordond.filmstrip.transform.internal.nearestSourceFrame
+import dev.jordond.filmstrip.webcodecs.internal.failure.CodecSite
+import dev.jordond.filmstrip.webcodecs.internal.failure.running
 import dev.jordond.filmstrip.webcodecs.internal.interop.AudioSample
 import dev.jordond.filmstrip.webcodecs.internal.interop.MediabunnyIterator
 import dev.jordond.filmstrip.webcodecs.internal.interop.VideoSample
@@ -15,11 +17,13 @@ import kotlin.time.Duration.Companion.microseconds
 /**
  * What a mediabunny sink yields, pulled one at a time so a reader is fed only as fast as it reads.
  *
+ * @param site The decoder behind the sink, named on a failure while pulling. Null for a sink that decodes nothing.
  * @param release Frees a value whose reader was cancelled before it got it. A value with nothing to
  * free passes an empty one.
  */
 internal class PulledStream<T : JsAny>(
   private val iterator: MediabunnyIterator<T>,
+  private val site: CodecSite? = null,
   private val release: (T) -> Unit,
 ) {
   private var finished = false
@@ -30,8 +34,10 @@ internal class PulledStream<T : JsAny>(
   suspend fun next(): T? {
     if (finished) return null
     val step =
-      iterator.next().awaitOwned { late ->
-        if (!late.done) late.value?.let(release)
+      site.running {
+        iterator.next().awaitOwned { late ->
+          if (!late.done) late.value?.let(release)
+        }
       }
     if (step.done) {
       finished = true
@@ -64,10 +70,12 @@ internal typealias FrameStream = PulledStream<VideoSample>
  *
  * Every frame handed out is the caller's to close.
  *
+ * @param site The decoder behind the sink, named on a failure while decoding.
  * @param release Frees a frame whose caller was cancelled before it got it.
  */
 internal class FrameSampler(
   private val sink: VideoSampleSink,
+  private val site: CodecSite? = null,
   private val release: (VideoSample) -> Unit = { it.close() },
 ) {
   /**
@@ -75,7 +83,7 @@ internal class FrameSampler(
    * the track that is the last frame.
    */
   suspend fun sampleAt(timestampUs: Double): VideoSample? =
-    sink.getSample(timestampUs / MICROS_PER_SECOND).awaitOwned { late -> late?.let(release) }
+    site.running { sink.getSample(timestampUs / MICROS_PER_SECOND).awaitOwned { late -> late?.let(release) } }
 
   /**
    * The frame an export draws at [timestampUs], picked by [nearerOf] from the two straddling it, up to [endUs]. Null
@@ -102,7 +110,7 @@ internal class FrameSampler(
     endUs: Double,
   ): FrameStream {
     val end = if (endUs.isFinite()) endUs / MICROS_PER_SECOND else OPEN_ENDED_SECONDS
-    return FrameStream(sink.samples(startUs / MICROS_PER_SECOND, end), release)
+    return FrameStream(sink.samples(startUs / MICROS_PER_SECOND, end), site, release)
   }
 }
 

@@ -206,6 +206,7 @@ internal class Media3PlayerEngine(
         scrubMode.carry()
       },
       onReleased = { engines.remove(it) },
+      components = planner.components,
     )
 
   private val player: CompositionPlayer? get() = host.player

@@ -9,6 +9,7 @@ import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.capability.DeviceCapabilities
 import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.effect.RenderCapabilities
+import dev.jordond.filmstrip.export.EngineComponents
 import dev.jordond.filmstrip.export.ExportStatus
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.MediaProber
@@ -44,6 +45,7 @@ import kotlin.time.Duration.Companion.microseconds
  */
 internal class Media3Driver(
   private val prober: MediaProber,
+  private val components: EngineComponents,
   private val drawsYuvTarget: () -> Boolean? = ::deviceDrawsYuvTarget,
 ) : ExportDriver {
   // One answer for this driver, known or not, so what it reports it can do and what it refuses to do never disagree.
@@ -120,6 +122,7 @@ internal class Media3Driver(
             TransformerRun(
               context = prepared.context,
               prober = prober,
+              components = components,
               resolved = resolved,
               composition = prepared.composition,
               destination = prepared.destination,

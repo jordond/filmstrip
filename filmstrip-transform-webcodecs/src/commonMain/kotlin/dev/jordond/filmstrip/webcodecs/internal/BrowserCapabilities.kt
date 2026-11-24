@@ -17,10 +17,10 @@ import dev.jordond.filmstrip.webcodecs.internal.interop.AudioEncoder
 import dev.jordond.filmstrip.webcodecs.internal.interop.HDR_VP9_CODEC
 import dev.jordond.filmstrip.webcodecs.internal.interop.JsOptions
 import dev.jordond.filmstrip.webcodecs.internal.interop.VideoEncoder
+import dev.jordond.filmstrip.webcodecs.internal.interop.await
 import dev.jordond.filmstrip.webcodecs.internal.interop.hasAudioEncoder
 import dev.jordond.filmstrip.webcodecs.internal.interop.hasVideoEncoder
 import dev.jordond.filmstrip.webcodecs.internal.interop.webCodecString
-import kotlinx.coroutines.await
 import kotlin.js.ExperimentalWasmJsInterop
 
 /**

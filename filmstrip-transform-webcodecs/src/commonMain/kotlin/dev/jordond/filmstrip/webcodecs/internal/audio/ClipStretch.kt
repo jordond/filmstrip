@@ -11,6 +11,8 @@ import dev.jordond.filmstrip.transform.internal.resolve.ResolvedAudioEffect
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedClip
 import dev.jordond.filmstrip.transform.internal.resolve.runsAs
 import dev.jordond.filmstrip.webcodecs.internal.PulledStream
+import dev.jordond.filmstrip.webcodecs.internal.failure.CodecSite
+import dev.jordond.filmstrip.webcodecs.internal.failure.decoderSite
 import dev.jordond.filmstrip.webcodecs.internal.interop.AudioBuffer
 import dev.jordond.filmstrip.webcodecs.internal.interop.AudioBufferSink
 import dev.jordond.filmstrip.webcodecs.internal.interop.BaseAudioContext
@@ -18,8 +20,8 @@ import dev.jordond.filmstrip.webcodecs.internal.interop.InputAudioTrack
 import dev.jordond.filmstrip.webcodecs.internal.interop.MediabunnyIterator
 import dev.jordond.filmstrip.webcodecs.internal.interop.WrappedAudioBuffer
 import dev.jordond.filmstrip.webcodecs.internal.interop.asDouble
+import dev.jordond.filmstrip.webcodecs.internal.interop.await
 import dev.jordond.filmstrip.webcodecs.internal.interop.toFloat32Array
-import kotlinx.coroutines.await
 import kotlin.js.ExperimentalWasmJsInterop
 import kotlin.math.abs
 import kotlin.math.max
@@ -48,6 +50,7 @@ internal class ClipStretch private constructor(
   private val sampleRate: Int,
   private val channelCount: Int,
   keep: Duration,
+  private val decoder: CodecSite,
   private val open: (fromSeconds: Double, toSeconds: Double) -> MediabunnyIterator<WrappedAudioBuffer>,
 ) {
   private val sourceFrom = clip.sourceTimeAt(opensAt)
@@ -237,7 +240,7 @@ internal class ClipStretch private constructor(
   }
 
   private fun openedStream(): PulledStream<WrappedAudioBuffer> =
-    stream ?: PulledStream(open(sourceFromSeconds, sourceToSeconds)) {}.also { stream = it }
+    stream ?: PulledStream(open(sourceFromSeconds, sourceToSeconds), decoder) {}.also { stream = it }
 
   private fun remember(pulled: Array<FloatArray>) {
     if (keepFrames == 0) return
@@ -290,6 +293,7 @@ internal class ClipStretch private constructor(
             .asDouble()
             .toInt(),
         keep = keep,
+        decoder = audioTrack.decoderSite(),
         open = open,
       ).also { it.adopt(clip.audioEffects) }
 

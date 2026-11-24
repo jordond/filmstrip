@@ -5,9 +5,9 @@ package dev.jordond.filmstrip.webcodecs.internal
 import dev.jordond.filmstrip.webcodecs.internal.interop.ArrayBuffer
 import dev.jordond.filmstrip.webcodecs.internal.interop.JsOptions
 import dev.jordond.filmstrip.webcodecs.internal.interop.Uint8Array
+import dev.jordond.filmstrip.webcodecs.internal.interop.await
 import dev.jordond.filmstrip.webcodecs.internal.interop.fetch
 import dev.jordond.filmstrip.webcodecs.internal.interop.toByteArray
-import kotlinx.coroutines.await
 import kotlin.js.ExperimentalWasmJsInterop
 
 /**

@@ -4,6 +4,8 @@ import androidx.media3.common.C
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.util.ExperimentalApi
+import dev.jordond.filmstrip.diagnostics.attachFailure
+import dev.jordond.filmstrip.export.EngineComponents
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
@@ -37,6 +39,7 @@ internal class Media3PlayerListener(
   private val status: Media3StatusTracker,
   private val seeks: Media3SeekCoordinator,
   private val loops: Media3LoopRangeController,
+  private val components: EngineComponents,
 ) : Player.Listener {
   override fun onPlaybackStateChanged(playbackState: Int) {
     val standing = player()
@@ -85,7 +88,10 @@ internal class Media3PlayerListener(
 
   override fun onPlayerError(error: PlaybackException) {
     val reported = error.toPlaybackError()
-    report { status.onPlayerError(reported) }
+    report {
+      components.attachFailure(reported, error.platformFailure())
+      status.onPlayerError(reported)
+    }
     dispatch { seeks.framesStopped() }
   }
 

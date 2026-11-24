@@ -14,6 +14,7 @@ import dev.jordond.filmstrip.export.ExportEngineFactory
 import dev.jordond.filmstrip.ffmpeg.internal.FfmpegExportEngine
 import dev.jordond.filmstrip.ffmpeg.internal.FfmpegProber
 import dev.jordond.filmstrip.ffmpeg.internal.FfmpegRuntime
+import dev.jordond.filmstrip.ffmpeg.internal.failure.FFMPEG_BACKEND
 
 /**
  * Sets how the ffmpeg backend finds its binaries and what it passes them.
@@ -80,7 +81,7 @@ internal class FfmpegRegistrar : FilmstripRegistrar {
       .builtInEffects()
       .addExportEngineFactory(FfmpegEngineFactory(runtime))
       .addMediaProberFactory { FfmpegProber(runtime.value) }
-      .addBackendInfo(BackendInfo(name = "ffmpeg", artifact = "dev.jordond.filmstrip:filmstrip-transform-ffmpeg"))
+      .addBackendInfo(BackendInfo(name = FFMPEG_BACKEND, artifact = "dev.jordond.filmstrip:filmstrip-transform-ffmpeg"))
   }
 }
 

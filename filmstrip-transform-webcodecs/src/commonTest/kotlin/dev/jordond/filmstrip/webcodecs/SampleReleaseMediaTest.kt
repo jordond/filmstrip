@@ -39,7 +39,7 @@ class SampleReleaseMediaTest {
     runTest {
       val reader = opened()
       val released = Released()
-      val sampler = FrameSampler(sink(reader), released::take)
+      val sampler = FrameSampler(sink(reader), release = released::take)
 
       var returned: VideoSample? = null
       val job = launch(start = CoroutineStart.UNDISPATCHED) { returned = sampler.sampleAt(frameUs(MIDDLE)) }
@@ -60,7 +60,7 @@ class SampleReleaseMediaTest {
       val reader = opened()
       val released = Released()
       val sink = sink(reader)
-      val sampler = FrameSampler(sink, released::take)
+      val sampler = FrameSampler(sink, release = released::take)
 
       val job = launch(start = CoroutineStart.UNDISPATCHED) { sampler.sampleAt(BEFORE_FIRST_US) }
       job.cancelAndJoin()
@@ -77,7 +77,7 @@ class SampleReleaseMediaTest {
       val reader = opened()
       val released = Released()
 
-      val sample = FrameSampler(sink(reader), released::take).sampleAt(frameUs(MIDDLE)).shouldNotBeNull()
+      val sample = FrameSampler(sink(reader), release = released::take).sampleAt(frameUs(MIDDLE)).shouldNotBeNull()
 
       sample.microsecondTimestamp.shouldBeFrame(MIDDLE)
       sample.close()
@@ -93,7 +93,7 @@ class SampleReleaseMediaTest {
       val reader = opened()
       val released = Released()
       val iterator = iterator(reader)
-      val stream = FrameStream(iterator, released::take)
+      val stream = FrameStream(iterator, release = released::take)
       repeat(MIDDLE) { stream.next().shouldNotBeNull().close() }
 
       var returned: VideoSample? = null
@@ -125,7 +125,7 @@ class SampleReleaseMediaTest {
       val reader = opened()
       val released = Released()
       val iterator = iterator(reader)
-      val stream = FrameStream(iterator, released::take)
+      val stream = FrameStream(iterator, release = released::take)
       repeat(MIDDLE) { stream.next().shouldNotBeNull().close() }
 
       val job = launch(start = CoroutineStart.UNDISPATCHED) { stream.next() }
@@ -145,7 +145,7 @@ class SampleReleaseMediaTest {
       val reader = opened()
       val released = Released()
       val iterator = iterator(reader)
-      val stream = FrameStream(iterator, released::take)
+      val stream = FrameStream(iterator, release = released::take)
       repeat(FRAMES) { stream.next().shouldNotBeNull().close() }
 
       val job = launch(start = CoroutineStart.UNDISPATCHED) { stream.next() }
@@ -165,7 +165,7 @@ class SampleReleaseMediaTest {
       val reader = opened()
       val released = Released()
       val sample = sink(reader).getSample(frameUs(MIDDLE) / MICROS).await().shouldNotBeNull()
-      val stream = FrameStream(answering(done = true, sample), released::take)
+      val stream = FrameStream(answering(done = true, sample), release = released::take)
 
       val job = launch(start = CoroutineStart.UNDISPATCHED) { stream.next() }
       job.cancelAndJoin()
@@ -182,7 +182,7 @@ class SampleReleaseMediaTest {
       val reader = opened()
       val released = Released()
       val sample = sink(reader).getSample(frameUs(MIDDLE) / MICROS).await().shouldNotBeNull()
-      val stream = FrameStream(answering(done = false, sample), released::take)
+      val stream = FrameStream(answering(done = false, sample), release = released::take)
 
       val job = launch(start = CoroutineStart.UNDISPATCHED) { stream.next() }
       job.cancelAndJoin()
@@ -198,7 +198,7 @@ class SampleReleaseMediaTest {
     runTest {
       val reader = opened()
       val released = Released()
-      val stream = FrameSampler(sink(reader), released::take).stream(0.0, Double.POSITIVE_INFINITY)
+      val stream = FrameSampler(sink(reader), release = released::take).stream(0.0, Double.POSITIVE_INFINITY)
       repeat(MIDDLE) { stream.next().shouldNotBeNull().close() }
 
       val job = launch(start = CoroutineStart.UNDISPATCHED) { stream.next() }
@@ -303,7 +303,7 @@ class SampleReleaseMediaTest {
     runTest {
       val reader = opened()
       val released = Released()
-      val stream = FrameStream(iterator(reader), released::take)
+      val stream = FrameStream(iterator(reader), release = released::take)
 
       val seen = mutableListOf<Double>()
       while (true) {

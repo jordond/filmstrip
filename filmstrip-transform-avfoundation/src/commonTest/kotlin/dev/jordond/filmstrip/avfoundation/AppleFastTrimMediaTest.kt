@@ -163,7 +163,7 @@ class AppleFastTrimMediaTest {
     runTest(timeout = TIMEOUT) {
       val components = ComponentRegistry.Builder().addEffectResolver(BuiltInEffectResolver()).build()
       val prober = chainedProber(components)
-      val engine = avFoundationExportEngine(components, prober, AvDriver(prober, syncSampleCap = 1))
+      val engine = avFoundationExportEngine(components, prober, AvDriver(prober, components, syncSampleCap = 1))
 
       val refused =
         withContext(Dispatchers.Default) { engine.resolve(snapping(fixture(LONG)), ExportSpec()) }
@@ -372,7 +372,10 @@ class AppleFastTrimMediaTest {
     }
 
   private fun driver() =
-    AvDriver(chainedProber(ComponentRegistry.Builder().addEffectResolver(BuiltInEffectResolver()).build()))
+    AvDriver(
+      chainedProber(ComponentRegistry.Builder().addEffectResolver(BuiltInEffectResolver()).build()),
+      ComponentRegistry.Builder().build(),
+    )
 
   private fun sourceTrack(
     path: String,

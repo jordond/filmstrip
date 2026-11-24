@@ -3,9 +3,13 @@ package dev.jordond.filmstrip.avfoundation.internal.writer
 import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.avfoundation.internal.composition.AvComposition
 import dev.jordond.filmstrip.avfoundation.internal.composition.videoCompositionOutput
+import dev.jordond.filmstrip.avfoundation.internal.failure.AVFOUNDATION_BACKEND
 import dev.jordond.filmstrip.avfoundation.internal.interop.copyFormatHint
 import dev.jordond.filmstrip.avfoundation.internal.time.MEDIA_TIMESCALE
 import dev.jordond.filmstrip.avfoundation.internal.time.toCMTime
+import dev.jordond.filmstrip.diagnostics.attachFailure
+import dev.jordond.filmstrip.diagnostics.platformFailure
+import dev.jordond.filmstrip.export.EngineComponents
 import dev.jordond.filmstrip.export.ExportEstimate
 import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.export.ExportStatus
@@ -71,6 +75,7 @@ import kotlin.time.TimeSource
 @OptIn(ExperimentalForeignApi::class, BetaInteropApi::class)
 internal class WriterRun(
   private val prober: MediaProber,
+  private val components: EngineComponents,
   private val resolved: ResolvedComposition,
   private val composition: AvComposition,
   private val destination: AvDestination,
@@ -424,7 +429,9 @@ internal class WriterRun(
   }
 
   private fun NSError?.toFilmstripError(side: FailingSide): FilmstripError =
-    this?.toFilmstripError(resolved.output.videoCodec, side, resolved.readSources, destination.path)
+    this
+      ?.toFilmstripError(resolved.output.videoCodec, side, resolved.readSources, destination.path)
+      ?.also { components.attachFailure(it, platformFailure(AVFOUNDATION_BACKEND, side.codecRole)) }
       ?: FilmstripError.Underlying(
         FilmstripError.Underlying.NO_PLATFORM_CODE,
         "AVFoundation refused to start and reported no error.",

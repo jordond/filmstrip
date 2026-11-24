@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip.player
 
+import dev.jordond.filmstrip.FilmstripComponents
 import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.ffmpeg.internal.preview.PreviewStream
@@ -16,8 +17,9 @@ import kotlin.time.Duration
  * Lowers edits the way the real planner does, and opens a stream from [script] in place of spawning ffmpeg.
  */
 internal class ScriptedPlanner(
+  components: FilmstripComponents = CONTRACT_COMPONENTS,
   private val script: (at: Duration) -> ScriptedStream,
-) : FfmpegPreviewPlanner(CONTRACT_COMPONENTS) {
+) : FfmpegPreviewPlanner(components) {
   @Volatile
   var opened: List<ScriptedStream> = emptyList()
     private set

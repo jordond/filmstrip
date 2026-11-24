@@ -22,7 +22,7 @@ import dev.jordond.filmstrip.player.PreviewQualityPolicy
  * lowers for does not draw a held frame again.
  */
 internal class AvPreviewPlanner(
-  components: FilmstripComponents,
+  val components: FilmstripComponents,
   private val previewClock: PreviewClock? = null,
 ) : PreviewPlanner<PreviewPlan> {
   private val engine = avFoundationExportEngine(components)

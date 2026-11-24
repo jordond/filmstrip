@@ -2,11 +2,15 @@ package dev.jordond.filmstrip.internal
 
 import dev.jordond.filmstrip.Cancellable
 import dev.jordond.filmstrip.capability.EffectParity
+import dev.jordond.filmstrip.diagnostics.reportPlaybackFailure
 import dev.jordond.filmstrip.edit.Composition
+import dev.jordond.filmstrip.export.EngineComponents
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.player.EngineListener
+import dev.jordond.filmstrip.player.PlaybackError
 import dev.jordond.filmstrip.player.PlaybackEvent
 import dev.jordond.filmstrip.player.PlaybackEventListener
+import dev.jordond.filmstrip.player.PlaybackStatus
 import dev.jordond.filmstrip.player.PlayerEngine
 import dev.jordond.filmstrip.player.PlayerFeatures
 import dev.jordond.filmstrip.player.PlayerPositionListener
@@ -31,6 +35,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlin.concurrent.Volatile
 import kotlin.coroutines.resume
 import kotlin.time.Duration
 
@@ -39,6 +44,7 @@ import kotlin.time.Duration
 internal class EngineVideoPlayer(
   private val engine: PlayerEngine,
   initial: Composition,
+  private val components: EngineComponents,
 ) : VideoPlayer,
   PlayerTransport by engine {
   private val _state = MutableStateFlow(PlayerState.Initial)
@@ -60,6 +66,7 @@ internal class EngineVideoPlayer(
       object : EngineListener {
         override fun onStateChanged(state: PlayerState) {
           _state.value = state
+          reportFailure(state.status)
         }
 
         override fun onEvent(event: PlaybackEvent) {
@@ -81,6 +88,15 @@ internal class EngineVideoPlayer(
         }
       },
     )
+
+  // The composition last handed to the engine, named in a failure event. A failure that lands while a swap is still
+  // loading names the composition being loaded, which is the one that failed in every case but a late error from the
+  // one before it.
+  @Volatile
+  private var composition: Composition = initial
+
+  // The error last reported, so a status republished with the same error is not a second failure.
+  private var reported: PlaybackError? = null
 
   init {
     // The result is dropped. A failure surfaces as PlaybackStatus.Error on state, which is where a
@@ -118,6 +134,7 @@ internal class EngineVideoPlayer(
     playWhenReady: Boolean,
   ): SetCompositionResult =
     suspendCancellableCoroutine { continuation ->
+      this.composition = composition
       val handle =
         engine.setComposition(
           SetCompositionRequest(composition, startAt, playWhenReady),
@@ -128,7 +145,10 @@ internal class EngineVideoPlayer(
   override fun setComposition(
     request: SetCompositionRequest,
     callback: SetCompositionCallback,
-  ): Cancellable = engine.setComposition(request, callback)
+  ): Cancellable {
+    composition = request.composition
+    return engine.setComposition(request, callback)
+  }
 
   override fun seekTo(
     position: Duration,
@@ -164,6 +184,16 @@ internal class EngineVideoPlayer(
         override fun onPreviewInfo(info: PreviewInfo) = Unit
       },
     )
+
+  private fun reportFailure(status: PlaybackStatus) {
+    if (status !is PlaybackStatus.Error) {
+      reported = null
+      return
+    }
+    if (status.error == reported) return
+    reported = status.error
+    components.reportPlaybackFailure(status.error, composition)
+  }
 
   override fun addPositionListener(
     tick: Duration,

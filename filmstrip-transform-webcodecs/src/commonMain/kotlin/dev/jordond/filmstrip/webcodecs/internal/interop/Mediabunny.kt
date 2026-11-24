@@ -109,8 +109,8 @@ internal external interface InputVideoTrack : JsAny {
   fun getCodec(): Promise<JsString?>
 
   /**
-   * The full `codecs` parameter string, such as `hvc1.2.4.L123.B0`. The only field this reads
-   * from it is HEVC's profile digit, the one codec whose bit depth is findable this way.
+   * The full `codecs` parameter string, such as `hvc1.2.4.L123.B0`. HEVC's profile digit is read from it, the one
+   * codec whose bit depth is findable this way, and a decoder that fails names its codec with it.
    */
   fun getCodecParameterString(): Promise<JsString?>
 

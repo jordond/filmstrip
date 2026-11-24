@@ -37,6 +37,15 @@ class DiagnosticsReportTest {
   }
 
   @Test
+  fun `keeps each level of a failure's causes apart on its log line`() {
+    recorder.record("webcodecs.failure", "causes" to "Error: Encoder closed.\nOperationError: Hardware gone.")
+
+    val report = state.diagnosticsReport()
+
+    report.markdown shouldContain "causes=Error: Encoder closed. | OperationError: Hardware gone."
+  }
+
+  @Test
   fun `carries the quality tier and the key frame interval of the export asked for`() {
     state.options.quality = VideoQuality.Medium
     state.options.keyFrameSeconds = 2

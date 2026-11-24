@@ -30,7 +30,7 @@ import kotlin.time.Duration.Companion.seconds
  * @param components The components the owning `Filmstrip` was built with.
  */
 internal open class FfmpegPreviewPlanner(
-  components: FilmstripComponents,
+  val components: FilmstripComponents,
 ) : PreviewPlanner<PreviewPlan> {
   private val engine = components.registeredFfmpegEngine()
 

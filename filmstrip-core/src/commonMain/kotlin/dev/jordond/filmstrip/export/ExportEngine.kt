@@ -5,6 +5,7 @@ import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.audio.AudioEffectResolver
 import dev.jordond.filmstrip.capability.EffectParity
 import dev.jordond.filmstrip.diagnostics.DiagnosticListener
+import dev.jordond.filmstrip.diagnostics.FailureNotes
 import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.effect.EffectResolver
@@ -121,4 +122,6 @@ public abstract class EngineComponents internal constructor() {
    * In registration order.
    */
   public abstract val diagnosticListeners: List<DiagnosticListener>
+
+  internal val failureNotes: FailureNotes = FailureNotes()
 }

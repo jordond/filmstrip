@@ -5,6 +5,7 @@ import android.os.SystemClock
 import androidx.media3.common.C
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import dev.jordond.filmstrip.ComponentRegistry
 import dev.jordond.filmstrip.player.PlaybackEvent
 import dev.jordond.filmstrip.player.PlaybackStatus
 import dev.jordond.filmstrip.player.SeekAccuracy
@@ -366,6 +367,7 @@ class Media3RebuildGuardTest {
         status = status,
         seeks = seeks,
         loops = loops,
+        components = ComponentRegistry.Builder().build(),
       )
 
     fun runPosted() {

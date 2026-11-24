@@ -29,8 +29,8 @@ import dev.jordond.filmstrip.webcodecs.internal.interop.VideoDecoder
 import dev.jordond.filmstrip.webcodecs.internal.interop.VideoSampleSink
 import dev.jordond.filmstrip.webcodecs.internal.interop.asDouble
 import dev.jordond.filmstrip.webcodecs.internal.interop.asString
+import dev.jordond.filmstrip.webcodecs.internal.interop.await
 import dev.jordond.filmstrip.webcodecs.internal.interop.awaitOwned
-import kotlinx.coroutines.await
 import kotlin.js.ExperimentalWasmJsInterop
 import kotlin.time.Duration.Companion.microseconds
 

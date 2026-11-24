@@ -5,6 +5,7 @@ import android.os.HandlerThread
 import android.os.Looper
 import androidx.media3.transformer.Composition
 import androidx.media3.transformer.CompositionPlayer
+import dev.jordond.filmstrip.ComponentRegistry
 import dev.jordond.filmstrip.player.contract.awaitContract
 import dev.jordond.filmstrip.player.contract.contractTest
 import dev.jordond.filmstrip.player.contractContext
@@ -179,6 +180,7 @@ class Media3PlayerHostTest {
         onFrame = { },
         onBuilt = { built += it },
         onReleased = { released += it },
+        components = ComponentRegistry.Builder().build(),
       )
 
     /**

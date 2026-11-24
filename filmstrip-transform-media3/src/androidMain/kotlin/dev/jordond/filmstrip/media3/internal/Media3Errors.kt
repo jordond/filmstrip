@@ -3,6 +3,10 @@ package dev.jordond.filmstrip.media3.internal
 import androidx.media3.transformer.ExportException
 import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.codec.VideoCodec
+import dev.jordond.filmstrip.diagnostics.CodecRole
+import dev.jordond.filmstrip.diagnostics.PlatformFailure
+import dev.jordond.filmstrip.diagnostics.causeChainOf
+import dev.jordond.filmstrip.media3.internal.failure.MEDIA3_BACKEND
 import dev.jordond.filmstrip.media3.internal.failure.causeMessages
 
 /**
@@ -51,3 +55,20 @@ internal fun ExportException.toFilmstripError(
     else -> FilmstripError.Underlying(errorCode, detail)
   }
 }
+
+/**
+ * What media3 said about this failure, for the failure event an export reports.
+ *
+ * A codec failure carries the codec that was running, which side of it failed and the format it was configured with.
+ * Any other failure carries only the code and the cause chain.
+ */
+internal fun ExportException.platformFailure(): PlatformFailure =
+  PlatformFailure(
+    backend = MEDIA3_BACKEND,
+    code = errorCode,
+    codeName = errorCodeName,
+    codecName = codecInfo?.name,
+    codecRole = codecInfo?.let { if (it.isDecoder) CodecRole.Decoder else CodecRole.Encoder },
+    codecFormat = codecInfo?.configurationFormat,
+    causes = causeChainOf(this),
+  )

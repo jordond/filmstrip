@@ -190,3 +190,34 @@ call may succeed later.
 New error types arrive in minor versions, so always keep an `else` branch. Each `message` is safe to log but isn't
 meant to be parsed.
 </Aside>
+
+### Reporting failures
+
+A diagnostic listener gets one `failure` event for every export that ends in `ExportStatus.Failure` and every player
+that reaches `PlaybackStatus.Error`. A player that stays on the same error doesn't send it again. The event's `source`
+is the backend that failed, or `filmstrip` when no backend was reached, and its `detail` carries what the platform said
+about the failure, ready to attach to a bug report.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Export.kt" region="failure-report" />
+
+| Key | Value | media3 | AVFoundation | ffmpeg | WebCodecs |
+|---|---|---|---|---|---|
+| `stage` | `playback` or `export` | yes | yes | yes | yes |
+| `error` | the `FilmstripError` or `PlaybackError` type, such as `DecoderUnavailable` | yes | yes | yes | yes |
+| `message` | the error's message | yes | yes | yes | yes |
+| `sources` | the composition's sources in timeline order, comma separated | yes | yes | yes | yes |
+| `errorCode` | the platform's numeric code | `errorCode` | `NSError.code` | exit code | no |
+| `errorName` | the name of that code | `errorCodeName` | no | no | `DOMException.name` |
+| `errorDomain` | the error domain | no | `NSError.domain` | no | no |
+| `codecName` | the codec component that was running | yes | no | no | no |
+| `codecRole` | `decoder` or `encoder` | yes | yes | no | yes |
+| `codecFormat` | the format the codec was opened with | yes | no | no | codec string |
+| `inputMime` | the input's sample MIME type | yes | no | no | no |
+| `inputCodecs` | the input's RFC 6381 codecs string | yes | no | no | no |
+| `inputSize` | the input's size as `<width>x<height>` | yes | no | no | no |
+| `inputFrameRate` | the input's frame rate | yes | no | no | no |
+| `causes` | one line per level of the cause chain, outermost first | yes | yes | no | yes |
+
+A key the platform gave no value for is left out, never written empty. Nothing in the payload names a file or a URI.
+Each source becomes `clip-<hash>.<ext>`, and a path or URI inside `message`, `causes` or `codecFormat` is rewritten the
+same way. The keys are constants on `DiagnosticEvent.Detail`.

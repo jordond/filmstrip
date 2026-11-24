@@ -2,8 +2,8 @@
 
 package dev.jordond.filmstrip.webcodecs.internal.interop
 
+import dev.jordond.filmstrip.webcodecs.internal.interop.await
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.await
 import kotlin.js.ExperimentalWasmJsInterop
 import kotlin.js.JsAny
 import kotlin.js.Promise

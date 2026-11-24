@@ -13,6 +13,7 @@ import androidx.media3.common.util.ExperimentalApi
 import androidx.media3.effect.MultipleInputVideoGraph
 import androidx.media3.transformer.Composition
 import androidx.media3.transformer.CompositionPlayer
+import dev.jordond.filmstrip.export.EngineComponents
 import dev.jordond.filmstrip.media3.internal.preview.ChosenTrackMediaSourceFactory
 import kotlinx.coroutines.CoroutineScope
 import java.util.concurrent.CountDownLatch
@@ -50,6 +51,7 @@ internal class Media3PlayerHost(
   private val onFrame: () -> Unit,
   private val onBuilt: (CompositionPlayer) -> Unit,
   private val onReleased: (CompositionPlayer) -> Unit,
+  private val components: EngineComponents,
 ) {
   private val handler = Handler(thread.looper)
 
@@ -168,6 +170,7 @@ internal class Media3PlayerHost(
       status = status,
       seeks = seeks,
       loops = loops,
+      components = components,
     )
 }
 

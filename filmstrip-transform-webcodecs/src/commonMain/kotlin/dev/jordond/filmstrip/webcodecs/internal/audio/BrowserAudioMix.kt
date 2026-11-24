@@ -17,6 +17,7 @@ import dev.jordond.filmstrip.webcodecs.internal.BrowserExportFailure
 import dev.jordond.filmstrip.webcodecs.internal.PulledStream
 import dev.jordond.filmstrip.webcodecs.internal.SourceCache
 import dev.jordond.filmstrip.webcodecs.internal.audio.BrowserAudioMix.PAD
+import dev.jordond.filmstrip.webcodecs.internal.failure.decoderSite
 import dev.jordond.filmstrip.webcodecs.internal.interop.AudioBuffer
 import dev.jordond.filmstrip.webcodecs.internal.interop.AudioBufferSink
 import dev.jordond.filmstrip.webcodecs.internal.interop.AudioBufferSourceNode
@@ -29,8 +30,8 @@ import dev.jordond.filmstrip.webcodecs.internal.interop.MediabunnyIterator
 import dev.jordond.filmstrip.webcodecs.internal.interop.OfflineAudioContext
 import dev.jordond.filmstrip.webcodecs.internal.interop.WrappedAudioBuffer
 import dev.jordond.filmstrip.webcodecs.internal.interop.asDouble
+import dev.jordond.filmstrip.webcodecs.internal.interop.await
 import dev.jordond.filmstrip.webcodecs.internal.interop.toFloat32Array
-import kotlinx.coroutines.await
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlin.js.ExperimentalWasmJsInterop
@@ -322,7 +323,7 @@ internal object BrowserAudioMix {
     val buffer = context.createBuffer(channelCount, frames, sampleRate.toFloat())
 
     // The sink closes each sample as it wraps it, so a wrapped buffer has nothing left to release.
-    val stream = PulledStream(open()) {}
+    val stream = PulledStream(open(), audioTrack.decoderSite()) {}
     var decoded = false
     try {
       while (true) {

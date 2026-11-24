@@ -209,7 +209,14 @@ class AppleStretchedAudioMediaTest {
         val seen = mutableListOf<ExportStatus>()
         val job =
           launch {
-            AvDriver(UNUSED_PROBER, bytesRoot = root).export(resolved, sink).collect { seen += it }
+            AvDriver(
+              UNUSED_PROBER,
+              ComponentRegistry.Builder().build(),
+              bytesRoot = root,
+            ).export(resolved, sink).collect {
+              seen +=
+                it
+            }
           }
         // A file on disk means the render pass has begun, and this fixture takes it seconds to finish.
         while (!hasStretchedFile(root)) delay(1.milliseconds)
@@ -236,7 +243,7 @@ class AppleStretchedAudioMediaTest {
         )
       var renders = 0
       val driver =
-        AvDriver(UNUSED_PROBER, bytesRoot = root) { render ->
+        AvDriver(UNUSED_PROBER, ComponentRegistry.Builder().build(), bytesRoot = root) { render ->
           renders += 1
           if (renders > 1) throw AudioStretchFailure(refused)
           renderClipAudio(render)
@@ -263,7 +270,11 @@ class AppleStretchedAudioMediaTest {
 
       val finished =
         withContext(Dispatchers.Default) {
-          AvDriver(UNUSED_PROBER, bytesRoot = root).export(resolved, unwritable).toList()
+          AvDriver(
+            UNUSED_PROBER,
+            ComponentRegistry.Builder().build(),
+            bytesRoot = root,
+          ).export(resolved, unwritable).toList()
         }
 
       finished.last().shouldBeInstanceOf<ExportStatus.Failure>()

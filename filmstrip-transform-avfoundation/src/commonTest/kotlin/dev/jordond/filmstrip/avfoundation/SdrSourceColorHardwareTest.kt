@@ -102,7 +102,7 @@ class SdrSourceColorHardwareTest {
   private fun engine() =
     ComponentRegistry.Builder().build().let { components ->
       val prober = chainedProber(components)
-      avFoundationExportEngine(components, prober, AvDriver(prober))
+      avFoundationExportEngine(components, prober, AvDriver(prober, components))
     }
 
   private fun beside(sdr: String): Composition =

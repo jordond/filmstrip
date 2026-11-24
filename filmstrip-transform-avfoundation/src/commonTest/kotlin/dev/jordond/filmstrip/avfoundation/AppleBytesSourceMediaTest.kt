@@ -224,7 +224,7 @@ class AppleBytesSourceMediaTest {
       NSFileManager.defaultManager.createFileAtPath(blocked, null, null) shouldBe true
       try {
         val composition = resolved(compositionOf { clip(bytesOf(CLIP)) })
-        val driver = AvDriver(UNUSED_PROBER, bytesRoot = blocked)
+        val driver = AvDriver(UNUSED_PROBER, ComponentRegistry.Builder().build(), bytesRoot = blocked)
         val output = MediaSink.of(NSTemporaryDirectory() + "filmstrip-apple-blocked.mp4")
 
         val failure =

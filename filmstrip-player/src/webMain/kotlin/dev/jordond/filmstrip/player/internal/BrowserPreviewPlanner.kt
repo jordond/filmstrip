@@ -49,7 +49,7 @@ internal class BrowserPreviewPlan(
  * lowers for does not draw a held frame again.
  */
 internal open class BrowserPreviewPlanner(
-  components: FilmstripComponents,
+  val components: FilmstripComponents,
   readDevice: (suspend () -> DeviceCapabilities)? = null,
   private val previewClock: PreviewClock? = null,
 ) : PreviewPlanner<BrowserPreviewPlan> {

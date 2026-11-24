@@ -125,6 +125,7 @@ internal class AvPlayerEngine(
   private val failures =
     AvItemFailures(
       attached = { item },
+      components = planner.components,
       onFailed = { failPlayback(it) },
       onFailedAgain = {
         seeks.abandon()

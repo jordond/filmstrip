@@ -6,6 +6,7 @@ import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.capability.DeviceCapabilities
 import dev.jordond.filmstrip.capability.EffectParity
 import dev.jordond.filmstrip.codec.Bitrate
+import dev.jordond.filmstrip.diagnostics.attachFailure
 import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.effect.PreviewClock
@@ -37,6 +38,7 @@ import dev.jordond.filmstrip.transform.internal.probe.PlanningReadResult
 import dev.jordond.filmstrip.transform.internal.probe.PlanningReads
 import dev.jordond.filmstrip.transform.internal.refusedLowering
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedHdr
+import dev.jordond.filmstrip.webcodecs.internal.failure.webCodecsFailure
 import dev.jordond.filmstrip.webcodecs.internal.interop.Date
 import dev.jordond.filmstrip.webcodecs.internal.interop.fileExtensionOf
 import kotlinx.coroutines.flow.Flow
@@ -62,7 +64,7 @@ import kotlin.time.Duration.Companion.microseconds
  */
 @InternalFilmstripApi
 public class BrowserExportEngine(
-  components: EngineComponents,
+  private val components: EngineComponents,
   prober: MediaProber,
   readDevice: (suspend () -> DeviceCapabilities)? = null,
 ) : LoweringExportEngine() {
@@ -197,11 +199,10 @@ public class BrowserExportEngine(
         emit(ExportStatus.Failure(FilmstripError.InvalidComposition(failure.message ?: UNKNOWN_FAILURE)))
         return
       } catch (error: Throwable) {
-        emit(
-          ExportStatus.Failure(
-            FilmstripError.Underlying(FilmstripError.Underlying.NO_PLATFORM_CODE, error.message ?: error.toString()),
-          ),
-        )
+        val failure =
+          FilmstripError.Underlying(FilmstripError.Underlying.NO_PLATFORM_CODE, error.message ?: error.toString())
+        components.attachFailure(failure, webCodecsFailure(error))
+        emit(ExportStatus.Failure(failure))
         return
       }
 

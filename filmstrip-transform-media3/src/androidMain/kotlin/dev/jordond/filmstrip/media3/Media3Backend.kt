@@ -18,6 +18,7 @@ import dev.jordond.filmstrip.media.MediaProber
 import dev.jordond.filmstrip.media3.internal.Media3Driver
 import dev.jordond.filmstrip.media3.internal.Media3Prober
 import dev.jordond.filmstrip.media3.internal.deviceDrawsYuvTarget
+import dev.jordond.filmstrip.media3.internal.failure.MEDIA3_BACKEND
 import dev.jordond.filmstrip.transform.internal.PlannedExportEngine
 import dev.jordond.filmstrip.transform.internal.copy.Mp4Copy
 
@@ -42,7 +43,7 @@ internal class Media3Registrar : FilmstripRegistrar {
       .builtInEffects()
       .addExportEngineFactory { components -> media3ExportEngine(components) }
       .addMediaProberFactory { Media3Prober() }
-      .addBackendInfo(BackendInfo(name = "media3", artifact = "dev.jordond.filmstrip:filmstrip-transform-media3"))
+      .addBackendInfo(BackendInfo(name = MEDIA3_BACKEND, artifact = "dev.jordond.filmstrip:filmstrip-transform-media3"))
   }
 }
 
@@ -66,7 +67,7 @@ public fun media3ExportEngine(
   drawsYuvTarget: () -> Boolean? = ::deviceDrawsYuvTarget,
 ): PlannedExportEngine =
   PlannedExportEngine(
-    backend = Media3Driver(prober, drawsYuvTarget),
+    backend = Media3Driver(prober, components, drawsYuvTarget),
     prober = prober,
     resolvers = components.effectResolvers,
     audioResolvers = components.audioEffectResolvers,

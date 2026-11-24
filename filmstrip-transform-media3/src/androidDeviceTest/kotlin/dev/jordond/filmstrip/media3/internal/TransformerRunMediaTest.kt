@@ -8,6 +8,7 @@ import androidx.media3.transformer.Composition
 import androidx.media3.transformer.EditedMediaItem
 import androidx.media3.transformer.EditedMediaItemSequence
 import androidx.media3.transformer.Effects
+import dev.jordond.filmstrip.ComponentRegistry
 import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.codec.AudioCodec
 import dev.jordond.filmstrip.codec.VideoCodec
@@ -154,6 +155,7 @@ class TransformerRunMediaTest {
     TransformerRun(
       context = context,
       prober = prober,
+      components = ComponentRegistry.Builder().build(),
       resolved = resolved(duration),
       composition = compositionOf(source, scaled),
       destination = Media3Destination(output.path, context, target = null, reported = MediaSink.Path(output.path)),

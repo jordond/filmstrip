@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip.internal
 
+import dev.jordond.filmstrip.ComponentRegistry
 import dev.jordond.filmstrip.capability.EffectParity
 import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
@@ -44,7 +45,7 @@ class EngineVideoPlayerTest {
   fun theInitialCompositionIsLoadedHoldingThePlayheadAndPaused() {
     val engine = FakePlayerEngine()
 
-    EngineVideoPlayer(engine, FIRST)
+    EngineVideoPlayer(engine, FIRST, ComponentRegistry.Builder().build())
 
     val request = engine.requests.single()
     request.composition shouldBeSameInstanceAs FIRST
@@ -55,7 +56,7 @@ class EngineVideoPlayerTest {
   @Test
   fun whatTheEnginePushesReachesStateAndPreviewInfo() {
     val engine = FakePlayerEngine()
-    val player = EngineVideoPlayer(engine, FIRST)
+    val player = EngineVideoPlayer(engine, FIRST, ComponentRegistry.Builder().build())
     val ready = PlayerState(PlaybackStatus.Ready, true, false, false, 4.seconds)
     val info = PreviewInfo(Size(1280, 720), 0.5f, EffectParity.Exact, emptyList(), emptyList())
 
@@ -72,7 +73,7 @@ class EngineVideoPlayerTest {
   fun anEngineEventReachesACollectorOnce() =
     runTest {
       val engine = FakePlayerEngine()
-      val player = EngineVideoPlayer(engine, FIRST)
+      val player = EngineVideoPlayer(engine, FIRST, ComponentRegistry.Builder().build())
       val heard = mutableListOf<PlaybackEvent>()
       backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { player.events.collect { heard += it } }
 
@@ -85,7 +86,7 @@ class EngineVideoPlayerTest {
   fun aSurfaceReadsTheStandingPlayheadAgainWhenTheFrameUnderItIsRedrawn() =
     runTest {
       val engine = FakePlayerEngine()
-      val player = EngineVideoPlayer(engine, FIRST)
+      val player = EngineVideoPlayer(engine, FIRST, ComponentRegistry.Builder().build())
       val reads = mutableListOf<Duration>()
       backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
         player.readbackPositions(33.milliseconds).collect { reads += it }
@@ -103,7 +104,7 @@ class EngineVideoPlayerTest {
   fun aSurfaceReadsTheStandingPlayheadAgainWhenAReloadConflatesItsStatusMoves() =
     runTest {
       val engine = FakePlayerEngine()
-      val player = EngineVideoPlayer(engine, FIRST)
+      val player = EngineVideoPlayer(engine, FIRST, ComponentRegistry.Builder().build())
       val reads = mutableListOf<Duration>()
       backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
         player.readbackPositions(33.milliseconds).collect { reads += it }
@@ -120,7 +121,7 @@ class EngineVideoPlayerTest {
   fun aSurfaceReadsNothingWhileNoCompositionIsPresentable() =
     runTest {
       val engine = FakePlayerEngine()
-      val player = EngineVideoPlayer(engine, FIRST)
+      val player = EngineVideoPlayer(engine, FIRST, ComponentRegistry.Builder().build())
       val reads = mutableListOf<Duration>()
       backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
         player.readbackPositions(33.milliseconds).collect { reads += it }
@@ -135,7 +136,7 @@ class EngineVideoPlayerTest {
   @Test
   fun aSeekMovesThePositionBeforeTheEngineReportsIt() {
     val engine = FakePlayerEngine()
-    val player = EngineVideoPlayer(engine, FIRST)
+    val player = EngineVideoPlayer(engine, FIRST, ComponentRegistry.Builder().build())
 
     player.seekTo(3.seconds, SeekAccuracy.Nearest)
 
@@ -151,7 +152,7 @@ class EngineVideoPlayerTest {
   fun aTickedPositionFlowWakesOnlyWhenTheSnappedValueChanges() =
     runTest {
       val engine = FakePlayerEngine()
-      val player = EngineVideoPlayer(engine, FIRST)
+      val player = EngineVideoPlayer(engine, FIRST, ComponentRegistry.Builder().build())
       val seen = mutableListOf<Duration>()
       backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
         player.positionFlow(100.milliseconds).toList(seen)
@@ -166,7 +167,7 @@ class EngineVideoPlayerTest {
   fun anUntickedPositionFlowCarriesEveryPositionUnsnapped() =
     runTest {
       val engine = FakePlayerEngine()
-      val player = EngineVideoPlayer(engine, FIRST)
+      val player = EngineVideoPlayer(engine, FIRST, ComponentRegistry.Builder().build())
       val seen = mutableListOf<Duration>()
       backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
         player.positionFlow(Duration.ZERO).toList(seen)
@@ -180,7 +181,7 @@ class EngineVideoPlayerTest {
   @Test
   fun aPositionListenerHearsEachSnappedValueOnceUntilItIsCancelled() {
     val engine = FakePlayerEngine()
-    val player = EngineVideoPlayer(engine, FIRST)
+    val player = EngineVideoPlayer(engine, FIRST, ComponentRegistry.Builder().build())
     val heard = mutableListOf<Duration>()
 
     val handle = player.addPositionListener(250.milliseconds) { heard += it }
@@ -197,7 +198,7 @@ class EngineVideoPlayerTest {
   @Test
   fun aPositionListenerHearsASeekBeforeTheEngineLandsOnIt() {
     val engine = FakePlayerEngine()
-    val player = EngineVideoPlayer(engine, FIRST)
+    val player = EngineVideoPlayer(engine, FIRST, ComponentRegistry.Builder().build())
     val heard = mutableListOf<Duration>()
 
     player.addPositionListener(Duration.ZERO) { heard += it }
@@ -210,7 +211,7 @@ class EngineVideoPlayerTest {
   @Test
   fun aStateListenerHearsStatesAndNothingElse() {
     val engine = FakePlayerEngine()
-    val player = EngineVideoPlayer(engine, FIRST)
+    val player = EngineVideoPlayer(engine, FIRST, ComponentRegistry.Builder().build())
     val heard = mutableListOf<PlayerState>()
     val ready = PlayerState(PlaybackStatus.Ready, false, false, false, 4.seconds)
 
@@ -226,7 +227,7 @@ class EngineVideoPlayerTest {
   fun settingACompositionSuspendsUntilTheEngineAnswers() =
     runTest {
       val engine = FakePlayerEngine()
-      val player = EngineVideoPlayer(engine, FIRST)
+      val player = EngineVideoPlayer(engine, FIRST, ComponentRegistry.Builder().build())
 
       val result = async { player.setComposition(SECOND, startAt = 1.seconds, playWhenReady = true) }
       runCurrent()
@@ -245,7 +246,7 @@ class EngineVideoPlayerTest {
   fun cancellingASuspendedLoadCancelsTheEngineRequest() =
     runTest {
       val engine = FakePlayerEngine()
-      val player = EngineVideoPlayer(engine, FIRST)
+      val player = EngineVideoPlayer(engine, FIRST, ComponentRegistry.Builder().build())
 
       val result = async { player.setComposition(SECOND, startAt = null, playWhenReady = false) }
       runCurrent()
@@ -258,7 +259,7 @@ class EngineVideoPlayerTest {
   @Test
   fun closingDetachesFromTheEngineAndDisposesIt() {
     val engine = FakePlayerEngine()
-    val player = EngineVideoPlayer(engine, FIRST)
+    val player = EngineVideoPlayer(engine, FIRST, ComponentRegistry.Builder().build())
 
     player.close()
 
@@ -269,7 +270,7 @@ class EngineVideoPlayerTest {
   @Test
   fun transportAndRangeCallsReachTheEngine() {
     val engine = FakePlayerEngine()
-    val player = EngineVideoPlayer(engine, FIRST)
+    val player = EngineVideoPlayer(engine, FIRST, ComponentRegistry.Builder().build())
     val range = TimeRange.of(1.seconds, 3.seconds)
 
     player.play()

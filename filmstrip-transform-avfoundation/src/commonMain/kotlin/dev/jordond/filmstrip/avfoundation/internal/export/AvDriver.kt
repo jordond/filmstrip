@@ -25,6 +25,7 @@ import dev.jordond.filmstrip.effect.RenderApi
 import dev.jordond.filmstrip.effect.RenderCapabilities
 import dev.jordond.filmstrip.effect.RenderFeature
 import dev.jordond.filmstrip.effects.spatial.blurKernelLimit
+import dev.jordond.filmstrip.export.EngineComponents
 import dev.jordond.filmstrip.export.ExportStatus
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.Size
@@ -61,6 +62,7 @@ import kotlin.time.Duration
  */
 internal class AvDriver(
   private val prober: MediaProber,
+  private val components: EngineComponents,
   private val kernelLimit: () -> String? = { toneMapKernelLimit() },
   private val blurLimit: () -> String? = { blurKernelLimit() },
   private val bytesRoot: String = AppleScratch.defaultRoot,
@@ -144,6 +146,7 @@ internal class AvDriver(
             emitAll(
               WriterRun(
                 prober = prober,
+                components = components,
                 resolved = resolved,
                 composition = prepared.composition,
                 destination = prepared.destination,

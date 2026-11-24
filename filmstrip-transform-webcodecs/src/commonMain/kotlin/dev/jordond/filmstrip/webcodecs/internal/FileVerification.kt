@@ -5,7 +5,7 @@ package dev.jordond.filmstrip.webcodecs.internal
 import dev.jordond.filmstrip.internal.awaitCatching
 import dev.jordond.filmstrip.webcodecs.internal.interop.asDouble
 import dev.jordond.filmstrip.webcodecs.internal.interop.asString
-import kotlinx.coroutines.await
+import dev.jordond.filmstrip.webcodecs.internal.interop.await
 import kotlin.js.ExperimentalWasmJsInterop
 
 /**

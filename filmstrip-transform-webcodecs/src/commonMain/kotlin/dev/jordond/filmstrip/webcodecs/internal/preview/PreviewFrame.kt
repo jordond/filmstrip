@@ -8,9 +8,9 @@ import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.webcodecs.internal.BrowserRender
 import dev.jordond.filmstrip.webcodecs.internal.interop.JsOptions
 import dev.jordond.filmstrip.webcodecs.internal.interop.Uint8Array
+import dev.jordond.filmstrip.webcodecs.internal.interop.await
 import dev.jordond.filmstrip.webcodecs.internal.interop.toByteArray
 import dev.jordond.filmstrip.webcodecs.internal.render.BrowserCompositor
-import kotlinx.coroutines.await
 import kotlin.js.ExperimentalWasmJsInterop
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.microseconds

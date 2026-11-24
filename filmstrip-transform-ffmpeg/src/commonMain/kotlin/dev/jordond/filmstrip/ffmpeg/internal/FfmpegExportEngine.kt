@@ -6,6 +6,7 @@ import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.capability.EffectParity
 import dev.jordond.filmstrip.diagnostics.DiagnosticEvent
 import dev.jordond.filmstrip.diagnostics.DiagnosticEvent.Detail
+import dev.jordond.filmstrip.diagnostics.attachFailure
 import dev.jordond.filmstrip.diagnostics.report
 import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.effect.EffectId
@@ -17,6 +18,7 @@ import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.ExportStatus
 import dev.jordond.filmstrip.export.Verdict
 import dev.jordond.filmstrip.ffmpeg.FfmpegConfig
+import dev.jordond.filmstrip.ffmpeg.internal.failure.ffmpegExitFailure
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.Invocation
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.arguments
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.readingGraphFrom
@@ -363,7 +365,9 @@ public class FfmpegExportEngine internal constructor(
 
       // ffmpeg reads a feed that failed as a stream that ended, and can exit cleanly on a short file.
       chosen.feeds?.failure()?.let {
-        return send(ExportStatus.Failure(classifyExit(LIVE_FEED_FAILED, liveFeedFailure(it), outputPath)))
+        val error = classifyExit(LIVE_FEED_FAILED, liveFeedFailure(it), outputPath)
+        components.attachFailure(error, ffmpegExitFailure(LIVE_FEED_FAILED))
+        return send(ExportStatus.Failure(error))
       }
 
       if (exitCode != 0) {
@@ -377,6 +381,7 @@ public class FfmpegExportEngine internal constructor(
             missingSource = inputs.missingSource(),
             sinkParentMissing = sinkParentRefusal(outputPath) != null,
           )
+        components.attachFailure(error, ffmpegExitFailure(exitCode))
         return send(ExportStatus.Failure(error))
       }
 

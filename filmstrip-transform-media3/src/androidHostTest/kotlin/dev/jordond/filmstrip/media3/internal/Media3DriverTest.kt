@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip.media3.internal
 
+import dev.jordond.filmstrip.ComponentRegistry
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaProber
 import dev.jordond.filmstrip.media.MediaSource
@@ -21,7 +22,11 @@ class Media3DriverTest {
   @Test
   fun `a still reports no sync sample rather than throwing`() =
     runTest {
-      val driver = Media3Driver(prober = MediaProber { error("a still's sync sample is answered without probing") })
+      val driver =
+        Media3Driver(
+          prober = MediaProber { error("a still's sync sample is answered without probing") },
+          components = ComponentRegistry.Builder().build(),
+        )
       val still = MediaSource.Image(ImageSource.Path("poster.jpg"), duration = 2.seconds)
 
       driver

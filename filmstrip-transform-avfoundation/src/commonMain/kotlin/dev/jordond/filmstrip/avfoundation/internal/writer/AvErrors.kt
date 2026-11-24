@@ -2,6 +2,7 @@ package dev.jordond.filmstrip.avfoundation.internal.writer
 
 import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.codec.VideoCodec
+import dev.jordond.filmstrip.diagnostics.CodecRole
 import platform.AVFoundation.AVErrorContentIsNotAuthorized
 import platform.AVFoundation.AVErrorContentIsProtected
 import platform.AVFoundation.AVErrorDecodeFailed
@@ -32,10 +33,14 @@ import platform.Foundation.NSFileWriteOutOfSpaceError
  * A reader and a writer fail for different reasons and AVFoundation reuses codes across both.
  * `AVErrorUnknown` off the reader is a source that could not be decoded. Off the writer it is an
  * encode that did not land.
+ *
+ * @property codecRole The side of a codec this half runs, the reader decoding and the writer encoding.
  */
-internal enum class FailingSide {
-  Reader,
-  Writer,
+internal enum class FailingSide(
+  val codecRole: CodecRole,
+) {
+  Reader(CodecRole.Decoder),
+  Writer(CodecRole.Encoder),
 }
 
 /**

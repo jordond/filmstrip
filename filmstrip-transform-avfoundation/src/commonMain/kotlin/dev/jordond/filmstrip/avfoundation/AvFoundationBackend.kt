@@ -6,6 +6,7 @@ import dev.jordond.filmstrip.FilmstripRegistrars
 import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.RegistrarId
 import dev.jordond.filmstrip.avfoundation.internal.export.AvDriver
+import dev.jordond.filmstrip.avfoundation.internal.failure.AVFOUNDATION_BACKEND
 import dev.jordond.filmstrip.capability.EffectParity
 import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.diagnostics.BackendInfo
@@ -37,7 +38,7 @@ internal class AvFoundationRegistrar : FilmstripRegistrar {
       .builtInEffects()
       .addExportEngineFactory { components -> avFoundationExportEngine(components) }
       .addBackendInfo(
-        BackendInfo(name = "avfoundation", artifact = "dev.jordond.filmstrip:filmstrip-transform-avfoundation"),
+        BackendInfo(name = AVFOUNDATION_BACKEND, artifact = "dev.jordond.filmstrip:filmstrip-transform-avfoundation"),
       )
   }
 }
@@ -62,7 +63,7 @@ private val registration: Unit = FilmstripRegistrars.register(AvFoundationRegist
 public fun avFoundationExportEngine(
   components: EngineComponents,
   prober: MediaProber = chainedProber(components),
-): PlannedExportEngine = avFoundationExportEngine(components, prober, AvDriver(prober))
+): PlannedExportEngine = avFoundationExportEngine(components, prober, AvDriver(prober, components))
 
 /**
  * Builds the engine around the [backend] given, so a test can stand in a device of another shape.

@@ -3,6 +3,7 @@ package dev.jordond.filmstrip.media3.internal
 import android.media.MediaFormat
 import android.net.Uri
 import androidx.media3.inspector.MediaExtractorCompat
+import dev.jordond.filmstrip.ComponentRegistry
 import dev.jordond.filmstrip.FilmstripContext
 import dev.jordond.filmstrip.media.MediaProber
 import dev.jordond.filmstrip.media.MediaSource
@@ -27,7 +28,11 @@ import kotlin.time.Duration.Companion.milliseconds
  */
 class SyncSampleContextTest {
   private val probe = Media3ExportProbe()
-  private val driver = Media3Driver(prober = MediaProber { error("a sync sample is read without probing") })
+  private val driver =
+    Media3Driver(
+      prober = MediaProber { error("a sync sample is read without probing") },
+      components = ComponentRegistry.Builder().build(),
+    )
 
   @AfterTest
   fun reinstall() {

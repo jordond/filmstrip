@@ -4,6 +4,8 @@ import dev.jordond.filmstrip.CapabilitiesResult
 import dev.jordond.filmstrip.ExperimentalFilmstripApi
 import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.FilmstripVersion
+import dev.jordond.filmstrip.InternalFilmstripApi
+import dev.jordond.filmstrip.diagnostics.redactLocation
 import dev.jordond.filmstrip.export.Adjustment
 import dev.jordond.filmstrip.export.ExportPlan
 import dev.jordond.filmstrip.export.ExportSpec
@@ -274,33 +276,25 @@ private fun ExportSpec.asJson(): JsonObject =
 /**
  * The source reduced to something that names no file.
  */
-@OptIn(ExperimentalFilmstripApi::class)
+@OptIn(ExperimentalFilmstripApi::class, InternalFilmstripApi::class)
 internal fun MediaSource.redactedName(): String =
   when (this) {
-    is MediaSource.Path -> path.redactLocation()
-    is MediaSource.Uri -> uri.redactLocation()
+    is MediaSource.Path -> redactLocation(path)
+    is MediaSource.Uri -> redactLocation(uri)
     is MediaSource.Bytes -> "bytes-${bytes.size}"
     is MediaSource.Image -> "image-${image.redactedName()}"
     is MediaSource.Solid -> "solid"
   }
 
+@OptIn(InternalFilmstripApi::class)
 internal fun ImageSource.redactedName(): String =
   when (this) {
-    is ImageSource.Path -> path.redactLocation()
-    is ImageSource.Uri -> uri.redactLocation()
+    is ImageSource.Path -> redactLocation(path)
+    is ImageSource.Uri -> redactLocation(uri)
     is ImageSource.Bytes -> "bytes-${bytes.size}"
   }
 
-// The extension is the part that matters for a container bug, and the hash keeps two different
-// clips in one composition distinguishable without saying what either one is.
-private fun String.redactLocation(): String {
-  val name = substringAfterLast('/')
-  val extension = name.substringAfterLast('.', "")
-  val hash = hashCode().toUInt().toString(16)
-  return if (extension.isEmpty()) "clip-$hash" else "clip-$hash.$extension"
-}
-
-private fun String.oneLine(): String = replace('\n', ' ').trim()
+private fun String.oneLine(): String = trim().replace("\n", " | ")
 
 private fun StringBuilder.line(text: String) {
   appendLine(text)

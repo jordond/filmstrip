@@ -252,7 +252,7 @@ class AvCompositorRouteMediaTest {
       )
     val path = NSTemporaryDirectory() + "filmstrip-route-$name.mp4"
     val destination = AvDestination(NSURL.fileURLWithPath(path), path, MediaSink.Path(path))
-    WriterRun(chainedProber(components), resolved, graph, destination)
+    WriterRun(chainedProber(components), components, resolved, graph, destination)
       .run()
       .toList()
       .last()

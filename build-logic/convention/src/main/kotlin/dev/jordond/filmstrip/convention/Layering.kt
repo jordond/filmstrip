@@ -150,8 +150,8 @@ private val PLAYER_PACKAGES: Map<String, Set<String>> =
   mapOf(
     "avfoundation" to setOf("composition", "failure", "time"),
     "media3" to setOf("bounds", "failure", "preview"),
-    "ffmpeg" to setOf("preview"),
-    "webcodecs" to setOf("preview"),
+    "ffmpeg" to setOf("failure", "preview"),
+    "webcodecs" to setOf("failure", "preview"),
   )
 
 /**

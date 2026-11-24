@@ -2,7 +2,6 @@ package dev.jordond.filmstrip.player.internal
 
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.outputSlotTime
-import dev.jordond.filmstrip.player.PlaybackError
 import dev.jordond.filmstrip.player.PlaybackEvent
 import dev.jordond.filmstrip.player.PlaybackStatus
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
@@ -39,7 +38,7 @@ import kotlin.time.Duration.Companion.milliseconds
  * @param setPlayWhenReady Publishes whether playback is asked to run.
  * @param reportExternalPlayWhenReady Publishes a transport change something outside filmstrip made.
  * @param emitEvent Sends an event to every listener.
- * @param fail Fails playback with an error.
+ * @param fail Fails playback with what was thrown, and the message to use when it carries none.
  */
 internal class BrowserTransport(
   private val scope: CoroutineScope,
@@ -57,7 +56,7 @@ internal class BrowserTransport(
   private val setPlayWhenReady: (Boolean) -> Unit,
   private val reportExternalPlayWhenReady: (Boolean) -> Unit,
   private val emitEvent: (PlaybackEvent) -> Unit,
-  private val fail: (PlaybackError) -> Unit,
+  private val fail: (broken: Throwable, fallback: String) -> Unit,
 ) {
   private val fenced = mutableListOf<Job>()
   private var starting: Job? = null
@@ -261,7 +260,7 @@ internal class BrowserTransport(
       wantsPlayback = false
       stop()
       setPlayWhenReady(false)
-      fail(PlaybackError.Underlying(PlaybackError.Underlying.NO_PLATFORM_CODE, broken.message ?: AUDIO_BROKE))
+      fail(broken, AUDIO_BROKE)
       false
     }
 

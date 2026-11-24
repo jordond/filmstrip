@@ -1,5 +1,9 @@
 package dev.jordond.filmstrip.player.internal
 
+import dev.jordond.filmstrip.avfoundation.internal.failure.AVFOUNDATION_BACKEND
+import dev.jordond.filmstrip.diagnostics.attachFailure
+import dev.jordond.filmstrip.diagnostics.platformFailure
+import dev.jordond.filmstrip.export.EngineComponents
 import dev.jordond.filmstrip.player.PlaybackError
 import platform.AVFoundation.AVPlayerItem
 import platform.Foundation.NSError
@@ -14,6 +18,8 @@ import platform.Foundation.NSError
  * Engine's dispatcher only.
  *
  * @param attached The item the engine holds now, which a stop short's late hop may no longer be about.
+ * @param components The components the owning `Filmstrip` was built with, which each failure's platform detail is
+ * attached to.
  * @param onFailed Called with the first read of the attached item's failed status.
  * @param onFailedAgain Called with every later read of it, and with a read that follows a stop short still standing.
  * @param onStoppedShort Called with each stop short the caller still has to hear about.
@@ -21,6 +27,7 @@ import platform.Foundation.NSError
  */
 internal class AvItemFailures(
   private val attached: () -> AVPlayerItem?,
+  private val components: EngineComponents,
   private val onFailed: (PlaybackError) -> Unit,
   private val onFailedAgain: (PlaybackError) -> Unit,
   private val onStoppedShort: (PlaybackError) -> Unit,
@@ -38,7 +45,7 @@ internal class AvItemFailures(
    * Answers a read of [target]'s failed status.
    */
   fun statusFailed(target: AVPlayerItem) {
-    val error = target.playbackError()
+    val error = target.playbackError().attaching(target.error)
     val reported = failedItem === target || stoppedShortError != null
     failedItem = target
     if (reported) onFailedAgain(error) else onFailed(error)
@@ -52,7 +59,7 @@ internal class AvItemFailures(
     reason: NSError?,
   ) {
     if (stopped !== attached() || stopped === failedItem || stoppedShortError != null) return
-    val error = stopped.stoppedShortError(reason)
+    val error = stopped.stoppedShortError(reason).attaching(stopped.error ?: reason)
     stoppedShortError = error
     onStoppedShort(error)
   }
@@ -65,6 +72,9 @@ internal class AvItemFailures(
     stoppedShortError = null
     onResumed()
   }
+
+  private fun PlaybackError.attaching(platform: NSError?): PlaybackError =
+    also { if (platform != null) components.attachFailure(it, platform.platformFailure(AVFOUNDATION_BACKEND)) }
 
   /**
    * Forgets everything, for an item that is no longer attached.

@@ -15,9 +15,11 @@ import androidx.media3.transformer.TransformationRequest
 import androidx.media3.transformer.Transformer
 import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.codec.AudioCodec
+import dev.jordond.filmstrip.diagnostics.attachFailure
 import dev.jordond.filmstrip.edit.outputSlotTime
 import dev.jordond.filmstrip.export.Adjustment
 import dev.jordond.filmstrip.export.AdjustmentKind
+import dev.jordond.filmstrip.export.EngineComponents
 import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.export.ExportStatus
 import dev.jordond.filmstrip.export.HdrMode
@@ -60,6 +62,7 @@ import kotlin.time.Duration.Companion.milliseconds
 internal class TransformerRun(
   private val context: Context,
   private val prober: MediaProber,
+  private val components: EngineComponents,
   private val resolved: ResolvedComposition,
   private val composition: Composition,
   private val destination: Media3Destination,
@@ -242,9 +245,10 @@ internal class TransformerRun(
     when (outcome) {
       is Outcome.Failed -> {
         destination.discard()
-        ExportStatus.Failure(
-          outcome.exception.toFilmstripError(resolved.output.videoCodec, resolved.readSources, destination.path),
-        )
+        val error =
+          outcome.exception.toFilmstripError(resolved.output.videoCodec, resolved.readSources, destination.path)
+        components.attachFailure(error, outcome.exception.platformFailure())
+        ExportStatus.Failure(error)
       }
       is Outcome.Completed -> {
         published()

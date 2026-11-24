@@ -1,6 +1,7 @@
 package dev.jordond.filmstrip.player.internal
 
 import dev.jordond.filmstrip.FilmstripError
+import dev.jordond.filmstrip.diagnostics.attachFailure
 import dev.jordond.filmstrip.edit.CompositionDiff
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.player.PlaybackError
@@ -13,6 +14,7 @@ import dev.jordond.filmstrip.player.PlayerFeatures
 import dev.jordond.filmstrip.player.PreviewFrameReadback
 import dev.jordond.filmstrip.player.SeekAccuracy
 import dev.jordond.filmstrip.player.SetCompositionRequest
+import dev.jordond.filmstrip.webcodecs.internal.failure.webCodecsFailure
 import dev.jordond.filmstrip.webcodecs.internal.preview.BrowserAudioPreview
 import dev.jordond.filmstrip.webcodecs.internal.preview.BrowserPreview
 import dev.jordond.filmstrip.webcodecs.internal.preview.PreviewFrame
@@ -68,6 +70,7 @@ internal class BrowserPlayerEngine(
     preview.frameAt(at)
   },
 ) : PlannedPlayerEngine<BrowserPreviewPlan>(parent, config.qualityPolicy, config.exportSpec, planner) {
+  private val components = planner.components
   private var preview: BrowserPreview? = null
   private var audio: BrowserAudioPreview? = null
   private var clock: PreviewClock = MonotonicClock()
@@ -105,7 +108,7 @@ internal class BrowserPlayerEngine(
       setPlayWhenReady = ::setPlayWhenReady,
       reportExternalPlayWhenReady = ::reportExternalPlayWhenReady,
       emitEvent = ::emitEvent,
-      fail = ::fail,
+      fail = { broken, fallback -> fail(platformError(broken, fallback)) },
     )
 
   private val seeks =
@@ -431,10 +434,7 @@ internal class BrowserPlayerEngine(
       } catch (
         @Suppress("TooGenericExceptionCaught") broken: Throwable,
       ) {
-        return PlaybackError.Underlying(
-          PlaybackError.Underlying.NO_PLATFORM_CODE,
-          broken.message ?: "The browser could not draw this composition.",
-        )
+        return platformError(broken, "The browser could not draw this composition.")
       }
 
     if (!drawn) return FilmstripError.InvalidComposition(NO_FIRST_FRAME).toPlaybackError()
@@ -442,6 +442,17 @@ internal class BrowserPlayerEngine(
     emitEvent(PlaybackEvent.FirstFrameRendered)
     return null
   }
+
+  /**
+   * Fails with what the browser threw, its JavaScript detail attached for the failure event.
+   */
+  private fun platformError(
+    broken: Throwable,
+    fallback: String,
+  ): PlaybackError =
+    PlaybackError
+      .Underlying(PlaybackError.Underlying.NO_PLATFORM_CODE, broken.message ?: fallback)
+      .also { components.attachFailure(it, webCodecsFailure(broken)) }
 
   override fun fail(error: PlaybackError) {
     seeks.invalidate()

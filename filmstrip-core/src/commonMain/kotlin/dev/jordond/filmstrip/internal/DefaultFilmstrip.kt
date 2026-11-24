@@ -5,6 +5,7 @@ import dev.jordond.filmstrip.ComponentRegistry
 import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.capability.EffectParity
+import dev.jordond.filmstrip.diagnostics.reportExportFailure
 import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.effectsRevision
 import dev.jordond.filmstrip.effect.EffectId
@@ -28,6 +29,7 @@ import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlin.time.Duration
@@ -73,14 +75,16 @@ internal class DefaultFilmstrip(
       } else {
         emitAll(engine.run(plan, to).withDropped(plan))
       }
-    }
+    }.reportingFailures(plan.composition)
 
   override fun export(
     composition: Composition,
     spec: ExportSpec,
     to: MediaSink,
   ): Flow<ExportStatus> {
-    val engine = exportEngine ?: return flowOf(ExportStatus.Failure(missingTransform("export")))
+    val engine =
+      exportEngine
+        ?: return flowOf(ExportStatus.Failure(missingTransform("export"))).reportingFailures(composition)
     return flow {
       when (val verdict = engine.plan(composition, spec)) {
         is Verdict.Capable -> {
@@ -95,7 +99,7 @@ internal class DefaultFilmstrip(
           emit(ExportStatus.Failure(verdict.reasons))
         }
       }
-    }
+    }.reportingFailures(composition)
   }
 
   override suspend fun frame(
@@ -134,7 +138,7 @@ internal class DefaultFilmstrip(
     val engine =
       components.playerEngineFactories.firstNotNullOfOrNull { it.create(config, components) }
         ?: return MissingEnginePlayer(MISSING_PLAYER)
-    return EngineVideoPlayer(engine, composition)
+    return EngineVideoPlayer(engine, composition, components)
   }
 
   // Parity is a property of the pipeline that renders an effect, so the engine answers. With no
@@ -163,6 +167,13 @@ internal class DefaultFilmstrip(
           status
         }
       }
+    }
+
+  // Every export status reaches the caller here, whichever backend ran it, so this is the one place a failure is told
+  // to the diagnostic listeners.
+  private fun Flow<ExportStatus>.reportingFailures(composition: Composition): Flow<ExportStatus> =
+    onEach { status ->
+      if (status is ExportStatus.Failure) components.reportExportFailure(status.reasons, composition)
     }
 
   private fun missingTransform(operation: String): FilmstripError.BackendMissing =

@@ -126,7 +126,7 @@ class ToneMapKernelHardwareTest {
         avFoundationExportEngine(
           components,
           prober,
-          AvDriver(prober, kernelLimit = { TONE_MAP_KERNEL_LIMIT }),
+          AvDriver(prober, ComponentRegistry.Builder().build(), kernelLimit = { TONE_MAP_KERNEL_LIMIT }),
         )
 
       engine

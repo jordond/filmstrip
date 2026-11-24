@@ -20,6 +20,7 @@ class AppleFillLimitHardwareTest {
     val driver =
       AvDriver(
         prober,
+        ComponentRegistry.Builder().build(),
         blurLimit = {
           asked++
           LIMIT
@@ -33,7 +34,7 @@ class AppleFillLimitHardwareTest {
 
   @Test
   fun `a device that compiles the kernels has no limit`() {
-    AvDriver(prober).fillLimit(Fill.Blurred()).shouldBeNull()
+    AvDriver(prober, ComponentRegistry.Builder().build()).fillLimit(Fill.Blurred()).shouldBeNull()
   }
 
   private companion object {

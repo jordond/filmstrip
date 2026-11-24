@@ -11,6 +11,7 @@ import dev.jordond.filmstrip.media.audioTrackIdOf
 import dev.jordond.filmstrip.media.describe
 import dev.jordond.filmstrip.media.movieAudioTrackIdsOf
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedAudioTrack
+import dev.jordond.filmstrip.webcodecs.internal.failure.decoderSite
 import dev.jordond.filmstrip.webcodecs.internal.interop.ALL_FORMATS
 import dev.jordond.filmstrip.webcodecs.internal.interop.ArrayBuffer
 import dev.jordond.filmstrip.webcodecs.internal.interop.AudioSampleSink
@@ -26,11 +27,11 @@ import dev.jordond.filmstrip.webcodecs.internal.interop.VideoSampleSink
 import dev.jordond.filmstrip.webcodecs.internal.interop.asDouble
 import dev.jordond.filmstrip.webcodecs.internal.interop.asString
 import dev.jordond.filmstrip.webcodecs.internal.interop.audioTrackList
+import dev.jordond.filmstrip.webcodecs.internal.interop.await
 import dev.jordond.filmstrip.webcodecs.internal.interop.awaitOwned
 import dev.jordond.filmstrip.webcodecs.internal.interop.firstVideoTrack
 import dev.jordond.filmstrip.webcodecs.internal.interop.jsCopyWith
 import dev.jordond.filmstrip.webcodecs.internal.interop.toUint8Array
-import kotlinx.coroutines.await
 import kotlin.js.ExperimentalWasmJsInterop
 import kotlin.js.JsAny
 import kotlin.time.Duration
@@ -201,7 +202,7 @@ internal class SourceReader(
     val track = videoTrack() ?: return null
     val sink = sinkFor(track, tenBit)
     val end = if (endUs.isFinite()) endUs / MICROS_PER_SECOND else OPEN_ENDED_SECONDS
-    return FrameStream(sink.samples(startUs / MICROS_PER_SECOND, end)) { it.close() }
+    return FrameStream(sink.samples(startUs / MICROS_PER_SECOND, end), track.decoderSite()) { it.close() }
   }
 
   /**
@@ -214,7 +215,7 @@ internal class SourceReader(
    */
   suspend fun sampler(tenBit: Boolean = false): FrameSampler? {
     val track = videoTrack() ?: return null
-    return FrameSampler(sinkFor(track, tenBit))
+    return FrameSampler(sinkFor(track, tenBit), track.decoderSite())
   }
 
   /**
@@ -251,7 +252,7 @@ internal class SourceReader(
     val track = firstAudioTrack() ?: return null
     val sink = AudioSampleSink(track)
     val end = if (endUs.isFinite()) endUs / MICROS_PER_SECOND else OPEN_ENDED_SECONDS
-    return SampleStream(sink.samples(startUs / MICROS_PER_SECOND, end)) { it.close() }
+    return SampleStream(sink.samples(startUs / MICROS_PER_SECOND, end), track.decoderSite()) { it.close() }
   }
 
   fun close() {

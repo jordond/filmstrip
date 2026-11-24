@@ -2,8 +2,11 @@
 
 package dev.jordond.filmstrip.webcodecs.internal
 
+import dev.jordond.filmstrip.diagnostics.CodecRole
 import dev.jordond.filmstrip.media.URL
 import dev.jordond.filmstrip.media.downloadBlob
+import dev.jordond.filmstrip.webcodecs.internal.failure.CodecSite
+import dev.jordond.filmstrip.webcodecs.internal.failure.running
 import dev.jordond.filmstrip.webcodecs.internal.interop.ArrayBuffer
 import dev.jordond.filmstrip.webcodecs.internal.interop.AudioBuffer
 import dev.jordond.filmstrip.webcodecs.internal.interop.AudioBufferSource
@@ -17,9 +20,9 @@ import dev.jordond.filmstrip.webcodecs.internal.interop.Quality
 import dev.jordond.filmstrip.webcodecs.internal.interop.VideoSample
 import dev.jordond.filmstrip.webcodecs.internal.interop.VideoSampleSource
 import dev.jordond.filmstrip.webcodecs.internal.interop.WebMOutputFormat
+import dev.jordond.filmstrip.webcodecs.internal.interop.await
 import dev.jordond.filmstrip.webcodecs.internal.interop.jsArrayOf
 import dev.jordond.filmstrip.webcodecs.internal.interop.muxAudioCodecKey
-import kotlinx.coroutines.await
 import kotlin.js.ExperimentalWasmJsInterop
 import kotlin.js.JsAny
 
@@ -42,6 +45,8 @@ internal class BrowserEncoder private constructor(
   private val target: BufferTarget,
   private val mimeType: String,
   private val keyFrameSpacing: Int,
+  private val videoSite: CodecSite?,
+  private val audioSite: CodecSite?,
 ) {
   private var added = 0L
 
@@ -49,7 +54,7 @@ internal class BrowserEncoder private constructor(
     val source = checkNotNull(videoSource) { NO_VIDEO_TRACK }
     val keyFrame = added % keyFrameSpacing == 0L
     added++
-    source.add(frame, JsOptions().put("keyFrame", keyFrame).build()).await()
+    videoSite.running { source.add(frame, JsOptions().put("keyFrame", keyFrame).build()).await() }
   }
 
   /**
@@ -57,14 +62,16 @@ internal class BrowserEncoder private constructor(
    * and the buffer is dropped rather than encoded into a file that never claimed one.
    */
   suspend fun addAudio(buffer: AudioBuffer) {
-    audioSource?.add(buffer)?.await()
+    audioSite.running { audioSource?.add(buffer)?.await() }
   }
 
   /**
-   * Flushes the encoder and closes the container.
+   * Flushes the encoder and closes the container. A failure while flushing names the encoder, and its codec string
+   * when only one encoder was running.
    */
   suspend fun finish(): EncodedFile {
-    output.finalize().await()
+    val flushing = listOfNotNull(videoSite, audioSite).singleOrNull() ?: CodecSite(CodecRole.Encoder, null)
+    flushing.running { output.finalize().await() }
     val buffer = target.buffer ?: throw BrowserExportFailure(NO_BUFFER)
     return EncodedFile(buffer, mimeType)
   }
@@ -124,7 +131,16 @@ internal class BrowserEncoder private constructor(
 
       output.start().await()
       val mimeType = if (video != null) "video/$container" else "audio/$container"
-      return BrowserEncoder(output, videoSource, audioSource, target, mimeType, render.keyFrameSpacing)
+      return BrowserEncoder(
+        output = output,
+        videoSource = videoSource,
+        audioSource = audioSource,
+        target = target,
+        mimeType = mimeType,
+        keyFrameSpacing = render.keyFrameSpacing,
+        videoSite = video?.let { CodecSite(CodecRole.Encoder, it.encoderCodec) },
+        audioSite = audioSource?.let { CodecSite(CodecRole.Encoder, muxAudioCodecKey(render.audioCodec)) },
+      )
     }
 
     private const val AUDIO_BITRATE = 128_000

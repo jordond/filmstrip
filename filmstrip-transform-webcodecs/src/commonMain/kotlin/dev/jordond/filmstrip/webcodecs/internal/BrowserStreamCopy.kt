@@ -19,7 +19,7 @@ import dev.jordond.filmstrip.webcodecs.internal.interop.JsOptions
 import dev.jordond.filmstrip.webcodecs.internal.interop.Mp4OutputFormat
 import dev.jordond.filmstrip.webcodecs.internal.interop.Output
 import dev.jordond.filmstrip.webcodecs.internal.interop.asString
-import kotlinx.coroutines.await
+import dev.jordond.filmstrip.webcodecs.internal.interop.await
 import kotlin.js.ExperimentalWasmJsInterop
 import kotlin.js.JsAny
 import kotlin.time.Duration.Companion.seconds
