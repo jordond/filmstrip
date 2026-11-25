@@ -163,7 +163,7 @@ public class ExportPlanner(
     val retry = settle(composition.withoutEffectIds(unsupported.keys), unsupported.keys, ask)
     // The retry drops at least one effect and reports each as an adjustment, so it is never Capable.
     val fallback = (retry as? Settlement.Settled)?.export?.verdict as? Verdict.Degraded
-    return NegotiatedExport(Verdict.Incapable(unsupported.values.toList(), fallback), null)
+    return NegotiatedExport(Verdict.Incapable(unsupported.values.toList(), fallback), null, unsupported = unsupported)
   }
 
   /**
@@ -181,6 +181,40 @@ public class ExportPlanner(
       is Phase.Refused -> ExportGrade.Refused(graded.error)
       is Phase.Next -> ExportGrade.Settled(graded.value.grade.hdr)
     }
+
+  /**
+   * What an export of [composition] at [ask] asks of its video encoder, or null when it is refused before it reaches
+   * one.
+   *
+   * It runs the phases [negotiate] does up to the encoding and lowers no effect, so an engine that reads its device a
+   * step at a time learns which encoder the plan opens and at what frame without any resolver being asked.
+   */
+  public fun encoderAskOf(
+    composition: Composition,
+    ask: Ask,
+  ): EncoderAsk? {
+    val graded = graded(composition, ask).orElse { return null }
+    val encoding =
+      encodingOf(ask, graded.framing, graded.grade, graded.streams, ladder, hdrLadder, renderCapabilities)
+        .orElse { return null }
+    return EncoderAsk(encoding.encoder?.encoderName, encoding.outputSize, graded.grade.encodesHdr)
+  }
+
+  /**
+   * What the plan [negotiated] falls back on asks of its video encoder, or null when it has no fallback or the fallback
+   * is refused before it reaches one.
+   *
+   * The fallback leaves out the effects this device cannot run, so it can frame the edit differently from the plan it
+   * stands in for. This reads it the way [encoderAskOf] reads that plan.
+   */
+  public fun fallbackEncoderAskOf(
+    composition: Composition,
+    ask: Ask,
+    negotiated: NegotiatedExport,
+  ): EncoderAsk? =
+    negotiated.unsupported.keys
+      .takeIf { it.isNotEmpty() }
+      ?.let { encoderAskOf(composition.withoutEffectIds(it), ask) }
 
   /**
    * The window an export of [composition] at [ask] copies whose packets an engine reads into [Ask.copyPackets], or

@@ -35,6 +35,7 @@ import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.MediaBytesFileFailure
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.describe
+import dev.jordond.filmstrip.transform.internal.EncoderAsk
 import dev.jordond.filmstrip.transform.internal.ExportGrade
 import dev.jordond.filmstrip.transform.internal.ExportPlanner
 import dev.jordond.filmstrip.transform.internal.LoweredExport
@@ -110,6 +111,35 @@ internal class FfmpegPlanner(
     }
     return planner.exportGradeOf(composition, ask)
   }
+
+  /**
+   * What an export of [composition] at [ask] asks of its video encoder, through [ExportPlanner.encoderAskOf], or null
+   * when it is refused before reaching one.
+   */
+  fun encoderAskOf(
+    composition: Composition,
+    ask: Ask,
+  ): EncoderAsk? = planner.encoderAskOf(composition, ask)
+
+  /**
+   * What the plan [negotiated] falls back on asks of its video encoder, through [ExportPlanner.fallbackEncoderAskOf],
+   * or null when it has no fallback or the fallback is refused before reaching one.
+   */
+  fun fallbackEncoderAskOf(
+    composition: Composition,
+    ask: Ask,
+    negotiated: NegotiatedExport,
+  ): EncoderAsk? = planner.fallbackEncoderAskOf(composition, ask, negotiated)
+
+  /**
+   * Whether every source of [composition] is one this backend opens, which [lower] refuses before negotiating.
+   */
+  fun opensSources(composition: Composition): Boolean =
+    try {
+      sourceRefusal(composition) == null
+    } catch (_: MediaBytesFileFailure) {
+      false
+    }
 
   /**
    * The window an export of [composition] at [ask] copies whose packets the engine reads into [Ask.copyPackets], or

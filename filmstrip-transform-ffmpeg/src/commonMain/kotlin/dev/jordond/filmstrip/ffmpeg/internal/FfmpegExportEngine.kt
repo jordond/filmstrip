@@ -3,6 +3,7 @@ package dev.jordond.filmstrip.ffmpeg.internal
 import dev.jordond.filmstrip.CapabilitiesResult
 import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.InternalFilmstripApi
+import dev.jordond.filmstrip.capability.DeviceCapabilities
 import dev.jordond.filmstrip.capability.EffectParity
 import dev.jordond.filmstrip.diagnostics.DiagnosticEvent
 import dev.jordond.filmstrip.diagnostics.DiagnosticEvent.Detail
@@ -103,7 +104,8 @@ public class FfmpegExportEngine internal constructor(
   private val reads =
     PlanningReads(
       prober = chainedProber(components, last = FfmpegProber(runtime)),
-      readDevice = { device(foundToolchain()) },
+      // Every negotiation settles its own encoder through plannedDevice, so this read encodes nothing.
+      readDevice = { CapabilitiesResult.Success(foundToolchain().unmeasuredDevice()) },
       readOpening = ::openingAtOrBefore,
     )
 
@@ -211,22 +213,50 @@ public class FfmpegExportEngine internal constructor(
       }
     val planner =
       FfmpegPlanner(toolchain, components.effectResolvers, runtime.bytesRoot, components.audioEffectResolvers)
-    val asked = Ask(spec, read.device, read.infos, read.openings, layoutSize, grade, previewClock = previewClock)
-    val ask =
-      when (val withPackets = askWithCopyPackets(toolchain, planner, composition, asked)) {
-        is CopyAsk.Refused -> return refusedLowering(withPackets.error)
-        is CopyAsk.Asked -> withPackets.ask
-      }
-    val lowered =
-      interruptibly {
-        planner.lower(
-          composition,
-          ask,
-          sdColors = colors.sdColors,
-          bt709Sources = colors.bt709Sources,
-          tailFormatSources = colors.tailFormatSources,
-        )
-      }
+    val askOf = { device: DeviceCapabilities ->
+      Ask(spec, device, read.infos, read.openings, layoutSize, grade, previewClock = previewClock)
+    }
+    // A source this backend cannot open is refused by the lowering before any device is read, so nothing is measured.
+    val reading = EncoderReading(toolchain).takeIf { planner.opensSources(composition) }
+    reading?.settle(runtime) { planner.encoderAskOf(composition, askOf(it)) }?.let { planned ->
+      if (planned is PlannedDevice.Refused) return refusedLowering(planned.error)
+    }
+    var lowered: LoweredExport<Invocation>
+    var ask: Ask
+    while (true) {
+      ask =
+        when (
+          val withPackets =
+            askWithCopyPackets(
+              toolchain,
+              planner,
+              composition,
+              askOf(reading?.device() ?: read.device),
+            )
+        ) {
+          is CopyAsk.Refused -> return refusedLowering(withPackets.error)
+          is CopyAsk.Asked -> withPackets.ask
+        }
+      lowered =
+        interruptibly {
+          planner.lower(
+            composition,
+            ask,
+            sdColors = colors.sdColors,
+            bt709Sources = colors.bt709Sources,
+            tailFormatSources = colors.tailFormatSources,
+          )
+        }
+      val revision = reading?.revision ?: break
+      val export = lowered.export
+      val fallback =
+        reading.settle(runtime, readsHdrForRefusal = false) {
+          planner.fallbackEncoderAskOf(composition, askOf(it), export)
+        }
+      if (fallback is PlannedDevice.Refused) return refusedLowering(fallback.error)
+      // The plan this one falls back on asked its encoder for more than this one read, so both negotiate again.
+      if (reading.revision == revision) break
+    }
     if (lowered.export.fallbackCopyWindow != null) {
       val export = planner.withFallbackCopyPackets(composition, ask, lowered.export) { readCopyPackets(toolchain, it) }
       return LoweredExport(export, null)
@@ -282,7 +312,17 @@ public class FfmpegExportEngine internal constructor(
       is PlanningReadResult.Read -> {
         val planner =
           FfmpegPlanner(toolchain, components.effectResolvers, runtime.bytesRoot, components.audioEffectResolvers)
-        val asked = Ask(spec, read.device, read.infos, read.openings)
+        val askOf = { device: DeviceCapabilities -> Ask(spec, device, read.infos, read.openings) }
+        val asked =
+          if (planner.opensSources(composition)) {
+            val reading = EncoderReading(toolchain)
+            when (val planned = reading.settle(runtime) { planner.encoderAskOf(composition, askOf(it)) }) {
+              is PlannedDevice.Refused -> return ExportGrade.Refused(planned.error)
+              is PlannedDevice.Settled -> askOf(planned.device)
+            }
+          } else {
+            askOf(read.device)
+          }
         when (val withPackets = askWithCopyPackets(toolchain, planner, composition, asked)) {
           is CopyAsk.Refused -> ExportGrade.Refused(withPackets.error)
           is CopyAsk.Asked -> interruptibly { planner.exportGradeOf(composition, withPackets.ask) }

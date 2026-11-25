@@ -30,13 +30,15 @@ import kotlin.time.Duration
  * wait on another's, or a build carrying six of them would spend a second of somebody's startup. A rung still encoding
  * at its deadline fails the whole measurement as [dev.jordond.filmstrip.FilmstripError.TimedOut], naming the encoder
  * and the size it was stopped at.
+ *
+ * Only a caller asking for the capabilities runs all of it. An export reads its device through [EncoderReading], which
+ * encodes only what its own plan needs.
  */
 internal suspend fun FfmpegRuntime.measureCapabilities(toolchain: Toolchain): CapabilitiesResult =
   coroutineScope {
     val measured =
-      FFMPEG_ENCODERS.entries
-        .flatMap { (codec, encoders) -> encoders.map { codec to it } }
-        .filter { (_, encoder) -> toolchain.hasEncoder(encoder.name) }
+      toolchain
+        .videoEncoders()
         .map { (codec, encoder) -> async { videoCapability(toolchain, codec, encoder) } }
         .awaitAll()
     val video =
@@ -49,13 +51,8 @@ internal suspend fun FfmpegRuntime.measureCapabilities(toolchain: Toolchain): Ca
         }.filterNotNull()
 
     // Probed at HDR_PROBE_SIZE, the one rung every backend asks this at.
-    val hdrEncoder = video.hdrEncoder()
-    val hdrProbe =
-      hdrEncoder?.hdrPixelFormat?.let { pixelFormat ->
-        canEncode(toolchain, hdrEncoder, HDR_PROBE_SIZE, pixelFormat, hdrEncoder.hdrProfile)
-      }
     val supportsHdrEncoding =
-      when (hdrProbe) {
+      when (val hdrProbe = video.hdrEncoder()?.let { encodesHdr(toolchain, it) }) {
         null -> false
         is ProbeAnswer.Expired -> return@coroutineScope hdrProbe.refusal()
         is ProbeAnswer.Answered -> hdrProbe.value
@@ -64,11 +61,7 @@ internal suspend fun FfmpegRuntime.measureCapabilities(toolchain: Toolchain): Ca
     CapabilitiesResult.Success(
       DeviceCapabilities(
         video = video,
-        audio =
-          buildList {
-            if (toolchain.hasEncoder("aac")) add(AudioEncoderCapability(AudioCodec.Aac, SAMPLE_RATES, MAX_CHANNELS))
-            if (toolchain.hasEncoder("alac")) add(AudioEncoderCapability(AudioCodec.Alac, SAMPLE_RATES, MAX_CHANNELS))
-          },
+        audio = toolchain.audioEncoders(),
         supportsHdrEncoding = supportsHdrEncoding,
         // A process is not a hardware codec session, so there is no budget to report.
         concurrentSessionBudget = null,
@@ -88,6 +81,136 @@ internal fun List<VideoEncoderCapability>.hdrEncoder(): FfmpegEncoder? =
     ?.encoderName
     ?.let { name -> FFMPEG_ENCODERS.values.flatten().firstOrNull { it.name == name } }
 
+/**
+ * Every video encoder in the table that this build carries, with the codec it writes, in the table's order.
+ */
+internal fun Toolchain.videoEncoders(): List<Pair<VideoCodec, FfmpegEncoder>> =
+  FFMPEG_ENCODERS.entries
+    .flatMap { (codec, encoders) -> encoders.map { codec to it } }
+    .filter { (_, encoder) -> hasEncoder(encoder.name) }
+
+/**
+ * The audio encoders this build carries. Nothing is encoded to find them.
+ */
+internal fun Toolchain.audioEncoders(): List<AudioEncoderCapability> =
+  buildList {
+    if (hasEncoder("aac")) add(AudioEncoderCapability(AudioCodec.Aac, SAMPLE_RATES, MAX_CHANNELS))
+    if (hasEncoder("alac")) add(AudioEncoderCapability(AudioCodec.Alac, SAMPLE_RATES, MAX_CHANNELS))
+  }
+
+/**
+ * What [encoder] reports once its floor and ceiling are known.
+ */
+internal fun capabilityOf(
+  codec: VideoCodec,
+  encoder: FfmpegEncoder,
+  floor: Size,
+  ceiling: Size,
+): VideoEncoderCapability =
+  VideoEncoderCapability(
+    codec = codec,
+    encoderName = encoder.name,
+    maxSize = ceiling,
+    minSize = floor,
+    // ffmpeg publishes neither a rate ceiling nor a bitrate ceiling, and inventing one would make plan() refuse
+    // things that work.
+    maxFrameRate = null,
+    maxBitrate = null,
+    isHardwareAccelerated = encoder.isHardwareAccelerated,
+    sizeAlignment = ENCODER_SIZE_ALIGNMENT,
+  )
+
+/**
+ * The largest rung of RESOLUTION_LADDER [encoder] opens at, walked from the top, or null when it opens at none.
+ */
+internal suspend fun FfmpegRuntime.ceilingOf(
+  toolchain: Toolchain,
+  encoder: FfmpegEncoder,
+): ProbeAnswer<Size?> {
+  for (size in RESOLUTION_LADDER) {
+    when (val rung = canEncode(toolchain, encoder, size)) {
+      is ProbeAnswer.Expired -> return rung
+      is ProbeAnswer.Answered -> if (rung.value) return ProbeAnswer.Answered(size)
+    }
+  }
+  return ProbeAnswer.Answered(null)
+}
+
+/**
+ * The smallest frame [encoder] opens at, the first rung of FLOOR_LADDER it takes, or null when it takes none.
+ *
+ * ffmpeg publishes no floor either, so the walk is the only answer.
+ */
+internal suspend fun FfmpegRuntime.floorOf(
+  toolchain: Toolchain,
+  encoder: FfmpegEncoder,
+): ProbeAnswer<Size?> {
+  val floor =
+    smallestAccepted { rung ->
+      when (val answer = canEncode(toolchain, encoder, rung)) {
+        is ProbeAnswer.Expired -> return answer
+        is ProbeAnswer.Answered -> answer.value
+      }
+    }
+  return ProbeAnswer.Answered(floor)
+}
+
+/**
+ * Whether [encoder] opens its ten-bit profile at HDR_PROBE_SIZE. An encoder with no such profile answers false.
+ */
+internal suspend fun FfmpegRuntime.encodesHdr(
+  toolchain: Toolchain,
+  encoder: FfmpegEncoder,
+): ProbeAnswer<Boolean> {
+  val pixelFormat = encoder.hdrPixelFormat ?: return ProbeAnswer.Answered(false)
+  return canEncode(toolchain, encoder, HDR_PROBE_SIZE, pixelFormat, encoder.hdrProfile)
+}
+
+/**
+ * Whether [encoder] writes one frame of [size], through [FfmpegRuntime.testEncode] so a rung is encoded once.
+ */
+internal suspend fun FfmpegRuntime.canEncode(
+  toolchain: Toolchain,
+  encoder: FfmpegEncoder,
+  size: Size,
+  pixelFormat: String? = null,
+  profile: String? = null,
+): ProbeAnswer<Boolean> {
+  val command =
+    buildList {
+      add(toolchain.ffmpeg)
+      add("-hide_banner")
+      add("-loglevel")
+      add("error")
+      add("-nostdin")
+      add("-f")
+      add("lavfi")
+      add("-i")
+      add("color=s=${size.width}x${size.height}:d=0.04")
+      pixelFormat?.let {
+        add("-vf")
+        add("format=$it")
+      }
+      add("-c:v")
+      add(encoder.name)
+      pixelFormat?.let {
+        add("-pix_fmt")
+        add(it)
+      }
+      addAll(encoder.probeArguments)
+      (profile ?: encoder.profile)?.let {
+        add("-profile:v")
+        add(it)
+      }
+      add("-f")
+      add("null")
+      add("-")
+    }
+  return testEncode(command) { deadline ->
+    ProbeAnswer.Expired(ProbeOperation.ENCODER_TEST, deadline, rungExpiredReason(encoder, size, deadline))
+  }
+}
+
 private fun ProbeAnswer.Expired.refusal(): CapabilitiesResult.Failure = CapabilitiesResult.Failure(timedOut())
 
 private suspend fun FfmpegRuntime.videoCapability(
@@ -95,85 +218,17 @@ private suspend fun FfmpegRuntime.videoCapability(
   codec: VideoCodec,
   encoder: FfmpegEncoder,
 ): ProbeAnswer<VideoEncoderCapability?> {
-  for (size in RESOLUTION_LADDER) {
-    val encodes =
-      when (val rung = canEncode(toolchain, encoder, size)) {
-        is ProbeAnswer.Expired -> return rung
-        is ProbeAnswer.Answered -> rung.value
-      }
-    if (encodes) {
-      // ffmpeg publishes no floor either, so the smallest frame is the first rung the encoder opens at.
-      val floor =
-        smallestAccepted { rung ->
-          when (val answer = canEncode(toolchain, encoder, rung)) {
-            is ProbeAnswer.Expired -> return answer
-            is ProbeAnswer.Answered -> answer.value
-          }
-        } ?: return ProbeAnswer.Answered(null)
-      return ProbeAnswer.Answered(
-        VideoEncoderCapability(
-          codec = codec,
-          encoderName = encoder.name,
-          maxSize = size,
-          minSize = floor,
-          // ffmpeg publishes neither a rate ceiling nor a bitrate ceiling, and inventing one would make
-          // plan() refuse things that work.
-          maxFrameRate = null,
-          maxBitrate = null,
-          isHardwareAccelerated = encoder.isHardwareAccelerated,
-          sizeAlignment = SIZE_ALIGNMENT,
-        ),
-      )
+  val ceiling =
+    when (val answer = ceilingOf(toolchain, encoder)) {
+      is ProbeAnswer.Expired -> return answer
+      is ProbeAnswer.Answered -> answer.value ?: return ProbeAnswer.Answered(null)
     }
-  }
-  return ProbeAnswer.Answered(null)
-}
-
-private suspend fun FfmpegRuntime.canEncode(
-  toolchain: Toolchain,
-  encoder: FfmpegEncoder,
-  size: Size,
-  pixelFormat: String? = null,
-  profile: String? = null,
-): ProbeAnswer<Boolean> {
-  val timeout = deadline(Duration.ZERO)
-  val output =
-    capture(
-      buildList {
-        add(toolchain.ffmpeg)
-        add("-hide_banner")
-        add("-loglevel")
-        add("error")
-        add("-nostdin")
-        add("-f")
-        add("lavfi")
-        add("-i")
-        add("color=s=${size.width}x${size.height}:d=0.04")
-        pixelFormat?.let {
-          add("-vf")
-          add("format=$it")
-        }
-        add("-c:v")
-        add(encoder.name)
-        pixelFormat?.let {
-          add("-pix_fmt")
-          add(it)
-        }
-        addAll(encoder.probeArguments)
-        (profile ?: encoder.profile)?.let {
-          add("-profile:v")
-          add(it)
-        }
-        add("-f")
-        add("null")
-        add("-")
-      },
-      timeout,
-    )
-  if (output.timedOut) {
-    return ProbeAnswer.Expired(ProbeOperation.ENCODER_TEST, timeout, rungExpiredReason(encoder, size, timeout))
-  }
-  return ProbeAnswer.Answered(output.started && output.exitCode == 0)
+  val floor =
+    when (val answer = floorOf(toolchain, encoder)) {
+      is ProbeAnswer.Expired -> return answer
+      is ProbeAnswer.Answered -> answer.value ?: return ProbeAnswer.Answered(null)
+    }
+  return ProbeAnswer.Answered(capabilityOf(codec, encoder, floor, ceiling))
 }
 
 private fun rungExpiredReason(
@@ -185,7 +240,9 @@ private fun rungExpiredReason(
     "was stopped, so filmstrip could not tell what this build can encode. Asking for the capabilities again measures " +
     "them again."
 
-private const val SIZE_ALIGNMENT = 2
+// Each side of a frame these encoders take is a multiple of this.
+internal const val ENCODER_SIZE_ALIGNMENT: Int = 2
+
 private const val MAX_CHANNELS = 8
 
 private val SAMPLE_RATES = listOf(8_000, 16_000, 22_050, 24_000, 32_000, 44_100, 48_000, 96_000)

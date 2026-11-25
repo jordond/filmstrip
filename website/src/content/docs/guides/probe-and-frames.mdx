@@ -48,6 +48,10 @@ the read and its deadline, rather than leaving the call hanging. See [Limits](/r
 that runs past its deadline fails the call naming the encoder, and that failure isn't cached, so asking again measures
 again.
 
+On the JVM, `plan` and `export` don't need this answer. They test-encode only the encoder the plan picks, and only at
+the sizes that plan writes, so a small export never waits on an 8K encode or on an encoder it doesn't use. A test
+encode the plan does need that runs past its deadline refuses the plan as `TimedOut`.
+
 <Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/ProbeAndFrames.kt" region="capabilities" />
 
 `encoderFor` answers one codec's limits, such as `minSize`, `maxSize`, `maxFrameRate` and `maxBitrate`, or null when

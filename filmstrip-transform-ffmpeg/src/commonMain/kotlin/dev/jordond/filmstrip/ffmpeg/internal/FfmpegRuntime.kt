@@ -81,6 +81,8 @@ internal class FfmpegRuntime private constructor(
   private val copyPacketReads = mutableMapOf<String, PacketWindow>()
   private val capabilityLock = Mutex()
   private var capabilities: DeviceCapabilities? = null
+  private val testEncodeLock = Mutex()
+  private val testEncodes = mutableMapOf<List<String>, Boolean>()
 
   // How many times ffprobe was actually spawned. The cache is what holds this to one per path
   // however often the same edit is lowered.
@@ -129,6 +131,29 @@ internal class FfmpegRuntime private constructor(
       capabilityMeasures++
       measure().also { if (it is CapabilitiesResult.Success) capabilities = it.capabilities }
     }
+
+  /**
+   * Whether [command], a test encode of one frame, exits cleanly, spawned the first time it is asked for.
+   *
+   * Answers are held by command, so the ladder an export reads and the one a capability measurement reads share
+   * every rung they both reach. The lock is not held across the spawn, so one encoder's rung does not wait on
+   * another's. A spawn still running at its deadline answers [expired] and is not held, so the next caller runs it
+   * again.
+   *
+   * @param expired Builds the answer for a spawn stopped at the deadline it is given.
+   */
+  suspend fun testEncode(
+    command: List<String>,
+    expired: (Duration) -> ProbeAnswer.Expired,
+  ): ProbeAnswer<Boolean> {
+    testEncodeLock.withLock { testEncodes[command] }?.let { return ProbeAnswer.Answered(it) }
+    val timeout = deadline(Duration.ZERO)
+    val output = capture(command, timeout)
+    if (output.timedOut) return expired(timeout)
+    val encodes = output.started && output.exitCode == 0
+    testEncodeLock.withLock { testEncodes[command] = encodes }
+    return ProbeAnswer.Answered(encodes)
+  }
 
   suspend fun capture(
     command: List<String>,
