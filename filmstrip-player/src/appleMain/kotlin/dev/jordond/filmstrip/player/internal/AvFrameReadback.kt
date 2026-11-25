@@ -1,3 +1,5 @@
+@file:OptIn(ExperimentalForeignApi::class)
+
 package dev.jordond.filmstrip.player.internal
 
 import dev.jordond.filmstrip.Cancellable
@@ -17,8 +19,11 @@ import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.addressOf
 import kotlinx.cinterop.usePinned
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import platform.AVFoundation.AVAssetImageGenerator
+import platform.AVFoundation.AVAssetImageGeneratorCompletionHandler
 import platform.AVFoundation.AVAssetImageGeneratorResult
 import platform.AVFoundation.AVAssetImageGeneratorSucceeded
 import platform.AVFoundation.valueWithCMTime
@@ -57,52 +62,93 @@ import kotlin.time.Duration
  *   `generateCGImagesAsynchronouslyForTimes` may answer out of the order it was asked.
  * @param composition The graph the player is showing, or null before one is loaded.
  * @param policy How hard the preview may work, which caps the generated frame.
+ * @param renderScale The preview's render scale, carried on every frame read back.
+ * @param deadline How long one generator may stay silent before it is replaced, and how long the
+ *   replacement gets before the request fails.
+ * @param generate Starts a generator on one time. Tests swap it for one that stalls.
  */
-@OptIn(ExperimentalForeignApi::class)
 internal class AvFrameReadback(
   private val scope: CoroutineScope,
   private val composition: () -> AvComposition?,
   private val policy: () -> PreviewQualityPolicy,
   private val renderScale: () -> Float,
+  private val deadline: Duration = AV_READBACK_DEADLINE,
+  private val generate: FrameGeneration = ::generateFrame,
 ) : PreviewFrameReadback {
   override fun requestFrame(
     position: Duration,
     callback: ReadbackCallback,
   ): Cancellable {
     val av = composition() ?: return refuse(callback, NO_COMPOSITION)
-    val generator = generatorFor(av)
     val scale = renderScale()
     var delivered = false
+    var current = 0
+    var generator: AVAssetImageGenerator? = null
+    var watchdog: Job? = null
 
-    generator.generateCGImagesAsynchronouslyForTimes(
-      listOf(NSValue.valueWithCMTime(position.toCMTime())),
-    ) { _, image, actualTime, result, error ->
-      // The handler runs on the generator's own queue. Everything past this point belongs to the
-      // engine's dispatcher, and nothing may throw back into AVFoundation.
-      val outcome =
-        try {
-          readback(image, actualTime, result, error, av, scale)
-        } catch (
-          @Suppress("TooGenericExceptionCaught") broken: Exception,
-        ) {
-          ReadbackResult.Failure(
-            PlaybackError.Underlying(
-              PlaybackError.Underlying.NO_PLATFORM_CODE,
-              broken.message ?: broken.toString(),
-            ),
-          )
-        }
+    fun deliver(
+      attempt: Int,
+      outcome: ReadbackResult,
+    ) {
       scope.launch {
-        if (!delivered) {
+        if (!delivered && attempt == current) {
           delivered = true
+          watchdog?.cancel()
           callback.onReadback(outcome)
         }
       }
     }
 
+    fun ask() {
+      val attempt = ++current
+      val fresh = generatorFor(av)
+      generator = fresh
+      generate(fresh, position) { _, image, actualTime, result, error ->
+        // The handler runs on the generator's own queue. Everything past this point belongs to the
+        // engine's dispatcher, and nothing may throw back into AVFoundation.
+        val outcome =
+          try {
+            readback(image, actualTime, result, error, av, scale)
+          } catch (
+            @Suppress("TooGenericExceptionCaught") broken: Exception,
+          ) {
+            ReadbackResult.Failure(
+              PlaybackError.Underlying(
+                PlaybackError.Underlying.NO_PLATFORM_CODE,
+                broken.message ?: broken.toString(),
+              ),
+            )
+          }
+        deliver(attempt, outcome)
+      }
+    }
+
+    ask()
+    // AVFoundation's generator can stall with no answer and no error. One fresh generator is asked
+    // after the deadline, and a second stall fails the request, so it always answers.
+    watchdog =
+      scope.launch {
+        delay(deadline)
+        if (delivered) return@launch
+        generator?.cancelAllCGImageGeneration()
+        ask()
+        delay(deadline)
+        if (delivered) return@launch
+        generator?.cancelAllCGImageGeneration()
+        val stalled =
+          ReadbackResult.Failure(
+            PlaybackError.Underlying(
+              PlaybackError.Underlying.NO_PLATFORM_CODE,
+              stalledReadbackMessage(position, deadline),
+            ),
+          )
+        deliver(current, stalled)
+      }
+
     return Cancellable {
       delivered = true
-      generator.cancelAllCGImageGeneration()
+      watchdog?.cancel()
+      generator?.cancelAllCGImageGeneration()
     }
   }
 
@@ -217,4 +263,24 @@ internal class AvFrameReadback(
     const val BITS_PER_CHANNEL = 8
     const val NO_COMPOSITION = "No composition is loaded, so there is no frame to read back."
   }
+}
+
+/**
+ * Starts one generator on one time and reports through its handler.
+ *
+ * [AvFrameReadback] takes this as a seam so a test can stand in a generator that never answers.
+ */
+internal typealias FrameGeneration = (AVAssetImageGenerator, Duration, AVAssetImageGeneratorCompletionHandler) -> Unit
+
+/**
+ * Asks [generator] for the frame at [time], which is all the real generation does.
+ *
+ * The handler runs on the generator's own queue.
+ */
+internal fun generateFrame(
+  generator: AVAssetImageGenerator,
+  time: Duration,
+  handler: AVAssetImageGeneratorCompletionHandler,
+) {
+  generator.generateCGImagesAsynchronouslyForTimes(listOf(NSValue.valueWithCMTime(time.toCMTime())), handler)
 }

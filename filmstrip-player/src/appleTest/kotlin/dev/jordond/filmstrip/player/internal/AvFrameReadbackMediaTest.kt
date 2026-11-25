@@ -1,3 +1,5 @@
+@file:OptIn(ExperimentalForeignApi::class)
+
 package dev.jordond.filmstrip.player.internal
 
 import dev.jordond.filmstrip.avfoundation.internal.composition.AvComposition
@@ -21,9 +23,13 @@ import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.comparables.shouldBeLessThan
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
+import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlin.test.Test
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
 
 class AvFrameReadbackMediaTest {
   init {
@@ -88,12 +94,86 @@ class AvFrameReadbackMediaTest {
       answers.shouldBeEmpty()
     }
 
+  @Test
+  fun `a generator that never answers is asked again and the fresh one answers`() =
+    contractTest { scope ->
+      val av = appleExportLowering(appleFixtureComposition()).toAvComposition()
+      var attempts = 0
+      val readback =
+        readback(scope, av, deadline = SHORT_DEADLINE) { generator, time, handler ->
+          if (attempts++ > 0) generateFrame(generator, time, handler)
+        }
+
+      val frame = read(readback, PROBE_POSITIONS.first()).frame
+
+      attempts shouldBe 2
+      frame.size shouldBe FIXTURE_FRAME
+    }
+
+  @Test
+  fun `two generators that never answer fail the request naming the stall`() =
+    contractTest { scope ->
+      val av = appleExportLowering(appleFixtureComposition()).toAvComposition()
+      val answers = mutableListOf<ReadbackResult>()
+      var attempts = 0
+      val readback = readback(scope, av, deadline = SHORT_DEADLINE) { _, _, _ -> attempts++ }
+
+      readback.requestFrame(PROBE_POSITIONS.first()) { answers += it }
+      awaitContract("a stalled readback to fail") { answers.isNotEmpty() }
+      settle()
+
+      attempts shouldBe 2
+      val failure = answers.single().shouldBeInstanceOf<ReadbackResult.Failure>()
+      failure.error.shouldBeInstanceOf<PlaybackError.Underlying>().message shouldBe
+        stalledReadbackMessage(PROBE_POSITIONS.first(), SHORT_DEADLINE)
+    }
+
+  @Test
+  fun `a generator answering inside the deadline is delivered once with no retry`() =
+    contractTest { scope ->
+      val av = appleExportLowering(appleFixtureComposition()).toAvComposition()
+      val answers = mutableListOf<ReadbackResult>()
+      var attempts = 0
+      val readback =
+        readback(scope, av, deadline = SHORT_DEADLINE) { generator, time, handler ->
+          attempts++
+          scope.launch {
+            delay(SHORT_DEADLINE / 2)
+            generateFrame(generator, time, handler)
+          }
+        }
+
+      readback.requestFrame(PROBE_POSITIONS.first()) { answers += it }
+      awaitContract("a late readback") { answers.isNotEmpty() }
+      delay(SHORT_DEADLINE * 3)
+
+      attempts shouldBe 1
+      answers.single().shouldBeInstanceOf<ReadbackResult.Success>()
+    }
+
+  @Test
+  fun `a cancelled request is not asked again`() =
+    contractTest { scope ->
+      val av = appleExportLowering(appleFixtureComposition()).toAvComposition()
+      val answers = mutableListOf<ReadbackResult>()
+      var attempts = 0
+      val readback = readback(scope, av, deadline = SHORT_DEADLINE) { _, _, _ -> attempts++ }
+
+      readback.requestFrame(PROBE_POSITIONS.first()) { answers += it }.cancel()
+      delay(SHORT_DEADLINE * 3)
+
+      attempts shouldBe 1
+      answers.shouldBeEmpty()
+    }
+
   private fun readback(
     scope: CoroutineScope,
     av: AvComposition?,
     policy: PreviewQualityPolicy = PreviewQualityPolicy.Full,
     scale: Float = 1f,
-  ): AvFrameReadback = AvFrameReadback(scope, { av }, { policy }, { scale })
+    deadline: Duration = AV_READBACK_DEADLINE,
+    generate: FrameGeneration = ::generateFrame,
+  ): AvFrameReadback = AvFrameReadback(scope, { av }, { policy }, { scale }, deadline, generate)
 
   private suspend fun read(
     readback: AvFrameReadback,
@@ -108,5 +188,6 @@ class AvFrameReadbackMediaTest {
   private companion object {
     const val SCALE = 0.75f
     const val CHANNELS = 4
+    val SHORT_DEADLINE = 300.milliseconds
   }
 }
