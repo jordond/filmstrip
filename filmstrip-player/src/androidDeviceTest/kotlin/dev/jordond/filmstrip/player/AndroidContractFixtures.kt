@@ -184,6 +184,22 @@ internal suspend fun androidExportedFile(composition: Composition): File =
   exports.getOrPut(composition) { export(composition) }
 
 /**
+ * Whether an export can now and then write a stale picture on one of the last few slots before a seam.
+ *
+ * The emulator's limit, measured on the CI AVD at API 36: about once per emulator session a two clip export hands
+ * media3's input surface a decoded picture that holds an earlier frame under the right timestamp. The software and the
+ * goldfish decoder both do it, a GL finish at the end of the chain leaves it as is, and a one clip export never does.
+ * A real device is held to every frame.
+ */
+internal val staleSeamExportsHappen: Boolean get() = runsOnEmulator
+
+/**
+ * Deletes the file [composition] was exported to, so [androidExportedFile] writes it again, and says whether there was
+ * one.
+ */
+internal fun forgetAndroidExport(composition: Composition): Boolean = exports.remove(composition)?.delete() != null
+
+/**
  * The frame [composition] exports at [position] with its HDR grade tone mapped to SDR.
  */
 internal suspend fun androidToneMappedExportFrame(

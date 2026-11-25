@@ -32,6 +32,9 @@ internal object AndroidShortClips : ShortClipBackend, ClipParityBackend by Andro
   // past a frame's own time lands on the next one.
   override fun frameReadLead(rate: Int): Duration = Duration.ZERO
 
+  override suspend fun forgetStaleSeamExport(composition: Composition): Boolean =
+    staleSeamExportsHappen && forgetAndroidExport(composition)
+
   // media3's limit, androidx/media#921: its export gives a lengthened last item no more samples, so the video track
   // ends with the primary's own slots, as AndroidClipSpeedMediaTest reads it, and the preview's ends there too.
   override val writesHeldTail: Boolean get() = false

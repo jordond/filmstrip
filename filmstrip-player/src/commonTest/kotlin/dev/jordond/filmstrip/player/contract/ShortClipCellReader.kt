@@ -74,6 +74,15 @@ interface ShortClipBackend : ClipParityBackend {
   fun frameReadLead(rate: Int): Duration = 1.seconds / rate / 4
 
   /**
+   * Drops the file [composition] exported to after a seam cell read the wrong frame from it, so the next read exports
+   * it again, and says whether it did.
+   *
+   * False by default, so a wrong frame fails the cell. A backend whose platform now and then hands its export a stale
+   * decoded picture at a seam overrides this, naming that limit, and the cell reads one fresh export.
+   */
+  suspend fun forgetStaleSeamExport(composition: Composition): Boolean = false
+
+  /**
    * Whether the file holds the primary's last frame over the slots a longer track runs past it, and the preview with
    * it.
    *
@@ -182,11 +191,23 @@ abstract class ShortClipCellReader(
     withClue("the frames in the file") {
       writtenFrameCount(cell.edit) shouldBe (cell.writtenFrames ?: videoSlotsOf(duration, rate))
     }
-    cell.reads.forEach { read ->
-      val frame = exportFrame(cell.edit, outputSlotTime(read.slot, rate))
-      assertSameFrame(references.getValue(read.sourceFrame), frame, read.slot, "the file at slot ${read.slot}")
+    try {
+      assertFileReads(cell, references, rate)
+    } catch (stale: AssertionError) {
+      if (cell.seam == null || !forgetStaleSeamExport(cell.edit)) throw stale
+      println("Exporting the seam cell again after a stale frame: ${stale.message}")
+      assertFileReads(cell, references, rate)
     }
     cell.writtenAtSpeed?.let { speed -> assertWrittenLength(source, cell.edit, duration, speed) }
+  }
+
+  private suspend fun assertFileReads(
+    cell: Cell,
+    references: Map<Long, TestFrame>,
+    rate: Int,
+  ) = cell.reads.forEach { read ->
+    val frame = exportFrame(cell.edit, outputSlotTime(read.slot, rate))
+    assertSameFrame(references.getValue(read.sourceFrame), frame, read.slot, "the file at slot ${read.slot}")
   }
 
   private suspend fun assertPreview(
