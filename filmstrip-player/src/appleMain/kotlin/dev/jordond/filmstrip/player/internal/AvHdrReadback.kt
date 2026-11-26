@@ -4,6 +4,8 @@ import dev.jordond.filmstrip.avfoundation.internal.composition.AvComposition
 import dev.jordond.filmstrip.avfoundation.internal.composition.videoCompositionOutput
 import dev.jordond.filmstrip.avfoundation.internal.time.toCMTime
 import dev.jordond.filmstrip.avfoundation.internal.time.toDuration
+import dev.jordond.filmstrip.edit.outputSlotOf
+import dev.jordond.filmstrip.edit.outputSlotTime
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.player.PlaybackError
@@ -39,17 +41,22 @@ import kotlin.time.Duration
  * The player shows the same video composition, and the output renders it into ten-bit biplanar video range buffers,
  * which are the codes the encoder is handed. Each pixel takes the Cb and Cr of the two by two block it sits in.
  *
+ * A position is read from the time of the slot it lands on, since the reader hands back the first frame at or after the
+ * time its range opens on and a position inside a slot would read the next one.
+ *
  * @param composition The graph the player is showing, or null before one is loaded.
+ * @param frameRate The output frame rate of the composition shown, or null before one is loaded.
  */
 @OptIn(ExperimentalForeignApi::class)
 internal class AvHdrReadback(
   private val composition: () -> AvComposition?,
+  private val frameRate: () -> Int?,
 ) : HdrPreviewReadback {
   override suspend fun hdrFrameAt(position: Duration): HdrPreviewResult {
     val av = composition() ?: return failure(NO_COMPOSITION)
     val transfer = av.transfer?.takeIf { av.encodesHdr } ?: return failure(NO_HDR_GRADE)
     val frame =
-      withContext(Dispatchers.IO) { read(av, position, transfer) }
+      withContext(Dispatchers.IO) { read(av, slotTimeOf(position), transfer) }
         ?: return HdrPreviewResult.Failure(PlaybackError.Underlying(NO_CODE, noFrame(position)))
     return HdrPreviewResult.Success(frame)
   }
@@ -78,6 +85,9 @@ internal class AvHdrReadback(
       reader.cancelReading()
     }
   }
+
+  private fun slotTimeOf(position: Duration): Duration =
+    frameRate()?.let { rate -> outputSlotTime(outputSlotOf(position, rate), rate) } ?: position
 
   private fun failure(message: String): HdrPreviewResult =
     HdrPreviewResult.Failure(PlaybackError.SourceUnreadable(message))

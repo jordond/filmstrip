@@ -116,6 +116,11 @@ jobs:
         if: always()
         run: python3 .github/scripts/slowest-tests.py
 
+      - &failed
+        name: Failed tests
+        if: failure()
+        run: python3 .github/scripts/failed-tests.py
+
       # An artifact name can hold no slash or space, so the shard's i/n and any spaces become dashes.
       - &artifact
         name: Name the artifacts
@@ -134,7 +139,7 @@ jobs:
             **/build/test-results/
             **/build/outputs/androidTest-results/
           if-no-files-found: ignore
-          retention-days: 7
+          retention-days: 30
 
       - &reports
         name: Upload test reports
@@ -146,7 +151,7 @@ jobs:
             **/build/reports/tests/
             **/build/reports/androidTests/
           if-no-files-found: ignore
-          retention-days: 7
+          retention-days: 30
 
   # See ci.yml for why the browser cells run with smaller daemon heaps. js also runs every pureTest class, which the
   # fast lane runs on jvm only.
@@ -189,6 +194,7 @@ jobs:
           done
           exit "$status"
       - *slowest
+      - *failed
       - *artifact
       - *results
       - *reports
@@ -259,6 +265,8 @@ jobs:
             ./gradlew ${{ matrix.tasks }} -PtestShard=${{ matrix.shard }} -Pmedia --scan
 
       - *slowest
+
+      - *failed
       - *artifact
       - *results
       - *reports
@@ -309,6 +317,7 @@ jobs:
           for module in $MODULES; do tasks+=(":$module:iosSimulatorArm64Test"); done
           ./gradlew :filmstrip-player:bootIosSimulator "${tasks[@]}" -Pmedia --scan
       - *slowest
+      - *failed
       - *artifact
 
       # A stall inside the simulator leaves nothing in the test output but a timeout, so a red job keeps the
@@ -325,7 +334,7 @@ jobs:
           name: media-simulator-log-${{ env.ARTIFACT }}
           path: build/simulator-log/
           if-no-files-found: ignore
-          retention-days: 7
+          retention-days: 30
       - *results
       - *reports
 
@@ -344,6 +353,7 @@ jobs:
       - name: Run macos tests
         run: ./gradlew macosArm64Test -Pmedia -PpureEverywhere --scan
       - *slowest
+      - *failed
       - *artifact
       - *results
       - *reports

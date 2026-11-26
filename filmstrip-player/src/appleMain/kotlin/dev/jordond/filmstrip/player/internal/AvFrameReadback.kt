@@ -6,6 +6,8 @@ import dev.jordond.filmstrip.Cancellable
 import dev.jordond.filmstrip.avfoundation.internal.composition.AvComposition
 import dev.jordond.filmstrip.avfoundation.internal.time.toCMTime
 import dev.jordond.filmstrip.avfoundation.internal.time.toDuration
+import dev.jordond.filmstrip.edit.outputSlotOf
+import dev.jordond.filmstrip.edit.outputSlotTime
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.player.PlaybackError
@@ -63,6 +65,9 @@ import kotlin.time.Duration
  * @param composition The graph the player is showing, or null before one is loaded.
  * @param policy How hard the preview may work, which caps the generated frame.
  * @param renderScale The preview's render scale, carried on every frame read back.
+ * @param frameRate The output frame rate of the composition shown, or null before one is loaded. A position is read
+ *   at the time of the slot it lands on, since the generator's clock rounds to its own ticks and a position just short
+ *   of a half way point would round into the next slot.
  * @param deadline How long one generator may stay silent before it is replaced, and how long the
  *   replacement gets before the request fails.
  * @param generate Starts a generator on one time. Tests swap it for one that stalls.
@@ -72,6 +77,7 @@ internal class AvFrameReadback(
   private val composition: () -> AvComposition?,
   private val policy: () -> PreviewQualityPolicy,
   private val renderScale: () -> Float,
+  private val frameRate: () -> Int?,
   private val deadline: Duration = AV_READBACK_DEADLINE,
   private val generate: FrameGeneration = ::generateFrame,
 ) : PreviewFrameReadback {
@@ -81,6 +87,7 @@ internal class AvFrameReadback(
   ): Cancellable {
     val av = composition() ?: return refuse(callback, NO_COMPOSITION)
     val scale = renderScale()
+    val asked = frameRate()?.let { rate -> outputSlotTime(outputSlotOf(position, rate), rate) } ?: position
     var delivered = false
     var current = 0
     var generator: AVAssetImageGenerator? = null
@@ -103,7 +110,7 @@ internal class AvFrameReadback(
       val attempt = ++current
       val fresh = generatorFor(av)
       generator = fresh
-      generate(fresh, position) { _, image, actualTime, result, error ->
+      generate(fresh, asked) { _, image, actualTime, result, error ->
         // The handler runs on the generator's own queue. Everything past this point belongs to the
         // engine's dispatcher, and nothing may throw back into AVFoundation.
         val outcome =

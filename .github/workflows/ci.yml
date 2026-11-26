@@ -93,6 +93,9 @@ jobs:
       - name: Path classifier
         run: bash .github/scripts/classify-paths-test.sh
 
+      - name: Failed test lister
+        run: bash .github/scripts/failed-tests-test.sh
+
       - name: iOS matrix lists every module with iOS tests
         run: bash .github/scripts/check-ios-matrix.sh
 
@@ -152,6 +155,10 @@ jobs:
         name: Slowest test classes
         if: always()
         run: python3 .github/scripts/slowest-tests.py
+      - &failed
+        name: Failed tests
+        if: failure()
+        run: python3 .github/scripts/failed-tests.py
       # An artifact name can hold no slash or space, so any in the cell's name become dashes.
       - &artifact
         name: Name the artifacts
@@ -166,7 +173,7 @@ jobs:
           path: |
             **/build/reports/tests/
             **/build/test-results/
-          retention-days: 7
+          retention-days: 30
 
   android:
     name: "Test android"
@@ -183,6 +190,7 @@ jobs:
       - name: Run android host tests and build the sample
         run: ./gradlew testAndroidHostTest :sample:demo:androidApp:assembleDebug --scan
       - *slowest
+      - *failed
       - *artifact
       - *reports
 
@@ -206,6 +214,7 @@ jobs:
           ./gradlew jsBrowserTest --scan
           "-Dorg.gradle.jvmargs=-Xmx2g -Dfile.encoding=UTF-8 -Dkotlin.daemon.jvm.options=-Xmx3g"
       - *slowest
+      - *failed
       - *artifact
       - *reports
 
@@ -242,6 +251,7 @@ jobs:
       - name: Run macos tests
         run: ./gradlew macosArm64Test --scan
       - *slowest
+      - *failed
       - *artifact
       - *reports
 
@@ -269,5 +279,6 @@ jobs:
           :sample:playground:jvmTest
           :sample:playground:compileKotlinWasmJs
       - *slowest
+      - *failed
       - *artifact
       - *reports

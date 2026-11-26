@@ -253,6 +253,9 @@ abstract class PlayerEngineContractTest {
   fun aStepFromAPauseLandsOnTheNeighbours() = pauses.aStepFromThePauseLandsOnTheNeighbours()
 
   @Test
+  fun aFrameReadBackAtAPositionIsOfTheSlotItNames() = readbackSlots.aFrameReadAtAPositionIsOfItsSlot()
+
+  @Test
   fun aPlayAfterASettledPauseNeverReadsBehindIt() = pauses.aPlayAfterAPauseNeverReadsBehindIt()
 
   @Test
@@ -410,6 +413,9 @@ abstract class PlayerEngineContractTest {
   private val relaxedSeeks: RelaxedSeekContract get() = RelaxedSeekContract(::createEngine, fixture, fixtureFrameRate)
 
   private val pauses: PausePositionContract get() = PausePositionContract(::createEngine, fixture, fixtureFrameRate)
+
+  private val readbackSlots: ReadbackSlotContract
+    get() = ReadbackSlotContract(::createEngine, fixture, fixtureFrameRate)
 
   private val shuttles: ShuttleContract get() = ShuttleContract(::createEngine, fixture, fixtureFrameRate)
 

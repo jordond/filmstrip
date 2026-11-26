@@ -28,6 +28,9 @@ public fun interface PreviewFrameReadback {
   /**
    * Renders the frame at [position] through the current effect chain and delivers it.
    *
+   * The frame is the one on the output slot [position] rounds to, which is the frame a paused preview shows there, at
+   * any position inside the slot.
+   *
    * Must not disturb transport state: no seek is observable to the caller, the playhead does not
    * move, and playback if running is unaffected.
    *

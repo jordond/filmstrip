@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.filmstrip.player.AppleShortClipSeamHardwareTest" tests="2" skipped="0" failures="1" errors="0" timestamp="2026-11-25T10:00:00" hostname="localhost" time="1.2">
+  <testcase name="cellOne" classname="macosArm64Test.io.filmstrip.player.AppleShortClipSeamHardwareTest" time="0.4"/>
+  <testcase name="cellTwoFilesWhoseTrimsMeet" classname="macosArm64Test.io.filmstrip.player.AppleShortClipSeamHardwareTest" time="0.8">
+    <failure message="Slot 12 held slot 11&#10;expected:&lt;12&gt; but was:&lt;11&gt;" type="kotlin.AssertionError">kotlin.AssertionError: Slot 12 held slot 11
+	at null:-1</failure>
+  </testcase>
+</testsuite>

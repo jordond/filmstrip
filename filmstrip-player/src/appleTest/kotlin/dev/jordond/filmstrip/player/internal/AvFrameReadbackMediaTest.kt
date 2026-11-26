@@ -186,7 +186,7 @@ class AvFrameReadbackMediaTest {
     scale: Float = 1f,
     deadline: Duration = AV_READBACK_DEADLINE,
     generate: FrameGeneration = ::generateFrame,
-  ): AvFrameReadback = AvFrameReadback(scope, { av }, { policy }, { scale }, deadline, generate)
+  ): AvFrameReadback = AvFrameReadback(scope, { av }, { policy }, { scale }, { null }, deadline, generate)
 
   // One answer from the real generator, decoded before any deadline runs so a stand-in can hand it back on time.
   private suspend fun generatedAnswer(

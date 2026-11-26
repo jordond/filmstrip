@@ -117,7 +117,8 @@ that does nothing.
 | `PlaybackSpeed`       | ✗                    | ✗     | ✗                                  | ✗   |
 | `Shuttle`             | ✓                    | ✓     | Needs WebGL2                       | ✗   |
 
-`readback` hands you a rendered preview frame, after effects and before encoding.
+`readback` hands you a rendered preview frame, after effects and before encoding. A read at any time inside a frame
+hands you that frame, the one a paused playhead rounding to the same time shows.
 
 ## Changing the composition
 

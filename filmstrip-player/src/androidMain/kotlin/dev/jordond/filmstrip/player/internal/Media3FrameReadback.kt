@@ -9,6 +9,8 @@ import androidx.annotation.RequiresApi
 import androidx.media3.common.Effect
 import androidx.media3.inspector.frame.FrameExtractor
 import dev.jordond.filmstrip.Cancellable
+import dev.jordond.filmstrip.edit.outputSlotOf
+import dev.jordond.filmstrip.edit.outputSlotTime
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.HdrTransfer
@@ -79,12 +81,13 @@ internal class Media3FrameReadback(
     callback: ReadbackCallback,
   ): Cancellable {
     val graph = preview() ?: return refuse(callback, NO_COMPOSITION)
-    val lowered = graph.readbackAt(position, revision()) ?: return refuse(callback, NO_CLIP)
+    val at = graph.slotTimeOf(position)
+    val lowered = graph.readbackAt(at, revision()) ?: return refuse(callback, NO_CLIP)
     val span = lowered.span
     val scale = renderScale()
     val request = Request(callback)
 
-    if (span.still) return readStill(lowered, position, scale, request)
+    if (span.still) return readStill(lowered, at, scale, request)
 
     // The extractor builds an ExoPlayer, which binds to the looper of whatever thread creates it,
     // so it is built on one of this class's own rather than on the player's.
@@ -93,7 +96,7 @@ internal class Media3FrameReadback(
       val extractor = extractorOf(lowered, lowered.effects, extractsHdr = false)
       request.extractor = extractor
 
-      val future = extractor.getFrame(lowered.extractorPosition(position))
+      val future = extractor.getFrame(lowered.extractorPosition(at))
       future.addListener(
         {
           val outcome =
@@ -140,14 +143,15 @@ internal class Media3FrameReadback(
     val grade = transfer() ?: return hdrRefusal(NO_HDR_GRADE)
     hdrReadbackLimit(Build.VERSION.SDK_INT)?.let { return hdrRefusal(it) }
     val graph = preview() ?: return hdrRefusal(NO_COMPOSITION)
-    val lowered = graph.readbackAt(position, revision()) ?: return hdrRefusal(NO_CLIP)
+    val at = graph.slotTimeOf(position)
+    val lowered = graph.readbackAt(at, revision()) ?: return hdrRefusal(NO_CLIP)
     val tap = HdrTap()
     return try {
       val frame =
         if (lowered.span.still) {
-          stills.renderHdr(lowered, position, grade, tap)
+          stills.renderHdr(lowered, at, grade, tap)
         } else {
-          val shownMs = extractHdr(lowered, position, tap)
+          val shownMs = extractHdr(lowered, at, tap)
           withContext(Dispatchers.Default) { tap.frameAt(lowered.compositionTimeOf(shownMs), grade) }
         }
       HdrPreviewResult.Success(frame)
@@ -202,6 +206,11 @@ internal class Media3FrameReadback(
       .setEffects(effects)
       .setExtractHdrFrames(extractsHdr)
       .build()
+
+  // The extractor answers with the first frame at or after the time it is asked for, so a position inside a slot is
+  // read at the slot's own time, or it would land on the next source frame and the next slot.
+  private fun Media3Preview.slotTimeOf(position: Duration): Duration =
+    outputSlotTime(outputSlotOf(position, resolved.output.frameRate), resolved.output.frameRate)
 
   private fun Media3Readback.extractorPosition(position: Duration): Long = span.positionIn(position).inWholeMilliseconds
 

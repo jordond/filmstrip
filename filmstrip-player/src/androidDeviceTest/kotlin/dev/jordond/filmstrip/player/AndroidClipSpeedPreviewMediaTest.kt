@@ -24,6 +24,8 @@ import dev.jordond.filmstrip.test.compareFrames
 import dev.jordond.filmstrip.thumbnail.ThumbnailRequest
 import dev.jordond.filmstrip.thumbnail.ThumbnailResult
 import dev.jordond.filmstrip.thumbnail.ThumbnailSource
+import dev.jordond.filmstrip.transform.internal.nearestSourceFrame
+import dev.jordond.filmstrip.transform.internal.sourceTimeOfSlot
 import io.kotest.assertions.withClue
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.shouldBe
@@ -59,7 +61,7 @@ class AndroidClipSpeedPreviewMediaTest {
           awaitContract("the plain clip to be presentable") { recorder.lastState.hasComposition }
           val reached =
             subject.engine.readback
-              .awaitFrame(sourceOffsetAt(landing, speed))
+              .awaitFrame(sourceFrameShownAt(target, speed))
               .asTestFrame()
           val unmoved =
             subject.engine.readback
@@ -145,6 +147,18 @@ class AndroidClipSpeedPreviewMediaTest {
     } finally {
       thumbnail.image.close()
     }
+  }
+
+  // The slot time of the source frame a clip at [speed] shows on the slot [target] lands on. The moving source is
+  // written on the fixture's grid, so its frames sit on the slots of a clip at speed 1.
+  private fun sourceFrameShownAt(
+    target: Duration,
+    speed: Double,
+  ): Duration {
+    val slot = outputSlotOf(target, FIXTURE_FRAME_RATE)
+    val frames = (0 until outputSlotOf(CLIP_LENGTH, FIXTURE_FRAME_RATE)).map { outputSlotTime(it, FIXTURE_FRAME_RATE) }
+    val reached = sourceTimeOfSlot(Duration.ZERO, Duration.ZERO, speed, slot, FIXTURE_FRAME_RATE, Duration.ZERO)
+    return frames[checkNotNull(nearestSourceFrame(frames, reached))]
   }
 
   private suspend fun movingSource(): MediaSource {
