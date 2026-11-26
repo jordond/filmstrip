@@ -8,8 +8,8 @@ import Snippet from '../../../components/Snippet.astro'
 
 ## Probe
 
-`probe` reads a source's metadata without decoding it. An unreadable file comes back as a `Failure`, so there's nothing
-to catch.
+`probe` reads a source's metadata and decodes no more than its first video frame. An unreadable file comes back as a
+`Failure`, so there's nothing to catch.
 
 <Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/ProbeAndFrames.kt" region="probe" />
 
@@ -26,8 +26,13 @@ refused before any export starts.
 
 A video file whose header is whole but whose picture data is damaged, such as one overwritten with noise after it was
 written, fails as `SourceUnreadable` too. The probe decodes the first key frame of its video track, once per source,
-and a frame that doesn't decode refuses the file. A codec the platform has no decoder for isn't decoded, so the probe
-doesn't call that file damaged.
+and a frame that doesn't decode refuses the file.
+
+A video codec the platform has no decoder for, such as ProRes in a browser or on Android, fails as
+`DecoderRejectedInput` instead, with the codec the platform named. The same file may probe fine on another platform,
+so this says nothing about its bytes. Apps that probe when a video is picked can turn it away there, before a preview
+or export tries to play it. A browser can report HEVC as supported and still have no decoder to start, for instance
+without hardware decoding, and the probe refuses it the same way.
 
 For an MP4 or QuickTime file, `duration` is the length its movie header gives, which counts only what each track's
 edit list presents. An AAC track that opens on an encoder delay doesn't run long by that delay, and every platform

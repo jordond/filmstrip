@@ -15,3 +15,18 @@ public fun undecodableSource(source: String): FilmstripError.SourceUnreadable =
     source,
     "The source's first video frame does not decode, so its picture data is damaged.",
   )
+
+/**
+ * The error a prober gives when this platform has no decoder for [codec], the codec of a source's first video track as
+ * its [dev.jordond.filmstrip.media.VideoTrackInfo.codec] names it, or `unknown` when the platform cannot name it.
+ *
+ * Nothing tried to decode the source, so the message says nothing about whether its bytes are whole. Any other
+ * platform with a decoder for [codec] may read the same file fine.
+ */
+@InternalFilmstripApi
+public fun missingVideoDecoder(codec: String?): FilmstripError.DecoderRejectedInput =
+  FilmstripError.DecoderRejectedInput(codec ?: UNKNOWN_CODEC, NO_VIDEO_DECODER)
+
+private const val UNKNOWN_CODEC = "unknown"
+private const val NO_VIDEO_DECODER =
+  "This platform has no decoder for the source's video codec, so it cannot be read here."

@@ -8,5 +8,10 @@ internal expect class PlatformProber() {
   /**
    * Reads [source], or returns why it could not be read.
    */
-  suspend fun probe(source: MediaSource): ProbeResult
+  suspend fun read(source: MediaSource): SourceRead
 }
+
+/**
+ * Reads [source] and gives the answer [dev.jordond.filmstrip.Filmstrip.probe] reports for it.
+ */
+internal suspend fun PlatformProber.probe(source: MediaSource): ProbeResult = read(source).toProbeResult()

@@ -16,7 +16,6 @@ import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSource
-import dev.jordond.filmstrip.media.ProbeResult
 import dev.jordond.filmstrip.media.VideoTrackInfo
 import dev.jordond.filmstrip.media.describe
 import dev.jordond.filmstrip.media.displaySizeOf
@@ -35,15 +34,15 @@ import java.nio.channels.FileChannel
 import kotlin.time.Duration.Companion.milliseconds
 
 internal actual class PlatformProber actual constructor() {
-  actual suspend fun probe(source: MediaSource): ProbeResult =
+  actual suspend fun read(source: MediaSource): SourceRead =
     when (source) {
       // A still carries no container to open, and the retriever throws a bare RuntimeException on
       // an image file, so this is answered from the image's own header instead.
       is MediaSource.Image -> {
-        probeImage(source)
+        probeImage(source).toSourceRead()
       }
       is MediaSource.Solid -> {
-        probeSolid(source)
+        probeSolid(source).toSourceRead()
       }
       is MediaSource.Path -> {
         source.readContainer { setDataSource(source.path) }
@@ -52,7 +51,7 @@ internal actual class PlatformProber actual constructor() {
         // A content:// URI resolves through the app's ContentResolver.
         val android = FilmstripContext.get()
         if (android == null) {
-          ProbeResult.Failure(
+          SourceRead.Failed(
             FilmstripError.SourceUnreadable(source = source.uri, message = FilmstripContext.MISSING_CONTEXT),
           )
         } else {
@@ -63,8 +62,8 @@ internal actual class PlatformProber actual constructor() {
       // landed on. The export that follows finds the same file rather than writing its own.
       is MediaSource.Bytes -> {
         when (val cached = source.cached()) {
-          is Cached.Failed -> ProbeResult.Failure(cached.error)
-          is Cached.Written -> probe(MediaSource.Path(cached.file.path))
+          is Cached.Failed -> SourceRead.Failed(cached.error)
+          is Cached.Written -> read(MediaSource.Path(cached.file.path))
         }
       }
     }
@@ -75,35 +74,45 @@ internal actual class PlatformProber actual constructor() {
    * The retriever is built before [open] runs, so a source that fails to open is still released. A retriever whose
    * media server is not allowed to read the file opens it anyway and reports no tracks, so a read that found no video
    * and no audio fails as unreadable, with the extractor's own reason when it gave one.
+   *
+   * An MP4 or QuickTime file whose own track headers list a video track that neither the retriever nor an extractor
+   * that opened the file reports has a codec this device cannot handle, and is refused as missing a decoder. Any other
+   * container has no track list read here, so such a file reads as audio only or as unreadable.
    */
-  private suspend fun MediaSource.readContainer(open: MediaMetadataRetriever.() -> Unit): ProbeResult =
+  private suspend fun MediaSource.readContainer(open: MediaMetadataRetriever.() -> Unit): SourceRead =
     withContext(Dispatchers.IO) {
       val retriever = MediaMetadataRetriever()
       try {
         val headers = movieHeaders()
-        headers.overrun?.let { missing -> return@withContext ProbeResult.Failure(truncatedSource(describe(), missing)) }
+        headers.overrun?.let { missing -> return@withContext SourceRead.Failed(truncatedSource(describe(), missing)) }
         retriever.open()
         val tracks = tracks()
         val info = retriever.readInfo((tracks as? TrackRead.Read)?.tracks, headers)
         when {
+          info.video == null && tracks is TrackRead.Read && headers.tracks.orEmpty().any { it.isVideo } -> {
+            noVideoDecoder(info, null)
+          }
           info.video == null && info.audioTracks.isEmpty() -> {
             val reason = (tracks as? TrackRead.Failed)?.reason
-            ProbeResult.Failure(unreadable(reason?.let { "$NO_READABLE_TRACK $it" } ?: NO_READABLE_TRACK))
+            SourceRead.Failed(unreadable(reason?.let { "$NO_READABLE_TRACK $it" } ?: NO_READABLE_TRACK))
           }
-          info.video != null && (tracks as? TrackRead.Read)?.firstSampleDamaged == true -> {
-            ProbeResult.Failure(undecodableSource(describe()))
+          info.video != null && (tracks as? TrackRead.Read)?.firstSample == FirstSample.NoDecoder -> {
+            noVideoDecoder(info, info.video.codec.name)
+          }
+          info.video != null && (tracks as? TrackRead.Read)?.firstSample == FirstSample.Damaged -> {
+            SourceRead.Failed(undecodableSource(describe()))
           }
           else -> {
-            ProbeResult.Success(info)
+            SourceRead.Read(info)
           }
         }
       } catch (error: IllegalArgumentException) {
-        ProbeResult.Failure(unreadable(error.message))
+        SourceRead.Failed(unreadable(error.message))
       } catch (cancelled: CancellationException) {
         throw cancelled
       } catch (error: RuntimeException) {
         // setDataSource throws a bare RuntimeException for a malformed or unsupported container.
-        ProbeResult.Failure(unreadable(error.message))
+        SourceRead.Failed(unreadable(error.message))
       } finally {
         retriever.release()
       }
@@ -136,10 +145,13 @@ internal actual class PlatformProber actual constructor() {
         }
       }
       val tracks = extractor.readTracks()
-      val damaged =
-        tracks.video != null && tracks.videoIndex != null &&
-          extractor.firstSampleDamaged(tracks.videoIndex, tracks.video)
-      TrackRead.Read(tracks, firstSampleDamaged = damaged)
+      val first =
+        if (tracks.video != null && tracks.videoIndex != null) {
+          extractor.firstSampleOf(tracks.videoIndex, tracks.video)
+        } else {
+          FirstSample.Decodes
+        }
+      TrackRead.Read(tracks, firstSample = first)
     } catch (unreadable: IOException) {
       TrackRead.Failed(unreadable.message)
     } catch (unopened: RuntimeException) {
@@ -313,13 +325,13 @@ internal actual class PlatformProber actual constructor() {
     }
 
   /**
-   * What the extractor made of a source: its tracks and whether the first video sample failed to decode, the reason
+   * What the extractor made of a source: its tracks and what decoding the first video sample found, the reason
    * it could not open it, or nothing when it was never asked.
    */
   private sealed interface TrackRead {
     class Read(
       val tracks: SourceTracks,
-      val firstSampleDamaged: Boolean,
+      val firstSample: FirstSample,
     ) : TrackRead
 
     class Failed(

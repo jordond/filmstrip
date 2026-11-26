@@ -9,7 +9,6 @@ import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.MediaBytesFileFailure
 import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSource
-import dev.jordond.filmstrip.media.ProbeResult
 import dev.jordond.filmstrip.media.TrackCodec
 import dev.jordond.filmstrip.media.TrackHeader
 import dev.jordond.filmstrip.media.VideoTrackInfo
@@ -98,17 +97,17 @@ internal actual class PlatformProber internal constructor(
 ) {
   actual constructor() : this(AppleScratch.defaultRoot)
 
-  actual suspend fun probe(source: MediaSource): ProbeResult =
+  actual suspend fun read(source: MediaSource): SourceRead =
     withContext(Dispatchers.Default) {
       val url =
         when (source) {
           // A still carries no container to open, and an asset made from one reports no tracks at
           // all, so this is answered from the image's own header instead.
           is MediaSource.Image -> {
-            return@withContext probeImage(source)
+            return@withContext probeImage(source).toSourceRead()
           }
           is MediaSource.Solid -> {
-            return@withContext probeSolid(source)
+            return@withContext probeSolid(source).toSourceRead()
           }
           is MediaSource.Path -> {
             NSURL.fileURLWithPath(source.path)
@@ -122,15 +121,15 @@ internal actual class PlatformProber internal constructor(
             try {
               withContext(Dispatchers.IO) { AppleScratch.urlFor(source, bytesRoot) }
             } catch (failure: MediaBytesFileFailure) {
-              return@withContext ProbeResult.Failure(FilmstripError.SourceUnreadable(failure.source, failure.message))
+              return@withContext SourceRead.Failed(FilmstripError.SourceUnreadable(failure.source, failure.message))
             }
           }
-        } ?: return@withContext ProbeResult.Failure(
+        } ?: return@withContext SourceRead.Failed(
           FilmstripError.SourceUnreadable(source.describe(), "The source is not a valid URL."),
         )
 
       withContext(Dispatchers.IO) { sampleTableOverrunAt(url) }?.let { missing ->
-        return@withContext ProbeResult.Failure(truncatedSource(source.describe(), missing))
+        return@withContext SourceRead.Failed(truncatedSource(source.describe(), missing))
       }
 
       val asset = AVURLAsset(uRL = url, options = null)
@@ -138,7 +137,7 @@ internal actual class PlatformProber internal constructor(
       val audioTracks = asset.tracksWithMediaType(AVMediaTypeAudio).filterIsInstance<AVAssetTrack>()
 
       if (videoTrack == null && audioTracks.isEmpty()) {
-        return@withContext ProbeResult.Failure(
+        return@withContext SourceRead.Failed(
           FilmstripError.SourceUnreadable(
             source.describe(),
             if (source is MediaSource.Bytes) {
@@ -150,12 +149,7 @@ internal actual class PlatformProber internal constructor(
         )
       }
 
-      // A track this system cannot play has no decoder here, which says nothing about its bytes.
-      if (videoTrack?.playable == true && !withContext(Dispatchers.IO) { asset.decodesFirstFrame(videoTrack) }) {
-        return@withContext ProbeResult.Failure(undecodableSource(source.describe()))
-      }
-
-      ProbeResult.Success(
+      val info =
         MediaInfo(
           // AVFoundation takes its own priming off an AAC track rather than the delay its edit list names, so an
           // audio-only file runs short of the length the movie header carries, the figure every backend reports.
@@ -164,8 +158,20 @@ internal actual class PlatformProber internal constructor(
           audioTracks = audioTracks.toInfo(withContext(Dispatchers.IO) { trackHeadersAt(url) }),
           // AVAsset runs a DRM check while it loads, so protection is known before any encode.
           isExportable = asset.exportable,
-        ),
-      )
+        )
+
+      when {
+        // A track this system cannot play has no decoder here.
+        videoTrack != null && !videoTrack.playable -> {
+          noVideoDecoder(info, videoTrack.readFormat().codec.name)
+        }
+        videoTrack != null && !withContext(Dispatchers.IO) { asset.decodesFirstFrame(videoTrack) } -> {
+          SourceRead.Failed(undecodableSource(source.describe()))
+        }
+        else -> {
+          SourceRead.Read(info)
+        }
+      }
     }
 
   // AVFoundation has no default flag of its own, so an MP4's comes from the enabled flag in its track header.

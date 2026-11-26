@@ -6,7 +6,10 @@ import androidx.media3.common.MimeTypes
 import androidx.media3.inspector.MediaExtractorCompat
 import dev.jordond.filmstrip.codec.Bitrate
 import dev.jordond.filmstrip.internal.MediaProberDecorator
+import dev.jordond.filmstrip.internal.SourceProber
+import dev.jordond.filmstrip.internal.SourceRead
 import dev.jordond.filmstrip.internal.platformProber
+import dev.jordond.filmstrip.internal.readSource
 import dev.jordond.filmstrip.media.AudioTrackInfo
 import dev.jordond.filmstrip.media.MediaBytesFileFailure
 import dev.jordond.filmstrip.media.MediaInfo
@@ -37,13 +40,24 @@ import java.util.MissingResourceException
  */
 internal class Media3Prober(
   override val decorated: MediaProber = platformProber(),
-) : MediaProberDecorator {
-  override suspend fun probe(source: MediaSource): ProbeResult {
-    val probed = decorated.probe(source)
-    if (probed !is ProbeResult.Success || probed.info.audioTracks.isEmpty()) return probed
-    val info = probed.info
-    val tracks = media3AudioTracksOf(source, info) ?: return probed
-    return ProbeResult.Success(MediaInfo(info.duration, info.video, tracks, info.isExportable))
+) : MediaProberDecorator,
+  SourceProber {
+  override suspend fun read(source: MediaSource): SourceRead =
+    when (val probed = decorated.readSource(source)) {
+      is SourceRead.Read -> SourceRead.Read(withMedia3Audio(source, probed.info))
+      is SourceRead.NoVideoDecoder -> SourceRead.NoVideoDecoder(withMedia3Audio(source, probed.info), probed.error)
+      is SourceRead.Failed -> probed
+    }
+
+  override suspend fun probe(source: MediaSource): ProbeResult = read(source).toProbeResult()
+
+  private suspend fun withMedia3Audio(
+    source: MediaSource,
+    info: MediaInfo,
+  ): MediaInfo {
+    if (info.audioTracks.isEmpty()) return info
+    val tracks = media3AudioTracksOf(source, info) ?: return info
+    return MediaInfo(info.duration, info.video, tracks, info.isExportable)
   }
 }
 

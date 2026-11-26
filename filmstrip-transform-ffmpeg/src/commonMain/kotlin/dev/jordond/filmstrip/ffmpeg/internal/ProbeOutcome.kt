@@ -21,6 +21,11 @@ internal sealed interface ProbeOutcome {
 
   data object Undecodable : ProbeOutcome
 
+  class NoDecoder(
+    val info: MediaInfo,
+    val codec: String,
+  ) : ProbeOutcome
+
   class Expired(
     val operation: String,
     val deadline: Duration,

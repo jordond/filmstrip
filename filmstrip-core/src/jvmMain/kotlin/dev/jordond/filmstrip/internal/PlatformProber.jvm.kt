@@ -12,7 +12,9 @@ import dev.jordond.filmstrip.media.probeSolid
 // A still is the one source core answers itself, because it carries no container to read: the JDK's
 // own ImageIO reports the bounds and the source declares the duration.
 internal actual class PlatformProber actual constructor() {
-  actual suspend fun probe(source: MediaSource): ProbeResult =
+  actual suspend fun read(source: MediaSource): SourceRead = answer(source).toSourceRead()
+
+  private suspend fun answer(source: MediaSource): ProbeResult =
     when (source) {
       is MediaSource.Image -> {
         probeImage(source)

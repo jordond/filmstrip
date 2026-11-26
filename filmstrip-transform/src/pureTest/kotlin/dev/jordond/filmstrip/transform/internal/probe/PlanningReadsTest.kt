@@ -2,10 +2,15 @@ package dev.jordond.filmstrip.transform.internal.probe
 
 import dev.jordond.filmstrip.CapabilitiesResult
 import dev.jordond.filmstrip.FilmstripError
+import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
+import dev.jordond.filmstrip.internal.SourceProber
+import dev.jordond.filmstrip.internal.SourceRead
+import dev.jordond.filmstrip.internal.missingVideoDecoder
+import dev.jordond.filmstrip.internal.noVideoDecoder
 import dev.jordond.filmstrip.media.MediaProber
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.ProbeResult
@@ -129,6 +134,32 @@ class PlanningReadsTest {
       deviceReads shouldBe 0
     }
 
+  @Test
+  fun `a source with no video decoder is read for an audio only edit`() =
+    runTest {
+      val reads =
+        PlanningReads(noDecoder(), { CapabilitiesResult.Success(device) }, { _, _ -> OpeningRead.At(OPENING) })
+
+      val read =
+        reads
+          .read(Composition(listOf(Track(listOf(trimmed))), audio = AudioSpec.AudioOnly))
+          .shouldBeInstanceOf<PlanningReadResult.Read>()
+
+      read.infos shouldBe infos
+    }
+
+  @Test
+  fun `a source with no video decoder fails an edit that keeps its video`() =
+    runTest {
+      val reads =
+        PlanningReads(noDecoder(), { CapabilitiesResult.Success(device) }, { _, _ -> OpeningRead.At(OPENING) })
+
+      reads
+        .read(composition(trimmed))
+        .shouldBeInstanceOf<PlanningReadResult.Failed>()
+        .error shouldBe missingVideoDecoder(NO_DECODER_CODEC)
+    }
+
   // An opening read that could not finish has no answer to plan a copy on, so the export is refused rather than
   // transcoded, and the next negotiation asks again.
   @Test
@@ -180,7 +211,14 @@ class PlanningReadsTest {
 
   private fun prober(): MediaProber = MediaProber { source -> ProbeResult.Success(infos.getValue(source)) }
 
+  private fun noDecoder(): MediaProber =
+    object : SourceProber {
+      override suspend fun read(source: MediaSource): SourceRead =
+        noVideoDecoder(infos.getValue(source), NO_DECODER_CODEC)
+    }
+
   private companion object {
     val OPENING = 1_000.milliseconds
+    const val NO_DECODER_CODEC = "prores"
   }
 }

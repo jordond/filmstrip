@@ -65,6 +65,11 @@ internal class TrackHeader(
    * Whether this is an audio track.
    */
   val isSound: Boolean get() = handler == SOUN
+
+  /**
+   * Whether this is a video track, which a platform demuxer may leave out when it has no decoder for its codec.
+   */
+  val isVideo: Boolean get() = handler == VIDE
 }
 
 /**
@@ -320,6 +325,7 @@ internal val MDIA = fourcc("mdia")
 private val HDLR = fourcc("hdlr")
 private val MDHD = fourcc("mdhd")
 private val SOUN = fourcc("soun")
+private val VIDE = fourcc("vide")
 internal val MINF = fourcc("minf")
 internal val STBL = fourcc("stbl")
 private val STSD = fourcc("stsd")

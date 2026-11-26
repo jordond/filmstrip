@@ -57,10 +57,10 @@ public sealed interface FilmstripError {
   /**
    * A decoder rejected the source.
    *
-   * It is reported when a decoder is configured or when a frame fails to decode. On Apple a source the device has no
-   * decoder for passes the plan and its export then fails with this.
+   * It is reported when a decoder is configured or when a frame fails to decode. A source whose video codec the
+   * platform has no decoder for is refused with this at probe, and so at plan, on every backend.
    *
-   * @property codec The source codec the decoder was configured for.
+   * @property codec The source codec the decoder was configured for, or the one no decoder was found for.
    * @property message A human-readable description of the failure.
    */
   @Poko

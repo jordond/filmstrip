@@ -4,6 +4,7 @@ package dev.jordond.filmstrip.webcodecs.internal.interop
 
 import dev.jordond.filmstrip.media.forEachLatin1Chunk
 import dev.jordond.filmstrip.media.latin1BytesOf
+import kotlin.js.Promise
 
 // The wasm half. Arrays have to be copied rather than viewed, because wasm linear memory is not the
 // JavaScript heap. Floats are copied one at a time, which stays cheap since the longest array a
@@ -81,6 +82,22 @@ internal actual fun hasVideoEncoder(): Boolean = js("typeof VideoEncoder !== 'un
 internal actual fun hasAudioEncoder(): Boolean = js("typeof AudioEncoder !== 'undefined'")
 
 internal actual fun hasVideoDecoder(): Boolean = js("typeof VideoDecoder !== 'undefined'")
+
+internal actual fun videoDecoderStarts(config: JsAny): Promise<JsBoolean> {
+  js(
+    """
+    const decoder = new VideoDecoder({ output: (frame) => frame.close(), error: () => {} });
+    try {
+      decoder.configure(config);
+    } catch (refused) {
+      return Promise.resolve(false);
+    }
+    return decoder.flush().then(() => true, () => false).finally(() => {
+      if (decoder.state !== 'closed') decoder.close();
+    });
+    """,
+  )
+}
 
 internal actual fun hasAudioDecoder(): Boolean = js("typeof AudioDecoder !== 'undefined'")
 

@@ -4,7 +4,11 @@ package dev.jordond.filmstrip.webcodecs.internal
 
 import dev.jordond.filmstrip.codec.Bitrate
 import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.internal.SourceProber
+import dev.jordond.filmstrip.internal.SourceRead
 import dev.jordond.filmstrip.internal.awaitCatching
+import dev.jordond.filmstrip.internal.missingVideoDecoder
+import dev.jordond.filmstrip.internal.noVideoDecoder
 import dev.jordond.filmstrip.internal.truncatedSource
 import dev.jordond.filmstrip.internal.undecodableSource
 import dev.jordond.filmstrip.media.AudioTrackId
@@ -13,9 +17,7 @@ import dev.jordond.filmstrip.media.CodecKind
 import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.MediaInfo
-import dev.jordond.filmstrip.media.MediaProber
 import dev.jordond.filmstrip.media.MediaSource
-import dev.jordond.filmstrip.media.ProbeResult
 import dev.jordond.filmstrip.media.VideoTrackInfo
 import dev.jordond.filmstrip.media.audioLanguageOf
 import dev.jordond.filmstrip.media.describe
@@ -31,6 +33,7 @@ import dev.jordond.filmstrip.webcodecs.internal.interop.asDouble
 import dev.jordond.filmstrip.webcodecs.internal.interop.asString
 import dev.jordond.filmstrip.webcodecs.internal.interop.await
 import dev.jordond.filmstrip.webcodecs.internal.interop.awaitOwned
+import dev.jordond.filmstrip.webcodecs.internal.interop.videoDecoderStarts
 import kotlin.js.ExperimentalWasmJsInterop
 import kotlin.time.Duration.Companion.microseconds
 
@@ -41,41 +44,58 @@ import kotlin.time.Duration.Companion.microseconds
  * Registered the way `FfmpegProber` is, so `Filmstrip.probe()` and every backend that asks a
  * chained prober for a web source get a real audio track and, for HEVC, a real bit depth, rather
  * than the failure core's own platform prober answers with on a target that carries no demuxer.
+ *
+ * A source with video has its first key frame decoded, which adds a few milliseconds to a probe and more where the
+ * browser starts a hardware decoder, about 160 ms for HEVC on a Mac. A codec the browser has no decoder for is refused
+ * with [missingVideoDecoder] and a frame that does not decode with [undecodableSource].
  */
-internal class BrowserProber : MediaProber {
-  override suspend fun probe(source: MediaSource): ProbeResult {
-    val reader = SourceReader.of(source) ?: return ProbeResult.Failure(unreadableSource(source))
+internal class BrowserProber : SourceProber {
+  override suspend fun read(source: MediaSource): SourceRead {
+    val reader = SourceReader.of(source) ?: return SourceRead.Failed(unreadableSource(source))
     return try {
       awaitCatching { reader.sampleTableOverrun() }.getOrNull()?.let { missing ->
-        return ProbeResult.Failure(truncatedSource(source.describe(), missing))
+        return SourceRead.Failed(truncatedSource(source.describe(), missing))
       }
-      val info =
-        awaitCatching { readInfo(reader, fileBytes = null) }.getOrNull()
-          ?: return ProbeResult.Failure(unreadableSource(source))
-      if (info.video != null && !firstFrameDecodes(reader)) {
-        return ProbeResult.Failure(undecodableSource(source.describe()))
+      val info = awaitCatching { readInfo(reader, fileBytes = null) }.getOrNull()
+      val track = awaitCatching { reader.videoTrack() }.getOrNull()
+      when (track?.let { firstFrameOf(it) }) {
+        FirstFrame.NoDecoder -> {
+          val codec = awaitCatching { track.getCodec().await()?.asString() }.getOrNull()
+          info?.let { noVideoDecoder(it, codec) } ?: SourceRead.Failed(missingVideoDecoder(codec))
+        }
+        FirstFrame.Damaged -> {
+          SourceRead.Failed(undecodableSource(source.describe()))
+        }
+        FirstFrame.Decodes, null -> {
+          info?.let { SourceRead.Read(it) } ?: SourceRead.Failed(unreadableSource(source))
+        }
       }
-      ProbeResult.Success(info)
     } finally {
       reader.close()
     }
   }
 
-  // A decoder error or no frame at all both mean the first sync sample is damaged. A codec this browser has no decoder
-  // for says nothing about the bytes, so it is not decoded.
-  private suspend fun firstFrameDecodes(reader: SourceReader): Boolean {
-    val track = reader.videoTrack() ?: return true
-    val config = awaitCatching { track.getDecoderConfig().await() }.getOrNull() ?: return true
+  // A track with no decoder config, or one this browser has no decoder for, is never decoded. A first sync sample that
+  // gives no frame is damaged only once a decoder for its config is known to start, since a browser can answer a config
+  // as supported and still have no decoder to run it.
+  private suspend fun firstFrameOf(track: InputVideoTrack): FirstFrame {
+    val config = awaitCatching { track.getDecoderConfig().await() }.getOrNull() ?: return FirstFrame.NoDecoder
     val supported = awaitCatching { VideoDecoder.isConfigSupported(config).await().supported }.getOrDefault(false)
-    if (!supported) return true
+    if (!supported) return FirstFrame.NoDecoder
     val sample =
       awaitCatching {
         val key = EncodedPacketSink(track).getFirstKeyPacket().await() ?: return@awaitCatching null
         VideoSampleSink(track).getSample(key.timestamp).awaitOwned { it?.close() }
-      }.getOrNull() ?: return false
-    sample.close()
-    return true
+      }.getOrNull()
+    if (sample != null) {
+      sample.close()
+      return FirstFrame.Decodes
+    }
+    val starts = awaitCatching { videoDecoderStarts(config).await().toBoolean() }.getOrDefault(false)
+    return if (starts) FirstFrame.Damaged else FirstFrame.NoDecoder
   }
+
+  private enum class FirstFrame { Decodes, Damaged, NoDecoder }
 
   /**
    * Reads what [file] carries, which is the same answer probing that file later gives.

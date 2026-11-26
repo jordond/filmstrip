@@ -70,4 +70,22 @@ object SharedFixtures {
    * A square clip, 120x120 at hue 240, for the same join tests as [JoinWide].
    */
   val JoinSquare: FixtureSpec = FixtureSpec("join_square", 120, 120, 30, 1.0, 48000, 2, bitrateKbps = 300, hue = 240)
+
+  /**
+   * A ten-bit HEVC clip tagged `hvc1` with a PQ transfer and the graded patch, 1280x720 for two seconds, for a test
+   * that needs a real HEVC file rather than one its own platform encoded.
+   */
+  val ExportHdr: FixtureSpec =
+    FixtureSpec(
+      "export_hdr",
+      1280,
+      720,
+      30,
+      2.0,
+      48000,
+      2,
+      bitrateKbps = 6_000,
+      transfer = FixtureTransfer.Pq,
+      patch = FixturePatch.Graded,
+    )
 }

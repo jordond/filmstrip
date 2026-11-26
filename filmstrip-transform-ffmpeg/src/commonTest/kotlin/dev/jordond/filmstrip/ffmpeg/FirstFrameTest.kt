@@ -1,6 +1,7 @@
 package dev.jordond.filmstrip.ffmpeg
 
-import dev.jordond.filmstrip.ffmpeg.internal.probe.parseFirstFrameDamaged
+import dev.jordond.filmstrip.ffmpeg.internal.probe.FirstFrame
+import dev.jordond.filmstrip.ffmpeg.internal.probe.parseFirstFrame
 import io.kotest.matchers.shouldBe
 import kotlin.test.Test
 
@@ -10,21 +11,21 @@ import kotlin.test.Test
 class FirstFrameTest {
   @Test
   fun aDecodedFrameIsWhole() {
-    parseFirstFrameDamaged("3\n", "") shouldBe false
+    parseFirstFrame("3\n", "") shouldBe FirstFrame.Decodes
   }
 
   @Test
   fun noFramesAreDamaged() {
-    parseFirstFrameDamaged("0\n", "[h264 @ 0x1] no frame!\n") shouldBe true
+    parseFirstFrame("0\n", "[h264 @ 0x1] no frame!\n") shouldBe FirstFrame.Damaged
   }
 
   @Test
   fun anEmptyAnswerIsDamaged() {
-    parseFirstFrameDamaged("", "") shouldBe true
+    parseFirstFrame("", "") shouldBe FirstFrame.Damaged
   }
 
   @Test
-  fun aCodecWithNoDecoderInThisBuildIsWhole() {
-    parseFirstFrameDamaged("0\n", "Unsupported codec with id 225 for input stream 0\n") shouldBe false
+  fun aCodecWithNoDecoderInThisBuildHasNoDecoder() {
+    parseFirstFrame("0\n", "Unsupported codec with id 225 for input stream 0\n") shouldBe FirstFrame.NoDecoder
   }
 }

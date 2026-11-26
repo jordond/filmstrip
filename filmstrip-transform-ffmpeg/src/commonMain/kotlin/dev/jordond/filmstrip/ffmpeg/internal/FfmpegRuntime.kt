@@ -7,6 +7,7 @@ import dev.jordond.filmstrip.ffmpeg.FfmpegBinaries
 import dev.jordond.filmstrip.ffmpeg.FfmpegConfig
 import dev.jordond.filmstrip.ffmpeg.internal.FfmpegRuntime.Companion.of
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.SdColor
+import dev.jordond.filmstrip.ffmpeg.internal.probe.FirstFrame
 import dev.jordond.filmstrip.ffmpeg.internal.probe.PROBE_ARGUMENTS
 import dev.jordond.filmstrip.ffmpeg.internal.probe.SYNC_SAMPLE_WINDOW
 import dev.jordond.filmstrip.ffmpeg.internal.probe.UNLISTED_PACKETS
@@ -14,7 +15,7 @@ import dev.jordond.filmstrip.ffmpeg.internal.probe.copyPacketArguments
 import dev.jordond.filmstrip.ffmpeg.internal.probe.firstFrameArguments
 import dev.jordond.filmstrip.ffmpeg.internal.probe.packetCapReason
 import dev.jordond.filmstrip.ffmpeg.internal.probe.parseCopyPacket
-import dev.jordond.filmstrip.ffmpeg.internal.probe.parseFirstFrameDamaged
+import dev.jordond.filmstrip.ffmpeg.internal.probe.parseFirstFrame
 import dev.jordond.filmstrip.ffmpeg.internal.probe.parseMediaInfo
 import dev.jordond.filmstrip.ffmpeg.internal.probe.parseSdColor
 import dev.jordond.filmstrip.ffmpeg.internal.probe.parseSyncSample
@@ -76,7 +77,7 @@ internal class FfmpegRuntime private constructor(
   private val syncSampleLock = Mutex()
   private val syncSamples = mutableMapOf<Triple<String, FileStamp?, Duration>, Duration?>()
   private val firstFrameLock = Mutex()
-  private val firstFrames = mutableMapOf<String, Stamped<Boolean>>()
+  private val firstFrames = mutableMapOf<String, Stamped<FirstFrame>>()
   private val copyPacketLock = Mutex()
   private val copyPacketReads = mutableMapOf<String, PacketWindow>()
   private val capabilityLock = Mutex()
@@ -218,15 +219,15 @@ internal class FfmpegRuntime private constructor(
     }
 
   /**
-   * Whether the first sync sample of [path]'s video stream decodes to a frame, or this build has no decoder to try it.
+   * What decoding the first sync sample of [path]'s video stream found. A run that fails reads as [FirstFrame.Damaged].
    *
    * Cached by path and the file's [FileStamp] like [probe], so a plan then an export decodes once. A decode still
    * running at its [deadline] is [ProbeAnswer.Expired] and is not held.
    */
-  suspend fun firstFrameDecodes(
+  suspend fun firstFrame(
     toolchain: Toolchain,
     path: String,
-  ): ProbeAnswer<Boolean> =
+  ): ProbeAnswer<FirstFrame> =
     firstFrameLock.withLock {
       val stamp = stampOf(path)
       firstFrames[path]?.valueAt(stamp)?.let { return@withLock ProbeAnswer.Answered(it) }
@@ -234,9 +235,9 @@ internal class FfmpegRuntime private constructor(
       val timeout = deadline(Duration.ZERO)
       val output = capture(firstFrameArguments(toolchain, path), timeout)
       if (output.timedOut) return@withLock expired(ProbeOperation.FIRST_FRAME_DECODE, timeout)
-      val decodes =
-        output.started && output.exitCode == 0 && !parseFirstFrameDamaged(output.stdout, output.stderr)
-      ProbeAnswer.Answered(decodes.also { firstFrames[path] = Stamped(stamp, it) })
+      val ran = output.started && output.exitCode == 0
+      val found = if (ran) parseFirstFrame(output.stdout, output.stderr) else FirstFrame.Damaged
+      ProbeAnswer.Answered(found.also { firstFrames[path] = Stamped(stamp, it) })
     }
 
   /**
@@ -450,10 +451,18 @@ internal class FfmpegRuntime private constructor(
     path: String,
     info: MediaInfo,
   ): ProbeOutcome {
-    if (info.video == null) return ProbeOutcome.Read(info)
-    return when (val decode = firstFrameDecodes(toolchain, path)) {
-      is ProbeAnswer.Expired -> ProbeOutcome.Expired(decode.operation, decode.deadline, decode.reason)
-      is ProbeAnswer.Answered -> if (decode.value) ProbeOutcome.Read(info) else ProbeOutcome.Undecodable
+    val video = info.video ?: return ProbeOutcome.Read(info)
+    return when (val decode = firstFrame(toolchain, path)) {
+      is ProbeAnswer.Expired -> {
+        ProbeOutcome.Expired(decode.operation, decode.deadline, decode.reason)
+      }
+      is ProbeAnswer.Answered -> {
+        when (decode.value) {
+          FirstFrame.Decodes -> ProbeOutcome.Read(info)
+          FirstFrame.Damaged -> ProbeOutcome.Undecodable
+          FirstFrame.NoDecoder -> ProbeOutcome.NoDecoder(info, video.codec.name)
+        }
+      }
     }
   }
 

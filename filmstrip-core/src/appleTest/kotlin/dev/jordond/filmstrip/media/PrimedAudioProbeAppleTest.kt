@@ -1,6 +1,7 @@
 package dev.jordond.filmstrip.media
 
 import dev.jordond.filmstrip.internal.PlatformProber
+import dev.jordond.filmstrip.internal.probe
 import dev.jordond.filmstrip.test.PrimedAudio
 import io.kotest.assertions.withClue
 import io.kotest.matchers.shouldBe

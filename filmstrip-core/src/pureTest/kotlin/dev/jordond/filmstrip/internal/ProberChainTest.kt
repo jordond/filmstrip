@@ -108,6 +108,23 @@ class ProberChainTest {
     }
 
   @Test
+  fun `a source with no video decoder keeps what was read and probes as that refusal`() =
+    runTest {
+      val chain = chainedProber(ComponentRegistry.Builder().build(), last = noDecoder(VIDEO))
+
+      chain.read(source).shouldBeInstanceOf<SourceRead.NoVideoDecoder>().info shouldBe VIDEO
+      chain.probe(source).shouldBeInstanceOf<ProbeResult.Failure>().error shouldBe missingVideoDecoder(CODEC)
+    }
+
+  @Test
+  fun `a source with no video decoder and no other track fails with that refusal`() =
+    runTest {
+      val chain = chainedProber(ComponentRegistry.Builder().build(), last = noDecoder(TRACKLESS))
+
+      chain.read(source).shouldBeInstanceOf<SourceRead.Failed>().error shouldBe missingVideoDecoder(CODEC)
+    }
+
+  @Test
   fun `a solid is answered before any prober is asked`() =
     runTest {
       val asked = mutableListOf<String>()
@@ -136,7 +153,14 @@ class ProberChainTest {
 
   private fun answering(info: MediaInfo) = MediaProber { ProbeResult.Success(info) }
 
+  private fun noDecoder(info: MediaInfo) =
+    object : SourceProber {
+      override suspend fun read(source: MediaSource): SourceRead = noVideoDecoder(info, CODEC)
+    }
+
   private companion object {
+    const val CODEC = "prores"
+
     val TRACKLESS = MediaInfo(duration = 2.seconds, video = null, audioTracks = emptyList(), isExportable = true)
 
     val VIDEO =

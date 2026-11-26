@@ -5,9 +5,8 @@ import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.export.EngineComponents
 import dev.jordond.filmstrip.media.MediaProber
 import dev.jordond.filmstrip.media.MediaSource
-import dev.jordond.filmstrip.media.ProbeResult
 import dev.jordond.filmstrip.media.describe
-import dev.jordond.filmstrip.media.probeSolid
+import dev.jordond.filmstrip.media.solidMediaInfoOf
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 
@@ -18,9 +17,11 @@ import kotlinx.coroutines.ensureActive
  * backend learns exactly what [dev.jordond.filmstrip.Filmstrip.probe] would. A prober that declines does not stop
  * the next one, and the reported failure is the first one, which comes from the prober registered last and therefore
  * knows the most. An answer that read no video and no audio track counts as a decline that the source is unreadable,
- * since there is nothing in it to edit. A prober that turns up twice in the chain is only asked once, and one a
- * registered [MediaProberDecorator] decorates is not asked at all, since the decorator has already asked it. A
- * [MediaSource.Solid] is answered before any of them, since there is nothing in one to read.
+ * since there is nothing in it to edit. A source whose video has no decoder is a decline too, and its read keeps what
+ * the prober learned so a planner can still use the audio, unless nothing else is left in it. A prober that turns up
+ * twice in the chain is only asked once, and one a registered [MediaProberDecorator] decorates is not asked at all,
+ * since the decorator has already asked it. A [MediaSource.Solid] is answered before any of them, since there is
+ * nothing in one to read.
  *
  * @param components The components registered on the owning [dev.jordond.filmstrip.Filmstrip].
  * @param last The prober asked after every registered one, for a backend that reads its sources its own way.
@@ -30,33 +31,49 @@ import kotlinx.coroutines.ensureActive
 public fun chainedProber(
   components: EngineComponents,
   last: MediaProber = platformProber(),
-): MediaProber {
+): SourceProber {
   val registered = components.mediaProberFactories.mapNotNull { it.create() }
   val decorated = registered.filterIsInstance<MediaProberDecorator>().map { it.decorated }.toSet()
   val chain = (registered + last).distinct().filterNot { it in decorated }
 
-  return MediaProber { source -> if (source is MediaSource.Solid) probeSolid(source) else chain.firstAnswerFor(source) }
+  return object : SourceProber {
+    override suspend fun read(source: MediaSource): SourceRead =
+      if (source is MediaSource.Solid) SourceRead.Read(solidMediaInfoOf(source)) else chain.firstAnswerFor(source)
+  }
 }
 
-private suspend fun List<MediaProber>.firstAnswerFor(source: MediaSource): ProbeResult {
-  var firstFailure: ProbeResult.Failure? = null
+private suspend fun List<MediaProber>.firstAnswerFor(source: MediaSource): SourceRead {
+  var firstFailure: SourceRead? = null
   for (prober in this) {
     currentCoroutineContext().ensureActive()
 
-    when (val result = prober.probe(source).requireTrack(source)) {
-      is ProbeResult.Success -> return result
-      is ProbeResult.Failure -> if (firstFailure == null) firstFailure = result
+    when (val result = prober.readSource(source).requireTrack(source)) {
+      is SourceRead.Read -> return result
+      is SourceRead.NoVideoDecoder, is SourceRead.Failed -> if (firstFailure == null) firstFailure = result
     }
   }
   return checkNotNull(firstFailure) { "core's own prober is always last in the chain" }
 }
 
-private fun ProbeResult.requireTrack(source: MediaSource): ProbeResult =
-  if (this is ProbeResult.Success && info.video == null && info.audioTracks.isEmpty()) {
-    ProbeResult.Failure(FilmstripError.SourceUnreadable(source = source.describe(), message = NO_READABLE_TRACK))
-  } else {
-    this
+private fun SourceRead.requireTrack(source: MediaSource): SourceRead {
+  val info =
+    when (this) {
+      is SourceRead.Read -> info
+      is SourceRead.NoVideoDecoder -> info
+      is SourceRead.Failed -> return this
+    }
+  return when {
+    info.video == null && info.audioTracks.isEmpty() && this is SourceRead.NoVideoDecoder -> {
+      SourceRead.Failed(error)
+    }
+    info.video == null && info.audioTracks.isEmpty() -> {
+      SourceRead.Failed(FilmstripError.SourceUnreadable(source = source.describe(), message = NO_READABLE_TRACK))
+    }
+    else -> {
+      this
+    }
   }
+}
 
 /**
  * Why a probe that answered with no video and no audio track is refused. A media framework that cannot read a file can
@@ -89,10 +106,10 @@ public interface MediaProberDecorator : MediaProber {
 @InternalFilmstripApi
 public fun platformProber(): MediaProber = PlatformMediaProber()
 
-private class PlatformMediaProber : MediaProber {
+private class PlatformMediaProber : SourceProber {
   private val platform = PlatformProber()
 
-  override suspend fun probe(source: MediaSource): ProbeResult = platform.probe(source)
+  override suspend fun read(source: MediaSource): SourceRead = platform.read(source)
 
   override fun equals(other: Any?): Boolean = other is PlatformMediaProber
 

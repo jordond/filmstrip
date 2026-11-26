@@ -4,12 +4,13 @@ import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.ffmpeg.internal.process.READS_FILES
 import dev.jordond.filmstrip.ffmpeg.internal.process.readablePath
 import dev.jordond.filmstrip.ffmpeg.internal.process.sampleTableOverrunAt
+import dev.jordond.filmstrip.internal.SourceProber
+import dev.jordond.filmstrip.internal.SourceRead
+import dev.jordond.filmstrip.internal.noVideoDecoder
 import dev.jordond.filmstrip.internal.truncatedSource
 import dev.jordond.filmstrip.internal.undecodableSource
 import dev.jordond.filmstrip.media.MediaBytesFileFailure
-import dev.jordond.filmstrip.media.MediaProber
 import dev.jordond.filmstrip.media.MediaSource
-import dev.jordond.filmstrip.media.ProbeResult
 import dev.jordond.filmstrip.media.describe
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -23,34 +24,37 @@ import kotlinx.coroutines.withContext
  */
 internal data class FfmpegProber(
   private val runtime: FfmpegRuntime,
-) : MediaProber {
-  override suspend fun probe(source: MediaSource): ProbeResult {
+) : SourceProber {
+  override suspend fun read(source: MediaSource): SourceRead {
     val path =
       try {
         withContext(Dispatchers.IO) { readablePath(source, runtime.bytesRoot) }
-          ?: return ProbeResult.Failure(FilmstripError.SourceUnreadable(source.describe(), READS_FILES))
+          ?: return SourceRead.Failed(FilmstripError.SourceUnreadable(source.describe(), READS_FILES))
       } catch (failure: MediaBytesFileFailure) {
-        return ProbeResult.Failure(FilmstripError.SourceUnreadable(failure.source, failure.message))
+        return SourceRead.Failed(FilmstripError.SourceUnreadable(failure.source, failure.message))
       }
 
     sampleTableOverrunAt(path)?.let { missing ->
-      return ProbeResult.Failure(truncatedSource(source.describe(), missing))
+      return SourceRead.Failed(truncatedSource(source.describe(), missing))
     }
     return when (val outcome = runtime.probeSource(path)) {
       is ProbeOutcome.Read -> {
-        ProbeResult.Success(outcome.info)
+        SourceRead.Read(outcome.info)
       }
       is ProbeOutcome.NoToolchain -> {
-        ProbeResult.Failure(outcome.error)
+        SourceRead.Failed(outcome.error)
+      }
+      is ProbeOutcome.NoDecoder -> {
+        noVideoDecoder(outcome.info, outcome.codec)
       }
       ProbeOutcome.Undecodable -> {
-        ProbeResult.Failure(undecodableSource(source.describe()))
+        SourceRead.Failed(undecodableSource(source.describe()))
       }
       ProbeOutcome.Unreadable -> {
-        ProbeResult.Failure(FilmstripError.SourceUnreadable(source.describe(), UNREADABLE))
+        SourceRead.Failed(FilmstripError.SourceUnreadable(source.describe(), UNREADABLE))
       }
       is ProbeOutcome.Expired -> {
-        ProbeResult.Failure(FilmstripError.TimedOut(outcome.operation, outcome.deadline, outcome.reason))
+        SourceRead.Failed(FilmstripError.TimedOut(outcome.operation, outcome.deadline, outcome.reason))
       }
     }
   }

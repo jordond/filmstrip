@@ -7,6 +7,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.internal.NO_READABLE_TRACK
 import dev.jordond.filmstrip.internal.PlatformProber
+import dev.jordond.filmstrip.internal.probe
 import dev.jordond.filmstrip.test.PrimedAudio
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.shouldBe

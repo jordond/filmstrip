@@ -2,6 +2,7 @@ package dev.jordond.filmstrip.media
 
 import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.internal.PlatformProber
+import dev.jordond.filmstrip.internal.probe
 import dev.jordond.filmstrip.media.probe.IMAGE_PROBE_DURATION
 import dev.jordond.filmstrip.media.probe.MIRRORED_IMAGE_PROBE_ORIENTATION
 import dev.jordond.filmstrip.media.probe.expectedImageInfo

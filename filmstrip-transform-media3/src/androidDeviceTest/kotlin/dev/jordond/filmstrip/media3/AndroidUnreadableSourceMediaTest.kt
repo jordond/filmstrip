@@ -43,6 +43,9 @@ class AndroidUnreadableSourceMediaTest {
   fun aGarbledMdatNeverExports() = runTest(timeout = TIMEOUT) { measure(UnreadableCase.GarbledMdat) }
 
   @Test
+  fun aVideoCodecWithNoDecoderIsRefusedAtPlan() = runTest(timeout = TIMEOUT) { measure(UnreadableCase.UnknownCodec) }
+
+  @Test
   fun aFileWithNoMoovNeverExports() = runTest(timeout = TIMEOUT) { measure(UnreadableCase.NoMoov) }
 
   @Test

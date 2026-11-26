@@ -29,18 +29,26 @@ internal fun firstFrameArguments(
   )
 
 /**
- * Whether the [stdout] and [stderr] of [firstFrameArguments] say the first frame failed to decode.
+ * What the [stdout] and [stderr] of [firstFrameArguments] say about the first frame.
  *
  * A stream ffprobe could not decode prints zero frames or nothing at all. A stream this build has no decoder for prints
- * zero too, but its warning names the missing decoder, and that reads as whole since it says nothing about the bytes.
+ * zero too, but its warning names the missing decoder.
  */
-internal fun parseFirstFrameDamaged(
+internal fun parseFirstFrame(
   stdout: String,
   stderr: String,
-): Boolean {
-  if (NO_DECODER in stderr) return false
-  return stdout.lineSequence().mapNotNull { it.trim().toIntOrNull() }.none { it > 0 }
-}
+): FirstFrame =
+  when {
+    NO_DECODER in stderr -> FirstFrame.NoDecoder
+    stdout.lineSequence().mapNotNull { it.trim().toIntOrNull() }.any { it > 0 } -> FirstFrame.Decodes
+    else -> FirstFrame.Damaged
+  }
+
+/**
+ * What decoding the first frame of a source's video stream found: a frame, a stream that gave none, or a codec this
+ * ffmpeg build has no decoder for, which says nothing about the bytes.
+ */
+internal enum class FirstFrame { Decodes, Damaged, NoDecoder }
 
 private const val NO_DECODER = "Unsupported codec with id"
 private const val FIRST_FRAME_PACKETS = 4

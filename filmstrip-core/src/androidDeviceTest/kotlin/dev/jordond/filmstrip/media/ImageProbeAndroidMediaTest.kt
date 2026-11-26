@@ -1,6 +1,7 @@
 package dev.jordond.filmstrip.media
 
 import dev.jordond.filmstrip.internal.PlatformProber
+import dev.jordond.filmstrip.internal.probe
 import dev.jordond.filmstrip.media.probe.IMAGE_PROBE_DURATION
 import dev.jordond.filmstrip.media.probe.expectedImageInfo
 import dev.jordond.filmstrip.media.probe.expectedRotatedImageInfo

@@ -18,6 +18,7 @@ val browserFixtures =
         SharedFixtures.JoinWide,
         SharedFixtures.JoinTall,
         SharedFixtures.JoinSquare,
+        SharedFixtures.ExportHdr,
       ),
   )
 

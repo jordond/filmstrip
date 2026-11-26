@@ -1,6 +1,7 @@
 package dev.jordond.filmstrip.test
 
 import dev.jordond.filmstrip.InternalFilmstripApi
+import dev.jordond.filmstrip.internal.missingVideoDecoder
 import dev.jordond.filmstrip.internal.sampleTableOverrunOf
 import dev.jordond.filmstrip.internal.truncatedSource
 import dev.jordond.filmstrip.internal.undecodableSource
@@ -26,6 +27,12 @@ public enum class UnreadableCase {
    * and points at nothing that decodes.
    */
   GarbledMdat,
+
+  /**
+   * The video track's sample entry renamed to a four character code no codec uses, so its track opens and lists every
+   * sample but no platform has a decoder for it.
+   */
+  UnknownCodec,
 
   /**
    * Every box but the `moov`, the shape of a recording cut off before its header was written.
@@ -69,6 +76,9 @@ public enum class UnreadableCase {
           }
         }
       }
+      UnknownCodec -> {
+        withVideoCodec(mp4, UNKNOWN_CODEC)
+      }
       NoMoov -> {
         val moov = topLevelBoxes(mp4).single { it.type == "moov" }
         mp4.copyOfRange(0, moov.start) + mp4.copyOfRange(moov.end, mp4.size)
@@ -89,13 +99,15 @@ public enum class UnreadableCase {
    * prober turns away for its own reasons.
    *
    * [TruncatedMdat] meets the sample table check, since its `moov` still opens and lists every sample, and fails when
-   * the check finds nothing missing from it. [GarbledMdat] meets the first frame decode every prober runs.
+   * the check finds nothing missing from it. [GarbledMdat] meets the first frame decode every prober runs, and
+   * [UnknownCodec] the decoder lookup every prober runs before it.
    */
   public suspend fun refusalAt(
     source: MediaSource,
     bytes: ByteArray?,
   ): String? {
     if (this == GarbledMdat) return undecodableSource(source.describe()).message
+    if (this == UnknownCodec) return missingVideoDecoder(UNKNOWN_CODEC).message
     if (this != TruncatedMdat || bytes == null) return null
     val missing =
       checkNotNull(sampleTableOverrunOf(bytes.size.toLong()) { start, count -> bytes.rangeOf(start, count) }) {
@@ -104,6 +116,32 @@ public enum class UnreadableCase {
     return truncatedSource(source.describe(), missing).message
   }
 }
+
+/**
+ * A copy of [mp4] whose first video sample entry is renamed to [fourCharacterCode], leaving every other byte alone.
+ *
+ * A demuxer then reads the same samples as the codec [fourCharacterCode] names, such as `apcn` for ProRes, which turns
+ * an H.264 or HEVC clip into one a platform without that decoder cannot play. Fails when [mp4] has no H.264 or HEVC
+ * sample entry.
+ */
+@InternalFilmstripApi
+public fun withVideoCodec(
+  mp4: ByteArray,
+  fourCharacterCode: String,
+): ByteArray {
+  require(fourCharacterCode.length == FOUR_CC) { "expected four characters, got $fourCharacterCode" }
+  val entry =
+    mp4.indices
+      .filter { mp4.typeAt(it) == "stsd" }
+      .map { it + STSD_TO_ENTRY_TYPE }
+      .first { mp4.typeAt(it) in VIDEO_SAMPLE_ENTRIES }
+  return mp4.copyOf().also { renamed ->
+    fourCharacterCode.forEachIndexed { i, char -> renamed[entry + i] = char.code.toByte() }
+  }
+}
+
+private fun ByteArray.typeAt(at: Int): String? =
+  if (at + FOUR_CC > size) null else (at until at + FOUR_CC).map { this[it].toInt().toChar() }.joinToString("")
 
 private fun ByteArray.rangeOf(
   start: Long,
@@ -145,6 +183,12 @@ private fun ByteArray.uint32At(at: Int): Long =
   }
 
 private const val HEADER = 8
+private const val FOUR_CC = 4
+
+// From the stsd type, past its version and flags, its entry count and the first entry's size.
+private const val STSD_TO_ENTRY_TYPE = 16
+private const val UNKNOWN_CODEC = "zzzz"
+private val VIDEO_SAMPLE_ENTRIES = setOf("avc1", "avc3", "hvc1", "hev1")
 private const val NOISE_SEED = 7
 private const val TEXT_BYTES = 1024
 private const val TEXT = "not a video, just some text. "

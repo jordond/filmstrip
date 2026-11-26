@@ -4,11 +4,12 @@ import dev.jordond.filmstrip.CapabilitiesResult
 import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.capability.DeviceCapabilities
+import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.Composition
+import dev.jordond.filmstrip.internal.SourceRead
 import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaProber
 import dev.jordond.filmstrip.media.MediaSource
-import dev.jordond.filmstrip.media.ProbeResult
 import dev.jordond.filmstrip.transform.internal.copy.copyOpenings
 import kotlin.time.Duration
 
@@ -44,15 +45,26 @@ public class PlanningReads(
   /**
    * Reads what every source of [composition] is, the device, and where a copy of it could open.
    *
+   * A source whose video has no decoder here is read for its audio when [composition] is [AudioSpec.AudioOnly], since
+   * its video is never decoded, and fails with that refusal otherwise.
+   *
    * @return Everything read, or the first failure a probe, the device read or an opening read reported.
    */
   public suspend fun read(composition: Composition): PlanningReadResult {
     val infos = mutableMapOf<MediaSource, MediaInfo>()
     for (clip in composition.tracks.flatMap { it.clips }) {
       if (clip.source in infos) continue
-      when (val result = probes.probe(clip.source)) {
-        is ProbeResult.Success -> infos[clip.source] = result.info
-        is ProbeResult.Failure -> return PlanningReadResult.Failed(result.error)
+      when (val result = probes.read(clip.source)) {
+        is SourceRead.Read -> {
+          infos[clip.source] = result.info
+        }
+        is SourceRead.NoVideoDecoder -> {
+          if (composition.audio != AudioSpec.AudioOnly) return PlanningReadResult.Failed(result.error)
+          infos[clip.source] = result.info
+        }
+        is SourceRead.Failed -> {
+          return PlanningReadResult.Failed(result.error)
+        }
       }
     }
     val device =

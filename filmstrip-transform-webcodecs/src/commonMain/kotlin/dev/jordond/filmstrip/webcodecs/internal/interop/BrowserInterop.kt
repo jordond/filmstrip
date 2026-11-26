@@ -8,8 +8,10 @@ import dev.jordond.filmstrip.geometry.Size
 import kotlin.js.ExperimentalWasmJsInterop
 import kotlin.js.JsAny
 import kotlin.js.JsArray
+import kotlin.js.JsBoolean
 import kotlin.js.JsNumber
 import kotlin.js.JsString
+import kotlin.js.Promise
 
 // Almost everything the browser export touches is a typed external in webMain, shared by both
 // targets. What is left here is the handful of things js and wasmJs genuinely spell differently:
@@ -109,6 +111,14 @@ internal expect fun hasAudioEncoder(): Boolean
  * True when the page has a `VideoDecoder` global at all, which every frame this backend draws is decoded through.
  */
 internal expect fun hasVideoDecoder(): Boolean
+
+/**
+ * Whether a `VideoDecoder` configured with [config] starts, answered once a flush with nothing queued settles.
+ *
+ * A browser can say a config is supported and still fail to start a decoder for it, such as HEVC where no hardware
+ * decoder is reachable. The decoder is closed before this answers.
+ */
+internal expect fun videoDecoderStarts(config: JsAny): Promise<JsBoolean>
 
 /**
  * True when the page has an `AudioDecoder` global at all, which every sample the preview plays is decoded through.

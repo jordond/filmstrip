@@ -4,6 +4,7 @@ package dev.jordond.filmstrip.media
 
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.internal.PlatformProber
+import dev.jordond.filmstrip.internal.probe
 import dev.jordond.filmstrip.media.probe.IMAGE_PROBE_DURATION
 import dev.jordond.filmstrip.media.probe.IMAGE_PROBE_SIZE
 import dev.jordond.filmstrip.picture.fixtures.LATE_PNG_SIZE

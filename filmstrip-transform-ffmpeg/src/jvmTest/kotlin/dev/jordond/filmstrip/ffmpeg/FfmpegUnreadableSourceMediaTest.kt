@@ -43,6 +43,10 @@ class FfmpegUnreadableSourceMediaTest {
   fun `a garbled mdat never exports`() = runTest(timeout = TIMEOUT) { measure(UnreadableCase.GarbledMdat) }
 
   @Test
+  fun `a video codec with no decoder is refused at plan`() =
+    runTest(timeout = TIMEOUT) { measure(UnreadableCase.UnknownCodec) }
+
+  @Test
   fun `a file with no moov never exports`() = runTest(timeout = TIMEOUT) { measure(UnreadableCase.NoMoov) }
 
   @Test

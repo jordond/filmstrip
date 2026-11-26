@@ -2,6 +2,8 @@
 
 package dev.jordond.filmstrip.webcodecs.internal.interop
 
+import kotlin.js.Promise
+
 // The js half. A Kotlin FloatArray already is a Float32Array here and a ByteArray already is an
 // Int8Array, so both conversions are a view rather than a copy.
 
@@ -74,6 +76,25 @@ internal actual fun hasVideoEncoder(): Boolean = js("typeof VideoEncoder !== 'un
 internal actual fun hasAudioEncoder(): Boolean = js("typeof AudioEncoder !== 'undefined'").unsafeCast<Boolean>()
 
 internal actual fun hasVideoDecoder(): Boolean = js("typeof VideoDecoder !== 'undefined'").unsafeCast<Boolean>()
+
+internal actual fun videoDecoderStarts(config: JsAny): Promise<JsBoolean> = startVideoDecoder(config)
+
+private val startVideoDecoder: (JsAny) -> Promise<JsBoolean> =
+  js(
+    """
+    (function (config) {
+      const decoder = new VideoDecoder({ output: (frame) => frame.close(), error: () => {} });
+      try {
+        decoder.configure(config);
+      } catch (refused) {
+        return Promise.resolve(false);
+      }
+      return decoder.flush().then(() => true, () => false).finally(() => {
+        if (decoder.state !== 'closed') decoder.close();
+      });
+    })
+    """,
+  )
 
 internal actual fun hasAudioDecoder(): Boolean = js("typeof AudioDecoder !== 'undefined'").unsafeCast<Boolean>()
 
