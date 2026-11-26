@@ -23,10 +23,18 @@ import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.comparables.shouldBeLessThan
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
+import kotlinx.cinterop.CValue
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import platform.AVFoundation.AVAssetImageGeneratorCompletionHandler
+import platform.AVFoundation.AVAssetImageGeneratorResult
+import platform.CoreGraphics.CGImageRef
+import platform.CoreGraphics.CGImageRelease
+import platform.CoreGraphics.CGImageRetain
+import platform.CoreMedia.CMTime
+import platform.Foundation.NSError
 import kotlin.test.Test
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
@@ -132,20 +140,25 @@ class AvFrameReadbackMediaTest {
   fun `a generator answering inside the deadline is delivered once with no retry`() =
     contractTest { scope ->
       val av = appleExportLowering(appleFixtureComposition()).toAvComposition()
+      val answer = generatedAnswer(scope, av)
       val answers = mutableListOf<ReadbackResult>()
       var attempts = 0
       val readback =
-        readback(scope, av, deadline = SHORT_DEADLINE) { generator, time, handler ->
+        readback(scope, av, deadline = SHORT_DEADLINE) { _, _, handler ->
           attempts++
           scope.launch {
             delay(SHORT_DEADLINE / 2)
-            generateFrame(generator, time, handler)
+            answer.handTo(handler)
           }
         }
 
-      readback.requestFrame(PROBE_POSITIONS.first()) { answers += it }
-      awaitContract("a late readback") { answers.isNotEmpty() }
-      delay(SHORT_DEADLINE * 3)
+      try {
+        readback.requestFrame(PROBE_POSITIONS.first()) { answers += it }
+        awaitContract("a late readback") { answers.isNotEmpty() }
+        delay(SHORT_DEADLINE * 3)
+      } finally {
+        CGImageRelease(answer.image)
+      }
 
       attempts shouldBe 1
       answers.single().shouldBeInstanceOf<ReadbackResult.Success>()
@@ -174,6 +187,35 @@ class AvFrameReadbackMediaTest {
     deadline: Duration = AV_READBACK_DEADLINE,
     generate: FrameGeneration = ::generateFrame,
   ): AvFrameReadback = AvFrameReadback(scope, { av }, { policy }, { scale }, deadline, generate)
+
+  // One answer from the real generator, decoded before any deadline runs so a stand-in can hand it back on time.
+  private suspend fun generatedAnswer(
+    scope: CoroutineScope,
+    av: AvComposition,
+  ): GeneratedAnswer {
+    var answer: GeneratedAnswer? = null
+    val capturing =
+      readback(scope, av) { generator, time, handler ->
+        generateFrame(generator, time) { requested, image, actual, result, error ->
+          answer = GeneratedAnswer(requested, CGImageRetain(image), actual, result, error)
+          handler?.invoke(requested, image, actual, result, error)
+        }
+      }
+    read(capturing, PROBE_POSITIONS.first())
+    return checkNotNull(answer)
+  }
+
+  private class GeneratedAnswer(
+    val requested: CValue<CMTime>,
+    val image: CGImageRef?,
+    val actual: CValue<CMTime>,
+    val result: AVAssetImageGeneratorResult,
+    val error: NSError?,
+  ) {
+    fun handTo(handler: AVAssetImageGeneratorCompletionHandler) {
+      handler?.invoke(requested, image, actual, result, error)
+    }
+  }
 
   private suspend fun read(
     readback: AvFrameReadback,
