@@ -73,6 +73,7 @@ internal class ContractFakeEngine(
   private var playbackRange: TimeRange? = null
   private var transport: Job? = null
   private var isLanding = false
+  private var ended = false
 
   override val id: PlayerEngineId = PlayerEngineId("filmstrip.contract-fake")
 
@@ -144,6 +145,7 @@ internal class ContractFakeEngine(
       delay(seekLatency)
       playhead = landingOf(position)
       isLanding = false
+      leaveEnd()
       onComplete(playhead)
     }
   }
@@ -159,6 +161,7 @@ internal class ContractFakeEngine(
   }
 
   override fun onPlay() {
+    leaveEnd()
     if (transport?.isActive == true) return
     transport =
       scope.launch {
@@ -221,12 +224,19 @@ internal class ContractFakeEngine(
   }
 
   private fun end(length: Duration) {
+    ended = true
     playhead = length
     onPause()
     setStatus(PlaybackStatus.Ended)
     setPlayWhenReady(false)
     emitPosition(playhead)
     emitEvent(PlaybackEvent.Ended(playhead, length))
+  }
+
+  private fun leaveEnd() {
+    if (!ended) return
+    ended = false
+    setStatus(PlaybackStatus.Ready)
   }
 
   /**

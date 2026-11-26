@@ -97,7 +97,7 @@ internal class BrowserTransport(
    * With no preview yet the load that builds one starts it instead.
    */
   fun play() {
-    reachedEnd = false
+    leaveEnd()
     wantsPlayback = true
     if (preview() != null) launchStart { position() }
   }
@@ -115,6 +115,17 @@ internal class BrowserTransport(
    */
   fun clearEnd() {
     reachedEnd = false
+  }
+
+  /**
+   * Forgets that the end was reached and moves the status from Ended back to Ready, so playback can run again.
+   *
+   * A seek landing and a play call this. Nothing changes when the end was not reached.
+   */
+  fun leaveEnd() {
+    if (!reachedEnd) return
+    reachedEnd = false
+    setStatus(PlaybackStatus.Ready)
   }
 
   /**

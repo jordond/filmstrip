@@ -86,7 +86,7 @@ internal class BrowserSeeks(
         if (redirect != null) guard.seekLanded(null)
         val landing = redirect?.let { outputSlotTime(it, composition.frameRate) } ?: sent
 
-        transport.clearEnd()
+        transport.leaveEnd()
         // Everything decoded ahead of the old playhead is decoded for a position nobody is going to
         // ask for now, so it is closed here rather than left to fall out of the window one frame at a
         // time.
@@ -140,7 +140,7 @@ internal class BrowserSeeks(
           return@launch
         }
         guard.seekLanded(null)
-        transport.clearEnd()
+        transport.leaveEnd()
         clock().moveTo(landing)
         // A frame asked for before the shuttle ended lands after playback started again, which carries on from it.
         if (transport.wantsPlayback) transport.launchStart { landing }

@@ -457,6 +457,7 @@ internal class BrowserPlayerEngine(
   override fun fail(error: PlaybackError) {
     seeks.invalidate()
     guard.reset()
+    transport.clearEnd()
     setStatus(PlaybackStatus.Error(error))
     emitEvent(PlaybackEvent.Failed(error))
   }

@@ -72,6 +72,8 @@ without coroutines.
   there and reports no `Ended`. A range that starts at or past the end has nothing to loop, so playback runs to the end. A
   wrap only happens during playback, so a paused seek past the range stays where it lands. After a wrap the playhead
   reads the range's first frame.
+- Reaching the end stops the player on `PlaybackStatus.Ended` and reports `PlaybackEvent.Ended`. A seek moves it back
+  to `PlaybackStatus.Ready`, so a seek to the start and a `play` runs it again.
 - `setPlaybackRange` confines playback without changing the composition, so a trim drag previews without a rebuild.
 - `setVolume` sets monitor volume, which only the player hears. To change the export's level, see [Audio](/guides/audio/).
 - A failure stops the player and keeps `playWhenReady`. The next load tries again, even with the same composition, and

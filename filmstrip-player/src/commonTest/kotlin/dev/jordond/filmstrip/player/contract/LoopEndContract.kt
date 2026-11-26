@@ -9,6 +9,7 @@ import dev.jordond.filmstrip.player.PlaybackStatus
 import dev.jordond.filmstrip.player.SeekAccuracy
 import dev.jordond.filmstrip.player.SetCompositionResult
 import dev.jordond.filmstrip.player.internal.loopWrapOf
+import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.comparables.shouldBeGreaterThanOrEqualTo
 import io.kotest.matchers.comparables.shouldBeLessThan
 import io.kotest.matchers.shouldBe
@@ -154,6 +155,50 @@ internal class LoopEndContract(
     }
 
   /**
+   * Plays to the end, seeks back to the start and plays again, and checks playback runs from there.
+   *
+   * The engine leaves [PlaybackStatus.Ended] for [PlaybackStatus.Ready], reports playing and moves the playhead past
+   * the start, with no second end reported on the way.
+   */
+  fun playsAgainAfterTheEnd(): TestResult =
+    contractTest { scope ->
+      val subject = createEngine(scope)
+      withEngine(subject.engine) { recorder ->
+        subject.engine.awaitComposition(fixture).shouldBeInstanceOf<SetCompositionResult.Success>()
+        awaitContract("the engine to become seekable") { recorder.lastState.hasComposition }
+        val duration = recorder.lastState.duration ?: fail("The engine reported no duration to play to the end of.")
+
+        val approach = outputSlotTime(outputSlotOf(duration * APPROACH_AT, rate), rate)
+        var seeks = recorder.seekCompletions.size
+        subject.engine.seekTo(approach, SeekAccuracy.Exact)
+        awaitContract("the seek to $approach to complete") { recorder.seekCompletions.size > seeks }
+        val endMark = recorder.events.size
+        subject.engine.play()
+        awaitContract("playback to reach the end") {
+          recorder.events.drop(endMark).any { it is PlaybackEvent.Ended }
+        }
+        awaitStep("the engine to go quiet at the end") { subject.awaitQuiet() }
+
+        seeks = recorder.seekCompletions.size
+        subject.engine.seekTo(Duration.ZERO, SeekAccuracy.Exact)
+        awaitContract("the seek back to the start to complete") { recorder.seekCompletions.size > seeks }
+        val replayMark = recorder.events.size
+        val past = outputSlotTime(REPLAY_PAST_SLOTS, rate)
+        subject.engine.play()
+        awaitContract("playback to run past $past again") {
+          recorder.lastState.isPlaying && (recorder.playhead ?: Duration.ZERO) > past
+        }
+
+        recorder.lastState.status shouldBe PlaybackStatus.Ready
+        recorder.events
+          .drop(replayMark)
+          .filterIsInstance<PlaybackEvent.Ended>()
+          .shouldBeEmpty()
+        subject.engine.pause()
+      }
+    }
+
+  /**
    * Waits for playback to have wrapped [count] times, with at least [count] drops recorded in the playhead since
    * [positionsMark].
    *
@@ -191,6 +236,7 @@ internal class LoopEndContract(
     // Where across the composition the loop range starts, and where playback into its end begins.
     const val LOOP_FROM = 0.7
     const val APPROACH_AT = 0.9
+    const val REPLAY_PAST_SLOTS = 3L
 
     /**
      * The index of every reading in [readings] that is lower than the one straight before it.

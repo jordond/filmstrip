@@ -396,6 +396,9 @@ abstract class PlayerEngineContractTest {
   @Test
   fun aPlayToTheEndReportsEndedAtTheDuration() = loopEnds.endsAtTheDuration()
 
+  @Test
+  fun aSeekToTheStartAfterTheEndPlaysAgain() = loopEnds.playsAgainAfterTheEnd()
+
   private suspend fun EngineUnderTest.quiet() {
     awaitStep("the engine to go quiet") { awaitQuiet() }
   }
