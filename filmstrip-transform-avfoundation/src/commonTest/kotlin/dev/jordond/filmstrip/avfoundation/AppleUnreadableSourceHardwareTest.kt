@@ -10,6 +10,7 @@ import dev.jordond.filmstrip.export.ExportStatus
 import dev.jordond.filmstrip.export.Verdict
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
+import dev.jordond.filmstrip.test.TestScratch
 import dev.jordond.filmstrip.test.UnreadableCase
 import io.kotest.assertions.withClue
 import io.kotest.matchers.collections.shouldContain
@@ -27,7 +28,6 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import platform.Foundation.NSData
 import platform.Foundation.NSFileManager
-import platform.Foundation.NSTemporaryDirectory
 import platform.Foundation.create
 import platform.Foundation.dataWithContentsOfFile
 import platform.Foundation.writeToFile
@@ -71,7 +71,7 @@ class AppleUnreadableSourceHardwareTest {
 
   private suspend fun measure(case: UnreadableCase) =
     withContext(Dispatchers.Default) {
-      val path = NSTemporaryDirectory() + "filmstrip-unreadable-${case.name}.mp4"
+      val path = TestScratch.directory + "filmstrip-unreadable-${case.name}.mp4"
       NSFileManager.defaultManager.removeItemAtPath(path, error = null)
       val bytes = case.bytesFrom(NSData.dataWithContentsOfFile(fixture(FIXTURE))!!.toByteArray())
       bytes?.let { writeBytes(path, it) }
@@ -96,7 +96,7 @@ class AppleUnreadableSourceHardwareTest {
         }
       withClue("${case.name} planned") { refusal.shouldBeNull() }
       val planned = started.elapsedNow()
-      val sink = MediaSink.of(NSTemporaryDirectory() + "filmstrip-unreadable-out.mp4")
+      val sink = MediaSink.of(TestScratch.directory + "filmstrip-unreadable-out.mp4")
       val last = filmstrip.export(plan, sink).toList().last()
       val ended = started.elapsedNow() - planned
       val outcome =

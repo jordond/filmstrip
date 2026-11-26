@@ -37,6 +37,7 @@ import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
+import dev.jordond.filmstrip.test.TestScratch
 import dev.jordond.filmstrip.transform.internal.ResolveResult
 import dev.jordond.filmstrip.transform.internal.hdr.Rgb
 import io.kotest.matchers.nulls.shouldBeNull
@@ -51,7 +52,6 @@ import kotlinx.coroutines.withContext
 import platform.CoreGraphics.CGColorSpaceRelease
 import platform.CoreImage.CIImage
 import platform.Foundation.NSFileManager
-import platform.Foundation.NSTemporaryDirectory
 import kotlin.concurrent.atomics.AtomicReference
 import kotlin.concurrent.atomics.ExperimentalAtomicApi
 import kotlin.test.Test
@@ -289,7 +289,7 @@ class AppleToneMapExportHardwareTest {
     return output
   }
 
-  private fun temporaryPath(name: String): String = NSTemporaryDirectory() + "filmstrip-tone-map-$name.mp4"
+  private fun temporaryPath(name: String): String = TestScratch.directory + "filmstrip-tone-map-$name.mp4"
 
   private fun remove(path: String) {
     NSFileManager.defaultManager.removeItemAtPath(path, error = null)

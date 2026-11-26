@@ -228,6 +228,14 @@ private val ALLOWED_IMPORTS: Map<Layer, Set<String>> =
   )
 
 /**
+ * Imports no test source set in any layer may name.
+ *
+ * A test writes its files under `TestScratch.directory`, which is a directory of its own per process, so two test
+ * processes on one machine never share a name.
+ */
+internal val TEST_FORBIDDEN_IMPORTS: Set<String> = setOf("platform.Foundation.NSTemporaryDirectory")
+
+/**
  * The import prefixes [checkForbiddenImports][ForbiddenImportsTask] fails this layer on, or null when it checks none.
  */
 internal val Layer.forbiddenImports: Set<String>? get() = FORBIDDEN_IMPORTS[this]
@@ -266,19 +274,18 @@ fun Project.configureArchitectureGuards() {
     val target = project(path)
 
     // Guard A: source imports. Cheap, and catches the mistake people actually make.
-    module.forbiddenImports?.let { forbidden ->
-      val importsTask =
-        target.tasks.register<ForbiddenImportsTask>("checkForbiddenImports") {
-          group = "verification"
-          description = "Verifies $path contains no forbidden imports."
-          moduleName.set(path)
-          forbiddenPrefixes.set(forbidden)
-          allowedPrefixes.set(module.allowedImports)
-          sources.from(target.layout.projectDirectory.dir("src"))
-        }
+    val importsTask =
+      target.tasks.register<ForbiddenImportsTask>("checkForbiddenImports") {
+        group = "verification"
+        description = "Verifies $path contains no forbidden imports."
+        moduleName.set(path)
+        forbiddenPrefixes.set(module.forbiddenImports.orEmpty())
+        testForbiddenPrefixes.set(TEST_FORBIDDEN_IMPORTS)
+        allowedPrefixes.set(module.allowedImports)
+        sources.from(target.layout.projectDirectory.dir("src"))
+      }
 
-      target.pluginManager.withPlugin("base") { target.tasks.named("check") { dependsOn(importsTask) } }
-    }
+    target.pluginManager.withPlugin("base") { target.tasks.named("check") { dependsOn(importsTask) } }
 
     // Guard B: resolved coordinates. Thorough, and not free, so `check` only and never `assemble`.
     val layeringTask =

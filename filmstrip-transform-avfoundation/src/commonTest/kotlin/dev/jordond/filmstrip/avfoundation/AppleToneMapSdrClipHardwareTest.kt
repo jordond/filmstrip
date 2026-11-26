@@ -19,6 +19,7 @@ import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
+import dev.jordond.filmstrip.test.TestScratch
 import dev.jordond.filmstrip.transform.internal.ResolveResult
 import dev.jordond.filmstrip.transform.internal.hdr.Rgb
 import io.kotest.matchers.types.shouldBeInstanceOf
@@ -35,7 +36,6 @@ import platform.AVFoundation.AVVideoYCbCrMatrix_ITU_R_2020
 import platform.AVFoundation.AVVideoYCbCrMatrix_ITU_R_601_4
 import platform.AVFoundation.AVVideoYCbCrMatrix_ITU_R_709_2
 import platform.Foundation.NSFileManager
-import platform.Foundation.NSTemporaryDirectory
 import kotlin.experimental.ExperimentalNativeApi
 import kotlin.native.OsFamily
 import kotlin.native.Platform
@@ -257,7 +257,7 @@ class AppleToneMapSdrClipHardwareTest {
     return output
   }
 
-  private fun temporaryPath(name: String): String = NSTemporaryDirectory() + "filmstrip-tone-map-sdr-$name.mp4"
+  private fun temporaryPath(name: String): String = TestScratch.directory + "filmstrip-tone-map-sdr-$name.mp4"
 
   private fun remove(path: String) {
     NSFileManager.defaultManager.removeItemAtPath(path, error = null)

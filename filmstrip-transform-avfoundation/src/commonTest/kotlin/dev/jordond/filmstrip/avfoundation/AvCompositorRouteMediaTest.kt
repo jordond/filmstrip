@@ -21,6 +21,7 @@ import dev.jordond.filmstrip.internal.chainedProber
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
+import dev.jordond.filmstrip.test.TestScratch
 import dev.jordond.filmstrip.transform.internal.ResolveResult
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
 import io.kotest.assertions.withClue
@@ -90,7 +91,6 @@ import platform.Foundation.CFBridgingRelease
 import platform.Foundation.NSFileManager
 import platform.Foundation.NSNull
 import platform.Foundation.NSNumber
-import platform.Foundation.NSTemporaryDirectory
 import platform.Foundation.NSURL
 import platform.Foundation.numberWithInt
 import platform.darwin.NSObject
@@ -250,7 +250,7 @@ class AvCompositorRouteMediaTest {
         timedByGrid = false,
         audio = laid.audio,
       )
-    val path = NSTemporaryDirectory() + "filmstrip-route-$name.mp4"
+    val path = TestScratch.directory + "filmstrip-route-$name.mp4"
     val destination = AvDestination(NSURL.fileURLWithPath(path), path, MediaSink.Path(path))
     WriterRun(chainedProber(components), components, resolved, graph, destination)
       .run()

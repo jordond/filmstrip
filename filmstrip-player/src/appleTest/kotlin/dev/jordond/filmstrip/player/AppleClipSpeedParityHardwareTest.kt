@@ -12,11 +12,11 @@ import dev.jordond.filmstrip.player.contract.ClipSpeedParityContractTest
 import dev.jordond.filmstrip.player.internal.AvPlayerEngine
 import dev.jordond.filmstrip.player.internal.AvPreviewPlanner
 import dev.jordond.filmstrip.test.TestFrame
+import dev.jordond.filmstrip.test.TestScratch
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.withContext
-import platform.Foundation.NSTemporaryDirectory
 import platform.Foundation.NSUUID
 import kotlin.test.fail
 import kotlin.time.Duration
@@ -72,7 +72,7 @@ internal object AppleClipParity : ClipParityBackend {
     spec: ExportSpec,
   ): String =
     withContext(Dispatchers.Default) {
-      val path = NSTemporaryDirectory() + "filmstrip-apple-speed-parity-" + NSUUID().UUIDString + ".mp4"
+      val path = TestScratch.directory + "filmstrip-apple-speed-parity-" + NSUUID().UUIDString + ".mp4"
       val statuses = filmstrip.export(composition, spec, MediaSink.of(path)).toList()
       val finished = statuses.last()
       if (finished is ExportStatus.Failure) fail("the export failed: ${finished.error.message}")

@@ -21,7 +21,6 @@ import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.io.files.Path
 import platform.Foundation.NSFileManager
 import platform.Foundation.NSProcessInfo
-import platform.Foundation.NSTemporaryDirectory
 import platform.posix.usleep
 import kotlin.concurrent.atomics.AtomicInt
 import kotlin.concurrent.atomics.ExperimentalAtomicApi
@@ -43,7 +42,8 @@ class PlatformProberBytesAppleTest {
   @Test
   fun `a buffer that cannot be written is unreadable`() =
     runTest {
-      val blocked = NSTemporaryDirectory() + "filmstrip-blocked-root-" + NSProcessInfo.processInfo.globallyUniqueString
+      val blocked =
+        AppleScratch.defaultRoot + "filmstrip-blocked-root-" + NSProcessInfo.processInfo.globallyUniqueString
       NSFileManager.defaultManager.createFileAtPath(blocked, null, null) shouldBe true
       try {
         val failure =
@@ -95,7 +95,7 @@ class PlatformProberBytesAppleTest {
     }
 
   private fun uniqueRoot(): String =
-    NSTemporaryDirectory() + "filmstrip-prober-root-" + NSProcessInfo.processInfo.globallyUniqueString
+    AppleScratch.defaultRoot + "filmstrip-prober-root-" + NSProcessInfo.processInfo.globallyUniqueString
 
   private companion object {
     const val POLL_MICROSECONDS = 1_000u

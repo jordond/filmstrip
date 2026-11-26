@@ -38,6 +38,7 @@ import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
+import dev.jordond.filmstrip.test.TestScratch
 import dev.jordond.filmstrip.transform.internal.ResolveResult
 import dev.jordond.filmstrip.transform.internal.geometry.placementOf
 import dev.jordond.filmstrip.transform.internal.hdr.Rgb
@@ -62,7 +63,6 @@ import kotlinx.coroutines.withContext
 import platform.AVFoundation.AVVideoColorPrimaries_SMPTE_C
 import platform.AVFoundation.AVVideoYCbCrMatrix_ITU_R_601_4
 import platform.Foundation.NSFileManager
-import platform.Foundation.NSTemporaryDirectory
 import kotlin.math.abs
 import kotlin.test.Test
 import kotlin.time.Duration
@@ -125,7 +125,7 @@ class AppleVhsHardwareTest {
   @Test
   fun `a vhs on an sd clip reads the signal over the clip's corrected colour at both scopes`() =
     runTest(timeout = TIMEOUT) {
-      val source = NSTemporaryDirectory() + "filmstrip-vhs-sd-source.mp4"
+      val source = TestScratch.directory + "filmstrip-vhs-sd-source.mp4"
       val primaries = AVVideoColorPrimaries_SMPTE_C.orEmpty()
       val matrix = AVVideoYCbCrMatrix_ITU_R_601_4.orEmpty()
       withContext(Dispatchers.Default) { writeTaggedBars(source, SD_FRAMES, primaries, matrix, SD_FLAT) }
@@ -405,7 +405,7 @@ class AppleVhsHardwareTest {
     spec: ExportSpec,
     name: String,
   ): String {
-    val path = NSTemporaryDirectory() + "filmstrip-vhs-$name.mp4"
+    val path = TestScratch.directory + "filmstrip-vhs-$name.mp4"
     val status = withContext(Dispatchers.Default) { filmstrip.export(edit, spec, MediaSink.of(path)).toList().last() }
     status
       .shouldBeInstanceOf<ExportStatus.Success>()

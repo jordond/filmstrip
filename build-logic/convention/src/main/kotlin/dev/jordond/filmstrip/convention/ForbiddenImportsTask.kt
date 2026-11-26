@@ -38,27 +38,39 @@ abstract class ForbiddenImportsTask : DefaultTask() {
   @get:Input
   abstract val allowedPrefixes: SetProperty<String>
 
+  /**
+   * Import rules checked only in a test source set, on top of [forbiddenPrefixes]. They match the way
+   * [forbiddenPrefixes] do, and [allowedPrefixes] does not lift them.
+   */
+  @get:Input
+  abstract val testForbiddenPrefixes: SetProperty<String>
+
   @get:Input
   abstract val moduleName: Property<String>
 
   @TaskAction
   fun check() {
     val prefixes = forbiddenPrefixes.get()
+    val testPrefixes = testForbiddenPrefixes.get()
     val allowed = allowedPrefixes.get()
-    val violations =
-      sources.asFileTree
-        .matching { include("**/*.kt") }
-        .flatMap { file ->
-          file.useLines { lines ->
-            lines
-              .withIndex()
-              .filter { (_, line) -> line.startsWith("import ") }
-              .filter { (_, line) ->
-                isForbiddenImport(line.removePrefix("import ").substringBefore(' ').trim(), prefixes, allowed)
-              }.map { (i, line) -> "${file.path}:${i + 1}: ${line.trim()}" }
-              .toList()
+    val violations = mutableListOf<String>()
+    var testOnly = false
+
+    sources.files.forEach { root ->
+      root.walkTopDown().filter { it.isFile && it.extension == "kt" }.forEach { file ->
+        val inTest = isTestSource(file.relativeTo(root).invariantSeparatorsPath)
+        file.useLines { lines ->
+          lines.withIndex().filter { (_, line) -> line.startsWith("import ") }.forEach { (i, line) ->
+            val fqn = line.removePrefix("import ").substringBefore(' ').trim()
+            val testRule = inTest && isForbiddenImport(fqn, testPrefixes, emptySet())
+            if (isForbiddenAt(inTest, fqn, prefixes, testPrefixes, allowed)) {
+              violations += "${file.path}:${i + 1}: ${line.trim()}"
+              testOnly = testOnly || testRule
+            }
           }
         }
+      }
+    }
 
     if (violations.isNotEmpty()) {
       throw GradleException(
@@ -66,12 +78,34 @@ abstract class ForbiddenImportsTask : DefaultTask() {
           appendLine("Forbidden imports in ${moduleName.get()} (${violations.size}):")
           violations.forEach { appendLine("  $it") }
           appendLine()
+          if (testOnly) appendLine("Tests write their files under TestScratch.directory from filmstrip-test.")
           appendLine("See LAYERS in build-logic Layering.kt for the layering contract.")
         },
       )
     }
   }
 }
+
+/**
+ * Whether [relativePath], a path under a module's `src` directory, sits in a test source set.
+ *
+ * A test source set is one whose directory name ends in `Test`, like `commonTest`, `appleHardwareTest` or `pureTest`.
+ */
+internal fun isTestSource(relativePath: String): Boolean = relativePath.substringBefore('/').endsWith("Test")
+
+/**
+ * Whether [fqn] is forbidden in a file, which is a test source when [inTest] is true.
+ *
+ * Every file is held to [forbidden] less [allowed]. A test source is also held to [testForbidden], which [allowed]
+ * does not lift.
+ */
+internal fun isForbiddenAt(
+  inTest: Boolean,
+  fqn: String,
+  forbidden: Set<String>,
+  testForbidden: Set<String>,
+  allowed: Set<String>,
+): Boolean = (inTest && isForbiddenImport(fqn, testForbidden, emptySet())) || isForbiddenImport(fqn, forbidden, allowed)
 
 /**
  * Whether [fqn] matches one of the [forbidden] rules and none of the [allowed] prefixes.

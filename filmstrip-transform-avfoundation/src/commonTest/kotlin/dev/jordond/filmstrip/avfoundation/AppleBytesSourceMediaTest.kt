@@ -18,6 +18,7 @@ import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.ProbeResult
 import dev.jordond.filmstrip.media.containerExtensionOf
+import dev.jordond.filmstrip.test.TestScratch
 import dev.jordond.filmstrip.transform.internal.ResolveResult
 import dev.jordond.filmstrip.transform.internal.probe.OpeningRead
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
@@ -35,7 +36,6 @@ import platform.Foundation.NSFileManager
 import platform.Foundation.NSFileModificationDate
 import platform.Foundation.NSFileSystemFileNumber
 import platform.Foundation.NSProcessInfo
-import platform.Foundation.NSTemporaryDirectory
 import kotlin.experimental.ExperimentalNativeApi
 import kotlin.native.OsFamily
 import kotlin.native.Platform
@@ -75,7 +75,7 @@ class AppleBytesSourceMediaTest {
     name: String,
   ): MediaInfo =
     withContext(Dispatchers.Default) {
-      val output = NSTemporaryDirectory() + "filmstrip-apple-bytes-$name.mp4"
+      val output = TestScratch.directory + "filmstrip-apple-bytes-$name.mp4"
       NSFileManager.defaultManager.removeItemAtPath(output, null)
       val statuses =
         filmstrip
@@ -220,12 +220,12 @@ class AppleBytesSourceMediaTest {
   @Test
   fun `an export of a buffer that cannot be written fails as unreadable`() =
     runTest(timeout = TIMEOUT) {
-      val blocked = NSTemporaryDirectory() + "filmstrip-blocked-root-" + NSProcessInfo.processInfo.globallyUniqueString
+      val blocked = TestScratch.directory + "filmstrip-blocked-root-" + NSProcessInfo.processInfo.globallyUniqueString
       NSFileManager.defaultManager.createFileAtPath(blocked, null, null) shouldBe true
       try {
         val composition = resolved(compositionOf { clip(bytesOf(CLIP)) })
         val driver = AvDriver(UNUSED_PROBER, ComponentRegistry.Builder().build(), bytesRoot = blocked)
-        val output = MediaSink.of(NSTemporaryDirectory() + "filmstrip-apple-blocked.mp4")
+        val output = MediaSink.of(TestScratch.directory + "filmstrip-apple-blocked.mp4")
 
         val failure =
           driver

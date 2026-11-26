@@ -19,6 +19,7 @@ import dev.jordond.filmstrip.export.ExportStatus
 import dev.jordond.filmstrip.media.MediaProber
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
+import dev.jordond.filmstrip.test.TestScratch
 import dev.jordond.filmstrip.transform.internal.ResolveResult
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
 import io.kotest.assertions.withClue
@@ -42,7 +43,6 @@ import platform.AVFoundation.timeRange
 import platform.Foundation.NSDate
 import platform.Foundation.NSFileManager
 import platform.Foundation.NSFileModificationDate
-import platform.Foundation.NSTemporaryDirectory
 import platform.Foundation.NSUUID
 import platform.Foundation.dateWithTimeIntervalSinceNow
 import kotlin.test.Test
@@ -203,7 +203,7 @@ class AppleStretchedAudioMediaTest {
           clip(MediaSource.of(fixture(LONG))) { speed(CLIP_SPEED_RANGE.start) }
         }
       val resolved = resolved(composition)
-      val sink = MediaSink.of(NSTemporaryDirectory() + "filmstrip-apple-speed-cancelled.mp4")
+      val sink = MediaSink.of(TestScratch.directory + "filmstrip-apple-speed-cancelled.mp4")
 
       withContext(Dispatchers.Default) {
         val seen = mutableListOf<ExportStatus>()
@@ -251,7 +251,7 @@ class AppleStretchedAudioMediaTest {
 
       val finished =
         withContext(Dispatchers.Default) {
-          driver.export(resolved, MediaSink.of(NSTemporaryDirectory() + "filmstrip-apple-speed-failed.mp4")).toList()
+          driver.export(resolved, MediaSink.of(TestScratch.directory + "filmstrip-apple-speed-failed.mp4")).toList()
         }
 
       renders shouldBe 2
@@ -283,7 +283,7 @@ class AppleStretchedAudioMediaTest {
     }
 
   private fun temporaryRoot(): String =
-    (NSTemporaryDirectory() + "filmstrip-apple-speed-root-" + NSUUID().UUIDString).also {
+    (TestScratch.directory + "filmstrip-apple-speed-root-" + NSUUID().UUIDString).also {
       NSFileManager.defaultManager.createDirectoryAtPath(it, true, null, null)
     }
 

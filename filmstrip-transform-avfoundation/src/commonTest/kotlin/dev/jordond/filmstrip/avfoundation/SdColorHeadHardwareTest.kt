@@ -27,6 +27,7 @@ import dev.jordond.filmstrip.export.HdrMode
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
+import dev.jordond.filmstrip.test.TestScratch
 import dev.jordond.filmstrip.transform.internal.ResolveResult
 import dev.jordond.filmstrip.transform.internal.hdr.Rgb
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
@@ -51,7 +52,6 @@ import platform.CoreImage.CIImage
 import platform.CoreImage.kCIFormatRGBAf
 import platform.Foundation.NSData
 import platform.Foundation.NSFileManager
-import platform.Foundation.NSTemporaryDirectory
 import platform.Foundation.dataWithBytes
 import kotlin.test.Test
 import kotlin.test.assertFailsWith
@@ -321,7 +321,7 @@ class SdColorHeadHardwareTest {
       }
     }
 
-  private fun temporaryPath(name: String): String = NSTemporaryDirectory() + "filmstrip-sd-head-$name.mp4"
+  private fun temporaryPath(name: String): String = TestScratch.directory + "filmstrip-sd-head-$name.mp4"
 
   private fun remove(path: String) {
     NSFileManager.defaultManager.removeItemAtPath(path, error = null)

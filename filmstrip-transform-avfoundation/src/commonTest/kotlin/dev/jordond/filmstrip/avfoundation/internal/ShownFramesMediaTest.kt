@@ -17,6 +17,7 @@ import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.VideoTrackInfo
 import dev.jordond.filmstrip.media.trackCodecOf
+import dev.jordond.filmstrip.test.TestScratch
 import dev.jordond.filmstrip.transform.internal.nearestSourceFrame
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedClip
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedGain
@@ -45,7 +46,6 @@ import platform.CoreMedia.CMTimeMake
 import platform.CoreMedia.CMTimeRangeGetEnd
 import platform.CoreMedia.kCMPersistentTrackID_Invalid
 import platform.Foundation.NSFileManager
-import platform.Foundation.NSTemporaryDirectory
 import platform.Foundation.NSURL
 import kotlin.test.Test
 import kotlin.test.assertFailsWith
@@ -140,7 +140,7 @@ class ShownFramesMediaTest {
   @Test
   fun `holds the later frame when the nearest shares its tick with the next`() =
     runTest {
-      val path = NSTemporaryDirectory() + "filmstrip-shown-frames-one-tick.mov"
+      val path = TestScratch.directory + "filmstrip-shown-frames-one-tick.mov"
       withContext(Dispatchers.Default) {
         writeOffGridClip(
           path,

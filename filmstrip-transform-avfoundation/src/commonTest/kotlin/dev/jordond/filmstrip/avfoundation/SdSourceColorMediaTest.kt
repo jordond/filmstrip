@@ -16,6 +16,7 @@ import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.internal.copyFormatDescription
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaSource
+import dev.jordond.filmstrip.test.TestScratch
 import dev.jordond.filmstrip.transform.internal.ResolveResult
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
@@ -37,7 +38,6 @@ import platform.CoreFoundation.CFRelease
 import platform.CoreMedia.CMFormatDescriptionGetExtension
 import platform.CoreVideo.kCVImageBufferColorPrimariesKey
 import platform.Foundation.NSFileManager
-import platform.Foundation.NSTemporaryDirectory
 import platform.Foundation.NSURL
 import kotlin.test.Test
 import kotlin.time.Duration
@@ -222,7 +222,7 @@ class SdSourceColorMediaTest {
       is ResolveResult.Resolved -> result.composition
     }
 
-  private fun temporaryPath(name: String): String = NSTemporaryDirectory() + "filmstrip-sd-source-$name.mp4"
+  private fun temporaryPath(name: String): String = TestScratch.directory + "filmstrip-sd-source-$name.mp4"
 
   private fun remove(path: String) {
     NSFileManager.defaultManager.removeItemAtPath(path, error = null)

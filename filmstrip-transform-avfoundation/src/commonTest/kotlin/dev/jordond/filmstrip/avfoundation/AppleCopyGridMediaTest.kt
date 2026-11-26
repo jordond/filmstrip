@@ -14,6 +14,7 @@ import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.ExportStatus
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
+import dev.jordond.filmstrip.test.TestScratch
 import dev.jordond.filmstrip.transform.internal.ResolveResult
 import dev.jordond.filmstrip.transform.internal.copy.CopyPrefix
 import dev.jordond.filmstrip.transform.internal.copy.copyPrefixOf
@@ -36,7 +37,6 @@ import platform.AVFoundation.timeRange
 import platform.AVFoundation.tracksWithMediaType
 import platform.CoreMedia.CMTimeRangeGetEnd
 import platform.Foundation.NSFileManager
-import platform.Foundation.NSTemporaryDirectory
 import platform.Foundation.NSURL
 import kotlin.test.Test
 import kotlin.time.Duration
@@ -99,7 +99,7 @@ class AppleCopyGridMediaTest {
       negotiated.path shouldBe ExportPath.Copy
     }
 
-    val output = NSTemporaryDirectory() + "filmstrip-apple-copy-grid.mp4"
+    val output = TestScratch.directory + "filmstrip-apple-copy-grid.mp4"
     val finished =
       withContext(Dispatchers.Default) {
         filmstrip.export(composition, ExportSpec(), MediaSink.of(output)).toList().last()

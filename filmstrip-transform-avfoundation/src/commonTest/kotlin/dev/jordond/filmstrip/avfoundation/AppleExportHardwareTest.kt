@@ -40,6 +40,7 @@ import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.test.LoopingCases
+import dev.jordond.filmstrip.test.TestScratch
 import dev.jordond.filmstrip.test.ToneAnalysis
 import dev.jordond.filmstrip.transform.internal.ResolveResult
 import dev.jordond.filmstrip.transform.internal.copy.CopyPrefix
@@ -81,7 +82,6 @@ import platform.CoreMedia.CMTimeRangeGetEnd
 import platform.CoreMedia.kCMFormatDescriptionExtension_FormatName
 import platform.Foundation.CFBridgingRelease
 import platform.Foundation.NSFileManager
-import platform.Foundation.NSTemporaryDirectory
 import platform.Foundation.NSURL
 import kotlin.math.abs
 import kotlin.test.Test
@@ -886,7 +886,7 @@ class AppleExportHardwareTest {
   fun `holds a looping clip's last frame when a pass runs past its end`() =
     runTest(timeout = TIMEOUT) {
       val long = fixture("apple_export_long.mp4")
-      val offGrid = NSTemporaryDirectory() + "filmstrip-apple-off-grid-clip.mov"
+      val offGrid = TestScratch.directory + "filmstrip-apple-off-grid-clip.mov"
       withContext(Dispatchers.Default) { writeOffGridClip(offGrid, OFF_GRID_RATE, OFF_GRID_FRAMES, OFF_GRID_END) }
 
       val composition =
@@ -931,7 +931,7 @@ class AppleExportHardwareTest {
   @Test
   fun `holds a clip's last frame over a whole slot when its sound outlasts its picture`() =
     runTest(timeout = TIMEOUT) {
-      val offGrid = NSTemporaryDirectory() + "filmstrip-apple-short-picture.mov"
+      val offGrid = TestScratch.directory + "filmstrip-apple-short-picture.mov"
       withContext(Dispatchers.Default) {
         writeOffGridClip(offGrid, OFF_GRID_RATE, SHORT_FRAMES, SHORT_PICTURE, audioUntil = SHORT_SOUND)
       }
@@ -1006,7 +1006,7 @@ class AppleExportHardwareTest {
   fun `holds the primary's last frame to the end under a longer audio track`() =
     runTest(timeout = TIMEOUT) {
       val long = fixture("apple_export_long.mp4")
-      val offGrid = NSTemporaryDirectory() + "filmstrip-apple-held-tail.mov"
+      val offGrid = TestScratch.directory + "filmstrip-apple-held-tail.mov"
       withContext(Dispatchers.Default) { writeOffGridClip(offGrid, OFF_GRID_RATE, OFF_GRID_FRAMES, OFF_GRID_END) }
       val badge =
         ImageOverlay(
@@ -1217,7 +1217,7 @@ class AppleExportHardwareTest {
   @Test
   fun `copies a clip whose sound outlasts its picture without stretching a sample`() =
     runTest(timeout = TIMEOUT) {
-      val offGrid = NSTemporaryDirectory() + "filmstrip-apple-copy-short-picture.mov"
+      val offGrid = TestScratch.directory + "filmstrip-apple-copy-short-picture.mov"
       withContext(Dispatchers.Default) {
         writeOffGridClip(offGrid, OFF_GRID_RATE, SHORT_FRAMES, SHORT_PICTURE, COPY_SOUND, encodesAudio = true)
       }
@@ -1244,7 +1244,7 @@ class AppleExportHardwareTest {
   @Test
   fun `copies a clip at the times its source holds each sample`() =
     runTest(timeout = TIMEOUT) {
-      val source = NSTemporaryDirectory() + "filmstrip-apple-copy-whole-tick.mov"
+      val source = TestScratch.directory + "filmstrip-apple-copy-whole-tick.mov"
       withContext(Dispatchers.Default) {
         writeOffGridClip(source, WHOLE_TICK_RATE, INDEXED_FRAMES, 1.seconds * INDEXED_FRAMES / WHOLE_TICK_RATE)
       }
@@ -1436,7 +1436,7 @@ class AppleExportHardwareTest {
     tolerance: Duration,
     name: String,
   ) {
-    val written = NSTemporaryDirectory() + "filmstrip-apple-$name.mov"
+    val written = TestScratch.directory + "filmstrip-apple-$name.mov"
     withContext(Dispatchers.Default) {
       writeOffGridClip(written, frameRate, INDEXED_FRAMES, 1.seconds * INDEXED_FRAMES / frameRate)
     }
@@ -1680,7 +1680,7 @@ class AppleExportHardwareTest {
    */
   private fun photoFile(): String = photoFixture("filmstrip-apple-export-photo", PHOTO_SIZE, PHOTO_COLOR)
 
-  private fun temporaryPath(name: String): String = NSTemporaryDirectory() + "filmstrip-apple-$name.mp4"
+  private fun temporaryPath(name: String): String = TestScratch.directory + "filmstrip-apple-$name.mp4"
 
   private fun remove(path: String) {
     NSFileManager.defaultManager.removeItemAtPath(path, error = null)

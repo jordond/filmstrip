@@ -13,6 +13,7 @@ import dev.jordond.filmstrip.effects.BuiltInEffectResolver
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.test.PrimedAudio
+import dev.jordond.filmstrip.test.TestScratch
 import dev.jordond.filmstrip.transform.internal.ResolveResult
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
 import io.kotest.assertions.withClue
@@ -33,7 +34,6 @@ import platform.AVFoundation.tracksWithMediaType
 import platform.CoreMedia.CMTimeRangeGetEnd
 import platform.Foundation.NSData
 import platform.Foundation.NSFileManager
-import platform.Foundation.NSTemporaryDirectory
 import platform.Foundation.NSUUID
 import platform.Foundation.create
 import platform.Foundation.writeToFile
@@ -50,8 +50,8 @@ import kotlin.time.Duration.Companion.seconds
  */
 @OptIn(ExperimentalForeignApi::class)
 class ApplePrimedAudioMediaTest {
-  private val path = NSTemporaryDirectory() + "filmstrip-primed-aac-${NSUUID().UUIDString}.mp4"
-  private val output = NSTemporaryDirectory() + "filmstrip-primed-aac-out-${NSUUID().UUIDString}.mp4"
+  private val path = TestScratch.directory + "filmstrip-primed-aac-${NSUUID().UUIDString}.mp4"
+  private val output = TestScratch.directory + "filmstrip-primed-aac-out-${NSUUID().UUIDString}.mp4"
 
   init {
     val bytes = PrimedAudio.mp4()

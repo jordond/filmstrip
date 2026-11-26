@@ -1,6 +1,7 @@
 package dev.jordond.filmstrip.avfoundation
 
 import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.test.TestScratch
 import kotlinx.cinterop.BetaInteropApi
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.addressOf
@@ -22,7 +23,6 @@ import platform.CoreGraphics.CGRectMake
 import platform.Foundation.CFBridgingRetain
 import platform.Foundation.NSData
 import platform.Foundation.NSFileManager
-import platform.Foundation.NSTemporaryDirectory
 import platform.Foundation.NSURL
 import platform.Foundation.create
 import platform.ImageIO.CGImageDestinationAddImage
@@ -46,7 +46,7 @@ internal fun photoFixture(
 ): String {
   val manager = NSFileManager.defaultManager
   val tint = "${color.first}-${color.second}-${color.third}"
-  val path = "${NSTemporaryDirectory()}$name-${size.width}x${size.height}-$tint.png"
+  val path = "${TestScratch.directory}$name-${size.width}x${size.height}-$tint.png"
   if (manager.fileExistsAtPath(path)) return path
 
   val partial = "$path.partial"

@@ -14,6 +14,7 @@ import dev.jordond.filmstrip.export.HdrMode
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
+import dev.jordond.filmstrip.test.TestScratch
 import dev.jordond.filmstrip.transform.internal.ResolveResult
 import dev.jordond.filmstrip.transform.internal.heldTail
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
@@ -29,7 +30,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import platform.Foundation.NSFileManager
-import platform.Foundation.NSTemporaryDirectory
 import platform.Foundation.NSUUID
 import kotlin.test.AfterTest
 import kotlin.test.Test
@@ -191,7 +191,7 @@ class AppleExportCancelMediaTest {
   }
 
   private fun temporaryPath(name: String): String =
-    "${NSTemporaryDirectory()}filmstrip-apple-cancel-$name-${NSUUID().UUIDString}.mp4"
+    "${TestScratch.directory}filmstrip-apple-cancel-$name-${NSUUID().UUIDString}.mp4"
 
   private companion object {
     const val BED_PASSES = 4

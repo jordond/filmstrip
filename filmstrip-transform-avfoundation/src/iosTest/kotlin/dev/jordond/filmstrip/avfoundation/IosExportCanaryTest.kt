@@ -11,6 +11,7 @@ import dev.jordond.filmstrip.effects.color.brightness
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.MediaSource
+import dev.jordond.filmstrip.test.TestScratch
 import dev.jordond.filmstrip.transform.internal.ResolveResult
 import io.kotest.assertions.withClue
 import io.kotest.matchers.booleans.shouldBeTrue
@@ -21,7 +22,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import platform.Foundation.NSFileManager
-import platform.Foundation.NSTemporaryDirectory
 import kotlin.test.Test
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
@@ -49,7 +49,7 @@ class IosExportCanaryTest {
         drawsThroughCompositor(composition) shouldBe false
       }
 
-      val output = NSTemporaryDirectory() + "filmstrip-ios-export-canary.mp4"
+      val output = TestScratch.directory + "filmstrip-ios-export-canary.mp4"
       val success = filmstrip.exportOrFail(composition, SPEC, output)
 
       success.info.video!!.displaySize shouldBe Size(426, 240)

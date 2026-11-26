@@ -17,6 +17,7 @@ import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaSource
+import dev.jordond.filmstrip.test.TestScratch
 import dev.jordond.filmstrip.transform.internal.ResolveResult
 import dev.jordond.filmstrip.transform.internal.hdr.Rgb
 import io.kotest.assertions.withClue
@@ -34,7 +35,6 @@ import platform.AVFoundation.AVVideoColorPrimaries_SMPTE_C
 import platform.AVFoundation.AVVideoYCbCrMatrix_ITU_R_601_4
 import platform.AVFoundation.AVVideoYCbCrMatrix_ITU_R_709_2
 import platform.Foundation.NSFileManager
-import platform.Foundation.NSTemporaryDirectory
 import kotlin.test.Test
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
@@ -207,7 +207,7 @@ class AppleSdRouteHardwareTest {
     spec: ExportSpec = SPEC,
   ): AvComposition = withContext(Dispatchers.Default) { resolved(composition, spec).composition.toAvComposition() }
 
-  private fun temporaryPath(name: String): String = NSTemporaryDirectory() + "filmstrip-sd-route-$name.mp4"
+  private fun temporaryPath(name: String): String = TestScratch.directory + "filmstrip-sd-route-$name.mp4"
 
   private fun remove(path: String) {
     NSFileManager.defaultManager.removeItemAtPath(path, error = null)

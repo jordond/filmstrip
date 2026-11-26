@@ -23,6 +23,7 @@ import dev.jordond.filmstrip.export.ExportStatus
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.test.PitchBend
+import dev.jordond.filmstrip.test.TestScratch
 import dev.jordond.filmstrip.test.TestTones
 import dev.jordond.filmstrip.test.ToneAnalysis
 import dev.jordond.filmstrip.transform.internal.ResolveResult
@@ -37,7 +38,6 @@ import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import platform.Foundation.NSFileManager
-import platform.Foundation.NSTemporaryDirectory
 import platform.Foundation.NSUUID
 import kotlin.math.abs
 import kotlin.test.Test
@@ -189,7 +189,7 @@ class AppleTapeAudioMediaTest {
 
   private suspend fun exported(edit: Composition): AudioProbe =
     withContext(Dispatchers.Default) {
-      val output = NSTemporaryDirectory() + "filmstrip-apple-tape-audio-" + NSUUID().UUIDString + ".mp4"
+      val output = TestScratch.directory + "filmstrip-apple-tape-audio-" + NSUUID().UUIDString + ".mp4"
       val finished = filmstrip.export(edit, ExportSpec(), MediaSink.of(output)).toList().last()
       if (finished is ExportStatus.Failure) error(finished.error.message)
       audioOf(output).also { NSFileManager.defaultManager.removeItemAtPath(output, error = null) }

@@ -10,6 +10,7 @@ import dev.jordond.filmstrip.player.internal.AvPreviewPlanner
 import dev.jordond.filmstrip.player.internal.PlanResult
 import dev.jordond.filmstrip.player.internal.thumbnail.AvThumbnailPlanner
 import dev.jordond.filmstrip.player.internal.toPlaybackError
+import dev.jordond.filmstrip.test.TestScratch
 import dev.jordond.filmstrip.thumbnail.ThumbnailRequest
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
@@ -17,7 +18,6 @@ import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.cinterop.ExperimentalForeignApi
 import platform.Foundation.NSFileManager
 import platform.Foundation.NSProcessInfo
-import platform.Foundation.NSTemporaryDirectory
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.time.Duration
@@ -28,7 +28,7 @@ import kotlin.time.Duration
 @OptIn(ExperimentalForeignApi::class)
 class AppleBytesRootFailureMediaTest {
   private val blockedRoot =
-    NSTemporaryDirectory() + "filmstrip-player-blocked-root-" + NSProcessInfo.processInfo.globallyUniqueString
+    TestScratch.directory + "filmstrip-player-blocked-root-" + NSProcessInfo.processInfo.globallyUniqueString
 
   init {
     pumpMainRunLoopDuringContracts()

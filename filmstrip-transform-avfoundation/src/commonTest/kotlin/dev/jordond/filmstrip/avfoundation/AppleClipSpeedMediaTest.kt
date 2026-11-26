@@ -26,6 +26,7 @@ import dev.jordond.filmstrip.export.ExportStatus
 import dev.jordond.filmstrip.media.MediaProber
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
+import dev.jordond.filmstrip.test.TestScratch
 import dev.jordond.filmstrip.transform.internal.ResolveResult
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
 import io.kotest.assertions.withClue
@@ -53,7 +54,6 @@ import platform.AVFoundation.tracksWithMediaType
 import platform.Foundation.NSDate
 import platform.Foundation.NSFileManager
 import platform.Foundation.NSFileModificationDate
-import platform.Foundation.NSTemporaryDirectory
 import platform.Foundation.NSUUID
 import platform.Foundation.dateWithTimeIntervalSinceNow
 import kotlin.math.abs
@@ -107,12 +107,12 @@ class AppleClipSpeedMediaTest {
   @Test
   fun `each output slot shows the source frame the shared offset reaches`() =
     runTest(timeout = TIMEOUT) {
-      val written = NSTemporaryDirectory() + "filmstrip-apple-speed-indexed.mov"
+      val written = TestScratch.directory + "filmstrip-apple-speed-indexed.mov"
       withContext(Dispatchers.Default) { writeOffGridClip(written, RATE, FRAMES, 1.seconds * FRAMES / RATE) }
 
       listOf(0.7, 1.5).forEach { speed ->
         val composition = compositionOf { clip(MediaSource.of(written)) { speed(speed) } }
-        val output = NSTemporaryDirectory() + "filmstrip-apple-speed-frames-$speed.mp4"
+        val output = TestScratch.directory + "filmstrip-apple-speed-frames-$speed.mp4"
         exported(composition, output)
 
         val slot = (outputSlotOf(outputLengthOf(1.seconds * FRAMES / RATE, speed), RATE) / 2)
@@ -132,7 +132,7 @@ class AppleClipSpeedMediaTest {
   @Test
   fun `a looping clip at a speed with a held tail writes the frames of its shared length`() =
     runTest(timeout = TIMEOUT) {
-      val offGrid = NSTemporaryDirectory() + "filmstrip-apple-speed-loop-clip.mov"
+      val offGrid = TestScratch.directory + "filmstrip-apple-speed-loop-clip.mov"
       withContext(Dispatchers.Default) { writeOffGridClip(offGrid, LOOP_RATE, LOOP_FRAMES, LOOP_END) }
       val composition =
         compositionOf {
@@ -151,7 +151,7 @@ class AppleClipSpeedMediaTest {
           .single { it.content != TrackContent.Audio }
           .clips
       laid.first().span.duration shouldBe pass
-      val output = NSTemporaryDirectory() + "filmstrip-apple-speed-loop.mp4"
+      val output = TestScratch.directory + "filmstrip-apple-speed-loop.mp4"
 
       exported(composition, output, LOOP_RATE)
 
@@ -178,7 +178,7 @@ class AppleClipSpeedMediaTest {
   @Test
   fun `a clip at the fast end of the range with a held tail writes the frames of its shared length`() =
     runTest(timeout = TIMEOUT) {
-      val offGrid = NSTemporaryDirectory() + "filmstrip-apple-speed-fast-held-clip.mov"
+      val offGrid = TestScratch.directory + "filmstrip-apple-speed-fast-held-clip.mov"
       withContext(Dispatchers.Default) {
         writeOffGridClip(offGrid, FAST_SOURCE_RATE, LOOP_FRAMES, FAST_PICTURE)
       }
@@ -198,7 +198,7 @@ class AppleClipSpeedMediaTest {
           target.start.value + target.duration.value shouldBe laidTicks
         }
       }
-      val output = NSTemporaryDirectory() + "filmstrip-apple-speed-fast-held.mp4"
+      val output = TestScratch.directory + "filmstrip-apple-speed-fast-held.mp4"
 
       exported(composition, output, LOOP_RATE)
 
@@ -241,7 +241,7 @@ class AppleClipSpeedMediaTest {
           }
         }
       composition.duration shouldBe length
-      val output = NSTemporaryDirectory() + "filmstrip-apple-speed-two-clips.mp4"
+      val output = TestScratch.directory + "filmstrip-apple-speed-two-clips.mp4"
 
       exported(composition, output)
 
@@ -279,7 +279,7 @@ class AppleClipSpeedMediaTest {
         val statuses =
           withContext(Dispatchers.Default) {
             val composition = compositionOf { clip(MediaSource.of(fixture(SHORT))) { speed(speed) } }
-            val sink = MediaSink.of(NSTemporaryDirectory() + "filmstrip-apple-speed-started-$speed.mp4")
+            val sink = MediaSink.of(TestScratch.directory + "filmstrip-apple-speed-started-$speed.mp4")
             filmstrip.export(composition, ExportSpec(frameRate = RATE), sink).toList()
           }
         withClue("at speed $speed") {
@@ -318,7 +318,7 @@ class AppleClipSpeedMediaTest {
       }
     val length = outputLengthOf(sourceLength, speed)
     composition.duration shouldBe length
-    val output = NSTemporaryDirectory() + "filmstrip-apple-speed-$name.mp4"
+    val output = TestScratch.directory + "filmstrip-apple-speed-$name.mp4"
 
     exported(composition, output)
 

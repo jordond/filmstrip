@@ -12,6 +12,7 @@ import dev.jordond.filmstrip.export.Verdict
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
+import dev.jordond.filmstrip.test.TestScratch
 import io.kotest.assertions.withClue
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldNotBeEmpty
@@ -23,7 +24,6 @@ import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import platform.Foundation.NSFileManager
-import platform.Foundation.NSTemporaryDirectory
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.hypot
@@ -94,7 +94,7 @@ class AppleRotateHardwareTest {
     composition: Composition,
     name: String,
   ): FrameProbe {
-    val output = NSTemporaryDirectory() + "filmstrip-apple-$name.mp4"
+    val output = TestScratch.directory + "filmstrip-apple-$name.mp4"
     withContext(Dispatchers.Default) {
       val statuses = filmstrip.export(composition, ExportSpec(), MediaSink.of(output)).toList()
       when (val finished = statuses.last()) {

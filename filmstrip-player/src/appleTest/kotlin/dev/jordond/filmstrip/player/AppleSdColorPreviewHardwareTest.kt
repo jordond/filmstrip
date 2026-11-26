@@ -24,6 +24,7 @@ import dev.jordond.filmstrip.player.internal.AvPreviewPlanner
 import dev.jordond.filmstrip.player.internal.PlanResult
 import dev.jordond.filmstrip.player.internal.PreviewPlan
 import dev.jordond.filmstrip.test.TestFrame
+import dev.jordond.filmstrip.test.TestScratch
 import dev.jordond.filmstrip.thumbnail.ThumbnailRequest
 import dev.jordond.filmstrip.thumbnail.ThumbnailResult
 import dev.jordond.filmstrip.thumbnail.ThumbnailSource
@@ -81,7 +82,6 @@ import platform.Foundation.NSDictionary
 import platform.Foundation.NSFileManager
 import platform.Foundation.NSNumber
 import platform.Foundation.NSString
-import platform.Foundation.NSTemporaryDirectory
 import platform.Foundation.NSThread
 import platform.Foundation.NSURL
 import platform.Foundation.create
@@ -200,7 +200,7 @@ class AppleSdColorPreviewHardwareTest {
     name: String,
     check: suspend (path: String, shown: DoubleArray) -> Unit,
   ) {
-    val path = NSTemporaryDirectory() + "filmstrip-sd-preview-$name.mp4"
+    val path = TestScratch.directory + "filmstrip-sd-preview-$name.mp4"
     writeClip(path)
     try {
       check(path, displayedOf(path))

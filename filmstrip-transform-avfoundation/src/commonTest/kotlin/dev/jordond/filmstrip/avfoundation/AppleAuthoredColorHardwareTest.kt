@@ -22,6 +22,7 @@ import dev.jordond.filmstrip.style.TextStyle
 import dev.jordond.filmstrip.test.AuthoredColors
 import dev.jordond.filmstrip.test.AuthoredColors.MID_GREEN
 import dev.jordond.filmstrip.test.AuthoredColors.MID_GREY
+import dev.jordond.filmstrip.test.TestScratch
 import io.kotest.assertions.withClue
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.nulls.shouldNotBeNull
@@ -32,7 +33,6 @@ import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import platform.Foundation.NSFileManager
-import platform.Foundation.NSTemporaryDirectory
 import kotlin.math.abs
 import kotlin.test.Test
 import kotlin.time.Duration
@@ -88,7 +88,7 @@ class AppleAuthoredColorHardwareTest {
         }
       }
 
-    val output = NSTemporaryDirectory() + "filmstrip-apple-authored-$name.mp4"
+    val output = TestScratch.directory + "filmstrip-apple-authored-$name.mp4"
     val size =
       exported(composition, output)
         .info.video

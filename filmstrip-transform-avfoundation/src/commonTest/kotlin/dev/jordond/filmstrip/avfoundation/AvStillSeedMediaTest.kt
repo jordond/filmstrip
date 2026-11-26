@@ -16,6 +16,7 @@ import dev.jordond.filmstrip.avfoundation.internal.still.waitsForSeedInput
 import dev.jordond.filmstrip.avfoundation.internal.still.writeSeedMovie
 import dev.jordond.filmstrip.avfoundation.internal.time.MEDIA_TIMESCALE
 import dev.jordond.filmstrip.avfoundation.internal.time.toDuration
+import dev.jordond.filmstrip.test.TestScratch
 import io.kotest.assertions.withClue
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
@@ -38,7 +39,6 @@ import platform.AVFoundation.tracksWithMediaType
 import platform.Foundation.NSDate
 import platform.Foundation.NSFileManager
 import platform.Foundation.NSFileModificationDate
-import platform.Foundation.NSTemporaryDirectory
 import platform.darwin.DISPATCH_QUEUE_PRIORITY_DEFAULT
 import platform.darwin.DISPATCH_TIME_NOW
 import platform.darwin.dispatch_async
@@ -56,7 +56,7 @@ import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
 /**
- * What the still seed leaves behind in the temporary directory, and how long it waits to write one.
+ * What the still seed leaves behind in the directory it is kept under, and how long it waits to write one.
  *
  * The seed has to outlive the lowering that wrote it, since the asset it is opened as is read again
  * by every later one, so it cannot be deleted once the write is done. What it can do is live at one
@@ -71,11 +71,13 @@ import kotlin.time.Duration.Companion.seconds
  */
 @OptIn(ExperimentalForeignApi::class)
 class AvStillSeedMediaTest {
+  private val root = TestScratch.directory
+
   @BeforeTest
-  fun clearSeeds() = SEEDED.forEach { remove(stillSeedPath(it)) }
+  fun clearSeeds() = SEEDED.forEach { remove(stillSeedPath(it, root)) }
 
   @AfterTest
-  fun dropSeeds() = SEEDED.forEach { remove(stillSeedPath(it)) }
+  fun dropSeeds() = SEEDED.forEach { remove(stillSeedPath(it, root)) }
 
   // The whole of the leak: a name carrying a fresh UUID left one file per rate per run of the
   // process, none of which anything ever deleted.
@@ -89,12 +91,25 @@ class AvStillSeedMediaTest {
       (opened.videoTrack() as? AVAssetTrack)?.naturalTimeScale shouldBe MEDIA_TIMESCALE
     }
 
-    seedFiles() - before shouldBe RATES.map { stillSeedPath(it).fileName() }.toSet()
+    seedFiles() - before shouldBe RATES.map { stillSeedPath(it, root).fileName() }.toSet()
+  }
+
+  // A seed written for a test lands under the root it was handed, so no other process on the machine reads or
+  // replaces it.
+  @Test
+  fun `writes a seed under the root it is handed and nowhere else`() {
+    val shared = stillSeedPath(RATE)
+    val before = if (exists(shared)) modified(shared) else null
+
+    withClue("no seed was written at $RATE fps") { openedSeed(RATE).shouldNotBeNull() }
+
+    withClue("no seed under $root") { exists(stillSeedPath(RATE, root)).shouldBeTrue() }
+    withClue("a seed was written to $shared") { (if (exists(shared)) modified(shared) else null) shouldBe before }
   }
 
   @Test
   fun `reads back the seed an earlier run left behind`() {
-    val path = stillSeedPath(RATE)
+    val path = stillSeedPath(RATE, root)
     withClue("no seed was written at $RATE fps") { openedSeed(RATE).shouldNotBeNull() }
     age(path)
 
@@ -107,7 +122,7 @@ class AvStillSeedMediaTest {
   // that opens carrying nothing. Reading it back would leave the still holding no time at all.
   @Test
   fun `rewrites a seed no writer ever finished`() {
-    val path = stillSeedPath(RATE)
+    val path = stillSeedPath(RATE, root)
     NSFileManager.defaultManager.createFileAtPath(path, contents = null, attributes = null)
 
     val asset = withClue("an unfinished seed was not rewritten") { openedSeed(RATE).shouldNotBeNull() }
@@ -122,9 +137,9 @@ class AvStillSeedMediaTest {
   // the length and the frame size all read as good.
   @Test
   fun `rewrites a seed carrying another rate's frames`() {
-    val other = stillSeedPath(OTHER_RATE)
+    val other = stillSeedPath(OTHER_RATE, root)
     withClue("no seed was written at $RATE fps") { openedSeed(RATE).shouldNotBeNull() }
-    NSFileManager.defaultManager.copyItemAtPath(stillSeedPath(RATE), toPath = other, error = null)
+    NSFileManager.defaultManager.copyItemAtPath(stillSeedPath(RATE, root), toPath = other, error = null)
     age(other)
 
     withClue("a seed cut at another rate was not rewritten") { openedSeed(OTHER_RATE).shouldNotBeNull() }
@@ -136,7 +151,7 @@ class AvStillSeedMediaTest {
   // its length, its frame size and its cadence alike.
   @Test
   fun `rewrites a seed written at another timescale`() {
-    val path = stillSeedPath(RATE)
+    val path = stillSeedPath(RATE, root)
     writeOffGridClip(path, RATE, RATE, STILL_SEED_LENGTH, side = SEED_SIDE, timescale = STALE_TIMESCALE)
     age(path)
 
@@ -218,7 +233,7 @@ class AvStillSeedMediaTest {
   // A finish that ran out is left to close the file, and the writer clears the file away once it has.
   @Test
   fun `leaves nothing behind a finish that ran out`() {
-    val paths = List(FINISHES) { NSTemporaryDirectory() + PREFIX + "finish-" + it + ".mov" }
+    val paths = List(FINISHES) { root + PREFIX + "finish-" + it + ".mov" }
     val writes = paths.associateWith { writeSeedMovie(it, RATE, finishBudget = Duration.ZERO) }
 
     withClue("no finish ran out, so none was left to the writer") {
@@ -238,7 +253,7 @@ class AvStillSeedMediaTest {
   // writer is done with it.
   @Test
   fun `leaves nothing behind a finish whose file was already removed`() {
-    val path = NSTemporaryDirectory() + PREFIX + "finish-removed.mov"
+    val path = root + PREFIX + "finish-removed.mov"
 
     val write = writeSeedMovie(path, RATE, finishBudget = Duration.ZERO)
     remove(path)
@@ -262,13 +277,13 @@ class AvStillSeedMediaTest {
   // one lock over every rate that is every lowering in the process waiting on one cold encoder.
   @Test
   fun `opens a seed at one rate while another rate is held`() {
-    withClue("no seed was written at $FREE_RATE fps") { stillSeed(FREE_RATE).shouldNotBeNull() }
+    withClue("no seed was written at $FREE_RATE fps") { stillSeed(FREE_RATE, root).shouldNotBeNull() }
     val held = seedLockFor(HELD_RATE)
     held.lock()
 
     try {
       withClue("a lowering at $FREE_RATE fps waited on the lock held at $HELD_RATE fps") {
-        ranOffThread { stillSeed(FREE_RATE) }.shouldBeTrue()
+        ranOffThread { stillSeed(FREE_RATE, root) }.shouldBeTrue()
       }
     } finally {
       held.unlock()
@@ -291,16 +306,16 @@ class AvStillSeedMediaTest {
   /**
    * The asset the seed at [frameRate] opened as, or null when the attempt opened nothing.
    */
-  private fun openedSeed(frameRate: Int): AVURLAsset? = (stillSeedAsset(frameRate) as? SeedAttempt.Opened)?.asset
+  private fun openedSeed(frameRate: Int): AVURLAsset? = (stillSeedAsset(frameRate, root) as? SeedAttempt.Opened)?.asset
 
   private fun AVURLAsset.videoTrack() = tracksWithMediaType(AVMediaTypeVideo).firstOrNull()
 
   /**
-   * Every file the seed writer could have left in the temporary directory, staging names included.
+   * Every file the seed writer could have left under [root], staging names included.
    */
   private fun seedFiles(): Set<String> =
     NSFileManager.defaultManager
-      .contentsOfDirectoryAtPath(NSTemporaryDirectory(), error = null)
+      .contentsOfDirectoryAtPath(root, error = null)
       .orEmpty()
       .filterIsInstance<String>()
       .filter { it.startsWith(PREFIX) }

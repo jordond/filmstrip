@@ -15,6 +15,7 @@ import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.test.AppleStillSamples
 import dev.jordond.filmstrip.test.AuthoredColors
 import dev.jordond.filmstrip.test.HdrOverlayCells
+import dev.jordond.filmstrip.test.TestScratch
 import io.kotest.assertions.withClue
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.nulls.shouldNotBeNull
@@ -25,7 +26,6 @@ import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import platform.Foundation.NSFileManager
-import platform.Foundation.NSTemporaryDirectory
 import kotlin.math.abs
 import kotlin.test.Test
 import kotlin.time.Duration
@@ -47,7 +47,7 @@ class AppleOverlayIccSdrHardwareTest : AppleOverlayIccCase() {
 
       PICTURES.chunked(CORNERS.size).forEachIndexed { index, pictures ->
         val badges = pictures.zip(CORNERS) { picture, corner -> picture.badgeAt(corner) }
-        val output = NSTemporaryDirectory() + "filmstrip-apple-icc-$index.mp4"
+        val output = TestScratch.directory + "filmstrip-apple-icc-$index.mp4"
         val composition =
           compositionOf {
             clip(MediaSource.of(portrait)) { trim(Duration.ZERO, CLIP) }

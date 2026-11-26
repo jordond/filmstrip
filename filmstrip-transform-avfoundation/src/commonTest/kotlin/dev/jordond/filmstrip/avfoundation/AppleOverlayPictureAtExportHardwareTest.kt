@@ -25,6 +25,7 @@ import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.test.AuthoredColors
 import dev.jordond.filmstrip.test.OverlayPixels
+import dev.jordond.filmstrip.test.TestScratch
 import io.kotest.assertions.withClue
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
@@ -40,7 +41,6 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import platform.Foundation.NSData
 import platform.Foundation.NSFileManager
-import platform.Foundation.NSTemporaryDirectory
 import platform.Foundation.create
 import platform.Foundation.writeToFile
 import kotlin.math.abs
@@ -56,8 +56,8 @@ import kotlin.time.Duration.Companion.seconds
 @OptIn(ExperimentalForeignApi::class, BetaInteropApi::class)
 class AppleOverlayPictureAtExportHardwareTest {
   private val filmstrip = Filmstrip { avFoundationBackend() }
-  private val picture = NSTemporaryDirectory() + "filmstrip-apple-picture-at-export.png"
-  private val output = NSTemporaryDirectory() + "filmstrip-apple-picture-at-export.mp4"
+  private val picture = TestScratch.directory + "filmstrip-apple-picture-at-export.png"
+  private val output = TestScratch.directory + "filmstrip-apple-picture-at-export.mp4"
   private val badge = ImageOverlay(ImageSource.of(picture), Corner.TopStart)
 
   @AfterTest

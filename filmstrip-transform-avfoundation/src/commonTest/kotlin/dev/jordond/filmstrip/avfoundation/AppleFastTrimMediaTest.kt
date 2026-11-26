@@ -24,6 +24,7 @@ import dev.jordond.filmstrip.internal.chainedProber
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.describe
+import dev.jordond.filmstrip.test.TestScratch
 import dev.jordond.filmstrip.transform.internal.ResolveResult
 import dev.jordond.filmstrip.transform.internal.copy.CopyPrefix
 import dev.jordond.filmstrip.transform.internal.copy.copyPrefixOf
@@ -51,7 +52,6 @@ import platform.AVFoundation.AVURLAsset
 import platform.AVFoundation.segments
 import platform.AVFoundation.tracksWithMediaType
 import platform.Foundation.NSFileManager
-import platform.Foundation.NSTemporaryDirectory
 import platform.Foundation.NSURL
 import kotlin.test.Test
 import kotlin.time.Duration
@@ -274,7 +274,7 @@ class AppleFastTrimMediaTest {
         withClue("no sync sample before $TRIM_START") {
           sourceTrack(long, AVMediaTypeVideo).syncSampleAtOrBefore(TRIM_START).shouldNotBeNull()
         }
-      val output = NSTemporaryDirectory() + "filmstrip-apple-fast-trim.mp4"
+      val output = TestScratch.directory + "filmstrip-apple-fast-trim.mp4"
 
       val written =
         withContext(Dispatchers.Default) {
@@ -316,7 +316,7 @@ class AppleFastTrimMediaTest {
         val resolved = resolved(composition)
         val kept = packets.take(resolved.copyPrefixOf(packets).shouldBeInstanceOf<CopyPrefix.Packets>().count)
         val runs = kept.maxOf { it.pts } + 1.seconds / resolved.output.frameRate
-        val output = NSTemporaryDirectory() + "filmstrip-apple-short-copy.mp4"
+        val output = TestScratch.directory + "filmstrip-apple-short-copy.mp4"
 
         val written =
           withContext(Dispatchers.Default) {

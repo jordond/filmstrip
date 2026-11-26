@@ -4,6 +4,7 @@ import dev.jordond.filmstrip.avfoundation.fixture
 import dev.jordond.filmstrip.avfoundation.internal.time.MEDIA_TIMESCALE
 import dev.jordond.filmstrip.avfoundation.internal.time.toDuration
 import dev.jordond.filmstrip.avfoundation.writeOffGridClip
+import dev.jordond.filmstrip.test.TestScratch
 import io.kotest.assertions.withClue
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldContainAll
@@ -31,7 +32,6 @@ import platform.CoreMedia.CMTimeMake
 import platform.CoreMedia.CMTimeRangeGetEnd
 import platform.CoreMedia.kCMTimeRoundingMethod_RoundTowardPositiveInfinity
 import platform.Foundation.NSFileManager
-import platform.Foundation.NSTemporaryDirectory
 import platform.Foundation.NSURL
 import kotlin.test.Test
 import kotlin.time.Duration
@@ -60,7 +60,7 @@ class SampleCursorTest {
   @Test
   fun `reads the same samples as a reader on a 29_97 track`() =
     runTest {
-      val path = NSTemporaryDirectory() + "filmstrip-sample-cursor-ntsc.mov"
+      val path = TestScratch.directory + "filmstrip-sample-cursor-ntsc.mov"
       writeOffGridClip(
         path,
         frames = NTSC_FRAMES,

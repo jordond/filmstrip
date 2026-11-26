@@ -13,6 +13,7 @@ import dev.jordond.filmstrip.export.Verdict
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.player.contract.contractTest
+import dev.jordond.filmstrip.test.TestScratch
 import io.kotest.assertions.withClue
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.maps.shouldContainKey
@@ -28,7 +29,6 @@ import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.withTimeoutOrNull
 import platform.Foundation.NSData
 import platform.Foundation.NSFileManager
-import platform.Foundation.NSTemporaryDirectory
 import platform.Foundation.create
 import platform.Foundation.writeToFile
 import platform.posix.memcpy
@@ -113,7 +113,7 @@ class AppleFailureEventHardwareTest {
     Composition(tracks = listOf(Track(listOf(Clip(MediaSource.of(path), TimeRange.of(Duration.ZERO, CLIP_LENGTH))))))
 
   private fun copyOfFixture(name: String): String {
-    val copy = "${NSTemporaryDirectory()}failure-$name.mp4"
+    val copy = "${TestScratch.directory}failure-$name.mp4"
     NSFileManager.defaultManager.removeItemAtPath(copy, null)
     withClue("the fixture could not be copied to $copy") {
       NSFileManager.defaultManager.copyItemAtPath(appleFixtureClip(), copy, null) shouldBe true

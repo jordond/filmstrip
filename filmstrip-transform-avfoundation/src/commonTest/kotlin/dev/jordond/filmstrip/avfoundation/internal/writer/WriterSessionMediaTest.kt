@@ -3,6 +3,7 @@ package dev.jordond.filmstrip.avfoundation.internal.writer
 import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.edit.outputSlotTime
 import dev.jordond.filmstrip.media.MediaSink
+import dev.jordond.filmstrip.test.TestScratch
 import io.kotest.assertions.withClue
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldBeEmpty
@@ -29,7 +30,6 @@ import platform.AVFoundation.AVAssetWriterStatusFailed
 import platform.AVFoundation.AVAssetWriterStatusWriting
 import platform.CoreMedia.CMSampleBufferRef
 import platform.Foundation.NSFileManager
-import platform.Foundation.NSTemporaryDirectory
 import platform.Foundation.NSURL
 import platform.Foundation.NSUUID
 import platform.darwin.DISPATCH_TIME_NOW
@@ -51,7 +51,7 @@ import kotlin.time.Duration.Companion.milliseconds
  */
 @OptIn(ExperimentalForeignApi::class)
 class WriterSessionMediaTest {
-  private val written = "${NSTemporaryDirectory()}writer-session-${NSUUID().UUIDString}.mov"
+  private val written = "${TestScratch.directory}writer-session-${NSUUID().UUIDString}.mov"
 
   @AfterTest
   fun removeOutput() {

@@ -14,6 +14,7 @@ import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.ExportStatus
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
+import dev.jordond.filmstrip.test.TestScratch
 import io.kotest.assertions.withClue
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.types.shouldBeInstanceOf
@@ -58,7 +59,6 @@ import platform.CoreVideo.CVPixelBufferUnlockBaseAddress
 import platform.CoreVideo.kCVPixelFormatType_32BGRA
 import platform.CoreVideo.kCVReturnSuccess
 import platform.Foundation.NSFileManager
-import platform.Foundation.NSTemporaryDirectory
 import platform.Foundation.NSURL
 import platform.darwin.DISPATCH_TIME_NOW
 import platform.darwin.dispatch_semaphore_create
@@ -258,7 +258,7 @@ class AppleSourceColorSpaceHardwareTest {
     }
   }
 
-  private fun temporaryPath(name: String): String = NSTemporaryDirectory() + "filmstrip-apple-source-$name.mov"
+  private fun temporaryPath(name: String): String = TestScratch.directory + "filmstrip-apple-source-$name.mov"
 
   private fun remove(path: String) {
     NSFileManager.defaultManager.removeItemAtPath(path, error = null)

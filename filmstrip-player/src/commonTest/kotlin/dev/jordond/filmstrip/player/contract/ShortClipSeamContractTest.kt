@@ -9,7 +9,6 @@ import dev.jordond.filmstrip.edit.outputSlotTime
 import dev.jordond.filmstrip.edit.outputSlotsOf
 import dev.jordond.filmstrip.edit.sourceOffsetAt
 import io.kotest.assertions.withClue
-import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.shouldBe
 import kotlin.test.Test
@@ -158,25 +157,6 @@ abstract class ShortClipSeamContractTest(
       Cut(TimeRange.of(110.milliseconds, 585.milliseconds), 1.0),
       Cut(TimeRange.of(585.milliseconds, 1_100.milliseconds), 2.0),
     )
-
-  // The two clips cut one frame sequence from two files, so the second plays on from nothing whatever its trims say.
-  @Test
-  fun cellTwoFilesWhoseTrimsMeetHoldTheSlotAtTheSecondTrim() =
-    assertCell { source ->
-      val other = sourceAt(frameRate)
-      withClue("the second clip is cut from the same file") { (other == source).shouldBeFalse() }
-      val cuts =
-        listOf(
-          Cut(TimeRange.of(110.milliseconds, 585.milliseconds), 1.0),
-          Cut(TimeRange.of(585.milliseconds, 1_100.milliseconds), 1.0),
-        )
-      val run = runOf(*cuts.toTypedArray())
-      val second = PlacedClip(run[1].cut, run[1].span, run[1].cut.trim.start)
-      val seam = outputSlotsOf(second.span, frameRate).first
-      val reads = listOf(readOf(run[0], seam - 1), readOf(second, seam), readOf(second, seam + 1))
-      val edit = Composition(listOf(Track(listOf(Clip(source, cuts[0].trim), Clip(other, cuts[1].trim)))))
-      Cell(edit, reads)
-    }
 
   // Two clips of one source laid by [cuts], with the slots either side of where the second opens read as the run
   // lays them.

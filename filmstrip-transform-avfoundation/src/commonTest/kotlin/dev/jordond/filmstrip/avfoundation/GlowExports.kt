@@ -18,6 +18,7 @@ import dev.jordond.filmstrip.geometry.Corner
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
+import dev.jordond.filmstrip.test.TestScratch
 import dev.jordond.filmstrip.transform.internal.ResolveResult
 import dev.jordond.filmstrip.transform.internal.hdr.Rgb
 import io.kotest.assertions.withClue
@@ -31,7 +32,6 @@ import kotlinx.coroutines.withContext
 import platform.AVFoundation.AVVideoColorPrimaries_ITU_R_709_2
 import platform.AVFoundation.AVVideoYCbCrMatrix_ITU_R_709_2
 import platform.Foundation.NSFileManager
-import platform.Foundation.NSTemporaryDirectory
 import kotlin.math.abs
 import kotlin.time.Duration.Companion.minutes
 
@@ -135,7 +135,7 @@ internal class GlowExports(
     name: String,
     code: Int,
   ): MediaSource {
-    val path = NSTemporaryDirectory() + "filmstrip-$tag-flat-$name.mp4"
+    val path = TestScratch.directory + "filmstrip-$tag-flat-$name.mp4"
     remove(path)
     val primaries = AVVideoColorPrimaries_ITU_R_709_2.orEmpty()
     val matrix = AVVideoYCbCrMatrix_ITU_R_709_2.orEmpty()
@@ -149,7 +149,7 @@ internal class GlowExports(
     edit: Composition,
     name: String,
   ): String {
-    val path = NSTemporaryDirectory() + "filmstrip-$tag-$name.mp4"
+    val path = TestScratch.directory + "filmstrip-$tag-$name.mp4"
     remove(path)
     val status =
       withContext(Dispatchers.Default) { filmstrip.export(edit, ExportSpec(), MediaSink.of(path)).toList().last() }

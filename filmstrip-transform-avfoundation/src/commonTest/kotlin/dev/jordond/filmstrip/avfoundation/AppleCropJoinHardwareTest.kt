@@ -13,6 +13,7 @@ import dev.jordond.filmstrip.geometry.AspectRatio
 import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
+import dev.jordond.filmstrip.test.TestScratch
 import io.kotest.assertions.withClue
 import io.kotest.matchers.collections.shouldBeEmpty
 import kotlinx.cinterop.ExperimentalForeignApi
@@ -21,7 +22,6 @@ import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import platform.Foundation.NSFileManager
-import platform.Foundation.NSTemporaryDirectory
 import kotlin.test.Test
 import kotlin.time.Duration.Companion.minutes
 
@@ -72,7 +72,7 @@ class AppleCropJoinHardwareTest {
     clipScope: Boolean,
   ) {
     val failures = mutableListOf<String>()
-    val output = NSTemporaryDirectory() + "filmstrip-apple-crop-join.mp4"
+    val output = TestScratch.directory + "filmstrip-apple-crop-join.mp4"
     for (order in orders(FIXTURES)) {
       for (height in listOf(null, SMALL_HEIGHT)) {
         val name = "$aspect ${order.joinToString(" ")} scale $height"

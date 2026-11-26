@@ -17,6 +17,7 @@ import dev.jordond.filmstrip.export.HdrMode
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
+import dev.jordond.filmstrip.test.TestScratch
 import dev.jordond.filmstrip.transform.internal.hdr.Rgb
 import dev.jordond.filmstrip.transform.internal.hdr.toneMappedSdr
 import io.kotest.assertions.withClue
@@ -75,7 +76,6 @@ import platform.CoreVideo.kCVImageBufferYCbCrMatrixKey
 import platform.CoreVideo.kCVImageBufferYCbCrMatrix_ITU_R_2020
 import platform.CoreVideo.kCVPixelFormatType_420YpCbCr10BiPlanarVideoRange
 import platform.Foundation.NSFileManager
-import platform.Foundation.NSTemporaryDirectory
 import platform.Foundation.NSThread
 import platform.Foundation.NSURL
 import platform.darwin.DISPATCH_TIME_FOREVER
@@ -107,8 +107,8 @@ class AppleToneMapLadderHardwareTest {
     transfer: HdrTransfer,
     ladder: List<Rgb>,
   ) = runTest(timeout = TIMEOUT) {
-    val source = NSTemporaryDirectory() + "filmstrip-ladder-$transfer.mov"
-    val output = NSTemporaryDirectory() + "filmstrip-ladder-$transfer.mp4"
+    val source = TestScratch.directory + "filmstrip-ladder-$transfer.mov"
+    val output = TestScratch.directory + "filmstrip-ladder-$transfer.mp4"
     withContext(Dispatchers.Default) { writeLadder(source, transfer, ladder) }
 
     val status =

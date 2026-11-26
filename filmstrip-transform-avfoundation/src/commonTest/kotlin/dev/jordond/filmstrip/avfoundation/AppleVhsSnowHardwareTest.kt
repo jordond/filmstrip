@@ -14,6 +14,7 @@ import dev.jordond.filmstrip.effects.filters.vhs.Tracking
 import dev.jordond.filmstrip.effects.filters.vhs.Vhs
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.media.MediaSource
+import dev.jordond.filmstrip.test.TestScratch
 import dev.jordond.filmstrip.transform.internal.ResolveResult
 import dev.jordond.filmstrip.transform.internal.hdr.Rgb
 import io.kotest.assertions.withClue
@@ -27,7 +28,6 @@ import kotlinx.coroutines.withContext
 import platform.AVFoundation.AVVideoColorPrimaries_ITU_R_709_2
 import platform.AVFoundation.AVVideoYCbCrMatrix_ITU_R_709_2
 import platform.Foundation.NSFileManager
-import platform.Foundation.NSTemporaryDirectory
 import kotlin.math.abs
 import kotlin.test.Test
 import kotlin.time.Duration.Companion.minutes
@@ -65,7 +65,7 @@ class AppleVhsSnowHardwareTest {
     spec: ExportSpec,
     name: String,
   ) {
-    val source = NSTemporaryDirectory() + "filmstrip-vhs-snow-$name.mp4"
+    val source = TestScratch.directory + "filmstrip-vhs-snow-$name.mp4"
     val primaries = AVVideoColorPrimaries_ITU_R_709_2.orEmpty()
     val matrix = AVVideoYCbCrMatrix_ITU_R_709_2.orEmpty()
     withContext(Dispatchers.Default) { writeTaggedBars(source, SNOW_FRAMES, primaries, matrix, SD_FLAT) }

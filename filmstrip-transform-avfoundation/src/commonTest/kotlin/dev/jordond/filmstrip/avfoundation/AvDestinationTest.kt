@@ -3,8 +3,10 @@ package dev.jordond.filmstrip.avfoundation
 import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.avfoundation.internal.writer.DestinationResult
 import dev.jordond.filmstrip.avfoundation.internal.writer.resolveDestination
+import dev.jordond.filmstrip.internal.AppleScratch
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.SINK_PARENT_MISSING
+import dev.jordond.filmstrip.test.TestScratch
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldStartWith
 import io.kotest.matchers.types.shouldBeInstanceOf
@@ -12,7 +14,6 @@ import kotlinx.cinterop.BetaInteropApi
 import kotlinx.cinterop.ExperimentalForeignApi
 import platform.Foundation.NSFileManager
 import platform.Foundation.NSString
-import platform.Foundation.NSTemporaryDirectory
 import platform.Foundation.NSURL
 import platform.Foundation.NSUTF8StringEncoding
 import platform.Foundation.create
@@ -23,7 +24,7 @@ import kotlin.test.Test
 class AvDestinationTest {
   @Test
   fun `takes a path whose parent directory exists`() {
-    val path = NSTemporaryDirectory() + "filmstrip-destination.mp4"
+    val path = TestScratch.directory + "filmstrip-destination.mp4"
     val ready = resolveDestination(MediaSink.of(path)).shouldBeInstanceOf<DestinationResult.Ready>()
 
     ready.destination.path shouldBe path
@@ -34,7 +35,7 @@ class AvDestinationTest {
   fun `refuses a path whose parent directory does not exist`() {
     val failed =
       resolveDestination(
-        MediaSink.of(NSTemporaryDirectory() + "filmstrip-absent/out.mp4"),
+        MediaSink.of(TestScratch.directory + "filmstrip-absent/out.mp4"),
       ).shouldBeInstanceOf<DestinationResult.Failed>()
 
     failed.error.shouldBeInstanceOf<FilmstripError.SinkUnwritable>().message shouldBe SINK_PARENT_MISSING
@@ -42,7 +43,7 @@ class AvDestinationTest {
 
   @Test
   fun `refuses a path whose parent is a file`() {
-    val taken = NSTemporaryDirectory() + "filmstrip-destination-taken"
+    val taken = TestScratch.directory + "filmstrip-destination-taken"
     NSString
       .create(string = "not a directory")
       .writeToFile(taken, atomically = true, encoding = NSUTF8StringEncoding, error = null)
@@ -69,13 +70,13 @@ class AvDestinationTest {
   fun `resolves a temporary sink to a real path under the temporary directory`() {
     val ready = resolveDestination(MediaSink.Temporary).shouldBeInstanceOf<DestinationResult.Ready>()
 
-    ready.destination.path shouldStartWith NSTemporaryDirectory()
+    ready.destination.path shouldStartWith AppleScratch.defaultRoot
     ready.destination.sink.shouldBeInstanceOf<MediaSink.Path>()
   }
 
   @Test
   fun `takes a file URL and refuses every other scheme`() {
-    val path = NSTemporaryDirectory() + "filmstrip-url.mp4"
+    val path = TestScratch.directory + "filmstrip-url.mp4"
     val fileUrl = NSURL.fileURLWithPath(path).absoluteString!!
     val ready = resolveDestination(MediaSink.ofUri(fileUrl)).shouldBeInstanceOf<DestinationResult.Ready>()
     ready.destination.path shouldBe path
@@ -91,7 +92,7 @@ class AvDestinationTest {
   // leaves nothing behind.
   @Test
   fun `discards unconditionally`() {
-    val path = NSTemporaryDirectory() + "filmstrip-discard.mp4"
+    val path = TestScratch.directory + "filmstrip-discard.mp4"
     NSString
       .create(string = "not a video")
       .writeToFile(path, atomically = true, encoding = NSUTF8StringEncoding, error = null)

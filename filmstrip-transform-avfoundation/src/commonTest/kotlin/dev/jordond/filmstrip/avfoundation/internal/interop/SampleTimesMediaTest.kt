@@ -4,6 +4,7 @@ import dev.jordond.filmstrip.avfoundation.fixture
 import dev.jordond.filmstrip.avfoundation.internal.failure.AvLoweringFailure
 import dev.jordond.filmstrip.avfoundation.internal.time.MEDIA_TIMESCALE
 import dev.jordond.filmstrip.avfoundation.writeOffGridClip
+import dev.jordond.filmstrip.test.TestScratch
 import io.kotest.assertions.withClue
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
@@ -20,7 +21,6 @@ import platform.AVFoundation.AVURLAsset
 import platform.AVFoundation.tracksWithMediaType
 import platform.CoreMedia.CMTimeMake
 import platform.Foundation.NSFileManager
-import platform.Foundation.NSTemporaryDirectory
 import platform.Foundation.NSURL
 import kotlin.math.abs
 import kotlin.test.Test
@@ -59,7 +59,7 @@ class SampleTimesMediaTest {
   @Test
   fun `reads a frame between two ticks from the tick after it`() =
     runTest {
-      val path = NSTemporaryDirectory() + "filmstrip-sample-times-ntsc.mov"
+      val path = TestScratch.directory + "filmstrip-sample-times-ntsc.mov"
       writeOffGridClip(
         path,
         frames = NTSC_FRAMES,

@@ -28,6 +28,7 @@ import dev.jordond.filmstrip.test.HdrOverlayCells
 import dev.jordond.filmstrip.test.HeicIdentityPictures
 import dev.jordond.filmstrip.test.IccPictures
 import dev.jordond.filmstrip.test.OverlayPixels
+import dev.jordond.filmstrip.test.TestScratch
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.cinterop.BetaInteropApi
 import kotlinx.cinterop.ExperimentalForeignApi
@@ -36,7 +37,6 @@ import kotlinx.cinterop.usePinned
 import kotlinx.coroutines.flow.toList
 import platform.Foundation.NSData
 import platform.Foundation.NSFileManager
-import platform.Foundation.NSTemporaryDirectory
 import platform.Foundation.create
 import platform.Foundation.writeToFile
 import kotlin.math.abs
@@ -84,7 +84,7 @@ abstract class AppleOverlayIccCase {
   ) {
     val samples: List<ShortArray> by lazy(samples)
 
-    private val path = NSTemporaryDirectory() + "filmstrip-apple-icc-${name.replace(' ', '-')}.png"
+    private val path = TestScratch.directory + "filmstrip-apple-icc-${name.replace(' ', '-')}.png"
 
     @OptIn(BetaInteropApi::class)
     fun badgeAt(

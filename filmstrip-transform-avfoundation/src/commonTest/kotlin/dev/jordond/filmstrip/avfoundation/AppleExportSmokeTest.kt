@@ -5,6 +5,7 @@ import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.MediaSource
+import dev.jordond.filmstrip.test.TestScratch
 import io.kotest.assertions.withClue
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.nulls.shouldNotBeNull
@@ -12,7 +13,6 @@ import io.kotest.matchers.shouldBe
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.test.runTest
 import platform.Foundation.NSFileManager
-import platform.Foundation.NSTemporaryDirectory
 import kotlin.test.Test
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
@@ -38,7 +38,7 @@ class AppleExportSmokeTest {
           clip(MediaSource.of(landscape)) { trim(500.milliseconds, 1_500.milliseconds) }
         }
 
-      val output = NSTemporaryDirectory() + "filmstrip-apple-smoke-trimmed.mp4"
+      val output = TestScratch.directory + "filmstrip-apple-smoke-trimmed.mp4"
       val success = filmstrip.exportOrFail(composition, ExportSpec(heightPx = 240), output)
 
       success.info.video!!.displaySize shouldBe Size(426, 240)

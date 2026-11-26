@@ -25,6 +25,7 @@ import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.test.OverlayPixels
+import dev.jordond.filmstrip.test.TestScratch
 import dev.jordond.filmstrip.transform.internal.ResolveResult
 import io.kotest.assertions.withClue
 import io.kotest.matchers.comparables.shouldBeGreaterThan
@@ -52,7 +53,6 @@ import platform.CoreImage.CIImage
 import platform.CoreImage.kCIFormatRGBAf
 import platform.Foundation.NSData
 import platform.Foundation.NSFileManager
-import platform.Foundation.NSTemporaryDirectory
 import platform.Foundation.create
 import kotlin.math.abs
 import kotlin.test.Test
@@ -189,7 +189,7 @@ class CoreImageChainSpatialTest {
     return MediaSource.of(path)
   }
 
-  private fun clipPath(): String = NSTemporaryDirectory() + "filmstrip-apple-chain-spatial.mp4"
+  private fun clipPath(): String = TestScratch.directory + "filmstrip-apple-chain-spatial.mp4"
 
   // The red codes of [image] in its BT.709 buffer, rows from the top.
   private fun codesOf(

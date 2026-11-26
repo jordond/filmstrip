@@ -21,6 +21,7 @@ import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.imageMediaInfoOf
 import dev.jordond.filmstrip.test.OverlayPixels
+import dev.jordond.filmstrip.test.TestScratch
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedClip
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedEffect
@@ -44,7 +45,6 @@ import platform.CoreImage.CIColor
 import platform.CoreImage.CIImage
 import platform.Foundation.NSData
 import platform.Foundation.NSFileManager
-import platform.Foundation.NSTemporaryDirectory
 import platform.Foundation.create
 import platform.Foundation.writeToFile
 import kotlin.test.Test
@@ -150,7 +150,7 @@ class CoreImageChainSpatialCropTest {
     val PHOTO_SIZE = Size(64, 36)
     val CLIP = 1.seconds
     val MIDDLE = 500.milliseconds
-    val PATH = NSTemporaryDirectory() + "filmstrip-apple-spatial-crop.png"
+    val PATH = TestScratch.directory + "filmstrip-apple-spatial-crop.png"
     val SOURCE: CIImage =
       CIImage(color = CIColor.blackColor).imageByCroppingToRect(CGRectMake(0.0, 0.0, 64.0, 36.0))
   }

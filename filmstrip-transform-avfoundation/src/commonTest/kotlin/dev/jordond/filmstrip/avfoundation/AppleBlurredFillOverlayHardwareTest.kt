@@ -22,6 +22,7 @@ import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
+import dev.jordond.filmstrip.test.TestScratch
 import io.kotest.assertions.withClue
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.nulls.shouldNotBeNull
@@ -32,7 +33,6 @@ import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import platform.Foundation.NSFileManager
-import platform.Foundation.NSTemporaryDirectory
 import kotlin.test.Test
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
@@ -179,7 +179,7 @@ class AppleBlurredFillOverlayHardwareTest {
       }
     }
 
-  private fun temporaryPath(name: String): String = NSTemporaryDirectory() + "filmstrip-apple-$name.mp4"
+  private fun temporaryPath(name: String): String = TestScratch.directory + "filmstrip-apple-$name.mp4"
 
   private fun remove(path: String) {
     NSFileManager.defaultManager.removeItemAtPath(path, error = null)

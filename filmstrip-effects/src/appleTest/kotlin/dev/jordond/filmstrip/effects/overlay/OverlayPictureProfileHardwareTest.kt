@@ -14,6 +14,7 @@ import dev.jordond.filmstrip.picture.pictureColor
 import dev.jordond.filmstrip.test.AuthoredColors
 import dev.jordond.filmstrip.test.ColorPictures
 import dev.jordond.filmstrip.test.IccPictures
+import dev.jordond.filmstrip.test.TestScratch
 import io.kotest.assertions.withClue
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
@@ -30,7 +31,6 @@ import platform.Foundation.NSDictionary
 import platform.Foundation.NSFileHandle
 import platform.Foundation.NSFileManager
 import platform.Foundation.NSNull
-import platform.Foundation.NSTemporaryDirectory
 import platform.Foundation.NSURL
 import platform.Foundation.allKeys
 import platform.Foundation.closeFile
@@ -263,7 +263,7 @@ class OverlayPictureProfileHardwareTest {
     png: ByteArray,
     name: String,
   ): String {
-    val path = NSTemporaryDirectory() + "filmstrip-overlay-profile-$name.png"
+    val path = TestScratch.directory + "filmstrip-overlay-profile-$name.png"
     png.usePinned { NSData.create(bytes = it.addressOf(0), length = png.size.toULong()) }.writeToFile(path, true)
     return path
   }

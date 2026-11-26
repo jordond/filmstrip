@@ -20,6 +20,7 @@ import dev.jordond.filmstrip.export.HdrMode
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
+import dev.jordond.filmstrip.test.TestScratch
 import dev.jordond.filmstrip.transform.internal.ResolveResult
 import dev.jordond.filmstrip.transform.internal.nearestSourceFrame
 import dev.jordond.filmstrip.transform.internal.sourceTimeOfSlot
@@ -45,7 +46,6 @@ import platform.AVFoundation.tracksWithMediaType
 import platform.CoreMedia.CMTimeMake
 import platform.CoreMedia.CMTimeRangeGetEnd
 import platform.Foundation.NSFileManager
-import platform.Foundation.NSTemporaryDirectory
 import platform.Foundation.NSURL
 import kotlin.test.Test
 import kotlin.time.Duration
@@ -66,7 +66,7 @@ class AppleShownFrameMediaTest {
   @Test
   fun `every slot at speed shows the nearest frame of a source between two ticks`() =
     runTest(timeout = TIMEOUT) {
-      val written = NSTemporaryDirectory() + "filmstrip-apple-shown-ntsc.mov"
+      val written = TestScratch.directory + "filmstrip-apple-shown-ntsc.mov"
       val times = (0 until FRAMES).map { ntscTime(it) }
       withContext(Dispatchers.Default) {
         writeOffGridClip(
@@ -96,7 +96,7 @@ class AppleShownFrameMediaTest {
   @Test
   fun `every slot at speed shows the nearest frame of a source at a varying rate`() =
     runTest(timeout = TIMEOUT) {
-      val written = NSTemporaryDirectory() + "filmstrip-apple-shown-varying.mov"
+      val written = TestScratch.directory + "filmstrip-apple-shown-varying.mov"
       val times = (0 until FRAMES).map { varyingTime(it) }
       withContext(Dispatchers.Default) {
         writeOffGridClip(
@@ -119,7 +119,7 @@ class AppleShownFrameMediaTest {
   @Test
   fun `every slot at speed 1 shows the nearest frame of a source at an unlike rate`() =
     runTest(timeout = TIMEOUT) {
-      val written = NSTemporaryDirectory() + "filmstrip-apple-shown-film.mov"
+      val written = TestScratch.directory + "filmstrip-apple-shown-film.mov"
       withContext(Dispatchers.Default) { writeFilmClip(written, AVVideoYCbCrMatrix_ITU_R_709_2) }
 
       shownAtSpeedOne(written, throughCompositor = false)
@@ -130,7 +130,7 @@ class AppleShownFrameMediaTest {
   @Test
   fun `every slot at speed 1 through the sd compositor shows the nearest frame of a source at an unlike rate`() =
     runTest(timeout = TIMEOUT) {
-      val written = NSTemporaryDirectory() + "filmstrip-apple-shown-film-sd.mov"
+      val written = TestScratch.directory + "filmstrip-apple-shown-film-sd.mov"
       withContext(Dispatchers.Default) { writeFilmClip(written, AVVideoYCbCrMatrix_ITU_R_601_4) }
 
       shownAtSpeedOne(written, throughCompositor = true)
@@ -258,7 +258,7 @@ class AppleShownFrameMediaTest {
     speed: Double,
   ): List<Int> {
     val composition = clipOf(written, trim, speed)
-    val output = NSTemporaryDirectory() + "filmstrip-apple-shown-$speed.mp4"
+    val output = TestScratch.directory + "filmstrip-apple-shown-$speed.mp4"
     exported(composition, output)
     val shown = slotsOf(trim, speed).map { frameIndexOf(frameOf(output, outputSlotTime(it, RATE))) }
     remove(output)

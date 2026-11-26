@@ -9,6 +9,7 @@ import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.ExportStatus
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
+import dev.jordond.filmstrip.test.TestScratch
 import io.kotest.assertions.withClue
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.shouldBe
@@ -19,7 +20,6 @@ import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import platform.Foundation.NSFileManager
-import platform.Foundation.NSTemporaryDirectory
 import kotlin.test.Test
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
@@ -48,12 +48,12 @@ class AppleUnlikeRateMediaTest {
     sourceRate: Int,
     name: String,
   ) {
-    val source = NSTemporaryDirectory() + "filmstrip-apple-unlike-$name.mov"
+    val source = TestScratch.directory + "filmstrip-apple-unlike-$name.mov"
     val length = 1.seconds * FRAMES / sourceRate
     withContext(Dispatchers.Default) {
       writeOffGridClip(source, frameRate = sourceRate, frames = FRAMES, endsAt = length)
     }
-    val output = NSTemporaryDirectory() + "filmstrip-apple-unlike-$name.mp4"
+    val output = TestScratch.directory + "filmstrip-apple-unlike-$name.mp4"
     val composition = compositionOf { clip(MediaSource.of(source)) { trim(TimeRange.of(Duration.ZERO, length)) } }
 
     withContext(Dispatchers.Default) {

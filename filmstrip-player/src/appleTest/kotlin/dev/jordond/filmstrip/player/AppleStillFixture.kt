@@ -11,6 +11,7 @@ import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.motion.Easing
 import dev.jordond.filmstrip.test.TestFrame
+import dev.jordond.filmstrip.test.TestScratch
 import io.kotest.assertions.withClue
 import io.kotest.matchers.booleans.shouldBeTrue
 import kotlinx.cinterop.ExperimentalForeignApi
@@ -31,7 +32,6 @@ import platform.CoreGraphics.CGImageRelease
 import platform.CoreGraphics.CGRectMake
 import platform.Foundation.CFBridgingRetain
 import platform.Foundation.NSFileManager
-import platform.Foundation.NSTemporaryDirectory
 import platform.Foundation.NSURL
 import platform.ImageIO.CGImageDestinationAddImage
 import platform.ImageIO.CGImageDestinationCreateWithURL
@@ -155,7 +155,7 @@ internal fun photoWritten(
   size: Size = FIXTURE_FRAME,
   paint: (CGContextRef) -> Unit,
 ): String {
-  val path = NSTemporaryDirectory() + name
+  val path = TestScratch.directory + name
   if (NSFileManager.defaultManager.fileExistsAtPath(path)) return path
 
   val space = CGColorSpaceCreateDeviceRGB() ?: fail("Core Graphics refused a device RGB color space")

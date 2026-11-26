@@ -9,13 +9,13 @@ import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.ExportStatus
 import dev.jordond.filmstrip.export.Verdict
 import dev.jordond.filmstrip.media.MediaSink
+import dev.jordond.filmstrip.test.TestScratch
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.withContext
 import platform.Foundation.NSFileManager
-import platform.Foundation.NSTemporaryDirectory
 import kotlin.time.Duration.Companion.seconds
 
 /**
@@ -51,7 +51,7 @@ abstract class ApplePlacementCase {
 
   internal fun isSlate(pixel: Triple<Int, Int, Int>): Boolean = distance(pixel, SLATE) <= COLOR_TOLERANCE
 
-  internal fun temporaryPath(name: String): String = NSTemporaryDirectory() + "filmstrip-apple-placement-$name.mp4"
+  internal fun temporaryPath(name: String): String = TestScratch.directory + "filmstrip-apple-placement-$name.mp4"
 
   internal fun remove(path: String) {
     NSFileManager.defaultManager.removeItemAtPath(path, error = null)

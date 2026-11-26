@@ -17,6 +17,7 @@ import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaSource
+import dev.jordond.filmstrip.test.TestScratch
 import dev.jordond.filmstrip.transform.internal.ResolveResult
 import dev.jordond.filmstrip.transform.internal.hdr.Rgb
 import io.kotest.matchers.types.shouldBeInstanceOf
@@ -30,7 +31,6 @@ import platform.AVFoundation.AVVideoYCbCrMatrix_ITU_R_601_4
 import platform.CoreGraphics.CGRectMake
 import platform.CoreImage.CIImage
 import platform.Foundation.NSFileManager
-import platform.Foundation.NSTemporaryDirectory
 import kotlin.test.Test
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
@@ -90,7 +90,7 @@ class SdrSourceColorHardwareTest {
       NSFileManager.defaultManager.removeItemAtPath(path, error = null)
     }
 
-  private fun temporaryPath(name: String): String = NSTemporaryDirectory() + "filmstrip-sdr-limit-$name.mp4"
+  private fun temporaryPath(name: String): String = TestScratch.directory + "filmstrip-sdr-limit-$name.mp4"
 
   // The middle of the first of the clip's eight bars, in the BT.709 codes it reads as.
   private fun CIImage.firstBar(): Rgb {

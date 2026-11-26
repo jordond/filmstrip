@@ -34,6 +34,7 @@ import dev.jordond.filmstrip.test.AuthoredColors.MID_GREEN
 import dev.jordond.filmstrip.test.AuthoredColors.MID_GREY
 import dev.jordond.filmstrip.test.PREVIEW_PARITY_EXPORT_BITRATE
 import dev.jordond.filmstrip.test.TestFrame
+import dev.jordond.filmstrip.test.TestScratch
 import dev.jordond.filmstrip.test.assertFramesSimilar
 import dev.jordond.filmstrip.thumbnail.ThumbnailRequest
 import dev.jordond.filmstrip.thumbnail.ThumbnailResult
@@ -50,7 +51,6 @@ import platform.CoreGraphics.CGContextFillRect
 import platform.CoreGraphics.CGContextSetRGBFillColor
 import platform.CoreGraphics.CGRectMake
 import platform.Foundation.NSFileManager
-import platform.Foundation.NSTemporaryDirectory
 import kotlin.coroutines.resume
 import kotlin.math.abs
 import kotlin.test.Test
@@ -188,7 +188,7 @@ class AppleThumbnailGapHardwareTest {
     contractTest(timeout = MEASURE_TIMEOUT) { scope ->
       val mark = badge()
       val composition = stillComposition(mark)
-      val output = NSTemporaryDirectory() + "filmstrip-player-authored-reads.mp4"
+      val output = TestScratch.directory + "filmstrip-player-authored-reads.mp4"
       exported(composition, output)
 
       val badgeRect = mark.placedOn(FIXTURE_FRAME, BADGE).rectOn(FIXTURE_FRAME)

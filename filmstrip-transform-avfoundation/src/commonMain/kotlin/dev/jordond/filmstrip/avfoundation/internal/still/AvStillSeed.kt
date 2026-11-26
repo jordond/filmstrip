@@ -3,6 +3,7 @@ package dev.jordond.filmstrip.avfoundation.internal.still
 import dev.jordond.filmstrip.avfoundation.internal.chain.CoreImageChain
 import dev.jordond.filmstrip.avfoundation.internal.time.MEDIA_TIMESCALE
 import dev.jordond.filmstrip.avfoundation.internal.time.toDuration
+import dev.jordond.filmstrip.internal.AppleScratch
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.useContents
 import platform.AVFoundation.AVAssetTrack
@@ -14,7 +15,6 @@ import platform.AVFoundation.nominalFrameRate
 import platform.AVFoundation.tracksWithMediaType
 import platform.Foundation.NSFileManager
 import platform.Foundation.NSLock
-import platform.Foundation.NSTemporaryDirectory
 import platform.Foundation.NSURL
 import platform.Foundation.NSUUID
 import platform.posix.rename
@@ -74,13 +74,18 @@ internal sealed interface SeedAttempt {
  * remembered as having no seed, because the write blocks on VideoToolbox while holding that lock and retrying a
  * refusal once per lowering turns it into a stall on every later request. A write that only ran out of patience is
  * not remembered, so the next lowering asks for it again.
+ *
+ * @param root The directory the seed is kept under.
  */
 @OptIn(ExperimentalForeignApi::class)
-internal fun stillSeed(frameRate: Int): StillSeed? {
+internal fun stillSeed(
+  frameRate: Int,
+  root: String = AppleScratch.defaultRoot,
+): StillSeed? {
   val lock = seedLockFor(frameRate)
   lock.lock()
   try {
-    val asset = seedAsset(frameRate) ?: return null
+    val asset = seedAsset(frameRate, root) ?: return null
     val track = asset.tracksWithMediaType(AVMediaTypeVideo).firstOrNull() as? AVAssetTrack ?: return null
     val length = asset.duration.toDuration()
     return if (length <= Duration.ZERO) null else StillSeed(track, length)
@@ -90,19 +95,23 @@ internal fun stillSeed(frameRate: Int): StillSeed? {
 }
 
 /**
- * The asset the seed at [frameRate] opened as, opening it when nothing has yet.
+ * The asset the seed at [frameRate] under [root] opened as, opening it when nothing has yet.
  *
- * Called with the rate's own lock held. A rate [seeds] already answers for is answered from there,
- * including one it holds no seed for.
+ * Called with the rate's own lock held. A seed path [seeds] already answers for is answered from
+ * there, including one it holds no seed for.
  */
 @OptIn(ExperimentalForeignApi::class)
-private fun seedAsset(frameRate: Int): AVURLAsset? {
-  withSeeds { if (seeds.containsKey(frameRate)) return seeds[frameRate] }
-  return openSeed(frameRate)
+private fun seedAsset(
+  frameRate: Int,
+  root: String,
+): AVURLAsset? {
+  val path = stillSeedPath(frameRate, root)
+  withSeeds { if (seeds.containsKey(path)) return seeds[path] }
+  return openSeed(frameRate, root)
 }
 
 /**
- * Opens the seed for [frameRate] and records in [seeds] what came back.
+ * Opens the seed for [frameRate] under [root] and records in [seeds] what came back.
  *
  * Called with the lock [seedLockFor] hands out for that rate, so one writer at a rate runs at a time
  * and a second lowering at it reads what the first wrote.
@@ -111,36 +120,43 @@ private fun seedAsset(frameRate: Int): AVURLAsset? {
  * is what makes the rate an open question again rather than a refusal for the rest of the process.
  */
 @OptIn(ExperimentalForeignApi::class)
-private fun openSeed(frameRate: Int): AVURLAsset? {
+private fun openSeed(
+  frameRate: Int,
+  root: String,
+): AVURLAsset? {
   val asset =
-    when (val attempt = stillSeedAsset(frameRate)) {
+    when (val attempt = stillSeedAsset(frameRate, root)) {
       is SeedAttempt.Opened -> attempt.asset
       SeedAttempt.Slow -> return null
       SeedAttempt.Failed -> null
     }
-  withSeeds { seeds[frameRate] = asset }
+  withSeeds { seeds[stillSeedPath(frameRate, root)] = asset }
   return asset
 }
 
 /**
- * Where the seed for [frameRate] is kept.
+ * Where the seed for [frameRate] is kept under [root].
  *
- * One name per rate, so the temporary directory holds at most one seed per rate no matter how often
- * the library runs.
+ * One name per rate, so [root] holds at most one seed per rate no matter how often the library runs.
  */
-internal fun stillSeedPath(frameRate: Int): String = NSTemporaryDirectory() + SEED_NAME + frameRate + SEED_EXTENSION
+internal fun stillSeedPath(
+  frameRate: Int,
+  root: String = AppleScratch.defaultRoot,
+): String = root + SEED_NAME + frameRate + SEED_EXTENSION
 
 /**
- * The seed movie for [frameRate], read from [stillSeedPath] and written there first when what is
- * already there cannot be cut from.
+ * The seed movie for [frameRate], read from [stillSeedPath] under [root] and written there first when
+ * what is already there cannot be cut from.
  *
- * The file stays in the temporary directory for as long as anything might cut from the asset opened
- * over it.
+ * The file stays under [root] for as long as anything might cut from the asset opened over it.
  */
 @OptIn(ExperimentalForeignApi::class)
-internal fun stillSeedAsset(frameRate: Int): SeedAttempt {
-  val path = stillSeedPath(frameRate)
-  return finishedSeed(path, frameRate)?.let(SeedAttempt::Opened) ?: writeStillSeed(path, frameRate)
+internal fun stillSeedAsset(
+  frameRate: Int,
+  root: String = AppleScratch.defaultRoot,
+): SeedAttempt {
+  val path = stillSeedPath(frameRate, root)
+  return finishedSeed(path, frameRate)?.let(SeedAttempt::Opened) ?: writeStillSeed(path, frameRate, root)
 }
 
 /**
@@ -168,7 +184,7 @@ private inline fun <T> withSeeds(block: () -> T): T {
 
 private val tableLock = NSLock()
 
-private val seeds = mutableMapOf<Int, AVURLAsset?>()
+private val seeds = mutableMapOf<String, AVURLAsset?>()
 
 private val seedLocks = mutableMapOf<Int, NSLock>()
 
@@ -202,16 +218,17 @@ private fun finishedSeed(
  * Writes a seed movie carrying [frameRate] frames a second onto [path] and opens it, leaving
  * nothing behind where the write did not finish.
  *
- * The write lands on a name of its own and moves onto [path] in a single step, so nothing ever
- * reads a file still being written. Two processes racing each write the same frames, which leaves
- * whichever move landed last a seed they can both cut from.
+ * The write lands on a name of its own under [root], the directory [path] sits in, and moves onto
+ * [path] in a single step, so nothing ever reads a file still being written. Two processes racing
+ * each write the same frames, which leaves whichever move landed last a seed they can both cut from.
  */
 @OptIn(ExperimentalForeignApi::class)
 private fun writeStillSeed(
   path: String,
   frameRate: Int,
+  root: String,
 ): SeedAttempt {
-  val staging = NSTemporaryDirectory() + STAGING_NAME + NSUUID().UUIDString() + SEED_EXTENSION
+  val staging = root + STAGING_NAME + NSUUID().UUIDString() + SEED_EXTENSION
   val write = writeSeedMovie(staging, frameRate)
   if (write != SeedWrite.Written || rename(staging, path) != 0) {
     NSFileManager.defaultManager.removeItemAtPath(staging, error = null)

@@ -19,6 +19,7 @@ import dev.jordond.filmstrip.export.Verdict
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
+import dev.jordond.filmstrip.test.TestScratch
 import dev.jordond.filmstrip.transform.internal.encode.keyFrameIntervalOf
 import io.kotest.assertions.withClue
 import io.kotest.matchers.ints.shouldBeGreaterThan
@@ -42,7 +43,6 @@ import platform.AVFoundation.makeSampleCursorWithPresentationTimeStamp
 import platform.AVFoundation.tracksWithMediaType
 import platform.CoreMedia.kCMTimeZero
 import platform.Foundation.NSFileManager
-import platform.Foundation.NSTemporaryDirectory
 import platform.Foundation.NSURL
 import kotlin.test.Test
 import kotlin.time.Duration.Companion.milliseconds
@@ -87,7 +87,7 @@ class AppleKeyFrameHardwareTest {
     runTest(timeout = TIMEOUT) {
       val source = fixture(LONG_CLIP)
       val composition = compositionOf { clip(MediaSource.of(source)) }
-      val output = NSTemporaryDirectory() + "filmstrip-apple-key-frames-copy.mp4"
+      val output = TestScratch.directory + "filmstrip-apple-key-frames-copy.mp4"
 
       val written =
         withContext(Dispatchers.Default) {
@@ -107,7 +107,7 @@ class AppleKeyFrameHardwareTest {
       compositionOf {
         clip(MediaSource.of(fixture(LONG_CLIP))) { trim(0.seconds, 3.seconds) }
       }
-    val output = NSTemporaryDirectory() + "filmstrip-apple-key-frames.mp4"
+    val output = TestScratch.directory + "filmstrip-apple-key-frames.mp4"
 
     val (spacing, written) =
       withContext(Dispatchers.Default) {

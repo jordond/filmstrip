@@ -16,6 +16,7 @@ import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.ProbeResult
 import dev.jordond.filmstrip.media.VideoTrackInfo
+import dev.jordond.filmstrip.test.TestScratch
 import dev.jordond.filmstrip.transform.internal.ResolveResult
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.types.shouldBeInstanceOf
@@ -24,7 +25,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
-import platform.Foundation.NSTemporaryDirectory
 import kotlin.test.Test
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
@@ -72,7 +72,7 @@ class AppleToneMapFailureMediaTest {
           .resolve(composition, SPEC)
           .shouldBeInstanceOf<ResolveResult.Resolved>()
       driver
-        .export(resolved.composition, MediaSink.of(NSTemporaryDirectory() + "filmstrip-tone-map-mismatch.mp4"))
+        .export(resolved.composition, MediaSink.of(TestScratch.directory + "filmstrip-tone-map-mismatch.mp4"))
         .toList()
         .last()
         .shouldBeInstanceOf<ExportStatus.Failure>()

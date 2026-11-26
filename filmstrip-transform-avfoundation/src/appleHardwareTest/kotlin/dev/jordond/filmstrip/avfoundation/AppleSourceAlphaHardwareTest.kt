@@ -10,6 +10,7 @@ import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
+import dev.jordond.filmstrip.test.TestScratch
 import dev.jordond.filmstrip.transform.internal.geometry.blendOverFill
 import dev.jordond.filmstrip.transform.internal.geometry.blurPlan
 import io.kotest.assertions.withClue
@@ -22,7 +23,6 @@ import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import platform.Foundation.NSFileManager
-import platform.Foundation.NSTemporaryDirectory
 import kotlin.io.encoding.Base64
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -152,7 +152,7 @@ class AppleSourceAlphaHardwareTest {
         clip(MediaSource.Bytes(Base64.decode(clip)))
         fill(fill)
       }
-    val output = NSTemporaryDirectory() + "filmstrip-apple-source-alpha-${clip.hashCode()}-${fill.hashCode()}.mp4"
+    val output = TestScratch.directory + "filmstrip-apple-source-alpha-${clip.hashCode()}-${fill.hashCode()}.mp4"
     NSFileManager.defaultManager.removeItemAtPath(output, error = null)
     withContext(Dispatchers.Default) {
       when (

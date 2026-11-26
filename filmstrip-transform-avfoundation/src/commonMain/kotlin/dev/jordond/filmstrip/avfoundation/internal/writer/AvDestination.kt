@@ -1,12 +1,12 @@
 package dev.jordond.filmstrip.avfoundation.internal.writer
 
 import dev.jordond.filmstrip.FilmstripError
+import dev.jordond.filmstrip.internal.AppleScratch
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.sinkParentRefusal
 import kotlinx.cinterop.ExperimentalForeignApi
 import platform.Foundation.NSFileManager
-import platform.Foundation.NSTemporaryDirectory
 import platform.Foundation.NSURL
 import platform.Foundation.NSUUID
 
@@ -71,7 +71,7 @@ internal fun resolveDestination(sink: MediaSink): DestinationResult =
       forFile(sink.path, MediaSink.Path(sink.path))
     }
     is MediaSink.Temporary -> {
-      val path = NSTemporaryDirectory() + "filmstrip-" + NSUUID().UUIDString() + ".mp4"
+      val path = AppleScratch.defaultRoot + "filmstrip-" + NSUUID().UUIDString() + ".mp4"
       DestinationResult.Ready(AvDestination(NSURL.fileURLWithPath(path), path, MediaSink.Path(path)))
     }
     is MediaSink.Uri -> {

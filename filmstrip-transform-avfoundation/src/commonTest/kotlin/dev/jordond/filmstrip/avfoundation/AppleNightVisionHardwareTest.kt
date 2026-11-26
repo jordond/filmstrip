@@ -14,6 +14,7 @@ import dev.jordond.filmstrip.geometry.Corner
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
+import dev.jordond.filmstrip.test.TestScratch
 import io.kotest.assertions.withClue
 import io.kotest.matchers.doubles.shouldBeGreaterThan
 import io.kotest.matchers.doubles.shouldBeLessThan
@@ -26,7 +27,6 @@ import kotlinx.coroutines.withContext
 import platform.AVFoundation.AVVideoColorPrimaries_ITU_R_709_2
 import platform.AVFoundation.AVVideoYCbCrMatrix_ITU_R_709_2
 import platform.Foundation.NSFileManager
-import platform.Foundation.NSTemporaryDirectory
 import kotlin.math.abs
 import kotlin.test.Test
 import kotlin.time.Duration.Companion.minutes
@@ -80,7 +80,7 @@ class AppleNightVisionHardwareTest {
     )
 
   private suspend fun flatClip(): MediaSource {
-    val path = NSTemporaryDirectory() + "filmstrip-nightvision-flat.mp4"
+    val path = TestScratch.directory + "filmstrip-nightvision-flat.mp4"
     remove(path)
     val primaries = AVVideoColorPrimaries_ITU_R_709_2.orEmpty()
     val matrix = AVVideoYCbCrMatrix_ITU_R_709_2.orEmpty()
@@ -94,7 +94,7 @@ class AppleNightVisionHardwareTest {
     edit: Composition,
     name: String,
   ): String {
-    val path = NSTemporaryDirectory() + "filmstrip-nightvision-$name.mp4"
+    val path = TestScratch.directory + "filmstrip-nightvision-$name.mp4"
     remove(path)
     val status =
       withContext(Dispatchers.Default) { filmstrip.export(edit, ExportSpec(), MediaSink.of(path)).toList().last() }

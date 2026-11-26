@@ -2,6 +2,7 @@ package dev.jordond.filmstrip.effects.overlay
 
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.picture.PICTURE_PEAK_CEILING
+import dev.jordond.filmstrip.test.TestScratch
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
 import kotlinx.cinterop.BetaInteropApi
@@ -11,7 +12,6 @@ import kotlinx.cinterop.usePinned
 import platform.Foundation.NSData
 import platform.Foundation.NSFileHandle
 import platform.Foundation.NSFileManager
-import platform.Foundation.NSTemporaryDirectory
 import platform.Foundation.closeFile
 import platform.Foundation.create
 import platform.Foundation.fileHandleForWritingAtPath
@@ -27,7 +27,7 @@ class EncodedPictureCeilingTest {
   // One byte past the ceiling and sparse, so a read that did not stop at the file's length would cost a whole gigabyte.
   @Test
   fun aFilePastThePictureCeilingIsRefusedByNameWithoutBeingRead() {
-    val path = NSTemporaryDirectory() + "filmstrip-encoded-past-ceiling.bin"
+    val path = TestScratch.directory + "filmstrip-encoded-past-ceiling.bin"
     write(path, ByteArray(1))
     try {
       val handle = NSFileHandle.fileHandleForWritingAtPath(path)!!
@@ -45,7 +45,7 @@ class EncodedPictureCeilingTest {
 
   @Test
   fun theEncodedBytesAreHeldUpToTheCeilingAndRefusedOnePastIt() {
-    val path = NSTemporaryDirectory() + "filmstrip-encoded-at-ceiling.bin"
+    val path = TestScratch.directory + "filmstrip-encoded-at-ceiling.bin"
     val bytes = ByteArray(32) { it.toByte() }
     write(path, bytes)
     try {

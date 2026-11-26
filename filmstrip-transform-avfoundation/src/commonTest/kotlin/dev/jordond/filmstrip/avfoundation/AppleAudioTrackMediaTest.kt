@@ -16,6 +16,7 @@ import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.ProbeResult
 import dev.jordond.filmstrip.media.defaultAudioTrackOf
 import dev.jordond.filmstrip.test.AudioTrackFixture
+import dev.jordond.filmstrip.test.TestScratch
 import dev.jordond.filmstrip.test.ThreeAudio
 import dev.jordond.filmstrip.test.ThreeAudioTs
 import io.kotest.assertions.withClue
@@ -32,7 +33,6 @@ import platform.AVFoundation.AVMediaTypeAudio
 import platform.AVFoundation.AVURLAsset
 import platform.AVFoundation.tracksWithMediaType
 import platform.Foundation.NSFileManager
-import platform.Foundation.NSTemporaryDirectory
 import platform.Foundation.NSURL
 import kotlin.experimental.ExperimentalNativeApi
 import kotlin.test.Test
@@ -66,7 +66,7 @@ class AppleAudioTrackMediaTest {
       val stream = MediaSource.of(fixture(ThreeAudioTs.fileName))
       if (Platform.osFamily == OsFamily.IOS) {
         val first = Clip(stream, effects = listOf(Brightness(0.1f)), audioTrack = ThreeAudioTs.tracks.first().id)
-        val output = NSTemporaryDirectory() + "filmstrip-apple-track-ts.mp4"
+        val output = TestScratch.directory + "filmstrip-apple-track-ts.mp4"
 
         finished(Composition(listOf(Track(listOf(first)))), output)
           .shouldBeInstanceOf<ExportStatus.Failure>()
@@ -109,7 +109,7 @@ class AppleAudioTrackMediaTest {
           .shouldBeInstanceOf<Verdict.Capable>()
           .plan
       plan.path shouldBe ExportPath.Copy
-      val output = NSTemporaryDirectory() + "filmstrip-apple-track-copy.mp4"
+      val output = TestScratch.directory + "filmstrip-apple-track-copy.mp4"
 
       export(composition, output)
 
@@ -124,7 +124,7 @@ class AppleAudioTrackMediaTest {
     clip: Clip,
     name: String,
   ): AudioProbe {
-    val output = NSTemporaryDirectory() + "filmstrip-apple-track-$name.mp4"
+    val output = TestScratch.directory + "filmstrip-apple-track-$name.mp4"
     export(Composition(listOf(Track(listOf(clip)))), output)
     return audioOf(output).also { NSFileManager.defaultManager.removeItemAtPath(output, error = null) }
   }

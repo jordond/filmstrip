@@ -15,6 +15,7 @@ import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.ExportStatus
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
+import dev.jordond.filmstrip.test.TestScratch
 import io.kotest.assertions.withClue
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.shouldBe
@@ -23,7 +24,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
-import platform.Foundation.NSTemporaryDirectory
 import kotlin.concurrent.AtomicInt
 import kotlin.test.Test
 import kotlin.time.Duration.Companion.seconds
@@ -50,7 +50,7 @@ class AppleStepFailureExportMediaTest {
           clip(MediaSource.of(landscape)) { trim(0.seconds, CLIP) }
           effects { add(Throwing) }
         }
-      val output = NSTemporaryDirectory() + "filmstrip-apple-step-failure.mp4"
+      val output = TestScratch.directory + "filmstrip-apple-step-failure.mp4"
 
       val statuses =
         withContext(Dispatchers.Default) {

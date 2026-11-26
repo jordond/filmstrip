@@ -16,6 +16,7 @@ import dev.jordond.filmstrip.export.VideoQuality
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
+import dev.jordond.filmstrip.test.TestScratch
 import dev.jordond.filmstrip.transform.internal.encode.resolveVideoBitrate
 import io.kotest.assertions.withClue
 import io.kotest.matchers.doubles.plusOrMinus
@@ -35,7 +36,6 @@ import platform.AVFoundation.AVVideoCompressionPropertiesKey
 import platform.AVFoundation.estimatedDataRate
 import platform.AVFoundation.tracksWithMediaType
 import platform.Foundation.NSFileManager
-import platform.Foundation.NSTemporaryDirectory
 import platform.Foundation.NSURL
 import kotlin.test.Test
 import kotlin.time.Duration.Companion.seconds
@@ -69,7 +69,7 @@ class AppleBitrateHardwareTest {
           }
         }
       val spec = ExportSpec(videoCodec = VideoCodec.H264)
-      val output = NSTemporaryDirectory() + "filmstrip-apple-bitrate.mp4"
+      val output = TestScratch.directory + "filmstrip-apple-bitrate.mp4"
 
       val measured =
         withContext(Dispatchers.Default) {
