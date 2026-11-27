@@ -93,7 +93,7 @@ private fun resolutionClamp(
           "down to fit inside it and keeps its shape."
       }
       else -> {
-        "The encoder wants aligned dimensions, so each side rounds to what it accepts."
+        "The encoder wants aligned dimensions, so the height rounds down and the width follows the aspect."
       }
     }
   return Concession(

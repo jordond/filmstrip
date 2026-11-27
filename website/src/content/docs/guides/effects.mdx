@@ -40,8 +40,8 @@ still drawn after it.
   to the bounding box of the turned picture, with black in the corners.
 - `flip` mirrors across `FlipAxis.Horizontal` or `FlipAxis.Vertical`.
 - `crop(aspect)` reframes to an aspect ratio, keeping the region around its anchor.
-- `scale` sets the output height. The width follows from the aspect, and each side rounds down to the encoder's
-  alignment, which the plan reports as a `ResolutionClamped` adjustment.
+- `scale` sets the output height. The height rounds down to the encoder's alignment and the width follows the
+  aspect, which the plan reports as a `ResolutionClamped` adjustment.
 
 `crop` also takes a rectangle in fractions of the frame, measured after whatever geometry ran before it. A rectangle
 with no area or reaching outside the frame throws `IllegalArgumentException` when you build it.

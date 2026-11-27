@@ -10,6 +10,7 @@ import dev.jordond.filmstrip.geometry.AspectRatio
 import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.MediaSource
+import dev.jordond.filmstrip.transform.internal.geometry.frameAfter
 import io.kotest.assertions.withClue
 import io.kotest.matchers.collections.shouldBeEmpty
 import kotlinx.coroutines.test.runTest
@@ -33,6 +34,28 @@ class FfmpegCropJoinMediaTest : OddCropMediaCase() {
   fun `every order of a wide, a tall and a square clip cut at composition scope joins at the planned size`() =
     runTest(timeout = TIMEOUT) {
       assertEveryOrderJoins(clipScope = false)
+    }
+
+  // Crop-join found the width of a Contain frame off the aspect by up to a pixel and a half on these first clips.
+  @Test
+  fun `a contain crop at the first clip's height writes the frame the shared function gives and no stray edge`() =
+    runTest(timeout = TIMEOUT) {
+      val failures = mutableListOf<String>()
+      for (size in listOf(Size(91, 51), Size(97, 61), Size(31, 17))) {
+        for (clipScope in listOf(true, false)) {
+          val source = writeClip(size, "", WHITE_CLIP)
+          val composition = joined(listOf(source), CONTAIN, clipScope, null)
+          val (written, plan) = exported(composition)
+          val natural = frameAfter(CONTAIN, size)
+          val expected = alignedFrame(natural, CONTAIN.aspect.value)
+          val name = "$size clipScope=$clipScope"
+          if (plan.output.size != expected) failures += "$name: planned ${plan.output.size}, wanted $expected"
+          if (written.size != plan.output.size) failures += "$name: wrote ${written.size}, planned ${plan.output.size}"
+          written.strayEdges().forEach { failures += "$name: $it" }
+          source.delete()
+        }
+      }
+      withClue(failures.joinToString("\n")) { failures.shouldBeEmpty() }
     }
 
   private suspend fun assertEveryOrderJoins(clipScope: Boolean) {

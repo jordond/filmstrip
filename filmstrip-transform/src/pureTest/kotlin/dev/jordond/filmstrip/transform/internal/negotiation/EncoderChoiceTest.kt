@@ -18,6 +18,7 @@ import dev.jordond.filmstrip.geometry.frameWithin
 import dev.jordond.filmstrip.transform.internal.DEFAULT_HDR_LADDER
 import dev.jordond.filmstrip.transform.internal.PlannerFixture
 import dev.jordond.filmstrip.transform.internal.composition
+import dev.jordond.filmstrip.transform.internal.geometry.MeasuredFrame
 import dev.jordond.filmstrip.transform.internal.refusal
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedHdr
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedTrack
@@ -375,21 +376,38 @@ class EncoderChoiceTest {
     val source = Size(4000, 3000)
     val within = frameWithin(source, max)
 
-    source.fittedTo(max, 16) shouldBe Size(within.width - within.width % 16, within.height - within.height % 16)
-    source.fittedTo(max, 2) shouldBe within
+    MeasuredFrame(source).fittedTo(max, 16).height shouldBe within.height - within.height % 16
+    MeasuredFrame(source).fittedTo(max, 2) shouldBe within
   }
 
   // Rounding 1080 to the nearest multiple of 16 is 1088, past the maximum the frame already sat on.
   @Test
-  fun `each side rounds down to the alignment so a frame on the maximum stays inside it`() {
-    Size(1920, 1080).fittedTo(Size(1920, 1080), 16) shouldBe Size(1920, 1072)
-    Size(1000, 600).fittedTo(null, 16) shouldBe Size(992, 592)
+  fun `the height rounds down to the alignment so a frame on the maximum stays inside it`() {
+    MeasuredFrame(Size(1920, 1080)).fittedTo(Size(1920, 1080), 16) shouldBe Size(1904, 1072)
+    MeasuredFrame(Size(1000, 600)).fittedTo(null, 16) shouldBe Size(992, 592)
+  }
+
+  // Each row is the exact width for the height, and the aligned frame nearest to it.
+  @Test
+  fun `the width follows the aspect to the nearest multiple of the alignment`() {
+    MeasuredFrame(Size(68, 51), 4f / 3).fittedTo(null, 2) shouldBe Size(66, 50)
+    MeasuredFrame(Size(333, 250), 4f / 3).fittedTo(null, 2) shouldBe Size(334, 250)
+    MeasuredFrame(Size(290, 163), 16f / 9).fittedTo(null, 2) shouldBe Size(288, 162)
+    MeasuredFrame(Size(180, 135), 4f / 3).fittedTo(null, 2) shouldBe Size(178, 134)
+    MeasuredFrame(Size(341, 192), 16f / 9).fittedTo(null, 2) shouldBe Size(342, 192)
+  }
+
+  // A frame wider than its size says, so its width runs past the ceiling before the height does.
+  @Test
+  fun `a width that passes the ceiling leads and the height follows it`() {
+    MeasuredFrame(Size(100, 100), 2f).fittedTo(Size(100, 100), 2) shouldBe Size(100, 50)
+    MeasuredFrame(Size(100, 100), 2f).fittedTo(Size(100, 100), 16) shouldBe Size(96, 48)
   }
 
   @Test
   fun `a side below the alignment grows to one step and no alignment is taken as one`() {
-    Size(10, 4).fittedTo(null, 16) shouldBe Size(16, 16)
-    Size(1001, 601).fittedTo(null, 0) shouldBe Size(1001, 601)
+    MeasuredFrame(Size(10, 4)).fittedTo(null, 16) shouldBe Size(32, 16)
+    MeasuredFrame(Size(1001, 601)).fittedTo(null, 0) shouldBe Size(1001, 601)
   }
 
   @Test

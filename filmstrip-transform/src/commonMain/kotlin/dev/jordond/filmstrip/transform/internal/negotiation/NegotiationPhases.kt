@@ -98,7 +98,7 @@ public class Ask(
  *   the aspect it stands for, which a height asked of it follows.
  * @property heightPx The height the spec moves [natural] to, or null when it keeps it, as
  *   [dev.jordond.filmstrip.geometry.effectiveHeight] reads it.
- * @property requestedSize The frame the composition asks for, before any encoder ceiling.
+ * @property requested The frame the composition asks for, before any encoder ceiling, with the aspect it stands for.
  */
 internal class Framing(
   val firstClip: Clip,
@@ -108,8 +108,13 @@ internal class Framing(
   val compositionInputSize: Size,
   val natural: MeasuredFrame,
   val heightPx: Int?,
-  val requestedSize: Size,
+  val requested: MeasuredFrame,
 ) {
+  /**
+   * The frame [requested] is measured in whole pixels.
+   */
+  val requestedSize: Size get() = requested.size
+
   /**
    * The frame [natural] is measured in whole pixels.
    */

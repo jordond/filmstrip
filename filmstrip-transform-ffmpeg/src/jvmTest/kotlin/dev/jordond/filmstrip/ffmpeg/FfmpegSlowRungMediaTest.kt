@@ -28,6 +28,7 @@ import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.ProbeResult
 import dev.jordond.filmstrip.transform.internal.ProbeOperation
 import dev.jordond.filmstrip.transform.internal.RESOLUTION_LADDER
+import dev.jordond.filmstrip.transform.internal.geometry.MeasuredFrame
 import dev.jordond.filmstrip.transform.internal.negotiation.fittedBetween
 import io.kotest.assertions.withClue
 import io.kotest.matchers.collections.shouldBeEmpty
@@ -138,7 +139,8 @@ class FfmpegSlowRungMediaTest {
         val asked = natural.atHeight(height)
 
         withClue("asked for $asked") {
-          plan.output.size shouldBe asked.fittedBetween(encoder.minSize, encoder.maxSize, encoder.sizeAlignment)
+          plan.output.size shouldBe
+            MeasuredFrame(asked).fittedBetween(encoder.minSize, encoder.maxSize, encoder.sizeAlignment)
         }
       }
     }
@@ -170,7 +172,8 @@ class FfmpegSlowRungMediaTest {
 
       val fallback = verdict.withoutUnsupported.shouldNotBeNull().plan
       val encoder = measured.encoderFor(fallback.output.videoCodec).shouldNotBeNull()
-      fallback.output.size shouldBe natural.fittedBetween(encoder.minSize, encoder.maxSize, encoder.sizeAlignment)
+      fallback.output.size shouldBe
+        MeasuredFrame(natural).fittedBetween(encoder.minSize, encoder.maxSize, encoder.sizeAlignment)
     }
 
   @Test

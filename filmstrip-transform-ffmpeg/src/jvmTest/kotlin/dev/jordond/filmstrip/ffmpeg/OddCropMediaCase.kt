@@ -23,6 +23,7 @@ import dev.jordond.filmstrip.export.ExportPlan
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.ExportStatus
 import dev.jordond.filmstrip.export.Verdict
+import dev.jordond.filmstrip.ffmpeg.internal.ENCODER_SIZE_ALIGNMENT
 import dev.jordond.filmstrip.ffmpeg.support.ExportConstants.TIMEOUT
 import dev.jordond.filmstrip.ffmpeg.support.hostFfmpeg
 import dev.jordond.filmstrip.ffmpeg.support.hostFfprobe
@@ -31,10 +32,13 @@ import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
+import dev.jordond.filmstrip.transform.internal.geometry.MeasuredFrame
+import dev.jordond.filmstrip.transform.internal.negotiation.fittedBetween
 import io.kotest.assertions.withClue
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.ints.shouldBeLessThan
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.flow.toList
@@ -179,6 +183,12 @@ abstract class OddCropMediaCase {
       columns[columns.size / 2] shouldBeLessThan WHITE_FLOOR
     }
   }
+
+  // The frame the planner writes for [size] standing for [aspect], asked of the shared function.
+  internal fun alignedFrame(
+    size: Size,
+    aspect: Float,
+  ): Size = MeasuredFrame(size, aspect).fittedBetween(null, null, ENCODER_SIZE_ALIGNMENT).shouldNotBeNull()
 
   internal fun flatClip(size: Size): File = writeClip(size, "", GRAY_CLIP)
 

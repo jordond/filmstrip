@@ -9,6 +9,7 @@ import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.Verdict
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.geometry.outputHeightRefusal
+import dev.jordond.filmstrip.transform.internal.geometry.MeasuredFrame
 import dev.jordond.filmstrip.transform.internal.negotiation.fittedBetween
 import dev.jordond.filmstrip.transform.internal.negotiation.fittedTo
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedHdr
@@ -97,7 +98,7 @@ class OutputFormatTest {
       )
 
     val degraded = verdict.shouldBeInstanceOf<Verdict.Degraded>()
-    degraded.plan.output.size shouldBe Size(40, 10).fittedBetween(floored.minSize, floored.maxSize, 2)
+    degraded.plan.output.size shouldBe MeasuredFrame(Size(40, 10)).fittedBetween(floored.minSize, floored.maxSize, 2)
     degraded.plan.output.size shouldBe Size(64, 16)
     degraded.adjustments.single().kind shouldBe AdjustmentKind.ResolutionClamped
   }
@@ -164,7 +165,7 @@ class OutputFormatTest {
       verdict
         .shouldBeInstanceOf<Verdict.Degraded>()
         .plan.output.size
-    planned shouldBe Size(2, 4000).fittedTo(floored.maxSize, floored.sizeAlignment)
+    planned shouldBe MeasuredFrame(Size(2, 4000)).fittedTo(floored.maxSize, floored.sizeAlignment)
   }
 
   @Test

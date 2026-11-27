@@ -10,6 +10,7 @@ import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.transform.internal.EncoderAsk
 import dev.jordond.filmstrip.transform.internal.HDR_PROBE_SIZE
 import dev.jordond.filmstrip.transform.internal.RESOLUTION_LADDER
+import dev.jordond.filmstrip.transform.internal.geometry.MeasuredFrame
 import dev.jordond.filmstrip.transform.internal.negotiation.fittedBetween
 
 /**
@@ -196,7 +197,8 @@ internal class EncoderReading(
     )
   }
 
-  private fun Size.liftedTo(floor: Size): Size = checkNotNull(fittedBetween(floor, null, ENCODER_SIZE_ALIGNMENT))
+  private fun Size.liftedTo(floor: Size): Size =
+    checkNotNull(MeasuredFrame(this).fittedBetween(floor, null, ENCODER_SIZE_ALIGNMENT))
 
   private fun Size.fits(ceiling: Size): Boolean = width <= ceiling.width && height <= ceiling.height
 

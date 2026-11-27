@@ -59,7 +59,7 @@ class FfmpegOddFrameMediaTest : OddCropMediaCase() {
       for (aspect in listOf(AspectRatio(4, 3), AspectRatio(16, 9), AspectRatio(9, 16), AspectRatio(1, 1))) {
         for (height in listOf(CANVAS_HEIGHT, TALL_HEIGHT)) {
           val width = (height * aspect.value).roundToInt()
-          val expected = Size(width - width % 2, height - height % 2)
+          val expected = alignedFrame(Size(width, height), aspect.value)
           for (order in listOf(sizes, sizes.reversed())) {
             val sources = order.map { flatClip(it) }
             val composition =
@@ -163,7 +163,7 @@ class FfmpegOddFrameMediaTest : OddCropMediaCase() {
         for (fit in listOf(Fit.Contain, Fit.Crop)) {
           for (height in heights) {
             val width = (height * aspect.value).roundToInt()
-            val expected = Size(width - width % 2, height)
+            val expected = alignedFrame(Size(width, height), aspect.value)
             for (order in listOf(sizes, sizes.reversed())) {
               val sources = order.map { writeClip(it, "", color) }
               val composition =

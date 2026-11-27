@@ -55,19 +55,20 @@ internal fun encodingOf(
       ?: return Phase.Refused(FilmstripError.NoEncoder(spec.videoCodec, NO_ENCODER))
   val encoder = ask.device.encoderFor(video.codec)
   val copies = grade.path == ExportPath.Copy
-  val requestedSize = framing.requestedSize
+  val requested = framing.requested
+  val requestedSize = requested.size
 
   val ceiling =
     tightest(encoder?.maxSize, MAX_STILL_FRAME.takeIf { framing.framedByStill && spec.heightPx == null })
   val alignment = encoder?.sizeAlignment ?: SIZE_ALIGNMENT
   val floor = encoder?.minSize.takeIf { !copies }
-  val between = requestedSize.fittedBetween(floor, ceiling, alignment)
+  val between = requested.fittedBetween(floor, ceiling, alignment)
   val outputSize =
     when {
       copies -> requestedSize
       between != null -> between
       // Nothing is encoded, so a shape no encoder frame holds is still drawn, at the size the ceiling leaves it.
-      ask.writesNoFile -> requestedSize.fittedTo(ceiling, alignment)
+      ask.writesNoFile -> requested.fittedTo(ceiling, alignment)
       else -> return Phase.Refused(noFrameFits(requestedSize, checkNotNull(floor), checkNotNull(ceiling)))
     }
   val overCeiling =

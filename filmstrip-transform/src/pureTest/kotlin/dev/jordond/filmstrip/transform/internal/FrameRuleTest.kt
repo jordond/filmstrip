@@ -10,13 +10,19 @@ import dev.jordond.filmstrip.effects.geometry.Scale
 import dev.jordond.filmstrip.effects.geometry.turnedAspect
 import dev.jordond.filmstrip.effects.geometry.turnedFrame
 import dev.jordond.filmstrip.export.ExportSpec
+import dev.jordond.filmstrip.export.Verdict
 import dev.jordond.filmstrip.geometry.AspectRatio
 import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.transform.internal.geometry.MeasuredFrame
+import dev.jordond.filmstrip.transform.internal.negotiation.fittedTo
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedHdr
 import io.kotest.assertions.withClue
+import io.kotest.matchers.floats.shouldBeLessThan
 import io.kotest.matchers.shouldBe
 import kotlin.math.PI
+import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.roundToInt
 import kotlin.math.sin
@@ -34,7 +40,7 @@ class FrameRuleTest {
     val orders = orders(SIZES, 4) + orders(SIZES, 5)
     for (aspect in ASPECTS) {
       for (height in HEIGHTS) {
-        val expected = onEvenGrid(Size((height * aspect.value).roundToInt(), height))
+        val expected = onEvenGrid(Size((height * aspect.value).roundToInt(), height), aspect)
         val written =
           orders
             .map { order ->
@@ -55,7 +61,7 @@ class FrameRuleTest {
     for (sizes in APP_PAIRS) {
       for (aspect in listOf(AspectRatio(4, 3), AspectRatio(9, 16))) {
         for (height in listOf(320, 540)) {
-          val expected = onEvenGrid(Size((height * aspect.value).roundToInt(), height))
+          val expected = onEvenGrid(Size((height * aspect.value).roundToInt(), height), aspect)
           val written =
             listOf(sizes, sizes.reversed())
               .map { order ->
@@ -133,7 +139,7 @@ class FrameRuleTest {
     for (sizes in APP_PAIRS) {
       for (aspect in listOf(AspectRatio(4, 3), AspectRatio(9, 16))) {
         for (height in listOf(163, 135)) {
-          val expected = onEvenGrid(Size((height * aspect.value).roundToInt(), height))
+          val expected = onEvenGrid(Size((height * aspect.value).roundToInt(), height), aspect)
           val written =
             listOf(sizes, sizes.reversed())
               .map { order ->
@@ -231,14 +237,14 @@ class FrameRuleTest {
         fixture.resolve(composition, ExportSpec(heightPx = 250)).output.size
       }
 
-    written shouldBe listOf(Size(332, 250), Size(240, 180))
+    written shouldBe listOf(Size(334, 250), Size(240, 180))
   }
 
   @Test
   fun `a height the spec asks for under a crop that cuts writes one frame in either order`() {
     for (sizes in APP_PAIRS) {
       for (aspect in listOf(AspectRatio(4, 3), AspectRatio(9, 16))) {
-        val expected = onEvenGrid(Size((100 * aspect.value).roundToInt(), 100))
+        val expected = onEvenGrid(Size((100 * aspect.value).roundToInt(), 100), aspect)
         val written =
           listOf(sizes, sizes.reversed())
             .map { order ->
@@ -271,8 +277,70 @@ class FrameRuleTest {
     fixture.resolve(composition).naturalSize shouldBe Size(720, 540)
   }
 
-  // The size an encoder that writes even sides takes.
-  private fun onEvenGrid(size: Size) = Size(size.width - size.width % 2, size.height - size.height % 2)
+  // The size an encoder that writes even sides takes for a frame of this aspect.
+  private fun onEvenGrid(
+    size: Size,
+    aspect: AspectRatio,
+  ) = MeasuredFrame(size, aspect.value).fittedTo(null, 2)
+
+  // The frames crop-join found drifting: the width followed the rounded pixels and not the aspect asked for.
+  @Test
+  fun `a contain crop at the first clip's height writes the width the aspect asks for`() {
+    val aspect = AspectRatio(4, 3)
+    for (size in listOf(Size(91, 51), Size(97, 61), Size(31, 17))) {
+      val clipCrop = fixture.clip(size = size, effects = listOf(Crop(aspect, Fit.Contain)))
+      val onClip = fixture.resolve(Composition(listOf(Track(listOf(clipCrop)))))
+      val onComposition =
+        fixture.resolve(
+          Composition(listOf(Track(listOf(fixture.clip(size = size)))), effects = listOf(Crop(aspect, Fit.Contain))),
+        )
+
+      for (plan in listOf(onClip, onComposition)) {
+        val exact = plan.output.size.height * aspect.value
+        withClue("$size") {
+          plan.output.size shouldBe MeasuredFrame(plan.naturalSize, aspect.value).fittedTo(null, 2)
+          abs(plan.output.size.width - exact) shouldBeLessThan 1.01f
+        }
+      }
+    }
+    fixture
+      .resolve(
+        Composition(
+          listOf(Track(listOf(fixture.clip(size = Size(91, 51))))),
+          effects = listOf(Crop(aspect, Fit.Contain)),
+        ),
+      ).output.size shouldBe Size(66, 50)
+  }
+
+  private fun Verdict.planned() =
+    when (this) {
+      is Verdict.Capable -> plan
+      is Verdict.Degraded -> plan
+      else -> error("No plan in $this")
+    }
+
+  @Test
+  fun `a preview and an export of the same edit report one frame`() {
+    val composition =
+      Composition(
+        listOf(Track(listOf(fixture.clip(size = Size(91, 51))))),
+        effects = listOf(Crop(AspectRatio(4, 3), Fit.Contain)),
+      )
+
+    val preview =
+      fixture
+        .plan(composition, grade = ResolvedHdr.Keep)
+        .planned()
+        .output.size
+    val export =
+      fixture
+        .plan(composition)
+        .planned()
+        .output.size
+
+    preview shouldBe export
+    export shouldBe Size(66, 50)
+  }
 
   // Every ordering of [count] of [sizes].
   private fun orders(

@@ -17,6 +17,7 @@ import dev.jordond.filmstrip.transform.internal.DEFAULT_HDR_LADDER
 import dev.jordond.filmstrip.transform.internal.PlannerFixture
 import dev.jordond.filmstrip.transform.internal.composition
 import dev.jordond.filmstrip.transform.internal.fakePlatformEffect
+import dev.jordond.filmstrip.transform.internal.geometry.MeasuredFrame
 import dev.jordond.filmstrip.transform.internal.refusal
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedHdr
 import io.kotest.matchers.collections.shouldBeEmpty
@@ -93,7 +94,7 @@ class ConcessionsTest {
   @Test
   fun `a frame under the floor is scaled up and refused strictly in the same words`() {
     val floor = Size(16, 16)
-    val lifted = Size(40, 10).fittedBetween(floor, null, 2).shouldNotBeNull()
+    val lifted = MeasuredFrame(Size(40, 10)).fittedBetween(floor, null, 2).shouldNotBeNull()
     val encoding = encodingOf(lifted, floor = floor, underFloor = true)
 
     val clamp = concessions(framing = framingOf(clip, info, Size(40, 10)), encoding = encoding).single()
@@ -112,7 +113,7 @@ class ConcessionsTest {
       concessions(framing = framingOf(clip, info, Size(1921, 1081)), encoding = encodingOf(Size(1920, 1080)))
         .single()
 
-    val message = "The encoder wants aligned dimensions, so each side rounds to what it accepts."
+    val message = "The encoder wants aligned dimensions, so the height rounds down and the width follows the aspect."
     clamp.adjustment shouldBe Adjustment(AdjustmentKind.ResolutionClamped, "1921x1081", "1920x1080", message)
     clamp.strictRefusal.shouldBeInstanceOf<FilmstripError.UnsupportedResolution>().max shouldBe Size(1920, 1080)
   }

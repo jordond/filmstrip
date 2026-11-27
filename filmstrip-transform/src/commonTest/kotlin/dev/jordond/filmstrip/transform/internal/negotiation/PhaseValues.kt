@@ -49,7 +49,7 @@ internal fun framingOf(
   compositionInputSize = requestedSize,
   natural = MeasuredFrame(requestedSize),
   heightPx = null,
-  requestedSize = requestedSize,
+  requested = MeasuredFrame(requestedSize),
 )
 
 internal fun gradeOf(

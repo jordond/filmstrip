@@ -18,6 +18,7 @@ import dev.jordond.filmstrip.geometry.frameWithin
 import dev.jordond.filmstrip.media.audioCodecOf
 import dev.jordond.filmstrip.media.clipAudioTrackOf
 import dev.jordond.filmstrip.media.videoCodecOf
+import dev.jordond.filmstrip.transform.internal.geometry.MeasuredFrame
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedHdr
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedTrack
 import kotlin.math.abs
@@ -312,48 +313,62 @@ internal fun resolveHdr(
 }
 
 /**
- * Scales the frame down to sit inside [max], then rounds each side down to a multiple the encoder
- * accepts.
+ * Scales the frame down to sit inside [max], then rounds it to a multiple the encoder accepts.
  *
- * Rounding to the nearest multiple would carry a frame that already sits on the encoder's maximum
- * past that maximum.
+ * The height rounds down to the alignment and the width follows the frame's aspect, landing on the multiple nearest
+ * to it. A width that would pass [max] leads instead, and the height follows it.
  */
-internal fun Size.fittedTo(
+internal fun MeasuredFrame.fittedTo(
   max: Size?,
   alignment: Int,
 ): Size {
   val step = alignment.coerceAtLeast(1)
-  val fitted = if (max == null) this else frameWithin(this, max)
-  return Size(
-    (fitted.width - fitted.width % step).coerceAtLeast(step),
-    (fitted.height - fitted.height % step).coerceAtLeast(step),
-  )
+  val within = if (max == null) size else frameWithin(size, max)
+  val aspect = aspect.toDouble()
+  val widthCap = max?.let { it.width.alignedDown(step).coerceAtLeast(step) }
+  val heightCap = max?.let { it.height.alignedDown(step).coerceAtLeast(step) }
+
+  val height = within.height.alignedDown(step).coerceAtLeast(step)
+  val width = (height * aspect).nearestMultiple(step).coerceAtLeast(step)
+  if (widthCap == null || width <= widthCap) return Size(width, height)
+
+  val ledHeight = (widthCap / aspect).nearestMultiple(step).coerceAtLeast(step)
+  return Size(widthCap, minOf(ledHeight, checkNotNull(heightCap)))
 }
 
 /**
  * The frame an encoder is handed for this one: inside [ceiling], at or above [floor], and on the alignment.
  *
  * A frame over the ceiling is scaled down the way [fittedTo] does it. A frame with a side under the floor is scaled
- * up by the smallest factor that brings both sides to the floor, so it keeps its shape, and each side then rounds up
- * to the alignment. It returns null when the lifted frame runs past the ceiling, which is a shape no frame of this
- * encoder holds. A null [floor] lifts nothing.
+ * up by the smallest factor that brings both sides to the floor, so it keeps its shape. The side that reaches the
+ * floor first rounds up to the alignment and the other follows the aspect, at or above the floor. It returns null
+ * when the lifted frame runs past the ceiling, which is a shape no frame of this encoder holds. A null [floor] lifts
+ * nothing.
  */
 @InternalFilmstripApi
-public fun Size.fittedBetween(
+public fun MeasuredFrame.fittedBetween(
   floor: Size?,
   ceiling: Size?,
   alignment: Int,
 ): Size? {
-  if (floor == null || !sitsUnder(floor, ceiling)) return fittedTo(ceiling, alignment)
+  if (floor == null || !size.sitsUnder(floor, ceiling)) return fittedTo(ceiling, alignment)
 
-  val within = if (ceiling == null) this else frameWithin(this, ceiling)
+  val within = if (ceiling == null) size else frameWithin(size, ceiling)
   val step = alignment.coerceAtLeast(1)
-  val scale = maxOf(floor.width.toDouble() / within.width, floor.height.toDouble() / within.height)
+  val aspect = aspect.toDouble()
+  val widthScale = floor.width.toDouble() / within.width
+  val heightScale = floor.height.toDouble() / within.height
+  val scale = maxOf(widthScale, heightScale)
   val lifted =
-    Size(
-      maxOf(floor.width, ceil(within.width * scale - LIFT_SLACK).toInt()).alignedUp(step),
-      maxOf(floor.height, ceil(within.height * scale - LIFT_SLACK).toInt()).alignedUp(step),
-    )
+    if (widthScale >= heightScale) {
+      val width = maxOf(floor.width, ceil(within.width * scale - LIFT_SLACK).toInt()).alignedUp(step)
+      val height = (width / aspect).nearestMultiple(step).coerceAtLeast(step)
+      Size(width, if (height < floor.height) floor.height.alignedUp(step) else height)
+    } else {
+      val height = maxOf(floor.height, ceil(within.height * scale - LIFT_SLACK).toInt()).alignedUp(step)
+      val width = (height * aspect).nearestMultiple(step).coerceAtLeast(step)
+      Size(if (width < floor.width) floor.width.alignedUp(step) else width, height)
+    }
   return lifted.takeUnless { ceiling != null && (it.width > ceiling.width || it.height > ceiling.height) }
 }
 
@@ -371,6 +386,11 @@ internal fun Size.sitsUnder(
 
 private fun Int.alignedUp(step: Int): Int = (this + step - 1) / step * step
 
+private fun Int.alignedDown(step: Int): Int = this - this % step
+
+// The multiple of step closest to this value, a tie going to the lower one.
+private fun Double.nearestMultiple(step: Int): Int = ceil(this / step - 0.5 - TIE_SLACK).toInt() * step
+
 /**
  * The box both [first] and [second] fit inside, or whichever of them is the only one given.
  */
@@ -386,6 +406,9 @@ internal fun tightest(
 
 // Keeps a side that lands on a whole pixel from rounding up to the next one on floating point error.
 private const val LIFT_SLACK = 1e-6
+
+// Keeps a width a float aspect left a hair over a tie from rounding up.
+private const val TIE_SLACK = 1e-4
 
 private const val DEFAULT_RATE = 30
 private const val DEFAULT_SAMPLE_RATE = 44_100

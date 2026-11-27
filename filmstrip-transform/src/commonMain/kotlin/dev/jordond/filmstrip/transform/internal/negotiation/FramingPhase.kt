@@ -52,7 +52,7 @@ internal fun framingOf(
       compositionInputSize = inputFrame.size,
       natural = natural,
       heightPx = heightPx,
-      requestedSize = atHeight(natural, heightPx),
+      requested = atHeight(natural, heightPx),
     ),
   )
 }
@@ -105,11 +105,11 @@ private fun frameClipOf(
 private fun atHeight(
   frame: MeasuredFrame,
   heightPx: Int?,
-): Size =
+): MeasuredFrame =
   if (heightPx != null && frame.size.height > 0) {
-    Size((heightPx * frame.aspect).roundToInt().coerceAtLeast(1), heightPx)
+    MeasuredFrame(Size((heightPx * frame.aspect).roundToInt().coerceAtLeast(1), heightPx), frame.aspect)
   } else {
-    frame.size
+    frame
   }
 
 /**

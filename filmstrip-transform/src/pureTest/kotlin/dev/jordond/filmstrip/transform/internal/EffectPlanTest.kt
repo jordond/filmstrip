@@ -158,13 +158,13 @@ class EffectPlanTest {
       .plan.output.size shouldBe rotate.turnedFrame(Size(1920, 1080))
   }
 
-  // 1920x1080 at 480 high is 853.3 wide, and an encoder that wants even sides cannot have 853.
+  // 1920x1080 at 480 high is 853.3 wide, and an encoder that wants even sides takes the nearest, 854.
   @Test
   fun `a scale sets the output height and the alignment rounding is reported`() {
     val verdict = fixture.plan(composition(fixture.clip(effects = listOf(Scale(heightPx = 480)))))
 
     val degraded = verdict.shouldBeInstanceOf<Verdict.Degraded>()
-    degraded.plan.output.size shouldBe Size(852, 480)
+    degraded.plan.output.size shouldBe Size(854, 480)
     degraded.adjustments.single().kind shouldBe AdjustmentKind.ResolutionClamped
   }
 

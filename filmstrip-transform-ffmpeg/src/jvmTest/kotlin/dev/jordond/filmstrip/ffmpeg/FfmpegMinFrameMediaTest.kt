@@ -12,6 +12,7 @@ import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.ProbeResult
 import dev.jordond.filmstrip.transform.internal.FLOOR_LADDER
+import dev.jordond.filmstrip.transform.internal.geometry.MeasuredFrame
 import dev.jordond.filmstrip.transform.internal.negotiation.fittedBetween
 import io.kotest.assertions.withClue
 import io.kotest.matchers.booleans.shouldBeTrue
@@ -62,7 +63,10 @@ class FfmpegMinFrameMediaTest {
       encoders().distinctBy { it.codec }.forEach { encoder ->
         listOf(SMALL_HEIGHT, MIDDLE_HEIGHT).forEach { height ->
           val asked = Size((height * shape.width.toFloat() / shape.height).roundToInt(), height)
-          val expected = asked.fittedBetween(encoder.minSize, encoder.maxSize, encoder.sizeAlignment).shouldNotBeNull()
+          val expected =
+            MeasuredFrame(
+              asked,
+            ).fittedBetween(encoder.minSize, encoder.maxSize, encoder.sizeAlignment).shouldNotBeNull()
           val spec = ExportSpec(heightPx = height, videoCodec = encoder.codec)
           val output = File.createTempFile("filmstrip-min-frame", ".mp4").also { it.delete() }
           try {

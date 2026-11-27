@@ -1,27 +1,35 @@
 package dev.jordond.filmstrip.avfoundation
 
+import dev.jordond.filmstrip.CapabilitiesResult
 import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effects.geometry.Crop
 import dev.jordond.filmstrip.effects.geometry.Scale
+import dev.jordond.filmstrip.export.ExportPlan
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.ExportStatus
 import dev.jordond.filmstrip.export.Verdict
 import dev.jordond.filmstrip.geometry.AspectRatio
 import dev.jordond.filmstrip.geometry.Fit
+import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.test.TestScratch
+import dev.jordond.filmstrip.transform.internal.geometry.MeasuredFrame
+import dev.jordond.filmstrip.transform.internal.negotiation.fittedBetween
 import io.kotest.assertions.withClue
 import io.kotest.matchers.collections.shouldBeEmpty
+import io.kotest.matchers.nulls.shouldNotBeNull
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import platform.Foundation.NSFileManager
+import kotlin.math.roundToInt
 import kotlin.test.Test
 import kotlin.time.Duration.Companion.minutes
 
@@ -97,12 +105,21 @@ class AppleCropJoinHardwareTest {
           is Verdict.Incapable -> return@withContext listOf("$name: refused ${verdict.reasons.map { it.message }}")
         }
       val planned = plan.output.size
+      val alignment = alignmentOf(filmstrip, plan)
       when (val finished = filmstrip.export(plan, MediaSink.of(output)).toList().last()) {
         is ExportStatus.Success -> {
           val written = finished.info.video?.displaySize
           listOfNotNull(
             "$name: wrote $written, planned $planned".takeIf { written != planned },
-            "$name: planned odd $planned".takeIf { planned.width % 2 != 0 || planned.height % 2 != 0 },
+            "$name: planned $planned off the encoder's $alignment grid".takeIf {
+              planned.width % alignment != 0 || planned.height % alignment != 0
+            },
+            containedAt(planned.height, alignment).let {
+              "$name: planned $planned, shared fit $it".takeIf { _ ->
+                planned !=
+                  it
+              }
+            },
           )
         }
         is ExportStatus.Failure -> {
@@ -128,6 +145,28 @@ class AppleCropJoinHardwareTest {
         listOfNotNull<EffectSpec>(cut.takeUnless { clipScope }, CONTAIN, height?.let { Scale(it) }).forEach { add(it) }
       }
     }
+
+  // The size alignment of the encoder the plan writes with, as the device reports it.
+  private suspend fun alignmentOf(
+    filmstrip: Filmstrip,
+    plan: ExportPlan,
+  ): Int =
+    filmstrip
+      .capabilities()
+      .shouldBeInstanceOf<CapabilitiesResult.Success>()
+      .capabilities
+      .encoderFor(plan.output.videoCodec)
+      .shouldNotBeNull()
+      .sizeAlignment
+
+  // The 4:3 frame the shared fit gives at this planned height. The last effect is always a 4:3 contain crop.
+  private fun containedAt(
+    height: Int,
+    alignment: Int,
+  ): Size =
+    MeasuredFrame(Size((height * CONTAIN.aspect.value).roundToInt(), height), CONTAIN.aspect.value)
+      .fittedBetween(null, null, alignment)
+      .shouldNotBeNull()
 
   private fun <T> orders(items: List<T>): List<List<T>> =
     if (items.size <= 1) {

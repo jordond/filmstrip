@@ -10,6 +10,7 @@ import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
+import dev.jordond.filmstrip.transform.internal.geometry.MeasuredFrame
 import dev.jordond.filmstrip.transform.internal.negotiation.fittedBetween
 import io.kotest.assertions.withClue
 import io.kotest.matchers.collections.shouldNotBeEmpty
@@ -56,7 +57,10 @@ class BrowserMinFrameMediaTest {
     height: Int,
   ): Size {
     val asked = Size(height, height)
-    val expected = asked.fittedBetween(encoder.minSize, encoder.maxSize, encoder.sizeAlignment).shouldNotBeNull()
+    val expected =
+      MeasuredFrame(
+        asked,
+      ).fittedBetween(encoder.minSize, encoder.maxSize, encoder.sizeAlignment).shouldNotBeNull()
     val source = MediaSource.Bytes(makeClip(width = SOURCE_SIDE, height = SOURCE_SIDE))
     val composition = Composition(listOf(Track(listOf(Clip(source)))))
     val spec = ExportSpec(heightPx = height, videoCodec = encoder.codec, audioCodec = AudioCodec.None)

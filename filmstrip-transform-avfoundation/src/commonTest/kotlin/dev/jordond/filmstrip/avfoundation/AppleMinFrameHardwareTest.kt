@@ -12,6 +12,7 @@ import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.ProbeResult
 import dev.jordond.filmstrip.test.TestScratch
+import dev.jordond.filmstrip.transform.internal.geometry.MeasuredFrame
 import dev.jordond.filmstrip.transform.internal.negotiation.fittedBetween
 import io.kotest.assertions.withClue
 import io.kotest.matchers.collections.shouldNotBeEmpty
@@ -67,7 +68,10 @@ class AppleMinFrameHardwareTest {
   ): Size {
     val source = shape()
     val asked = Size((height * source.width.toFloat() / source.height).roundToInt().coerceAtLeast(1), height)
-    val expected = asked.fittedBetween(encoder.minSize, encoder.maxSize, encoder.sizeAlignment).shouldNotBeNull()
+    val expected =
+      MeasuredFrame(
+        asked,
+      ).fittedBetween(encoder.minSize, encoder.maxSize, encoder.sizeAlignment).shouldNotBeNull()
     val composition = compositionOf { clip(MediaSource.of(fixture(CLIP))) }
     val spec = ExportSpec(heightPx = height, videoCodec = encoder.codec)
     val output = TestScratch.directory + "filmstrip-apple-min-frame-${encoder.codec}-$height.mp4"

@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip.media3
 
+import dev.jordond.filmstrip.CapabilitiesResult
 import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.Track
@@ -9,10 +10,16 @@ import dev.jordond.filmstrip.effects.geometry.Scale
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.geometry.AspectRatio
 import dev.jordond.filmstrip.geometry.Fit
+import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.TIMEOUT
+import dev.jordond.filmstrip.transform.internal.geometry.MeasuredFrame
+import dev.jordond.filmstrip.transform.internal.negotiation.fittedBetween
 import io.kotest.assertions.withClue
 import io.kotest.matchers.collections.shouldBeEmpty
+import io.kotest.matchers.nulls.shouldNotBeNull
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.test.runTest
+import kotlin.math.roundToInt
 import kotlin.test.Test
 
 /**
@@ -60,6 +67,11 @@ class AndroidCropJoinMediaTest {
     aspect: AspectRatio,
     clipScope: Boolean,
   ) {
+    val capabilities =
+      probe.filmstrip
+        .capabilities()
+        .shouldBeInstanceOf<CapabilitiesResult.Success>()
+        .capabilities
     val failures = mutableListOf<String>()
     for (order in orders(FIXTURES)) {
       for (height in listOf(null, SMALL_HEIGHT)) {
@@ -73,7 +85,12 @@ class AndroidCropJoinMediaTest {
               .info.video
               ?.displaySize
           if (written != output) failures += "$name: wrote $written, planned $output"
-          if (output.width % 2 != 0 || output.height % 2 != 0) failures += "$name: planned odd $output"
+          val alignment = capabilities.encoderFor(plan.output.videoCodec).shouldNotBeNull().sizeAlignment
+          val shared = containedAt(output.height, alignment)
+          if (output != shared) failures += "$name: planned $output, shared fit $shared"
+          if (output.width % alignment != 0 || output.height % alignment != 0) {
+            failures += "$name: planned $output off the encoder's $alignment grid"
+          }
         } catch (failed: AssertionError) {
           failures += "$name: ${failed.message?.lines()?.firstOrNull()}"
         }
@@ -95,6 +112,15 @@ class AndroidCropJoinMediaTest {
         ),
       effects = listOfNotNull<EffectSpec>(cut.takeUnless { clipScope }, CONTAIN, height?.let { Scale(it) }),
     )
+
+  // The 4:3 frame the shared fit gives at this planned height. The last effect is always a 4:3 contain crop.
+  private fun containedAt(
+    height: Int,
+    alignment: Int,
+  ): Size =
+    MeasuredFrame(Size((height * CONTAIN.aspect.value).roundToInt(), height), CONTAIN.aspect.value)
+      .fittedBetween(null, null, alignment)
+      .shouldNotBeNull()
 
   private fun <T> orders(items: List<T>): List<List<T>> =
     if (items.size <= 1) {

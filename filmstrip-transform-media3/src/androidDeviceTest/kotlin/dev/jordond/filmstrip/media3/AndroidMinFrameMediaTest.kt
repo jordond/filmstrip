@@ -9,6 +9,7 @@ import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.TIMEOUT
+import dev.jordond.filmstrip.transform.internal.geometry.MeasuredFrame
 import dev.jordond.filmstrip.transform.internal.negotiation.fittedBetween
 import io.kotest.assertions.withClue
 import io.kotest.matchers.collections.shouldNotBeEmpty
@@ -59,7 +60,10 @@ class AndroidMinFrameMediaTest {
   ): Size {
     val source = shape()
     val asked = Size((height * source.width.toFloat() / source.height).roundToInt().coerceAtLeast(1), height)
-    val expected = asked.fittedBetween(encoder.minSize, encoder.maxSize, encoder.sizeAlignment).shouldNotBeNull()
+    val expected =
+      MeasuredFrame(
+        asked,
+      ).fittedBetween(encoder.minSize, encoder.maxSize, encoder.sizeAlignment).shouldNotBeNull()
     val composition = Composition(listOf(Track(listOf(Clip(probe.fixture())))))
 
     val plan = probe.plan(composition, ExportSpec(heightPx = height, videoCodec = encoder.codec))

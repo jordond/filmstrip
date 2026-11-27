@@ -91,8 +91,10 @@ import dev.jordond.filmstrip.test.OrientedPictures
 import dev.jordond.filmstrip.transform.internal.copy.CopyPacket
 import dev.jordond.filmstrip.transform.internal.copy.NONE_ON_GRID_COPY
 import dev.jordond.filmstrip.transform.internal.encode.resolveVideoBitrate
+import dev.jordond.filmstrip.transform.internal.geometry.MeasuredFrame
 import dev.jordond.filmstrip.transform.internal.hdr.TONE_MAP_BT2020_TO_BT709
 import dev.jordond.filmstrip.transform.internal.negotiation.Ask
+import dev.jordond.filmstrip.transform.internal.negotiation.fittedBetween
 import dev.jordond.filmstrip.transform.internal.resolve.curveOver
 import dev.jordond.filmstrip.transform.internal.resolve.stillUnsupportedMessage
 import io.kotest.assertions.withClue
@@ -1039,7 +1041,9 @@ class PlannerTest {
 
     val verdict = planner().lower(composition, Ask(ExportSpec(heightPx = 721), device(), infos)).verdict
     verdict.shouldBeInstanceOf<Verdict.Degraded>()
-    verdict.plan.output.size shouldBe Size(1282, 720)
+    val alignment = device().video.single().sizeAlignment
+    verdict.plan.output.size shouldBe
+      MeasuredFrame(Size(1282, 721), Size(1920, 1080).aspect).fittedBetween(null, null, alignment)
     verdict.adjustments.map { it.kind } shouldBe listOf(AdjustmentKind.ResolutionClamped)
   }
 
