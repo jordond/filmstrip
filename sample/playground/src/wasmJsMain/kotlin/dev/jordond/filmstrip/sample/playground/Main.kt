@@ -34,6 +34,7 @@ fun main() {
         "effects" -> EffectsPlayground(filmstrip, copy)
         "filters" -> FiltersPlayground(filmstrip, copy)
         "overlays" -> OverlaysPlayground(filmstrip, logo, sheet, stickers::getValue, copy)
+        "composed" -> ComposedPlayground(filmstrip, copy)
         else -> Text("No sample called $sample", style = MaterialTheme.typography.bodyMedium, color = Tokens.red)
       }
     }

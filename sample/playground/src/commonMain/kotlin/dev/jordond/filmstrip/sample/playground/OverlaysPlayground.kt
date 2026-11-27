@@ -249,7 +249,7 @@ private fun MotionControls(
 }
 
 @Composable
-private fun CaptionField(
+internal fun CaptionField(
   text: String,
   onChange: (String) -> Unit,
 ) {

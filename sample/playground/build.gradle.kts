@@ -31,6 +31,7 @@ kotlin {
     commonMain.dependencies {
       implementation(projects.sample.common)
       implementation(projects.filmstripCompose)
+      implementation(projects.filmstripComposeUi)
       implementation(projects.filmstripEffectsFilters)
       implementation(libs.compose.runtime)
       implementation(libs.compose.foundation)

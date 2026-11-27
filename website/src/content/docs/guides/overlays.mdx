@@ -170,47 +170,22 @@ for each frame differs, and a 16-bit APNG holds more of it than an 8-bit file. T
 works on, is held against the picture memory ceiling, and a file that goes past it is refused by name, before it is
 decoded where the container allows. The same picture on two overlays is held once for an export or a preview.
 
-## Composables
-
-`filmstrip-compose` bakes a composable, like a title card, a sticker or a caption, into an image overlay, and
-`filmstrip-compose-ui` lets you move, pinch and turn it on a `VideoStage` first. See [Overlays](/compose/overlays/) in
-the Compose section.
-
 <Aside type="note" title="Limits">
-- A browser page can't read a file path, so an `ImageSource.Path` overlay is refused by name there. Pass bytes or a URI.
-- A path or URI picture's encoded bytes must fit in 1 GiB. Past that it's refused by name.
-- On desktop, an AVIF or HEIC image overlay (`iovl`) draws images that are none of them another grid or overlay. Its
-  canvas plus every image it draws, each at its whole size, must fit in 1 GiB at 8 bytes a pixel, and a grid's picture
-  plus its tiles the same. That's the only bound, however many images it holds. Past it the picture is refused by
-  name. So is a grid or overlay alpha that doesn't read.
-- An image overlay's canvas color is sRGB, and it's painted in the picture's own color. On a picture narrower than sRGB
-  a color it can't hold stops at the nearest one it can. An overlay alpha's canvas reads as the luma its own coding
-  gives that color, and an overlay alpha whose canvas shows under a matrix filmstrip can't read is refused by name.
-- media3 uploads each overlay as one texture, so a picture or text longer on a side than the device's
-  `GL_MAX_TEXTURE_SIZE` is refused by name. The browser does the same with WebGL's `MAX_TEXTURE_SIZE`.
-- A sprite sheet's decoded picture counts against the picture memory ceiling on every backend.
-- An animated picture's frames count against the picture memory ceiling on every backend, as a sprite sheet does.
-- Every backend needs a known output frame rate to draw an animated picture, and refuses it by name without one.
-- ffmpeg also needs the range an animated picture is drawn over to end, whatever the file's play count. It draws every
-  frame as one atlas, so the atlas must fit both the picture memory ceiling and the frame size limit a sprite sheet
-  has, about 16000 pixels a side for a square one.
-- Android uploads one frame at a time, so the canvas the file draws on must fit the device's `GL_MAX_TEXTURE_SIZE`.
-- The browser needs all the frames as one atlas that fits WebGL's `MAX_TEXTURE_SIZE`, and refuses a longer picture by
-  name with the size in force. It also draws a 16-bit APNG at 8 bits.
-- ffmpeg needs a known output frame rate and a drawn range with an end to draw a sprite sheet. It also can't open a
-  frame past its own size limit, which for a square sheet is about 16000 pixels a side, and refuses a larger sheet by
-  name.
-- The browser needs the whole sprite sheet to fit WebGL's `MAX_TEXTURE_SIZE`. Android uploads one cell at a time, so it
-  needs the side of one cell to fit the device's `GL_MAX_TEXTURE_SIZE`.
-- media3 holds the point an overlay anchors to inside the frame, so one animated off the frame, or an `at` point past an
-  edge, stops at the edge there. An `at` point inside the frame hangs off it the same way on every backend.
-- On an 8-bit export ffmpeg draws an overlay in 4:2:0, so an odd `x` or `y` lands on the even pixel below it, one pixel
-  up and left of the other backends. That holds for an animated overlay's position on every frame. See
+- A browser can't read a file path, so it refuses an `ImageSource.Path` overlay by name. Pass bytes or a URI.
+- A picture's encoded bytes must fit in 1 GiB. Its decoded pixels, every cell of a sprite sheet and every frame of an
+  animated picture count against the picture memory ceiling on every backend. On desktop an AVIF or HEIC grid or
+  overlay counts its canvas and each image it draws at 8 bytes a pixel.
+- Android and the browser upload overlays as GPU textures, so a picture, a text or a browser atlas of frames longer on
+  a side than the maximum texture size is refused by name. Android uploads one frame or cell at a time.
+- Every backend needs a known output frame rate for a sprite sheet or an animated picture. ffmpeg also needs the range
+  it's drawn over to end, and refuses a sheet or atlas past about 16000 pixels a side.
+- A color a picture's own space can't hold stops at the nearest one it can, and an image overlay's canvas is sRGB.
+- media3 holds an overlay's anchor point inside the frame, so one animated off the frame, or an `at` point past an
+  edge, stops at the edge.
+- On an 8-bit export ffmpeg lands an overlay at an odd pixel one pixel up and left of the other backends. See
   [Limits](/reference/limits/#placement).
-- On an HLG grade, media3 blends an overlay in scene light, so the plan reports it as an approximated effect.
-- The browser breaks lines at spaces and at each `\n`, and splits a word wider than a whole line. Android and Apple follow
-  the platform's line breaking and the JVM uses its `LineBreakMeasurer`, so a caption can wrap on different words between
-  them.
-- The ffmpeg backend draws text with the fonts the JVM finds on the machine, and refuses text holding a character those
-  fonts can't draw.
+- On an HLG grade media3 blends overlays in scene light, and the plan reports them as approximated.
+- Each backend breaks a caption's lines its own way, so the words can wrap differently between them. ffmpeg draws with
+  the fonts installed on the machine and refuses a character none of them can draw.
+- The browser draws a 16-bit APNG at 8 bits.
 </Aside>

@@ -1,9 +1,13 @@
 ---
 title: Overlays
 description: Write an overlay in Compose, move, pinch and turn it on the stage, and bake it into the export.
+playground:
+  sample: composed
+  label: A caption and a REC badge to drag, pinch, turn and bake
 ---
 
 import { Aside } from '@astrojs/starlight/components'
+import PagePlayground from '../../../components/docs/PagePlayground.astro'
 import Snippet from '../../../components/Snippet.astro'
 
 `filmstrip-compose` bakes any composable into an image overlay, so a title card, a sticker or a caption with a custom
@@ -12,6 +16,8 @@ where a drag moves it, a pinch scales it and a twist turns it.
 
 The baked picture is an ordinary image overlay, so its timing, animation and backend limits are the ones in the
 [Overlays guide](/guides/overlays/).
+
+<PagePlayground {...frontmatter.playground} />
 
 ## The element
 
