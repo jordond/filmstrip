@@ -89,7 +89,7 @@ abstract class ComposedOverlayParityContract {
           val stage = with(density) { Modifier.size(STAGE_WIDTH.toDp(), STAGE_HEIGHT.toDp()) }
           capturer = rememberOverlayCapturer()
           Column {
-            Spacer(with(density) { Modifier.height(WINDOW_TOP.toDp()) })
+            Spacer(Modifier.height(WINDOW_TOP))
             OverlayCaptureHost(capturer!!)
             Stage(LIVE, box, stage) {
               picture = frame.contentRect
@@ -117,8 +117,8 @@ abstract class ComposedOverlayParityContract {
         baked = Baked(bitmap, placement.rectOn(OUTPUT))
         repeat(SETTLE_FRAMES) { pumpOnce() }
 
-        val live = onNodeWithTag(LIVE).captureToImage().toPixelMap()
-        val bake = onNodeWithTag(BAKED).captureToImage().toPixelMap()
+        val live = onNodeWithTag(LIVE).captureToImage().toPixelMap().fullSize(LIVE)
+        val bake = onNodeWithTag(BAKED).captureToImage().toPixelMap().fullSize(BAKED)
         val points = Points(transform, picture)
         live.at(points.plate).shouldBeNear(PLATE, "the live plate's middle")
         live.at(points.marker).shouldBeNear(MARKER, "the live marker")
@@ -159,6 +159,14 @@ abstract class ComposedOverlayParityContract {
     awaitIdle()
     withContext(Dispatchers.Default) { delay(1) }
   }
+
+  // A node running past the window's edge is captured short, and its rows no longer line up with the other stage's.
+  private fun PixelMap.fullSize(tag: String): PixelMap =
+    apply {
+      withClue("the $tag stage's capture, a node past the window's edge is captured short") {
+        IntSize(width, height) shouldBe IntSize(BOX_WIDTH, STAGE_HEIGHT)
+      }
+    }
 
   // Where each sampled point lands on a stage showing its picture at [picture].
   private class Points(
@@ -209,10 +217,11 @@ abstract class ComposedOverlayParityContract {
     val PLATE = Color(0xFFE04020)
     val MARKER = Color(0xFF2060E0)
 
-    // The box is wider than the stage inside it, so a strip past the frame's right edge is the box's own black.
-    const val STAGE_WIDTH = 320
-    const val STAGE_HEIGHT = 180
-    const val BOX_WIDTH = 360
+    // The box is wider than the stage inside it, so a strip past the frame's right edge is the box's own black. Both
+    // stages fit the 320 by 640 screen of CI's emulator.
+    const val STAGE_WIDTH = 256
+    const val STAGE_HEIGHT = 144
+    const val BOX_WIDTH = 288
 
     // The plate is 200 by 60 dp and the marker 40 dp square, 10 dp in from its start, at the layout density of 3.
     const val PLATE_WIDTH_PX = 600f
@@ -221,8 +230,9 @@ abstract class ComposedOverlayParityContract {
     const val MARKER_FROM_CENTRE_PX = -210f
     const val MARGIN_PX = 6f
 
-    // An Android test window reads its action bar over the top of the content, so the stages start below it.
-    const val WINDOW_TOP = 300
+    // The action bar covers the top of a test window on edge to edge levels, 275 px on a 2.625 density phone, so the
+    // stages start below it in dp.
+    val WINDOW_TOP = 110.dp
 
     const val LIVE = "live"
     const val BAKED = "baked"
