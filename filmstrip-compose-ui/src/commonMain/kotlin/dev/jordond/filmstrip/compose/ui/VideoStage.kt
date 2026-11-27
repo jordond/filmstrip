@@ -43,8 +43,8 @@ import androidx.compose.ui.geometry.Size as ComposeSize
  * ahead of the video. [outputAspect] carries the shape until a player has one, and on its own where there is no player
  * at all.
  *
- * A null [player] is the whole signal for the [fallback] slot. A host whose preview stopped passes null and draws its own
- * stand-in at the same letterboxed size rather than passing a player it does not want rendered.
+ * A null [player] is the whole signal for the [fallback] slot. A host whose preview stopped passes null and draws its
+ * own stand-in at the same letterboxed size rather than passing a player it does not want rendered.
  *
  * ```
  * val composition = remember(source) { compositionOf { clip(source) } }

@@ -110,6 +110,7 @@ jobs:
           :internal:docs-samples:compileKotlinIosArm64
           :sample:tryIt:compileKotlinWasmJs
           :sample:playground:compileKotlinWasmJs
+          :sample:stories:shared:compileKotlinWasmJs
 
       - name: Build logic tests
         run: ./gradlew -p build-logic :convention:test
@@ -188,7 +189,7 @@ jobs:
       - *java
       - *gradle
       - name: Run android host tests and build the sample
-        run: ./gradlew testAndroidHostTest :sample:demo:androidApp:assembleDebug --scan
+        run: ./gradlew testAndroidHostTest :sample:demo:androidApp:assembleDebug :sample:stories:androidApp:assembleDebug --scan
       - *slowest
       - *failed
       - *artifact
@@ -272,8 +273,11 @@ jobs:
         run: >-
           ./gradlew --scan
           :sample:demo:androidApp:assembleDebug
+          :sample:stories:androidApp:assembleDebug
           :sample:common:jvmTest
           :sample:demo:shared:jvmTest
+          :sample:stories:shared:jvmTest
+          :sample:stories:desktopApp:compileKotlinJvm
           :sample:tryIt:jvmTest
           :sample:tryIt:compileKotlinWasmJs
           :sample:playground:jvmTest

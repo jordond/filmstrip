@@ -85,7 +85,7 @@ jobs:
       - &wasm
         name: Build the wasm sample
         working-directory: .
-        run: ./gradlew :sample:demo:webApp:wasmJsBrowserDistribution :sample:tryIt:wasmJsBrowserDistribution :sample:playground:wasmJsBrowserDistribution
+        run: ./gradlew :sample:demo:webApp:wasmJsBrowserDistribution :sample:tryIt:wasmJsBrowserDistribution :sample:playground:wasmJsBrowserDistribution :sample:stories:webApp:wasmJsBrowserDistribution
       - &node
         name: Install Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0

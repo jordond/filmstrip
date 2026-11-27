@@ -49,6 +49,7 @@ kotlin {
 
     commonMain.dependencies {
       api(projects.filmstrip)
+      implementation(projects.filmstripComposeUi)
       implementation(libs.compose.runtime)
       implementation(libs.compose.foundation)
       implementation(libs.compose.material3)

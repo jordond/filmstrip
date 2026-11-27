@@ -1,4 +1,4 @@
-package dev.jordond.filmstrip.sample.ui.screen
+package dev.jordond.filmstrip.sample
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -23,17 +23,23 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import dev.jordond.filmstrip.sample.StorySticker
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sin
+
+/**
+ * The stickers the samples offer, each drawn in Compose as a shape or a small badge.
+ *
+ * [StoryStickerArt] draws one, live on a stage and inside a capture alike.
+ */
+public enum class StorySticker { Heart, Star, Sparkle, Rec, Arrow }
 
 /**
  * Draws [sticker] in Compose. The REC badge is a row of a dot and text, every other sticker is an outlined shape 72 dp
  * across.
  */
 @Composable
-internal fun StoryStickerArt(sticker: StorySticker) {
+public fun StoryStickerArt(sticker: StorySticker) {
   when (sticker) {
     StorySticker.Rec -> RecBadge()
     else -> Canvas(Modifier.size(STICKER_SIZE)) { drawSticker(sticker) }

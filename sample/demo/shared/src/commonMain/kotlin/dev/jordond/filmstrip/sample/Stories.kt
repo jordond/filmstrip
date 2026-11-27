@@ -8,11 +8,8 @@ import androidx.compose.runtime.setValue
 import dev.jordond.filmstrip.compose.overlay.OverlayCanvas
 import dev.jordond.filmstrip.compose.overlay.OverlayCapturer
 import dev.jordond.filmstrip.compose.overlay.OverlayTransform
-import dev.jordond.filmstrip.compose.ui.ComposedOverlayDefaults
 import dev.jordond.filmstrip.effects.overlay.ImageOverlay
 import dev.jordond.filmstrip.geometry.Size
-import kotlin.math.log2
-import kotlin.math.pow
 
 /**
  * What a story element shows.
@@ -34,11 +31,6 @@ internal sealed interface StoryContent {
  * The faces a caption can take, each one of the fonts bundled with the demo's theme.
  */
 internal enum class StoryFont { Display, Type, Pixel }
-
-/**
- * The stickers the demo offers, each drawn in Compose as a shape or a small badge.
- */
-internal enum class StorySticker { Heart, Star, Sparkle, Rec, Arrow }
 
 /**
  * One element on the story, where it sits and when it shows.
@@ -139,35 +131,3 @@ public class StoryOverlays {
     onChange()
   }
 }
-
-/**
- * Where [scale] sits on the demo's size slider, which counts doublings of the scale. A step of one doubles it and a
- * step of minus one halves it.
- */
-internal fun sizeStepOf(scale: Float): Float =
-  log2(scale.coerceIn(ComposedOverlayDefaults.MIN_SCALE, ComposedOverlayDefaults.MAX_SCALE))
-
-/**
- * The scale the size slider at [step] asks for, held inside the bounds a pinch keeps to.
- */
-internal fun scaleOfStep(step: Float): Float =
-  2f.pow(step).coerceIn(ComposedOverlayDefaults.MIN_SCALE, ComposedOverlayDefaults.MAX_SCALE)
-
-/**
- * The range of the size slider, from the smallest scale a pinch allows to the largest.
- */
-internal val SIZE_STEPS: ClosedFloatingPointRange<Float> =
-  log2(ComposedOverlayDefaults.MIN_SCALE)..log2(ComposedOverlayDefaults.MAX_SCALE)
-
-/**
- * [degrees] as the same turn inside -180 to 180, the range of the demo's turn slider. A turn already inside it comes
- * back unchanged.
- */
-internal fun turnOf(degrees: Float): Float {
-  if (degrees in -HALF_TURN..HALF_TURN) return degrees
-  val wrapped = degrees.mod(FULL_TURN)
-  return if (wrapped > HALF_TURN) wrapped - FULL_TURN else wrapped
-}
-
-private const val HALF_TURN = 180f
-private const val FULL_TURN = 360f

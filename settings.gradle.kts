@@ -77,6 +77,10 @@ include(
   ":sample:demo:androidApp",
   ":sample:demo:desktopApp",
   ":sample:demo:webApp",
+  ":sample:stories:shared",
+  ":sample:stories:androidApp",
+  ":sample:stories:desktopApp",
+  ":sample:stories:webApp",
   ":sample:tryIt",
   ":sample:playground",
 )

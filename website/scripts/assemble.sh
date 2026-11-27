@@ -2,9 +2,10 @@
 # Usage: assemble.sh [--skip-api] [--skip-demo]
 # Builds one version of the site into website/dist-version, the one FILMSTRIP_DOCS_VERSION names or the development
 # version, then copies in the Dokka HTML as /api, the wasm sample as /demo/app, the Try it
-# app as /demo/try and the docs playground as /demo/playground. All must be built first, with `./gradlew dokkaGenerate`,
-# `./gradlew :sample:demo:webApp:wasmJsBrowserDistribution`, `./gradlew :sample:tryIt:wasmJsBrowserDistribution` and
-# `./gradlew :sample:playground:wasmJsBrowserDistribution`.
+# app as /demo/try, the docs playground as /demo/playground and the stories sample as /demo/stories. All must be built
+# first, with `./gradlew dokkaGenerate`, `./gradlew :sample:demo:webApp:wasmJsBrowserDistribution`,
+# `./gradlew :sample:tryIt:wasmJsBrowserDistribution`, `./gradlew :sample:playground:wasmJsBrowserDistribution` and
+# `./gradlew :sample:stories:webApp:wasmJsBrowserDistribution`.
 # The skip flags are for a local preview without one of them, never for a deploy.
 # scripts/assemble-versions.ts then puts the versions together in website/dist, which is what gets deployed.
 set -euo pipefail
@@ -15,6 +16,7 @@ api="$root/dokka"
 demo="$root/sample/demo/webApp/build/dist/wasmJs/productionExecutable"
 try="$root/sample/tryIt/build/dist/wasmJs/productionExecutable"
 playground="$root/sample/playground/build/dist/wasmJs/productionExecutable"
+stories="$root/sample/stories/webApp/build/dist/wasmJs/productionExecutable"
 
 skip_api=false
 skip_demo=false
@@ -45,6 +47,10 @@ if ! $skip_demo && [ ! -f "$playground/index.html" ]; then
   echo "No playground at $playground. Run ./gradlew :sample:playground:wasmJsBrowserDistribution, or pass --skip-demo." >&2
   exit 1
 fi
+if ! $skip_demo && [ ! -f "$stories/index.html" ]; then
+  echo "No stories sample at $stories. Run ./gradlew :sample:stories:webApp:wasmJsBrowserDistribution, or pass --skip-demo." >&2
+  exit 1
+fi
 
 cd "$website"
 bun x astro build
@@ -65,4 +71,6 @@ if ! $skip_demo; then
   cp -R "$try" dist-version/demo/try
   rm -rf dist-version/demo/playground
   cp -R "$playground" dist-version/demo/playground
+  rm -rf dist-version/demo/stories
+  cp -R "$stories" dist-version/demo/stories
 fi

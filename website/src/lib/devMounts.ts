@@ -13,6 +13,7 @@ export const BUILT_MOUNTS: Record<string, string> = {
   '/demo/app/': 'sample/demo/webApp/build/dist/wasmJs/productionExecutable',
   '/demo/try/': 'sample/tryIt/build/dist/wasmJs/productionExecutable',
   '/demo/playground/': 'sample/playground/build/dist/wasmJs/productionExecutable',
+  '/demo/stories/': 'sample/stories/webApp/build/dist/wasmJs/productionExecutable',
 }
 
 /** Files scripts/assemble.sh builds from the site's own sources, which the dev server compiles on request. */

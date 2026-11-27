@@ -35,6 +35,7 @@ import dev.jordond.filmstrip.sample.StoryContent
 import dev.jordond.filmstrip.sample.StoryElement
 import dev.jordond.filmstrip.sample.StoryFont
 import dev.jordond.filmstrip.sample.StorySticker
+import dev.jordond.filmstrip.sample.StoryStickerArt
 import dev.jordond.filmstrip.sample.scaleOfStep
 import dev.jordond.filmstrip.sample.sizeStepOf
 import dev.jordond.filmstrip.sample.turnOf

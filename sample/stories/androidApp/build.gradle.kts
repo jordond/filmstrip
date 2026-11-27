@@ -1,0 +1,49 @@
+plugins {
+  id("filmstrip.internal")
+  alias(libs.plugins.android.application)
+  alias(libs.plugins.compose)
+  alias(libs.plugins.compose.compiler)
+}
+
+android {
+  namespace = "dev.jordond.filmstrip.sample.stories"
+  compileSdk =
+    libs.versions.sdk.compile
+      .get()
+      .toInt()
+
+  defaultConfig {
+    applicationId = "dev.jordond.filmstrip.stories"
+    minSdk =
+      libs.versions.sdk.min
+        .get()
+        .toInt()
+    targetSdk =
+      libs.versions.sdk.target
+        .get()
+        .toInt()
+    versionCode = 1
+    versionName =
+      libs.versions.sample.version
+        .get()
+  }
+
+  buildTypes {
+    release {
+      isMinifyEnabled = true
+      isShrinkResources = true
+      proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"))
+      signingConfig = signingConfigs.getByName("debug")
+    }
+  }
+
+  compileOptions {
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+  }
+}
+
+dependencies {
+  implementation(projects.sample.stories.shared)
+  implementation(libs.androidx.activity.compose)
+}

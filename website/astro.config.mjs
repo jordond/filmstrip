@@ -93,8 +93,10 @@ export default defineConfig({
         },
       },
       plugins: [
-        // /api and /demo/app are copied into dist after astro build, so the validator can't see them.
-        starlightLinksValidator({ exclude: ['/api', '/api/**', '/demo/app', '/demo/app/**'] }),
+        // /api, /demo/app and /demo/stories are copied into dist after astro build, so the validator can't see them.
+        starlightLinksValidator({
+          exclude: ['/api', '/api/**', '/demo/app', '/demo/app/**', '/demo/stories', '/demo/stories/**'],
+        }),
         starlightLlmsTxt({
           projectName: 'filmstrip',
           description:
