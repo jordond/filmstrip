@@ -54,10 +54,18 @@ internal data class ComposedSettings(
 }
 
 /**
- * A summary of [settings] for the status line.
+ * A summary of [settings] for the status line, naming the mouse and keyboard controls once a [mouse] has been seen
+ * over the picture.
  */
-internal fun composedSummary(settings: ComposedSettings): String =
-  if (settings.baked) "BAKED INTO THE EDIT" else "LIVE · DRAG PINCH TURN"
+internal fun composedSummary(
+  settings: ComposedSettings,
+  mouse: Boolean,
+): String =
+  when {
+    settings.baked -> "BAKED INTO THE EDIT"
+    mouse -> "LIVE · DRAG · WHEEL · KEYS"
+    else -> "LIVE · DRAG PINCH TURN"
+  }
 
 /**
  * The Kotlin that places and bakes the elements of [settings].

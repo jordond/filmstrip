@@ -1,6 +1,6 @@
 ---
 title: Overlays
-description: Write an overlay in Compose, move, pinch and turn it on the stage, and bake it into the export.
+description: Write an overlay in Compose, move, size and turn it on the stage by touch, mouse or keyboard, and bake it into the export.
 playground:
   sample: composed
   label: A caption and a REC badge to drag, pinch, turn and bake
@@ -40,6 +40,36 @@ read on the stage. A drag holds the element's centre on the frame and a pinch ho
 `ComposedOverlayDefaults.MIN_SCALE` and `MAX_SCALE`. Only a touch on the turned element is taken, so several stacked on
 one stage each get their own. `onSelect` hears which one was touched, and the sample keeps that index as the selected
 title. Pass `enabled = false` to show an element without taking touches.
+
+## Mouse and keyboard
+
+A mouse can't pinch or twist, so a selected element shows two handles. A drag on the one at its bottom corner scales it
+about its centre, and a drag on the one above its top edge turns it. The turn handle moves below the element when
+above would be off the stage. `handles` says when they show.
+`ComposedOverlayHandles.Auto`, the default, shows them once a mouse or a hovering stylus has been over an element of
+the stage and hides them again when a finger touches one. `Always` and `Never` do what they say.
+
+Over a selected element the wheel scales it, and turns it with Shift held. The wheel is only taken there, so the page
+still scrolls everywhere else.
+
+`Modifier.composedOverlayKeys` gives the keyboard the same steps. It makes its node focusable and never takes focus by
+itself, so request focus when an element is selected.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/compose/ComposedOverlays.kt" region="keys" />
+
+| Input | Does | With Shift |
+| --- | --- | --- |
+| Wheel | Scales by `WHEEL_STEP` a notch, an eighth of a doubling | Turns by `TURN_STEP`, 5 degrees a notch |
+| Arrows | Move the centre by `NUDGE`, 0.5% of the frame | `COARSE_NUDGE`, 5% |
+| `+` and `-` | Scale by `WHEEL_STEP` | The same |
+| `[` and `]` | Turn by `KEY_TURN_STEP`, 1 degree | `COARSE_KEY_TURN_STEP`, 15 degrees |
+
+The figures are constants on `ComposedOverlayDefaults`. Every step goes through the limits a drag and a pinch are held
+to. Delete, Escape and undo are left to you, since the element list is yours.
+
+`onGestureChange` reports `true` when a touch or a handle drag takes the element and `false` when it ends, which is
+when to open an undo step or show a bin to drop the element on. A wheel notch and a key press are one step each and
+don't report.
 
 ## Bake it
 

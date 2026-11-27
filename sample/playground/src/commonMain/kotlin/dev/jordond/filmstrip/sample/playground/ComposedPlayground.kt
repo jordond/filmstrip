@@ -24,10 +24,17 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.PointerType
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.compose.overlay.OverlayCanvas
@@ -39,6 +46,7 @@ import dev.jordond.filmstrip.compose.rememberFilmstripPlayer
 import dev.jordond.filmstrip.compose.ui.ComposedOverlayDefaults
 import dev.jordond.filmstrip.compose.ui.VideoStage
 import dev.jordond.filmstrip.compose.ui.component.ComposedOverlay
+import dev.jordond.filmstrip.compose.ui.interaction.composedOverlayKeys
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.effects.overlay.ImageOverlay
@@ -67,6 +75,7 @@ internal fun ComposedPlayground(
   copy: (String) -> Unit,
 ) {
   var settings by remember { mutableStateOf(ComposedSettings()) }
+  var mouse by remember { mutableStateOf(false) }
   val capturer = rememberOverlayCapturer()
   OverlayCaptureHost(capturer)
 
@@ -75,8 +84,8 @@ internal fun ComposedPlayground(
       modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
       verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-      StatusLine(compare = false, composedSummary(settings), "OUT 16:9")
-      ComposedPicture(filmstrip, capturer, settings) { settings = it }
+      StatusLine(compare = false, composedSummary(settings, mouse), "OUT 16:9")
+      ComposedPicture(filmstrip, capturer, settings, onMouse = { mouse = true }) { settings = it }
       tearsOfSteel.attribution?.let { credit ->
         Text("${tearsOfSteel.name} · $credit", style = MaterialTheme.typography.bodySmall, color = Tokens.muted)
       }
@@ -91,8 +100,11 @@ private fun ComposedPicture(
   filmstrip: Filmstrip,
   capturer: OverlayCapturer,
   settings: ComposedSettings,
+  onMouse: () -> Unit,
   onChange: (ComposedSettings) -> Unit,
 ) {
+  val focus = remember { FocusRequester() }
+  val currentOnMouse by rememberUpdatedState(onMouse)
   var attempt by remember { mutableIntStateOf(0) }
   var source by remember { mutableStateOf<MediaSource?>(null) }
   var failure by remember { mutableStateOf<String?>(null) }
@@ -113,7 +125,22 @@ private fun ComposedPicture(
         .fillMaxWidth()
         .aspectRatio(16f / 9f)
         .background(Tokens.screen)
-        .border(1.dp, Tokens.line),
+        .border(1.dp, Tokens.line)
+        // A press on the picture hands it the keyboard, so the keys move whichever element is selected.
+        .pointerInput(Unit) {
+          awaitPointerEventScope {
+            while (true) {
+              val event = awaitPointerEvent(PointerEventPass.Initial)
+              if (event.changes.any { it.type == PointerType.Mouse }) currentOnMouse()
+              if (event.type == PointerEventType.Press) focus.requestFocus()
+            }
+          }
+        }.focusRequester(focus)
+        .composedOverlayKeys(
+          transform = settings.transformOf(settings.selected),
+          onTransformChange = { onChange(settings.with(settings.selected, it)) },
+          enabled = !settings.baked,
+        ),
     contentAlignment = Alignment.Center,
   ) {
     val loaded = source

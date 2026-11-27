@@ -17,9 +17,24 @@ public final class dev/jordond/filmstrip/compose/ui/ComposableSingletons$VideoSt
 
 public final class dev/jordond/filmstrip/compose/ui/ComposedOverlayDefaults {
 	public static final field $stable I
+	public static final field COARSE_KEY_TURN_STEP F
+	public static final field COARSE_NUDGE F
 	public static final field INSTANCE Ldev/jordond/filmstrip/compose/ui/ComposedOverlayDefaults;
+	public static final field KEY_TURN_STEP F
 	public static final field MAX_SCALE F
 	public static final field MIN_SCALE F
+	public static final field NUDGE F
+	public static final field TURN_STEP F
+	public static final field WHEEL_STEP F
+}
+
+public final class dev/jordond/filmstrip/compose/ui/ComposedOverlayHandles : java/lang/Enum {
+	public static final field Always Ldev/jordond/filmstrip/compose/ui/ComposedOverlayHandles;
+	public static final field Auto Ldev/jordond/filmstrip/compose/ui/ComposedOverlayHandles;
+	public static final field Never Ldev/jordond/filmstrip/compose/ui/ComposedOverlayHandles;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Ldev/jordond/filmstrip/compose/ui/ComposedOverlayHandles;
+	public static fun values ()[Ldev/jordond/filmstrip/compose/ui/ComposedOverlayHandles;
 }
 
 public final class dev/jordond/filmstrip/compose/ui/CropColors {
@@ -86,7 +101,10 @@ public final class dev/jordond/filmstrip/compose/ui/OverlayHandleDefaults {
 	public final fun colors-ysEtTa8 (JJJ)Ldev/jordond/filmstrip/compose/ui/OverlayHandleColors;
 	public static synthetic fun colors-ysEtTa8$default (Ldev/jordond/filmstrip/compose/ui/OverlayHandleDefaults;JJJILjava/lang/Object;)Ldev/jordond/filmstrip/compose/ui/OverlayHandleColors;
 	public final fun getHandleLength-D9Ej5fM ()F
+	public final fun getHandleTouchSize-D9Ej5fM ()F
+	public final fun getKnobRadius-D9Ej5fM ()F
 	public final fun getPalette ()Ldev/jordond/filmstrip/compose/ui/OverlayHandleColors;
+	public final fun getStalkLength-D9Ej5fM ()F
 }
 
 public final class dev/jordond/filmstrip/compose/ui/TimelineColors {
@@ -169,9 +187,9 @@ public abstract interface class dev/jordond/filmstrip/compose/ui/VideoStageScope
 public final class dev/jordond/filmstrip/compose/ui/component/ComposableSingletons$ComposedOverlayKt {
 	public static final field INSTANCE Ldev/jordond/filmstrip/compose/ui/component/ComposableSingletons$ComposedOverlayKt;
 	public fun <init> ()V
-	public final fun getLambda$-1056953367$filmstrip_root_filmstrip_compose_ui ()Lkotlin/jvm/functions/Function2;
 	public final fun getLambda$-1383515603$filmstrip_root_filmstrip_compose_ui ()Lkotlin/jvm/functions/Function3;
 	public final fun getLambda$2019457683$filmstrip_root_filmstrip_compose_ui ()Lkotlin/jvm/functions/Function2;
+	public final fun getLambda$846710311$filmstrip_root_filmstrip_compose_ui ()Lkotlin/jvm/functions/Function2;
 }
 
 public final class dev/jordond/filmstrip/compose/ui/component/ComposableSingletons$CropOverlayKt {
@@ -224,7 +242,7 @@ public final class dev/jordond/filmstrip/compose/ui/component/ComposableSingleto
 }
 
 public final class dev/jordond/filmstrip/compose/ui/component/ComposedOverlayKt {
-	public static final fun ComposedOverlay-XFD2ZOI (Ldev/jordond/filmstrip/compose/ui/VideoStageScope;Ldev/jordond/filmstrip/compose/overlay/OverlayTransform;Ldev/jordond/filmstrip/compose/overlay/OverlayCanvas;Ldev/jordond/filmstrip/geometry/Size;Lkotlin/jvm/functions/Function1;Landroidx/compose/ui/Modifier;ZLkotlin/jvm/functions/Function0;Ldev/jordond/filmstrip/compose/ui/OverlayHandleColors;FZLkotlin/jvm/functions/Function2;Landroidx/compose/runtime/Composer;III)V
+	public static final fun ComposedOverlay-WsuR4So (Ldev/jordond/filmstrip/compose/ui/VideoStageScope;Ldev/jordond/filmstrip/compose/overlay/OverlayTransform;Ldev/jordond/filmstrip/compose/overlay/OverlayCanvas;Ldev/jordond/filmstrip/geometry/Size;Lkotlin/jvm/functions/Function1;Landroidx/compose/ui/Modifier;ZLkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function1;Ldev/jordond/filmstrip/compose/ui/OverlayHandleColors;FZLdev/jordond/filmstrip/compose/ui/ComposedOverlayHandles;Lkotlin/jvm/functions/Function2;Landroidx/compose/runtime/Composer;III)V
 }
 
 public final class dev/jordond/filmstrip/compose/ui/component/CropOverlayKt {
@@ -325,6 +343,11 @@ public final class dev/jordond/filmstrip/compose/ui/geometry/TimelineZoom$Compan
 	public final fun fitting-VtjQ1oo (JF)Ldev/jordond/filmstrip/compose/ui/geometry/TimelineZoom;
 	public final fun getSteps ()Lkotlin/ranges/IntRange;
 	public final fun of (I)Ldev/jordond/filmstrip/compose/ui/geometry/TimelineZoom;
+}
+
+public final class dev/jordond/filmstrip/compose/ui/interaction/ComposedOverlayKeysKt {
+	public static final fun composedOverlayKeys (Landroidx/compose/ui/Modifier;Ldev/jordond/filmstrip/compose/overlay/OverlayTransform;Lkotlin/jvm/functions/Function1;Z)Landroidx/compose/ui/Modifier;
+	public static synthetic fun composedOverlayKeys$default (Landroidx/compose/ui/Modifier;Ldev/jordond/filmstrip/compose/overlay/OverlayTransform;Lkotlin/jvm/functions/Function1;ZILjava/lang/Object;)Landroidx/compose/ui/Modifier;
 }
 
 public abstract interface class dev/jordond/filmstrip/compose/ui/interaction/CropConstraint {

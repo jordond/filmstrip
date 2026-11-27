@@ -1,6 +1,7 @@
 package dev.jordond.filmstrip.docs.compose
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
@@ -11,6 +12,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
@@ -22,8 +25,10 @@ import dev.jordond.filmstrip.compose.overlay.OverlayCapturer
 import dev.jordond.filmstrip.compose.overlay.OverlayTransform
 import dev.jordond.filmstrip.compose.overlay.rememberOverlayCapturer
 import dev.jordond.filmstrip.compose.rememberFilmstripPlayer
+import dev.jordond.filmstrip.compose.ui.ComposedOverlayHandles
 import dev.jordond.filmstrip.compose.ui.VideoStage
 import dev.jordond.filmstrip.compose.ui.component.ComposedOverlay
+import dev.jordond.filmstrip.compose.ui.interaction.composedOverlayKeys
 import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.compositionOf
@@ -75,6 +80,33 @@ internal fun StoryEditor(
         onTransformChange = { next -> elements = elements.toMutableList().also { it[index] = next } },
         selected = index == selected,
         onSelect = { selected = index },
+      ) { TitleCard() }
+    }
+  }
+  // endregion
+}
+
+@Composable
+internal fun KeyedStage(
+  transform: OverlayTransform,
+  canvas: OverlayCanvas,
+  output: Size,
+  aspect: Float,
+  onTransformChange: (OverlayTransform) -> Unit,
+) {
+  // region keys
+  val focus = remember { FocusRequester() }
+
+  Box(Modifier.focusRequester(focus).composedOverlayKeys(transform, onTransformChange)) {
+    VideoStage(player = null, outputAspect = aspect) {
+      ComposedOverlay(
+        transform = transform,
+        canvas = canvas,
+        output = output,
+        onTransformChange = onTransformChange,
+        selected = true,
+        onSelect = { focus.requestFocus() },
+        handles = ComposedOverlayHandles.Auto,
       ) { TitleCard() }
     }
   }

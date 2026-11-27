@@ -25,16 +25,20 @@ import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.input.pointer.AwaitPointerEventScope
 import androidx.compose.ui.input.pointer.PointerEvent
 import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.PointerId
+import androidx.compose.ui.input.pointer.isShiftPressed
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.layout.Layout
-import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.onPlaced
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.compose.overlay.OverlayCanvas
@@ -44,16 +48,16 @@ import dev.jordond.filmstrip.compose.overlay.OverlayTransform
 import dev.jordond.filmstrip.compose.overlay.constraintsFor
 import dev.jordond.filmstrip.compose.overlay.drawnScale
 import dev.jordond.filmstrip.compose.ui.ComposedOverlayDefaults
+import dev.jordond.filmstrip.compose.ui.ComposedOverlayHandles
 import dev.jordond.filmstrip.compose.ui.OverlayHandleColors
 import dev.jordond.filmstrip.compose.ui.OverlayHandleDefaults
 import dev.jordond.filmstrip.compose.ui.VideoStage
 import dev.jordond.filmstrip.compose.ui.VideoStageScope
 import dev.jordond.filmstrip.geometry.Anchor
 import dev.jordond.filmstrip.geometry.Size
-import kotlin.math.PI
-import kotlin.math.atan2
 import kotlin.math.floor
 import kotlin.math.min
+import kotlin.math.roundToInt
 import androidx.compose.ui.geometry.Size as DrawSize
 
 /**
@@ -66,7 +70,10 @@ import androidx.compose.ui.geometry.Size as DrawSize
  * Controlled, so a gesture reports the transform it wants through [onTransformChange] and the element moves only when
  * a [transform] carrying it comes back. A drag moves the centre and holds it on the picture, a pinch multiplies the
  * scale inside [ComposedOverlayDefaults.MIN_SCALE] and [ComposedOverlayDefaults.MAX_SCALE], and a twist adds to the
- * rotation. Only a touch that lands on the turned element where it is drawn on the picture is taken, so a stage can
+ * rotation. A mouse does the same through the handles a selected element shows, a drag on the corner one scaling it
+ * and a drag on the one above it turning it. Over a selected element the wheel scales by
+ * [ComposedOverlayDefaults.WHEEL_STEP] a notch, and turns by [ComposedOverlayDefaults.TURN_STEP] a notch with Shift
+ * held. Only a touch that lands on the turned element where it is drawn on the picture is taken, so a stage can
  * stack several and the touch goes to the topmost one under the finger. Every other touch passes to what lies beneath.
  *
  * ```
@@ -91,9 +98,12 @@ import androidx.compose.ui.geometry.Size as DrawSize
  * @param modifier Modifier for the element's layer, which fills the stage.
  * @param selected Whether the element draws the wash, outline and corner brackets around itself.
  * @param onSelect Called when a touch lands on the element.
+ * @param onGestureChange Called with true when a touch takes the element and with false when its last finger lifts
+ * or the gesture is cancelled.
  * @param colors What the selection is painted with.
  * @param handleLength How long a corner bracket's arms are drawn.
  * @param enabled Whether the element answers a touch.
+ * @param handles When a selected element shows the size and turn handles a mouse sizes and turns it with.
  * @param content The element, drawn the way it is baked.
  */
 @OptIn(InternalFilmstripApi::class)
@@ -106,20 +116,38 @@ public fun VideoStageScope.ComposedOverlay(
   modifier: Modifier = Modifier,
   selected: Boolean = false,
   onSelect: () -> Unit = { },
+  onGestureChange: (Boolean) -> Unit = { },
   colors: OverlayHandleColors = OverlayHandleDefaults.Palette,
   handleLength: Dp = OverlayHandleDefaults.HandleLength,
   enabled: Boolean = true,
+  handles: ComposedOverlayHandles = ComposedOverlayHandles.Auto,
   content: @Composable () -> Unit,
 ) {
   val picture = frame.contentRect
   val density = LocalDensity.current
   val handleLengthPx = with(density) { handleLength.toPx() }
+  val knobPx = with(density) { OverlayHandleDefaults.KnobRadius.toPx() }
+  val stalkPx = with(density) { OverlayHandleDefaults.StalkLength.toPx() }
+  val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
+  val pointer = LocalStagePointer.current ?: remember { StagePointer() }
+  val handled =
+    enabled &&
+      selected &&
+      when (handles) {
+        ComposedOverlayHandles.Auto -> pointer.fine
+        ComposedOverlayHandles.Always -> true
+        ComposedOverlayHandles.Never -> false
+      }
   var laidOut by remember { mutableStateOf(IntSize.Zero) }
   val element = ElementOnStage(transform, picture, transform.drawnScale(canvas, picture.width))
 
   val current by rememberUpdatedState(element)
   val currentOnChange by rememberUpdatedState(onTransformChange)
   val currentOnSelect by rememberUpdatedState(onSelect)
+  val currentOnGesture by rememberUpdatedState(onGestureChange)
+  val currentSelected by rememberUpdatedState(selected)
+  // The element is laid out at the layout density, so the screen's own is carried in for the wheel.
+  val stageDensity by rememberUpdatedState(density.density)
   val placed = remember { Placed() }
   // The gesture sits on the turned element itself, so the touch is hit tested against what is drawn and the topmost
   // element under the finger takes it. Positions are read back on the stage, since the element turns under the finger.
@@ -127,23 +155,43 @@ public fun VideoStageScope.ComposedOverlay(
     if (!enabled) {
       Modifier
     } else {
-      Modifier.pointerInput(Unit) {
-        awaitEachGesture {
-          val down = awaitFirstDown()
-          // The part of an element off the picture is clipped away, so a touch there is not on the element.
-          val onStage = placed.onStage(down.position) ?: return@awaitEachGesture
-          if (!current.picture.contains(onStage)) return@awaitEachGesture
-          down.consume()
-          currentOnSelect()
-          follow(current, placed, mutableMapOf(down.id to onStage)) { next -> currentOnChange(next) }
+      Modifier
+        .pointerInput(pointer) {
+          awaitPointerEventScope {
+            while (true) {
+              val event = awaitPointerEvent()
+              pointer.note(event)
+              if (event.type == PointerEventType.Scroll && currentSelected) {
+                event.wheelOn(current, placed, stageDensity)?.let { next -> currentOnChange(next) }
+              }
+            }
+          }
+        }.pointerInput(Unit) {
+          awaitEachGesture {
+            val down = awaitFirstDown()
+            // The part of an element off the picture is clipped away, so a touch there is not on the element.
+            val onStage = placed.onStage(down.position) ?: return@awaitEachGesture
+            if (!current.picture.contains(onStage)) return@awaitEachGesture
+            down.consume()
+            currentOnSelect()
+            currentOnGesture(true)
+            try {
+              follow(current, placed, mutableMapOf(down.id to onStage)) { next -> currentOnChange(next) }
+            } finally {
+              currentOnGesture(false)
+            }
+          }
         }
-      }
     }
 
   Layout(
     content = {
       CompositionLocalProvider(LocalDensity provides OverlayLayoutDensity) {
         Box(Modifier.onPlaced { placed.element = it }.then(gestures)) { content() }
+      }
+      if (handled) {
+        HandleTarget(HandleKind.Size, placed, { current }, { currentOnChange(it) }, { currentOnGesture(it) })
+        HandleTarget(HandleKind.Turn, placed, { current }, { currentOnChange(it) }, { currentOnGesture(it) })
       }
     },
     modifier =
@@ -155,9 +203,11 @@ public fun VideoStageScope.ComposedOverlay(
             this@drawWithContent.drawContent()
           }
           if (selected) drawSelection(current, laidOut, colors, handleLengthPx)
+          if (handled) current.handlePoints(laidOut, stalkPx, rtl, size)?.let { drawHandles(it, colors, knobPx) }
         },
   ) { measurables, constraints ->
-    val placeable = measurables.single().measure(canvas.constraintsFor(output))
+    val placeable = measurables.first().measure(canvas.constraintsFor(output))
+    val targets = measurables.drop(1).map { it.measure(Constraints()) }
     laidOut = IntSize(placeable.width, placeable.height)
     layout(constraints.maxWidth, constraints.maxHeight) {
       if (picture.width <= 0f || picture.height <= 0f) return@layout
@@ -171,52 +221,30 @@ public fun VideoStageScope.ComposedOverlay(
         rotationZ = transform.rotationDegrees
         transformOrigin = TransformOrigin.Center
       }
+      val stage = DrawSize(constraints.maxWidth.toFloat(), constraints.maxHeight.toFloat())
+      val points = element.handlePoints(laidOut, stalkPx, rtl, stage) ?: return@layout
+      targets.zip(listOf(points.size, points.turn)).forEach { (target, point) ->
+        target.place((point.x - target.width / 2f).roundToInt(), (point.y - target.height / 2f).roundToInt())
+      }
     }
   }
 }
 
-/**
- * Where the stage's layer and the turned element were last placed, to carry a touch from one to the other.
- */
-private class Placed {
-  var stage: LayoutCoordinates? = null
-  var element: LayoutCoordinates? = null
-
-  fun onStage(position: Offset): Offset? {
-    val stage = stage?.takeIf { it.isAttached } ?: return null
-    val element = element?.takeIf { it.isAttached } ?: return null
-    return stage.localPositionOf(element, position)
-  }
-}
-
-/**
- * The element as the stage shows it, in the stage's own pixels.
- */
-private class ElementOnStage(
-  val transform: OverlayTransform,
-  val picture: Rect,
-  val drawnScale: Float,
-) {
-  val centre =
-    Offset(
-      picture.left + transform.center.x * picture.width,
-      picture.top + transform.center.y * picture.height,
-    )
-
-  fun moved(
-    pan: Offset,
-    zoom: Float,
-    turn: Float,
-  ): OverlayTransform =
-    OverlayTransform(
-      center =
-        Anchor(
-          x = (transform.center.x + pan.x / picture.width).coerceIn(0f, 1f),
-          y = (transform.center.y + pan.y / picture.height).coerceIn(0f, 1f),
-        ),
-      scale = (transform.scale * zoom).coerceIn(ComposedOverlayDefaults.MIN_SCALE, ComposedOverlayDefaults.MAX_SCALE),
-      rotationDegrees = transform.rotationDegrees + turn,
-    )
+// The transform a wheel over the element asks for, or null when the wheel is over a part the picture clips away,
+// another node already took it, or it did not move. A wheel with Shift held often reports along x instead of y.
+private fun PointerEvent.wheelOn(
+  element: ElementOnStage,
+  placed: Placed,
+  density: Float,
+): OverlayTransform? {
+  val change = changes.firstOrNull()?.takeUnless { it.isConsumed } ?: return null
+  val onStage = placed.onStage(change.position) ?: return null
+  if (!element.picture.contains(onStage)) return null
+  val delta = change.scrollDelta
+  val notches = wheelNotches(if (delta.y != 0f) delta.y else delta.x, density)
+  if (!notches.isFinite() || notches == 0f) return null
+  change.consume()
+  return element.wheeled(notches.coerceIn(-WHEEL_NOTCH_LIMIT, WHEEL_NOTCH_LIMIT), keyboardModifiers.isShiftPressed)
 }
 
 // Sums the gesture from the touch down, so the reported transform never drifts from where the fingers have gone.
@@ -234,7 +262,7 @@ private suspend fun AwaitPointerEventScope.follow(
     if (event.changes.any { it.isConsumed }) break
     val step = event.stepOnStage(placed, last)
     event.consumeMoves()
-    if (step != null && element.picture.width > 0f && element.picture.height > 0f) {
+    if (step != null && !step.isStill && element.picture.width > 0f && element.picture.height > 0f) {
       pan += step.pan
       zoom *= step.zoom
       turn += step.turn
@@ -243,70 +271,6 @@ private suspend fun AwaitPointerEventScope.follow(
     if (event.changes.none { it.pressed }) break
   }
 }
-
-private class Step(
-  val pan: Offset,
-  val zoom: Float,
-  val turn: Float,
-)
-
-// How the fingers down through this event moved, read on the stage. The pan is the centroid's move, the zoom the ratio
-// of their mean distances from it, and the turn their angle about it averaged by distance. Each finger's last position
-// is kept on the stage, since the element moves under the finger and no event comes for a move the element made too.
-// A finger lifting counts, so a move held back that way lands on the release.
-private fun PointerEvent.stepOnStage(
-  placed: Placed,
-  last: MutableMap<PointerId, Offset>,
-): Step? {
-  val onStage = mutableMapOf<PointerId, Offset>()
-  for (change in changes) {
-    if (change.pressed || change.previousPressed) onStage[change.id] = placed.onStage(change.position) ?: return null
-  }
-  val held = onStage.keys.filter { it in last }
-  val now = held.map { onStage.getValue(it) }
-  val before = held.map { last.getValue(it) }
-  last.clear()
-  last.putAll(onStage)
-  if (held.isEmpty()) return null
-  val centreNow = now.centroid()
-  val centreBefore = before.centroid()
-  if (held.size < 2) return Step(centreNow - centreBefore, 1f, 0f)
-
-  val spreadNow = now.sumOf { (it - centreNow).getDistance().toDouble() }
-  val spreadBefore = before.sumOf { (it - centreBefore).getDistance().toDouble() }
-  var weighted = 0.0
-  var weight = 0.0
-  for (index in held.indices) {
-    val from = before[index] - centreBefore
-    val to = now[index] - centreNow
-    val distance = (from.getDistance() + to.getDistance()) / 2.0
-    weighted += (to.angle() - from.angle()).wrapped() * distance
-    weight += distance
-  }
-  return Step(
-    pan = centreNow - centreBefore,
-    zoom = if (spreadBefore > 0.0) (spreadNow / spreadBefore).toFloat() else 1f,
-    turn = if (weight > 0.0) (weighted / weight).toFloat() else 0f,
-  )
-}
-
-private fun List<Offset>.centroid(): Offset = fold(Offset.Zero) { sum, it -> sum + it } / size.toFloat()
-
-private fun Offset.angle(): Double =
-  if (x == 0f &&
-    y == 0f
-  ) {
-    0.0
-  } else {
-    atan2(y.toDouble(), x.toDouble()) * DEGREES_HALF_TURN / PI
-  }
-
-private fun Double.wrapped(): Double =
-  when {
-    this > DEGREES_HALF_TURN -> this - 2 * DEGREES_HALF_TURN
-    this <= -DEGREES_HALF_TURN -> this + 2 * DEGREES_HALF_TURN
-    else -> this
-  }
 
 private fun PointerEvent.consumeMoves() {
   changes.forEach { change -> if (change.positionChanged()) change.consume() }
@@ -350,8 +314,12 @@ private fun ComposedOverlayPreview() {
 private val PreviewElementHeight = 180.dp
 private val PreviewPlate = Color(0xCCE8C15A)
 private const val OUTLINE_WIDTH = 1.5f
+
+/**
+ * The most notches one wheel event may ask for, so one hard flick cannot jump the element to a limit.
+ */
+private const val WHEEL_NOTCH_LIMIT = 4f
 private const val BRACKET_WIDTH = 3f
-private const val DEGREES_HALF_TURN = 180.0
 
 /**
  * How much of the box's shorter side a bracket arm may take, so a small element is not drawn as four crossing arms.

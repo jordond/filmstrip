@@ -17,6 +17,27 @@ public object OverlayHandleDefaults {
   public val HandleLength: Dp = 12.dp
 
   /**
+   * The radius of the round knob a composed overlay element draws for its size handle and its turn handle.
+   *
+   * The knob is grabbed over [HandleTouchSize], which is wider than it is drawn.
+   */
+  public val KnobRadius: Dp = 5.dp
+
+  /**
+   * How far above an element's top edge its turn handle sits, on a stalk drawn from the middle of that edge.
+   *
+   * Measured on the screen, so the stalk keeps its length as the element is scaled.
+   */
+  public val StalkLength: Dp = 24.dp
+
+  /**
+   * The side of the square a size or turn handle is grabbed by, centred on its knob.
+   *
+   * Wider than the knob so a finger or a coarse pointer can still take it.
+   */
+  public val HandleTouchSize: Dp = 24.dp
+
+  /**
    * The palette a handle draws with unless a host passes its own.
    *
    * Built once from [colors] and shared by every handle that falls back to it, across every recomposition a drag runs

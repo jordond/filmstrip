@@ -2,6 +2,7 @@ package dev.jordond.filmstrip.sample.ui.screen
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -12,7 +13,10 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.key
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -22,6 +26,7 @@ import androidx.compose.ui.unit.sp
 import dev.jordond.filmstrip.compose.overlay.OverlayTransform
 import dev.jordond.filmstrip.compose.ui.VideoStageScope
 import dev.jordond.filmstrip.compose.ui.component.ComposedOverlay
+import dev.jordond.filmstrip.compose.ui.interaction.composedOverlayKeys
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.sample.EditState
 import dev.jordond.filmstrip.sample.SIZE_STEPS
@@ -83,6 +88,19 @@ internal fun VideoStageScope.StoryElements(
       ?: Size(picture.width.roundToInt(), picture.height.roundToInt()).takeIf { it.width > 0 && it.height > 0 }
       ?: return
   val colors = sampleHandleColors()
+  val focus = remember { FocusRequester() }
+  val selected = stories.selected
+  // An empty layer under the elements holds the keyboard while the tool is open, so the keys move the selected one.
+  Box(
+    Modifier
+      .matchParentSize()
+      .focusRequester(focus)
+      .composedOverlayKeys(
+        transform = selected?.transform ?: OverlayTransform(),
+        onTransformChange = { next -> selected?.let { held -> stories.update(held.id) { it.copy(transform = next) } } },
+        enabled = interactive && selected != null,
+      ),
+  )
   stories.elements.forEach { element ->
     key(element.id) {
       ComposedOverlay(
@@ -91,7 +109,10 @@ internal fun VideoStageScope.StoryElements(
         output = output,
         onTransformChange = { next -> stories.update(element.id) { it.copy(transform = next) } },
         selected = interactive && stories.selectedId == element.id,
-        onSelect = { stories.selectedId = element.id },
+        onSelect = {
+          stories.selectedId = element.id
+          focus.requestFocus()
+        },
         colors = colors,
         enabled = interactive,
       ) { StoryElementContent(element) }

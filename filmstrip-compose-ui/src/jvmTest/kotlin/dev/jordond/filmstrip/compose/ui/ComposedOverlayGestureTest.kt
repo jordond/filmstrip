@@ -13,6 +13,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
@@ -195,7 +196,118 @@ class ComposedOverlayGestureTest {
       (moves.isNotEmpty()) shouldBe true
     }
 
-  private fun ComposeUiTest.staged(start: OverlayTransform = START): Moves {
+  @Test
+  fun aDragReportsTheGestureOnceBeforeTheFirstMoveAndOnceAfterTheLift() =
+    runComposeUiTest {
+      val log = mutableListOf<String>()
+      staged(onGesture = { log += "gesture $it" }, onMove = { log += "move" })
+
+      onNodeWithTag(STAGE).performTouchInput {
+        down(CENTRE)
+        repeat(STEPS) { moveBy(Offset(STEP_PX, 0f)) }
+      }
+      waitForIdle()
+      withClue("still held") { log.count { it == "gesture false" } shouldBe 0 }
+      onNodeWithTag(STAGE).performTouchInput { up() }
+      waitForIdle()
+
+      log.first() shouldBe "gesture true"
+      log.last() shouldBe "gesture false"
+      log.count { it.startsWith("gesture") } shouldBe 2
+      withClue("moves fall between the two") { log.subList(1, log.size - 1).toSet() shouldBe setOf("move") }
+    }
+
+  @Test
+  fun aTapReportsNoTransform() =
+    runComposeUiTest {
+      val moves = staged()
+
+      onNodeWithTag(STAGE).performTouchInput { click(CENTRE) }
+      waitForIdle()
+
+      moves.all shouldBe emptyList()
+    }
+
+  @Test
+  fun aTouchThatMissesTheElementReportsNoGesture() =
+    runComposeUiTest {
+      val log = mutableListOf<Boolean>()
+      staged(onGesture = { log += it })
+
+      onNodeWithTag(STAGE).performTouchInput {
+        down(Offset(CORNER_PX, CORNER_PX))
+        moveBy(Offset(STEP_PX, 0f))
+        up()
+      }
+      waitForIdle()
+
+      log shouldBe emptyList()
+    }
+
+  @Test
+  fun aGestureTakenAwayByAParentStillReportsItsEnd() =
+    runComposeUiTest {
+      // The desktop test input has no cancel event, so the gesture is cut the other way a real one is, by a parent
+      // consuming the move before the element sees it.
+      val log = mutableListOf<Boolean>()
+      var taking by mutableStateOf(false)
+      setContent {
+        val thief =
+          Modifier.pointerInput(Unit) {
+            awaitPointerEventScope {
+              while (true) {
+                val event = awaitPointerEvent(PointerEventPass.Initial)
+                if (taking) event.changes.forEach { it.consume() }
+              }
+            }
+          }
+        Box(thief) {
+          Stage {
+            ComposedOverlay(START, CANVAS, OUTPUT, onTransformChange = { }, onGestureChange = { log += it }) { Plate() }
+          }
+        }
+      }
+      waitForIdle()
+
+      onNodeWithTag(STAGE).performTouchInput {
+        down(CENTRE)
+        moveBy(Offset(STEP_PX, 0f))
+      }
+      waitForIdle()
+      taking = true
+      onNodeWithTag(STAGE).performTouchInput { moveBy(Offset(STEP_PX, 0f)) }
+      waitForIdle()
+
+      withClue("the finger is still down") { log shouldBe listOf(true, false) }
+    }
+
+  @Test
+  fun anElementLeavingTheStageMidGestureReportsItsEnd() =
+    runComposeUiTest {
+      val log = mutableListOf<Boolean>()
+      var shown by mutableStateOf(true)
+      setContent {
+        Stage {
+          if (shown) {
+            ComposedOverlay(START, CANVAS, OUTPUT, onTransformChange = { }, onGestureChange = { log += it }) { Plate() }
+          }
+        }
+      }
+      waitForIdle()
+
+      onNodeWithTag(STAGE).performTouchInput { down(CENTRE) }
+      waitForIdle()
+      shown = false
+      waitForIdle()
+
+      log shouldBe listOf(true, false)
+    }
+
+  private fun ComposeUiTest.staged(
+    start: OverlayTransform = START,
+    onGesture: (Boolean) -> Unit = { },
+    onMove: () -> Unit = { },
+  ): Moves {
     val moves = Moves()
     setContent {
       var transform by remember { mutableStateOf(start) }
@@ -207,7 +319,9 @@ class ComposedOverlayGestureTest {
           onTransformChange = {
             moves.all += it
             transform = it
+            onMove()
           },
+          onGestureChange = onGesture,
         ) { Plate() }
       }
     }

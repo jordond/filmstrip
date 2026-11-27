@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -21,7 +22,9 @@ import dev.jordond.filmstrip.compose.VideoSurfaceState
 import dev.jordond.filmstrip.compose.VideoSurfaceType
 import dev.jordond.filmstrip.compose.rememberVideoSurfaceState
 import dev.jordond.filmstrip.compose.ui.component.CropOverlay
+import dev.jordond.filmstrip.compose.ui.component.LocalStagePointer
 import dev.jordond.filmstrip.compose.ui.component.PreviewSurface
+import dev.jordond.filmstrip.compose.ui.component.StagePointer
 import dev.jordond.filmstrip.compose.ui.geometry.CropFrame
 import dev.jordond.filmstrip.compose.videoContentRect
 import dev.jordond.filmstrip.geometry.NormalizedRect
@@ -101,7 +104,8 @@ public fun VideoStage(
     if (player == null) fallback() else VideoSurface(player, Modifier.fillMaxSize(), contentScale, surfaceType)
 
     val boxScope = this
-    remember(boxScope, frame, aspect) { VideoStageContent(boxScope, frame, aspect) }.content()
+    val scope = remember(boxScope, frame, aspect) { VideoStageContent(boxScope, frame, aspect) }
+    CompositionLocalProvider(LocalStagePointer provides remember { StagePointer() }) { scope.content() }
   }
 }
 
