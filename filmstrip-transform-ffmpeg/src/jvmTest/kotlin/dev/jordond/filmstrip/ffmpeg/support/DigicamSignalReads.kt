@@ -41,7 +41,7 @@ internal fun digicamReads(
   seed: Int = digicam.seed,
 ): List<FilmRead> {
   val params = DigicamParams.of(digicam)
-  val blur = DigicamSignal.blur(frame.width, frame.height) { x, y -> plain.rgbAt(x, y) }
+  val blur = DigicamSignal.blur(frame.width, frame.height) { x, y -> plain.gbrapAt(x, y) }
   val codes = digicamCodes(digicam)
   return planeReads(
     frame,
@@ -49,7 +49,7 @@ internal fun digicamReads(
     codes * VHS_LUMA_SPAN / FULL + ROUNDING,
     codes * VHS_CHROMA_SPAN / FULL + ROUNDING,
   ) { x, y ->
-    planeCodesOf(DigicamSignal.pixelAt(x, y, frame.height, seed, tick, params, plain.rgbAt(x, y), blur.at(x, y)))
+    planeCodesOf(DigicamSignal.pixelAt(x, y, frame.height, seed, tick, params, plain.gbrapAt(x, y), blur.at(x, y)))
   }
 }
 

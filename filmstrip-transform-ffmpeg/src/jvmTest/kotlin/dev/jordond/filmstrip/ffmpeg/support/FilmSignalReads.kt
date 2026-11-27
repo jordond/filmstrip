@@ -7,12 +7,14 @@ import io.kotest.assertions.withClue
 import io.kotest.matchers.doubles.shouldBeLessThan
 import kotlin.math.abs
 import kotlin.math.floor
+import kotlin.math.roundToInt
 
 internal const val FILM_READ_SLOT = 12
 
 // A film's limits against the signal, in the planes the frame holds. A conversion to RGBA after them moves with the
-// build, up to 2.59 codes from the planes on ffmpeg 8.0.1 x86_64 and 1.18 on 9.0.2 arm64. In planes the most measured
-// on either build is 1.42 in luma and 1.18 in chroma. Half the grain misses by 2.05 and 70% of the glow by 2.43.
+// build, up to 2.59 codes from the planes on ffmpeg 8.0.1 x86_64 and 1.18 on 9.0.2 arm64. Read off the gbrap codes,
+// the most measured in planes on either build is 1.09 in luma and 1.03 in chroma. Half the grain misses by 2.05 and 70%
+// of the glow by 2.43.
 internal const val FILM_LUMA_CODES = 1.5
 internal const val FILM_CHROMA_CODES = 1.5
 
@@ -126,7 +128,7 @@ internal fun assertFilmLanded(
  */
 internal fun filmReadTick(): Int = FilmSignal.grainTickAt(FILM_READ_SLOT.toDouble() / FILTER_RATE)
 
-// The exact decode between the four pixels around x, y, each held at the frame's edge, the way the weave reads.
+// The gbrap codes between the four pixels around x, y, each held at the frame's edge, the way the weave reads.
 private fun Yuv420Frame.rgbBetween(
   x: Double,
   y: Double,
@@ -135,7 +137,7 @@ private fun Yuv420Frame.rgbBetween(
   val top = floor(y).toInt()
   val fx = x - left
   val fy = y - top
-  val at = { tx: Int, ty: Int -> rgbAt(tx.coerceIn(0, width - 1), ty.coerceIn(0, height - 1)) }
+  val at = { tx: Int, ty: Int -> gbrapAt(tx.coerceIn(0, width - 1), ty.coerceIn(0, height - 1)) }
   val near = at(left, top).zip(at(left + 1, top)) { a, b -> a + (b - a) * fx }
   val far = at(left, top + 1).zip(at(left + 1, top + 1)) { a, b -> a + (b - a) * fx }
   return DoubleArray(near.size) { near[it] + (far[it] - near[it]) * fy }
@@ -176,5 +178,21 @@ internal fun Yuv420Frame.rgbAt(
   val blue = luma + 2.0 * (1.0 - VHS_KB) * (cbCode - VHS_CHROMA_ZERO) / VHS_CHROMA_SPAN
   return doubleArrayOf(red, (luma - VHS_KR * red - VHS_KB * blue) / (1.0 - VHS_KR - VHS_KB), blue)
 }
+
+/**
+ * The codes a pixel holds once ffmpeg converts the frame to `gbrap`, as fractions of full scale.
+ *
+ * A look's graph opens on `gbrap`, which lands each plane of [rgbAt] on its nearest code, clipped to the range. A
+ * signal read off these codes sees the frame the look was handed, so the rounding is not counted against the look.
+ */
+internal fun Yuv420Frame.gbrapAt(
+  x: Int,
+  y: Int,
+): DoubleArray {
+  val exact = rgbAt(x, y)
+  return DoubleArray(exact.size) { (exact[it] * TOP_CODE).roundToInt().coerceIn(0, TOP_CODE) / TOP_CODE.toDouble() }
+}
+
+private const val TOP_CODE = 255
 
 private val PLANES = listOf("luma", "Cb", "Cr")

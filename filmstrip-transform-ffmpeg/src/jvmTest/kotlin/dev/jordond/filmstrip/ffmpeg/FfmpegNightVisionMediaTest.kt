@@ -17,17 +17,12 @@ import dev.jordond.filmstrip.ffmpeg.support.FILM_CHROMA_CODES
 import dev.jordond.filmstrip.ffmpeg.support.FILM_LUMA_CODES
 import dev.jordond.filmstrip.ffmpeg.support.FILTER_RATE
 import dev.jordond.filmstrip.ffmpeg.support.FilterFrames
-import dev.jordond.filmstrip.ffmpeg.support.VHS_CHROMA_SPAN
-import dev.jordond.filmstrip.ffmpeg.support.VHS_CHROMA_ZERO
-import dev.jordond.filmstrip.ffmpeg.support.VHS_KB
-import dev.jordond.filmstrip.ffmpeg.support.VHS_KR
-import dev.jordond.filmstrip.ffmpeg.support.VHS_LUMA_BLACK
-import dev.jordond.filmstrip.ffmpeg.support.VHS_LUMA_SPAN
 import dev.jordond.filmstrip.ffmpeg.support.Yuv420Frame
 import dev.jordond.filmstrip.ffmpeg.support.channelAt
 import dev.jordond.filmstrip.ffmpeg.support.formPlanes
 import dev.jordond.filmstrip.ffmpeg.support.fragmentFrame
 import dev.jordond.filmstrip.ffmpeg.support.fragmentOf
+import dev.jordond.filmstrip.ffmpeg.support.gbrapAt
 import dev.jordond.filmstrip.ffmpeg.support.graySource
 import dev.jordond.filmstrip.ffmpeg.support.hostFfmpeg
 import dev.jordond.filmstrip.ffmpeg.support.planeCodesOf
@@ -282,7 +277,7 @@ class FfmpegNightVisionMediaTest {
   ): (Int, Int) -> DoubleArray {
     val params = NightVisionParams.of(look)
     return { x, y ->
-      val codes = plain.rgbAt(x, y)
+      val codes = plain.gbrapAt(x, y)
       planeCodesOf(
         NightVisionSignal.pixelAt(codes[0], codes[1], codes[2], x, y, plain.width, plain.height, tick, params),
       )
@@ -291,17 +286,6 @@ class FfmpegNightVisionMediaTest {
 
   // Even rows and columns spread over the frame, so each read's chroma block sits inside it.
   private fun reads(size: Int): List<Int> = ((0 until size - 1 step READ_STRIDE) + (size / 2) + (size - 2)).distinct()
-
-  // An exact BT.709 decode with no clip and no rounding.
-  private fun Yuv420Frame.rgbAt(
-    x: Int,
-    y: Int,
-  ): DoubleArray {
-    val luma = (luma(x, y) - VHS_LUMA_BLACK) / VHS_LUMA_SPAN
-    val red = luma + 2.0 * (1.0 - VHS_KR) * (cr(x / 2, y / 2) - VHS_CHROMA_ZERO) / VHS_CHROMA_SPAN
-    val blue = luma + 2.0 * (1.0 - VHS_KB) * (cb(x / 2, y / 2) - VHS_CHROMA_ZERO) / VHS_CHROMA_SPAN
-    return doubleArrayOf(red, (luma - VHS_KR * red - VHS_KB * blue) / (1.0 - VHS_KR - VHS_KB), blue)
-  }
 
   private fun swatch(): ImageOverlay =
     ImageOverlay(
