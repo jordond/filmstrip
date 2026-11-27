@@ -344,6 +344,7 @@ class AndroidHdrPreviewMediaTest {
   private fun offersYuvTarget(): Boolean? {
     var offered: Boolean? = null
     thread(name = "filmstrip-test-yuv-target") {
+      openEightBitContext()
       offered =
         listOf(GlUtil.EGL_CONFIG_ATTRIBUTES_RGBA_1010102, GlUtil.EGL_CONFIG_ATTRIBUTES_RGBA_8888).firstNotNullOfOrNull {
           runCatching {
@@ -359,6 +360,20 @@ class AndroidHdrPreviewMediaTest {
         }
     }.join()
     return offered
+  }
+
+  // The emulator's gfxstream aborts the process when its first context is ten-bit, so an eight-bit one goes first,
+  // the way the device probe does it.
+  private fun openEightBitContext() {
+    runCatching {
+      val display = GlUtil.getDefaultEglDisplay()
+      val gl = GlUtil.createEglContext(EGL14.EGL_NO_CONTEXT, display, 3, GlUtil.EGL_CONFIG_ATTRIBUTES_RGBA_8888)
+      try {
+        GlUtil.createFocusedPlaceholderEglSurface(gl, display)
+      } finally {
+        GlUtil.destroyEglContext(display, gl)
+      }
+    }
   }
 
   private suspend fun awaitOrFail(

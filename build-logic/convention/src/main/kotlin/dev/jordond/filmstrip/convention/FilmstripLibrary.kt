@@ -97,15 +97,19 @@ private fun KotlinMultiplatformExtension.configureShared(project: Project) {
 /**
  * Adds the `androidDeviceTest` source set and its instrumentation runner.
  *
- * Call it from any module whose tests touch MediaCodec, which cannot run on the JVM. Under `-PtestShard` the runner
- * leaves out the classes other shards own.
+ * Call it from any module whose tests touch MediaCodec, which cannot run on the JVM. Each test runs in its own
+ * process through AndroidX Test Orchestrator, so the emulator frees the GL memory a test held when it ends. Under
+ * `-PtestShard` the runner leaves out the classes other shards own.
  */
 fun Project.androidDeviceTests() {
   extensions.configure<KotlinMultiplatformExtension> {
     androidLibraryTarget()?.withDeviceTest {
       instrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+      execution = "ANDROIDX_TEST_ORCHESTRATOR"
     }
   }
+  dependencies.add("androidTestUtil", library("androidx-test-orchestrator"))
+  dependencies.add("androidTestUtil", library("androidx-test-services"))
   configureDeviceTestShard()
 }
 

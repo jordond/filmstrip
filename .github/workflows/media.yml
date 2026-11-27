@@ -200,6 +200,7 @@ jobs:
       - *reports
 
   # The shard reaches the device run as a notClass runner argument, so each shard skips the classes the other owns.
+  # Each test runs in its own process through AndroidX Test Orchestrator.
   # Every shard runs on two images. API 30 turns Codec2 off, so OMX.google.h264.encoder is its only H.264 encoder.
   # API 36 encodes with c2.android.avc.encoder, the encoder most of the device bounds were measured on.
   device:

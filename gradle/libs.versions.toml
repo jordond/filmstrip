@@ -22,6 +22,8 @@ androidx-activityCompose = "1.13.0"
 androidx-test-runner = "1.7.0"
 androidx-test = "1.7.0"
 androidx-test-espresso = "3.7.0"
+androidx-test-orchestrator = "1.6.1"
+androidx-test-services = "1.6.0"
 androidx-startup = "1.2.0"
 junit = "4.13.2"
 dokka = "2.3.0"
@@ -78,6 +80,8 @@ navigation3-ui = { module = "org.jetbrains.androidx.navigation3:navigation3-ui",
 okio = { module = "com.squareup.okio:okio", version.ref = "okio" }
 androidx-test-runner = { module = "androidx.test:runner", version.ref = "androidx-test-runner" }
 androidx-test-core = { module = "androidx.test:core", version.ref = "androidx-test" }
+androidx-test-orchestrator = { module = "androidx.test:orchestrator", version.ref = "androidx-test-orchestrator" }
+androidx-test-services = { module = "androidx.test.services:test-services", version.ref = "androidx-test-services" }
 androidx-test-espresso = { module = "androidx.test.espresso:espresso-core", version.ref = "androidx-test-espresso" }
 androidx-startup = { module = "androidx.startup:startup-runtime", version.ref = "androidx-startup" }
 junit = { module = "junit:junit", version.ref = "junit" }

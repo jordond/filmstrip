@@ -123,10 +123,13 @@ internal class YuvTargetProbe(
 // the probe makes one of that kind. media3 keeps a grade on a ten-bit config and tone maps on an eight-bit one, so a
 // device with no ten-bit config is asked on the eight-bit one. It runs on a thread of its own, so it neither reads nor
 // unbinds a context the caller has current.
+// An eight-bit context is opened and closed first, since the emulator's gfxstream aborts the process when a ten-bit
+// context is the first one it makes.
 private fun probeYuvTarget(): Boolean? {
   var answer: Boolean? = null
   val probe =
     thread(name = PROBE_THREAD) {
+      openEightBitContextOnce()
       answer =
         PROBE_CONFIGS.firstNotNullOfOrNull { config ->
           try {
@@ -146,6 +149,32 @@ private fun probeYuvTarget(): Boolean? {
     }
   probe.join()
   return answer
+}
+
+/**
+ * Opens and closes one eight-bit OpenGL ES 3 context, so a ten-bit one is never the first this process makes.
+ *
+ * The Android emulator's gfxstream aborts in `eglMakeCurrent` when a process starts on a ten-bit config. Hardware
+ * drivers do not, and the context is gone before anything is asked of it.
+ */
+private fun openEightBitContextOnce() {
+  try {
+    val display = GlUtil.getDefaultEglDisplay()
+    val context =
+      GlUtil.createEglContext(
+        EGL14.EGL_NO_CONTEXT,
+        display,
+        OPEN_GL_ES_3,
+        GlUtil.EGL_CONFIG_ATTRIBUTES_RGBA_8888,
+      )
+    try {
+      GlUtil.createFocusedPlaceholderEglSurface(context, display)
+    } finally {
+      GlUtil.destroyEglContext(display, context)
+    }
+  } catch (unavailable: Exception) {
+    // A device with no eight-bit config is asked on its ten-bit one as before.
+  }
 }
 
 private val PROBE_CONFIGS = listOf(GlUtil.EGL_CONFIG_ATTRIBUTES_RGBA_1010102, GlUtil.EGL_CONFIG_ATTRIBUTES_RGBA_8888)
