@@ -14,6 +14,7 @@ import dev.jordond.filmstrip.media.audioTrackIdOf
 import dev.jordond.filmstrip.media.displaySizeOf
 import dev.jordond.filmstrip.media.trackCodecOf
 import kotlin.math.roundToInt
+import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
 // Pure parsing of `ffprobe -show_streams -show_format -of default`. The flat key=value form is used
@@ -85,8 +86,14 @@ internal fun parseSdColor(output: String): SdColor? {
 
 /**
  * Reads a probe into a [MediaInfo], or null when there is no readable track in it.
+ *
+ * An MP4 or QuickTime file takes its length from [movieLength] when that is set, the figure core reads off the file's
+ * boxes, since ffprobe leaves a fragmented file's edit list out of its own. Any other file takes ffprobe's.
  */
-internal fun parseMediaInfo(output: String): MediaInfo? {
+internal fun parseMediaInfo(
+  output: String,
+  movieLength: Duration? = null,
+): MediaInfo? {
   val sections = parseProbeSections(output)
   val streams = sections.filter { it.name == "STREAM" }
   val format = sections.firstOrNull { it.name == "FORMAT" }
@@ -102,7 +109,7 @@ internal fun parseMediaInfo(output: String): MediaInfo? {
       ?: 0.0
 
   return MediaInfo(
-    duration = durationSeconds.seconds,
+    duration = movieLength?.takeIf { format.isMovie() } ?: durationSeconds.seconds,
     video = video?.toVideoTrack(),
     audioTracks = audio.mapIndexed { ordinal, stream -> stream.toAudioTrack(ordinal, format.isMovie()) },
     // ffmpeg reads what it can open. It has no notion of a rights-protected asset it can decode

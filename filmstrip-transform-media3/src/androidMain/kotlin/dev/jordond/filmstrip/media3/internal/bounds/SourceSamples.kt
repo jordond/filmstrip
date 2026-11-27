@@ -113,7 +113,9 @@ internal suspend fun audioPrerollStartOf(
         units.addLast(extractor.sampleTime)
         if (!extractor.advance()) break
       }
-      prerollUnitOf(units, target)?.let { AudioPreroll(it.microseconds, delay) }
+      // A fragmented file's edit list shifts its units onto the presented clock instead of naming a delay, so its first
+      // unit can start before zero. An item clipped from there is clipped from the source's own start.
+      prerollUnitOf(units, target)?.let { AudioPreroll(maxOf(it, 0L).microseconds, delay) }
     } catch (unwritable: MediaBytesFileFailure) {
       // Thrown when a source handed over as bytes could not be written to the cache.
       null

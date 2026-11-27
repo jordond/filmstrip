@@ -13,6 +13,7 @@ import dev.jordond.filmstrip.ffmpeg.internal.probe.SYNC_SAMPLE_WINDOW
 import dev.jordond.filmstrip.ffmpeg.internal.probe.UNLISTED_PACKETS
 import dev.jordond.filmstrip.ffmpeg.internal.probe.copyPacketArguments
 import dev.jordond.filmstrip.ffmpeg.internal.probe.firstFrameArguments
+import dev.jordond.filmstrip.ffmpeg.internal.probe.movieLengthAt
 import dev.jordond.filmstrip.ffmpeg.internal.probe.packetCapReason
 import dev.jordond.filmstrip.ffmpeg.internal.probe.parseCopyPacket
 import dev.jordond.filmstrip.ffmpeg.internal.probe.parseFirstFrame
@@ -364,7 +365,7 @@ internal class FfmpegRuntime private constructor(
     if (output.timedOut) return expired(operation, timeout)
     if (!output.started || output.exitCode != 0) return ProbeAnswer.Answered(null)
     colorReads[path] = Stamped(stamp, colorReadOf(output.stdout))
-    return ProbeAnswer.Answered(parseMediaInfo(output.stdout))
+    return ProbeAnswer.Answered(parseMediaInfo(output.stdout, movieLengthAt(path)))
   }
 
   private suspend fun readSyncSample(

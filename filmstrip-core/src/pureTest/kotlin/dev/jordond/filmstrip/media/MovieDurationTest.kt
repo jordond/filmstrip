@@ -74,21 +74,69 @@ class MovieDurationTest {
       durationOf(file) shouldBe 3.5.seconds
     }
 
+  // The shape ffmpeg 8's muxer writes for a stream copy of four reordered frames: the movie header and the video's mdhd
+  // both run a frame past the four 512-tick samples its stts lists.
   @Test
-  fun aFragmentedFileHasNoLengthInItsHeader() =
+  fun aMovieHeaderIsHeldToWhereTheLongestTracksSamplesReach() =
     runTest {
-      val file = movieFile(movieHeader(timescale = 1000, duration = 0) + box("mvex", ByteArray(0)))
+      val video =
+        sampledTrack(
+          id = 1,
+          movieTicks = 167,
+          edit = 167L to 1024L,
+          timescale = 15_360,
+          mdhd = 2560,
+          4L to 512L,
+        )
+      val audio =
+        sampledTrack(
+          id = 2,
+          movieTicks = 86,
+          edit = 85L to 1024L,
+          timescale = 48_000,
+          mdhd = 5120,
+          5L to 1024L,
+        )
 
-      durationOf(file).shouldBeNull()
+      val duration = durationOf(movieFile(movieHeader(timescale = 1000, duration = 167) + video + audio))
+
+      duration shouldBe lengthOf(2048, 15_360)
+    }
+
+  // Two runs of samples, so a reading that took only the first entry or only the last would miss.
+  @Test
+  fun aTrackReachesTheSumOfEveryRunItsTableLists() =
+    runTest {
+      val track =
+        sampledTrack(
+          id = 1,
+          movieTicks = 3000,
+          edit = null,
+          timescale = 1000,
+          mdhd = 3000,
+          2L to 500L,
+          4L to 250L,
+        )
+
+      durationOf(movieFile(movieHeader(timescale = 1000, duration = 3000) + track)) shouldBe 2.seconds
     }
 
   @Test
-  fun aFragmentedFileIsCaughtWhenItsExtendsBoxComesFirst() =
+  fun aSampleTableThatOverflowsGivesNoLength() =
     runTest {
-      val header = movieHeader(timescale = 1000, duration = 2000)
-      val file = movieFile(box("mvex", ByteArray(0)) + header + track(2.seconds))
+      val most = 0xFFFFFFFFL
+      val track =
+        sampledTrack(
+          id = 1,
+          movieTicks = 3000,
+          edit = null,
+          timescale = 1000,
+          mdhd = 3000,
+          most to most,
+          2L to 1L,
+        )
 
-      durationOf(file).shouldBeNull()
+      durationOf(movieFile(movieHeader(timescale = 1000, duration = 3000) + track)).shouldBeNull()
     }
 
   @Test
@@ -320,21 +368,23 @@ class MovieDurationTest {
 
   private fun track(length: Duration): ByteArray = bareTrack(length.inWholeMilliseconds)
 
-  private fun movieFile(
-    children: ByteArray,
-    ahead: ByteArray = ByteArray(0),
-  ): ByteArray = FTYP + ahead + box("moov", children)
-
-  private suspend fun durationOf(file: ByteArray): Duration? =
-    movieDurationOf(file.size.toLong()) { start, count ->
-      file.copyOfRange(start.toInt(), minOf(file.size, start.toInt() + count))
-    }
+  private fun sampledTrack(
+    id: Long,
+    movieTicks: Long,
+    edit: Pair<Long, Long>?,
+    timescale: Long,
+    mdhd: Long,
+    vararg runs: Pair<Long, Long>,
+  ): ByteArray {
+    val rows = runs.fold(ByteArray(0)) { all, (count, delta) -> all + u32(count) + u32(delta) }
+    val stbl = box("stbl", fullBox("stts", 0, u32(runs.size.toLong()) + rows))
+    val media = box("mdia", mediaHeader(timescale, mdhd) + handler("vide") + box("minf", stbl))
+    return box("trak", trackHeader(movieTicks, id = id) + (edit?.let { editList(it) } ?: ByteArray(0)) + media)
+  }
 
   private companion object {
-    val FTYP = box("ftyp", ascii("isom") + u32(0) + ascii("isom"))
     val MOVIE_HEADER = movieHeader(timescale = 1000, duration = 2000)
     val FILLER_HEADER = u32(72) + ascii("free")
-    const val RATE_ONE = 0x00010000L
 
     fun fillerByte(at: Long): Byte = FILLER_HEADER.getOrElse(at.toInt()) { 0 }
   }

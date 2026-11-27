@@ -17,23 +17,38 @@ import kotlin.time.Duration.Companion.nanoseconds
 import kotlin.time.Duration.Companion.seconds
 
 /**
- * How long an MP4 or QuickTime file of [size] bytes that [read] fetches ranges of plays for, read off the duration in
- * its `mvhd` box.
+ * How long an MP4 or QuickTime file of [size] bytes that [read] fetches ranges of plays for.
  *
- * That is the figure the muxer wrote for the file's longest track once its edit list is applied, so a track that
- * opens on an encoder delay counts only the samples it presents, and one an empty edit delays counts the delay too.
- * Only the box headers ahead of the `moov` box, the `moov` box's own children and the `tkhd` box of each track are
- * fetched.
+ * A flat file's length is the duration in its `mvhd` box. That is the figure the muxer wrote for the file's longest
+ * track once its edit list is applied, so a track that opens on an encoder delay counts only the samples it presents,
+ * and one an empty edit delays counts the delay too. That figure is held to where the longest track's samples reach,
+ * the sample durations its `stts` lists plus any empty edit ahead of them. Only the box headers ahead of the `moov`
+ * box, the `moov` box's own children and the `tkhd`, `elst`, `mdhd` and `stts` boxes of each track are fetched.
  *
- * Null for any other container, a fragmented file, whose `mvhd` leaves its fragments out, a header with no duration or
- * no timescale, a `moov` child with a 64-bit size, and a truncated or malformed file. Also null when no track header
- * gives a duration, when the movie header runs more than one tick past the longest track header, or when it runs
- * longer than [MAX_MOVIE_LENGTH], since none of those is a length a muxer writes.
+ * A fragmented file, one whose `moov` holds an `mvex`, is measured by [fragmentedDuration] instead, from where each
+ * track's last fragment ends less its edit list's start.
+ *
+ * Null for any other container, a header with no duration or no timescale, a `moov` child with a 64-bit size, and a
+ * truncated or malformed file. Also null when no track header gives a duration, when the movie header runs more than
+ * one tick past the longest track header, or when it runs longer than [MAX_MOVIE_LENGTH], since none of those is a
+ * length a muxer writes.
  */
 internal suspend fun movieDurationOf(
   size: Long,
   read: ByteRangeRead,
 ): Duration? = walkPicture(RangedPicture(size, read)) { movieDuration() }
+
+/**
+ * How long an MP4 or QuickTime file of [size] bytes plays for, as [movieDurationOf] reads it, for a backend outside
+ * core that probes the file itself.
+ *
+ * @param read Reads up to `count` bytes of the file starting at `start`, handing back fewer when the file ends first.
+ */
+@InternalFilmstripApi
+public suspend fun movieLengthOf(
+  size: Long,
+  read: suspend (start: Long, count: Int) -> ByteArray,
+): Duration? = movieDurationOf(size, read)
 
 /**
  * The longest a movie header may say a file plays for before [movieDurationOf] stops trusting it.
@@ -113,7 +128,22 @@ public suspend fun movieAudioTrackIdsOf(
  */
 internal const val MAX_TRACK_HEADERS: Int = 1024
 
-private suspend fun PictureWalk.movieDuration(): Duration? = inMovie { start, end -> movieHeaderDuration(start, end) }
+private suspend fun PictureWalk.movieDuration(): Duration? =
+  inMovie {
+    start,
+    end,
+    ->
+    if (holdsChild(start, end, MVEX)) fragmentedDuration(start, end) else movieHeaderDuration(start, end)
+  }
+
+private suspend fun PictureWalk.holdsChild(
+  start: Long,
+  end: Long,
+  wanted: Int,
+): Boolean {
+  forEachChild(start, end) { type, _, _ -> if (type == wanted) return true }
+  return false
+}
 
 // Runs read over the children of the top level `moov` box, or gives null when the file has none.
 internal suspend inline fun <T> PictureWalk.inMovie(read: (start: Long, end: Long) -> T?): T? {
@@ -241,33 +271,110 @@ private suspend fun PictureWalk.movieHeaderDuration(
   end: Long,
 ): Duration? {
   var movie: MovieHeader? = null
-  var longestTrack: Long? = null
+  val tracks = mutableListOf<Pair<Long, Long>>()
   forEachChild(start, end) { type, childStart, childEnd ->
     when (type) {
-      MVEX -> return null
       MVHD -> movie = movieHeader(childStart, childEnd)
-      TRAK -> trackTicks(childStart, childEnd)?.let { track -> longestTrack = maxOf(longestTrack ?: track, track) }
+      TRAK -> tracks += childStart to childEnd
     }
   }
   val header = movie ?: return null
+  var longestTrack: Long? = null
+  var longestMedia: Duration? = null
+  for ((trackStart, trackEnd) in tracks) {
+    val span = trackSpan(trackStart, trackEnd, header.timescale)
+    span.ticks?.let { longestTrack = maxOf(longestTrack ?: it, it) }
+    span.media?.let { longestMedia = maxOf(longestMedia ?: it, it) }
+  }
   val track = longestTrack ?: return null
   if (header.ticks - 1 > track) return null
-  return lengthOf(header.ticks, header.timescale).takeIf { it <= MAX_MOVIE_LENGTH }
+  val length = lengthOf(header.ticks, header.timescale)
+  return minOf(length, longestMedia ?: length).takeIf { it <= MAX_MOVIE_LENGTH }
 }
 
-// The duration the `tkhd` of the track between start and end gives in movie ticks, or null when it has none.
-private suspend fun PictureWalk.trackTicks(
+/**
+ * What one track of a flat file says about its length.
+ *
+ * @property ticks The duration its `tkhd` gives in movie ticks, or null when it has none.
+ * @property media How far its samples reach, the durations its `stts` lists in its `mdhd` timescale plus any empty edit
+ * ahead of them, or null when it has no media header or no `stts`.
+ */
+private class TrackSpan(
+  val ticks: Long?,
+  val media: Duration?,
+)
+
+private suspend fun PictureWalk.trackSpan(
   start: Long,
   end: Long,
-): Long? {
+  movieScale: Long,
+): TrackSpan {
   var ticks: Long? = null
+  var media: Duration? = null
+  var delay = 0L
   forEachChild(start, end) { type, childStart, childEnd ->
-    if (type == TKHD) {
-      val long = u8(childStart, limit = childEnd) == 1
-      ticks = if (long) u64(childStart + 28, limit = childEnd) else knownShort(u32(childStart + 20, limit = childEnd))
+    when (type) {
+      TKHD -> {
+        val long = u8(childStart, limit = childEnd) == 1
+        ticks = if (long) u64(childStart + 28, limit = childEnd) else knownShort(u32(childStart + 20, limit = childEnd))
+      }
+      EDTS -> {
+        forEachChild(childStart, childEnd) { editType, listStart, listEnd ->
+          if (editType == ELST) delay = editOpening(listStart, listEnd, movieScale).second
+        }
+      }
+      MDIA -> {
+        media = sampleReach(childStart, childEnd)
+      }
     }
   }
-  return ticks?.takeIf { it > 0 }
+  return TrackSpan(ticks?.takeIf { it > 0 }, media?.let { it + lengthOf(delay, movieScale) })
+}
+
+// How long the samples of the `mdia` between start and end run by their `stts`, or null without a timescale or table.
+private suspend fun PictureWalk.sampleReach(
+  start: Long,
+  end: Long,
+): Duration? {
+  var timescale = 0L
+  var ticks: Long? = null
+  forEachChild(start, end) { type, childStart, childEnd ->
+    when (type) {
+      MDHD -> {
+        timescale = u32(childStart + if (u8(childStart, limit = childEnd) == 1) 20 else 12, limit = childEnd)
+      }
+      MINF -> {
+        forEachChild(childStart, childEnd) { infoType, infoStart, infoEnd ->
+          if (infoType == STBL) {
+            forEachChild(infoStart, infoEnd) { tableType, tableStart, tableEnd ->
+              if (tableType == STTS) ticks = sampleTicks(tableStart, tableEnd)
+            }
+          }
+        }
+      }
+    }
+  }
+  if (timescale <= 0) return null
+  return ticks?.takeIf { it > 0 }?.let { lengthOf(it, timescale) }
+}
+
+// The sum of every sample duration the `stts` between start and end lists, failing the walk past [MAX_SAMPLE_TICKS].
+private suspend fun PictureWalk.sampleTicks(
+  start: Long,
+  end: Long,
+): Long {
+  val count = u32(start + 4, limit = end)
+  if (count > (end - start - 8) / 8) malformed()
+  var ticks = 0L
+  var entry = start + 8
+  repeat(count.toInt()) {
+    val samples = u32(entry, limit = end)
+    val delta = u32(entry + 4, limit = end)
+    if (delta > 0 && samples > (MAX_SAMPLE_TICKS - ticks) / delta) malformed()
+    ticks += samples * delta
+    entry += 8
+  }
+  return ticks
 }
 
 // Runs visit over each child box between start and end, failing the walk on a size that does not fit.
@@ -306,9 +413,9 @@ private suspend fun PictureWalk.movieHeader(
   return MovieHeader(timescale, ticks)
 }
 
-private fun knownShort(ticks: Long): Long? = ticks.takeIf { it != UNKNOWN_SHORT_DURATION }
+internal fun knownShort(ticks: Long): Long? = ticks.takeIf { it != UNKNOWN_SHORT_DURATION }
 
-private fun lengthOf(
+internal fun lengthOf(
   ticks: Long,
   timescale: Long,
 ): Duration {
@@ -317,18 +424,19 @@ private fun lengthOf(
 }
 
 internal val MOOV = fourcc("moov")
-private val MVHD = fourcc("mvhd")
-private val MVEX = fourcc("mvex")
+internal val MVHD = fourcc("mvhd")
+internal val MVEX = fourcc("mvex")
 internal val TRAK = fourcc("trak")
-private val TKHD = fourcc("tkhd")
+internal val TKHD = fourcc("tkhd")
 internal val MDIA = fourcc("mdia")
 private val HDLR = fourcc("hdlr")
-private val MDHD = fourcc("mdhd")
+internal val MDHD = fourcc("mdhd")
 private val SOUN = fourcc("soun")
 private val VIDE = fourcc("vide")
 internal val MINF = fourcc("minf")
 internal val STBL = fourcc("stbl")
 private val STSD = fourcc("stsd")
+private val STTS = fourcc("stts")
 private val COLR = fourcc("colr")
 private val HVCC = fourcc("hvcC")
 private val NCLX = fourcc("nclx")
@@ -337,6 +445,9 @@ private val VISUAL_ENTRIES =
   setOf(fourcc("avc1"), fourcc("avc3"), fourcc("hvc1"), fourcc("hev1"), fourcc("vp09"), fourcc("av01"))
 
 internal const val BOX_HEADER = 8L
+
+// A week of samples at the largest timescale a 32-bit field holds.
+private val MAX_SAMPLE_TICKS: Long = MAX_MOVIE_LENGTH.inWholeSeconds * 0xFFFFFFFFL
 private const val TRACK_ENABLED = 1L
 
 // An `stsd` opens on its version, flags and entry count, and a visual sample entry on 78 bytes of fields before its

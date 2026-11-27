@@ -197,6 +197,11 @@ On Android a file records the priming its AAC encoder writes, so its audio start
 encoders write 2048 frames, measured on emulators from API 26 to 36. A device that picks a vendor's own AAC encoder gets
 the delay media3 assumes for it, which no emulator can measure, so its audio can start off by the difference.
 
+A fragmented MP4 plays for the same length on every backend: its fragments less the delay its edit list skips. On
+Apple the audio of a fragmented AAC track starts later in the sound than on the other backends, by 2112 frames less
+that delay. AVFoundation skips its own 2112 frames of priming and ignores the edit list. For a file whose edit skips
+1024 frames that is 1088 frames, 22.7 ms at 48 kHz. The clip still lays its full length.
+
 Two clips of one source whose trims meet, `[a, b)` then `[b, c)`, export as one unbroken sound on ffmpeg, Apple, the
 browser and Android. The tests read a continuous 440 Hz tone across the join and hold its phase to a step of one frame
 of 48 kHz audio, 21 µs, and any silence to four frames, 83 µs. Measured, the step is under 10 µs on every backend and

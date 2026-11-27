@@ -1,25 +1,38 @@
 package dev.jordond.filmstrip.ffmpeg
 
 import dev.jordond.filmstrip.FilmstripError
+import dev.jordond.filmstrip.edit.AudioSpec
+import dev.jordond.filmstrip.edit.TrackContent
+import dev.jordond.filmstrip.edit.compositionOf
+import dev.jordond.filmstrip.export.ExportSpec
+import dev.jordond.filmstrip.export.ExportStatus
 import dev.jordond.filmstrip.ffmpeg.internal.FfmpegProber
 import dev.jordond.filmstrip.ffmpeg.internal.FfmpegRuntime
+import dev.jordond.filmstrip.ffmpeg.support.ExportConstants.AUDIO_SAMPLE_RATE
 import dev.jordond.filmstrip.ffmpeg.support.ExportConstants.TIMEOUT
 import dev.jordond.filmstrip.ffmpeg.support.FfmpegExportFixture
+import dev.jordond.filmstrip.ffmpeg.support.decodedAudio
 import dev.jordond.filmstrip.ffmpeg.support.hostFfmpeg
 import dev.jordond.filmstrip.ffmpeg.support.proRes4444Clip
 import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.ProbeResult
+import dev.jordond.filmstrip.media.movieLengthOf
 import dev.jordond.filmstrip.test.PrimedAudio
+import io.kotest.assertions.withClue
 import io.kotest.matchers.comparables.shouldBeLessThanOrEqualTo
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.types.shouldBeInstanceOf
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
 import java.io.File
 import kotlin.test.Test
+import kotlin.time.Duration
 import kotlin.time.Duration.Companion.microseconds
+import kotlin.time.Duration.Companion.seconds
 
 private fun vp9AlphaClip(): File {
   val file = File.createTempFile("filmstrip-vp9-alpha", ".webm").apply { deleteOnExit() }
@@ -78,6 +91,76 @@ class FfmpegProberReadMediaTest {
         primed.delete()
       }
     }
+
+  // ffprobe leaves a fragmented file's edit list out of its length, so this reads 1600 samples long without core's.
+  @Test
+  fun `a fragmented file with an edit reports the length its fragments present`() =
+    runTest(timeout = TIMEOUT) {
+      if (!fixture.available()) return@runTest
+
+      assertProbedAtSharedLength(PrimedAudio.fragmentedMp4())
+    }
+
+  @Test
+  fun `a fragmented file with no edit reports every tick of its fragments`() =
+    runTest(timeout = TIMEOUT) {
+      if (!fixture.available()) return@runTest
+
+      assertProbedAtSharedLength(PrimedAudio.fragmentedMp4(edit = false))
+    }
+
+  @Test
+  fun `a fragmented clip exports at the length its fragments present`() =
+    runTest(timeout = TIMEOUT) {
+      if (!fixture.available()) return@runTest
+      val bytes = PrimedAudio.fragmentedMp4()
+      val shared = sharedLengthOf(bytes)
+      val source = File.createTempFile("filmstrip-fragmented", ".mp4").apply { writeBytes(bytes) }
+      val output = File.createTempFile("filmstrip-fragmented-out", ".mp4").also { it.delete() }
+      try {
+        val composition =
+          compositionOf {
+            clip(MediaSource.of(fixture.landscape.absolutePath))
+            track(TrackContent.Audio) { clip(MediaSource.of(source.path)) }
+          }.withAudio(AudioSpec.AudioOnly)
+
+        val finished =
+          fixture.filmstrip
+            .export(
+              composition,
+              ExportSpec(),
+              MediaSink.of(output.absolutePath),
+            ).toList()
+            .last()
+
+        if (finished is ExportStatus.Failure) error(finished.error.message)
+        val reported = finished.shouldBeInstanceOf<ExportStatus.Success>().info.duration
+        val decoded = (decodedAudio(output.absolutePath).size.toDouble() / AUDIO_SAMPLE_RATE).seconds
+        withClue("the export decodes to $decoded and reports $reported against $shared") {
+          (reported - shared).absoluteValue shouldBeLessThanOrEqualTo AAC_FRAME
+          (decoded - shared).absoluteValue shouldBeLessThanOrEqualTo AAC_FRAME
+        }
+      } finally {
+        source.delete()
+        output.delete()
+      }
+    }
+
+  private suspend fun assertProbedAtSharedLength(bytes: ByteArray) {
+    val file = File.createTempFile("filmstrip-fragmented", ".mp4").apply { writeBytes(bytes) }
+    try {
+      val probed = FfmpegProber(FfmpegRuntime.unshared(FfmpegConfig())).probe(MediaSource.of(file.path))
+
+      probed.shouldBeInstanceOf<ProbeResult.Success>().info.duration shouldBe sharedLengthOf(bytes)
+    } finally {
+      file.delete()
+    }
+  }
+
+  private suspend fun sharedLengthOf(bytes: ByteArray): Duration =
+    movieLengthOf(bytes.size.toLong()) { start, count ->
+      bytes.copyOfRange(start.toInt(), minOf(bytes.size, start.toInt() + count))
+    }.shouldNotBeNull()
 
   @Test
   fun `a prores 4444 clip with alpha reads as alpha and an opaque clip does not`() =
@@ -168,3 +251,5 @@ class FfmpegProberReadMediaTest {
       }
     }
 }
+
+private val AAC_FRAME: Duration = (PrimedAudio.AAC_FRAME.toDouble() / PrimedAudio.RATE).seconds

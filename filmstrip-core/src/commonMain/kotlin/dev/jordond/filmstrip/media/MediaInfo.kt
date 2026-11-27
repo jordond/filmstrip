@@ -14,8 +14,9 @@ import kotlin.time.Duration
  * can handle the source.
  *
  * @property duration How long the source plays for. For an MP4 or QuickTime file this is the length its movie header
- * gives, which counts only what each track's edit list presents, on every platform. For any other container it is
- * the length the platform reports.
+ * gives, which counts only what each track's edit list presents, on every platform. A fragmented one plays for where
+ * its last fragment ends less what its edit list skips. For any other container it is the length the platform
+ * reports.
  * @property video The video track, or null when the source has none.
  * @property audioTracks Every audio track the source carries, in the order its container lists them. Empty when it has
  * none.

@@ -19,17 +19,23 @@ import kotlin.test.Test
  * An MP4 whose AAC track opens on an encoder delay its edit list skips, probed through each kind of source.
  *
  * AVFoundation takes its own priming off the track rather than the delay the edit list names, so the asset's length
- * runs short of what the movie header says the file plays for.
+ * runs short of what the movie header says the file plays for. The same track written as a fragmented file reports
+ * the length core reads off its fragments.
  */
 class PrimedAudioProbeAppleTest {
   private val path =
     Path(SystemTemporaryDirectory, "filmstrip-primed-aac-${Random.nextLong(0, Long.MAX_VALUE)}.mp4").also { file ->
       SystemFileSystem.sink(file).buffered().use { it.write(PrimedAudio.mp4()) }
     }
+  private val fragmented =
+    Path(SystemTemporaryDirectory, "filmstrip-fragmented-aac-${Random.nextLong(0, Long.MAX_VALUE)}.mp4").also { file ->
+      SystemFileSystem.sink(file).buffered().use { it.write(PrimedAudio.fragmentedMp4()) }
+    }
 
   @AfterTest
   fun removeFile() {
     SystemFileSystem.delete(path, mustExist = false)
+    SystemFileSystem.delete(fragmented, mustExist = false)
   }
 
   @Test
@@ -48,6 +54,25 @@ class PrimedAudioProbeAppleTest {
   fun bytesReportTheLengthTheMovieHeaderPresents() =
     runTest {
       durationOf(MediaSource.ofBytes(PrimedAudio.mp4(), FormatHint.Mp4)) shouldBe PrimedAudio.presentedLength
+    }
+
+  @Test
+  fun aFragmentedPathReportsTheLengthItsFragmentsPresent() =
+    runTest {
+      durationOf(MediaSource.of(fragmented.toString())) shouldBe sharedLengthOf(PrimedAudio.fragmentedMp4())
+    }
+
+  @Test
+  fun fragmentedBytesReportTheLengthTheirFragmentsPresent() =
+    runTest {
+      val bytes = PrimedAudio.fragmentedMp4(edit = false)
+
+      durationOf(MediaSource.ofBytes(bytes, FormatHint.Mp4)) shouldBe sharedLengthOf(bytes)
+    }
+
+  private suspend fun sharedLengthOf(bytes: ByteArray) =
+    movieDurationOf(bytes.size.toLong()) { start, count ->
+      bytes.copyOfRange(start.toInt(), minOf(bytes.size, start.toInt() + count))
     }
 
   private suspend fun durationOf(source: MediaSource) =

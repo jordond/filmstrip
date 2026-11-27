@@ -6,6 +6,8 @@ import dev.jordond.filmstrip.test.MovieBoxes.box
 import dev.jordond.filmstrip.test.MovieBoxes.fullBox
 import dev.jordond.filmstrip.test.MovieBoxes.mediaHeader
 import dev.jordond.filmstrip.test.MovieBoxes.movieHeader
+import dev.jordond.filmstrip.test.MovieBoxes.trackExtends
+import dev.jordond.filmstrip.test.MovieBoxes.trackFragment
 import dev.jordond.filmstrip.test.MovieBoxes.trackHeader
 import dev.jordond.filmstrip.test.MovieBoxes.u32
 import kotlin.time.Duration
@@ -67,12 +69,52 @@ public object PrimedAudio {
     return if (moovLast) ftyp + mdat + moov else ftyp + moov + mdat
   }
 
+  /**
+   * The same track written as a fragmented file, its frames split across [fragments] `moof` boxes as evenly as they go
+   * with the remainder in the last.
+   *
+   * The `moov` holds no samples, and its edit list skips [DELAY] when [edit] is set, the way ffmpeg writes one with
+   * `delay_moov`. Every `traf` carries a `tfdt`. The first takes its sample duration from its `tfhd`, the last lists
+   * one per sample, and the rest fall back to the `trex` default.
+   */
+  public fun fragmentedMp4(
+    edit: Boolean = true,
+    fragments: Int = 4,
+  ): ByteArray {
+    val ftyp = box("ftyp", ascii("iso6") + u32(0x200) + ascii("iso6mp41"))
+    val elst = fullBox("elst", 0, u32(1) + u32(0) + u32(DELAY.toLong()) + u16(1) + u16(0))
+    val stbl =
+      box(
+        "stbl",
+        fullBox("stsd", 0, u32(1) + mp4a()) + fullBox("stts", 0, u32(0)) + fullBox("stsc", 0, u32(0)) +
+          fullBox("stsz", 0, u32(0) + u32(0)) + fullBox("stco", 0, u32(0)),
+      )
+    val trak =
+      box(
+        "trak",
+        trackHeader(0) + (if (edit) box("edts", elst) else ByteArray(0)) +
+          box("mdia", mediaHeader(RATE.toLong(), 0) + soundHandler() + box("minf", soundMedia(stbl))),
+      )
+    val trex = trackExtends(trackId = 1, defaultDuration = AAC_FRAME.toLong(), defaultSize = SILENT_FRAME.size.toLong())
+    val moov = box("moov", movieHeader(RATE.toLong(), 0) + trak + box("mvex", trex))
+    val each = FRAMES / fragments
+    var out = ftyp + moov
+    var laid = 0
+    repeat(fragments) { index ->
+      val count = if (index == fragments - 1) FRAMES - laid else each
+      val durations = if (index == fragments - 1) List(count) { AAC_FRAME.toLong() } else null
+      val headerDuration = if (index == 0) AAC_FRAME.toLong() else null
+      val payload = ByteArray(count * SILENT_FRAME.size) { SILENT_FRAME[it % SILENT_FRAME.size] }
+      out += fragment(index + 1, laid.toLong() * AAC_FRAME, count, headerDuration, durations) + box("mdat", payload)
+      laid += count
+    }
+    return out
+  }
+
   private fun moov(chunkOffset: Int): ByteArray {
     val samples = (FRAMES * AAC_FRAME).toLong()
     val presented = samples - DELAY
     val elst = fullBox("elst", 0, u32(1) + u32(presented) + u32(DELAY.toLong()) + u16(1) + u16(0))
-    val hdlr = fullBox("hdlr", 0, u32(0) + ascii("soun") + ByteArray(12) + ascii("SoundHandler") + byteArrayOf(0))
-    val dinf = box("dinf", fullBox("dref", 0, u32(1) + fullBox("url ", 0, ByteArray(0), flags = 1)))
     val stbl =
       box(
         "stbl",
@@ -82,14 +124,39 @@ public object PrimedAudio {
           fullBox("stsz", 0, u32(SILENT_FRAME.size.toLong()) + u32(FRAMES.toLong())) +
           fullBox("stco", 0, u32(1) + u32(chunkOffset.toLong())),
       )
-    val minf = box("minf", fullBox("smhd", 0, u32(0)) + dinf + stbl)
+    val minf = box("minf", soundMedia(stbl))
     val trak =
       box(
         "trak",
         trackHeader(presented) + box("edts", elst) +
-          box("mdia", mediaHeader(RATE.toLong(), samples) + hdlr + minf),
+          box("mdia", mediaHeader(RATE.toLong(), samples) + soundHandler() + minf),
       )
     return box("moov", movieHeader(RATE.toLong(), presented) + trak)
+  }
+
+  private fun soundHandler(): ByteArray =
+    fullBox("hdlr", 0, u32(0) + ascii("soun") + ByteArray(12) + ascii("SoundHandler") + byteArrayOf(0))
+
+  private fun soundMedia(stbl: ByteArray): ByteArray =
+    fullBox("smhd", 0, u32(0)) + box("dinf", fullBox("dref", 0, u32(1) + fullBox("url ", 0, ByteArray(0), flags = 1))) +
+      stbl
+
+  // One moof for track 1 whose single trun points at the mdat right after it.
+  private fun fragment(
+    sequence: Int,
+    baseTime: Long,
+    count: Int,
+    headerDuration: Long?,
+    durations: List<Long>?,
+  ): ByteArray {
+    fun build(dataOffset: Long): ByteArray =
+      box(
+        "moof",
+        fullBox("mfhd", 0, u32(sequence.toLong())) +
+          trackFragment(1, baseTime, headerDuration, listOf(RunEntries(count, durations, dataOffset))),
+      )
+    val length = build(0).size
+    return build(length + 8L)
   }
 
   // An AAC-LC sample entry for mono at the track's rate, its decoder config carried in an esds.
@@ -180,6 +247,32 @@ public object MovieBoxes {
   ): ByteArray = box("trak", trackHeader(duration, version))
 
   /**
+   * A `trex` giving the samples of track [trackId]'s fragments [defaultDuration] ticks and [defaultSize] bytes each
+   * unless a fragment says otherwise.
+   */
+  public fun trackExtends(
+    trackId: Long,
+    defaultDuration: Long,
+    defaultSize: Long = 0,
+  ): ByteArray = fullBox("trex", 0, u32(trackId) + u32(1) + u32(defaultDuration) + u32(defaultSize) + u32(0))
+
+  /**
+   * A `traf` for track [trackId], with a `tfdt` of [baseTime] when that is set and a `tfhd` default sample duration of
+   * [headerDuration] when that is set, then one `trun` per entry of [runs].
+   */
+  public fun trackFragment(
+    trackId: Long,
+    baseTime: Long?,
+    headerDuration: Long? = null,
+    runs: List<RunEntries>,
+  ): ByteArray {
+    val tfhdFlags = DEFAULT_BASE_IS_MOOF or if (headerDuration != null) DEFAULT_SAMPLE_DURATION else 0
+    val tfhd = fullBox("tfhd", 0, u32(trackId) + (headerDuration?.let { u32(it) } ?: ByteArray(0)), flags = tfhdFlags)
+    val tfdt = baseTime?.let { fullBox("tfdt", 1, u64(it)) } ?: ByteArray(0)
+    return box("traf", tfhd + tfdt + runs.joinBytes { it.box() })
+  }
+
+  /**
    * A box of [type] around [payload] with a 32-bit size.
    */
   public fun box(
@@ -234,3 +327,34 @@ private val MATRIX =
 private const val TRACK_ENABLED_IN_MOVIE = 3
 
 private const val TRACK_IN_MOVIE = 2
+
+/**
+ * One `trun` of [count] samples, listing [durations] per sample when they are set and taking each sample's duration
+ * from its `tfhd` or `trex` default otherwise.
+ *
+ * @property dataOffset Where the run's samples start, counted from the `moof` that holds it, or null to leave it out.
+ */
+@InternalFilmstripApi
+public class RunEntries(
+  public val count: Int,
+  public val durations: List<Long>? = null,
+  public val dataOffset: Long? = null,
+) {
+  internal fun box(): ByteArray {
+    val flags = (if (dataOffset != null) RUN_DATA_OFFSET else 0) or (if (durations != null) RUN_SAMPLE_DURATION else 0)
+    val offset = dataOffset?.let { MovieBoxes.u32(it) } ?: ByteArray(0)
+    val entries = durations.orEmpty().joinBytes { MovieBoxes.u32(it) }
+    return MovieBoxes.fullBox("trun", 0, MovieBoxes.u32(count.toLong()) + offset + entries, flags = flags)
+  }
+}
+
+private fun <T> List<T>.joinBytes(bytes: (T) -> ByteArray): ByteArray =
+  fold(ByteArray(0)) { all, item ->
+    all +
+      bytes(item)
+  }
+
+private const val DEFAULT_BASE_IS_MOOF = 0x020000
+private const val DEFAULT_SAMPLE_DURATION = 0x08
+private const val RUN_DATA_OFFSET = 0x01
+private const val RUN_SAMPLE_DURATION = 0x100

@@ -12,6 +12,7 @@ import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.effects.BuiltInEffectResolver
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.media.MediaSource
+import dev.jordond.filmstrip.media.movieLengthOf
 import dev.jordond.filmstrip.test.PrimedAudio
 import dev.jordond.filmstrip.test.TestScratch
 import dev.jordond.filmstrip.transform.internal.ResolveResult
@@ -29,11 +30,13 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import platform.AVFoundation.AVAssetTrack
 import platform.AVFoundation.AVMediaTypeAudio
+import platform.AVFoundation.AVURLAsset
 import platform.AVFoundation.timeRange
 import platform.AVFoundation.tracksWithMediaType
 import platform.CoreMedia.CMTimeRangeGetEnd
 import platform.Foundation.NSData
 import platform.Foundation.NSFileManager
+import platform.Foundation.NSURL
 import platform.Foundation.NSUUID
 import platform.Foundation.create
 import platform.Foundation.writeToFile
@@ -46,21 +49,24 @@ import kotlin.time.Duration.Companion.seconds
 /**
  * Lays an untrimmed audio-only MP4 whose AAC track opens on an encoder delay its edit list skips, which AVFoundation
  * reads a little shorter than the movie header the probe reports, and checks its audio reaches the preview and the
- * export at the header's length.
+ * export at the header's length. The same track written as a fragmented file reaches both at the length core reads off
+ * its fragments.
  */
 @OptIn(ExperimentalForeignApi::class)
 class ApplePrimedAudioMediaTest {
   private val path = TestScratch.directory + "filmstrip-primed-aac-${NSUUID().UUIDString}.mp4"
+  private val fragmented = TestScratch.directory + "filmstrip-fragmented-aac-${NSUUID().UUIDString}.mp4"
   private val output = TestScratch.directory + "filmstrip-primed-aac-out-${NSUUID().UUIDString}.mp4"
 
   init {
-    val bytes = PrimedAudio.mp4()
-    bytes.usePinned { NSData.create(bytes = it.addressOf(0), length = bytes.size.toULong()) }.writeToFile(path, true)
+    write(PrimedAudio.mp4(), path)
+    write(PrimedAudio.fragmentedMp4(), fragmented)
   }
 
   @AfterTest
   fun remove() {
     NSFileManager.defaultManager.removeItemAtPath(path, error = null)
+    NSFileManager.defaultManager.removeItemAtPath(fragmented, error = null)
     NSFileManager.defaultManager.removeItemAtPath(output, error = null)
   }
 
@@ -95,10 +101,68 @@ class ApplePrimedAudioMediaTest {
       }
     }
 
-  private fun composition(): Composition =
+  private fun composition(audio: String = path): Composition =
     compositionOf {
       clip(MediaSource.of(fixture("apple_export_a.mp4")))
-      track(TrackContent.Audio) { clip(MediaSource.of(path)) }
+      track(TrackContent.Audio) { clip(MediaSource.of(audio)) }
+    }
+
+  private fun write(
+    bytes: ByteArray,
+    to: String,
+  ) {
+    bytes.usePinned { NSData.create(bytes = it.addressOf(0), length = bytes.size.toULong()) }.writeToFile(to, true)
+  }
+
+  private suspend fun sharedLengthOf(bytes: ByteArray): Duration =
+    movieLengthOf(bytes.size.toLong()) { start, count ->
+      bytes.copyOfRange(start.toInt(), minOf(bytes.size, start.toInt() + count))
+    }.shouldNotBeNull()
+
+  @Test
+  fun `a fragmented clip's preview lays its audio at the length its fragments present`() =
+    runTest(timeout = TIMEOUT) {
+      val shared = sharedLengthOf(PrimedAudio.fragmentedMp4())
+      val resolved = resolved(composition(fragmented))
+
+      val lowered = withContext(Dispatchers.Default) { resolved.toAvComposition() }
+
+      val audioEnds =
+        lowered.composition.tracksWithMediaType(AVMediaTypeAudio).map {
+          CMTimeRangeGetEnd((it as AVAssetTrack).timeRange).toDuration()
+        }
+      resolved.duration shouldBe shared
+      withClue("the audio tracks end at $audioEnds") { audioEnds.max() shouldBe shared }
+    }
+
+  @Test
+  fun `a fragmented clip exports at the length its fragments present`() =
+    runTest(timeout = TIMEOUT) {
+      val shared = sharedLengthOf(PrimedAudio.fragmentedMp4())
+      val filmstrip = Filmstrip { avFoundationBackend() }
+
+      val success = filmstrip.exportOrFail(composition(fragmented), ExportSpec(), output)
+
+      withClue("the audio track did not survive") { success.info.audio.shouldNotBeNull() }
+      val decoded = (audioOf(output).samples.size.toDouble() / PROBE_SAMPLE_RATE).seconds
+      withClue("the export decodes to $decoded and reports ${success.info.duration}") {
+        (success.info.duration - shared).absoluteValue shouldBeLessThanOrEqualTo AAC_FRAME
+        (shared - decoded).absoluteValue shouldBeLessThanOrEqualTo AAC_FRAME * 3
+      }
+    }
+
+  // AVFoundation's limit: it skips its own AAC priming off a fragmented track and ignores the edit list, so the track
+  // opens AVFOUNDATION_PRIMING less the file's delay further into the decode and runs that much short.
+  @Test
+  fun `AVFoundation reads a fragmented AAC track short by its own priming less the edit`() =
+    runTest(timeout = TIMEOUT) {
+      val shared = sharedLengthOf(PrimedAudio.fragmentedMp4())
+      val asset = AVURLAsset(uRL = NSURL.fileURLWithPath(fragmented), options = null)
+
+      val track = asset.tracksWithMediaType(AVMediaTypeAudio).single() as AVAssetTrack
+
+      val skipped = ((AVFOUNDATION_PRIMING - PrimedAudio.DELAY).toDouble() / PrimedAudio.RATE).seconds
+      CMTimeRangeGetEnd(track.timeRange).toDuration() shouldBe shared - skipped
     }
 
   private suspend fun resolved(composition: Composition): ResolvedComposition =
@@ -113,5 +177,6 @@ class ApplePrimedAudioMediaTest {
   private companion object {
     val TIMEOUT = 3.minutes
     val AAC_FRAME: Duration = (PrimedAudio.AAC_FRAME.toDouble() / PrimedAudio.RATE).seconds
+    const val AVFOUNDATION_PRIMING = 2112
   }
 }

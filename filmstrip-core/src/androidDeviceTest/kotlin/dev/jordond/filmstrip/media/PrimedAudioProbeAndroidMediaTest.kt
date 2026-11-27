@@ -19,16 +19,20 @@ import kotlin.time.Duration.Companion.milliseconds
 
 /**
  * Probes an MP4 whose AAC track opens on an encoder delay its edit list skips, through a path, a file URI, a
- * `content://` URI and bytes, and checks each reports the length the movie header gives.
+ * `content://` URI and bytes, and checks each reports the length the movie header gives. The same track written as a
+ * fragmented file reports the length core reads off its fragments.
  */
 class PrimedAudioProbeAndroidMediaTest {
   private val context: Context = InstrumentationRegistry.getInstrumentation().targetContext
   private val file =
     File(context.cacheDir, "primed-aac-${System.nanoTime()}.mp4").apply { writeBytes(PrimedAudio.mp4()) }
+  private val fragmented =
+    File(context.cacheDir, "fragmented-aac-${System.nanoTime()}.mp4").apply { writeBytes(PrimedAudio.fragmentedMp4()) }
 
   @AfterTest
   fun removeFile() {
     file.delete()
+    fragmented.delete()
   }
 
   @Test
@@ -77,6 +81,26 @@ class PrimedAudioProbeAndroidMediaTest {
       FilmstripContext.install(context)
 
       durationOf(MediaSource.ofBytes(PrimedAudio.mp4(), FormatHint.Mp4)) shouldBe PrimedAudio.presentedLength
+    }
+
+  @Test
+  fun aFragmentedPathReportsTheLengthItsFragmentsPresent() =
+    runTest {
+      durationOf(MediaSource.of(fragmented.path)) shouldBe sharedLengthOf(PrimedAudio.fragmentedMp4())
+    }
+
+  @Test
+  fun fragmentedBytesReportTheLengthTheirFragmentsPresent() =
+    runTest {
+      FilmstripContext.install(context)
+      val bytes = PrimedAudio.fragmentedMp4(edit = false)
+
+      durationOf(MediaSource.ofBytes(bytes, FormatHint.Mp4)) shouldBe sharedLengthOf(bytes)
+    }
+
+  private suspend fun sharedLengthOf(bytes: ByteArray) =
+    movieDurationOf(bytes.size.toLong()) { start, count ->
+      bytes.copyOfRange(start.toInt(), minOf(bytes.size, start.toInt() + count))
     }
 
   private fun retrieverDuration(uri: String): Long? {
