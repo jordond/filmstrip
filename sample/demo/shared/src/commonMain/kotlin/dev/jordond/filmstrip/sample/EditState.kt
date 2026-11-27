@@ -140,6 +140,8 @@ public class EditState {
   var filmFlicker: Float by mutableStateOf(0f)
   var filmDust: Float by mutableStateOf(0f)
   var filmGate: Float by mutableStateOf(0f)
+  var filmBreath: Float by mutableStateOf(0f)
+  var filmFade: Float by mutableStateOf(0f)
   var nightVisionEnabled: Boolean by mutableStateOf(false)
   var nightVisionIntensity: Float by mutableStateOf(1f)
   var glitchEnabled: Boolean by mutableStateOf(false)
@@ -351,6 +353,8 @@ public class EditState {
     filmFlicker = 0f
     filmDust = 0f
     filmGate = 0f
+    filmBreath = 0f
+    filmFade = 0f
     nightVisionEnabled = false
     nightVisionIntensity = 1f
     glitchEnabled = false

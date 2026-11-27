@@ -67,6 +67,18 @@ class LooksEditTest {
   }
 
   @Test
+  fun `film carries breath and fade`() {
+    val edit =
+      EditState().apply {
+        filmEnabled = true
+        filmBreath = 0.4f
+        filmFade = 0.6f
+      }
+
+    effectsOf(edit) shouldContainExactly built { film(grain = 0.5f, halation = 0.5f, breath = 0.4f, fade = 0.6f) }
+  }
+
+  @Test
   fun `night vision and glitch switched on are the library defaults`() {
     val edit =
       EditState().apply {

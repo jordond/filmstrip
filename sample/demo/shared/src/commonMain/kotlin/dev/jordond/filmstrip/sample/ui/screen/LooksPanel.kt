@@ -265,6 +265,12 @@ internal fun LooksSections(state: SampleAppState) {
       GradeSlider(state, "Gate", edit.filmGate, formatPercent(edit.filmGate), 0f..1f, 0f) {
         edit.filmGate = it
       }
+      GradeSlider(state, "Breath", edit.filmBreath, formatPercent(edit.filmBreath), 0f..1f, 0f) {
+        edit.filmBreath = it
+      }
+      GradeSlider(state, "Fade", edit.filmFade, formatPercent(edit.filmFade), 0f..1f, 0f) {
+        edit.filmFade = it
+      }
     }
   }
 

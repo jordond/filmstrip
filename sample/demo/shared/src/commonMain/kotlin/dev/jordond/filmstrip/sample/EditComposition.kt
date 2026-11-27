@@ -201,7 +201,19 @@ private fun EditState.composition(
         camcorder(camcorderDisplay.elements(tapeStock))
       }
       if (bloomEnabled) bloom(bloomIntensity, bloomThreshold, bloomSpread)
-      if (filmEnabled) film(filmGrain, filmHalation, filmWeave, filmFlicker, filmDust, filmGate, filmLeak)
+      if (filmEnabled) {
+        film(
+          grain = filmGrain,
+          halation = filmHalation,
+          weave = filmWeave,
+          flicker = filmFlicker,
+          dust = filmDust,
+          gate = filmGate,
+          leak = filmLeak,
+          breath = filmBreath,
+          fade = filmFade,
+        )
+      }
       if (nightVisionEnabled) nightVision(nightVisionIntensity)
       if (glitchEnabled) glitch(glitchIntensity, glitchBlocks)
       if (crtEnabled) crt(crtIntensity)
