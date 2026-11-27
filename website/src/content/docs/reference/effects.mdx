@@ -6,25 +6,29 @@ description: Every built-in effect on every backend, and where the backends diff
 The built-in effects live in `filmstrip-effects`. [Effects](/guides/effects/) and [Overlays](/guides/overlays/) show how
 to use them.
 
-| Effect          | Android | Apple | Browser       | JVM |
-| --------------- | ------- | ----- | ------------- | --- |
-| `rotate`        | ✓       | ✓     | Quarter turns | ✓   |
-| `flip`          | ✓       | ✓     | ✓             | ✓   |
-| `crop`          | ✓       | ✓     | ✓             | ✓   |
-| `scale`         | ✓       | ✓     | ✓             | ✓   |
-| `kenBurns`      | ✓       | ✓     | ✓             | ✗   |
-| `brightness`    | ✓       | ✓     | ✓             | ✓   |
-| `contrast`      | ✓       | ✓     | ✓             | ✓   |
-| `saturation`    | ✓       | ✓     | ✓             | ✓   |
-| `hueRotate`     | ✓       | ✓     | ✓             | ✓   |
-| `sepia`         | ✓       | ✓     | ✓             | ✓   |
-| `invert`        | ✓       | ✓     | ✓             | ✓   |
-| `rgbAdjustment` | ✓       | ✓     | ✓             | ✓   |
-| `colorMatrix`   | ✓       | ✓     | ✓             | ✓   |
-| `blur`          | ✓       | ✓     | ✓             | ✓   |
-| `vignette`      | ✓       | ✓     | ✓             | ✓   |
-| `imageOverlay`  | ✓       | ✓     | No file paths | ✓   |
-| `textOverlay`   | ✓       | ✓     | ✓             | ✓   |
+| Effect           | Android | Apple | Browser       | JVM |
+| ---------------- | ------- | ----- | ------------- | --- |
+| `rotate`         | ✓       | ✓     | Quarter turns | ✓   |
+| `flip`           | ✓       | ✓     | ✓             | ✓   |
+| `crop`           | ✓       | ✓     | ✓             | ✓   |
+| `scale`          | ✓       | ✓     | ✓             | ✓   |
+| `kenBurns`       | ✓       | ✓     | ✓             | ✗   |
+| `brightness`     | ✓       | ✓     | ✓             | ✓   |
+| `contrast`       | ✓       | ✓     | ✓             | ✓   |
+| `saturation`     | ✓       | ✓     | ✓             | ✓   |
+| `hueRotate`      | ✓       | ✓     | ✓             | ✓   |
+| `sepia`          | ✓       | ✓     | ✓             | ✓   |
+| `invert`         | ✓       | ✓     | ✓             | ✓   |
+| `rgbAdjustment`  | ✓       | ✓     | ✓             | ✓   |
+| `colorMatrix`    | ✓       | ✓     | ✓             | ✓   |
+| `blur`           | ✓       | ✓     | ✓             | ✓   |
+| `vignette`       | ✓       | ✓     | ✓             | ✓   |
+| `imageOverlay`   | ✓       | ✓     | No file paths | ✓   |
+| `textOverlay`    | ✓       | ✓     | ✓             | ✓   |
+| Composed overlay | ✓       | ✓     | ✓             | ✓   |
+
+A composed overlay is a composable baked into an `imageOverlay` by `filmstrip-compose`, so it draws wherever a bytes
+picture does. See [Overlays](/guides/overlays/#composables).
 
 An unsupported effect makes the plan `Incapable` and names the effect. `withoutUnsupported` gives you the same plan
 without it. See [Export](/guides/export/#plan).

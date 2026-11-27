@@ -14,6 +14,7 @@ import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
+import dev.jordond.filmstrip.sample.ui.screen.StoryElementContent
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -83,12 +84,18 @@ public class SampleAppState(
       release = release,
       composition = ::composition,
       spec = ::spec,
+      bake = { output -> edit.stories.bake(output) { StoryElementContent(it) } },
       onStart = preview::pause,
       onSucceeded = {
         backStack.remove(SampleRoute.Export)
         navigateTo(SampleRoute.Result)
       },
     )
+
+  init {
+    // A story change drops the plan baked from the old elements, and leaves the preview alone since it never holds them.
+    edit.stories.onChange = exports::reset
+  }
 
   private val prober = ClipProber(filmstrip, scope, recorder, ::onEditChanged)
 

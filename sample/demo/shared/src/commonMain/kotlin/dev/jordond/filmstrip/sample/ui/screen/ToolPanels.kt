@@ -68,6 +68,7 @@ private val Tools =
     ToolSpec(EditorTool.Adjust, "Adjust", SampleIcons.Brightness),
     ToolSpec(EditorTool.Text, "Text", SampleIcons.TextGlyph),
     ToolSpec(EditorTool.Watermark, "Overlay", SampleIcons.Watermark),
+    ToolSpec(EditorTool.Stories, "Stories", SampleIcons.TextGlyph),
     ToolSpec(EditorTool.Audio, "Audio", SampleIcons.Volume),
     ToolSpec(EditorTool.Tracks, "Tracks", SampleIcons.Tracks),
     ToolSpec(EditorTool.Background, "Frame", SampleIcons.Layers),
@@ -200,6 +201,7 @@ public fun ToolPanel(
       EditorTool.Adjust -> AdjustPanel(state)
       EditorTool.Text -> TextPanel(state)
       EditorTool.Watermark -> WatermarkPanel(state)
+      EditorTool.Stories -> StoriesPanel(state)
       EditorTool.Audio -> AudioPanel(state)
       EditorTool.Tracks -> TracksPanel(state)
       EditorTool.Background -> BackgroundPanel(state)
@@ -253,6 +255,9 @@ private fun EditState.contributes(
     }
     EditorTool.Watermark -> {
       watermarkImage != null
+    }
+    EditorTool.Stories -> {
+      stories.elements.isNotEmpty()
     }
     EditorTool.Audio -> {
       audioSpec != AudioSpec.Keep || sequence.clips.any { it.audio != AudioLevel.Inherit }

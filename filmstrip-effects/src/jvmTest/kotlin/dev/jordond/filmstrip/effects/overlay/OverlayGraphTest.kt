@@ -274,7 +274,7 @@ class OverlayGraphTest {
     spec: ImageOverlay,
     attributes: Attributes = sdr(),
   ): FilterFragment =
-    withClue("${spec.corner}") {
+    withClue("${spec.position}") {
       filterGraphOverlay(spec, attributes, null).shouldBeInstanceOf<EffectResolution.Resolved>()
     }.effect.fragment
 

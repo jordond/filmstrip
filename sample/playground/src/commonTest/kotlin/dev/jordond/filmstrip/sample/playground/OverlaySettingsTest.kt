@@ -1,6 +1,7 @@
 package dev.jordond.filmstrip.sample.playground
 
 import dev.jordond.filmstrip.effects.overlay.ImageOverlay
+import dev.jordond.filmstrip.effects.overlay.OverlayPosition
 import dev.jordond.filmstrip.geometry.Corner
 import dev.jordond.filmstrip.media.FramePlays
 import dev.jordond.filmstrip.media.ImageSource
@@ -9,6 +10,7 @@ import dev.jordond.filmstrip.style.FontWeight
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.string.shouldNotContain
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlin.test.Test
 import kotlin.time.Duration.Companion.milliseconds
 
@@ -144,7 +146,7 @@ class OverlaySettingsTest {
       )
     val overlay = edit.effects.filterIsInstance<ImageOverlay>().single()
     overlay.image shouldBe stickerOf(StickerFormat.Apng)
-    overlay.corner shouldBe Corner.BottomEnd
+    overlay.position.shouldBeInstanceOf<OverlayPosition.Corner>().corner shouldBe Corner.BottomEnd
     overlay.sheet shouldBe null
   }
 

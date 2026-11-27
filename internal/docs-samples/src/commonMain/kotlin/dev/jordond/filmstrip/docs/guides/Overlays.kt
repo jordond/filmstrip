@@ -39,6 +39,23 @@ internal fun imageWatermark(): Composition {
   return composition
 }
 
+internal fun placedSticker(): Composition {
+  // region at
+  val composition =
+    compositionOf {
+      clip(MediaSource.of("/path/to/clip.mp4"))
+      effects {
+        imageOverlay(
+          image = ImageSource.of("/path/to/sticker.png"),
+          at = Anchor(0.3f, 0.7f),
+          scale = 0.25f,
+        )
+      }
+    }
+  // endregion
+  return composition
+}
+
 internal fun caption(): Composition {
   // region text
   val composition =

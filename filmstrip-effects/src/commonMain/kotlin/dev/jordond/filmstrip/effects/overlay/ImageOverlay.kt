@@ -5,6 +5,7 @@ import dev.jordond.filmstrip.edit.EffectsBuilder
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.effect.EffectIds
+import dev.jordond.filmstrip.geometry.Anchor
 import dev.jordond.filmstrip.geometry.Corner
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ImageSource
@@ -31,9 +32,7 @@ import kotlin.time.Duration
  * An animated AVIF is refused by name, and so is any animated file given a [sheet].
  *
  * @property image The image to composite.
- * @property corner Which corner the overlay sits in.
- * @property margin Inset from the corner, as a fraction of the shorter side of the frame it is drawn
- * on.
+ * @property position Where the overlay sits on the frame, tucked into a corner or centred on a point.
  * @property scale Width as a fraction of the width of the frame it is drawn on. The height follows the
  * image's own aspect.
  * @property opacity Alpha applied to the overlay, in `0f..1f`.
@@ -46,14 +45,28 @@ import kotlin.time.Duration
 @Poko
 public class ImageOverlay(
   public val image: ImageSource,
-  public val corner: Corner,
-  public val margin: Float = DEFAULT_MARGIN,
+  public val position: OverlayPosition,
   public val scale: Float = DEFAULT_SCALE,
   public val opacity: Float = 1f,
   override val visibleDuring: TimeRange? = null,
   override val animation: OverlayAnimation? = null,
   public val sheet: SpriteSheet? = null,
 ) : OverlayEffect {
+  /**
+   * Builds an overlay tucked into [corner], inset by [margin] as a fraction of the shorter side of the frame it is
+   * drawn on. Every other parameter is the same as the primary constructor's.
+   */
+  public constructor(
+    image: ImageSource,
+    corner: Corner,
+    margin: Float = DEFAULT_MARGIN,
+    scale: Float = DEFAULT_SCALE,
+    opacity: Float = 1f,
+    visibleDuring: TimeRange? = null,
+    animation: OverlayAnimation? = null,
+    sheet: SpriteSheet? = null,
+  ) : this(image, OverlayPosition.Corner(corner, margin), scale, opacity, visibleDuring, animation, sheet)
+
   override val id: EffectId get() = EffectIds.IMAGE_OVERLAY
 
   public companion object {
@@ -103,15 +116,48 @@ public fun EffectsBuilder.imageOverlay(
 ): EffectsBuilder = add(ImageOverlay(image, corner, margin, scale, opacity, TimeRange(at), animation, sheet))
 
 /**
+ * Composite [image] with its centre on [at], sized as a fraction of the frame it is drawn on.
+ *
+ * That frame is the clip's frame when this is called on a clip, and the output frame when it is called on the
+ * composition. A point near an edge leaves the overlay hanging off it, and on Android a point past an edge is held on
+ * it. A [sheet] draws [image] one cell at a time.
+ */
+public fun EffectsBuilder.imageOverlay(
+  image: ImageSource,
+  at: Anchor,
+  scale: Float = ImageOverlay.DEFAULT_SCALE,
+  opacity: Float = 1f,
+  visibleDuring: TimeRange? = null,
+  animation: OverlayAnimation? = null,
+  sheet: SpriteSheet? = null,
+): EffectsBuilder = add(ImageOverlay(image, OverlayPosition.At(at), scale, opacity, visibleDuring, animation, sheet))
+
+/**
+ * Composite [image] with its centre on [at], visible only during [during].
+ *
+ * Sized and placed the same way as the overload that takes a [TimeRange], and a [sheet] is drawn the same way.
+ */
+public fun EffectsBuilder.imageOverlay(
+  image: ImageSource,
+  at: Anchor,
+  during: ClosedRange<Duration>,
+  scale: Float = ImageOverlay.DEFAULT_SCALE,
+  opacity: Float = 1f,
+  animation: OverlayAnimation? = null,
+  sheet: SpriteSheet? = null,
+): EffectsBuilder =
+  add(ImageOverlay(image, OverlayPosition.At(at), scale, opacity, TimeRange(during), animation, sheet))
+
+/**
  * Resolves this overlay against the frame it is composited onto.
  *
  * The drawn width is [ImageOverlay.scale] of the frame's width and the height follows [image]'s
  * own aspect, so the image never stretches. For an overlay with a [ImageOverlay.sheet] that is the size of one cell.
- * The inset is measured off the frame's shorter side, so the same margin reads as the same distance from the edge in
- * portrait and in landscape.
  *
- * A margin large enough to carry the overlay past the middle of the frame is held at the middle
- * rather than allowed to cross to the far side.
+ * An [OverlayPosition.Corner] inset is measured off the frame's shorter side, so the same margin reads as the same
+ * distance from the edge in portrait and in landscape. A margin large enough to carry the overlay past the middle of
+ * the frame is held at the middle rather than allowed to cross to the far side. An [OverlayPosition.At] brings the
+ * overlay's centre to its point as given.
  *
  * @param frame The frame the overlay is drawn on, in pixels.
  * @param image The pixel size of what is drawn, which is one cell for an overlay with a sheet.
@@ -124,12 +170,20 @@ public fun ImageOverlay.placedOn(
   val width = (scale * frame.width).roundToInt().coerceAtLeast(1)
   val height =
     if (image.width <= 0) width else (width.toFloat() * image.height / image.width).roundToInt().coerceAtLeast(1)
-  val inset = margin * min(frame.width, frame.height)
-  return OverlayPlacement(
-    size = Size(width, height),
-    overlayAnchor = corner.anchor(),
-    frameAnchor = corner.inset(inset.fractionOf(frame.width), inset.fractionOf(frame.height)),
-  )
+  val size = Size(width, height)
+  return when (val position = position) {
+    is OverlayPosition.Corner -> {
+      val inset = position.margin * min(frame.width, frame.height)
+      OverlayPlacement(
+        size = size,
+        overlayAnchor = position.corner.anchor(),
+        frameAnchor = position.corner.inset(inset.fractionOf(frame.width), inset.fractionOf(frame.height)),
+      )
+    }
+    is OverlayPosition.At -> {
+      OverlayPlacement(size, overlayAnchor = Anchor.Center, frameAnchor = position.center)
+    }
+  }
 }
 
 private fun Float.fractionOf(side: Int): Float = if (side <= 0) 0f else (this / side).coerceIn(0f, HALF)

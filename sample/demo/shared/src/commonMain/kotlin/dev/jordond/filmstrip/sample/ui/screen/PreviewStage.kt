@@ -154,8 +154,11 @@ public fun PreviewStage(
           )
         } else {
           // Both tools drag against the whole stage, so the crop rectangle and the overlay handles
-          // take turns rather than sharing a frame's worth of gestures.
-          OverlayHandles(state)
+          // take turns rather than sharing a frame's worth of gestures. Story elements are drawn live
+          // here and only baked for an export.
+          val storiesOpen = state.activeTool == EditorTool.Stories
+          StoryElements(state, interactive = storiesOpen)
+          if (!storiesOpen) OverlayHandles(state)
         }
       }
     }
@@ -246,6 +249,9 @@ private fun SampleAppState.stepLabel(compact: Boolean): String {
     }
     EditorTool.Watermark -> {
       if (compact) "IMAGE" else "OVERLAY  IMAGE"
+    }
+    EditorTool.Stories -> {
+      if (compact) "STORIES" else "OVERLAY  STORIES"
     }
     EditorTool.Audio -> {
       "AUDIO"
@@ -435,7 +441,7 @@ internal fun sampleCropColors(): CropColors {
  * The overlay handles' palette, taken from the app's theme.
  */
 @Composable
-private fun sampleHandleColors(): OverlayHandleColors {
+internal fun sampleHandleColors(): OverlayHandleColors {
   val scheme = MaterialTheme.colorScheme
   return remember(scheme) {
     OverlayHandleDefaults.colors(

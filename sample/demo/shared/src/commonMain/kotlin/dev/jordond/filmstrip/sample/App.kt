@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -13,6 +14,8 @@ import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.scene.DialogSceneStrategy
 import androidx.navigation3.scene.SinglePaneSceneStrategy
 import androidx.navigation3.ui.NavDisplay
+import dev.jordond.filmstrip.compose.overlay.OverlayCaptureHost
+import dev.jordond.filmstrip.compose.overlay.rememberOverlayCapturer
 import dev.jordond.filmstrip.filekit.compose.rememberImagePickerLauncher
 import dev.jordond.filmstrip.filekit.compose.rememberMediaPickerLauncher
 import dev.jordond.filmstrip.sample.ui.SampleTheme
@@ -34,6 +37,14 @@ import io.github.vinceglb.filekit.name
 fun App(state: SampleAppState) {
   SampleTheme {
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+      // Story elements are baked here for an export, so the host sits at the root and stays on screen over every
+      // route.
+      val capturer = rememberOverlayCapturer()
+      DisposableEffect(capturer) {
+        state.edit.stories.capturer = capturer
+        onDispose { state.edit.stories.capturer = null }
+      }
+      OverlayCaptureHost(capturer)
       val picker =
         rememberMediaPickerLauncher(
           onError = { state.onPickFailed(it.message) },

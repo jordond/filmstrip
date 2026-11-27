@@ -145,8 +145,9 @@ private fun AndroidPair<Float, Float>.movedTo(
 
 // Media3 documents both anchors as @FloatRange(from = -1, to = 1) on StaticOverlaySettings.Builder,
 // and implementing OverlaySettings directly walks past that check rather than lifting the limit, so
-// an anchor an animation carried off the frame is held at the edge here. It is media3's limit and
-// no other backend's: the same slide keeps going on Apple and on ffmpeg.
+// an anchor an animation carried off the frame, or an OverlayPosition.At point past an edge, is held
+// at the edge here. It is media3's limit and no other backend's: Apple, ffmpeg and the browser keep
+// going.
 private fun Anchor.ndcX(): Float = (2f * x - 1f).coerceIn(-1f, 1f)
 
 private fun Anchor.ndcY(): Float = (1f - 2f * y).coerceIn(-1f, 1f)

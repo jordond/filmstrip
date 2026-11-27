@@ -141,7 +141,7 @@ class AppleOverlayHdrHardwareTest {
       val transfer = HdrTransfer.Pq
       val white = HdrOverlayCells.WHITE
       val badge = ImageOverlay(ImageSource.ofBytes(OverlayPixels.pngOf(RASTER, white)), Corner.TopStart)
-      val faded = ImageOverlay(badge.image, badge.corner, animation = fade(inDuration = RAMP))
+      val faded = ImageOverlay(badge.image, badge.position, animation = fade(inDuration = RAMP))
 
       exported(transfer, "fade", BAR, listOf(faded)) { path, size ->
         val rect = faded.placedOn(size, RASTER).rectOn(size)

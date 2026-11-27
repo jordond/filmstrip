@@ -325,7 +325,7 @@ class FfmpegHeldTailMediaTest {
   ) {
     val picture = indexedClip(GRID_RATE, TAIL_PICTURE, blue = FIRST_BLUE)
     val sources = listOf(MediaSource.of(picture.absolutePath), MediaSource.of(fixture.long.absolutePath))
-    val overlay = fixture.watermark().let { mark -> ImageOverlay(mark.image, mark.corner, visibleDuring = window) }
+    val overlay = fixture.watermark().let { mark -> ImageOverlay(mark.image, mark.position, visibleDuring = window) }
     val spec = ExportSpec(frameRate = GRID_RATE)
     val composition = underBed(sources[0], sources[1], overlay = overlay, onClip = onClip)
     val lowering = fixture.plannedLowering(composition, spec, sources)

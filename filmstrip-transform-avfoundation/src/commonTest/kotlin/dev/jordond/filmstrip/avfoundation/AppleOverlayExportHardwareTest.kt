@@ -282,7 +282,7 @@ class AppleOverlayExportHardwareTest {
       val unmoved = placed.rectOn(clipFrame)
       val push = OverlayFrame(offset = OverlayOffset(-(unmoved.left + unmoved.width / 2f), 0f))
       val badge =
-        ImageOverlay(authored.image, authored.corner, scale = authored.scale, animation = OverlayAnimation { push })
+        ImageOverlay(authored.image, authored.position, scale = authored.scale, animation = OverlayAnimation { push })
       val rect = placed.animatedBy(push).rectOn(clipFrame)
       withClue("the badge at $rect does not straddle the clip's edge") {
         (rect.left < 0f && rect.right > 0f).shouldBeTrue()

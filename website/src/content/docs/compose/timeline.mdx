@@ -69,3 +69,6 @@ draws the `fallback` slot at the same size instead.
 The rectangle addresses the frame under it, so the preview stays uncropped and the crop joins the edit when you export.
 
 <Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/compose/Timeline.kt" region="stage-export" />
+
+`ComposedOverlay` puts any composable on the stage, where a drag moves it, a pinch scales it and a twist turns it, and
+an `OverlayCapturer` bakes it into the export. See [Composables](/guides/overlays/#composables) in the overlays guide.

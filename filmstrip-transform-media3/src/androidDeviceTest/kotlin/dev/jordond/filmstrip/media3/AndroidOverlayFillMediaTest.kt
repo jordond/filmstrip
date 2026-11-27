@@ -157,8 +157,7 @@ class AndroidOverlayFillMediaTest {
       val hanging =
         ImageOverlay(
           flush.image,
-          flush.corner,
-          flush.margin,
+          flush.position,
           flush.scale,
           animation = OverlayAnimation { OverlayFrame(offset = pushed) },
         )

@@ -105,3 +105,62 @@ public final class dev/jordond/filmstrip/compose/VideoSurface_jvmKt {
 	public static final fun VideoSurface (Ldev/jordond/filmstrip/player/VideoPlayer;Landroidx/compose/ui/Modifier;Ldev/jordond/filmstrip/compose/VideoContentScale;Ldev/jordond/filmstrip/compose/VideoSurfaceType;Landroidx/compose/runtime/Composer;II)V
 }
 
+public final class dev/jordond/filmstrip/compose/overlay/ElementBounds {
+	public static final field $stable I
+	public fun <init> (Ldev/jordond/filmstrip/geometry/NormalizedRect;Ldev/jordond/filmstrip/geometry/NormalizedRect;Landroidx/compose/ui/unit/IntRect;Ldev/jordond/filmstrip/geometry/Anchor;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getBox ()Ldev/jordond/filmstrip/geometry/NormalizedRect;
+	public final fun getCenter ()Ldev/jordond/filmstrip/geometry/Anchor;
+	public final fun getRaster ()Landroidx/compose/ui/unit/IntRect;
+	public final fun getVisible ()Ldev/jordond/filmstrip/geometry/NormalizedRect;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/jordond/filmstrip/compose/overlay/ElementBoundsKt {
+	public static final fun boundsOn-95KtPRI (Ldev/jordond/filmstrip/compose/overlay/OverlayTransform;JLdev/jordond/filmstrip/compose/overlay/OverlayCanvas;Ldev/jordond/filmstrip/geometry/Size;)Ldev/jordond/filmstrip/compose/overlay/ElementBounds;
+}
+
+public final class dev/jordond/filmstrip/compose/overlay/OverlayCanvas {
+	public static final field $stable I
+	public static final field Companion Ldev/jordond/filmstrip/compose/overlay/OverlayCanvas$Companion;
+	public fun <init> ()V
+	public synthetic fun <init> (FILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (FLkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getWidth-D9Ej5fM ()F
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/jordond/filmstrip/compose/overlay/OverlayCanvas$Companion {
+	public final fun getDEFAULT_WIDTH-D9Ej5fM ()F
+}
+
+public final class dev/jordond/filmstrip/compose/overlay/OverlayCaptureHostKt {
+	public static final fun OverlayCaptureHost (Ldev/jordond/filmstrip/compose/overlay/OverlayCapturer;Landroidx/compose/ui/Modifier;Landroidx/compose/runtime/Composer;II)V
+}
+
+public final class dev/jordond/filmstrip/compose/overlay/OverlayCapturer {
+	public static final field $stable I
+	public final fun capture (Ldev/jordond/filmstrip/compose/overlay/OverlayTransform;Ldev/jordond/filmstrip/compose/overlay/OverlayCanvas;Ldev/jordond/filmstrip/geometry/Size;Lkotlin/jvm/functions/Function1;FLdev/jordond/filmstrip/edit/TimeRange;Ldev/jordond/filmstrip/effects/overlay/OverlayAnimation;Lkotlin/jvm/functions/Function2;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun capture$default (Ldev/jordond/filmstrip/compose/overlay/OverlayCapturer;Ldev/jordond/filmstrip/compose/overlay/OverlayTransform;Ldev/jordond/filmstrip/compose/overlay/OverlayCanvas;Ldev/jordond/filmstrip/geometry/Size;Lkotlin/jvm/functions/Function1;FLdev/jordond/filmstrip/edit/TimeRange;Ldev/jordond/filmstrip/effects/overlay/OverlayAnimation;Lkotlin/jvm/functions/Function2;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+}
+
+public final class dev/jordond/filmstrip/compose/overlay/OverlayCapturerKt {
+	public static final fun rememberOverlayCapturer (Landroidx/compose/runtime/Composer;I)Ldev/jordond/filmstrip/compose/overlay/OverlayCapturer;
+}
+
+public final class dev/jordond/filmstrip/compose/overlay/OverlayTransform {
+	public static final field $stable I
+	public fun <init> ()V
+	public fun <init> (Ldev/jordond/filmstrip/geometry/Anchor;FF)V
+	public synthetic fun <init> (Ldev/jordond/filmstrip/geometry/Anchor;FFILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getCenter ()Ldev/jordond/filmstrip/geometry/Anchor;
+	public final fun getRotationDegrees ()F
+	public final fun getScale ()F
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+

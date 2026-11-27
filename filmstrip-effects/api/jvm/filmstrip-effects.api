@@ -335,16 +335,17 @@ public final class dev/jordond/filmstrip/effects/overlay/ImageOverlay : dev/jord
 	public static final field Companion Ldev/jordond/filmstrip/effects/overlay/ImageOverlay$Companion;
 	public static final field DEFAULT_MARGIN F
 	public static final field DEFAULT_SCALE F
+	public fun <init> (Ldev/jordond/filmstrip/media/ImageSource;Ldev/jordond/filmstrip/effects/overlay/OverlayPosition;FFLdev/jordond/filmstrip/edit/TimeRange;Ldev/jordond/filmstrip/effects/overlay/OverlayAnimation;Ldev/jordond/filmstrip/effects/overlay/SpriteSheet;)V
+	public synthetic fun <init> (Ldev/jordond/filmstrip/media/ImageSource;Ldev/jordond/filmstrip/effects/overlay/OverlayPosition;FFLdev/jordond/filmstrip/edit/TimeRange;Ldev/jordond/filmstrip/effects/overlay/OverlayAnimation;Ldev/jordond/filmstrip/effects/overlay/SpriteSheet;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun <init> (Ldev/jordond/filmstrip/media/ImageSource;Ldev/jordond/filmstrip/geometry/Corner;FFFLdev/jordond/filmstrip/edit/TimeRange;Ldev/jordond/filmstrip/effects/overlay/OverlayAnimation;Ldev/jordond/filmstrip/effects/overlay/SpriteSheet;)V
 	public synthetic fun <init> (Ldev/jordond/filmstrip/media/ImageSource;Ldev/jordond/filmstrip/geometry/Corner;FFFLdev/jordond/filmstrip/edit/TimeRange;Ldev/jordond/filmstrip/effects/overlay/OverlayAnimation;Ldev/jordond/filmstrip/effects/overlay/SpriteSheet;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun equals (Ljava/lang/Object;)Z
 	public fun getAnimation ()Ldev/jordond/filmstrip/effects/overlay/OverlayAnimation;
 	public fun getBeneathOverlays ()Z
-	public final fun getCorner ()Ldev/jordond/filmstrip/geometry/Corner;
 	public fun getId-M7MrD_4 ()Ljava/lang/String;
 	public final fun getImage ()Ldev/jordond/filmstrip/media/ImageSource;
-	public final fun getMargin ()F
 	public final fun getOpacity ()F
+	public final fun getPosition ()Ldev/jordond/filmstrip/effects/overlay/OverlayPosition;
 	public fun getRedrawsWhileHeld ()Z
 	public fun getRequiresSdr ()Z
 	public final fun getScale ()F
@@ -361,8 +362,12 @@ public final class dev/jordond/filmstrip/effects/overlay/ImageOverlay$Companion 
 }
 
 public final class dev/jordond/filmstrip/effects/overlay/ImageOverlayKt {
+	public static final fun imageOverlay (Ldev/jordond/filmstrip/edit/EffectsBuilder;Ldev/jordond/filmstrip/media/ImageSource;Ldev/jordond/filmstrip/geometry/Anchor;FFLdev/jordond/filmstrip/edit/TimeRange;Ldev/jordond/filmstrip/effects/overlay/OverlayAnimation;Ldev/jordond/filmstrip/effects/overlay/SpriteSheet;)Ldev/jordond/filmstrip/edit/EffectsBuilder;
+	public static final fun imageOverlay (Ldev/jordond/filmstrip/edit/EffectsBuilder;Ldev/jordond/filmstrip/media/ImageSource;Ldev/jordond/filmstrip/geometry/Anchor;Lkotlin/ranges/ClosedRange;FFLdev/jordond/filmstrip/effects/overlay/OverlayAnimation;Ldev/jordond/filmstrip/effects/overlay/SpriteSheet;)Ldev/jordond/filmstrip/edit/EffectsBuilder;
 	public static final fun imageOverlay (Ldev/jordond/filmstrip/edit/EffectsBuilder;Ldev/jordond/filmstrip/media/ImageSource;Ldev/jordond/filmstrip/geometry/Corner;FFFLdev/jordond/filmstrip/edit/TimeRange;Ldev/jordond/filmstrip/effects/overlay/OverlayAnimation;Ldev/jordond/filmstrip/effects/overlay/SpriteSheet;)Ldev/jordond/filmstrip/edit/EffectsBuilder;
 	public static final fun imageOverlay (Ldev/jordond/filmstrip/edit/EffectsBuilder;Ldev/jordond/filmstrip/media/ImageSource;Ldev/jordond/filmstrip/geometry/Corner;Lkotlin/ranges/ClosedRange;FFFLdev/jordond/filmstrip/effects/overlay/OverlayAnimation;Ldev/jordond/filmstrip/effects/overlay/SpriteSheet;)Ldev/jordond/filmstrip/edit/EffectsBuilder;
+	public static synthetic fun imageOverlay$default (Ldev/jordond/filmstrip/edit/EffectsBuilder;Ldev/jordond/filmstrip/media/ImageSource;Ldev/jordond/filmstrip/geometry/Anchor;FFLdev/jordond/filmstrip/edit/TimeRange;Ldev/jordond/filmstrip/effects/overlay/OverlayAnimation;Ldev/jordond/filmstrip/effects/overlay/SpriteSheet;ILjava/lang/Object;)Ldev/jordond/filmstrip/edit/EffectsBuilder;
+	public static synthetic fun imageOverlay$default (Ldev/jordond/filmstrip/edit/EffectsBuilder;Ldev/jordond/filmstrip/media/ImageSource;Ldev/jordond/filmstrip/geometry/Anchor;Lkotlin/ranges/ClosedRange;FFLdev/jordond/filmstrip/effects/overlay/OverlayAnimation;Ldev/jordond/filmstrip/effects/overlay/SpriteSheet;ILjava/lang/Object;)Ldev/jordond/filmstrip/edit/EffectsBuilder;
 	public static synthetic fun imageOverlay$default (Ldev/jordond/filmstrip/edit/EffectsBuilder;Ldev/jordond/filmstrip/media/ImageSource;Ldev/jordond/filmstrip/geometry/Corner;FFFLdev/jordond/filmstrip/edit/TimeRange;Ldev/jordond/filmstrip/effects/overlay/OverlayAnimation;Ldev/jordond/filmstrip/effects/overlay/SpriteSheet;ILjava/lang/Object;)Ldev/jordond/filmstrip/edit/EffectsBuilder;
 	public static synthetic fun imageOverlay$default (Ldev/jordond/filmstrip/edit/EffectsBuilder;Ldev/jordond/filmstrip/media/ImageSource;Ldev/jordond/filmstrip/geometry/Corner;Lkotlin/ranges/ClosedRange;FFFLdev/jordond/filmstrip/effects/overlay/OverlayAnimation;Ldev/jordond/filmstrip/effects/overlay/SpriteSheet;ILjava/lang/Object;)Ldev/jordond/filmstrip/edit/EffectsBuilder;
 	public static final fun placedOn (Ldev/jordond/filmstrip/effects/overlay/ImageOverlay;Ldev/jordond/filmstrip/geometry/Size;Ldev/jordond/filmstrip/geometry/Size;)Ldev/jordond/filmstrip/effects/overlay/OverlayPlacement;
@@ -439,6 +444,27 @@ public final class dev/jordond/filmstrip/effects/overlay/OverlayPlacement {
 
 public final class dev/jordond/filmstrip/effects/overlay/OverlayPlacementKt {
 	public static final fun rectOn (Ldev/jordond/filmstrip/effects/overlay/OverlayPlacement;Ldev/jordond/filmstrip/geometry/Size;)Ldev/jordond/filmstrip/geometry/NormalizedRect;
+}
+
+public abstract interface class dev/jordond/filmstrip/effects/overlay/OverlayPosition {
+}
+
+public final class dev/jordond/filmstrip/effects/overlay/OverlayPosition$At : dev/jordond/filmstrip/effects/overlay/OverlayPosition {
+	public fun <init> (Ldev/jordond/filmstrip/geometry/Anchor;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getCenter ()Ldev/jordond/filmstrip/geometry/Anchor;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/jordond/filmstrip/effects/overlay/OverlayPosition$Corner : dev/jordond/filmstrip/effects/overlay/OverlayPosition {
+	public fun <init> (Ldev/jordond/filmstrip/geometry/Corner;F)V
+	public synthetic fun <init> (Ldev/jordond/filmstrip/geometry/Corner;FILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getCorner ()Ldev/jordond/filmstrip/geometry/Corner;
+	public final fun getMargin ()F
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
 }
 
 public final class dev/jordond/filmstrip/effects/overlay/OverlayTime {

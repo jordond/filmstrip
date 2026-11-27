@@ -107,6 +107,7 @@ public enum class EditorTool {
   Adjust,
   Text,
   Watermark,
+  Stories,
   Audio,
   Tracks,
   Background,

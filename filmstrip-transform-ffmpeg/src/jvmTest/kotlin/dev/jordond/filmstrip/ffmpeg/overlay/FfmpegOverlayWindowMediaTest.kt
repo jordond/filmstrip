@@ -39,7 +39,7 @@ class FfmpegOverlayWindowMediaTest {
     runTest(timeout = TIMEOUT) {
       if (!fixture.available()) return@runTest
 
-      val windowed = fixture.watermark().let { mark -> ImageOverlay(mark.image, mark.corner, visibleDuring = WINDOW) }
+      val windowed = fixture.watermark().let { mark -> ImageOverlay(mark.image, mark.position, visibleDuring = WINDOW) }
       val bare = fixture.exportedWatermark("filmstrip-overlay-window-bare", null, clips = 2, onClip = true)
       val marked = fixture.exportedWatermark("filmstrip-overlay-window", windowed, clips = 2, onClip = true)
       val size = marked.plan.output.size
@@ -67,7 +67,7 @@ class FfmpegOverlayWindowMediaTest {
     runTest(timeout = TIMEOUT) {
       if (!fixture.available()) return@runTest
 
-      val windowed = fixture.watermark().let { mark -> ImageOverlay(mark.image, mark.corner, visibleDuring = WINDOW) }
+      val windowed = fixture.watermark().let { mark -> ImageOverlay(mark.image, mark.position, visibleDuring = WINDOW) }
       val bare = fixture.exportedWatermark("filmstrip-overlay-edge-bare", null, clips = 2, onClip = true)
       val marked = fixture.exportedWatermark("filmstrip-overlay-edge", windowed, clips = 2, onClip = true)
       val size = marked.plan.output.size
@@ -100,7 +100,7 @@ class FfmpegOverlayWindowMediaTest {
       if (!fixture.available()) return@runTest
 
       val windowed =
-        fixture.watermark().let { mark -> ImageOverlay(mark.image, mark.corner, visibleDuring = RESAMPLED_WINDOW) }
+        fixture.watermark().let { mark -> ImageOverlay(mark.image, mark.position, visibleDuring = RESAMPLED_WINDOW) }
       val resampled = ExportSpec(frameRate = RESAMPLED_RATE)
       val bare = fixture.exportedWatermark("filmstrip-overlay-rate-bare", null, onClip = true, spec = resampled)
       val marked = fixture.exportedWatermark("filmstrip-overlay-rate", windowed, onClip = true, spec = resampled)

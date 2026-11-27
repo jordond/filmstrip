@@ -63,7 +63,7 @@ internal fun WideDeviceColumn(
         RunProgress(state)
       } else {
         state.exports.verdict?.let { VerdictWordFor(it) }
-          ?: IdleNote()
+          ?: IdleNote(state.exports.planFailure)
       }
       DeviceDetails(state)
     }
@@ -89,7 +89,7 @@ internal fun PhoneDeviceStrip(state: SampleAppState) {
         RunProgress(state)
       }
       verdict == null -> {
-        IdleNote()
+        IdleNote(state.exports.planFailure)
       }
       else -> {
         Row(
@@ -140,7 +140,15 @@ internal fun DeviceDetailsBlock(
 }
 
 @Composable
-private fun IdleNote() {
+private fun IdleNote(planFailure: String?) {
+  if (planFailure != null) {
+    Text(
+      "The stories did not bake, so nothing was planned. $planFailure",
+      style = MaterialTheme.typography.bodySmall,
+      color = MaterialTheme.colorScheme.error,
+    )
+    return
+  }
   Text(
     "Nothing asked yet. The verdict covers this spec on this device, before anything decodes.",
     style = MaterialTheme.typography.bodySmall,

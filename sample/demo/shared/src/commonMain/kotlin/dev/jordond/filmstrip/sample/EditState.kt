@@ -156,6 +156,8 @@ public class EditState {
   var lutIntensity: Float by mutableStateOf(1f)
   val camcorderDisplay: CamcorderState = CamcorderState()
 
+  val stories: StoryOverlays = StoryOverlays()
+
   var textEnabled: Boolean by mutableStateOf(false)
   var text: String by mutableStateOf("")
   var textSize: Float by mutableStateOf(0.06f)
@@ -364,6 +366,7 @@ public class EditState {
     lutEnabled = false
     lutIntensity = 1f
     camcorderDisplay.reset()
+    stories.clear()
     blur = 0f
     vignette = 0f
     vignetteRadius = VIGNETTE_RADIUS

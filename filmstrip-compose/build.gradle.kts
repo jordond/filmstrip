@@ -2,6 +2,7 @@ import dev.jordond.filmstrip.convention.androidDeviceTests
 import dev.jordond.filmstrip.convention.bootIosSimulatorForTests
 import dev.jordond.filmstrip.convention.testmedia.FixtureSpec
 import dev.jordond.filmstrip.convention.testmedia.testMedia
+import dev.jordond.filmstrip.convention.usesHostFfmpeg
 
 plugins {
   id("filmstrip.library.compose")
@@ -10,6 +11,9 @@ plugins {
 androidDeviceTests()
 
 kotlin {
+  // Compose's web UI test needs an executable binary to load Skiko into the test page.
+  wasmJs { binaries.executable() }
+
   sourceSets {
     create("skiaMain") {
       dependsOn(commonMain.get())
@@ -20,6 +24,7 @@ kotlin {
 
     commonMain.dependencies {
       api(projects.filmstripCore)
+      api(projects.filmstripEffects)
       api(projects.filmstripPlayer)
 
       api(libs.compose.runtime)
@@ -27,9 +32,20 @@ kotlin {
       implementation(libs.compose.foundation)
     }
 
+    // The Compose UI tests every platform that can draw runs, which the Android host suite cannot.
+    val composeUiTest =
+      create("composeUiTest") {
+        dependsOn(commonTest.get())
+        dependencies { implementation(libs.compose.ui.test) }
+      }
+    jvmTest.get().dependsOn(composeUiTest)
+    iosTest.get().dependsOn(composeUiTest)
+    wasmJsTest.get().dependsOn(composeUiTest)
+
     jvmTest.dependencies {
       implementation(compose.desktop.currentOs)
       implementation(projects.filmstripTesting)
+      implementation(projects.filmstripTransformFfmpeg)
       implementation(libs.compose.ui.test)
     }
 
@@ -40,6 +56,7 @@ kotlin {
     named("androidDeviceTest") {
       // The fakes the host suites share, so the device suite drives the same engine they do.
       kotlin.srcDir("src/commonTest/kotlin")
+      kotlin.srcDir("src/composeUiTest/kotlin")
       dependencies {
         implementation(kotlin("test"))
         implementation(libs.kotest.assertions)
@@ -56,6 +73,11 @@ kotlin {
 }
 
 bootIosSimulatorForTests()
+
+// The capture export test bakes an element and exports it through the host's ffmpeg.
+tasks.named<Test>("jvmTest") {
+  usesHostFfmpeg()
+}
 
 val surfaceFixtures =
   testMedia(

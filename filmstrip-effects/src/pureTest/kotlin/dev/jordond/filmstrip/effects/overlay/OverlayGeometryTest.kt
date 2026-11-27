@@ -260,6 +260,47 @@ class OverlayGeometryTest {
     placement.animatedBy(OverlayFrame(scale = 0f)).size shouldBe Size(1, 1)
   }
 
+  @Test
+  fun `a point lands the overlay's centre on it at its scale`() {
+    val at = ImageOverlay(ImageSource.of("/logo.png"), OverlayPosition.At(Anchor(0.3f, 0.6f)), scale = 0.25f)
+
+    listOf(LANDSCAPE, PORTRAIT).forEach { frame ->
+      withClue("$frame") {
+        val placement = at.placedOn(frame, Size(100, 50))
+        val rect = placement.rectOn(frame)
+
+        placement.overlayAnchor shouldBe Anchor.Center
+        assertClose(0.3f, (rect.left + rect.right) / 2f)
+        assertClose(0.6f, (rect.top + rect.bottom) / 2f)
+        assertClose(0.25f, rect.right - rect.left)
+        placement.size.height shouldBe placement.size.width / 2
+      }
+    }
+  }
+
+  @Test
+  fun `a point past the frame keeps the centre there`() {
+    val at = ImageOverlay(ImageSource.of("/logo.png"), OverlayPosition.At(Anchor(1.1f, -0.2f)), scale = 0.25f)
+
+    val placement = at.placedOn(LANDSCAPE, SQUARE_IMAGE)
+
+    placement.frameAnchor shouldBe Anchor(1.1f, -0.2f)
+    !placement.rectOn(LANDSCAPE).isValid shouldBe true
+  }
+
+  @Test
+  fun `either constructor places a corner overlay the same`() {
+    val image = ImageSource.of("/logo.png")
+    val byCorner = ImageOverlay(image, Corner.TopEnd, margin = 0.1f, scale = 0.3f)
+    val byPosition = ImageOverlay(image, OverlayPosition.Corner(Corner.TopEnd, margin = 0.1f), scale = 0.3f)
+
+    byCorner shouldBe byPosition
+    byCorner.placedOn(PORTRAIT, Size(100, 40)) shouldBe byPosition.placedOn(PORTRAIT, Size(100, 40))
+    val rect = byCorner.placedOn(PORTRAIT, Size(100, 40)).rectOn(PORTRAIT)
+    assertClose(108f, (1f - rect.right) * PORTRAIT.width)
+    assertClose(108f, rect.top * PORTRAIT.height)
+  }
+
   private fun imageOverlay(
     corner: Corner = Corner.BottomEnd,
     margin: Float = ImageOverlay.DEFAULT_MARGIN,

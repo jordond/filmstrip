@@ -29,6 +29,58 @@ final enum class dev.jordond.filmstrip.compose/VideoSurfaceType : kotlin/Enum<de
     final fun values(): kotlin/Array<dev.jordond.filmstrip.compose/VideoSurfaceType> // dev.jordond.filmstrip.compose/VideoSurfaceType.values|values#static(){}[0]
 }
 
+final class dev.jordond.filmstrip.compose.overlay/ElementBounds { // dev.jordond.filmstrip.compose.overlay/ElementBounds|null[0]
+    constructor <init>(dev.jordond.filmstrip.geometry/NormalizedRect, dev.jordond.filmstrip.geometry/NormalizedRect, androidx.compose.ui.unit/IntRect, dev.jordond.filmstrip.geometry/Anchor) // dev.jordond.filmstrip.compose.overlay/ElementBounds.<init>|<init>(dev.jordond.filmstrip.geometry.NormalizedRect;dev.jordond.filmstrip.geometry.NormalizedRect;androidx.compose.ui.unit.IntRect;dev.jordond.filmstrip.geometry.Anchor){}[0]
+
+    final val box // dev.jordond.filmstrip.compose.overlay/ElementBounds.box|{}box[0]
+        final fun <get-box>(): dev.jordond.filmstrip.geometry/NormalizedRect // dev.jordond.filmstrip.compose.overlay/ElementBounds.box.<get-box>|<get-box>(){}[0]
+    final val center // dev.jordond.filmstrip.compose.overlay/ElementBounds.center|{}center[0]
+        final fun <get-center>(): dev.jordond.filmstrip.geometry/Anchor // dev.jordond.filmstrip.compose.overlay/ElementBounds.center.<get-center>|<get-center>(){}[0]
+    final val raster // dev.jordond.filmstrip.compose.overlay/ElementBounds.raster|{}raster[0]
+        final fun <get-raster>(): androidx.compose.ui.unit/IntRect // dev.jordond.filmstrip.compose.overlay/ElementBounds.raster.<get-raster>|<get-raster>(){}[0]
+    final val visible // dev.jordond.filmstrip.compose.overlay/ElementBounds.visible|{}visible[0]
+        final fun <get-visible>(): dev.jordond.filmstrip.geometry/NormalizedRect // dev.jordond.filmstrip.compose.overlay/ElementBounds.visible.<get-visible>|<get-visible>(){}[0]
+
+    final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.compose.overlay/ElementBounds.equals|equals(kotlin.Any?){}[0]
+    final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.compose.overlay/ElementBounds.hashCode|hashCode(){}[0]
+    final fun toString(): kotlin/String // dev.jordond.filmstrip.compose.overlay/ElementBounds.toString|toString(){}[0]
+}
+
+final class dev.jordond.filmstrip.compose.overlay/OverlayCanvas { // dev.jordond.filmstrip.compose.overlay/OverlayCanvas|null[0]
+    constructor <init>(androidx.compose.ui.unit/Dp = ...) // dev.jordond.filmstrip.compose.overlay/OverlayCanvas.<init>|<init>(androidx.compose.ui.unit.Dp){}[0]
+
+    final val width // dev.jordond.filmstrip.compose.overlay/OverlayCanvas.width|{}width[0]
+        final fun <get-width>(): androidx.compose.ui.unit/Dp // dev.jordond.filmstrip.compose.overlay/OverlayCanvas.width.<get-width>|<get-width>(){}[0]
+
+    final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.compose.overlay/OverlayCanvas.equals|equals(kotlin.Any?){}[0]
+    final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.compose.overlay/OverlayCanvas.hashCode|hashCode(){}[0]
+    final fun toString(): kotlin/String // dev.jordond.filmstrip.compose.overlay/OverlayCanvas.toString|toString(){}[0]
+
+    final object Companion { // dev.jordond.filmstrip.compose.overlay/OverlayCanvas.Companion|null[0]
+        final val DEFAULT_WIDTH // dev.jordond.filmstrip.compose.overlay/OverlayCanvas.Companion.DEFAULT_WIDTH|{}DEFAULT_WIDTH[0]
+            final fun <get-DEFAULT_WIDTH>(): androidx.compose.ui.unit/Dp // dev.jordond.filmstrip.compose.overlay/OverlayCanvas.Companion.DEFAULT_WIDTH.<get-DEFAULT_WIDTH>|<get-DEFAULT_WIDTH>(){}[0]
+    }
+}
+
+final class dev.jordond.filmstrip.compose.overlay/OverlayCapturer { // dev.jordond.filmstrip.compose.overlay/OverlayCapturer|null[0]
+    final suspend fun capture(dev.jordond.filmstrip.compose.overlay/OverlayTransform, dev.jordond.filmstrip.compose.overlay/OverlayCanvas, dev.jordond.filmstrip.geometry/Size, kotlin.coroutines/SuspendFunction0<kotlin/Unit> = ..., kotlin/Float = ..., dev.jordond.filmstrip.edit/TimeRange? = ..., dev.jordond.filmstrip.effects.overlay/OverlayAnimation? = ..., kotlin/Function2<androidx.compose.runtime/Composer, kotlin/Int, kotlin/Unit>): dev.jordond.filmstrip.effects.overlay/ImageOverlay? // dev.jordond.filmstrip.compose.overlay/OverlayCapturer.capture|capture(dev.jordond.filmstrip.compose.overlay.OverlayTransform;dev.jordond.filmstrip.compose.overlay.OverlayCanvas;dev.jordond.filmstrip.geometry.Size;kotlin.coroutines.SuspendFunction0<kotlin.Unit>;kotlin.Float;dev.jordond.filmstrip.edit.TimeRange?;dev.jordond.filmstrip.effects.overlay.OverlayAnimation?;kotlin.Function2<androidx.compose.runtime.Composer,kotlin.Int,kotlin.Unit>){}[0]
+}
+
+final class dev.jordond.filmstrip.compose.overlay/OverlayTransform { // dev.jordond.filmstrip.compose.overlay/OverlayTransform|null[0]
+    constructor <init>(dev.jordond.filmstrip.geometry/Anchor = ..., kotlin/Float = ..., kotlin/Float = ...) // dev.jordond.filmstrip.compose.overlay/OverlayTransform.<init>|<init>(dev.jordond.filmstrip.geometry.Anchor;kotlin.Float;kotlin.Float){}[0]
+
+    final val center // dev.jordond.filmstrip.compose.overlay/OverlayTransform.center|{}center[0]
+        final fun <get-center>(): dev.jordond.filmstrip.geometry/Anchor // dev.jordond.filmstrip.compose.overlay/OverlayTransform.center.<get-center>|<get-center>(){}[0]
+    final val rotationDegrees // dev.jordond.filmstrip.compose.overlay/OverlayTransform.rotationDegrees|{}rotationDegrees[0]
+        final fun <get-rotationDegrees>(): kotlin/Float // dev.jordond.filmstrip.compose.overlay/OverlayTransform.rotationDegrees.<get-rotationDegrees>|<get-rotationDegrees>(){}[0]
+    final val scale // dev.jordond.filmstrip.compose.overlay/OverlayTransform.scale|{}scale[0]
+        final fun <get-scale>(): kotlin/Float // dev.jordond.filmstrip.compose.overlay/OverlayTransform.scale.<get-scale>|<get-scale>(){}[0]
+
+    final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.compose.overlay/OverlayTransform.equals|equals(kotlin.Any?){}[0]
+    final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.compose.overlay/OverlayTransform.hashCode|hashCode(){}[0]
+    final fun toString(): kotlin/String // dev.jordond.filmstrip.compose.overlay/OverlayTransform.toString|toString(){}[0]
+}
+
 final class dev.jordond.filmstrip.compose/FilmstripFrames { // dev.jordond.filmstrip.compose/FilmstripFrames|null[0]
     final val count // dev.jordond.filmstrip.compose/FilmstripFrames.count|{}count[0]
         final fun <get-count>(): kotlin/Int // dev.jordond.filmstrip.compose/FilmstripFrames.count.<get-count>|<get-count>(){}[0]
@@ -79,6 +131,10 @@ final object dev.jordond.filmstrip.compose/PlayheadDefaults { // dev.jordond.fil
         final fun <get-Tick>(): kotlin.time/Duration // dev.jordond.filmstrip.compose/PlayheadDefaults.Tick.<get-Tick>|<get-Tick>(){}[0]
 }
 
+final val dev.jordond.filmstrip.compose.overlay/dev_jordond_filmstrip_compose_overlay_ElementBounds$stableprop // dev.jordond.filmstrip.compose.overlay/dev_jordond_filmstrip_compose_overlay_ElementBounds$stableprop|#static{}dev_jordond_filmstrip_compose_overlay_ElementBounds$stableprop[0]
+final val dev.jordond.filmstrip.compose.overlay/dev_jordond_filmstrip_compose_overlay_OverlayCanvas$stableprop // dev.jordond.filmstrip.compose.overlay/dev_jordond_filmstrip_compose_overlay_OverlayCanvas$stableprop|#static{}dev_jordond_filmstrip_compose_overlay_OverlayCanvas$stableprop[0]
+final val dev.jordond.filmstrip.compose.overlay/dev_jordond_filmstrip_compose_overlay_OverlayCapturer$stableprop // dev.jordond.filmstrip.compose.overlay/dev_jordond_filmstrip_compose_overlay_OverlayCapturer$stableprop|#static{}dev_jordond_filmstrip_compose_overlay_OverlayCapturer$stableprop[0]
+final val dev.jordond.filmstrip.compose.overlay/dev_jordond_filmstrip_compose_overlay_OverlayTransform$stableprop // dev.jordond.filmstrip.compose.overlay/dev_jordond_filmstrip_compose_overlay_OverlayTransform$stableprop|#static{}dev_jordond_filmstrip_compose_overlay_OverlayTransform$stableprop[0]
 final val dev.jordond.filmstrip.compose/dev_jordond_filmstrip_compose_FilmstripFrames$stableprop // dev.jordond.filmstrip.compose/dev_jordond_filmstrip_compose_FilmstripFrames$stableprop|#static{}dev_jordond_filmstrip_compose_FilmstripFrames$stableprop[0]
 final val dev.jordond.filmstrip.compose/dev_jordond_filmstrip_compose_FilmstripFramesDefaults$stableprop // dev.jordond.filmstrip.compose/dev_jordond_filmstrip_compose_FilmstripFramesDefaults$stableprop|#static{}dev_jordond_filmstrip_compose_FilmstripFramesDefaults$stableprop[0]
 final val dev.jordond.filmstrip.compose/dev_jordond_filmstrip_compose_PlayheadDefaults$stableprop // dev.jordond.filmstrip.compose/dev_jordond_filmstrip_compose_PlayheadDefaults$stableprop|#static{}dev_jordond_filmstrip_compose_PlayheadDefaults$stableprop[0]
@@ -87,7 +143,14 @@ final val dev.jordond.filmstrip.compose/dev_jordond_filmstrip_compose_ScrubState
 final val dev.jordond.filmstrip.compose/dev_jordond_filmstrip_compose_VideoSurfaceState$stableprop // dev.jordond.filmstrip.compose/dev_jordond_filmstrip_compose_VideoSurfaceState$stableprop|#static{}dev_jordond_filmstrip_compose_VideoSurfaceState$stableprop[0]
 
 final fun (androidx.compose.ui/Modifier).dev.jordond.filmstrip.compose/videoAspect(dev.jordond.filmstrip.compose/VideoSurfaceState, dev.jordond.filmstrip.compose/VideoContentScale): androidx.compose.ui/Modifier // dev.jordond.filmstrip.compose/videoAspect|videoAspect@androidx.compose.ui.Modifier(dev.jordond.filmstrip.compose.VideoSurfaceState;dev.jordond.filmstrip.compose.VideoContentScale){}[0]
+final fun (dev.jordond.filmstrip.compose.overlay/OverlayTransform).dev.jordond.filmstrip.compose.overlay/boundsOn(androidx.compose.ui.unit/IntSize, dev.jordond.filmstrip.compose.overlay/OverlayCanvas, dev.jordond.filmstrip.geometry/Size): dev.jordond.filmstrip.compose.overlay/ElementBounds? // dev.jordond.filmstrip.compose.overlay/boundsOn|boundsOn@dev.jordond.filmstrip.compose.overlay.OverlayTransform(androidx.compose.ui.unit.IntSize;dev.jordond.filmstrip.compose.overlay.OverlayCanvas;dev.jordond.filmstrip.geometry.Size){}[0]
 final fun (dev.jordond.filmstrip.media/PlatformImage).dev.jordond.filmstrip.compose/toImageBitmap(): androidx.compose.ui.graphics/ImageBitmap? // dev.jordond.filmstrip.compose/toImageBitmap|toImageBitmap@dev.jordond.filmstrip.media.PlatformImage(){}[0]
+final fun dev.jordond.filmstrip.compose.overlay/OverlayCaptureHost(dev.jordond.filmstrip.compose.overlay/OverlayCapturer, androidx.compose.ui/Modifier?, androidx.compose.runtime/Composer?, kotlin/Int, kotlin/Int) // dev.jordond.filmstrip.compose.overlay/OverlayCaptureHost|OverlayCaptureHost(dev.jordond.filmstrip.compose.overlay.OverlayCapturer;androidx.compose.ui.Modifier?;androidx.compose.runtime.Composer?;kotlin.Int;kotlin.Int){}[0]
+final fun dev.jordond.filmstrip.compose.overlay/dev_jordond_filmstrip_compose_overlay_ElementBounds$stableprop_getter(): kotlin/Int // dev.jordond.filmstrip.compose.overlay/dev_jordond_filmstrip_compose_overlay_ElementBounds$stableprop_getter|dev_jordond_filmstrip_compose_overlay_ElementBounds$stableprop_getter(){}[0]
+final fun dev.jordond.filmstrip.compose.overlay/dev_jordond_filmstrip_compose_overlay_OverlayCanvas$stableprop_getter(): kotlin/Int // dev.jordond.filmstrip.compose.overlay/dev_jordond_filmstrip_compose_overlay_OverlayCanvas$stableprop_getter|dev_jordond_filmstrip_compose_overlay_OverlayCanvas$stableprop_getter(){}[0]
+final fun dev.jordond.filmstrip.compose.overlay/dev_jordond_filmstrip_compose_overlay_OverlayCapturer$stableprop_getter(): kotlin/Int // dev.jordond.filmstrip.compose.overlay/dev_jordond_filmstrip_compose_overlay_OverlayCapturer$stableprop_getter|dev_jordond_filmstrip_compose_overlay_OverlayCapturer$stableprop_getter(){}[0]
+final fun dev.jordond.filmstrip.compose.overlay/dev_jordond_filmstrip_compose_overlay_OverlayTransform$stableprop_getter(): kotlin/Int // dev.jordond.filmstrip.compose.overlay/dev_jordond_filmstrip_compose_overlay_OverlayTransform$stableprop_getter|dev_jordond_filmstrip_compose_overlay_OverlayTransform$stableprop_getter(){}[0]
+final fun dev.jordond.filmstrip.compose.overlay/rememberOverlayCapturer(androidx.compose.runtime/Composer?, kotlin/Int): dev.jordond.filmstrip.compose.overlay/OverlayCapturer // dev.jordond.filmstrip.compose.overlay/rememberOverlayCapturer|rememberOverlayCapturer(androidx.compose.runtime.Composer?;kotlin.Int){}[0]
 final fun dev.jordond.filmstrip.compose/PlaybackEventEffect(dev.jordond.filmstrip.player/VideoPlayer, kotlin/Function1<dev.jordond.filmstrip.player/PlaybackEvent, kotlin/Unit>, androidx.compose.runtime/Composer?, kotlin/Int) // dev.jordond.filmstrip.compose/PlaybackEventEffect|PlaybackEventEffect(dev.jordond.filmstrip.player.VideoPlayer;kotlin.Function1<dev.jordond.filmstrip.player.PlaybackEvent,kotlin.Unit>;androidx.compose.runtime.Composer?;kotlin.Int){}[0]
 final fun dev.jordond.filmstrip.compose/VideoSurface(dev.jordond.filmstrip.player/VideoPlayer, androidx.compose.ui/Modifier?, dev.jordond.filmstrip.compose/VideoContentScale?, dev.jordond.filmstrip.compose/VideoSurfaceType?, androidx.compose.runtime/Composer?, kotlin/Int, kotlin/Int) // dev.jordond.filmstrip.compose/VideoSurface|VideoSurface(dev.jordond.filmstrip.player.VideoPlayer;androidx.compose.ui.Modifier?;dev.jordond.filmstrip.compose.VideoContentScale?;dev.jordond.filmstrip.compose.VideoSurfaceType?;androidx.compose.runtime.Composer?;kotlin.Int;kotlin.Int){}[0]
 final fun dev.jordond.filmstrip.compose/dev_jordond_filmstrip_compose_FilmstripFrames$stableprop_getter(): kotlin/Int // dev.jordond.filmstrip.compose/dev_jordond_filmstrip_compose_FilmstripFrames$stableprop_getter|dev_jordond_filmstrip_compose_FilmstripFrames$stableprop_getter(){}[0]

@@ -24,8 +24,8 @@ public class CornerInset(
 /**
  * The corner and margin that bring an image overlay's own corner to this point.
  *
- * The inverse of what [ImageOverlay.placedOn] does with [ImageOverlay.corner] and
- * [ImageOverlay.margin], for a caller holding a position a drag produced. The corner is the
+ * The inverse of what [ImageOverlay.placedOn] does with an [OverlayPosition.Corner], for a caller
+ * holding a position a drag produced. The corner is the
  * quadrant of the frame the point falls in, and the margin is read back off the two insets from it.
  * One margin answers for both axes, so a point off the diagonal the forward arithmetic reaches
  * takes the margin midway between the two the insets imply.
