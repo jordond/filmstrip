@@ -45,11 +45,12 @@ Firefox for Android has neither video half, per caniuse as checked on 2026-11-06
 
 ## ffmpeg
 
-The JVM backend links no ffmpeg. It runs `ffmpeg` and `ffprobe` as separate programs, found through `ffmpeg { }` in
-the `Filmstrip` block, then the `FILMSTRIP_FFMPEG` and `FILMSTRIP_FFPROBE` environment variables, then
-`filmstrip-transform-ffmpeg-bundled` when it's a dependency, then `PATH`. An older build is reported as `FilmstripError.ToolchainMissing` when you plan or export, never as a crash. A snapshot
-with no release number, like `N-121284-g4c9e0eb`, is held to the `libavformat` version it prints instead, 62.3 or
-later for ffmpeg 8. One that prints neither is refused the same way, since nothing says it's new enough.
+The JVM backend links no ffmpeg. It runs `ffmpeg` and `ffprobe` as separate programs, found through `ffmpeg { }` in the
+`Filmstrip` block, then the `FILMSTRIP_FFMPEG` and `FILMSTRIP_FFPROBE` environment variables, then
+`filmstrip-transform-ffmpeg-bundled` when it's a dependency, then `PATH`. An older build is reported as
+`FilmstripError.ToolchainMissing` when you plan or export, never as a crash. A snapshot with no release number, like
+`N-121284-g4c9e0eb`, is held to the `libavformat` version it prints instead, 62.3 or later for ffmpeg 8. One that prints
+neither is refused the same way, since nothing says it's new enough.
 
 The build also needs the `noise` bitstream filter, which a trimmed copy uses to stop its video on the last frame it
 keeps. Every build configured with ffmpeg's defaults carries it. One built without it is refused with

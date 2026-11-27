@@ -137,6 +137,7 @@ export default defineConfig({
           items: [
             { label: 'Bindings', slug: 'compose/bindings' },
             { label: 'Timeline', slug: 'compose/timeline' },
+            { label: 'Overlays', slug: 'compose/overlays' },
             { label: 'Pickers', slug: 'compose/pickers' },
           ],
         },

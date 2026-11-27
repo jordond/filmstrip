@@ -64,8 +64,8 @@ By default the JVM backend runs the ffmpeg on the machine. To ship an app that n
 <Code code={bundled} lang="kotlin" title="build.gradle.kts" />
 
 That's the whole setup. `Filmstrip()` runs the ffmpeg and ffprobe the artifact carries. They are
-[bytedeco](https://github.com/bytedeco/javacpp-presets/tree/master/ffmpeg)'s build of ffmpeg {versions.bundledFfmpeg}, unpacked into
-`~/.javacpp/cache` the first time the instance needs ffmpeg.
+[bytedeco](https://github.com/bytedeco/javacpp-presets/tree/master/ffmpeg)'s build of ffmpeg {versions.bundledFfmpeg},
+unpacked into `~/.javacpp/cache` the first time the instance needs ffmpeg.
 
 filmstrip looks for ffmpeg in this order and takes the first it finds:
 

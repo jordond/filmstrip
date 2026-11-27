@@ -39,11 +39,12 @@ same picture. The look is tuned on home camcorder tapes, so it is soft and a lit
 settles, the look of a tape that needs tracking. Both take a block that shapes the band.
 
 A rolling band is at the top of the frame on the first frame of the scope the look is in, which is the clip's slot for a
-look on a clip, each clip of the track for a look on a track, and the composition for a look on the composition, and again
-every `period` after it. Pass `at`, which cannot be negative, to put it there that long after the first frame instead. `rolling(period = 6.seconds,
-at = 2.seconds)` is at the top two seconds into the run and keeps rolling on the same period either side. Because it
-counts from the first frame, a clip has the same band wherever it sits in the composition, and reordering or trimming it
-does not move the band. A preview set to `TapeClock.Wall` draws from its own clock and ignores `at`.
+look on a clip, each clip of the track for a look on a track, and the composition for a look on the composition, and
+again every `period` after it. Pass `at`, which cannot be negative, to put it there that long after the first frame
+instead. `rolling(period = 6.seconds, at = 2.seconds)` is at the top two seconds into the run and keeps rolling on the
+same period either side. Because it counts from the first frame, a clip has the same band wherever it sits in the
+composition, and reordering or trimming it does not move the band. A preview set to `TapeClock.Wall` draws from its own
+clock and ignores `at`.
 
 A look can settle, the way a deck does when it locks onto a recording. `settle(from = 1f, over = 4.seconds)` starts
 the look at the strength `from` on the first frame of its scope and eases it to `intensity` over `over`, paced by the
@@ -109,9 +110,9 @@ other setting is the one `vhs` has.
 ## Tape audio
 
 `tapeAudio` makes a clip sound like the sound track of a tape, the linear track of a VHS unless it is given another
-`tape`. It narrows the band, lays hiss under the sound, and bends the pitch with a slow wow and a fast flutter. It's an [audio effect](/guides/audio-effects/), so it goes in
-`audioEffects` on a clip, a track or the composition. The hiss and the bend follow the composition time, so a seek, a
-second export and every clip on a track play the same tape.
+`tape`. It narrows the band, lays hiss under the sound, and bends the pitch with a slow wow and a fast flutter. It's an
+[audio effect](/guides/audio-effects/), so it goes in `audioEffects` on a clip, a track or the composition. The hiss and
+the bend follow the composition time, so a seek, a second export and every clip on a track play the same tape.
 
 <Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Filters.kt" region="tape-audio" />
 
@@ -171,12 +172,12 @@ and the glow's width is a fraction of the frame's, so a seek or a smaller previe
 
 With every argument at `0f` the look is listed as an inert notice.
 
-`Film.Super8` sets every one of them, for small gauge stock run through a worn projector. The frame drifts a little in the
-gate, its brightness flickers from frame to frame, specks of dust land for a single frame and a thin scratch runs down the
-picture for up to a second and a half, a faint leak washes in from the edges, the colour breathes on a lightly faded
-print, and a rounded gate darkens the corners. The gate and the fade hold still, and the rest
-changes 24 times a second with the frame's composition time, so a seek or a smaller preview shows the same reel. Set the arguments yourself for a
-heavier or a lighter one.
+`Film.Super8` sets every one of them, for small gauge stock run through a worn projector. The frame drifts a little in
+the gate, its brightness flickers from frame to frame, specks of dust land for a single frame and a thin scratch runs
+down the picture for up to a second and a half, a faint leak washes in from the edges, the colour breathes on a lightly
+faded print, and a rounded gate darkens the corners. The gate and the fade hold still, and the rest changes 24 times a
+second with the frame's composition time, so a seek or a smaller preview shows the same reel. Set the arguments yourself
+for a heavier or a lighter one.
 
 <Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Filters.kt" region="super8" />
 
@@ -354,10 +355,11 @@ Each element is one call, and each takes a `corner`. Elements in the same corner
 | `stamp()`             | A digital camera's date stamp, `'97 6 14`, in orange with no edge                    | `BottomRight` |
 
 `recordedAt` is the date and time the date and clock show at the start of the composition, as a `RecordedAt` with no
-time zone. A reading that would run past the last second of 9999 holds at `9999-12-31 23:59:59`. `textSize` is the height of a line as a fraction of the frame height, from `0.01f` to `0.2f`, and the margins
-are a fraction of the frame too, so a smaller preview shows the export scaled down. A label with a character outside the
-font throws an `IllegalArgumentException` naming it. A `camcorder` with no elements leaves the frame alone and is listed
-as an inert notice.
+time zone. A reading that would run past the last second of 9999 holds at `9999-12-31 23:59:59`. `textSize` is the
+height of a line as a fraction of the frame height, from `0.01f` to `0.2f`, and the margins are a fraction of the frame
+too, so a smaller preview shows the export scaled down. A label with a character outside the font throws an
+`IllegalArgumentException` naming it. A `camcorder` with no elements leaves the frame alone and is listed as an inert
+notice.
 
 The date, clock and counter read the frame's composition time, the same clock `vhs` runs on, so a seek shows the reading
 that time had, and a counter on a clip still counts from the start of the composition.

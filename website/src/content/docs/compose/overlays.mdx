@@ -1,0 +1,69 @@
+---
+title: Overlays
+description: Write an overlay in Compose, move, pinch and turn it on the stage, and bake it into the export.
+---
+
+import { Aside } from '@astrojs/starlight/components'
+import Snippet from '../../../components/Snippet.astro'
+
+`filmstrip-compose` bakes any composable into an image overlay, so a title card, a sticker or a caption with a custom
+font is written in Compose and drawn into the export. `filmstrip-compose-ui` puts the same element on a `VideoStage`,
+where a drag moves it, a pinch scales it and a twist turns it.
+
+The baked picture is an ordinary image overlay, so its timing, animation and backend limits are the ones in the
+[Overlays guide](/guides/overlays/).
+
+## The element
+
+Any composable works. It's the same one on the stage and in the export.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/compose/ComposedOverlays.kt" region="title" />
+
+## On the stage
+
+An `OverlayTransform` says where the element's centre sits as a fraction of the frame, how much bigger it is drawn and
+how far it's turned clockwise in degrees. An `OverlayCanvas` sets how wide the frame is to the content, 360 dp by
+default, with the height following the output's aspect. Content written in dp then lays out the same on a phone, a
+desktop window and the export.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/compose/ComposedOverlays.kt" region="live" />
+
+`ComposedOverlay` is controlled, so it moves only when the transform you pass back changes. `output` is the frame the
+element is baked onto, which is `PreviewInfo.outputSize` or the export plan's output size, and only its proportions are
+read on the stage. A drag holds the element's centre on the frame and a pinch holds the scale between
+`ComposedOverlayDefaults.MIN_SCALE` and `MAX_SCALE`. Only a touch on the turned element is taken, so several stacked on
+one stage each get their own. `onSelect` hears which one was touched, and the sample keeps that index as the selected
+title. Pass `enabled = false` to show an element without taking touches.
+
+## Bake it
+
+Mount one `OverlayCaptureHost` for the capturer somewhere on screen, then capture each element when you export.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/compose/ComposedOverlays.kt" region="capture" />
+
+The capture lays the content out on the canvas, draws it the way the stage does and hands back an `ImageOverlay` at
+`OverlayPosition.At` whose picture is exactly the pixels of the frame the element covers. It's null when none of the
+element lands on the frame. Pass the composable that shows the element, never the text field it's edited with, or the
+cursor is baked too. Content that loads a font or an image asynchronously holds `ready` until it has. Capture once,
+when you export, and keep the baked overlays out of the preview's composition, so dragging never re-plans the preview.
+
+## On the export frame
+
+The frame to capture on is the one the export writes, so plan once to read its size, capture every element on it and
+plan again with the baked overlays added. The first plan is only read for the frame. Report the second plan's verdict,
+since that's the export that runs.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/compose/ComposedOverlays.kt" region="export" />
+
+<Aside type="note" title="Limits">
+- A composed overlay is captured on the frame you pass as `output`. When the export frame differs from it, because the
+  encoder aligns the size or `heightPx` caps it, the backend resamples the picture.
+- A composed overlay is an 8-bit sRGB picture. On an HDR grade its white lands at the 203 nit reference white like any
+  overlay picture.
+- A composed overlay's rotation is fixed when it's baked. Its `animation` moves and fades the baked picture.
+- Colour emoji in a composed overlay need a font that has them, and a browser needs one bundled with the app.
+- Apple holds 20 bytes for each pixel of a composed overlay's picture, which is at most one output frame.
+- Android 8 and 8.1 capture through a different snapshot path than Android 9 and later, and only Android 16 was
+  measured.
+- Composed overlays go on the composition's output frame only, since a clip's frame size isn't public.
+</Aside>
