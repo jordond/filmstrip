@@ -94,8 +94,9 @@ export default defineConfig({
       },
       plugins: [
         // /api, /demo/app and /demo/stories are copied into dist after astro build, so the validator can't see them.
+        // A link to one is already under the base by the time it is validated.
         starlightLinksValidator({
-          exclude: ['/api', '/api/**', '/demo/app', '/demo/app/**', '/demo/stories', '/demo/stories/**'],
+          exclude: ['/api', '/demo/app', '/demo/stories'].flatMap((path) => [`${base}${path}`, `${base}${path}/**`]),
         }),
         starlightLlmsTxt({
           projectName: 'filmstrip',
