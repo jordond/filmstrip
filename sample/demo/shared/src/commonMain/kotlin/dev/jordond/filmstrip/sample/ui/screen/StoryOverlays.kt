@@ -11,6 +11,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.key
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
@@ -83,16 +84,18 @@ internal fun VideoStageScope.StoryElements(
       ?: return
   val colors = sampleHandleColors()
   stories.elements.forEach { element ->
-    ComposedOverlay(
-      transform = element.transform,
-      canvas = stories.canvas,
-      output = output,
-      onTransformChange = { next -> stories.update(element.id) { it.copy(transform = next) } },
-      selected = interactive && stories.selectedId == element.id,
-      onSelect = { stories.selectedId = element.id },
-      colors = colors,
-      enabled = interactive,
-    ) { StoryElementContent(element) }
+    key(element.id) {
+      ComposedOverlay(
+        transform = element.transform,
+        canvas = stories.canvas,
+        output = output,
+        onTransformChange = { next -> stories.update(element.id) { it.copy(transform = next) } },
+        selected = interactive && stories.selectedId == element.id,
+        onSelect = { stories.selectedId = element.id },
+        colors = colors,
+        enabled = interactive,
+      ) { StoryElementContent(element) }
+    }
   }
 }
 
@@ -114,7 +117,8 @@ internal fun StoriesPanel(state: SampleAppState) {
   }
 
   val selected = stories.selected ?: return
-  val update = { change: (StoryElement) -> StoryElement -> stories.update(selected.id, change) }
+  val id = selected.id
+  val update = { change: (StoryElement) -> StoryElement -> stories.update(id, change) }
 
   val caption = selected.content as? StoryContent.Caption
   if (caption != null) {
@@ -186,7 +190,7 @@ internal fun StoriesPanel(state: SampleAppState) {
   }
 
   ToolSection("Element") {
-    OutlinedButton(onClick = { stories.remove(selected.id) }) {
+    OutlinedButton(onClick = { stories.remove(id) }) {
       Text("Delete", color = MaterialTheme.colorScheme.error)
     }
   }

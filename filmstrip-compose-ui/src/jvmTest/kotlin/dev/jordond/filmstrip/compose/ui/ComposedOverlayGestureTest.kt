@@ -59,6 +59,23 @@ class ComposedOverlayGestureTest {
     }
 
   @Test
+  fun aDragFollowsTheFingerWhenTheElementMovesBetweenMoves() =
+    runComposeUiTest {
+      // Unturned and moved in whole pixels, so the finger sits on the same point of the element after each move.
+      val moves = staged(OverlayTransform(START.center))
+
+      onNodeWithTag(STAGE).performTouchInput { down(CENTRE) }
+      repeat(STEPS) {
+        onNodeWithTag(STAGE).performTouchInput { moveBy(Offset(WHOLE_STEP, 0f)) }
+        waitForIdle()
+      }
+      onNodeWithTag(STAGE).performTouchInput { up() }
+      waitForIdle()
+
+      moves.last.center.x shouldBe (START.center.x + STEPS * WHOLE_STEP / STAGE_WIDTH plusOrMinus EPSILON)
+    }
+
+  @Test
   fun aDragPastTheEdgeHoldsTheCentreOnTheFrame() =
     runComposeUiTest {
       val moves = staged()
@@ -270,6 +287,7 @@ class ComposedOverlayGestureTest {
     const val SPAN = 40f
     const val TWIST = 30f
     const val STEPS = 10
+    const val WHOLE_STEP = 8f
     const val STEP_PX = 4f
     const val CORNER_PX = 4f
     const val EPSILON = 1e-3f

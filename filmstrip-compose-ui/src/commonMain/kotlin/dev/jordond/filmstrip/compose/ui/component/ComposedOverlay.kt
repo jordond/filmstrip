@@ -25,6 +25,7 @@ import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.input.pointer.AwaitPointerEventScope
 import androidx.compose.ui.input.pointer.PointerEvent
 import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.PointerId
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.layout.Layout
@@ -114,7 +115,7 @@ public fun VideoStageScope.ComposedOverlay(
   val density = LocalDensity.current
   val handleLengthPx = with(density) { handleLength.toPx() }
   var laidOut by remember { mutableStateOf(IntSize.Zero) }
-  val element = ElementOnStage(transform, picture, transform.drawnScale(canvas, picture.width), laidOut)
+  val element = ElementOnStage(transform, picture, transform.drawnScale(canvas, picture.width))
 
   val current by rememberUpdatedState(element)
   val currentOnChange by rememberUpdatedState(onTransformChange)
@@ -134,7 +135,7 @@ public fun VideoStageScope.ComposedOverlay(
           if (!current.picture.contains(onStage)) return@awaitEachGesture
           down.consume()
           currentOnSelect()
-          follow(current, placed) { next -> currentOnChange(next) }
+          follow(current, placed, mutableMapOf(down.id to onStage)) { next -> currentOnChange(next) }
         }
       }
     }
@@ -153,7 +154,7 @@ public fun VideoStageScope.ComposedOverlay(
           clipRect(picture.left, picture.top, picture.right, picture.bottom) {
             this@drawWithContent.drawContent()
           }
-          if (selected) drawSelection(current, colors, handleLengthPx)
+          if (selected) drawSelection(current, laidOut, colors, handleLengthPx)
         },
   ) { measurables, constraints ->
     val placeable = measurables.single().measure(canvas.constraintsFor(output))
@@ -195,14 +196,12 @@ private class ElementOnStage(
   val transform: OverlayTransform,
   val picture: Rect,
   val drawnScale: Float,
-  laidOut: IntSize,
 ) {
   val centre =
     Offset(
       picture.left + transform.center.x * picture.width,
       picture.top + transform.center.y * picture.height,
     )
-  val drawn = DrawSize(laidOut.width * drawnScale, laidOut.height * drawnScale)
 
   fun moved(
     pan: Offset,
@@ -224,6 +223,7 @@ private class ElementOnStage(
 private suspend fun AwaitPointerEventScope.follow(
   element: ElementOnStage,
   placed: Placed,
+  last: MutableMap<PointerId, Offset>,
   report: (OverlayTransform) -> Unit,
 ) {
   var pan = Offset.Zero
@@ -231,14 +231,16 @@ private suspend fun AwaitPointerEventScope.follow(
   var turn = 0f
   while (true) {
     val event = awaitPointerEvent(PointerEventPass.Main)
-    if (event.changes.none { it.pressed } || event.changes.any { it.isConsumed }) break
-    val step = event.stepOnStage(placed)
+    if (event.changes.any { it.isConsumed }) break
+    val step = event.stepOnStage(placed, last)
     event.consumeMoves()
-    if (step == null || element.picture.width <= 0f || element.picture.height <= 0f) continue
-    pan += step.pan
-    zoom *= step.zoom
-    turn += step.turn
-    report(element.moved(pan, zoom, turn))
+    if (step != null && element.picture.width > 0f && element.picture.height > 0f) {
+      pan += step.pan
+      zoom *= step.zoom
+      turn += step.turn
+      report(element.moved(pan, zoom, turn))
+    }
+    if (event.changes.none { it.pressed }) break
   }
 }
 
@@ -248,13 +250,24 @@ private class Step(
   val turn: Float,
 )
 
-// How the fingers held down through this event moved, read on the stage. The pan is the centroid's move, the zoom the
-// ratio of their mean distances from it, and the turn their angle about it averaged by distance.
-private fun PointerEvent.stepOnStage(placed: Placed): Step? {
-  val held = changes.filter { it.pressed && it.previousPressed }
+// How the fingers down through this event moved, read on the stage. The pan is the centroid's move, the zoom the ratio
+// of their mean distances from it, and the turn their angle about it averaged by distance. Each finger's last position
+// is kept on the stage, since the element moves under the finger and no event comes for a move the element made too.
+// A finger lifting counts, so a move held back that way lands on the release.
+private fun PointerEvent.stepOnStage(
+  placed: Placed,
+  last: MutableMap<PointerId, Offset>,
+): Step? {
+  val onStage = mutableMapOf<PointerId, Offset>()
+  for (change in changes) {
+    if (change.pressed || change.previousPressed) onStage[change.id] = placed.onStage(change.position) ?: return null
+  }
+  val held = onStage.keys.filter { it in last }
+  val now = held.map { onStage.getValue(it) }
+  val before = held.map { last.getValue(it) }
+  last.clear()
+  last.putAll(onStage)
   if (held.isEmpty()) return null
-  val now = held.map { placed.onStage(it.position) ?: return null }
-  val before = held.map { placed.onStage(it.previousPosition) ?: return null }
   val centreNow = now.centroid()
   val centreBefore = before.centroid()
   if (held.size < 2) return Step(centreNow - centreBefore, 1f, 0f)
@@ -301,10 +314,11 @@ private fun PointerEvent.consumeMoves() {
 
 private fun DrawScope.drawSelection(
   element: ElementOnStage,
+  laidOut: IntSize,
   colors: OverlayHandleColors,
   handleLengthPx: Float,
 ) {
-  val drawn = element.drawn
+  val drawn = DrawSize(laidOut.width * element.drawnScale, laidOut.height * element.drawnScale)
   if (drawn.width <= 0f || drawn.height <= 0f) return
   val box = Rect(element.centre - Offset(drawn.width / 2f, drawn.height / 2f), drawn)
   rotate(element.transform.rotationDegrees, element.centre) {
