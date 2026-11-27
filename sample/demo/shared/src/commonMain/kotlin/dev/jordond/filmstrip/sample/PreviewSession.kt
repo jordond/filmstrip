@@ -77,13 +77,6 @@ public class PreviewSession internal constructor(
   var previewOutput: Size? by mutableStateOf(null)
     private set
 
-  /**
-   * True where the player reported no preview backend rather than a failure while playing. Every
-   * platform ships one, so a build reaching this is one that never registered it.
-   */
-  val previewUnavailable: Boolean
-    get() = previewError is PlaybackError.BackendMissing
-
   private var loopingState: Boolean by mutableStateOf(true)
 
   var looping: Boolean
@@ -169,7 +162,7 @@ public class PreviewSession internal constructor(
   }
 
   fun play() {
-    val open = livePlayer()
+    val open = player
     if (open == null) {
       startLocalClock()
       return
@@ -180,7 +173,7 @@ public class PreviewSession internal constructor(
   }
 
   fun pause() {
-    val open = livePlayer()
+    val open = player
     if (open == null) {
       stopClock()
       return
@@ -193,37 +186,37 @@ public class PreviewSession internal constructor(
   fun seekTo(seconds: Float) {
     val target = seconds.coerceIn(0f, durationSeconds)
     positionSeconds = target
-    livePlayer()?.seekTo(target.asSeconds())
+    player?.seekTo(target.asSeconds())
   }
 
   fun beginScrub() {
-    livePlayer()?.beginScrub()
+    player?.beginScrub()
   }
 
   fun endScrub() {
-    livePlayer()?.endScrub()
+    player?.endScrub()
   }
 
   /**
    * Whether the player open now can shuttle, which is what the shuttle keys are shown for.
    */
   val canShuttle: Boolean
-    get() = livePlayer()?.features?.supports(PlayerFeature.Shuttle) == true
+    get() = player?.features?.supports(PlayerFeature.Shuttle) == true
 
   fun beginShuttle(rate: Float) {
-    val open = livePlayer() ?: return
+    val open = player ?: return
     recorder.record("player.beginShuttle", "rate" to rate.toString())
     open.beginShuttle(rate)
   }
 
   fun endShuttle() {
-    val open = livePlayer() ?: return
+    val open = player ?: return
     recorder.record("player.endShuttle")
     open.endShuttle()
   }
 
   fun stepFrames(frames: Int) {
-    val open = livePlayer()
+    val open = player
     if (open != null && open.features.supports(PlayerFeature.FrameStepping)) {
       open.stepFrames(frames)
       return
@@ -232,8 +225,6 @@ public class PreviewSession internal constructor(
     val fps = frameRate() ?: DEFAULT_FRAME_RATE
     seekTo(positionSeconds + frames.toFloat() / fps)
   }
-
-  private fun livePlayer(): VideoPlayer? = player?.takeIf { !previewUnavailable }
 
   private fun observe(open: VideoPlayer) {
     // Events first, because they are edge-triggered with no replay and the player starts loading
@@ -296,7 +287,7 @@ public class PreviewSession internal constructor(
   }
 
   private fun applyLoopRange() {
-    val open = livePlayer() ?: return
+    val open = player ?: return
     val end = duration()
     open.setLoopRange(if (loopingState && end > Duration.ZERO) TimeRange(Duration.ZERO, end) else null)
   }

@@ -22,7 +22,7 @@ internal fun SampleAppState.compositionFrameLabel(): String? {
  */
 internal fun PlaybackError.stageSentence(): String =
   when (this) {
-    is PlaybackError.BackendMissing -> "No preview backend here. The schematic stands in for it."
+    is PlaybackError.BackendMissing -> "This build has no preview backend. $SEE_DIAGNOSTICS"
     is PlaybackError.DecoderUnavailable -> "This device has no decoder free for this clip. $SEE_DIAGNOSTICS"
     is PlaybackError.SourceNotExportable -> "This clip can't be previewed or exported."
     is PlaybackError.SourceUnreadable -> "The preview can't read this clip. $SEE_DIAGNOSTICS"

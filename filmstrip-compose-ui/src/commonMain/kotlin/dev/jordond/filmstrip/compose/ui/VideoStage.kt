@@ -40,23 +40,18 @@ import androidx.compose.ui.geometry.Size as ComposeSize
  * ahead of the video. [outputAspect] carries the shape until a player has one, and on its own where there is no player
  * at all.
  *
- * A null [player] is the whole signal for the [fallback] slot. A host whose preview stopped, or whose platform reported
- * `PlaybackError.BackendMissing` , passes null and draws its own stand-in at the same letterboxed size rather than
- * passing a player it does not want rendered.
+ * A null [player] is the whole signal for the [fallback] slot. A host whose preview stopped passes null and draws its own
+ * stand-in at the same letterboxed size rather than passing a player it does not want rendered.
  *
  * ```
  * val composition = remember(source) { compositionOf { clip(source) } }
  * val player = rememberFilmstripPlayer(filmstrip, composition)
- * val playerState by player.state.collectAsState()
+ * var previewing by remember { mutableStateOf(true) }
  * var rect by remember(source) { mutableStateOf(NormalizedRect.Full) }
- *
- * // Every platform ships a preview backend, so a build reaching this is one that never registered
- * // it, and the schematic stands in for the picture.
- * val missing = (playerState.status as? PlaybackStatus.Error)?.error is PlaybackError.BackendMissing
  *
  * Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
  *   VideoStage(
- *     player = player.takeIf { !missing },
+ *     player = player.takeIf { previewing },
  *     outputAspect = info?.video?.displaySize?.aspect ?: 0f,
  *     modifier = Modifier.padding(16.dp),
  *     fallback = { EditSchematic(edit, Modifier.fillMaxSize()) },

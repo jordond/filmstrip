@@ -181,7 +181,7 @@ public class SampleAppState(
    * True while the transport has something to run, which an edit that cannot load or a stopped preview does not.
    */
   val canPlay: Boolean
-    get() = sequence.playable.isNotEmpty() && !probing && (preview.previewError == null || preview.previewUnavailable)
+    get() = sequence.playable.isNotEmpty() && !probing && preview.previewError == null
 
   val sourceAspect: Float
     get() {

@@ -125,9 +125,7 @@ public fun PreviewStage(
     OsdStatus(state, compact)
     Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
       VideoStage(
-        // Every platform ships a preview backend, so a build with none is one that never registered
-        // it, and the schematic stands in for the picture.
-        player = state.preview.player?.takeIf { !state.preview.previewUnavailable },
+        player = state.preview.player,
         outputAspect = edit.outputAspect(state.sourceAspect, cropped = !state.croppingRect),
         modifier =
           Modifier
@@ -181,7 +179,7 @@ private fun OsdStatus(
       lineHeight = if (compact) 22.sp else 26.sp,
     )
   val colors = MaterialTheme.colorScheme
-  val live = state.preview.player != null && !state.preview.previewUnavailable
+  val live = state.preview.player != null
   val (word, wordColor) =
     when {
       live && state.preview.playerStatus is PlaybackStatus.Error -> "ERROR" to colors.error
