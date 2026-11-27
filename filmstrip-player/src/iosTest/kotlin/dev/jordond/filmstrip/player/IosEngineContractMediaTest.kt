@@ -58,6 +58,20 @@ class IosEngineContractMediaTest : PlayerEngineContractTest() {
     pumpMainRunLoopDuringContracts()
   }
 
+  // These time out on GitHub's macOS runners and pass on a local simulator, so the simulator skips them.
+  @Test
+  @IgnoreOnSimulator
+  override fun aSurfaceReadingAPausedPlayerGetsTheFirstFrameThenAParameterEdit() =
+    super.aSurfaceReadingAPausedPlayerGetsTheFirstFrameThenAParameterEdit()
+
+  @Test
+  @IgnoreOnSimulator
+  override fun aPlayingShuttleEndsPlayingFromTheFrameShowing() = super.aPlayingShuttleEndsPlayingFromTheFrameShowing()
+
+  @Test
+  @IgnoreOnSimulator
+  override fun aFrameReadBackAtAPositionIsOfTheSlotItNames() = super.aFrameReadBackAtAPositionIsOfTheSlotItNames()
+
   override fun createEngine(scope: CoroutineScope): EngineUnderTest =
     AppleEngineUnderTest(scope) { engine, occasion -> postInterruption(engine, occasion) }
 

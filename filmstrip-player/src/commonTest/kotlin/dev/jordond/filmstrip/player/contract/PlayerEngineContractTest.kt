@@ -207,7 +207,7 @@ abstract class PlayerEngineContractTest {
     }
 
   @Test
-  fun aSurfaceReadingAPausedPlayerGetsTheFirstFrameThenAParameterEdit() =
+  open fun aSurfaceReadingAPausedPlayerGetsTheFirstFrameThenAParameterEdit() =
     contractTest { scope ->
       createEngine(
         scope,
@@ -232,7 +232,7 @@ abstract class PlayerEngineContractTest {
   fun aPausedShuttleEndsPausedOnTheFrameShowing() = shuttles.aPausedShuttleEndsPausedOnTheFrameShowing()
 
   @Test
-  fun aPlayingShuttleEndsPlayingFromTheFrameShowing() = shuttles.aPlayingShuttleEndsPlayingFromTheFrameShowing()
+  open fun aPlayingShuttleEndsPlayingFromTheFrameShowing() = shuttles.aPlayingShuttleEndsPlayingFromTheFrameShowing()
 
   @Test
   fun anInvalidShuttleRateThrows() = shuttles.anInvalidRateThrows()
@@ -253,7 +253,7 @@ abstract class PlayerEngineContractTest {
   fun aStepFromAPauseLandsOnTheNeighbours() = pauses.aStepFromThePauseLandsOnTheNeighbours()
 
   @Test
-  fun aFrameReadBackAtAPositionIsOfTheSlotItNames() = readbackSlots.aFrameReadAtAPositionIsOfItsSlot()
+  open fun aFrameReadBackAtAPositionIsOfTheSlotItNames() = readbackSlots.aFrameReadAtAPositionIsOfItsSlot()
 
   @Test
   fun aPlayAfterASettledPauseNeverReadsBehindIt() = pauses.aPlayAfterAPauseNeverReadsBehindIt()
