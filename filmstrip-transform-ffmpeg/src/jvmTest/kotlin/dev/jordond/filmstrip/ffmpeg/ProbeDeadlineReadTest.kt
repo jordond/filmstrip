@@ -7,12 +7,12 @@ import dev.jordond.filmstrip.ffmpeg.internal.probe.SYNC_SAMPLE_WINDOW
 import dev.jordond.filmstrip.ffmpeg.internal.process.FfmpegVersion
 import dev.jordond.filmstrip.ffmpeg.internal.process.PACKET_DROP_FILTER
 import dev.jordond.filmstrip.ffmpeg.internal.process.ProbeAnswer
-import dev.jordond.filmstrip.ffmpeg.internal.process.ProbeOperation
 import dev.jordond.filmstrip.ffmpeg.internal.process.ProcessRunner
 import dev.jordond.filmstrip.ffmpeg.internal.process.Toolchain
 import dev.jordond.filmstrip.ffmpeg.internal.process.probeExpiredReason
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.ProbeResult
+import dev.jordond.filmstrip.transform.internal.ProbeOperation
 import dev.jordond.filmstrip.transform.internal.copy.CopyPacketRead
 import dev.jordond.filmstrip.transform.internal.copy.copyPacketSpan
 import io.kotest.matchers.collections.shouldContainExactly

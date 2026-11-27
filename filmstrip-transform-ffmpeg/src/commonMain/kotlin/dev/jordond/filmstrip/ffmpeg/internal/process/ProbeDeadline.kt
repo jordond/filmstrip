@@ -1,8 +1,8 @@
 package dev.jordond.filmstrip.ffmpeg.internal.process
 
 import dev.jordond.filmstrip.FilmstripError
+import dev.jordond.filmstrip.transform.internal.PROBE_DEADLINE_BASE
 import kotlin.time.Duration
-import kotlin.time.Duration.Companion.seconds
 
 /**
  * How long a short child reading [window] of a source may run before it is stopped.
@@ -41,24 +41,6 @@ internal sealed interface ProbeAnswer<out T> {
     fun timedOut(): FilmstripError.TimedOut = FilmstripError.TimedOut(operation, deadline, reason)
   }
 }
-
-/**
- * The [ProbeAnswer.Expired.operation] each short read names when it is stopped at its deadline.
- */
-internal object ProbeOperation {
-  const val SOURCE_PROBE: String = "source probe"
-  const val OUTPUT_PROBE: String = "output probe"
-  const val COLOR_READ: String = "color read"
-  const val SYNC_SAMPLE_READ: String = "sync sample read"
-  const val FIRST_FRAME_DECODE: String = "first frame decode"
-  const val COPY_PACKET_READ: String = "copy packet read"
-  const val ENCODER_TEST: String = "encoder test encode"
-  const val PICTURE_DECODE: String = "overlay picture decode"
-}
-
-// Long enough for a large picture or a slow disk on a loaded machine, and short of leaving a plan hung on a child
-// that never finishes.
-internal val PROBE_DEADLINE_BASE: Duration = 30.seconds
 
 /**
  * The share of a read's window added to [PROBE_DEADLINE_BASE].

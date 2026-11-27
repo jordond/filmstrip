@@ -15,7 +15,6 @@ import dev.jordond.filmstrip.export.Verdict
 import dev.jordond.filmstrip.ffmpeg.internal.FfmpegExportEngine
 import dev.jordond.filmstrip.ffmpeg.internal.FfmpegRuntime
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.ffmpegEncoders
-import dev.jordond.filmstrip.ffmpeg.internal.process.ProbeOperation
 import dev.jordond.filmstrip.ffmpeg.internal.process.ProcessRunner
 import dev.jordond.filmstrip.ffmpeg.internal.process.ToolchainLocator
 import dev.jordond.filmstrip.ffmpeg.internal.process.ToolchainResult
@@ -27,6 +26,7 @@ import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.ProbeResult
+import dev.jordond.filmstrip.transform.internal.ProbeOperation
 import dev.jordond.filmstrip.transform.internal.RESOLUTION_LADDER
 import dev.jordond.filmstrip.transform.internal.negotiation.fittedBetween
 import io.kotest.assertions.withClue

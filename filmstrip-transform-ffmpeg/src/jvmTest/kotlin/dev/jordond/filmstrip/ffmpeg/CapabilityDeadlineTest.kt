@@ -6,8 +6,8 @@ import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.ffmpeg.internal.FfmpegExportEngine
 import dev.jordond.filmstrip.ffmpeg.internal.FfmpegRuntime
 import dev.jordond.filmstrip.ffmpeg.internal.process.PACKET_DROP_FILTER
-import dev.jordond.filmstrip.ffmpeg.internal.process.ProbeOperation
 import dev.jordond.filmstrip.ffmpeg.internal.process.ProcessRunner
+import dev.jordond.filmstrip.transform.internal.ProbeOperation
 import dev.jordond.filmstrip.transform.internal.RESOLUTION_LADDER
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain

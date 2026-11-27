@@ -16,7 +16,6 @@ import dev.jordond.filmstrip.effects.overlay.StoredSamples
 import dev.jordond.filmstrip.ffmpeg.internal.picture.FfmpegPictureDecoder
 import dev.jordond.filmstrip.ffmpeg.internal.picture.sizeOfFrameCrc
 import dev.jordond.filmstrip.ffmpeg.internal.picture.ycbcrScale
-import dev.jordond.filmstrip.ffmpeg.internal.process.ProbeOperation
 import dev.jordond.filmstrip.ffmpeg.internal.process.interruptibly
 import dev.jordond.filmstrip.ffmpeg.internal.process.probeExpiredReason
 import dev.jordond.filmstrip.ffmpeg.overlay.encoded
@@ -35,6 +34,7 @@ import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.picture.pictureColor
 import dev.jordond.filmstrip.test.IccPictures
+import dev.jordond.filmstrip.transform.internal.ProbeOperation
 import io.kotest.assertions.withClue
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue

@@ -13,8 +13,6 @@ import dev.jordond.filmstrip.export.Verdict
 import dev.jordond.filmstrip.ffmpeg.internal.FfmpegExportEngine
 import dev.jordond.filmstrip.ffmpeg.internal.FfmpegProber
 import dev.jordond.filmstrip.ffmpeg.internal.FfmpegRuntime
-import dev.jordond.filmstrip.ffmpeg.internal.process.PROBE_DEADLINE_BASE
-import dev.jordond.filmstrip.ffmpeg.internal.process.ProbeOperation
 import dev.jordond.filmstrip.ffmpeg.internal.process.ProcessRunner
 import dev.jordond.filmstrip.ffmpeg.internal.process.probeExpiredReason
 import dev.jordond.filmstrip.ffmpeg.support.hostFfprobe
@@ -22,6 +20,8 @@ import dev.jordond.filmstrip.media.MediaProber
 import dev.jordond.filmstrip.media.MediaProberFactory
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
+import dev.jordond.filmstrip.transform.internal.PROBE_DEADLINE_BASE
+import dev.jordond.filmstrip.transform.internal.ProbeOperation
 import dev.jordond.filmstrip.transform.internal.ResolveResult
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf

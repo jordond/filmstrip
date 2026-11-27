@@ -30,7 +30,6 @@ import dev.jordond.filmstrip.ffmpeg.internal.process.FrameStream
 import dev.jordond.filmstrip.ffmpeg.internal.process.LiveBinding
 import dev.jordond.filmstrip.ffmpeg.internal.process.LiveFeedRequest
 import dev.jordond.filmstrip.ffmpeg.internal.process.ProbeAnswer
-import dev.jordond.filmstrip.ffmpeg.internal.process.ProbeOperation
 import dev.jordond.filmstrip.ffmpeg.internal.process.ProcessOutput
 import dev.jordond.filmstrip.ffmpeg.internal.process.ProcessRunner
 import dev.jordond.filmstrip.ffmpeg.internal.process.TIMED_OUT
@@ -43,6 +42,7 @@ import dev.jordond.filmstrip.ffmpeg.internal.process.fileStampOf
 import dev.jordond.filmstrip.ffmpeg.internal.process.probeDeadline
 import dev.jordond.filmstrip.ffmpeg.internal.process.probeExpiredReason
 import dev.jordond.filmstrip.media.MediaInfo
+import dev.jordond.filmstrip.transform.internal.ProbeOperation
 import dev.jordond.filmstrip.transform.internal.copy.CopyPacket
 import dev.jordond.filmstrip.transform.internal.copy.CopyPacketRead
 import dev.jordond.filmstrip.transform.internal.copy.copyPacketCap

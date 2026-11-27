@@ -2,6 +2,7 @@
 
 package dev.jordond.filmstrip.webcodecs.internal
 
+import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.codec.Bitrate
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.internal.SourceProber
@@ -23,18 +24,27 @@ import dev.jordond.filmstrip.media.audioLanguageOf
 import dev.jordond.filmstrip.media.describe
 import dev.jordond.filmstrip.media.displaySizeOf
 import dev.jordond.filmstrip.media.trackCodecOf
+import dev.jordond.filmstrip.transform.internal.PROBE_DEADLINE_BASE
+import dev.jordond.filmstrip.transform.internal.ProbeOperation
+import dev.jordond.filmstrip.webcodecs.internal.interop.DecoderStart
 import dev.jordond.filmstrip.webcodecs.internal.interop.EncodedPacketSink
 import dev.jordond.filmstrip.webcodecs.internal.interop.InputAudioTrack
 import dev.jordond.filmstrip.webcodecs.internal.interop.InputVideoTrack
 import dev.jordond.filmstrip.webcodecs.internal.interop.Rational
 import dev.jordond.filmstrip.webcodecs.internal.interop.VideoDecoder
+import dev.jordond.filmstrip.webcodecs.internal.interop.VideoSample
 import dev.jordond.filmstrip.webcodecs.internal.interop.VideoSampleSink
 import dev.jordond.filmstrip.webcodecs.internal.interop.asDouble
 import dev.jordond.filmstrip.webcodecs.internal.interop.asString
 import dev.jordond.filmstrip.webcodecs.internal.interop.await
 import dev.jordond.filmstrip.webcodecs.internal.interop.awaitOwned
 import dev.jordond.filmstrip.webcodecs.internal.interop.videoDecoderStarts
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.js.ExperimentalWasmJsInterop
+import kotlin.js.JsAny
+import kotlin.time.Duration
 import kotlin.time.Duration.Companion.microseconds
 
 /**
@@ -47,9 +57,18 @@ import kotlin.time.Duration.Companion.microseconds
  *
  * A source with video has its first key frame decoded, which adds a few milliseconds to a probe and more where the
  * browser starts a hardware decoder, about 160 ms for HEVC on a Mac. A codec the browser has no decoder for is refused
- * with [missingVideoDecoder] and a frame that does not decode with [undecodableSource].
+ * with [missingVideoDecoder] and a frame that does not decode with [undecodableSource]. Starting a decoder to tell the
+ * two apart is stopped at [deadline] and refused as [FilmstripError.TimedOut], and so is the read of the key frame.
+ *
+ * @param deadline How long the key frame read and the decoder start may each wait.
+ * @param firstSample Reads and decodes the first key frame of a track, or answers null when there is none.
+ * @param decoderStarts Starts a decoder for a config and answers how it ended within the given time.
  */
-internal class BrowserProber : SourceProber {
+internal class BrowserProber(
+  private val deadline: Duration = PROBE_DEADLINE_BASE,
+  private val firstSample: suspend (InputVideoTrack) -> VideoSample? = ::firstSampleOf,
+  private val decoderStarts: suspend (JsAny, Duration) -> DecoderStart = ::videoDecoderStarts,
+) : SourceProber {
   override suspend fun read(source: MediaSource): SourceRead {
     val reader = SourceReader.of(source) ?: return SourceRead.Failed(unreadableSource(source))
     return try {
@@ -65,6 +84,12 @@ internal class BrowserProber : SourceProber {
         }
         FirstFrame.Damaged -> {
           SourceRead.Failed(undecodableSource(source.describe()))
+        }
+        FirstFrame.SampleExpired -> {
+          SourceRead.Failed(probeTimedOut(ProbeOperation.FIRST_FRAME_DECODE, deadline))
+        }
+        FirstFrame.DecoderStartExpired -> {
+          SourceRead.Failed(probeTimedOut(ProbeOperation.DECODER_START, deadline))
         }
         FirstFrame.Decodes, null -> {
           info?.let { SourceRead.Read(it) } ?: SourceRead.Failed(unreadableSource(source))
@@ -82,20 +107,32 @@ internal class BrowserProber : SourceProber {
     val config = awaitCatching { track.getDecoderConfig().await() }.getOrNull() ?: return FirstFrame.NoDecoder
     val supported = awaitCatching { VideoDecoder.isConfigSupported(config).await().supported }.getOrDefault(false)
     if (!supported) return FirstFrame.NoDecoder
-    val sample =
-      awaitCatching {
-        val key = EncodedPacketSink(track).getFirstKeyPacket().await() ?: return@awaitCatching null
-        VideoSampleSink(track).getSample(key.timestamp).awaitOwned { it?.close() }
-      }.getOrNull()
+    // mediabunny gives getFirstKeyPacket and getSample no abort, so a read that outlives the deadline is only
+    // cancelled here. awaitOwned closes a sample that lands afterwards and the caller closes the reader, but the
+    // decode underneath may still run to its end.
+    // The deadline runs on the default dispatcher so it counts real time, where a test dispatcher skips its delays.
+    val read =
+      withContext(Dispatchers.Default) {
+        withTimeoutOrNull(deadline) { SampleRead(awaitCatching { firstSample(track) }.getOrNull()) }
+      }
+    if (read == null) return FirstFrame.SampleExpired
+    val sample = read.sample
     if (sample != null) {
       sample.close()
       return FirstFrame.Decodes
     }
-    val starts = awaitCatching { videoDecoderStarts(config).await().toBoolean() }.getOrDefault(false)
-    return if (starts) FirstFrame.Damaged else FirstFrame.NoDecoder
+    return when (awaitCatching { decoderStarts(config, deadline) }.getOrDefault(DecoderStart.Refused)) {
+      DecoderStart.Started -> FirstFrame.Damaged
+      DecoderStart.Refused -> FirstFrame.NoDecoder
+      DecoderStart.Expired -> FirstFrame.DecoderStartExpired
+    }
   }
 
-  private enum class FirstFrame { Decodes, Damaged, NoDecoder }
+  private class SampleRead(
+    val sample: VideoSample?,
+  )
+
+  private enum class FirstFrame { Decodes, Damaged, NoDecoder, SampleExpired, DecoderStartExpired }
 
   /**
    * Reads what [file] carries, which is the same answer probing that file later gives.
@@ -190,6 +227,11 @@ internal class BrowserProber : SourceProber {
 }
 
 private const val BITS_PER_BYTE = 8L
+
+private suspend fun firstSampleOf(track: InputVideoTrack): VideoSample? {
+  val key = EncodedPacketSink(track).getFirstKeyPacket().await() ?: return null
+  return VideoSampleSink(track).getSample(key.timestamp).awaitOwned { it?.close() }
+}
 
 /**
  * Bit depth for HEVC, read from the profile digit in the codecs parameter string: 1 and 3 are

@@ -9,7 +9,6 @@ import dev.jordond.filmstrip.ffmpeg.internal.picture.codedImageSizeReason
 import dev.jordond.filmstrip.ffmpeg.internal.picture.gridAssembly
 import dev.jordond.filmstrip.ffmpeg.internal.picture.overlayAssembly
 import dev.jordond.filmstrip.ffmpeg.internal.picture.scratchFile
-import dev.jordond.filmstrip.ffmpeg.internal.process.ProbeOperation
 import dev.jordond.filmstrip.ffmpeg.internal.process.probeExpiredReason
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.picture.heif.HeifGridRead
@@ -21,6 +20,7 @@ import dev.jordond.filmstrip.test.ColorPictures
 import dev.jordond.filmstrip.test.HeifOverlays
 import dev.jordond.filmstrip.test.HeifStills
 import dev.jordond.filmstrip.test.HeifThumbnail
+import dev.jordond.filmstrip.transform.internal.ProbeOperation
 import io.kotest.assertions.withClue
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf

@@ -9,11 +9,11 @@ import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.FFMPEG_ENCODERS
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.FfmpegEncoder
 import dev.jordond.filmstrip.ffmpeg.internal.process.ProbeAnswer
-import dev.jordond.filmstrip.ffmpeg.internal.process.ProbeOperation
 import dev.jordond.filmstrip.ffmpeg.internal.process.Toolchain
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.transform.internal.DEFAULT_HDR_LADDER
 import dev.jordond.filmstrip.transform.internal.HDR_PROBE_SIZE
+import dev.jordond.filmstrip.transform.internal.ProbeOperation
 import dev.jordond.filmstrip.transform.internal.RESOLUTION_LADDER
 import dev.jordond.filmstrip.transform.internal.smallestAccepted
 import kotlinx.coroutines.async

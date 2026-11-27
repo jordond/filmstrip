@@ -69,6 +69,10 @@ plus 10 ms for each second of source. One that runs over fails as `TimedOut`, na
 Nothing is cached, so the next call tries again. If the ffmpeg lookup itself times out, it fails as
 `ToolchainMissing` instead. Exports and preview playback have no deadline.
 
+On the browser the first frame decode, the decoder start and the 10-bit check each have a deadline of 30 s and fail the
+same way. mediabunny can't abort a read, so one that runs over is dropped and may keep running in the background until
+it ends.
+
 ## Encoder color
 
 Some Android encoders write a different color matrix than they were asked for. filmstrip tags the file with what the

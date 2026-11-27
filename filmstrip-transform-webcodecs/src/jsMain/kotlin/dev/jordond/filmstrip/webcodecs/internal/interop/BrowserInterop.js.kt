@@ -77,9 +77,9 @@ internal actual fun hasAudioEncoder(): Boolean = js("typeof AudioEncoder !== 'un
 
 internal actual fun hasVideoDecoder(): Boolean = js("typeof VideoDecoder !== 'undefined'").unsafeCast<Boolean>()
 
-internal actual fun videoDecoderStarts(config: JsAny): Promise<JsBoolean> = startVideoDecoder(config)
+internal actual fun openVideoDecoder(config: JsAny): JsAny? = openDecoder(config)
 
-private val startVideoDecoder: (JsAny) -> Promise<JsBoolean> =
+private val openDecoder: (JsAny) -> JsAny? =
   js(
     """
     (function (config) {
@@ -87,11 +87,41 @@ private val startVideoDecoder: (JsAny) -> Promise<JsBoolean> =
       try {
         decoder.configure(config);
       } catch (refused) {
-        return Promise.resolve(false);
+        return null;
       }
-      return decoder.flush().then(() => true, () => false).finally(() => {
-        if (decoder.state !== 'closed') decoder.close();
+      return decoder;
+    })
+    """,
+  )
+
+internal actual fun flushVideoDecoder(decoder: JsAny): Promise<JsBoolean> = flush(decoder)
+
+private val flush: (JsAny) -> Promise<JsBoolean> =
+  js("(function (decoder) { return decoder.flush().then(() => true, () => false); })")
+
+internal actual fun closeVideoDecoder(decoder: JsAny) = close(decoder)
+
+private val close: (JsAny) -> Unit =
+  js("(function (decoder) { if (decoder.state !== 'closed') decoder.close(); })")
+
+internal actual fun settleWithin(
+  promise: Promise<JsAny?>,
+  ms: Double,
+  onExpire: () -> Unit,
+): Promise<JsAny?> = settle(promise, ms, onExpire)
+
+private val settle: (Promise<JsAny?>, Double, () -> Unit) -> Promise<JsAny?> =
+  js(
+    """
+    (function (promise, ms, onExpire) {
+      let timer;
+      const expired = new Promise((resolve) => {
+        timer = setTimeout(() => {
+          onExpire();
+          resolve(null);
+        }, ms);
       });
+      return Promise.race([promise, expired]).finally(() => clearTimeout(timer));
     })
     """,
   )

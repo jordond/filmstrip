@@ -63,13 +63,19 @@ import kotlin.time.Duration.Companion.microseconds
  * @param readDevice Reads what this device's encoders can do. The browser's own encoders by default.
  */
 @InternalFilmstripApi
-public class BrowserExportEngine(
+public class BrowserExportEngine internal constructor(
   private val components: EngineComponents,
   prober: MediaProber,
-  readDevice: (suspend () -> DeviceCapabilities)? = null,
+  readDevice: (suspend () -> DeviceCapabilities)?,
+  private val sources: SourceCache,
 ) : LoweringExportEngine() {
+  public constructor(
+    components: EngineComponents,
+    prober: MediaProber,
+    readDevice: (suspend () -> DeviceCapabilities)? = null,
+  ) : this(components, prober, readDevice, SourceCache())
+
   private val backend = BrowserCapabilities()
-  private val sources = SourceCache()
   private val planner = BrowserPlanner(components.effectResolvers, components.audioEffectResolvers)
   private val reads =
     PlanningReads(
@@ -97,7 +103,12 @@ public class BrowserExportEngine(
       }
     // Keeping a grade and tone mapping it both read the planes, so every HDR source is asked
     // whatever the device can encode.
-    val opaque = opaqueGrades(read.infos)
+    val opaque =
+      try {
+        opaqueGrades(read.infos)
+      } catch (expired: ProbeExpired) {
+        return refusedLowering(expired.error)
+      }
     val device = if (opaque.isEmpty()) read.device else read.device.withoutHdrEncoding()
     val asked = Ask(spec, device, read.infos, read.openings, layoutSize, grade, previewClock = previewClock)
     return when (val withPackets = askedWithPackets(composition, asked)) {
@@ -123,7 +134,12 @@ public class BrowserExportEngine(
         is PlanningReadResult.Failed -> return ExportGrade.Refused(result.error)
         is PlanningReadResult.Read -> result
       }
-    val opaque = opaqueGrades(read.infos)
+    val opaque =
+      try {
+        opaqueGrades(read.infos)
+      } catch (expired: ProbeExpired) {
+        return ExportGrade.Refused(expired.error)
+      }
     val device = if (opaque.isEmpty()) read.device else read.device.withoutHdrEncoding()
     return when (val withPackets = askedWithPackets(composition, Ask(spec, device, read.infos, read.openings))) {
       is CopyAsk.Refused -> ExportGrade.Refused(withPackets.error)

@@ -6,7 +6,6 @@ import dev.jordond.filmstrip.effects.overlay.StoredSamples
 import dev.jordond.filmstrip.ffmpeg.internal.picture.FfmpegPictureDecoder
 import dev.jordond.filmstrip.ffmpeg.internal.picture.alphaSizeReason
 import dev.jordond.filmstrip.ffmpeg.internal.picture.pictureAlpha
-import dev.jordond.filmstrip.ffmpeg.internal.process.ProbeOperation
 import dev.jordond.filmstrip.ffmpeg.internal.process.probeExpiredReason
 import dev.jordond.filmstrip.ffmpeg.support.alphaStill
 import dev.jordond.filmstrip.geometry.Size
@@ -14,6 +13,7 @@ import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.picture.heif.HeifAlpha
 import dev.jordond.filmstrip.test.AlphaPlanes
 import dev.jordond.filmstrip.test.ColorPictures
+import dev.jordond.filmstrip.transform.internal.ProbeOperation
 import io.kotest.assertions.withClue
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue

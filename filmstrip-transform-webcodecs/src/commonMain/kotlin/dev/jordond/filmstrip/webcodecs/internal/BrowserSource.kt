@@ -10,6 +10,8 @@ import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.audioTrackIdOf
 import dev.jordond.filmstrip.media.describe
 import dev.jordond.filmstrip.media.movieAudioTrackIdsOf
+import dev.jordond.filmstrip.transform.internal.PROBE_DEADLINE_BASE
+import dev.jordond.filmstrip.transform.internal.ProbeOperation
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedAudioTrack
 import dev.jordond.filmstrip.webcodecs.internal.failure.decoderSite
 import dev.jordond.filmstrip.webcodecs.internal.interop.ALL_FORMATS
@@ -23,6 +25,7 @@ import dev.jordond.filmstrip.webcodecs.internal.interop.InputVideoTrack
 import dev.jordond.filmstrip.webcodecs.internal.interop.JsOptions
 import dev.jordond.filmstrip.webcodecs.internal.interop.UrlSource
 import dev.jordond.filmstrip.webcodecs.internal.interop.VideoDecoder
+import dev.jordond.filmstrip.webcodecs.internal.interop.VideoSample
 import dev.jordond.filmstrip.webcodecs.internal.interop.VideoSampleSink
 import dev.jordond.filmstrip.webcodecs.internal.interop.asDouble
 import dev.jordond.filmstrip.webcodecs.internal.interop.asString
@@ -32,6 +35,9 @@ import dev.jordond.filmstrip.webcodecs.internal.interop.awaitOwned
 import dev.jordond.filmstrip.webcodecs.internal.interop.firstVideoTrack
 import dev.jordond.filmstrip.webcodecs.internal.interop.jsCopyWith
 import dev.jordond.filmstrip.webcodecs.internal.interop.toUint8Array
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.js.ExperimentalWasmJsInterop
 import kotlin.js.JsAny
 import kotlin.time.Duration
@@ -62,6 +68,8 @@ internal class SourceVideoInfo(
 internal class SourceReader(
   private val input: Input,
   private val headers: () -> HeaderBytes,
+  private val tenBitDeadline: Duration = PROBE_DEADLINE_BASE,
+  private val firstSampleOf: suspend (VideoSampleSink) -> VideoSample? = ::firstSampleAtStart,
 ) {
   private var track: InputVideoTrack? = null
   private var looked = false
@@ -305,10 +313,18 @@ internal class SourceReader(
 
   /**
    * Whether the first frame [open] decodes carries readable ten-bit planes. A decoder that refuses
-   * the track answers no rather than failing the plan.
+   * the track answers no rather than failing the plan, and a read still waiting at the deadline throws [ProbeExpired].
    */
   private suspend fun yieldsTenBit(open: () -> VideoSampleSink?): Boolean {
-    val sample = awaitCatching { open()?.getSample(0.0)?.awaitOwned { it?.close() } }.getOrNull() ?: return false
+    // mediabunny gives getSample no abort, so a read that outlives the deadline is only cancelled here and awaitOwned
+    // closes a sample that lands afterwards. The deadline runs on the default dispatcher so it counts real time.
+    val read =
+      withContext(Dispatchers.Default) {
+        withTimeoutOrNull(
+          tenBitDeadline,
+        ) { SampleRead(awaitCatching { open()?.let { firstSampleOf(it) } }.getOrNull()) }
+      } ?: throw ProbeExpired(probeTimedOut(ProbeOperation.TEN_BIT_READ, tenBitDeadline))
+    val sample = read.sample ?: return false
     return try {
       sample.format?.asString() == TEN_BIT_FORMAT
     } finally {
@@ -316,22 +332,40 @@ internal class SourceReader(
     }
   }
 
+  private class SampleRead(
+    val sample: VideoSample?,
+  )
+
   companion object {
     /**
      * Opens [source], or returns null when a browser cannot read it. A URL is range-requested. A
      * byte array is copied into the JavaScript heap once. A source mediabunny refuses while its
      * input is built reads as null too, so this never throws.
+     *
+     * @param tenBitDeadline How long each frame read that checks for ten-bit planes may wait.
+     * @param firstSampleOf Reads the first frame of a sink.
      */
-    fun of(source: MediaSource): SourceReader? =
+    fun of(
+      source: MediaSource,
+      tenBitDeadline: Duration = PROBE_DEADLINE_BASE,
+      firstSampleOf: suspend (VideoSampleSink) -> VideoSample? = ::firstSampleAtStart,
+    ): SourceReader? =
       try {
         when (source) {
           is MediaSource.Uri -> {
-            SourceReader(Input(inputOptions(UrlSource(source.uri))), { headerBytesOf(source.uri) })
+            SourceReader(
+              Input(inputOptions(UrlSource(source.uri))),
+              { headerBytesOf(source.uri) },
+              tenBitDeadline,
+              firstSampleOf,
+            )
           }
           is MediaSource.Bytes -> {
             SourceReader(
               Input(inputOptions(BufferSource(source.bytes.toUint8Array()))),
               { headerBytesOf(source.bytes) },
+              tenBitDeadline,
+              firstSampleOf,
             )
           }
           is MediaSource.Path -> {
@@ -357,6 +391,9 @@ internal class SourceReader(
   }
 }
 
+private suspend fun firstSampleAtStart(sink: VideoSampleSink): VideoSample? =
+  sink.getSample(0.0).awaitOwned { it?.close() }
+
 // The MIME types mediabunny gives the MP4 and QuickTime formats, whose track headers carry the ids a track is named by.
 private val MOVIE_FORMATS = setOf("video/mp4", "video/quicktime")
 
@@ -369,13 +406,17 @@ private val DEFAULT_FLAG_FORMATS = MOVIE_FORMATS + setOf("video/x-matroska", "vi
  * A [MediaSource.Bytes] costs one copy into the JavaScript heap, so the copy is made once and both
  * the plan and the export that follows it read from the same one. [close] drops every reader and
  * the memory behind it.
+ *
+ * @param opener Opens a reader for a source the cache has not seen yet.
  */
-internal class SourceCache {
+internal class SourceCache(
+  private val opener: (MediaSource) -> SourceReader? = { SourceReader.of(it) },
+) {
   private val readers = mutableMapOf<MediaSource, SourceReader>()
 
   fun open(source: MediaSource): SourceReader? {
     readers[source]?.let { return it }
-    return SourceReader.of(source)?.also { readers[source] = it }
+    return opener(source)?.also { readers[source] = it }
   }
 
   fun close() {

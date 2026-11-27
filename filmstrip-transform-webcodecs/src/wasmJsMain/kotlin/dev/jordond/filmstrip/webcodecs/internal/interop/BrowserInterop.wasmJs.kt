@@ -83,18 +83,42 @@ internal actual fun hasAudioEncoder(): Boolean = js("typeof AudioEncoder !== 'un
 
 internal actual fun hasVideoDecoder(): Boolean = js("typeof VideoDecoder !== 'undefined'")
 
-internal actual fun videoDecoderStarts(config: JsAny): Promise<JsBoolean> {
+internal actual fun openVideoDecoder(config: JsAny): JsAny? {
   js(
     """
     const decoder = new VideoDecoder({ output: (frame) => frame.close(), error: () => {} });
     try {
       decoder.configure(config);
     } catch (refused) {
-      return Promise.resolve(false);
+      return null;
     }
-    return decoder.flush().then(() => true, () => false).finally(() => {
-      if (decoder.state !== 'closed') decoder.close();
+    return decoder;
+    """,
+  )
+}
+
+internal actual fun flushVideoDecoder(decoder: JsAny): Promise<JsBoolean> =
+  js("decoder.flush().then(() => true, () => false)")
+
+internal actual fun closeVideoDecoder(decoder: JsAny) {
+  js("if (decoder.state !== 'closed') decoder.close();")
+}
+
+internal actual fun settleWithin(
+  promise: Promise<JsAny?>,
+  ms: Double,
+  onExpire: () -> Unit,
+): Promise<JsAny?> {
+  js(
+    """
+    let timer;
+    const expired = new Promise((resolve) => {
+      timer = setTimeout(() => {
+        onExpire();
+        resolve(null);
+      }, ms);
     });
+    return Promise.race([promise, expired]).finally(() => clearTimeout(timer));
     """,
   )
 }

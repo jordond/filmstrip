@@ -1,8 +1,8 @@
 package dev.jordond.filmstrip.ffmpeg
 
-import dev.jordond.filmstrip.ffmpeg.internal.process.PROBE_DEADLINE_BASE
 import dev.jordond.filmstrip.ffmpeg.internal.process.PROBE_DEADLINE_WINDOW_FRACTION
 import dev.jordond.filmstrip.ffmpeg.internal.process.probeDeadline
+import dev.jordond.filmstrip.transform.internal.PROBE_DEADLINE_BASE
 import io.kotest.matchers.shouldBe
 import kotlin.test.Test
 import kotlin.time.Duration.Companion.hours

@@ -113,12 +113,33 @@ internal expect fun hasAudioEncoder(): Boolean
 internal expect fun hasVideoDecoder(): Boolean
 
 /**
- * Whether a `VideoDecoder` configured with [config] starts, answered once a flush with nothing queued settles.
+ * A `VideoDecoder` configured with [config], or null when the browser refuses the config.
  *
- * A browser can say a config is supported and still fail to start a decoder for it, such as HEVC where no hardware
- * decoder is reachable. The decoder is closed before this answers.
+ * The caller closes the decoder it gets with [closeVideoDecoder].
  */
-internal expect fun videoDecoderStarts(config: JsAny): Promise<JsBoolean>
+internal expect fun openVideoDecoder(config: JsAny): JsAny?
+
+/**
+ * Flushes [decoder] with nothing queued, answering true once the flush settles and false when it rejects.
+ */
+internal expect fun flushVideoDecoder(decoder: JsAny): Promise<JsBoolean>
+
+/**
+ * Closes [decoder] unless it is already closed, which rejects a flush still waiting on it.
+ */
+internal expect fun closeVideoDecoder(decoder: JsAny)
+
+/**
+ * Races [promise] against a timer of [ms] milliseconds.
+ *
+ * The result is the promise's value when it settles first. When the timer wins, [onExpire] runs once and the result is
+ * null. The timer is cleared as soon as either side settles.
+ */
+internal expect fun settleWithin(
+  promise: Promise<JsAny?>,
+  ms: Double,
+  onExpire: () -> Unit,
+): Promise<JsAny?>
 
 /**
  * True when the page has an `AudioDecoder` global at all, which every sample the preview plays is decoded through.

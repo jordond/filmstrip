@@ -3,9 +3,9 @@ package dev.jordond.filmstrip.ffmpeg.internal.picture
 import dev.jordond.filmstrip.effects.overlay.OverlayPictureRead
 import dev.jordond.filmstrip.ffmpeg.internal.process.FRAME_EXIT_GRACE_MILLIS
 import dev.jordond.filmstrip.ffmpeg.internal.process.FRAME_STOP_GRACE_MILLIS
-import dev.jordond.filmstrip.ffmpeg.internal.process.ProbeOperation
 import dev.jordond.filmstrip.ffmpeg.internal.process.StderrTail
 import dev.jordond.filmstrip.ffmpeg.internal.process.probeExpiredReason
+import dev.jordond.filmstrip.transform.internal.ProbeOperation
 import java.io.File
 import java.io.IOException
 import java.io.InputStream
