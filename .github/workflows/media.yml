@@ -322,14 +322,19 @@ jobs:
       - *artifact
 
       # A stall inside the simulator leaves nothing in the test output but a timeout, so a red job keeps the
-      # simulator's own log from the test run.
+      # simulator's own log from the test run. The player cell keeps it green too, so a slow run has a fast one to be
+      # read against. The simulator has no ps of its own, its daemons are host processes under the runtime's path.
       - name: Collect the simulator log
-        if: failure()
+        if: failure() || matrix.group == 'player'
         run: |
           mkdir -p build/simulator-log
           xcrun simctl spawn booted log show --last 25m --style compact | gzip > build/simulator-log/simulator.log.gz || true
+          ps -Ao time=,comm= | grep -i simruntime | awk '{
+            s = 0; n = split($1, t, ":"); for (i = 1; i <= n; i++) s = s * 60 + t[i]
+            p = substr($0, index($0, $2)); sub(/.*\//, "", p); cpu[p] += s
+          } END { for (p in cpu) printf "%9.1f s  %s\n", cpu[p], p }' | sort -rn | head -15 | tee build/simulator-log/cpu.txt
       - name: Upload the simulator log
-        if: failure()
+        if: failure() || matrix.group == 'player'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: media-simulator-log-${{ env.ARTIFACT }}

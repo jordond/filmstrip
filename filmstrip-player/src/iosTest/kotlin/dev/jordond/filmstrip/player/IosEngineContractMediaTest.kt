@@ -58,7 +58,11 @@ class IosEngineContractMediaTest : PlayerEngineContractTest() {
     pumpMainRunLoopDuringContracts()
   }
 
-  // These time out on GitHub's macOS runners and pass on a local simulator, so the simulator skips them.
+  // A limit of GitHub's macOS runners, not of the engine. Some runs the whole simulator slows down, and then waits
+  // these make that take 2 to 8 s normally run past 20 s. A local simulator passes them every run. No simulator
+  // daemon is busier on a slow run than on a fast one, and the Mac test process slows down on some runs too, so there
+  // is nothing in the simulator to turn off. Metal compiles in the simulator went from 1 to 4 s to 21 and 53 s on one
+  // slow run. The simulator skips these three, and macOS and the other backends still run them.
   @Test
   @IgnoreOnSimulator
   override fun aSurfaceReadingAPausedPlayerGetsTheFirstFrameThenAParameterEdit() =

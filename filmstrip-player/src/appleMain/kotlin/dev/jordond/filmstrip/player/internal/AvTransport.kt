@@ -215,11 +215,12 @@ internal class AvTransport(
     dropStop()
   }
 
-  // Reports where the item's clock came to rest, which is where playback stopped.
+  // Reports where the item's clock came to rest, which is where playback stopped. The clock of an item that is not
+  // ready yet has not moved with playback, so the playhead stays where the load put it.
   private fun onRest(position: Duration) {
     val next = if (settleDue) slotAhead(position) else null
     settleDue = false
-    playhead = if (next != null && settle(next)) next else position
+    if (isSeekReady()) playhead = if (next != null && settle(next)) next else position
     stopDue.value = false
     emitPosition(playhead)
   }
@@ -234,12 +235,13 @@ internal class AvTransport(
    * Checks one reading of the item's clock against the loop range, and takes the wrap once playback reaches it.
    *
    * A reading that does not wrap becomes the playhead. While a seek is in flight the playhead holds, and the seek's
-   * completion moves it to where it landed.
+   * completion moves it to where it landed. An item that is not ready can read zero even after a seek on it landed, so
+   * its readings leave the playhead where the load or the seek put it.
    */
   fun onPlayhead(position: Duration) {
     // A seek waiting on the item is dispatched first, so a wrap never supersedes it.
     onSeekReady()
-    if (seeks.inFlight) return
+    if (seeks.inFlight || !isSeekReady()) return
     if (wrapDue(position)) wrapLoop() else playhead = position
   }
 

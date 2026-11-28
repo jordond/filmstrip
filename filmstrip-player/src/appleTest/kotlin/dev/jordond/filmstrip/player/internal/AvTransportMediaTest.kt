@@ -51,6 +51,39 @@ class AvTransportMediaTest {
       rig.transport.release()
     }
 
+  // A fresh item's clock can read zero until the item is ready, even after the seek that moved it has landed.
+  @Test
+  fun `a reading of an item that is not ready leaves the playhead where the load put it`() =
+    contractTest { scope ->
+      val rig = Rig(scope, appleExportLowering(appleFixtureComposition()))
+      rig.seekReady = false
+      rig.transport.jumpTo(400.milliseconds)
+
+      rig.transport.onPlayhead(Duration.ZERO)
+      rig.transport.playhead shouldBe 400.milliseconds
+
+      rig.seekReady = true
+      rig.transport.onPlayhead(410.milliseconds)
+      rig.transport.playhead shouldBe 410.milliseconds
+    }
+
+  @Test
+  fun `a stop while the item is not ready reports the playhead the load put it at`() =
+    contractTest { scope ->
+      val rig = Rig(scope, appleExportLowering(appleFixtureComposition()))
+      rig.seekReady = false
+      rig.transport.jumpTo(400.milliseconds)
+      rig.transport.play()
+      rig.clock = Duration.ZERO
+
+      rig.transport.stop()
+      rig.rest.come(Duration.ZERO)
+
+      rig.positions shouldBe listOf(400.milliseconds)
+      rig.transport.playhead shouldBe 400.milliseconds
+      rig.transport.release()
+    }
+
   // The clock runs on for a moment after a pause, so the reading taken at the stop is not where playback stopped.
   @Test
   fun `a stop reports nothing until the clock rests and then where it rests`() =
