@@ -47,6 +47,11 @@ import androidx.compose.ui.geometry.Size as ComposeSize
  * ahead of the video. [outputAspect] carries the shape until a player has one, and on its own where there is no player
  * at all.
  *
+ * The stage draws a `ComposedOverlay` in its content at [player]'s playhead, hidden outside the element's window and
+ * at its animation's frame inside it. The player is only listened to while an element has a window or an animation,
+ * and the playhead redraws those elements without recomposing them. With no player, or before it has a duration,
+ * every element is drawn still.
+ *
  * A null [player] is the whole signal for the [fallback] slot. A host whose preview stopped passes null and draws its
  * own stand-in at the same letterboxed size rather than passing a player it does not want rendered.
  *
@@ -114,7 +119,12 @@ public fun VideoStage(
     val boxScope = this
     overlays.BakeHost()
     val scope = remember(boxScope, frame, aspect, overlays) { VideoStageContent(boxScope, frame, aspect, overlays) }
-    CompositionLocalProvider(LocalStagePointer provides remember { StagePointer() }) { scope.content() }
+    val clock = remember { StageClock() }
+    StageClockFeed(player, clock)
+    CompositionLocalProvider(
+      LocalStagePointer provides remember { StagePointer() },
+      LocalStageClock provides clock,
+    ) { scope.content() }
   }
 }
 

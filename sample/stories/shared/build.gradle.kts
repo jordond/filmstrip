@@ -80,6 +80,8 @@ kotlin {
     jvmTest.dependencies {
       implementation(libs.kotest.assertions)
       implementation(libs.compose.ui.test)
+      implementation(libs.kotlinx.coroutines.test)
+      implementation(projects.filmstripTesting)
     }
   }
 }

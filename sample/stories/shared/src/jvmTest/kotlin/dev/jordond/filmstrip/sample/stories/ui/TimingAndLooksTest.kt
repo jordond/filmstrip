@@ -13,26 +13,18 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.v2.runComposeUiTest
 import dev.jordond.filmstrip.edit.Composition
-import dev.jordond.filmstrip.effects.overlay.OverlayFrame
-import dev.jordond.filmstrip.effects.overlay.OverlayTime
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.media.FrameResult
 import dev.jordond.filmstrip.sample.stories.StoryClock
 import dev.jordond.filmstrip.sample.stories.StoryContent
 import dev.jordond.filmstrip.sample.stories.StoryEditor
-import dev.jordond.filmstrip.sample.stories.StoryElement
-import dev.jordond.filmstrip.sample.stories.StoryEntrance
 import dev.jordond.filmstrip.sample.stories.StoryLook
-import dev.jordond.filmstrip.sample.stories.liveFrame
 import dev.jordond.filmstrip.sample.stories.next
 import dev.jordond.filmstrip.sample.ui.SampleTheme
 import dev.jordond.filmstrip.still.FrameRenderer
 import io.kotest.matchers.floats.plusOrMinus
-import io.kotest.matchers.floats.shouldBeGreaterThan
 import io.kotest.matchers.nulls.shouldBeNull
-import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
-import io.kotest.matchers.shouldNotBe
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
@@ -91,48 +83,6 @@ class TimingAndLooksTest {
         .window
         .shouldBeNull()
     }
-
-  @Test
-  fun anElementWithARiseIsDrawnOffsetByWhatTheAnimationSaysHalfwayThrough() {
-    val element =
-      StoryElement(
-        id = 0,
-        content = StoryContent.Caption("Rises", entrance = StoryEntrance.Rise),
-        timed = true,
-        startSeconds = 2f,
-        endSeconds = 8f,
-      )
-    val halfway = 2.seconds + StoryEntrance.DURATION / 2
-
-    val frame = liveFrame(element, halfway, DURATION, selected = false).shouldNotBeNull()
-
-    val expected =
-      StoryEntrance.Rise.animation
-        .shouldNotBeNull()
-        .frameAt(OverlayTime(StoryEntrance.DURATION / 2, 8.seconds - halfway, halfway))
-    frame shouldBe expected
-    frame.offset.y shouldBeGreaterThan 0f
-    frame.opacity shouldBe (0.5f plusOrMinus 1e-3f)
-    frame shouldNotBe OverlayFrame.Identity
-  }
-
-  @Test
-  fun aSelectedElementIsDrawnStillAndAnElementOutsideItsWindowIsNotDrawn() {
-    val element =
-      StoryElement(
-        id = 0,
-        content = StoryContent.Caption("Rises", entrance = StoryEntrance.Rise),
-        timed = true,
-        startSeconds = 2f,
-        endSeconds = 8f,
-      )
-
-    liveFrame(element, 2.seconds, DURATION, selected = true) shouldBe OverlayFrame.Identity
-    liveFrame(element, 1.seconds, DURATION, selected = true) shouldBe OverlayFrame.Identity
-    liveFrame(element, 1.seconds, DURATION, selected = false).shouldBeNull()
-    liveFrame(element.copy(content = StoryContent.Caption("Still")), 3.seconds, DURATION, selected = false) shouldBe
-      OverlayFrame.Identity
-  }
 
   @Test
   fun aSwipeAcrossTheBarePictureStepsTheLookAndWraps() =

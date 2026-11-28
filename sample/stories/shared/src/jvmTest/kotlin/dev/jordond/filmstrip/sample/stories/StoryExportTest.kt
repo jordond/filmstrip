@@ -21,7 +21,6 @@ import dev.jordond.filmstrip.compose.overlay.OverlayTransform
 import dev.jordond.filmstrip.compose.overlay.boundsOn
 import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.effect.EffectId
-import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effects.overlay.ImageOverlay
 import dev.jordond.filmstrip.effects.overlay.OverlayPosition
 import dev.jordond.filmstrip.export.ExportEngine
@@ -60,7 +59,6 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import kotlin.test.Test
-import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
 /**
@@ -101,31 +99,12 @@ class StoryExportTest {
       editor.story.update(id) { it.copy(timed = true, startSeconds = 1.5f, endSeconds = 3f) }
       editor.story.select(null)
       val timed = editor.story.elements.single()
-      liveFrame(timed, Duration.ZERO, 4.seconds, selected = false).shouldBeNull()
       show(editor)
 
       val overlay = bake(editor).single()
 
       overlay.visibleDuring shouldBe timed.window.shouldNotBeNull()
       overlay.animation shouldBe StoryEntrance.Rise.animation
-    }
-
-  @Test
-  fun aCaptionTheStageDrawsFullyFadedAtTheStartOfItsEntranceStillBakes(): TestResult =
-    runComposeUiTest {
-      val editor = StoryEditor()
-      editor.story.add(StoryContent.Caption("Rises", entrance = StoryEntrance.Rise))
-      editor.story.select(null)
-      liveFrame(
-        editor.story.elements.single(),
-        StoryClock.Stopped.playhead,
-        StoryClock.Stopped.duration,
-        selected = false,
-      ).shouldNotBeNull()
-        .opacity shouldBe 0f
-      show(editor)
-
-      bake(editor) shouldHaveSize 1
     }
 
   @Test

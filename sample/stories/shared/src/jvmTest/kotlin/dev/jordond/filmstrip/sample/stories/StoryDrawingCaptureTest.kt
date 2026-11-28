@@ -73,7 +73,7 @@ class StoryDrawingCaptureTest {
     coroutineScope {
       setContent {
         val size = with(LocalDensity.current) { Modifier.size(OUTPUT.width.toDp(), OUTPUT.height.toDp()) }
-        Box(size) { StoryStage(editor, preview = null) }
+        Box(size) { StoryStage(editor, player = null) }
       }
       awaitIdle()
       val work = async { editor.overlays.bake(OUTPUT) }

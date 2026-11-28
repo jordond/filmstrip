@@ -6,6 +6,7 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.layer.GraphicsLayer
 import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.ui.graphics.rememberGraphicsLayer
@@ -110,20 +111,23 @@ public fun Modifier.overlayDrawOrder(recording: OverlayRecording?): Modifier =
   }
 
 /**
- * Records the node's content into the element's layer on every draw, and draws it to the screen only when [shown].
+ * Records the node's content into the element's layer on every draw, and hands [present] the picture to put on screen.
  *
- * It belongs on the node that holds the element's content and nothing else, so that is all a bake replays. A null
- * [recording] is an element that is never baked, which is drawn straight to the screen when [shown].
+ * It belongs on the node that holds the element's content and nothing else, so that is all a bake replays. [present]
+ * draws the picture it is given, moved or faded however the stage wants, or leaves it undrawn. The recording is taken
+ * first either way, so what [present] does never reaches a bake. A null [recording] is an element that is never
+ * baked, whose picture is the content itself.
  */
 @InternalFilmstripApi
 public fun Modifier.overlayRecord(
   recording: OverlayRecording?,
-  shown: Boolean,
-): Modifier =
-  drawWithContent {
-    val element = recording?.element()
+  present: DrawScope.(picture: DrawScope.() -> Unit) -> Unit,
+): Modifier {
+  val element = recording?.element()
+  val replay: DrawScope.() -> Unit = { if (element != null) drawLayer(element.layer) }
+  return drawWithContent {
     if (element == null) {
-      if (shown) drawContent()
+      present { this@drawWithContent.drawContent() }
       return@drawWithContent
     }
     val asked = element.state.redraw.intValue
@@ -131,8 +135,9 @@ public fun Modifier.overlayRecord(
     element.size = IntSize(size.width.roundToInt(), size.height.roundToInt())
     element.recorded = asked
     element.state.draws.update { it + 1 }
-    if (shown) drawLayer(element.layer)
+    present(replay)
   }
+}
 
 @OptIn(InternalFilmstripApi::class)
 private fun OverlayRecording.element(): RecordedElement =

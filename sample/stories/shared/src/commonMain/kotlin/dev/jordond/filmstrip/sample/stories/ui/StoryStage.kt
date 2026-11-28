@@ -17,7 +17,6 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
-import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
@@ -29,38 +28,35 @@ import dev.jordond.filmstrip.compose.ui.OverlayHandleColors
 import dev.jordond.filmstrip.compose.ui.VideoStage
 import dev.jordond.filmstrip.compose.ui.VideoStageScope
 import dev.jordond.filmstrip.compose.ui.component.ComposedOverlay
-import dev.jordond.filmstrip.effects.overlay.OverlayFrame
 import dev.jordond.filmstrip.geometry.Anchor
+import dev.jordond.filmstrip.player.VideoPlayer
 import dev.jordond.filmstrip.sample.stories.BIN_CENTER
 import dev.jordond.filmstrip.sample.stories.BIN_RADIUS
 import dev.jordond.filmstrip.sample.stories.STORY_ASPECT
 import dev.jordond.filmstrip.sample.stories.Snap
-import dev.jordond.filmstrip.sample.stories.StoryClock
 import dev.jordond.filmstrip.sample.stories.StoryEditor
 import dev.jordond.filmstrip.sample.stories.StoryElement
 import dev.jordond.filmstrip.sample.stories.StoryTool
-import dev.jordond.filmstrip.sample.stories.liveFrame
 import dev.jordond.filmstrip.sample.ui.Tokens
 import kotlin.math.roundToInt
-import kotlin.time.Duration
 
 /**
  * The story's picture with its elements over it, the guides a held element snaps to and the bin it can be dropped on.
  *
  * @param editor The session being edited.
- * @param preview Plays the clip under the elements, or null to draw the elements over an empty stage.
+ * @param player Plays the clip under the elements and times them, or null to draw every element over an empty stage.
  * @param modifier Modifier for the stage.
  * @param handles When the selected element shows the handles a mouse sizes and turns it with.
  */
 @Composable
 internal fun StoryStage(
   editor: StoryEditor,
-  preview: StoryPreview?,
+  player: VideoPlayer?,
   modifier: Modifier = Modifier,
   handles: ComposedOverlayHandles = ComposedOverlayHandles.Auto,
 ) {
   VideoStage(
-    player = preview?.player,
+    player = player,
     outputAspect = STORY_ASPECT.value,
     modifier = modifier.testTag(StoryTags.STAGE),
     overlays = editor.overlays,
@@ -73,7 +69,7 @@ internal fun StoryStage(
         }.lookSwipe(editor.story),
     )
     StoryDrawing(editor)
-    StoryElements(editor, preview?.clock ?: StoryClock.Stopped, handles)
+    StoryElements(editor, handles)
     when (editor.tool) {
       StoryTool.Text -> TextModeField(editor)
       StoryTool.Draw -> DrawInput(editor)
@@ -88,14 +84,13 @@ internal fun StoryStage(
 @Composable
 private fun VideoStageScope.StoryElements(
   editor: StoryEditor,
-  clock: StoryClock,
   handles: ComposedOverlayHandles,
 ) {
   val story = editor.story
   val colors = storyHandleColors()
   val writing = editor.draft?.id
   story.elements.filter { it.id != writing }.forEach { element ->
-    key(element.id) { StoryElementOnStage(editor, element, clock, handles, colors) }
+    key(element.id) { StoryElementOnStage(editor, element, handles, colors) }
   }
 }
 
@@ -103,23 +98,14 @@ private fun VideoStageScope.StoryElements(
 private fun VideoStageScope.StoryElementOnStage(
   editor: StoryEditor,
   element: StoryElement,
-  clock: StoryClock,
   handles: ComposedOverlayHandles,
   colors: OverlayHandleColors,
 ) {
-  val picture = frame.contentRect
   val selected = editor.story.selectedId == element.id
-  // Only an element that the playhead can change reads it, so the rest are not redrawn as the clip plays.
-  val playhead = if (element.window == null && element.animation == null) Duration.ZERO else clock.playhead
-  val drawn = liveFrame(element, playhead, clock.duration, selected)
   ComposedOverlay(
     transform = element.transform,
     onTransformChange = { editor.moved(element.id, it) },
-    modifier =
-      Modifier
-        .alpha(if (selected && editor.overBin) OVER_BIN_ALPHA else 1f)
-        .drawnAs(drawn ?: OverlayFrame.Identity, element.transform.center.on(picture), picture),
-    shown = drawn != null,
+    modifier = Modifier.alpha(if (selected && editor.overBin) OVER_BIN_ALPHA else 1f),
     visibleDuring = element.window,
     animation = element.animation,
     selected = selected,
@@ -188,28 +174,6 @@ private fun StoryBin(
     Canvas(Modifier.matchParentSize()) { drawBin(Color.White) }
   }
 }
-
-// Applies an animation's frame to an element's layer: its opacity, its offset as a fraction of the picture and its
-// scale about the element's own centre.
-private fun Modifier.drawnAs(
-  frame: OverlayFrame,
-  center: Offset,
-  picture: Rect,
-): Modifier =
-  if (frame == OverlayFrame.Identity) {
-    this
-  } else {
-    graphicsLayer {
-      alpha = frame.opacity
-      translationX = frame.offset.x * picture.width
-      translationY = frame.offset.y * picture.height
-      scaleX = frame.scale
-      scaleY = frame.scale
-      if (size.width > 0f && size.height > 0f) {
-        transformOrigin = TransformOrigin(center.x / size.width, center.y / size.height)
-      }
-    }
-  }
 
 private fun Anchor.on(picture: Rect): Offset =
   Offset(picture.left + x * picture.width, picture.top + y * picture.height)

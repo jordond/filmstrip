@@ -38,13 +38,24 @@ import dev.jordond.filmstrip.compose.overlay.OverlayTransform
 import dev.jordond.filmstrip.compose.overlay.drawnScale
 import dev.jordond.filmstrip.compose.overlay.rememberComposedOverlayState
 import dev.jordond.filmstrip.compose.ui.component.ComposedOverlay
+import dev.jordond.filmstrip.edit.TimeRange
+import dev.jordond.filmstrip.effects.overlay.OverlayAnimation
+import dev.jordond.filmstrip.effects.overlay.OverlayFrame
+import dev.jordond.filmstrip.effects.overlay.OverlayOffset
+import dev.jordond.filmstrip.effects.overlay.animatedBy
+import dev.jordond.filmstrip.effects.overlay.drawnRangeOf
+import dev.jordond.filmstrip.effects.overlay.fade
+import dev.jordond.filmstrip.effects.overlay.overlayFrameWithin
 import dev.jordond.filmstrip.effects.overlay.placedOn
+import dev.jordond.filmstrip.effects.overlay.plus
 import dev.jordond.filmstrip.effects.overlay.rectOn
+import dev.jordond.filmstrip.effects.overlay.slideIn
 import dev.jordond.filmstrip.geometry.Anchor
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ImageSource
 import io.kotest.assertions.withClue
 import io.kotest.matchers.floats.shouldBeLessThan
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.Deferred
@@ -60,6 +71,9 @@ import kotlin.math.cos
 import kotlin.math.roundToInt
 import kotlin.math.sin
 import kotlin.test.Test
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
 
 /**
  * The live element and the stage's own bake of it, side by side on two stages, reading the same pixels.
@@ -75,6 +89,39 @@ abstract class ComposedOverlayParityContract {
 
   @Test
   fun anElementOffTheEdgeIsClippedWhereItsBakeStops(): TestResult = parity(AT_EDGE)
+
+  @Test
+  fun midwayThroughAnEntranceTheStageMatchesTheBakeDrawnWithTheSamplersFrame(): TestResult =
+    parity(TURNED, MID_ENTRANCE)
+
+  @Test
+  fun aBakeOnTheFirstInstantOfAnEntranceFromNothingIsTheWholePicture(): TestResult =
+    runComposeUiTest {
+      coroutineScope {
+        val overlays = ComposedOverlayState(CANVAS)
+        val engine = ClockEngine(position = WINDOW.start)
+        setContent {
+          val density = LocalDensity.current
+          val box = with(density) { Modifier.size(BOX_WIDTH.toDp(), STAGE_HEIGHT.toDp()) }
+          val stage = with(density) { Modifier.size(STAGE_WIDTH.toDp(), STAGE_HEIGHT.toDp()) }
+          Column {
+            Spacer(Modifier.height(WINDOW_TOP))
+            Stage(LIVE, box, stage, overlays, engine) {
+              ComposedOverlay(TURNED, { }, visibleDuring = WINDOW, animation = ENTRANCE) { Element() }
+            }
+          }
+        }
+        awaitIdle()
+        repeat(SETTLE_FRAMES) { pumpOnce() }
+
+        val first = frameAt(WINDOW.start)
+        withClue("the entrance starts from nothing: $first") { (first.opacity to first.scale) shouldBe (0f to 0f) }
+        val overlay = pumped(async { overlays.bake(OUTPUT) }).single()
+
+        val pixels = decodePng(overlay.image.shouldBeInstanceOf<ImageSource.Bytes>().bytes).toPixelMap()
+        pixels[pixels.width / 2, pixels.height / 2].shouldBeNear(PLATE, "the baked plate's middle")
+      }
+    }
 
   @Test
   fun anElementUnderALayerDrawnAtNoOpacityStillBakes(): TestResult =
@@ -103,10 +150,17 @@ abstract class ComposedOverlayParityContract {
       }
     }
 
-  private fun parity(transform: OverlayTransform): TestResult =
+  // With a playhead the live stage has a player on it and its element an entrance, and the baked picture is placed
+  // and faded by what the sampler answers there, the way a backend draws it.
+  private fun parity(
+    transform: OverlayTransform,
+    playhead: Duration? = null,
+  ): TestResult =
     runComposeUiTest {
       coroutineScope {
         val overlays = ComposedOverlayState(CANVAS)
+        val engine = playhead?.let { ClockEngine(position = it) }
+        val frame = playhead?.let { frameAt(it) } ?: OverlayFrame.Identity
         var baked by mutableStateOf<Baked?>(null)
         var picture = Rect.Zero
         setContent {
@@ -115,18 +169,24 @@ abstract class ComposedOverlayParityContract {
           val stage = with(density) { Modifier.size(STAGE_WIDTH.toDp(), STAGE_HEIGHT.toDp()) }
           Column {
             Spacer(Modifier.height(WINDOW_TOP))
-            Stage(LIVE, box, stage, overlays) {
-              picture = frame.contentRect
-              ComposedOverlay(transform, onTransformChange = { }) { Element() }
+            Stage(LIVE, box, stage, overlays, engine) {
+              picture = this.frame.contentRect
+              ComposedOverlay(
+                transform = transform,
+                onTransformChange = { },
+                visibleDuring = WINDOW.takeIf { engine != null },
+                animation = ENTRANCE.takeIf { engine != null },
+              ) { Element() }
             }
             Stage(BAKED, box, stage) {
               baked?.let { bake ->
                 Canvas(Modifier.matchParentSize()) {
-                  val rect = frame.toView(bake.rect)
+                  val rect = this@Stage.frame.toView(bake.rect)
                   drawImage(
                     image = bake.bitmap,
                     dstOffset = IntOffset(rect.left.roundToInt(), rect.top.roundToInt()),
                     dstSize = IntSize(rect.width.roundToInt(), rect.height.roundToInt()),
+                    alpha = frame.opacity,
                   )
                 }
               }
@@ -138,17 +198,17 @@ abstract class ComposedOverlayParityContract {
         val overlay = pumped(async { overlays.bake(OUTPUT) }).single()
         val bitmap = decodePng(overlay.image.shouldBeInstanceOf<ImageSource.Bytes>().bytes)
         val placement = overlay.placedOn(OUTPUT, Size(bitmap.width, bitmap.height))
-        baked = Baked(bitmap, placement.rectOn(OUTPUT))
+        baked = Baked(bitmap, placement.animatedBy(frame).rectOn(OUTPUT))
         repeat(SETTLE_FRAMES) { pumpOnce() }
 
         val live = onNodeWithTag(LIVE).captureToImage().toPixelMap().fullSize(LIVE)
         val bake = onNodeWithTag(BAKED).captureToImage().toPixelMap().fullSize(BAKED)
-        val points = Points(transform, picture)
-        live.at(points.plate).shouldBeNear(PLATE, "the live plate's middle")
-        live.at(points.marker).shouldBeNear(MARKER, "the live marker")
+        val points = Points(transform, picture, frame)
+        live.at(points.plate).shouldBeNear(PLATE.fadedTo(frame.opacity), "the live plate's middle")
+        live.at(points.marker).shouldBeNear(MARKER.fadedTo(frame.opacity), "the live marker")
         live.at(points.outside).shouldBeNear(Color.Black, "outside the live plate")
         live.at(points.offFrame).shouldBeNear(Color.Black, "past the frame's edge, live")
-        live.at(points.insideEnd).shouldBeNear(PLATE, "just inside the live plate's start")
+        live.at(points.insideEnd).shouldBeNear(PLATE.fadedTo(frame.opacity), "just inside the live plate's start")
         live.at(points.pastEnd).shouldBeNear(Color.Black, "just before the live plate's start")
         for ((name, point) in points.all) {
           withClue("$name, live ${live.at(point)} and baked ${bake.at(point)}") {
@@ -164,11 +224,12 @@ abstract class ComposedOverlayParityContract {
     box: Modifier,
     stage: Modifier,
     overlays: ComposedOverlayState = rememberComposedOverlayState(),
+    engine: ClockEngine? = null,
     content: @Composable VideoStageScope.() -> Unit,
   ) {
     Box(box.testTag(tag).background(Color.Black)) {
       VideoStage(
-        player = null,
+        player = engine?.let { rememberClockPlayer(it) },
         outputAspect = OUTPUT.width.toFloat() / OUTPUT.height,
         modifier = stage,
         overlays = overlays,
@@ -198,15 +259,23 @@ abstract class ComposedOverlayParityContract {
       }
     }
 
-  // Where each sampled point lands on a stage showing its picture at [picture].
+  private fun frameAt(time: Duration): OverlayFrame =
+    overlayFrameWithin(WINDOW, ENTRANCE, 1f, drawnRangeOf(WINDOW, CLOCK_SPAN), time).shouldNotBeNull()
+
+  // Where each sampled point lands on a stage showing its picture at [picture], with the element moved and sized by
+  // [frame].
   private class Points(
     transform: OverlayTransform,
     picture: Rect,
+    frame: OverlayFrame,
   ) {
-    private val scale = transform.drawnScale(CANVAS, picture.width)
+    private val scale = transform.drawnScale(CANVAS, picture.width) * frame.scale
     private val radians = transform.rotationDegrees * PI / DEGREES_HALF_TURN
     private val centre =
-      Offset(picture.left + transform.center.x * picture.width, picture.top + transform.center.y * picture.height)
+      Offset(
+        picture.left + (transform.center.x + frame.offset.x) * picture.width,
+        picture.top + (transform.center.y + frame.offset.y) * picture.height,
+      )
 
     val plate = centre
     val marker = centre + turned(Offset(MARKER_FROM_CENTRE_PX * scale, 0f))
@@ -246,6 +315,15 @@ abstract class ComposedOverlayParityContract {
     val AT_EDGE = OverlayTransform(Anchor(0.95f, 0.5f), scale = 1.2f, rotationDegrees = 15f)
     val PLATE = Color(0xFFE04020)
     val MARKER = Color(0xFF2060E0)
+    val WINDOW = TimeRange.of(1.seconds, 4.seconds)
+    val ENTRANCE_LENGTH = 400.milliseconds
+    val MID_ENTRANCE = 1300.milliseconds
+
+    // Fades, slides and grows in from nothing, so three quarters of the way every property is partway.
+    val ENTRANCE =
+      fade(inDuration = ENTRANCE_LENGTH) +
+        slideIn(OverlayOffset(-0.08f, 0.12f), ENTRANCE_LENGTH) +
+        OverlayAnimation { time -> OverlayFrame(scale = (time.elapsed / ENTRANCE_LENGTH).coerceAtMost(1.0).toFloat()) }
 
     // The box is wider than the stage inside it, so a strip past the frame's right edge is the box's own black. Both
     // stages fit the 320 by 640 screen of CI's emulator.
@@ -291,6 +369,9 @@ private fun PixelMap.at(point: Offset): Color {
   check(x in 0 until width && y in 0 until height) { "$point is off the ${width}x$height capture." }
   return this[x, y]
 }
+
+// The colour drawn at [opacity] over the stage's black.
+private fun Color.fadedTo(opacity: Float): Color = Color(red * opacity, green * opacity, blue * opacity)
 
 private fun Color.distanceTo(other: Color): Float =
   maxOf(abs(red - other.red), abs(green - other.green), abs(blue - other.blue), abs(alpha - other.alpha))

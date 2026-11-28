@@ -21,7 +21,23 @@ import kotlin.time.Duration
  * @return The range the overlay is drawn over, in composition time.
  */
 @InternalFilmstripApi
-public fun OverlayEffect.drawnRangeWithin(span: TimeRange): TimeRange {
+public fun OverlayEffect.drawnRangeWithin(span: TimeRange): TimeRange = drawnRangeOf(visibleDuring, span)
+
+/**
+ * The composition time range a window is drawn over, for a caller holding no [OverlayEffect].
+ *
+ * [visibleDuring] clipped to [span] the way [drawnRangeWithin] clips an effect's own window, or [span] itself when
+ * no window was named.
+ *
+ * @param visibleDuring The window the overlay was given, or null when it has none.
+ * @param span The composition time range the overlay's frames fall in.
+ * @return The range the overlay is drawn over, in composition time.
+ */
+@InternalFilmstripApi
+public fun drawnRangeOf(
+  visibleDuring: TimeRange?,
+  span: TimeRange,
+): TimeRange {
   val window = visibleDuring ?: return span
   val windowEnd = window.endExclusive
   val spanEnd = span.endExclusive
@@ -77,11 +93,33 @@ public fun OverlayEffect.drawsNothingWithin(span: TimeRange): Boolean =
 public fun OverlayEffect.frameWithin(
   drawnRange: TimeRange,
   compositionTime: Duration,
+): OverlayFrame? =
+  overlayFrameWithin(visibleDuring, animation, (this as? ImageOverlay)?.opacity ?: 1f, drawnRange, compositionTime)
+
+/**
+ * Samples an overlay described by plain values at one output frame, for a caller holding no [OverlayEffect].
+ *
+ * The gate, the clamps and the folded opacity are [frameWithin]'s, which calls this, so a stage drawing an element at
+ * the playhead gets the frame a backend draws. Like [frameWithin] it allocates nothing beyond what it answers.
+ *
+ * @param visibleDuring The window the overlay was given, or null when it has none.
+ * @param animation The animation the overlay was given, or null when it has none.
+ * @param opacity The alpha the overlay was authored with.
+ * @param drawnRange The range the overlay is drawn over, as [drawnRangeOf] answers it.
+ * @param compositionTime Where the frame sits on the composition's timeline.
+ * @return What to draw the overlay with, or null when it is not drawn on that frame.
+ */
+@InternalFilmstripApi
+public fun overlayFrameWithin(
+  visibleDuring: TimeRange?,
+  animation: OverlayAnimation?,
+  opacity: Float,
+  drawnRange: TimeRange,
+  compositionTime: Duration,
 ): OverlayFrame? {
   if (visibleDuring != null && compositionTime !in drawnRange) return null
 
-  val authored = ((this as? ImageOverlay)?.opacity ?: 1f).orUnchanged(1f)
-  val animation = animation
+  val authored = opacity.orUnchanged(1f)
   if (animation == null) {
     val still = authored.coerceIn(0f, 1f)
     return if (still == 1f) OverlayFrame.Identity else OverlayFrame(opacity = still)

@@ -91,14 +91,22 @@ Unlike `plan`, this draws and encodes pictures, so call it when you export. The 
 
 ## When it shows
 
-`opacity`, `visibleDuring` and `animation` are carried onto the baked overlay. They reach the export only, and the
-stage draws the element still whenever `shown` is true. An element with `shown = false` is laid out and recorded but
-not drawn and takes no touch, so one outside its window is hidden on the stage and still baked.
+`opacity`, `visibleDuring` and `animation` mean the same on the stage and in the file. A stage with a player follows
+its playhead: the element is hidden while the playhead is outside `visibleDuring`, and inside it the element is drawn
+at the frame `animation` gives for that time. A hidden element takes no touch, so the touch goes to whatever is under
+it.
 
 <Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/compose/ComposedOverlays.kt" region="timed" />
 
-Only `content` is recorded. Whatever you put on `modifier`, like a live animation frame or a wash while it's dragged,
-stays on the stage.
+A selected element is held still. It's drawn where you put it at its own `opacity`, wherever the playhead is, so you
+can move a title that has already left or one that is midway through its fade. That's `still`, which follows
+`selected` unless you pass it. A stage with no player, or a player that hasn't loaded yet, draws every element still.
+
+`shown = false` hides an element for your own reasons, and it wins over `still`. The element is laid out and recorded
+either way, so the bake is the same picture wherever the playhead is.
+
+Only `content` is recorded. Whatever you put on `modifier`, like a wash while the element is dragged, stays on the
+stage.
 
 ## Editing on the stage
 
@@ -146,6 +154,8 @@ until it has. Add the overlays to the composition and plan again, since that's t
 - A composed overlay is an 8-bit sRGB picture. On an HDR grade its white lands at the 203 nit reference white like any
   overlay picture.
 - A composed overlay's rotation is fixed when it's baked. Its `animation` moves and fades the baked picture.
+- An `animation` moves and sizes what the stage draws, not what it touches. Midway through a slide or a scale an
+  element still takes a touch on the box you put it at. A selected element is held still, so it has no such gap.
 - Colour emoji in a composed overlay need a font that has them, and a browser needs one bundled with the app.
 - Apple holds 20 bytes for each pixel of a composed overlay's picture, which is at most one output frame.
 - Android 8 and 8.1 capture through a different snapshot path than Android 9 and later, and only Android 16 was

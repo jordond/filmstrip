@@ -17,10 +17,15 @@ import dev.jordond.filmstrip.sample.stories.BIN_CENTER
 import dev.jordond.filmstrip.sample.stories.StoryContent
 import dev.jordond.filmstrip.sample.stories.StoryEditor
 import dev.jordond.filmstrip.sample.ui.SampleTheme
+import dev.jordond.filmstrip.testing.FakeVideoPlayer
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.floats.plusOrMinus
+import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
+import kotlinx.coroutines.test.TestScope
 import kotlin.test.Test
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.seconds
 
 @OptIn(ExperimentalTestApi::class)
 class StoryStageTest {
@@ -150,6 +155,73 @@ class StoryStageTest {
       onNodeWithTag(StoryTags.CHROME).assertExists()
     }
 
+  @Test
+  fun thePlayheadHidesAnElementOutsideItsWindowUnlessItIsSelected() =
+    runComposeUiTest {
+      val clock = TestScope()
+      val player = FakeVideoPlayer(clock)
+      val editor = editorWith("Later")
+      val id =
+        editor.story.elements
+          .single()
+          .id
+      editor.story.update(id) { it.copy(timed = true, startSeconds = WINDOW_START, endSeconds = WINDOW_END) }
+      editor.story.select(null)
+      setContent {
+        SampleTheme {
+          val size = with(LocalDensity.current) { Modifier.size(WIDTH.toDp(), HEIGHT.toDp()) }
+          Box(size.testTag(STAGE)) { StoryStage(editor, player) }
+        }
+      }
+
+      seek(player, clock, INSIDE_WINDOW)
+      dragDownFrom(START)
+      editor.story.selectedId shouldBe id
+      val moved =
+        editor.story.elements
+          .single()
+          .transform.center.y
+      moved shouldBe (START_Y + STEPS * STEP / HEIGHT plusOrMinus 1e-3f)
+
+      seek(player, clock, OUTSIDE_WINDOW)
+      dragDownFrom(Offset(START.x, moved * HEIGHT))
+      val held =
+        editor.story.elements
+          .single()
+          .transform.center.y
+      held shouldBe (moved + STEPS * STEP / HEIGHT plusOrMinus 1e-3f)
+
+      editor.story.select(null)
+      waitForIdle()
+      dragDownFrom(Offset(START.x, held * HEIGHT))
+      editor.story.selectedId.shouldBeNull()
+      editor.story.elements
+        .single()
+        .transform.center.y shouldBe held
+    }
+
+  private fun ComposeUiTest.seek(
+    player: FakeVideoPlayer,
+    clock: TestScope,
+    position: Duration,
+  ) {
+    player.seekTo(position)
+    clock.testScheduler.runCurrent()
+    waitForIdle()
+    mainClock.advanceTimeByFrame()
+    waitForIdle()
+  }
+
+  private fun ComposeUiTest.dragDownFrom(start: Offset) {
+    onNodeWithTag(STAGE).performTouchInput { down(start) }
+    repeat(STEPS) {
+      onNodeWithTag(STAGE).performTouchInput { moveBy(Offset(0f, STEP)) }
+      waitForIdle()
+    }
+    onNodeWithTag(STAGE).performTouchInput { up() }
+    waitForIdle()
+  }
+
   private fun editorWith(text: String): StoryEditor =
     StoryEditor().also { editor ->
       val id = editor.story.add(StoryContent.Caption(text))
@@ -184,6 +256,10 @@ class StoryStageTest {
     const val SHORT_OF_BIN = 0.6f
     const val STEPS = 8
     const val STEP = 10f
+    const val WINDOW_START = 2f
+    const val WINDOW_END = 4f
+    val INSIDE_WINDOW = 3.seconds
+    val OUTSIDE_WINDOW = 1.seconds
     val START = Offset(WIDTH * 0.5f, HEIGHT * START_Y)
   }
 }

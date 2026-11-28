@@ -44,7 +44,7 @@ internal fun TouchEditor(
   modifier: Modifier = Modifier,
 ) {
   Box(modifier.fillMaxSize().background(Tokens.screen), contentAlignment = Alignment.Center) {
-    StoryStage(editor, preview)
+    StoryStage(editor, preview?.player)
     when {
       editor.tool == StoryTool.Text -> TextModeControls(editor)
       editor.tool == StoryTool.Stickers -> StickerTray(editor)

@@ -96,7 +96,7 @@ internal fun PointerEditor(
         contentAlignment = Alignment.Center,
       ) {
         Box(Modifier.fillMaxSize().padding(STAGE_INSET), contentAlignment = Alignment.Center) {
-          StoryStage(editor, preview, handles = ComposedOverlayHandles.Always)
+          StoryStage(editor, preview?.player, handles = ComposedOverlayHandles.Always)
         }
         when (editor.tool) {
           StoryTool.Text -> TextModeControls(editor)

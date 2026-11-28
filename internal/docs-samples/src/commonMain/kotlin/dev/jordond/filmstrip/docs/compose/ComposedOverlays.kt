@@ -43,7 +43,7 @@ import dev.jordond.filmstrip.export.Verdict
 import dev.jordond.filmstrip.geometry.Anchor
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.MediaSource
-import kotlin.time.Duration
+import dev.jordond.filmstrip.player.VideoPlayer
 import kotlin.time.Duration.Companion.seconds
 
 // region title
@@ -110,22 +110,23 @@ internal fun KeyedStage(
 
 @Composable
 internal fun TimedStage(
+  player: VideoPlayer,
   overlays: ComposedOverlayState,
   title: OverlayTransform,
-  playhead: Duration,
   aspect: Float,
   onTitleChange: (OverlayTransform) -> Unit,
 ) {
   // region timed
-  val window = TimeRange(0.seconds, 4.seconds)
+  var selected by remember { mutableStateOf(false) }
 
-  VideoStage(player = null, outputAspect = aspect, overlays = overlays) {
+  VideoStage(player = player, outputAspect = aspect, overlays = overlays) {
     ComposedOverlay(
       transform = title,
       onTransformChange = onTitleChange,
-      shown = window.contains(playhead),
-      visibleDuring = window,
+      visibleDuring = TimeRange(1.seconds, 4.seconds),
       animation = fade(inDuration = 0.5.seconds),
+      selected = selected,
+      onSelect = { selected = true },
     ) { TitleCard() }
   }
   // endregion

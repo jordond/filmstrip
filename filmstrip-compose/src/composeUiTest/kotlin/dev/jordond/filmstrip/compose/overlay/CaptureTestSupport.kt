@@ -80,7 +80,7 @@ internal fun TestElement(
   Layout(
     content = {
       CompositionLocalProvider(LocalDensity provides OverlayLayoutDensity) {
-        Box(Modifier.overlayRecord(recording, shown)) { content() }
+        Box(Modifier.overlayRecord(recording) { picture -> if (shown) picture() }) { content() }
       }
     },
     modifier = Modifier.overlayDrawOrder(recording).then(modifier),

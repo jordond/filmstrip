@@ -22,6 +22,9 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.graphics.layer.GraphicsLayer
+import androidx.compose.ui.graphics.layer.drawLayer
+import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.compose.ui.input.pointer.AwaitPointerEventScope
 import androidx.compose.ui.input.pointer.PointerEvent
 import androidx.compose.ui.input.pointer.PointerEventPass
@@ -51,16 +54,22 @@ import dev.jordond.filmstrip.compose.overlay.overlayRecord
 import dev.jordond.filmstrip.compose.overlay.rememberRecording
 import dev.jordond.filmstrip.compose.ui.ComposedOverlayDefaults
 import dev.jordond.filmstrip.compose.ui.ComposedOverlayHandles
+import dev.jordond.filmstrip.compose.ui.LocalStageClock
 import dev.jordond.filmstrip.compose.ui.OverlayHandleColors
 import dev.jordond.filmstrip.compose.ui.OverlayHandleDefaults
 import dev.jordond.filmstrip.compose.ui.VideoStage
 import dev.jordond.filmstrip.compose.ui.VideoStageScope
+import dev.jordond.filmstrip.compose.ui.rememberElementTiming
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.effects.overlay.OverlayAnimation
+import dev.jordond.filmstrip.effects.overlay.OverlayFrame
 import dev.jordond.filmstrip.geometry.Anchor
+import kotlin.math.PI
+import kotlin.math.cos
 import kotlin.math.floor
 import kotlin.math.min
 import kotlin.math.roundToInt
+import kotlin.math.sin
 import androidx.compose.ui.geometry.Size as DrawSize
 
 /**
@@ -82,6 +91,14 @@ import androidx.compose.ui.geometry.Size as DrawSize
  * held. Only a touch that lands on the turned element where it is drawn on the picture is taken, so a stage can
  * stack several and the touch goes to the topmost one under the finger. Every other touch passes to what lies beneath.
  *
+ * On a stage whose player has a duration the element follows the playhead the way its baked overlay does in the
+ * export. It is hidden outside [visibleDuring] and drawn inside it at the frame [animation] answers for that time,
+ * unless [still] holds it. A stage with no player, or a player with no duration yet, draws every element still. The
+ * bake is the same picture wherever the playhead is.
+ *
+ * An animation moves and sizes what is drawn and not what is touched. Midway through a slide or a scale the element
+ * still takes a touch on the box it was authored at.
+ *
  * Call it straight in the stage's content. The bake orders elements the way the stage draws them, and a layer placed
  * between the stage and an element hides that order from it.
  *
@@ -100,15 +117,17 @@ import androidx.compose.ui.geometry.Size as DrawSize
  * @param onTransformChange Called with the transform a gesture asks for.
  * @param modifier Modifier for the element's layer, which fills the stage. What it draws is never baked.
  * @param shown Whether the stage draws the element. An element that is not shown stays laid out and recorded, so it
- * is still baked, and it takes no touch and draws no selection.
+ * is still baked, and it takes no touch and draws no selection. False wins over [still].
  * @param baked Whether the element is part of the bake. Pass false for one that only exists on the stage, like the
  * text field a caption is typed in.
- * @param opacity Alpha applied to the baked overlay, in `0f..1f`. It reaches the export only.
- * @param visibleDuring When the baked overlay is visible, or null for the whole composition. It reaches the export
- * only, and the stage draws the element whenever [shown] is true.
- * @param animation How the baked overlay is drawn at each frame of its run, or null to hold it still. It reaches the
- * export only, and the stage draws the element still.
+ * @param opacity Alpha the element is drawn with on the stage and in the export, in `0f..1f`.
+ * @param visibleDuring When the element is visible, or null for the whole composition. The stage hides it while the
+ * playhead is outside this, and a hidden element takes no touch.
+ * @param animation How the element is drawn at each frame of its run, or null to hold it still. The stage draws the
+ * frame at the playhead.
  * @param selected Whether the element draws the wash, outline and corner brackets around itself.
+ * @param still Whether the stage ignores the playhead and draws the element as authored at its own [opacity], which
+ * is how a selected element is held for editing outside its window or midway through an entrance.
  * @param onSelect Called when a touch lands on the element.
  * @param onGestureChange Called with true when a touch takes the element and with false when its last finger lifts
  * or the gesture is cancelled.
@@ -130,6 +149,7 @@ public fun VideoStageScope.ComposedOverlay(
   visibleDuring: TimeRange? = null,
   animation: OverlayAnimation? = null,
   selected: Boolean = false,
+  still: Boolean = selected,
   onSelect: () -> Unit = { },
   onGestureChange: (Boolean) -> Unit = { },
   colors: OverlayHandleColors = OverlayHandleDefaults.Palette,
@@ -140,7 +160,11 @@ public fun VideoStageScope.ComposedOverlay(
 ) {
   val canvas = overlays.canvas
   val recording = if (baked) overlays.rememberRecording(transform, opacity, visibleDuring, animation) else null
-  val marked = selected && shown
+  val timing = rememberElementTiming(LocalStageClock.current, still, opacity, visibleDuring, animation)
+  // Only flips as the playhead crosses an end of the window, so a moving playhead redraws and does not recompose.
+  val drawn = shown && timing.drawn.value
+  val marked = selected && drawn
+  val timedLayer = rememberGraphicsLayer()
   val picture = frame.contentRect
   val density = LocalDensity.current
   val handleLengthPx = with(density) { handleLength.toPx() }
@@ -170,7 +194,7 @@ public fun VideoStageScope.ComposedOverlay(
   // The gesture sits on the turned element itself, so the touch is hit tested against what is drawn and the topmost
   // element under the finger takes it. Positions are read back on the stage, since the element turns under the finger.
   val gestures =
-    if (!enabled || !shown) {
+    if (!enabled || !drawn) {
       Modifier
     } else {
       Modifier
@@ -205,7 +229,11 @@ public fun VideoStageScope.ComposedOverlay(
   Layout(
     content = {
       CompositionLocalProvider(LocalDensity provides OverlayLayoutDensity) {
-        Box(Modifier.onPlaced { placed.element = it }.then(gestures).overlayRecord(recording, shown)) { content() }
+        val present: DrawScope.(DrawScope.() -> Unit) -> Unit = { picture ->
+          val frame = if (shown) timing.frame.value else null
+          if (frame != null) drawAt(frame, current, timedLayer, picture)
+        }
+        Box(Modifier.onPlaced { placed.element = it }.then(gestures).overlayRecord(recording, present)) { content() }
       }
       if (handled) {
         HandleTarget(HandleKind.Size, placed, { current }, { currentOnChange(it) }, { currentOnGesture(it) })
@@ -292,6 +320,37 @@ private suspend fun AwaitPointerEventScope.follow(
   }
 }
 
+// Draws the element's picture the way a backend places its baked overlay for one frame. The offset is a fraction of
+// the frame along the frame's own axes, so it is carried back through the element's turn and scale to the space this
+// draws in. The scale is about the element's centre, where the baked overlay is pinned.
+private fun DrawScope.drawAt(
+  frame: OverlayFrame,
+  element: ElementOnStage,
+  layer: GraphicsLayer,
+  picture: DrawScope.() -> Unit,
+) {
+  val offset = frame.offset
+  val authored = frame.opacity == 1f && frame.scale == 1f && offset.x == 0f && offset.y == 0f
+  if (authored || element.drawnScale <= 0f) {
+    picture()
+    return
+  }
+
+  val radians = -element.transform.rotationDegrees * PI / DEGREES_HALF_TURN
+  val cos = cos(radians).toFloat()
+  val sin = sin(radians).toFloat()
+  val x = offset.x * element.picture.width
+  val y = offset.y * element.picture.height
+  layer.record { picture() }
+  layer.alpha = frame.opacity
+  layer.scaleX = frame.scale
+  layer.scaleY = frame.scale
+  layer.pivotOffset = Offset(size.width / 2f, size.height / 2f)
+  layer.translationX = (x * cos - y * sin) / element.drawnScale
+  layer.translationY = (x * sin + y * cos) / element.drawnScale
+  drawLayer(layer)
+}
+
 private fun PointerEvent.consumeMoves() {
   changes.forEach { change -> if (change.positionChanged()) change.consume() }
 }
@@ -332,6 +391,7 @@ private fun ComposedOverlayPreview() {
 private val PreviewElementHeight = 180.dp
 private val PreviewPlate = Color(0xCCE8C15A)
 private const val OUTLINE_WIDTH = 1.5f
+private const val DEGREES_HALF_TURN = 180.0
 
 /**
  * The most notches one wheel event may ask for, so one hard flick cannot jump the element to a limit.

@@ -188,7 +188,7 @@ public abstract interface class dev/jordond/filmstrip/compose/ui/VideoStageScope
 public final class dev/jordond/filmstrip/compose/ui/component/ComposableSingletons$ComposedOverlayKt {
 	public static final field INSTANCE Ldev/jordond/filmstrip/compose/ui/component/ComposableSingletons$ComposedOverlayKt;
 	public fun <init> ()V
-	public final fun getLambda$1599752325$filmstrip_root_filmstrip_compose_ui ()Lkotlin/jvm/functions/Function2;
+	public final fun getLambda$-1743383132$filmstrip_root_filmstrip_compose_ui ()Lkotlin/jvm/functions/Function2;
 	public final fun getLambda$2019457683$filmstrip_root_filmstrip_compose_ui ()Lkotlin/jvm/functions/Function2;
 	public final fun getLambda$808998190$filmstrip_root_filmstrip_compose_ui ()Lkotlin/jvm/functions/Function3;
 }
@@ -243,7 +243,7 @@ public final class dev/jordond/filmstrip/compose/ui/component/ComposableSingleto
 }
 
 public final class dev/jordond/filmstrip/compose/ui/component/ComposedOverlayKt {
-	public static final fun ComposedOverlay-9rhh4-4 (Ldev/jordond/filmstrip/compose/ui/VideoStageScope;Ldev/jordond/filmstrip/compose/overlay/OverlayTransform;Lkotlin/jvm/functions/Function1;Landroidx/compose/ui/Modifier;ZZFLdev/jordond/filmstrip/edit/TimeRange;Ldev/jordond/filmstrip/effects/overlay/OverlayAnimation;ZLkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function1;Ldev/jordond/filmstrip/compose/ui/OverlayHandleColors;FZLdev/jordond/filmstrip/compose/ui/ComposedOverlayHandles;Lkotlin/jvm/functions/Function2;Landroidx/compose/runtime/Composer;III)V
+	public static final fun ComposedOverlay-ZJe8Krg (Ldev/jordond/filmstrip/compose/ui/VideoStageScope;Ldev/jordond/filmstrip/compose/overlay/OverlayTransform;Lkotlin/jvm/functions/Function1;Landroidx/compose/ui/Modifier;ZZFLdev/jordond/filmstrip/edit/TimeRange;Ldev/jordond/filmstrip/effects/overlay/OverlayAnimation;ZZLkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function1;Ldev/jordond/filmstrip/compose/ui/OverlayHandleColors;FZLdev/jordond/filmstrip/compose/ui/ComposedOverlayHandles;Lkotlin/jvm/functions/Function2;Landroidx/compose/runtime/Composer;III)V
 }
 
 public final class dev/jordond/filmstrip/compose/ui/component/CropOverlayKt {

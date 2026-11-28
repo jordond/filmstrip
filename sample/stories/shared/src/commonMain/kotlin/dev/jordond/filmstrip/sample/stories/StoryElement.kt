@@ -4,7 +4,6 @@ import dev.jordond.filmstrip.compose.overlay.OverlayTransform
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.effects.overlay.OverlayAnimation
 import dev.jordond.filmstrip.sample.visibleWindow
-import kotlin.time.Duration
 
 /**
  * What a story element shows, a caption or a sticker.
@@ -88,13 +87,4 @@ internal data class StoryElement(
    */
   val animation: OverlayAnimation?
     get() = (content as? StoryContent.Caption)?.entrance?.animation
-
-  /**
-   * Whether the stage draws the element with the playhead at [playhead]. A [selected] element is always drawn, so it
-   * can be edited outside its window.
-   */
-  fun showsAt(
-    playhead: Duration,
-    selected: Boolean,
-  ): Boolean = selected || window?.contains(playhead) != false
 }
