@@ -23,7 +23,6 @@ import androidx.compose.ui.unit.dp
 import dev.jordond.filmstrip.compose.ui.VideoStageScope
 import dev.jordond.filmstrip.compose.ui.component.ComposedOverlay
 import dev.jordond.filmstrip.geometry.Anchor
-import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.sample.stories.DRAWING_TRANSFORM
 import dev.jordond.filmstrip.sample.stories.StoryBrush
 import dev.jordond.filmstrip.sample.stories.StoryDrawingContent
@@ -32,19 +31,15 @@ import dev.jordond.filmstrip.sample.stories.StoryEditor
 /**
  * The story's drawing over the picture, with the stroke under the finger on top of it.
  *
- * It is one element the size of the frame that takes no touch, drawn the way the export bakes it.
+ * It is one element the size of the frame that takes no touch, and the stage's bake carries it as it is drawn. A
+ * story with nothing drawn has no such element.
  */
 @Composable
-internal fun VideoStageScope.StoryDrawing(
-  editor: StoryEditor,
-  output: Size,
-) {
+internal fun VideoStageScope.StoryDrawing(editor: StoryEditor) {
   val strokes = editor.story.strokes + listOfNotNull(editor.pendingStroke)
   if (strokes.isEmpty()) return
   ComposedOverlay(
     transform = DRAWING_TRANSFORM,
-    canvas = editor.canvas,
-    output = output,
     onTransformChange = { },
     enabled = false,
   ) { StoryDrawingContent(strokes) }

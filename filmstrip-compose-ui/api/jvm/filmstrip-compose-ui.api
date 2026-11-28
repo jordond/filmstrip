@@ -8,10 +8,10 @@ public final class dev/jordond/filmstrip/compose/ui/ComposableSingletons$Filmstr
 public final class dev/jordond/filmstrip/compose/ui/ComposableSingletons$VideoStageKt {
 	public static final field INSTANCE Ldev/jordond/filmstrip/compose/ui/ComposableSingletons$VideoStageKt;
 	public fun <init> ()V
-	public final fun getLambda$-1406747730$filmstrip_root_filmstrip_compose_ui ()Lkotlin/jvm/functions/Function3;
-	public final fun getLambda$-725230264$filmstrip_root_filmstrip_compose_ui ()Lkotlin/jvm/functions/Function3;
-	public final fun getLambda$387982757$filmstrip_root_filmstrip_compose_ui ()Lkotlin/jvm/functions/Function3;
-	public final fun getLambda$910919003$filmstrip_root_filmstrip_compose_ui ()Lkotlin/jvm/functions/Function3;
+	public final fun getLambda$-1026676309$filmstrip_root_filmstrip_compose_ui ()Lkotlin/jvm/functions/Function3;
+	public final fun getLambda$-1039699948$filmstrip_root_filmstrip_compose_ui ()Lkotlin/jvm/functions/Function3;
+	public final fun getLambda$-532299063$filmstrip_root_filmstrip_compose_ui ()Lkotlin/jvm/functions/Function3;
+	public final fun getLambda$1103850204$filmstrip_root_filmstrip_compose_ui ()Lkotlin/jvm/functions/Function3;
 	public final fun getLambda$91671726$filmstrip_root_filmstrip_compose_ui ()Lkotlin/jvm/functions/Function2;
 }
 
@@ -176,20 +176,21 @@ public final class dev/jordond/filmstrip/compose/ui/VideoStageDefaults {
 }
 
 public final class dev/jordond/filmstrip/compose/ui/VideoStageKt {
-	public static final fun VideoStage (Ldev/jordond/filmstrip/player/VideoPlayer;FLandroidx/compose/ui/Modifier;Ldev/jordond/filmstrip/compose/VideoContentScale;Ldev/jordond/filmstrip/compose/VideoSurfaceState;Ldev/jordond/filmstrip/compose/VideoSurfaceType;Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function3;Landroidx/compose/runtime/Composer;II)V
+	public static final fun VideoStage (Ldev/jordond/filmstrip/player/VideoPlayer;FLandroidx/compose/ui/Modifier;Ldev/jordond/filmstrip/compose/VideoContentScale;Ldev/jordond/filmstrip/compose/VideoSurfaceState;Ldev/jordond/filmstrip/compose/VideoSurfaceType;Ldev/jordond/filmstrip/compose/overlay/ComposedOverlayState;Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function3;Landroidx/compose/runtime/Composer;II)V
 }
 
 public abstract interface class dev/jordond/filmstrip/compose/ui/VideoStageScope : androidx/compose/foundation/layout/BoxScope {
 	public abstract fun getAspect ()F
 	public abstract fun getFrame ()Ldev/jordond/filmstrip/compose/ui/geometry/CropFrame;
+	public abstract fun getOverlays ()Ldev/jordond/filmstrip/compose/overlay/ComposedOverlayState;
 }
 
 public final class dev/jordond/filmstrip/compose/ui/component/ComposableSingletons$ComposedOverlayKt {
 	public static final field INSTANCE Ldev/jordond/filmstrip/compose/ui/component/ComposableSingletons$ComposedOverlayKt;
 	public fun <init> ()V
-	public final fun getLambda$-1383515603$filmstrip_root_filmstrip_compose_ui ()Lkotlin/jvm/functions/Function3;
+	public final fun getLambda$1599752325$filmstrip_root_filmstrip_compose_ui ()Lkotlin/jvm/functions/Function2;
 	public final fun getLambda$2019457683$filmstrip_root_filmstrip_compose_ui ()Lkotlin/jvm/functions/Function2;
-	public final fun getLambda$846710311$filmstrip_root_filmstrip_compose_ui ()Lkotlin/jvm/functions/Function2;
+	public final fun getLambda$808998190$filmstrip_root_filmstrip_compose_ui ()Lkotlin/jvm/functions/Function3;
 }
 
 public final class dev/jordond/filmstrip/compose/ui/component/ComposableSingletons$CropOverlayKt {
@@ -217,7 +218,7 @@ public final class dev/jordond/filmstrip/compose/ui/component/ComposableSingleto
 	public static final field INSTANCE Ldev/jordond/filmstrip/compose/ui/component/ComposableSingletons$OverlayHandleKt;
 	public fun <init> ()V
 	public final fun getLambda$-1314351097$filmstrip_root_filmstrip_compose_ui ()Lkotlin/jvm/functions/Function2;
-	public final fun getLambda$-1565663699$filmstrip_root_filmstrip_compose_ui ()Lkotlin/jvm/functions/Function3;
+	public final fun getLambda$1767678382$filmstrip_root_filmstrip_compose_ui ()Lkotlin/jvm/functions/Function3;
 	public final fun getLambda$760168851$filmstrip_root_filmstrip_compose_ui ()Lkotlin/jvm/functions/Function2;
 }
 
@@ -242,7 +243,7 @@ public final class dev/jordond/filmstrip/compose/ui/component/ComposableSingleto
 }
 
 public final class dev/jordond/filmstrip/compose/ui/component/ComposedOverlayKt {
-	public static final fun ComposedOverlay-WsuR4So (Ldev/jordond/filmstrip/compose/ui/VideoStageScope;Ldev/jordond/filmstrip/compose/overlay/OverlayTransform;Ldev/jordond/filmstrip/compose/overlay/OverlayCanvas;Ldev/jordond/filmstrip/geometry/Size;Lkotlin/jvm/functions/Function1;Landroidx/compose/ui/Modifier;ZLkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function1;Ldev/jordond/filmstrip/compose/ui/OverlayHandleColors;FZLdev/jordond/filmstrip/compose/ui/ComposedOverlayHandles;Lkotlin/jvm/functions/Function2;Landroidx/compose/runtime/Composer;III)V
+	public static final fun ComposedOverlay-9rhh4-4 (Ldev/jordond/filmstrip/compose/ui/VideoStageScope;Ldev/jordond/filmstrip/compose/overlay/OverlayTransform;Lkotlin/jvm/functions/Function1;Landroidx/compose/ui/Modifier;ZZFLdev/jordond/filmstrip/edit/TimeRange;Ldev/jordond/filmstrip/effects/overlay/OverlayAnimation;ZLkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function1;Ldev/jordond/filmstrip/compose/ui/OverlayHandleColors;FZLdev/jordond/filmstrip/compose/ui/ComposedOverlayHandles;Lkotlin/jvm/functions/Function2;Landroidx/compose/runtime/Composer;III)V
 }
 
 public final class dev/jordond/filmstrip/compose/ui/component/CropOverlayKt {

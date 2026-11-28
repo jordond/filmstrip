@@ -270,8 +270,6 @@ class ComposedOverlayPointerTest {
         VideoStage(player = null, outputAspect = OUTPUT.width.toFloat() / OUTPUT.height, Modifier.fillMaxSize()) {
           ComposedOverlay(
             transform = transform,
-            canvas = CANVAS,
-            output = OUTPUT,
             onTransformChange = {
               staged.all += it
               transform = it

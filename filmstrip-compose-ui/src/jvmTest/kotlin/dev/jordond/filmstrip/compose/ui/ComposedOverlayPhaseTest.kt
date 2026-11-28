@@ -13,11 +13,9 @@ import androidx.compose.ui.layout.layout
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.compose.ui.unit.dp
-import dev.jordond.filmstrip.compose.overlay.OverlayCanvas
 import dev.jordond.filmstrip.compose.overlay.OverlayTransform
 import dev.jordond.filmstrip.compose.ui.component.ComposedOverlay
 import dev.jordond.filmstrip.geometry.Anchor
-import dev.jordond.filmstrip.geometry.Size
 import io.kotest.matchers.shouldBe
 import kotlin.test.Test
 
@@ -32,8 +30,6 @@ class ComposedOverlayPhaseTest {
           VideoStage(player = null, outputAspect = 16f / 9f, Modifier.fillMaxSize()) {
             ComposedOverlay(
               transform = TRANSFORM,
-              canvas = OverlayCanvas(),
-              output = OUTPUT,
               onTransformChange = { },
               modifier = Modifier.counting { measures++ },
               selected = true,
@@ -56,8 +52,6 @@ class ComposedOverlayPhaseTest {
           VideoStage(player = null, outputAspect = 16f / 9f, Modifier.fillMaxSize()) {
             ComposedOverlay(
               transform = TRANSFORM,
-              canvas = OverlayCanvas(),
-              output = OUTPUT,
               onTransformChange = { },
               modifier = Modifier.counting { measures++ },
               selected = true,
@@ -83,6 +77,5 @@ class ComposedOverlayPhaseTest {
 
   private companion object {
     val TRANSFORM = OverlayTransform(Anchor(0.5f, 0.5f))
-    val OUTPUT = Size(1920, 1080)
   }
 }

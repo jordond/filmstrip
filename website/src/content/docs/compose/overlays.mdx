@@ -10,9 +10,9 @@ import { Aside } from '@astrojs/starlight/components'
 import PagePlayground from '../../../components/docs/PagePlayground.astro'
 import Snippet from '../../../components/Snippet.astro'
 
-`filmstrip-compose` bakes any composable into an image overlay, so a title card, a sticker or a caption with a custom
-font is written in Compose and drawn into the export. `filmstrip-compose-ui` puts the same element on a `VideoStage`,
-where a drag moves it, a pinch scales it and a twist turns it.
+`filmstrip-compose-ui` puts any composable on a `VideoStage`, where a drag moves it, a pinch scales it and a twist
+turns it. `filmstrip-compose` bakes what the stage draws into image overlays, so a title card, a sticker or a caption
+with a custom font is written once in Compose and drawn into the export.
 
 The baked picture is an ordinary image overlay, so its timing, animation and backend limits are the ones in the
 [Overlays guide](/guides/overlays/).
@@ -31,18 +31,17 @@ Any composable works. It's the same one on the stage and in the export.
 ## On the stage
 
 An `OverlayTransform` says where the element's centre sits as a fraction of the frame, how much bigger it is drawn and
-how far it's turned clockwise in degrees. An `OverlayCanvas` sets how wide the frame is to the content, 360 dp by
-default, with the height following the output's aspect. Content written in dp then lays out the same on a phone, a
-desktop window and the export.
+how far it's turned clockwise in degrees. A `ComposedOverlayState` holds what the stage draws, and the stage records
+each element into it. Its `OverlayCanvas` sets how wide the frame is to the content, 360 dp by default, with the height
+following the stage's aspect. Content written in dp then lays out the same on a phone, a desktop window and the export.
 
 <Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/compose/ComposedOverlays.kt" region="live" />
 
-`ComposedOverlay` is controlled, so it moves only when the transform you pass back changes. `output` is the frame the
-element is baked onto, which is `PreviewInfo.outputSize` or the export plan's output size, and only its proportions are
-read on the stage. A drag holds the element's centre on the frame and a pinch holds the scale between
-`ComposedOverlayDefaults.MIN_SCALE` and `MAX_SCALE`. Only a touch on the turned element is taken, so several stacked on
-one stage each get their own. `onSelect` hears which one was touched, and the sample keeps that index as the selected
-title. Pass `enabled = false` to show an element without taking touches.
+`ComposedOverlay` is controlled, so it moves only when the transform you pass back changes. A drag holds the element's
+centre on the frame and a pinch holds the scale between `ComposedOverlayDefaults.MIN_SCALE` and `MAX_SCALE`. Only a
+touch on the turned element is taken, so several stacked on one stage each get their own. `onSelect` hears which one
+was touched, and the sample keeps that index as the selected title. Pass `enabled = false` to show an element without
+taking touches.
 
 ## Mouse and keyboard
 
@@ -76,26 +75,73 @@ don't report.
 
 ## Bake it
 
-Mount one `OverlayCaptureHost` for the capturer somewhere on screen, then capture each element when you export.
-
-<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/compose/ComposedOverlays.kt" region="capture" />
-
-The capture lays the content out on the canvas, draws it the way the stage does and hands back an `ImageOverlay` at
-`OverlayPosition.At` whose picture is exactly the pixels of the frame the element covers. It's null when none of the
-element lands on the frame. Pass the composable that shows the element, never the text field it's edited with, or the
-cursor is baked too. Content that loads a font or an image asynchronously holds `ready` until it has. Capture once,
-when you export, and keep the baked overlays out of the preview's composition, so dragging never re-plans the preview.
-
-## On the export frame
-
-The frame to capture on is the one the export writes, so plan once to read its size, capture every element on it and
-plan again with the baked overlays added. The first plan is only read for the frame. Report the second plan's verdict,
-since that's the export that runs.
+`Filmstrip.planWithOverlays` plans the export with everything the stage draws. It plans once to read the frame the
+export writes, has the state bake each element onto that frame, and plans again with the baked overlays after the
+composition's own effects. The verdict it returns is the one to report and run.
 
 <Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/compose/ComposedOverlays.kt" region="export" />
 
+The bake replays what the stage recorded, so the element isn't declared a second time and the file can't lay it out
+differently from the screen. Each overlay comes back at `OverlayPosition.At` with exactly the pixels of the frame the
+element covers, in the order the stage draws them, and an element with none of itself on the frame is left out. The
+baked overlays never enter the preview's composition, so dragging never re-plans the preview.
+
+Unlike `plan`, this draws and encodes pictures, so call it when you export. The stage has to be on screen, and
+`bake` throws an `IllegalStateException` when no stage is drawing for the state or it isn't drawn within 10 seconds.
+
+## When it shows
+
+`opacity`, `visibleDuring` and `animation` are carried onto the baked overlay. They reach the export only, and the
+stage draws the element still whenever `shown` is true. An element with `shown = false` is laid out and recorded but
+not drawn and takes no touch, so one outside its window is hidden on the stage and still baked.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/compose/ComposedOverlays.kt" region="timed" />
+
+Only `content` is recorded. Whatever you put on `modifier`, like a live animation frame or a wash while it's dragged,
+stays on the stage.
+
+## Editing on the stage
+
+A text field laid out as an element breaks its lines where the caption will. Pass `baked = false` so the field and its
+cursor never reach the export, and put the finished caption on the stage as an ordinary element.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/compose/ComposedOverlays.kt" region="writing" />
+
+## From a view model
+
+`ComposedOverlayState` is a plain class with a public constructor, so a view model can own it and the screen passes it
+to the stage. Code that exports only needs the `OverlayBaker` it implements.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/compose/ComposedOverlays.kt" region="viewmodel" />
+
+`OverlayBaker` is a single function, so a test passes a lambda and needs no stage.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/compose/ComposedOverlays.kt" region="test" />
+
+A state draws on one stage at a time, and once that stage leaves composition it holds nothing the stage made.
+
+## Content on no stage
+
+A template or a batch export has nothing on screen to record. `OverlayCapturer` bakes a composable you hand it. Mount
+one `OverlayCaptureHost` for the capturer somewhere on screen.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/compose/ComposedOverlays.kt" region="host" />
+
+Then capture each element on the frame the export writes, which is the output size of a first plan.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/compose/ComposedOverlays.kt" region="capture" />
+
+The capture lays the content out on the canvas, draws it the way the stage does and hands back an `ImageOverlay`, or
+null when none of the element lands on the frame. Content that loads a font or an image asynchronously holds `ready`
+until it has. Add the overlays to the composition and plan again, since that's the export that runs.
+
 <Aside type="note" title="Limits">
-- A composed overlay is captured on the frame you pass as `output`. When the export frame differs from it, because the
+- A stage that isn't on screen is never drawn, so it can't bake. `OverlayCapturer` is for that case.
+- Put each `ComposedOverlay` straight in the stage's content. On desktop, iOS and the web a layer of your own between
+  the stage and an element hides the draw order from the bake.
+- Content that draws into a layer of its own, like a blur or `CompositingStrategy.Offscreen`, is rasterised at its
+  layout size before the bake scales it.
+- `OverlayCapturer` captures on the frame you pass as `output`. When the export frame differs from it, because the
   encoder aligns the size or `heightPx` caps it, the backend resamples the picture.
 - A composed overlay is an 8-bit sRGB picture. On an HDR grade its white lands at the 203 nit reference white like any
   overlay picture.

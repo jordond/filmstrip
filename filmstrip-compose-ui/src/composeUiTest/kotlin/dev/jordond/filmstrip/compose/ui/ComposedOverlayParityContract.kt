@@ -19,6 +19,7 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.PixelMap
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.toPixelMap
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
@@ -31,12 +32,11 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import dev.jordond.filmstrip.InternalFilmstripApi
+import dev.jordond.filmstrip.compose.overlay.ComposedOverlayState
 import dev.jordond.filmstrip.compose.overlay.OverlayCanvas
-import dev.jordond.filmstrip.compose.overlay.OverlayCaptureHost
-import dev.jordond.filmstrip.compose.overlay.OverlayCapturer
 import dev.jordond.filmstrip.compose.overlay.OverlayTransform
 import dev.jordond.filmstrip.compose.overlay.drawnScale
-import dev.jordond.filmstrip.compose.overlay.rememberOverlayCapturer
+import dev.jordond.filmstrip.compose.overlay.rememberComposedOverlayState
 import dev.jordond.filmstrip.compose.ui.component.ComposedOverlay
 import dev.jordond.filmstrip.effects.overlay.placedOn
 import dev.jordond.filmstrip.effects.overlay.rectOn
@@ -45,7 +45,6 @@ import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ImageSource
 import io.kotest.assertions.withClue
 import io.kotest.matchers.floats.shouldBeLessThan
-import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.Deferred
@@ -63,7 +62,7 @@ import kotlin.math.sin
 import kotlin.test.Test
 
 /**
- * The live element and its bake, side by side on two stages, reading the same pixels.
+ * The live element and the stage's own bake of it, side by side on two stages, reading the same pixels.
  *
  * Each platform's suite decodes the baked picture its own way.
  */
@@ -77,23 +76,48 @@ abstract class ComposedOverlayParityContract {
   @Test
   fun anElementOffTheEdgeIsClippedWhereItsBakeStops(): TestResult = parity(AT_EDGE)
 
+  @Test
+  fun anElementUnderALayerDrawnAtNoOpacityStillBakes(): TestResult =
+    runComposeUiTest {
+      coroutineScope {
+        val overlays = ComposedOverlayState(CANVAS)
+        setContent {
+          val density = LocalDensity.current
+          val box = with(density) { Modifier.size(BOX_WIDTH.toDp(), STAGE_HEIGHT.toDp()) }
+          val stage = with(density) { Modifier.size(STAGE_WIDTH.toDp(), STAGE_HEIGHT.toDp()) }
+          Column {
+            Spacer(Modifier.height(WINDOW_TOP))
+            Stage(LIVE, box, stage, overlays) {
+              ComposedOverlay(TURNED, onTransformChange = { }, modifier = Modifier.graphicsLayer { alpha = 0f }) {
+                Element()
+              }
+            }
+          }
+        }
+        awaitIdle()
+
+        val overlay = pumped(async { overlays.bake(OUTPUT) }).single()
+
+        val pixels = decodePng(overlay.image.shouldBeInstanceOf<ImageSource.Bytes>().bytes).toPixelMap()
+        pixels[pixels.width / 2, pixels.height / 2].shouldBeNear(PLATE, "the baked plate's middle")
+      }
+    }
+
   private fun parity(transform: OverlayTransform): TestResult =
     runComposeUiTest {
       coroutineScope {
-        var capturer: OverlayCapturer? = null
+        val overlays = ComposedOverlayState(CANVAS)
         var baked by mutableStateOf<Baked?>(null)
         var picture = Rect.Zero
         setContent {
           val density = LocalDensity.current
           val box = with(density) { Modifier.size(BOX_WIDTH.toDp(), STAGE_HEIGHT.toDp()) }
           val stage = with(density) { Modifier.size(STAGE_WIDTH.toDp(), STAGE_HEIGHT.toDp()) }
-          capturer = rememberOverlayCapturer()
           Column {
             Spacer(Modifier.height(WINDOW_TOP))
-            OverlayCaptureHost(capturer!!)
-            Stage(LIVE, box, stage) {
+            Stage(LIVE, box, stage, overlays) {
               picture = frame.contentRect
-              ComposedOverlay(transform, CANVAS, OUTPUT, onTransformChange = { }) { Element() }
+              ComposedOverlay(transform, onTransformChange = { }) { Element() }
             }
             Stage(BAKED, box, stage) {
               baked?.let { bake ->
@@ -111,7 +135,7 @@ abstract class ComposedOverlayParityContract {
         }
         awaitIdle()
 
-        val overlay = pumped(async { capturer!!.capture(transform, CANVAS, OUTPUT) { Element() } }).shouldNotBeNull()
+        val overlay = pumped(async { overlays.bake(OUTPUT) }).single()
         val bitmap = decodePng(overlay.image.shouldBeInstanceOf<ImageSource.Bytes>().bytes)
         val placement = overlay.placedOn(OUTPUT, Size(bitmap.width, bitmap.height))
         baked = Baked(bitmap, placement.rectOn(OUTPUT))
@@ -139,10 +163,16 @@ abstract class ComposedOverlayParityContract {
     tag: String,
     box: Modifier,
     stage: Modifier,
+    overlays: ComposedOverlayState = rememberComposedOverlayState(),
     content: @Composable VideoStageScope.() -> Unit,
   ) {
     Box(box.testTag(tag).background(Color.Black)) {
-      VideoStage(player = null, outputAspect = OUTPUT.width.toFloat() / OUTPUT.height, stage) {
+      VideoStage(
+        player = null,
+        outputAspect = OUTPUT.width.toFloat() / OUTPUT.height,
+        modifier = stage,
+        overlays = overlays,
+      ) {
         content()
       }
     }

@@ -16,10 +16,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.compose.VideoContentScale
 import dev.jordond.filmstrip.compose.VideoSurface
 import dev.jordond.filmstrip.compose.VideoSurfaceState
 import dev.jordond.filmstrip.compose.VideoSurfaceType
+import dev.jordond.filmstrip.compose.overlay.BakeHost
+import dev.jordond.filmstrip.compose.overlay.ComposedOverlayState
+import dev.jordond.filmstrip.compose.overlay.rememberComposedOverlayState
 import dev.jordond.filmstrip.compose.rememberVideoSurfaceState
 import dev.jordond.filmstrip.compose.ui.component.CropOverlay
 import dev.jordond.filmstrip.compose.ui.component.LocalStagePointer
@@ -74,9 +78,12 @@ import androidx.compose.ui.geometry.Size as ComposeSize
  * @param surface The holder the presented size is read from, for a host that already keeps one over [player]. Null
  * leaves the stage keeping its own.
  * @param surfaceType The kind of view the video is drawn into, which only Android reads.
+ * @param overlays The state that records the composed overlay elements in [content] and bakes them for an export.
+ * Pass one a view model owns to export from there. A state draws on one stage at a time.
  * @param fallback Drawn at the stage's size when [player] is null.
  * @param content Drawn over the video or the fallback, for overlays that address the frame.
  */
+@OptIn(InternalFilmstripApi::class)
 @Composable
 public fun VideoStage(
   player: VideoPlayer?,
@@ -85,6 +92,7 @@ public fun VideoStage(
   contentScale: VideoContentScale = VideoContentScale.Fit,
   surface: VideoSurfaceState? = null,
   surfaceType: VideoSurfaceType = VideoSurfaceType.Default,
+  overlays: ComposedOverlayState = rememberComposedOverlayState(),
   fallback: @Composable BoxScope.() -> Unit = { },
   content: @Composable VideoStageScope.() -> Unit = { },
 ) {
@@ -104,7 +112,8 @@ public fun VideoStage(
     if (player == null) fallback() else VideoSurface(player, Modifier.fillMaxSize(), contentScale, surfaceType)
 
     val boxScope = this
-    val scope = remember(boxScope, frame, aspect) { VideoStageContent(boxScope, frame, aspect) }
+    overlays.BakeHost()
+    val scope = remember(boxScope, frame, aspect, overlays) { VideoStageContent(boxScope, frame, aspect, overlays) }
     CompositionLocalProvider(LocalStagePointer provides remember { StagePointer() }) { scope.content() }
   }
 }

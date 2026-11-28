@@ -41,31 +41,37 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import dev.jordond.filmstrip.InternalFilmstripApi
-import dev.jordond.filmstrip.compose.overlay.OverlayCanvas
-import dev.jordond.filmstrip.compose.overlay.OverlayCapturer
+import dev.jordond.filmstrip.compose.overlay.ComposedOverlayState
 import dev.jordond.filmstrip.compose.overlay.OverlayLayoutDensity
 import dev.jordond.filmstrip.compose.overlay.OverlayTransform
 import dev.jordond.filmstrip.compose.overlay.constraintsFor
 import dev.jordond.filmstrip.compose.overlay.drawnScale
+import dev.jordond.filmstrip.compose.overlay.overlayDrawOrder
+import dev.jordond.filmstrip.compose.overlay.overlayRecord
+import dev.jordond.filmstrip.compose.overlay.rememberRecording
 import dev.jordond.filmstrip.compose.ui.ComposedOverlayDefaults
 import dev.jordond.filmstrip.compose.ui.ComposedOverlayHandles
 import dev.jordond.filmstrip.compose.ui.OverlayHandleColors
 import dev.jordond.filmstrip.compose.ui.OverlayHandleDefaults
 import dev.jordond.filmstrip.compose.ui.VideoStage
 import dev.jordond.filmstrip.compose.ui.VideoStageScope
+import dev.jordond.filmstrip.edit.TimeRange
+import dev.jordond.filmstrip.effects.overlay.OverlayAnimation
 import dev.jordond.filmstrip.geometry.Anchor
-import dev.jordond.filmstrip.geometry.Size
 import kotlin.math.floor
 import kotlin.math.min
 import kotlin.math.roundToInt
 import androidx.compose.ui.geometry.Size as DrawSize
 
 /**
- * A composable element over the video a [VideoStage] is showing, drawn where an [OverlayCapturer] bakes it.
+ * A composable element over the video a [VideoStage] is showing, drawn where the stage's [ComposedOverlayState] bakes
+ * it.
  *
- * [content] is laid out on [canvas] the way a capture lays it out, then drawn scaled and turned about its own centre
- * with that centre on [OverlayTransform.center]. The part of the element off the picture is clipped, as it is in the
- * export. [output] is the frame the element is baked onto, and only its proportions are read here.
+ * [content] is laid out on the state's canvas, then drawn scaled and turned about its own centre with that centre on
+ * [OverlayTransform.center]. The part of the element off the picture is clipped, as it is in the export. The stage
+ * records what [content] draws, and `VideoStageScope.overlays` bakes that recording, so the element is declared here
+ * and nowhere else. Only [content] is recorded. The selection, the handles and anything [modifier] draws stay on the
+ * stage.
  *
  * Controlled, so a gesture reports the transform it wants through [onTransformChange] and the element moves only when
  * a [transform] carrying it comes back. A drag moves the centre and holds it on the picture, a pinch multiplies the
@@ -76,26 +82,32 @@ import androidx.compose.ui.geometry.Size as DrawSize
  * held. Only a touch that lands on the turned element where it is drawn on the picture is taken, so a stage can
  * stack several and the touch goes to the topmost one under the finger. Every other touch passes to what lies beneath.
  *
+ * Call it straight in the stage's content. The bake orders elements the way the stage draws them, and a layer placed
+ * between the stage and an element hides that order from it.
+ *
  * ```
+ * val overlays = rememberComposedOverlayState()
  * var transform by remember { mutableStateOf(OverlayTransform(Anchor(0.5f, 0.3f))) }
  *
- * VideoStage(player = player, outputAspect = outputAspect) {
- *   ComposedOverlay(
- *     transform = transform,
- *     canvas = canvas,
- *     output = outputSize,
- *     onTransformChange = { transform = it },
- *   ) {
+ * VideoStage(player = player, outputAspect = outputAspect, overlays = overlays) {
+ *   ComposedOverlay(transform = transform, onTransformChange = { transform = it }) {
  *     Text("Day one", fontSize = 32.sp)
  *   }
  * }
  * ```
  *
  * @param transform Where the element sits, how big and how far turned.
- * @param canvas The canvas [content] is laid out on, the same one the capture is given.
- * @param output The output frame the element is baked onto, in pixels.
  * @param onTransformChange Called with the transform a gesture asks for.
- * @param modifier Modifier for the element's layer, which fills the stage.
+ * @param modifier Modifier for the element's layer, which fills the stage. What it draws is never baked.
+ * @param shown Whether the stage draws the element. An element that is not shown stays laid out and recorded, so it
+ * is still baked, and it takes no touch and draws no selection.
+ * @param baked Whether the element is part of the bake. Pass false for one that only exists on the stage, like the
+ * text field a caption is typed in.
+ * @param opacity Alpha applied to the baked overlay, in `0f..1f`. It reaches the export only.
+ * @param visibleDuring When the baked overlay is visible, or null for the whole composition. It reaches the export
+ * only, and the stage draws the element whenever [shown] is true.
+ * @param animation How the baked overlay is drawn at each frame of its run, or null to hold it still. It reaches the
+ * export only, and the stage draws the element still.
  * @param selected Whether the element draws the wash, outline and corner brackets around itself.
  * @param onSelect Called when a touch lands on the element.
  * @param onGestureChange Called with true when a touch takes the element and with false when its last finger lifts
@@ -110,10 +122,13 @@ import androidx.compose.ui.geometry.Size as DrawSize
 @Composable
 public fun VideoStageScope.ComposedOverlay(
   transform: OverlayTransform,
-  canvas: OverlayCanvas,
-  output: Size,
   onTransformChange: (OverlayTransform) -> Unit,
   modifier: Modifier = Modifier,
+  shown: Boolean = true,
+  baked: Boolean = true,
+  opacity: Float = 1f,
+  visibleDuring: TimeRange? = null,
+  animation: OverlayAnimation? = null,
   selected: Boolean = false,
   onSelect: () -> Unit = { },
   onGestureChange: (Boolean) -> Unit = { },
@@ -123,6 +138,9 @@ public fun VideoStageScope.ComposedOverlay(
   handles: ComposedOverlayHandles = ComposedOverlayHandles.Auto,
   content: @Composable () -> Unit,
 ) {
+  val canvas = overlays.canvas
+  val recording = if (baked) overlays.rememberRecording(transform, opacity, visibleDuring, animation) else null
+  val marked = selected && shown
   val picture = frame.contentRect
   val density = LocalDensity.current
   val handleLengthPx = with(density) { handleLength.toPx() }
@@ -132,7 +150,7 @@ public fun VideoStageScope.ComposedOverlay(
   val pointer = LocalStagePointer.current ?: remember { StagePointer() }
   val handled =
     enabled &&
-      selected &&
+      marked &&
       when (handles) {
         ComposedOverlayHandles.Auto -> pointer.fine
         ComposedOverlayHandles.Always -> true
@@ -152,7 +170,7 @@ public fun VideoStageScope.ComposedOverlay(
   // The gesture sits on the turned element itself, so the touch is hit tested against what is drawn and the topmost
   // element under the finger takes it. Positions are read back on the stage, since the element turns under the finger.
   val gestures =
-    if (!enabled) {
+    if (!enabled || !shown) {
       Modifier
     } else {
       Modifier
@@ -187,7 +205,7 @@ public fun VideoStageScope.ComposedOverlay(
   Layout(
     content = {
       CompositionLocalProvider(LocalDensity provides OverlayLayoutDensity) {
-        Box(Modifier.onPlaced { placed.element = it }.then(gestures)) { content() }
+        Box(Modifier.onPlaced { placed.element = it }.then(gestures).overlayRecord(recording, shown)) { content() }
       }
       if (handled) {
         HandleTarget(HandleKind.Size, placed, { current }, { currentOnChange(it) }, { currentOnGesture(it) })
@@ -195,18 +213,20 @@ public fun VideoStageScope.ComposedOverlay(
       }
     },
     modifier =
-      modifier
+      Modifier
+        .overlayDrawOrder(recording)
+        .then(modifier)
         .matchParentSize()
         .onPlaced { placed.stage = it }
         .drawWithContent {
           clipRect(picture.left, picture.top, picture.right, picture.bottom) {
             this@drawWithContent.drawContent()
           }
-          if (selected) drawSelection(current, laidOut, colors, handleLengthPx)
+          if (marked) drawSelection(current, laidOut, colors, handleLengthPx)
           if (handled) current.handlePoints(laidOut, stalkPx, rtl, size)?.let { drawHandles(it, colors, knobPx) }
         },
   ) { measurables, constraints ->
-    val placeable = measurables.first().measure(canvas.constraintsFor(output))
+    val placeable = measurables.first().measure(canvas.constraintsFor(aspect))
     val targets = measurables.drop(1).map { it.measure(Constraints()) }
     laidOut = IntSize(placeable.width, placeable.height)
     layout(constraints.maxWidth, constraints.maxHeight) {
@@ -300,8 +320,6 @@ private fun ComposedOverlayPreview() {
     VideoStage(player = null, outputAspect = 16f / 9f) {
       ComposedOverlay(
         transform = OverlayTransform(Anchor(0.4f, 0.5f), scale = 1.2f, rotationDegrees = -12f),
-        canvas = OverlayCanvas(),
-        output = Size(1920, 1080),
         onTransformChange = { },
         selected = true,
       ) {

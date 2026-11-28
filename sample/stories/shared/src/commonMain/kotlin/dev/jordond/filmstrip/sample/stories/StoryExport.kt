@@ -5,22 +5,18 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import dev.jordond.filmstrip.Filmstrip
-import dev.jordond.filmstrip.compose.overlay.OverlayCanvas
-import dev.jordond.filmstrip.compose.overlay.OverlayCapturer
+import dev.jordond.filmstrip.compose.overlay.OverlayBaker
+import dev.jordond.filmstrip.compose.overlay.planWithOverlays
 import dev.jordond.filmstrip.edit.Composition
-import dev.jordond.filmstrip.effect.EffectSpec
-import dev.jordond.filmstrip.effects.overlay.ImageOverlay
 import dev.jordond.filmstrip.export.ExportPlan
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.ExportStatus
 import dev.jordond.filmstrip.export.Verdict
-import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.sample.exportRefusalOf
 import dev.jordond.filmstrip.sample.exportSink
 import dev.jordond.filmstrip.sample.releaseExport
 import dev.jordond.filmstrip.sample.saveExport
-import dev.jordond.filmstrip.sample.stories.ui.StoryElementContent
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -30,59 +26,6 @@ import kotlinx.coroutines.launch
  * How a story is exported: no taller than [STORY_MAX_HEIGHT], everything else left to the backend.
  */
 internal val STORY_SPEC: ExportSpec = ExportSpec(heightPx = STORY_MAX_HEIGHT)
-
-/**
- * Bakes the story into overlays on [output], the drawing first and then every element from the bottom of the stack
- * to the top, so they composite in the order the stage draws them.
- *
- * Each element is drawn by [StoryElementContent], the composable the stage draws it with, and carries its window and
- * its entrance. An element wholly off the frame and an empty drawing are left out.
- *
- * @param capturer Draws the captures, with its host mounted.
- * @param canvas The canvas the elements were laid out on while editing.
- * @param output The frame the story is exported at, in pixels.
- */
-internal suspend fun bakeStory(
-  capturer: OverlayCapturer,
-  elements: List<StoryElement>,
-  strokes: List<StoryStroke>,
-  canvas: OverlayCanvas,
-  output: Size,
-): List<ImageOverlay> =
-  buildList {
-    bakeDrawing(capturer, strokes, canvas, output)?.let(::add)
-    elements.forEach { element ->
-      capturer
-        .capture(
-          transform = element.transform,
-          canvas = canvas,
-          output = output,
-          visibleDuring = element.window,
-          animation = element.animation,
-        ) { StoryElementContent(element) }
-        ?.let(::add)
-    }
-  }
-
-/**
- * Plans [composition] with the story baked onto it.
- *
- * The elements are baked onto the frame the edit exports at, which only a plan knows. So this plans once for the
- * frame, hands it to [bake], and plans again with what comes back. A story with nothing to bake keeps the first plan.
- *
- * @param bake Bakes the story on the output frame it is given.
- */
-internal suspend fun planStory(
-  filmstrip: Filmstrip,
-  composition: Composition,
-  bake: suspend (Size) -> List<EffectSpec>,
-): Verdict {
-  val first = filmstrip.plan(composition, STORY_SPEC)
-  val output = first.runnable()?.output?.size ?: return first
-  val baked = bake(output)
-  if (baked.isEmpty()) return first
-  return filmstrip.plan(composition.withEffects(composition.effects + baked), STORY_SPEC)
-}
 
 /**
  * Where an export stands.
@@ -122,11 +65,14 @@ internal class StoryExport(
   private var job: Job? = null
 
   /**
-   * Exports [composition] with what [bake] makes of the story. Nothing happens while an export is already running.
+   * Exports [composition] with the story [overlays] bakes drawn over it. Nothing happens while an export is already
+   * running.
+   *
+   * @param overlays Bakes the story's elements, which is the stage's state in the app.
    */
   fun start(
     composition: Composition,
-    bake: suspend (Size) -> List<EffectSpec>,
+    overlays: OverlayBaker,
   ) {
     if (job?.isActive == true) return
     release()
@@ -134,7 +80,7 @@ internal class StoryExport(
     job =
       scope.launch {
         try {
-          run(composition, bake)
+          run(composition, overlays)
         } catch (cancelled: CancellationException) {
           throw cancelled
         } catch (failure: IllegalStateException) {
@@ -155,13 +101,13 @@ internal class StoryExport(
 
   private suspend fun run(
     composition: Composition,
-    bake: suspend (Size) -> List<EffectSpec>,
+    overlays: OverlayBaker,
   ) {
     exportRefusalOf(filmstrip.capabilities())?.let {
       phase = ExportPhase.Failed(it)
       return
     }
-    val verdict = planStory(filmstrip, composition, bake)
+    val verdict = filmstrip.planWithOverlays(composition, STORY_SPEC, overlays)
     val plan = verdict.runnable()
     if (plan == null) {
       phase = ExportPhase.Failed(verdict.refusal())

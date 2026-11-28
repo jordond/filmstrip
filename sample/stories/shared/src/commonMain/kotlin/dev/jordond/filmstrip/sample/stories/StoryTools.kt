@@ -42,6 +42,6 @@ internal fun StoryEditor.press(button: StoryToolButton) {
     StoryToolButton.Text -> openText()
     StoryToolButton.Stickers -> tool = StoryTool.Stickers
     StoryToolButton.Draw -> openDraw()
-    StoryToolButton.Share -> tool = StoryTool.Export
+    StoryToolButton.Share -> openExport()
   }
 }

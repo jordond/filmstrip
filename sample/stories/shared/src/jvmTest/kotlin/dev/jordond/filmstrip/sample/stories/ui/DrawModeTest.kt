@@ -14,7 +14,6 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.v2.runComposeUiTest
 import dev.jordond.filmstrip.geometry.Anchor
-import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.sample.stories.STORY_ASPECT
 import dev.jordond.filmstrip.sample.stories.StoryBrush
 import dev.jordond.filmstrip.sample.stories.StoryEditor
@@ -138,7 +137,7 @@ class DrawModeTest {
     setContent {
       SampleTheme {
         val size = with(LocalDensity.current) { Modifier.size(width.toDp(), height.toDp()) }
-        Box(size.testTag(STAGE)) { TouchEditor(editor, preview = null, output = OUTPUT) }
+        Box(size.testTag(STAGE)) { TouchEditor(editor, preview = null) }
       }
     }
     waitForIdle()
@@ -149,6 +148,5 @@ class DrawModeTest {
     const val TOLERANCE = 0.01f
     val FROM = Anchor(0.3f, 0.45f)
     val TO = Anchor(0.7f, 0.55f)
-    val OUTPUT = Size(1080, 1920)
   }
 }

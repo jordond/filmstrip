@@ -39,7 +39,12 @@ class StoryElementsTest {
         SampleTheme {
           val size = with(LocalDensity.current) { Modifier.size(WIDTH.toDp(), HEIGHT.toDp()) }
           Box(size.testTag(STAGE)) {
-            VideoStage(player = null, outputAspect = WIDTH / HEIGHT, Modifier.fillMaxSize()) {
+            VideoStage(
+              player = null,
+              outputAspect = WIDTH / HEIGHT,
+              Modifier.fillMaxSize(),
+              overlays = stories.overlays,
+            ) {
               StoryElements(state, interactive = true)
             }
           }

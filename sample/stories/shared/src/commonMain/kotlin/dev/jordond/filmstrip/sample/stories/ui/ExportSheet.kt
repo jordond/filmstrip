@@ -25,7 +25,6 @@ import androidx.compose.ui.unit.dp
 import dev.jordond.filmstrip.sample.stories.ExportPhase
 import dev.jordond.filmstrip.sample.stories.StoryEditor
 import dev.jordond.filmstrip.sample.stories.StoryTool
-import dev.jordond.filmstrip.sample.stories.bakeStory
 import dev.jordond.filmstrip.sample.ui.Tokens
 import kotlin.math.roundToInt
 
@@ -76,10 +75,7 @@ internal fun ExportSheet(
         if (phase is ExportPhase.Idle || phase is ExportPhase.Failed) {
           Pill("Export", selected = true) {
             preview.player.pause()
-            export.start(preview.composition) { output ->
-              val capturer = checkNotNull(editor.capturer) { "The story needs its capture host mounted to export." }
-              bakeStory(capturer, editor.story.elements, editor.story.strokes, editor.canvas, output)
-            }
+            export.start(preview.composition, editor.overlays)
           }
         }
         Pill(if (phase is ExportPhase.Done) "Done" else "Cancel", onClick = close)

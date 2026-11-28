@@ -10,12 +10,15 @@ import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import dev.jordond.filmstrip.Filmstrip
+import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.edit.OutputFrame
 import dev.jordond.filmstrip.edit.compositionOf
+import dev.jordond.filmstrip.effects.overlay.ImageOverlay
 import dev.jordond.filmstrip.effects.overlay.placedOn
 import dev.jordond.filmstrip.effects.overlay.rectOn
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.ExportStatus
+import dev.jordond.filmstrip.export.Verdict
 import dev.jordond.filmstrip.ffmpeg.ffmpegBackend
 import dev.jordond.filmstrip.geometry.Anchor
 import dev.jordond.filmstrip.geometry.Size
@@ -38,37 +41,43 @@ import kotlin.test.Test
 import kotlin.time.Duration.Companion.seconds
 
 /**
- * A captured element exported through ffmpeg lands on the pixels its bounds name.
+ * An element a stage recorded, planned with its overlays and exported through ffmpeg, lands on the pixels its bounds
+ * name.
  */
-@OptIn(ExperimentalTestApi::class)
+@OptIn(ExperimentalTestApi::class, InternalFilmstripApi::class)
 class OverlayCaptureExportMediaTest {
   @Test
   fun aTurnedElementExportsWherePlacedOnPutsIt(): TestResult =
     runComposeUiTest {
       coroutineScope {
-        val capturer = OverlayCapturer()
-        setContent { OverlayCaptureHost(capturer) }
-        awaitIdle()
-        val work =
-          async {
-            capturer.capture(TURNED, CANVAS, OUTPUT) { Box(Modifier.size(200.dp, 60.dp).background(Color(COLOR))) }
+        val overlays = ComposedOverlayState(CANVAS)
+        setContent {
+          TestStage(overlays) {
+            TestElement(overlays, OUTPUT, TURNED) { Box(Modifier.size(200.dp, 60.dp).background(Color(COLOR))) }
           }
+        }
+        awaitIdle()
+        val filmstrip = Filmstrip { ffmpegBackend() }
+        val edit =
+          compositionOf {
+            solid(GREY, 1.seconds)
+            frame(OutputFrame.Fixed(OUTPUT))
+          }
+        val work = async { filmstrip.planWithOverlays(edit, ExportSpec(), overlays) }
         while (!work.isCompleted) {
           mainClock.advanceTimeByFrame()
           awaitIdle()
           withContext(Dispatchers.Default) { delay(1) }
         }
-        val overlay = work.await().shouldNotBeNull()
+        val plan = work.await().shouldBeInstanceOf<Verdict.Capable>().plan
+        val overlay =
+          plan.composition.effects
+            .single()
+            .shouldBeInstanceOf<ImageOverlay>()
         val output = File.createTempFile("filmstrip-capture", ".mp4").also { it.delete() }
 
         withContext(Dispatchers.Default) {
-          val edit =
-            compositionOf {
-              solid(GREY, 1.seconds)
-              frame(OutputFrame.Fixed(OUTPUT))
-              effects { add(overlay) }
-            }
-          val statuses = Filmstrip { ffmpegBackend() }.export(edit, ExportSpec(), MediaSink.of(output.path)).toList()
+          val statuses = filmstrip.export(plan, MediaSink.of(output.path)).toList()
           statuses.last().shouldBeInstanceOf<ExportStatus.Success>()
         }
 

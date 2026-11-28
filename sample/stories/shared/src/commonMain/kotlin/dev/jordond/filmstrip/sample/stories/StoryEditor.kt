@@ -4,13 +4,11 @@ import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import dev.jordond.filmstrip.compose.overlay.OverlayCanvas
-import dev.jordond.filmstrip.compose.overlay.OverlayCapturer
+import dev.jordond.filmstrip.compose.overlay.ComposedOverlayState
 import dev.jordond.filmstrip.compose.overlay.OverlayTransform
 import dev.jordond.filmstrip.geometry.Anchor
 import dev.jordond.filmstrip.media.MediaSource
 import kotlin.math.hypot
-import kotlin.time.Duration
 
 /**
  * The tool laid over the picture, one at a time.
@@ -39,12 +37,11 @@ internal data class TextDraft(
 internal class StoryEditor {
   val story: StoryState = StoryState()
 
-  val canvas: OverlayCanvas = OverlayCanvas()
-
   /**
-   * The capturer the app's capture host draws for, bound while the host is in composition.
+   * The elements the stage draws, which is what an export bakes. The stage records into it while it is in
+   * composition.
    */
-  var capturer: OverlayCapturer? = null
+  val overlays: ComposedOverlayState = ComposedOverlayState()
 
   var source: MediaSource? by mutableStateOf(null)
     private set
@@ -69,18 +66,6 @@ internal class StoryEditor {
   }
 
   var tool: StoryTool by mutableStateOf(StoryTool.None)
-
-  /**
-   * Where the preview is on the story's timeline, written by whatever plays the clip.
-   */
-  var playhead: Duration by mutableStateOf(Duration.ZERO)
-
-  /**
-   * How long the story runs, zero until the clip has been read.
-   */
-  var duration: Duration by mutableStateOf(Duration.ZERO)
-
-  var playing: Boolean by mutableStateOf(false)
 
   /**
    * Whether a finger or a mouse holds an element. The chrome hides and the bin shows while it does.
@@ -200,6 +185,16 @@ internal class StoryEditor {
   fun closeDraw() {
     pendingStroke = null
     tool = StoryTool.None
+  }
+
+  /**
+   * Opens the share sheet, leaving text or draw mode first. The caption being written goes back on the stage and the
+   * stroke under the finger comes off it, so the stage shows what the export bakes.
+   */
+  fun openExport() {
+    closeText()
+    closeDraw()
+    tool = StoryTool.Export
   }
 
   /**

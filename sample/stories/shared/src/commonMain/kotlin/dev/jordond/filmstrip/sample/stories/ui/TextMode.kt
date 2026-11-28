@@ -49,7 +49,6 @@ import dev.jordond.filmstrip.compose.overlay.OverlayTransform
 import dev.jordond.filmstrip.compose.ui.VideoStageScope
 import dev.jordond.filmstrip.compose.ui.component.ComposedOverlay
 import dev.jordond.filmstrip.geometry.Anchor
-import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.sample.SIZE_STEPS
 import dev.jordond.filmstrip.sample.scaleOfStep
 import dev.jordond.filmstrip.sample.sizeStepOf
@@ -63,13 +62,10 @@ import dev.jordond.filmstrip.sample.ui.Tokens
  * The caption being written, over a dimmed picture.
  *
  * The field is an element on the stage like any placed caption, laid out on the same canvas, so its lines break
- * where they will once it is placed. A tap on the dimmed picture is Done.
+ * where they will once it is placed. It is never baked, the placed caption is. A tap on the dimmed picture is Done.
  */
 @Composable
-internal fun VideoStageScope.TextModeField(
-  editor: StoryEditor,
-  output: Size,
-) {
+internal fun VideoStageScope.TextModeField(editor: StoryEditor) {
   val draft = editor.draft ?: return
   val focus = remember { FocusRequester() }
   Box(
@@ -77,9 +73,8 @@ internal fun VideoStageScope.TextModeField(
   )
   ComposedOverlay(
     transform = OverlayTransform(WRITING_AT, draft.scale),
-    canvas = editor.canvas,
-    output = output,
     onTransformChange = { },
+    baked = false,
     enabled = false,
   ) {
     BasicTextField(

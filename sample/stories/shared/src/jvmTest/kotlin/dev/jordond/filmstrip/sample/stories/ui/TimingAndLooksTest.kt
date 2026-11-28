@@ -16,8 +16,8 @@ import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.effects.overlay.OverlayFrame
 import dev.jordond.filmstrip.effects.overlay.OverlayTime
 import dev.jordond.filmstrip.export.ExportSpec
-import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.FrameResult
+import dev.jordond.filmstrip.sample.stories.StoryClock
 import dev.jordond.filmstrip.sample.stories.StoryContent
 import dev.jordond.filmstrip.sample.stories.StoryEditor
 import dev.jordond.filmstrip.sample.stories.StoryElement
@@ -47,11 +47,10 @@ class TimingAndLooksTest {
     runComposeUiTest {
       val editor = StoryEditor()
       val id = editor.story.add(StoryContent.Caption("Timed"))
-      editor.duration = DURATION
       setContent {
         SampleTheme {
           val size = with(LocalDensity.current) { Modifier.size(WIDTH.toDp(), BAR_HEIGHT.toDp()) }
-          Box(size) { TimingBar(editor, NoFrames, Composition(tracks = emptyList())) }
+          Box(size) { TimingBar(editor, StoryClock.still(DURATION), NoFrames, Composition(tracks = emptyList())) }
         }
       }
       waitForIdle()
@@ -79,9 +78,8 @@ class TimingAndLooksTest {
       val editor = StoryEditor()
       val id = editor.story.add(StoryContent.Caption("Timed"))
       editor.story.window(id, timed = true, startSeconds = 2f, endSeconds = 4f)
-      editor.duration = DURATION
       setContent {
-        SampleTheme { TimingBar(editor, NoFrames, Composition(tracks = emptyList())) }
+        SampleTheme { TimingBar(editor, StoryClock.still(DURATION), NoFrames, Composition(tracks = emptyList())) }
       }
       waitForIdle()
 
@@ -187,7 +185,7 @@ class TimingAndLooksTest {
     setContent {
       SampleTheme {
         val size = with(LocalDensity.current) { Modifier.size(WIDTH.toDp(), HEIGHT.toDp()) }
-        Box(size.testTag(STAGE)) { TouchEditor(editor, preview = null, output = OUTPUT) }
+        Box(size.testTag(STAGE)) { TouchEditor(editor, preview = null) }
       }
     }
     waitForIdle()
@@ -220,6 +218,5 @@ class TimingAndLooksTest {
     const val HANDLE_INSET = 6f
     const val HANDLE_TOLERANCE = 0.6f
     val DURATION = 10.seconds
-    val OUTPUT = Size(1080, 1920)
   }
 }

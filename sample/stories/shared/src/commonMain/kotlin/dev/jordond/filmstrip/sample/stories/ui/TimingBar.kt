@@ -18,6 +18,7 @@ import androidx.compose.ui.unit.dp
 import dev.jordond.filmstrip.compose.ui.FilmstripTimeline
 import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.edit.TimeRange
+import dev.jordond.filmstrip.sample.stories.StoryClock
 import dev.jordond.filmstrip.sample.stories.StoryEditor
 import dev.jordond.filmstrip.sample.ui.Tokens
 import dev.jordond.filmstrip.still.FrameRenderer
@@ -31,18 +32,20 @@ import kotlin.time.DurationUnit
  * Nothing is drawn with no element selected or before the clip's length is known.
  *
  * @param editor The session being edited.
+ * @param clock Where the clip is and how long it runs.
  * @param renderer Draws the strip's frames.
  * @param composition The edit the strip shows.
  */
 @Composable
 internal fun TimingBar(
   editor: StoryEditor,
+  clock: StoryClock,
   renderer: FrameRenderer,
   composition: Composition,
   modifier: Modifier = Modifier,
 ) {
   val element = editor.story.selected ?: return
-  val duration = editor.duration
+  val duration = clock.duration
   if (duration <= Duration.ZERO) return
   Column(
     modifier = modifier.fillMaxWidth().background(Tokens.backdrop, BarShape).padding(10.dp),
@@ -68,8 +71,8 @@ internal fun TimingBar(
         renderer = renderer,
         composition = composition,
         duration = duration,
-        position = { editor.playhead },
-        isPlaying = editor.playing,
+        position = { clock.playhead },
+        isPlaying = clock.playing,
         trim = element.window ?: TimeRange(Duration.ZERO, duration),
         onTrimChange = { range ->
           editor.story.window(

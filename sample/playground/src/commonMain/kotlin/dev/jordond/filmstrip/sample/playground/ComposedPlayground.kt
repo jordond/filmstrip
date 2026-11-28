@@ -37,11 +37,8 @@ import androidx.compose.ui.input.pointer.PointerType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import dev.jordond.filmstrip.Filmstrip
-import dev.jordond.filmstrip.compose.overlay.OverlayCanvas
-import dev.jordond.filmstrip.compose.overlay.OverlayCaptureHost
-import dev.jordond.filmstrip.compose.overlay.OverlayCapturer
 import dev.jordond.filmstrip.compose.overlay.OverlayTransform
-import dev.jordond.filmstrip.compose.overlay.rememberOverlayCapturer
+import dev.jordond.filmstrip.compose.overlay.rememberComposedOverlayState
 import dev.jordond.filmstrip.compose.rememberFilmstripPlayer
 import dev.jordond.filmstrip.compose.ui.ComposedOverlayDefaults
 import dev.jordond.filmstrip.compose.ui.VideoStage
@@ -64,7 +61,7 @@ import kotlin.time.Duration
 /**
  * The composed overlays sample: real footage with a caption and a REC badge written in Compose over it. Each one can be
  * dragged, pinched and turned on the picture, or sized and turned with the sliders, and BAKED swaps them for the
- * pictures a capture makes of them, drawn by the backend into the edit.
+ * pictures the stage bakes of them, drawn by the backend into the edit.
  *
  * @param filmstrip Opens the player.
  * @param copy Puts the code listing on the clipboard.
@@ -76,8 +73,6 @@ internal fun ComposedPlayground(
 ) {
   var settings by remember { mutableStateOf(ComposedSettings()) }
   var mouse by remember { mutableStateOf(false) }
-  val capturer = rememberOverlayCapturer()
-  OverlayCaptureHost(capturer)
 
   BoxWithConstraints(Modifier.fillMaxSize().background(Tokens.ground)) {
     Column(
@@ -85,7 +80,7 @@ internal fun ComposedPlayground(
       verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
       StatusLine(compare = false, composedSummary(settings, mouse), "OUT 16:9")
-      ComposedPicture(filmstrip, capturer, settings, onMouse = { mouse = true }) { settings = it }
+      ComposedPicture(filmstrip, settings, onMouse = { mouse = true }) { settings = it }
       tearsOfSteel.attribution?.let { credit ->
         Text("${tearsOfSteel.name} · $credit", style = MaterialTheme.typography.bodySmall, color = Tokens.muted)
       }
@@ -98,7 +93,6 @@ internal fun ComposedPlayground(
 @Composable
 private fun ComposedPicture(
   filmstrip: Filmstrip,
-  capturer: OverlayCapturer,
   settings: ComposedSettings,
   onMouse: () -> Unit,
   onChange: (ComposedSettings) -> Unit,
@@ -146,7 +140,7 @@ private fun ComposedPicture(
     val loaded = source
     when {
       loaded != null -> {
-        ComposedStage(filmstrip, capturer, loaded, settings, onChange)
+        ComposedStage(filmstrip, loaded, settings, onChange)
       }
       failure != null -> {
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -164,12 +158,11 @@ private fun ComposedPicture(
 @Composable
 private fun ComposedStage(
   filmstrip: Filmstrip,
-  capturer: OverlayCapturer,
   source: MediaSource,
   settings: ComposedSettings,
   onChange: (ComposedSettings) -> Unit,
 ) {
-  val canvas = remember { OverlayCanvas() }
+  val overlays = rememberComposedOverlayState()
   var baked by remember { mutableStateOf<List<ImageOverlay>>(emptyList()) }
   val composition =
     remember(source, baked) {
@@ -186,28 +179,19 @@ private fun ComposedStage(
     player.play()
   }
   LaunchedEffect(settings, output) {
-    baked =
-      if (settings.baked) {
-        ComposedElement.entries.mapNotNull { element ->
-          capturer.capture(settings.transformOf(element), canvas, output) { ElementContent(element, settings) }
-        }
-      } else {
-        emptyList()
-      }
+    baked = if (settings.baked) overlays.bake(output) else emptyList()
   }
 
-  VideoStage(player = player, outputAspect = 16f / 9f, modifier = Modifier.fillMaxSize()) {
-    if (!settings.baked) {
-      ComposedElement.entries.forEach { element ->
-        ComposedOverlay(
-          transform = settings.transformOf(element),
-          canvas = canvas,
-          output = output,
-          onTransformChange = { onChange(settings.with(element, it)) },
-          selected = settings.selected == element,
-          onSelect = { onChange(settings.copy(selected = element)) },
-        ) { ElementContent(element, settings) }
-      }
+  VideoStage(player = player, outputAspect = 16f / 9f, modifier = Modifier.fillMaxSize(), overlays = overlays) {
+    // A baked element stays on the stage unseen, since the stage bakes what it holds.
+    ComposedElement.entries.forEach { element ->
+      ComposedOverlay(
+        transform = settings.transformOf(element),
+        onTransformChange = { onChange(settings.with(element, it)) },
+        shown = !settings.baked,
+        selected = settings.selected == element,
+        onSelect = { onChange(settings.copy(selected = element)) },
+      ) { ElementContent(element, settings) }
     }
   }
   Box(Modifier.fillMaxSize()) {

@@ -1,14 +1,9 @@
 package dev.jordond.filmstrip.compose.overlay
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.size
-import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toPixelMap
 import androidx.compose.ui.test.ComposeUiTest
@@ -26,11 +21,9 @@ import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.TestResult
 import kotlinx.coroutines.withContext
@@ -215,25 +208,6 @@ class OverlayCaptureTest {
     return capturer
   }
 
-  // Frames only come when the test clock moves, and the encode runs on a real thread, so this steps both.
-  private suspend fun <T> ComposeUiTest.pumped(
-    work: Deferred<T>,
-    onFrame: (Int) -> Unit = {},
-  ): T {
-    var frame = 0
-    while (!work.isCompleted) {
-      pumpOnce()
-      onFrame(++frame)
-    }
-    return work.await()
-  }
-
-  private suspend fun ComposeUiTest.pumpOnce() {
-    mainClock.advanceTimeByFrame()
-    awaitIdle()
-    withContext(Dispatchers.Default) { delay(1) }
-  }
-
   // Where the plate's centre lands inside a raster that starts at [left] and [top].
   private fun plateMiddleX(left: Int): Int = (TURNED.center.x * OUTPUT.width).roundToInt() - left
 
@@ -262,9 +236,4 @@ class OverlayCaptureTest {
     const val IHDR_HEIGHT = 20
     const val BYTE_BITS = 8
   }
-}
-
-@Composable
-private fun Plate(color: Color) {
-  Box(Modifier.size(200.dp, 60.dp).background(color))
 }

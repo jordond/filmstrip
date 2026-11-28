@@ -14,7 +14,6 @@ import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
-import dev.jordond.filmstrip.sample.ui.screen.StoryElementContent
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -84,7 +83,7 @@ public class SampleAppState(
       release = release,
       composition = ::composition,
       spec = ::spec,
-      bake = { output -> edit.stories.bake(output) { StoryElementContent(it) } },
+      overlays = edit.stories.baker,
       onStart = preview::pause,
       onSucceeded = {
         backStack.remove(SampleRoute.Export)

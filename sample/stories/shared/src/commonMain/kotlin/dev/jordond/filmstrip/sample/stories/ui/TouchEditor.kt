@@ -20,7 +20,6 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
-import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.sample.stories.StoryEditor
 import dev.jordond.filmstrip.sample.stories.StoryTool
 import dev.jordond.filmstrip.sample.stories.StoryToolButton
@@ -36,18 +35,16 @@ import dev.jordond.filmstrip.sample.ui.Tokens
  *
  * @param editor The session being edited.
  * @param preview What plays the clip and draws its frames, or null to show the elements over an empty stage.
- * @param output The frame the story is exported at, in pixels.
  * @param modifier Modifier for the editor.
  */
 @Composable
 internal fun TouchEditor(
   editor: StoryEditor,
   preview: StoryPreview?,
-  output: Size,
   modifier: Modifier = Modifier,
 ) {
   Box(modifier.fillMaxSize().background(Tokens.screen), contentAlignment = Alignment.Center) {
-    StoryStage(editor, preview?.player, output)
+    StoryStage(editor, preview)
     when {
       editor.tool == StoryTool.Text -> TextModeControls(editor)
       editor.tool == StoryTool.Stickers -> StickerTray(editor)
@@ -72,7 +69,11 @@ private fun TouchChrome(
       listOf(StoryToolButton.Text, StoryToolButton.Stickers, StoryToolButton.Draw).forEach { ToolButton(editor, it) }
     }
     Column(Modifier.align(Alignment.BottomCenter), verticalArrangement = Arrangement.spacedBy(GAP)) {
-      if (preview != null && story.selected != null) TimingBar(editor, preview.renderer, preview.composition)
+      if (preview != null &&
+        story.selected != null
+      ) {
+        TimingBar(editor, preview.clock, preview.renderer, preview.composition)
+      }
       Pill(
         label = StoryToolButton.Share.title,
         modifier = Modifier.align(Alignment.End).semantics { contentDescription = StoryToolButton.Share.label },

@@ -6,6 +6,7 @@ import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.capability.EffectParity
 import dev.jordond.filmstrip.codec.AudioCodec
 import dev.jordond.filmstrip.codec.VideoCodec
+import dev.jordond.filmstrip.compose.overlay.OverlayBaker
 import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.effect.EffectSpec
@@ -79,7 +80,7 @@ class StoryExportTest {
 
   private fun session(
     engine: PlanningEngine,
-    bake: suspend (Size) -> List<EffectSpec>,
+    overlays: OverlayBaker,
   ): ExportSession =
     ExportSession(
       filmstrip = filmstrip(engine),
@@ -88,7 +89,7 @@ class StoryExportTest {
       release = { },
       composition = { Composition(tracks = emptyList()) },
       spec = { ExportSpec() },
-      bake = bake,
+      overlays = overlays,
       onStart = { },
       onSucceeded = { },
     )
@@ -120,7 +121,7 @@ class StoryExportTest {
   private companion object {
     val OUTPUT = Size(1280, 720)
     val BAKED = ImageOverlay(ImageSource.ofBytes(ByteArray(1)), OverlayPosition.At(Anchor(0.3f, 0.6f)))
-    const val BAKE_FAILED = "The OverlayCaptureHost left composition before the capture finished."
+    const val BAKE_FAILED = "The stage left composition before the bake finished."
 
     fun planFor(
       composition: Composition,

@@ -27,7 +27,6 @@ import dev.jordond.filmstrip.compose.overlay.OverlayTransform
 import dev.jordond.filmstrip.compose.ui.VideoStageScope
 import dev.jordond.filmstrip.compose.ui.component.ComposedOverlay
 import dev.jordond.filmstrip.compose.ui.interaction.composedOverlayKeys
-import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.sample.EditState
 import dev.jordond.filmstrip.sample.SIZE_STEPS
 import dev.jordond.filmstrip.sample.SampleAppState
@@ -43,10 +42,11 @@ import dev.jordond.filmstrip.sample.ui.ChipGroup
 import dev.jordond.filmstrip.sample.ui.SliderRow
 import dev.jordond.filmstrip.sample.ui.SwatchRow
 import dev.jordond.filmstrip.sample.ui.SwitchRow
+import dev.jordond.filmstrip.sample.visibleWindow
 import kotlin.math.roundToInt
 
 /**
- * How a story element is drawn, both live on the stage and when it is baked.
+ * How a story element is drawn on the stage, which is also what an export bakes.
  */
 @Composable
 internal fun StoryElementContent(element: StoryElement) {
@@ -75,7 +75,8 @@ internal fun StoryElementContent(element: StoryElement) {
 }
 
 /**
- * Every story element over the stage, taking gestures only while the stories tool is open.
+ * Every story element over the stage, taking gestures only while [interactive]. The stage they sit on is given
+ * the stories' overlay state, which is what bakes them for an export.
  */
 @Composable
 internal fun VideoStageScope.StoryElements(
@@ -83,11 +84,6 @@ internal fun VideoStageScope.StoryElements(
   interactive: Boolean,
 ) {
   val stories = state.edit.stories
-  val picture = frame.contentRect
-  val output =
-    state.preview.previewOutput
-      ?: Size(picture.width.roundToInt(), picture.height.roundToInt()).takeIf { it.width > 0 && it.height > 0 }
-      ?: return
   val colors = sampleHandleColors()
   val focus = remember { FocusRequester() }
   val selected = stories.selected
@@ -106,9 +102,8 @@ internal fun VideoStageScope.StoryElements(
     key(element.id) {
       ComposedOverlay(
         transform = element.transform,
-        canvas = stories.canvas,
-        output = output,
         onTransformChange = { next -> stories.update(element.id) { it.copy(transform = next) } },
+        visibleDuring = visibleWindow(element.timed, element.startSeconds, element.endSeconds),
         selected = interactive && stories.selectedId == element.id,
         onSelect = {
           stories.selectedId = element.id
@@ -225,7 +220,7 @@ private fun StoryElement.turned(degrees: Float): StoryElement =
   copy(transform = OverlayTransform(transform.center, transform.scale, degrees))
 
 /**
- * The theme's family for this face, so it resolves the same way on the stage and inside the capture host.
+ * The theme's family for this face.
  */
 @Composable
 internal fun StoryFont.family(): FontFamily? =

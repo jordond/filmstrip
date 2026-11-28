@@ -27,10 +27,11 @@ Left out on purpose: music, polls, links, mentions, location, GIF search, AR eff
 
 ## How it uses filmstrip
 
-- `ComposedOverlay` draws each element on a `VideoStage`, and `OverlayCapturer` bakes the same composable for the
-  export. `StoryElementContent` is the only thing that draws an element, so the stage and the file match.
-- The preview composition never holds the elements, so moving one never re-plans the preview. An export plans once
-  for the output frame, bakes every element on it, and plans again with the overlays (`planStory`).
+- `ComposedOverlay` draws each element on a `VideoStage`, and the stage's `ComposedOverlayState` bakes what it drew
+  for the export. An element is declared once, so the stage and the file match.
+- The preview composition never holds the elements, so moving one never re-plans the preview. An export calls
+  `planWithOverlays`, which plans once for the output frame, bakes every element on it, and plans again with the
+  overlays.
 - A caption's entrance is one `OverlayAnimation`. The export is handed it and the stage samples the same one at the
   playhead (`liveFrame`).
 - The mouse and keyboard handling of an element is the library's: the handles, the wheel and

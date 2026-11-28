@@ -64,7 +64,7 @@ internal fun Inspector(
     }
     (element.content as? StoryContent.Caption)?.let { CaptionControls(editor, element.id, it) }
     PlaceControls(editor, element)
-    if (preview != null) TimingBar(editor, preview.renderer, preview.composition)
+    if (preview != null) TimingBar(editor, preview.clock, preview.renderer, preview.composition)
     Pill("Delete", Modifier.testTag(StoryTags.INSPECTOR_DELETE)) { editor.story.remove(element.id) }
   }
 }

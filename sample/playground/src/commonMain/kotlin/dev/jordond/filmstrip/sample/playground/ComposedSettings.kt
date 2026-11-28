@@ -83,14 +83,15 @@ internal fun composedCode(settings: ComposedSettings): List<List<CodePart>> =
         ),
       )
     }
+    add(frame("val overlays = rememberComposedOverlayState()"))
     add(frame(""))
-    add(frame("VideoStage(player, outputAspect) {"))
+    add(frame("VideoStage(player, outputAspect, overlays = overlays) {"))
     ComposedElement.entries.forEach { element ->
       add(
         listOf(
           CodePart("  ComposedOverlay(", CodeKind.Call),
           CodePart(
-            "${element.variable}, canvas, output, onTransformChange = { ${element.variable} = it }",
+            "${element.variable}, onTransformChange = { ${element.variable} = it }",
             CodeKind.Frame,
           ),
           CodePart(") { ", CodeKind.Call),
@@ -101,18 +102,14 @@ internal fun composedCode(settings: ComposedSettings): List<List<CodePart>> =
     }
     add(frame("}"))
     add(frame(""))
-    add(listOf(CodePart("// On export, plan once for the frame and capture each element on it", CodeKind.Comment)))
-    ComposedElement.entries.forEach { element ->
-      add(
-        listOf(
-          CodePart("capturer.capture(", CodeKind.Call),
-          CodePart("${element.variable}, canvas, plan.output.size", CodeKind.Frame),
-          CodePart(") { ", CodeKind.Call),
-          CodePart(contentCode(element, settings), CodeKind.Value),
-          CodePart(" }", CodeKind.Call),
-        ),
-      )
-    }
+    add(listOf(CodePart("// On export, the stage bakes what it draws onto the frame the plan names", CodeKind.Comment)))
+    add(
+      listOf(
+        CodePart("filmstrip.planWithOverlays(", CodeKind.Call),
+        CodePart("composition, spec, overlays", CodeKind.Frame),
+        CodePart(")", CodeKind.Call),
+      ),
+    )
   }
 
 private fun transformArguments(transform: OverlayTransform): String =

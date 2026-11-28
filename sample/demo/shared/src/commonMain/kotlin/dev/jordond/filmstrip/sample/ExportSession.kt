@@ -6,6 +6,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.FilmstripError
+import dev.jordond.filmstrip.compose.overlay.OverlayBaker
+import dev.jordond.filmstrip.compose.overlay.planWithOverlays
 import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.export.Adjustment
@@ -27,7 +29,7 @@ import kotlinx.coroutines.launch
  * @param release Hands back an export's output once the session has moved past it.
  * @param composition Builds the edit to plan, or null while there is nothing to export.
  * @param spec The export settings a plan is asked for.
- * @param bake Bakes the story elements into overlays on the output frame it is given, empty when there are none.
+ * @param overlays Bakes the story elements into overlays on the output frame it is given, empty when there are none.
  * @param onStart Runs as an export begins, before anything is written.
  * @param onSucceeded Runs once an export has finished and been probed.
  */
@@ -39,7 +41,7 @@ public class ExportSession internal constructor(
   private val release: (MediaSink) -> Unit,
   private val composition: () -> Composition?,
   private val spec: () -> ExportSpec,
-  private val bake: suspend (Size) -> List<EffectSpec>,
+  private val overlays: OverlayBaker,
   private val onStart: () -> Unit,
   private val onSucceeded: () -> Unit,
 ) {
@@ -78,26 +80,17 @@ public class ExportSession internal constructor(
     planning = true
     scope.launch {
       try {
-        val result = planWithStories(composition)
+        val result = filmstrip.planWithOverlays(composition, spec(), overlays)
         verdict = result
         recorder.record("plan.done", "verdict" to (result::class.simpleName ?: "unknown"))
       } catch (failure: IllegalStateException) {
-        // A capture fails this way when its host is gone or never drawn, or when an element's own ready step does.
+        // A bake fails this way when the stage is gone or was never drawn.
         planFailure = failure.message ?: "A story element did not bake."
         recorder.record("plan.failed", "error" to planFailure.orEmpty())
       } finally {
         planning = false
       }
     }
-  }
-
-  // Story elements are baked onto the frame the edit exports at, which only a first plan knows.
-  private suspend fun planWithStories(composition: Composition): Verdict {
-    val first = filmstrip.plan(composition, spec())
-    val output = first.runnable()?.output?.size ?: return first
-    val baked = bake(output)
-    if (baked.isEmpty()) return first
-    return filmstrip.plan(composition.withEffects(composition.effects + baked), spec())
   }
 
   fun export(plan: ExportPlan) {
@@ -195,10 +188,3 @@ public class ExportSession internal constructor(
       MediaSink.Temporary -> error("A resolved temporary sink reports a path or uri.")
     }
 }
-
-private fun Verdict.runnable(): ExportPlan? =
-  when (this) {
-    is Verdict.Capable -> plan
-    is Verdict.Degraded -> plan
-    is Verdict.Incapable -> withoutUnsupported?.plan
-  }

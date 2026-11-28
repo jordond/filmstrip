@@ -20,7 +20,6 @@ import androidx.compose.ui.test.withKeyDown
 import dev.jordond.filmstrip.compose.overlay.OverlayTransform
 import dev.jordond.filmstrip.compose.ui.ComposedOverlayDefaults
 import dev.jordond.filmstrip.geometry.Anchor
-import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.sample.stories.ELEMENT_BINDINGS
 import dev.jordond.filmstrip.sample.stories.StoryContent
 import dev.jordond.filmstrip.sample.stories.StoryEditor
@@ -48,7 +47,7 @@ class PointerEditorTest {
       StoryToolButton.entries.forEach { onNodeWithContentDescription(it.label).assertExists() }
     }
     runComposeUiTest {
-      setContent { SampleTheme { TouchEditor(StoryEditor(), preview = null, output = OUTPUT) } }
+      setContent { SampleTheme { TouchEditor(StoryEditor(), preview = null) } }
       waitForIdle()
       StoryToolButton.entries.forEach { onNodeWithContentDescription(it.label).assertExists() }
     }
@@ -188,7 +187,7 @@ class PointerEditorTest {
     setContent {
       SampleTheme {
         val size = with(LocalDensity.current) { Modifier.size(WIDTH.toDp(), HEIGHT.toDp()) }
-        Box(size) { PointerEditor(editor, preview = null, output = OUTPUT) }
+        Box(size) { PointerEditor(editor, preview = null) }
       }
     }
     waitForIdle()
@@ -200,6 +199,5 @@ class PointerEditorTest {
     const val PRESSES = 4
     const val STICKER_SHARE = 72f / 360f
     val OFF_CENTRE = Anchor(0.3f, 0.3f)
-    val OUTPUT = Size(1080, 1920)
   }
 }

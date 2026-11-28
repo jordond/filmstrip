@@ -2,6 +2,7 @@ package dev.jordond.filmstrip.compose.ui
 
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.runtime.Stable
+import dev.jordond.filmstrip.compose.overlay.ComposedOverlayState
 import dev.jordond.filmstrip.compose.ui.geometry.CropFrame
 
 /**
@@ -28,12 +29,15 @@ import dev.jordond.filmstrip.compose.ui.geometry.CropFrame
  * normalized rectangle.
  * @property aspect Width over height of the frame the stage is showing, which is what a live preview reports while one
  * is running and the aspect the stage was given otherwise. Zero before either is known.
+ * @property overlays The state the stage records its composed overlay elements for, which bakes them for an export.
  */
 @Stable
 public interface VideoStageScope : BoxScope {
   public val frame: CropFrame
 
   public val aspect: Float
+
+  public val overlays: ComposedOverlayState
 }
 
 /**
@@ -43,5 +47,6 @@ internal class VideoStageContent(
   boxScope: BoxScope,
   override val frame: CropFrame,
   override val aspect: Float,
+  override val overlays: ComposedOverlayState,
 ) : VideoStageScope,
   BoxScope by boxScope

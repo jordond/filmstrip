@@ -132,9 +132,14 @@ public fun PreviewStage(
             .padding(BracketReach)
             .viewfinderBrackets()
             .background(Color.Black),
+        overlays = edit.stories.overlays,
         fallback = { StageSchematic(state, Modifier.fillMaxSize()) },
       ) {
         val panEnd = state.panEnd
+        val storiesOpen = state.activeTool == EditorTool.Stories
+        // Story elements stay on the stage under every tool, since an export bakes what the stage holds. Each tool
+        // drags against the whole stage, so they take gestures only while their own tool is open.
+        StoryElements(state, interactive = storiesOpen && panEnd == null && !state.croppingRect)
         if (panEnd != null) {
           PanOverlay(state, panEnd)
         } else if (state.croppingRect) {
@@ -150,13 +155,8 @@ public fun PreviewStage(
                 ?: CropOverlayDefaults.Constraint,
             colors = sampleCropColors(),
           )
-        } else {
-          // Both tools drag against the whole stage, so the crop rectangle and the overlay handles
-          // take turns rather than sharing a frame's worth of gestures. Story elements are drawn live
-          // here and only baked for an export.
-          val storiesOpen = state.activeTool == EditorTool.Stories
-          StoryElements(state, interactive = storiesOpen)
-          if (!storiesOpen) OverlayHandles(state)
+        } else if (!storiesOpen) {
+          OverlayHandles(state)
         }
       }
     }

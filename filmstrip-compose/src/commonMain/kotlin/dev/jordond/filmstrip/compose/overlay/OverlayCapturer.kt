@@ -6,33 +6,25 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
-import androidx.compose.ui.graphics.ImageBitmap
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.effects.overlay.ImageOverlay
 import dev.jordond.filmstrip.effects.overlay.OverlayAnimation
-import dev.jordond.filmstrip.effects.overlay.OverlayPosition
 import dev.jordond.filmstrip.geometry.Size
-import dev.jordond.filmstrip.media.ImageSource
 import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import kotlinx.coroutines.withContext
 
 /**
- * Bakes composables into [ImageOverlay]s for an export.
+ * Bakes composables into [ImageOverlay]s for an export, for content that is on no stage.
  *
- * A capture lays its content out on an [OverlayCanvas], draws it scaled and turned the way an [OverlayTransform]
- * says, and hands back an overlay whose picture is exactly the pixels of the output frame the element covers. The
- * drawing happens inside an [OverlayCaptureHost], which the app mounts once, so the capturer needs one in composition
- * while it runs. Captures run one at a time.
+ * An element a stage is showing is baked by the stage's [ComposedOverlayState]. This is the form for the rest, like a
+ * template rendered for a batch of exports. A capture lays its content out on an [OverlayCanvas], draws it scaled
+ * and turned the way an [OverlayTransform] says, and hands back an overlay whose picture is exactly the pixels of the
+ * output frame the element covers. The drawing happens inside an [OverlayCaptureHost], which the app mounts once, so
+ * the capturer needs one in composition while it runs. Captures run one at a time.
  */
 @Stable
-public class OverlayCapturer internal constructor() {
+public class OverlayCapturer {
   private val turn = Mutex()
 
   internal var request: CaptureRequest? by mutableStateOf(null)
@@ -76,16 +68,7 @@ public class OverlayCapturer internal constructor() {
     content: @Composable () -> Unit,
   ): ImageOverlay? {
     val captured = captureRaster(transform, canvas, output, ready, content) ?: return null
-    val png = withContext(Dispatchers.Default) { captured.bitmap.encodePng() }
-    val raster = captured.bounds.raster
-    return ImageOverlay(
-      image = ImageSource.ofBytes(png),
-      position = OverlayPosition.At(captured.bounds.center),
-      scale = raster.width.toFloat() / output.width,
-      opacity = opacity,
-      visibleDuring = visibleDuring,
-      animation = animation,
-    )
+    return captured.toImageOverlay(output, opacity, visibleDuring, animation)
   }
 
   /**
@@ -106,19 +89,7 @@ public class OverlayCapturer internal constructor() {
       val pending = CaptureRequest(transform, canvas, output, ready, content)
       request = pending
       try {
-        coroutineScope {
-          // A host that leaves before it composes the request never disposes a capture to fail it, so watch for it.
-          val left =
-            launch {
-              snapshotFlow { hosts }.first { it == 0 }
-              pending.result.completeExceptionally(IllegalStateException(HOST_LEFT))
-            }
-          try {
-            pending.result.await()
-          } finally {
-            left.cancel()
-          }
-        }
+        pending.result.awaitWhileHosted({ hosts }, HOST_LEFT)
       } finally {
         request = null
       }
@@ -146,14 +117,6 @@ internal class CaptureRequest(
 ) {
   val result: CompletableDeferred<Captured?> = CompletableDeferred()
 }
-
-/**
- * The drawn raster and the bounds it was drawn for.
- */
-internal class Captured(
-  val bitmap: ImageBitmap,
-  val bounds: ElementBounds,
-)
 
 internal const val NO_HOST =
   "An OverlayCapturer needs an OverlayCaptureHost in composition to draw in, and none is mounted for this one."

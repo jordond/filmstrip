@@ -16,7 +16,6 @@ import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.v2.runComposeUiTest
 import dev.jordond.filmstrip.compose.overlay.OverlayTransform
 import dev.jordond.filmstrip.geometry.Anchor
-import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.sample.SIZE_STEPS
 import dev.jordond.filmstrip.sample.scaleOfStep
 import dev.jordond.filmstrip.sample.stories.StoryContent
@@ -183,7 +182,7 @@ class TextModeTest {
     setContent {
       SampleTheme {
         val size = with(LocalDensity.current) { Modifier.size(WIDTH.toDp(), HEIGHT.toDp()) }
-        Box(size.testTag(STAGE)) { TouchEditor(editor, preview = null, output = OUTPUT) }
+        Box(size.testTag(STAGE)) { TouchEditor(editor, preview = null) }
       }
     }
     waitForIdle()
@@ -202,6 +201,5 @@ class TextModeTest {
     const val WIDTH = 360f
     const val HEIGHT = 640f
     const val PLACED_Y = 0.3f
-    val OUTPUT = Size(1080, 1920)
   }
 }

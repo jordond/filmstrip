@@ -15,12 +15,8 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
-import dev.jordond.filmstrip.compose.overlay.OverlayCanvas
-import dev.jordond.filmstrip.compose.overlay.OverlayCapturer
 import dev.jordond.filmstrip.compose.overlay.OverlayTransform
-import dev.jordond.filmstrip.effects.overlay.ImageOverlay
 import dev.jordond.filmstrip.geometry.Anchor
-import dev.jordond.filmstrip.geometry.Size
 
 /**
  * What a stroke is drawn with. The eraser clears what is under it, strokes drawn before it only.
@@ -50,7 +46,7 @@ internal data class StoryStroke(
  * Draws [strokes] over the whole frame, in the order they were made.
  *
  * It fills the canvas it is laid out on, so placed with [DRAWING_TRANSFORM] it covers the frame exactly, on the stage
- * and in the capture alike. The strokes are drawn into a layer of their own, so an eraser clears the strokes under it
+ * and in the bake alike. The strokes are drawn into a layer of their own, so an eraser clears the strokes under it
  * and never the picture.
  */
 @Composable
@@ -58,23 +54,6 @@ internal fun StoryDrawingContent(strokes: List<StoryStroke>) {
   Canvas(Modifier.fillMaxSize().graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen)) {
     strokes.forEach { drawStroke(it) }
   }
-}
-
-/**
- * Bakes [strokes] into one overlay covering [output], or null when there is nothing drawn.
- *
- * @param capturer Draws the capture, with its host mounted.
- * @param canvas The canvas the story's elements are laid out on.
- * @param output The frame the story is exported at, in pixels.
- */
-internal suspend fun bakeDrawing(
-  capturer: OverlayCapturer,
-  strokes: List<StoryStroke>,
-  canvas: OverlayCanvas,
-  output: Size,
-): ImageOverlay? {
-  if (strokes.isEmpty()) return null
-  return capturer.capture(DRAWING_TRANSFORM, canvas, output) { StoryDrawingContent(strokes) }
 }
 
 /**

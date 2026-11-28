@@ -1,22 +1,24 @@
 package dev.jordond.filmstrip.sample.stories
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.ComposeUiTest
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.compose.ui.unit.IntSize
 import dev.jordond.filmstrip.CapabilitiesResult
 import dev.jordond.filmstrip.Filmstrip
+import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.capability.EffectParity
 import dev.jordond.filmstrip.codec.AudioCodec
 import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.compose.overlay.OVERLAY_LAYOUT_DENSITY
-import dev.jordond.filmstrip.compose.overlay.OverlayCanvas
-import dev.jordond.filmstrip.compose.overlay.OverlayCaptureHost
-import dev.jordond.filmstrip.compose.overlay.OverlayCapturer
 import dev.jordond.filmstrip.compose.overlay.OverlayTransform
 import dev.jordond.filmstrip.compose.overlay.boundsOn
-import dev.jordond.filmstrip.compose.overlay.rememberOverlayCapturer
 import dev.jordond.filmstrip.edit.Composition
 import dev.jordond.filmstrip.effect.EffectId
 import dev.jordond.filmstrip.effect.EffectSpec
@@ -35,6 +37,8 @@ import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
+import dev.jordond.filmstrip.sample.stories.ui.StoryTags
+import dev.jordond.filmstrip.sample.stories.ui.TouchEditor
 import dev.jordond.filmstrip.sample.stories.ui.exportLine
 import dev.jordond.filmstrip.sample.ui.SampleTheme
 import io.kotest.matchers.collections.shouldBeEmpty
@@ -50,15 +54,17 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.test.TestResult
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import kotlin.test.Test
-import kotlin.test.fail
+import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
 /**
- * What a story's export bakes and how it folds the baked elements into the plan.
+ * What the stage bakes for a story and the plan an export runs with it.
  */
 @OptIn(ExperimentalTestApi::class, InternalFilmstripApi::class)
 class StoryExportTest {
@@ -66,14 +72,13 @@ class StoryExportTest {
   fun aCaptionAStickerAndAStrokeBakeToThreeOverlaysInDrawOrderWhereBoundsOnPutsThem(): TestResult =
     runComposeUiTest {
       val placed = OverlayTransform(Anchor(0.3f, 0.4f), scale = 1.5f, rotationDegrees = 30f)
-      val elements =
-        listOf(
-          StoryElement(0, StoryContent.Caption("Hello"), OverlayTransform(Anchor(0.5f, 0.2f))),
-          StoryElement(1, StoryContent.Sticker(StoryStickerKind.Heart), placed),
-        )
-      val strokes = listOf(StoryStroke(listOf(Anchor(0.2f, 0.8f), Anchor(0.8f, 0.8f))))
+      val editor = StoryEditor()
+      editor.story.add(StoryContent.Caption("Hello"), OverlayTransform(Anchor(0.5f, 0.2f)))
+      editor.story.add(StoryContent.Sticker(StoryStickerKind.Heart), placed)
+      editor.story.addStroke(StoryStroke(listOf(Anchor(0.2f, 0.8f), Anchor(0.8f, 0.8f))))
+      show(editor)
 
-      val baked = bake(elements, strokes)
+      val baked = bake(editor)
 
       baked shouldHaveSize 3
       val (drawing, caption, sticker) = baked
@@ -83,36 +88,55 @@ class StoryExportTest {
         .shouldBeInstanceOf<OverlayPosition.At>()
         .center.x shouldBe 0.5f
       val side = (STICKER_DP * OVERLAY_LAYOUT_DENSITY).toInt()
-      val bounds = placed.boundsOn(IntSize(side, side), CANVAS, OUTPUT).shouldNotBeNull()
+      val bounds = placed.boundsOn(IntSize(side, side), editor.overlays.canvas, OUTPUT).shouldNotBeNull()
       sticker.position shouldBe OverlayPosition.At(bounds.center)
       sticker.scale shouldBe bounds.raster.width.toFloat() / OUTPUT.width
     }
 
   @Test
-  fun aTimedCaptionCarriesItsWindowAndItsEntrance(): TestResult =
+  fun aTimedCaptionOutsideItsWindowStillBakesAndCarriesItsWindowAndItsEntrance(): TestResult =
     runComposeUiTest {
-      val timed =
-        StoryElement(
-          id = 0,
-          content = StoryContent.Caption("Later", entrance = StoryEntrance.Rise),
-          timed = true,
-          startSeconds = 1.5f,
-          endSeconds = 3f,
-        )
+      val editor = StoryEditor()
+      val id = editor.story.add(StoryContent.Caption("Later", entrance = StoryEntrance.Rise))
+      editor.story.update(id) { it.copy(timed = true, startSeconds = 1.5f, endSeconds = 3f) }
+      editor.story.select(null)
+      val timed = editor.story.elements.single()
+      liveFrame(timed, Duration.ZERO, 4.seconds, selected = false).shouldBeNull()
+      show(editor)
 
-      val overlay = bake(listOf(timed), emptyList()).single()
+      val overlay = bake(editor).single()
 
       overlay.visibleDuring shouldBe timed.window.shouldNotBeNull()
       overlay.animation shouldBe StoryEntrance.Rise.animation
     }
 
   @Test
+  fun aCaptionTheStageDrawsFullyFadedAtTheStartOfItsEntranceStillBakes(): TestResult =
+    runComposeUiTest {
+      val editor = StoryEditor()
+      editor.story.add(StoryContent.Caption("Rises", entrance = StoryEntrance.Rise))
+      editor.story.select(null)
+      liveFrame(
+        editor.story.elements.single(),
+        StoryClock.Stopped.playhead,
+        StoryClock.Stopped.duration,
+        selected = false,
+      ).shouldNotBeNull()
+        .opacity shouldBe 0f
+      show(editor)
+
+      bake(editor) shouldHaveSize 1
+    }
+
+  @Test
   fun anElementOffTheFrameAndAnEmptyDrawingAreLeftOut(): TestResult =
     runComposeUiTest {
-      val off = StoryElement(0, StoryContent.Sticker(StoryStickerKind.Star), OverlayTransform(Anchor(3f, 3f)))
-      val on = StoryElement(1, StoryContent.Sticker(StoryStickerKind.Star))
+      val editor = StoryEditor()
+      editor.story.add(StoryContent.Sticker(StoryStickerKind.Star), OverlayTransform(Anchor(3f, 3f)))
+      editor.story.add(StoryContent.Sticker(StoryStickerKind.Star))
+      show(editor)
 
-      val baked = bake(listOf(off, on), emptyList())
+      val baked = bake(editor)
 
       baked shouldHaveSize 1
       baked.single().visibleDuring.shouldBeNull()
@@ -120,29 +144,72 @@ class StoryExportTest {
     }
 
   @Test
-  fun theStoryBakesOnTheFrameTheFirstPlanNamesAndThePlanIsAskedAgainWithIt() =
+  fun theCaptionBeingWrittenIsNeverBaked(): TestResult =
+    runComposeUiTest {
+      val editor = StoryEditor()
+      editor.story.add(StoryContent.Sticker(StoryStickerKind.Star))
+      editor.openText()
+      editor.editDraft { it.copy(text = "Typing") }
+      show(editor)
+      onNodeWithTag(StoryTags.TEXT_FIELD).assertExists()
+
+      bake(editor) shouldHaveSize 1
+    }
+
+  @Test
+  fun shareLeavesTextAndDrawModeSoTheStageShowsWhatIsBaked(): TestResult =
+    runComposeUiTest {
+      val editor = StoryEditor()
+      val id = editor.story.add(StoryContent.Caption("Placed"))
+      show(editor)
+      editor.openText(id)
+      waitForIdle()
+      bake(editor).shouldBeEmpty()
+
+      editor.press(StoryToolButton.Share)
+      waitForIdle()
+
+      editor.draft.shouldBeNull()
+      editor.tool shouldBe StoryTool.Export
+      bake(editor) shouldHaveSize 1
+
+      editor.openDraw()
+      editor.strokeStarted(Anchor(0.5f, 0.5f))
+      editor.press(StoryToolButton.Share)
+
+      editor.pendingStroke.shouldBeNull()
+      editor.tool shouldBe StoryTool.Export
+    }
+
+  @Test
+  fun anExportRunsThePlanWithWhatTheBakerGaveForTheFirstPlansFrame() =
     runTest {
       val engine = PlanningEngine()
       val bakedOn = mutableListOf<Size>()
+      val export = StoryExport(filmstrip(engine), this)
 
-      val verdict = planStory(filmstrip(engine), EDIT) { output -> listOf(BAKED).also { bakedOn += output } }
+      export.start(EDIT) { output -> listOf(BAKED).also { bakedOn += output } }
+      advanceUntilIdle()
 
       bakedOn shouldContainExactly listOf(OUTPUT)
       engine.asked.map { it.effects } shouldContainExactly listOf(EDIT.effects, EDIT.effects + BAKED)
       engine.specs.toSet() shouldBe setOf(STORY_SPEC)
-      verdict
-        .shouldBeInstanceOf<Verdict.Capable>()
-        .plan.composition.effects shouldBe EDIT.effects + BAKED
+      engine.exported
+        .single()
+        .composition.effects shouldBe EDIT.effects + BAKED
     }
 
   @Test
-  fun aStoryWithNothingToBakeKeepsTheFirstPlan() =
+  fun aBakerThatFailsEndsTheExportWithItsMessageAndRunsNothing() =
     runTest {
       val engine = PlanningEngine()
+      val export = StoryExport(filmstrip(engine), this)
 
-      planStory(filmstrip(engine), EDIT) { emptyList() }
+      export.start(EDIT) { error("The stage is not drawn.") }
+      advanceUntilIdle()
 
-      engine.asked shouldHaveSize 1
+      export.phase shouldBe ExportPhase.Failed("The stage is not drawn.")
+      engine.exported.shouldBeEmpty()
     }
 
   @Test
@@ -152,20 +219,19 @@ class StoryExportTest {
     exportLine(ExportPhase.Failed("No encoder")) shouldBe "No encoder"
   }
 
-  private suspend fun ComposeUiTest.bake(
-    elements: List<StoryElement>,
-    strokes: List<StoryStroke>,
-  ): List<ImageOverlay> =
-    coroutineScope {
-      lateinit var capturer: OverlayCapturer
-      setContent {
-        SampleTheme {
-          capturer = rememberOverlayCapturer()
-          OverlayCaptureHost(capturer)
-        }
+  private fun ComposeUiTest.show(editor: StoryEditor) {
+    setContent {
+      SampleTheme {
+        val size = with(LocalDensity.current) { Modifier.size(OUTPUT.width.toDp(), OUTPUT.height.toDp()) }
+        Box(size) { TouchEditor(editor, preview = null) }
       }
-      awaitIdle()
-      val work = async { bakeStory(capturer, elements, strokes, CANVAS, OUTPUT) }
+    }
+    waitForIdle()
+  }
+
+  private suspend fun ComposeUiTest.bake(editor: StoryEditor): List<ImageOverlay> =
+    coroutineScope {
+      val work = async { editor.overlays.bake(OUTPUT) }
       while (!work.isCompleted) {
         mainClock.advanceTimeByFrame()
         awaitIdle()
@@ -180,8 +246,10 @@ class StoryExportTest {
   private class PlanningEngine : ExportEngine {
     val asked = mutableListOf<Composition>()
     val specs = mutableListOf<ExportSpec>()
+    val exported = mutableListOf<ExportPlan>()
 
-    override suspend fun capabilities(): CapabilitiesResult = fail("The test asks for no capabilities.")
+    override suspend fun capabilities(): CapabilitiesResult =
+      CapabilitiesResult.Failure(FilmstripError.InvalidComposition("The test probes no device."))
 
     override suspend fun plan(
       composition: Composition,
@@ -195,17 +263,19 @@ class StoryExportTest {
     override fun export(
       plan: ExportPlan,
       to: MediaSink,
-    ): Flow<ExportStatus> = fail("The test only plans.")
+    ): Flow<ExportStatus> {
+      exported += plan
+      return emptyFlow()
+    }
 
     override fun parityOf(specId: EffectId): EffectParity? = null
   }
 
   private companion object {
     val OUTPUT = Size(360, 640)
-    val CANVAS = OverlayCanvas()
     const val STICKER_DP = 72
     val EDIT = storyComposition(MediaSource.of("/tmp/story.mp4"), StoryLook.Mono)
-    val BAKED: EffectSpec = ImageOverlay(ImageSource.ofBytes(ByteArray(1)), OverlayPosition.At(Anchor(0.3f, 0.6f)))
+    val BAKED = ImageOverlay(ImageSource.ofBytes(ByteArray(1)), OverlayPosition.At(Anchor(0.3f, 0.6f)))
 
     fun planFor(
       composition: Composition,

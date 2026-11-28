@@ -13,18 +13,12 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithContent
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.drawscope.DrawScope
-import androidx.compose.ui.graphics.drawscope.withTransform
-import androidx.compose.ui.graphics.layer.GraphicsLayer
-import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalGraphicsContext
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.IntSize
-import androidx.compose.ui.unit.LayoutDirection
 import dev.jordond.filmstrip.InternalFilmstripApi
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -104,21 +98,9 @@ private fun Capture(
         val asked = ++redraw.intValue
         recorded.first { it >= asked }
       }
-      val bounds = pending.transform.boundsOn(measured.size, pending.canvas, pending.output)
-      if (bounds == null) {
-        pending.result.complete(null)
-        return@LaunchedEffect
-      }
-      val raster = bounds.raster
-      val baked = graphics.createGraphicsLayer()
-      try {
-        baked.record(OverlayLayoutDensity, LayoutDirection.Ltr, IntSize(raster.width, raster.height)) {
-          drawElement(content, measured.size, pending, raster.left.toFloat(), raster.top.toFloat())
-        }
-        pending.result.complete(Captured(baked.toImageBitmap(), bounds))
-      } finally {
-        graphics.releaseGraphicsLayer(baked)
-      }
+      pending.result.complete(
+        bakeRecorded(content, measured.size, pending.transform, pending.canvas, pending.output, graphics),
+      )
     } catch (cancelled: CancellationException) {
       throw cancelled
     } catch (failure: Throwable) {
@@ -131,29 +113,6 @@ private fun Capture(
 // Frames stop for a host that is off screen, so the waits on the host's own frames and draws are bounded.
 private suspend fun drawn(wait: suspend () -> Unit) {
   withTimeoutOrNull(DRAW_TIMEOUT) { wait() } ?: throw IllegalStateException(NOT_DRAWN)
-}
-
-// Draws the recorded content with its centre on the transform's point inside the raster, scaled to the output frame
-// and turned about its own centre.
-@OptIn(InternalFilmstripApi::class)
-private fun DrawScope.drawElement(
-  content: GraphicsLayer,
-  size: IntSize,
-  pending: CaptureRequest,
-  rasterLeft: Float,
-  rasterTop: Float,
-) {
-  val transform = pending.transform
-  val output = pending.output
-  val perLayoutPx = transform.drawnScale(pending.canvas, output.width.toFloat())
-  withTransform({
-    translate(transform.center.x * output.width - rasterLeft, transform.center.y * output.height - rasterTop)
-    rotate(transform.rotationDegrees, Offset.Zero)
-    scale(perLayoutPx, perLayoutPx, Offset.Zero)
-    translate(-size.width / 2f, -size.height / 2f)
-  }) {
-    drawLayer(content)
-  }
 }
 
 private class MeasuredSize {

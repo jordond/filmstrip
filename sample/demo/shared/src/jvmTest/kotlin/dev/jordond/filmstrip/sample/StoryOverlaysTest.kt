@@ -2,20 +2,25 @@ package dev.jordond.filmstrip.sample
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Typography
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.test.ComposeUiTest
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
-import dev.jordond.filmstrip.compose.overlay.OverlayCaptureHost
+import dev.jordond.filmstrip.Filmstrip
+import dev.jordond.filmstrip.InternalFilmstripApi
+import dev.jordond.filmstrip.compose.overlay.OVERLAY_LAYOUT_DENSITY
 import dev.jordond.filmstrip.compose.overlay.OverlayTransform
 import dev.jordond.filmstrip.compose.overlay.boundsOn
-import dev.jordond.filmstrip.compose.overlay.rememberOverlayCapturer
 import dev.jordond.filmstrip.compose.ui.ComposedOverlayDefaults
+import dev.jordond.filmstrip.compose.ui.VideoStage
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.effects.overlay.ImageOverlay
 import dev.jordond.filmstrip.effects.overlay.OverlayPosition
@@ -23,9 +28,10 @@ import dev.jordond.filmstrip.geometry.Anchor
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.sample.ui.SampleTheme
-import dev.jordond.filmstrip.sample.ui.screen.StoryElementContent
+import dev.jordond.filmstrip.sample.ui.screen.StoryElements
 import dev.jordond.filmstrip.sample.ui.screen.family
 import io.kotest.assertions.withClue
+import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.floats.plusOrMinus
@@ -35,6 +41,7 @@ import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.types.shouldBeInstanceOf
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -48,7 +55,7 @@ import kotlin.test.Test
 import kotlin.test.assertFailsWith
 import kotlin.time.Duration.Companion.seconds
 
-@OptIn(ExperimentalTestApi::class)
+@OptIn(ExperimentalTestApi::class, InternalFilmstripApi::class)
 class StoryOverlaysTest {
   @Test
   fun addingAnElementSelectsIt() {
@@ -87,46 +94,35 @@ class StoryOverlaysTest {
   }
 
   @Test
-  fun bakingWithNoHostRefusesByName() =
+  fun bakingElementsWithNoStageRefusesAndBakingNoneAsksNothingOfIt() =
     runTest {
       val stories = StoryOverlays()
+      stories.baker.bake(OUTPUT).shouldBeEmpty()
       stories.addCaption()
 
-      assertFailsWith<IllegalStateException> { stories.bake(OUTPUT) { } }
+      assertFailsWith<IllegalStateException> { stories.baker.bake(OUTPUT) }
     }
 
   @Test
   fun anExportBakesEachElementOnTheFrameAndSkipsOneOffIt(): TestResult =
     runComposeUiTest {
-      coroutineScope {
-        val stories = StoryOverlays()
-        setContent {
-          val capturer = rememberOverlayCapturer()
-          stories.capturer = capturer
-          OverlayCaptureHost(capturer)
-        }
-        awaitIdle()
-        stories.addCaption()
-        stories.update(stories.selected!!.id) {
-          it.copy(transform = ON_FRAME, timed = true, startSeconds = 1f, endSeconds = 2f)
-        }
-        stories.addSticker(StorySticker.Heart)
-        stories.update(stories.selected!!.id) { it.copy(transform = OFF_FRAME) }
-
-        val work = async { stories.bake(OUTPUT) { Box(Modifier.size(100.dp, 40.dp).background(Color.Red)) } }
-        while (!work.isCompleted) {
-          mainClock.advanceTimeByFrame()
-          awaitIdle()
-          withContext(Dispatchers.Default) { delay(1) }
-        }
-        val baked = work.await()
-
-        baked shouldHaveSize 1
-        val overlay: ImageOverlay = baked.single()
-        val bounds = ON_FRAME.boundsOn(PLATE_PX, stories.canvas, OUTPUT).shouldNotBeNull()
-        overlay.position.shouldBeInstanceOf<OverlayPosition.At>().center shouldBe bounds.center
-        overlay.visibleDuring shouldBe TimeRange(1.seconds, 2.seconds)
+      val state = stateOnStage()
+      val stories = state.edit.stories
+      stories.addSticker(StorySticker.Heart)
+      stories.update(stories.selected!!.id) {
+        it.copy(transform = ON_FRAME, timed = true, startSeconds = 1f, endSeconds = 2f)
       }
+      stories.addSticker(StorySticker.Heart)
+      stories.update(stories.selected!!.id) { it.copy(transform = OFF_FRAME) }
+      waitForIdle()
+
+      val baked = bake(stories)
+
+      baked shouldHaveSize 1
+      val overlay: ImageOverlay = baked.single()
+      val bounds = ON_FRAME.boundsOn(STICKER_PX, stories.overlays.canvas, OUTPUT).shouldNotBeNull()
+      overlay.position.shouldBeInstanceOf<OverlayPosition.At>().center shouldBe bounds.center
+      overlay.visibleDuring shouldBe TimeRange(1.seconds, 2.seconds)
     }
 
   @Test
@@ -167,44 +163,54 @@ class StoryOverlaysTest {
   @Test
   fun everyStickerBakesIntoAPictureWithSomethingDrawn(): TestResult =
     runComposeUiTest {
-      coroutineScope {
-        val stories = StoryOverlays()
-        setContent {
-          SampleTheme {
-            val capturer = rememberOverlayCapturer()
-            stories.capturer = capturer
-            OverlayCaptureHost(capturer)
-          }
-        }
-        awaitIdle()
+      val stories = stateOnStage().edit.stories
 
-        StorySticker.entries.forEach { sticker ->
-          stories.clear()
-          stories.addSticker(sticker)
-          val work = async { stories.bake(OUTPUT) { StoryElementContent(it) } }
-          while (!work.isCompleted) {
-            mainClock.advanceTimeByFrame()
-            awaitIdle()
-            withContext(Dispatchers.Default) { delay(1) }
-          }
-          val image =
-            work
-              .await()
-              .single()
-              .image
-              .shouldBeInstanceOf<ImageSource.Bytes>()
-          val bitmap = Bitmap.makeFromImage(Image.makeFromEncoded(image.bytes))
-          val drawn =
-            (0 until bitmap.width).sumOf { x ->
-              (0 until bitmap.height).count { y ->
-                bitmap.getAlphaf(x, y) >
-                  0.5f
-              }
-            }
+      StorySticker.entries.forEach { sticker ->
+        stories.clear()
+        stories.addSticker(sticker)
+        waitForIdle()
+        val image =
+          bake(stories)
+            .single()
+            .image
+            .shouldBeInstanceOf<ImageSource.Bytes>()
+        val bitmap = Bitmap.makeFromImage(Image.makeFromEncoded(image.bytes))
+        val drawn =
+          (0 until bitmap.width).sumOf { x -> (0 until bitmap.height).count { y -> bitmap.getAlphaf(x, y) > 0.5f } }
 
-          withClue(sticker) { drawn shouldBeGreaterThan bitmap.width * bitmap.height / 10 }
+        withClue(sticker) { drawn shouldBeGreaterThan bitmap.width * bitmap.height / 10 }
+      }
+    }
+
+  // A stage the shape of the output with the stories on it, the way the demo's preview holds them.
+  private fun ComposeUiTest.stateOnStage(): SampleAppState {
+    val state = SampleAppState(Filmstrip { autoRegister(false) }, scope = CoroutineScope(Dispatchers.Unconfined))
+    setContent {
+      SampleTheme {
+        val size = with(LocalDensity.current) { Modifier.size(OUTPUT.width.toDp(), OUTPUT.height.toDp()) }
+        Box(size) {
+          VideoStage(
+            player = null,
+            outputAspect = OUTPUT.width.toFloat() / OUTPUT.height,
+            modifier = Modifier.fillMaxSize(),
+            overlays = state.edit.stories.overlays,
+          ) { StoryElements(state, interactive = false) }
         }
       }
+    }
+    waitForIdle()
+    return state
+  }
+
+  private suspend fun ComposeUiTest.bake(stories: StoryOverlays): List<ImageOverlay> =
+    coroutineScope {
+      val work = async { stories.baker.bake(OUTPUT) }
+      while (!work.isCompleted) {
+        mainClock.advanceTimeByFrame()
+        awaitIdle()
+        withContext(Dispatchers.Default) { delay(1) }
+      }
+      work.await()
     }
 
   private companion object {
@@ -212,7 +218,7 @@ class StoryOverlaysTest {
     val ON_FRAME = OverlayTransform(Anchor(0.3f, 0.4f), scale = 1.5f, rotationDegrees = 20f)
     val OFF_FRAME = OverlayTransform(Anchor(3f, 3f))
 
-    // 100 by 40 dp at the layout density of 3.
-    val PLATE_PX = IntSize(300, 120)
+    const val STICKER_DP = 72
+    val STICKER_PX = (STICKER_DP * OVERLAY_LAYOUT_DENSITY).toInt().let { IntSize(it, it) }
   }
 }

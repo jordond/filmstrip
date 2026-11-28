@@ -16,7 +16,9 @@ class ComposedSettingsTest {
     code shouldContain
       "var badge by remember { mutableStateOf(OverlayTransform(Anchor(0.84f, 0.8f), rotationDegrees = -8f)) }"
     code shouldNotContain "scale ="
-    code shouldContain "capturer.capture(caption, canvas, plan.output.size) { Caption(\"Day one\") }"
+    code shouldContain "ComposedOverlay(caption, onTransformChange = { caption = it }) { Caption(\"Day one\") }"
+    code shouldContain "VideoStage(player, outputAspect, overlays = overlays) {"
+    code shouldContain "filmstrip.planWithOverlays(composition, spec, overlays)"
   }
 
   @Test

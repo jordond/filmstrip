@@ -147,8 +147,8 @@ class ComposedOverlayGestureTest {
       setContent {
         Stage {
           Box(Modifier.fillMaxSize().pointerInput(Unit) { detectTapGestures { tapped = true } })
-          ComposedOverlay(START, CANVAS, OUTPUT, onTransformChange = { bottom = it }) { Plate() }
-          ComposedOverlay(START, CANVAS, OUTPUT, onTransformChange = { top = it }) { Plate() }
+          ComposedOverlay(START, onTransformChange = { bottom = it }) { Plate() }
+          ComposedOverlay(START, onTransformChange = { top = it }) { Plate() }
         }
       }
       waitForIdle()
@@ -167,6 +167,37 @@ class ComposedOverlayGestureTest {
     }
 
   @Test
+  fun anElementThatIsNotShownPassesItsTouchBeneath() =
+    runComposeUiTest {
+      var hidden by mutableStateOf<OverlayTransform?>(null)
+      var bottom by mutableStateOf<OverlayTransform?>(null)
+      var selected by mutableStateOf(false)
+      setContent {
+        Stage {
+          ComposedOverlay(START, onTransformChange = { bottom = it }) { Plate() }
+          ComposedOverlay(
+            transform = START,
+            onTransformChange = { hidden = it },
+            shown = false,
+            onSelect = { selected = true },
+          ) { Plate() }
+        }
+      }
+      waitForIdle()
+
+      onNodeWithTag(STAGE).performTouchInput {
+        down(CENTRE)
+        moveBy(Offset(STEP_PX, 0f))
+        up()
+      }
+      waitForIdle()
+
+      withClue("the element that is not shown saw nothing") { hidden shouldBe null }
+      withClue("it was not selected either") { selected shouldBe false }
+      withClue("the element under it took the drag") { (bottom != null) shouldBe true }
+    }
+
+  @Test
   fun aTouchOnThePartClippedIntoTheLetterboxIsNotTaken() =
     runComposeUiTest {
       val moves = mutableListOf<OverlayTransform>()
@@ -175,7 +206,7 @@ class ComposedOverlayGestureTest {
         // The stage holds its box at the widest aspect it lays out to, so the wider picture is letterboxed inside it.
         Box(size.testTag(STAGE)) {
           VideoStage(player = null, outputAspect = BANDED.width.toFloat() / BANDED.height, Modifier.fillMaxSize()) {
-            ComposedOverlay(START, CANVAS, BANDED, onTransformChange = { moves += it }) { Plate() }
+            ComposedOverlay(START, onTransformChange = { moves += it }) { Plate() }
           }
         }
       }
@@ -263,7 +294,7 @@ class ComposedOverlayGestureTest {
           }
         Box(thief) {
           Stage {
-            ComposedOverlay(START, CANVAS, OUTPUT, onTransformChange = { }, onGestureChange = { log += it }) { Plate() }
+            ComposedOverlay(START, onTransformChange = { }, onGestureChange = { log += it }) { Plate() }
           }
         }
       }
@@ -289,7 +320,7 @@ class ComposedOverlayGestureTest {
       setContent {
         Stage {
           if (shown) {
-            ComposedOverlay(START, CANVAS, OUTPUT, onTransformChange = { }, onGestureChange = { log += it }) { Plate() }
+            ComposedOverlay(START, onTransformChange = { }, onGestureChange = { log += it }) { Plate() }
           }
         }
       }
@@ -314,8 +345,6 @@ class ComposedOverlayGestureTest {
       Stage {
         ComposedOverlay(
           transform = transform,
-          canvas = CANVAS,
-          output = OUTPUT,
           onTransformChange = {
             moves.all += it
             transform = it

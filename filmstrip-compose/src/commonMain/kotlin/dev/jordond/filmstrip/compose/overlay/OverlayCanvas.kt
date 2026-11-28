@@ -65,9 +65,18 @@ public fun OverlayCanvas.widthPx(): Int = (width.value * OVERLAY_LAYOUT_DENSITY)
  * @param output The output frame the element is drawn on, in pixels.
  */
 @InternalFilmstripApi
-public fun OverlayCanvas.constraintsFor(output: Size): Constraints {
+public fun OverlayCanvas.constraintsFor(output: Size): Constraints =
+  constraintsFor(if (output.width <= 0) 0f else output.width.toFloat() / output.height)
+
+/**
+ * The constraints content on this canvas is measured with on a frame of [aspect], as wide as the canvas and as tall
+ * as the aspect makes it.
+ *
+ * @param aspect The output frame's width over its height. A frame with no aspect measures square.
+ */
+@InternalFilmstripApi
+public fun OverlayCanvas.constraintsFor(aspect: Float): Constraints {
   val width = widthPx()
-  val height =
-    if (output.width <= 0) width else (width.toFloat() * output.height / output.width).roundToInt().coerceAtLeast(1)
+  val height = if (aspect > 0f) (width / aspect).roundToInt().coerceAtLeast(1) else width
   return Constraints(maxWidth = width, maxHeight = height)
 }

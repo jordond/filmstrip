@@ -105,6 +105,19 @@ public final class dev/jordond/filmstrip/compose/VideoSurface_jvmKt {
 	public static final fun VideoSurface (Ldev/jordond/filmstrip/player/VideoPlayer;Landroidx/compose/ui/Modifier;Ldev/jordond/filmstrip/compose/VideoContentScale;Ldev/jordond/filmstrip/compose/VideoSurfaceType;Landroidx/compose/runtime/Composer;II)V
 }
 
+public final class dev/jordond/filmstrip/compose/overlay/ComposedOverlayState : dev/jordond/filmstrip/compose/overlay/OverlayBaker {
+	public static final field $stable I
+	public fun <init> ()V
+	public fun <init> (Ldev/jordond/filmstrip/compose/overlay/OverlayCanvas;)V
+	public synthetic fun <init> (Ldev/jordond/filmstrip/compose/overlay/OverlayCanvas;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun bake (Ldev/jordond/filmstrip/geometry/Size;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun getCanvas ()Ldev/jordond/filmstrip/compose/overlay/OverlayCanvas;
+}
+
+public final class dev/jordond/filmstrip/compose/overlay/ComposedOverlayStateKt {
+	public static final fun rememberComposedOverlayState (Ldev/jordond/filmstrip/compose/overlay/OverlayCanvas;Landroidx/compose/runtime/Composer;II)Ldev/jordond/filmstrip/compose/overlay/ComposedOverlayState;
+}
+
 public final class dev/jordond/filmstrip/compose/overlay/ElementBounds {
 	public static final field $stable I
 	public fun <init> (Ldev/jordond/filmstrip/geometry/NormalizedRect;Ldev/jordond/filmstrip/geometry/NormalizedRect;Landroidx/compose/ui/unit/IntRect;Ldev/jordond/filmstrip/geometry/Anchor;)V
@@ -119,6 +132,10 @@ public final class dev/jordond/filmstrip/compose/overlay/ElementBounds {
 
 public final class dev/jordond/filmstrip/compose/overlay/ElementBoundsKt {
 	public static final fun boundsOn-95KtPRI (Ldev/jordond/filmstrip/compose/overlay/OverlayTransform;JLdev/jordond/filmstrip/compose/overlay/OverlayCanvas;Ldev/jordond/filmstrip/geometry/Size;)Ldev/jordond/filmstrip/compose/overlay/ElementBounds;
+}
+
+public abstract interface class dev/jordond/filmstrip/compose/overlay/OverlayBaker {
+	public abstract fun bake (Ldev/jordond/filmstrip/geometry/Size;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 }
 
 public final class dev/jordond/filmstrip/compose/overlay/OverlayCanvas {
@@ -143,6 +160,7 @@ public final class dev/jordond/filmstrip/compose/overlay/OverlayCaptureHostKt {
 
 public final class dev/jordond/filmstrip/compose/overlay/OverlayCapturer {
 	public static final field $stable I
+	public fun <init> ()V
 	public final fun capture (Ldev/jordond/filmstrip/compose/overlay/OverlayTransform;Ldev/jordond/filmstrip/compose/overlay/OverlayCanvas;Ldev/jordond/filmstrip/geometry/Size;Lkotlin/jvm/functions/Function1;FLdev/jordond/filmstrip/edit/TimeRange;Ldev/jordond/filmstrip/effects/overlay/OverlayAnimation;Lkotlin/jvm/functions/Function2;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public static synthetic fun capture$default (Ldev/jordond/filmstrip/compose/overlay/OverlayCapturer;Ldev/jordond/filmstrip/compose/overlay/OverlayTransform;Ldev/jordond/filmstrip/compose/overlay/OverlayCanvas;Ldev/jordond/filmstrip/geometry/Size;Lkotlin/jvm/functions/Function1;FLdev/jordond/filmstrip/edit/TimeRange;Ldev/jordond/filmstrip/effects/overlay/OverlayAnimation;Lkotlin/jvm/functions/Function2;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 }
@@ -162,5 +180,9 @@ public final class dev/jordond/filmstrip/compose/overlay/OverlayTransform {
 	public final fun getScale ()F
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/jordond/filmstrip/compose/overlay/PlanWithOverlaysKt {
+	public static final fun planWithOverlays (Ldev/jordond/filmstrip/Filmstrip;Ldev/jordond/filmstrip/edit/Composition;Ldev/jordond/filmstrip/export/ExportSpec;Ldev/jordond/filmstrip/compose/overlay/OverlayBaker;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 }
 

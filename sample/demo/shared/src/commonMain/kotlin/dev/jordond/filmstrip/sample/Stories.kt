@@ -1,15 +1,12 @@
 package dev.jordond.filmstrip.sample
 
-import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import dev.jordond.filmstrip.compose.overlay.OverlayCanvas
-import dev.jordond.filmstrip.compose.overlay.OverlayCapturer
+import dev.jordond.filmstrip.compose.overlay.ComposedOverlayState
+import dev.jordond.filmstrip.compose.overlay.OverlayBaker
 import dev.jordond.filmstrip.compose.overlay.OverlayTransform
-import dev.jordond.filmstrip.effects.overlay.ImageOverlay
-import dev.jordond.filmstrip.geometry.Size
 
 /**
  * What a story element shows.
@@ -57,11 +54,16 @@ public class StoryOverlays {
   internal var selectedId: Int? by mutableStateOf(null)
 
   /**
-   * The capturer the app's capture host draws for, bound while the host is in composition.
+   * The elements the stage draws, recorded while the stage is in composition.
    */
-  internal var capturer: OverlayCapturer? = null
+  internal val overlays: ComposedOverlayState = ComposedOverlayState()
 
-  internal val canvas: OverlayCanvas = OverlayCanvas()
+  /**
+   * Bakes every element the stage draws into an overlay on the frame it is given. With no elements nothing is asked
+   * of the stage, so an edit without stories plans while no stage is on screen.
+   */
+  internal val baker: OverlayBaker =
+    OverlayBaker { output -> if (elements.isEmpty()) emptyList() else overlays.bake(output) }
 
   /**
    * Runs after every change to the elements, which drops a plan baked from the old ones.
@@ -99,29 +101,6 @@ public class StoryOverlays {
     elements = emptyList()
     selectedId = null
     onChange()
-  }
-
-  /**
-   * Bakes every element into an overlay on [output], drawing each with [content]. An element wholly off the frame is
-   * left out.
-   *
-   * @throws IllegalStateException When there are elements to bake and no capture host is bound.
-   */
-  internal suspend fun bake(
-    output: Size,
-    content: @Composable (StoryElement) -> Unit,
-  ): List<ImageOverlay> {
-    val baking = elements
-    if (baking.isEmpty()) return emptyList()
-    val capturer = checkNotNull(capturer) { "Story elements need the capture host mounted to export." }
-    return baking.mapNotNull { element ->
-      capturer.capture(
-        transform = element.transform,
-        canvas = canvas,
-        output = output,
-        visibleDuring = visibleWindow(element.timed, element.startSeconds, element.endSeconds),
-      ) { content(element) }
-    }
   }
 
   private fun add(content: StoryContent) {
