@@ -96,6 +96,9 @@ jobs:
       - name: Failed test lister
         run: bash .github/scripts/failed-tests-test.sh
 
+      - name: Runner probe test
+        run: bash .github/scripts/runner-probe-test.sh
+
       - name: iOS matrix lists every module with iOS tests
         run: bash .github/scripts/check-ios-matrix.sh
 
@@ -249,11 +252,25 @@ jobs:
       - *java
       - *konan
       - *gradle
+      # The same probe the media lane takes around its Apple cells, so the fast lane's runners are measured too.
+      - name: Probe the runner before the tests
+        run: bash .github/scripts/runner-probe.sh before
       - name: Run macos tests
         run: ./gradlew macosArm64Test --scan
+      - name: Probe the runner after the tests
+        if: always()
+        run: bash .github/scripts/runner-probe.sh after
       - *slowest
       - *failed
       - *artifact
+      - name: Upload the runner probe
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: probe-${{ env.ARTIFACT }}
+          path: build/runner-probe/
+          if-no-files-found: ignore
+          retention-days: 30
       - *reports
 
   # A pull request that touches only the sample, or the stylesheets it reads, builds the app and runs its jvm tests.

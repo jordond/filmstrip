@@ -307,6 +307,13 @@ jobs:
             ${{ runner.os }}-konan-
       - *gradle
 
+      # A hosted macOS runner is some runs several times slower than others, on the Mac itself or only inside the
+      # simulator. The probe times work that runs no filmstrip code before and after the tests, and every Apple cell
+      # keeps its figures, so a slow machine can be told from a failing test. It only measures, nothing reads it yet.
+      - &probe-before
+        name: Probe the runner before the tests
+        run: bash .github/scripts/runner-probe.sh before
+
       # The boot is the first task of the same parallel build, so it runs in its own worker while the klibs compile
       # and the test binaries link. A fresh iOS runtime keeps the machine busy with first boot work for minutes after
       # it reports booted, and that work lands under the link instead of under the first tests.
@@ -317,9 +324,22 @@ jobs:
           tasks=()
           for module in $MODULES; do tasks+=(":$module:iosSimulatorArm64Test"); done
           ./gradlew :filmstrip-player:bootIosSimulator "${tasks[@]}" -Pmedia --scan
+      - &probe-after
+        name: Probe the runner after the tests
+        if: always()
+        run: bash .github/scripts/runner-probe.sh after
       - *slowest
       - *failed
       - *artifact
+      - &probe-upload
+        name: Upload the runner probe
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: media-probe-${{ env.ARTIFACT }}
+          path: build/runner-probe/
+          if-no-files-found: ignore
+          retention-days: 30
 
       # A stall inside the simulator leaves nothing in the test output but a timeout, so a red job keeps the
       # simulator's own log from the test run. The player cell keeps it green too, so a slow run has a fast one to be
@@ -356,10 +376,13 @@ jobs:
       - *java
       - *konan
       - *gradle
+      - *probe-before
       - name: Run macos tests
         run: ./gradlew macosArm64Test -Pmedia -PpureEverywhere --scan
+      - *probe-after
       - *slowest
       - *failed
       - *artifact
+      - *probe-upload
       - *results
       - *reports
